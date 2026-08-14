@@ -12,6 +12,8 @@ import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import io.github.jan.supabase.serializer.KotlinXSerializer
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -47,6 +49,18 @@ object SupabaseModule {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_KEY
         ) {
+            // encodeDefaults is off in kotlinx.serialization by default, which
+            // silently DROPS any field whose value equals its declared default.
+            // Postgres then receives null and rejects it -- that's what caused
+            // 'null value in column "unit" violates not-null constraint', and it
+            // would have hit every table, not just the catalog.
+            defaultSerializer = KotlinXSerializer(
+                Json {
+                    encodeDefaults = true
+                    ignoreUnknownKeys = true
+                    explicitNulls = false
+                }
+            )
             install(Auth)
             install(Postgrest)
         }
