@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_back">Atrás</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_add">Añadir</string>
+    <string name="action_done">Listo</string>
+    <string name="action_share">Compartir</string>
+    <string name="action_sign_in">Iniciar sesión</string>
+    <string name="action_sign_out">Cerrar sesión</string>
+    <string name="action_sync_now">Sincronizar ahora</string>
+
+    <string name="jobs_new_job">Trabajo nuevo</string>
+    <string name="jobs_no_jobs">Aún no hay trabajos</string>
+    <string name="jobs_tap_to_start">Toca + para empezar un presupuesto</string>
+    <string name="jobs_untitled">Trabajo sin título</string>
+    <string name="jobs_scheduled_on">Programado %1$s</string>
+    <string name="jobs_updated_on">Actualizado %1$s</string>
+    <string name="stat_this_week">Esta semana</string>
+    <string name="stat_won_this_month">Ganados este mes</string>
+    <string name="stat_collected">Cobrado este mes</string>
+    <string name="stat_unpaid">Trabajos sin pagar</string>
+
+    <string name="status_draft">Borrador</string>
+    <string name="status_sent">Enviado</string>
+    <string name="status_accepted">Aceptado</string>
+    <string name="status_declined">Rechazado</string>
+
+    <string name="section_progress">Progreso del proyecto</string>
+    <string name="section_customer">Cliente</string>
+    <string name="section_fence_runs">Tramos de cerca</string>
+    <string name="section_pricing">Precios</string>
+    <string name="section_schedule_crew">Horario y cuadrilla</string>
+    <string name="section_order_materials">Pedir materiales</string>
+    <string name="section_hoa_permits">Aprobación HOA y permisos</string>
+    <string name="section_change_orders">Órdenes de cambio (trabajo extra)</string>
+    <string name="section_payment">Pago y factura</string>
+    <string name="section_expenses">Gastos del trabajo</string>
+    <string name="section_punch_list">Lista de pendientes / regresos</string>
+    <string name="section_photos">Fotos antes / después</string>
+    <string name="section_review">Pedir una reseña</string>
+
+    <string name="field_customer_name">Nombre del cliente</string>
+    <string name="field_address">Dirección de la propiedad</string>
+    <string name="field_phone">Teléfono</string>
+    <string name="field_email">Correo electrónico</string>
+    <string name="field_notes">Notas</string>
+    <string name="field_referral">¿Cómo supo de nosotros?</string>
+
+    <string name="survey_title">Plano y dibujo</string>
+    <string name="mode_draw">Dibujar</string>
+    <string name="mode_calibrate">Calibrar</string>
+    <string name="mode_gate">Portón</string>
+    <string name="mode_mark_site">Marcar sitio</string>
+    <string name="mode_adjust">Ajustar</string>
+    <string name="mode_move_view">Mover vista</string>
+    <string name="survey_upload_photo">Subir foto</string>
+    <string name="survey_use_grid">Usar cuadrícula</string>
+    <string name="survey_not_calibrated">Sin calibrar — usa el modo Calibrar para fijar la escala</string>
+    <string name="survey_drag_to_move">Arrastra para mover la vista</string>
+    <string name="survey_drag_point">Arrastra un punto marcado para moverlo</string>
+
+    <string name="estimate_title">Presupuesto</string>
+    <string name="estimate_suggest">Sugerir cantidades</string>
+    <string name="estimate_add_item">+ Añadir artículo</string>
+    <string name="estimate_other_items">Otros artículos</string>
+    <string name="estimate_materials_subtotal">Subtotal de materiales</string>
+    <string name="estimate_labor">Mano de obra</string>
+    <string name="estimate_total">TOTAL</string>
+    <string name="estimate_export">Exportar y compartir presupuesto PDF</string>
+    <string name="estimate_invoice">Generar y compartir factura</string>
+    <string name="estimate_sign">Firmar para aceptar</string>
+    <string name="estimate_warnings_title">Antes de enviar esto</string>
+
+    <string name="crew_directions">Cómo llegar</string>
+    <string name="crew_fence_plan">Plano de la cerca</string>
+    <string name="crew_what_building">Lo que vamos a construir</string>
+    <string name="crew_walkthrough">Recorrido con el cliente (antes de empezar)</string>
+    <string name="crew_install_steps">Pasos de instalación</string>
+    <string name="crew_photos">Fotos</string>
+    <string name="crew_mark_complete">Marcar trabajo terminado</string>
+    <string name="crew_finish_steps_first">Termina todos los pasos primero</string>
+    <string name="crew_customer_confirmed">Cliente confirmó</string>
+    <string name="crew_mark_confirmed">Marcar confirmado</string>
+    <string name="crew_progress">%1$d de %2$d hechos</string>
+
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_business_profile">Perfil del negocio</string>
+    <string name="settings_appearance">Apariencia e idioma</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_account_team">Cuenta y equipo</string>
+    <string name="settings_help_feedback">Ayuda y comentarios</string>
+    <string name="settings_backup">Copia de seguridad</string>
+    <string name="settings_backup_now">Hacer copia ahora</string>
+    <string name="settings_restore">Restaurar desde copia</string>
+    <string name="settings_save">Guardar ajustes</string>
+    <string name="settings_saved">Ajustes guardados</string>
+
+    <string name="account_title">Cuenta y equipo</string>
+    <string name="account_cloud_save">Guardado en la nube</string>
+    <string name="sync_saving">Guardando en la nube…</string>
+    <string name="sync_saved">Todo guardado</string>
+    <string name="sync_failed">No se pudo conectar a la nube</string>
+    <string name="sync_local_only">Guardando solo en este teléfono</string>
+    <string name="sync_explain">Tus trabajos se guardan automáticamente: al hacer un cambio, al abrir la app y cada cierto tiempo en segundo plano. Todo funciona sin conexión; los cambios se suben cuando haya señal.</string>
+
+    <string name="reports_title">Informes del negocio</string>
+    <string name="reports_jobs_won">Trabajos ganados</string>
+    <string name="reports_collected">Cobrado</string>
+    <string name="reports_profit">Ganancia est.</string>
+    <string name="reports_margin">Margen</string>
+    <string name="reports_period_day">Hoy</string>
+    <string name="reports_period_week">Esta semana</string>
+    <string name="reports_period_month">Este mes</string>
+    <string name="reports_period_year">Este año</string>
+    <string name="reports_period_all">Todo el tiempo</string>
+
+    <string name="help_title">Ayuda y guías</string>
+    <string name="help_tab_app">Usar la app</string>
+    <string name="help_tab_fence">Básicos de cercas</string>
+    <string name="help_tab_codes">Códigos y permisos</string>
+</resources>

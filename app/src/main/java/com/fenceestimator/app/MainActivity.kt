@@ -1,0 +1,213 @@
+package com.fenceestimator.app
+
+import android.Manifest
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import com.fenceestimator.app.notify.Notifications
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.fenceestimator.app.data.BusinessProfile
+import com.fenceestimator.app.data.ThemeMode
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
+import com.fenceestimator.app.ui.account.AccountScreen
+import com.fenceestimator.app.ui.catalog.CatalogScreen
+import com.fenceestimator.app.ui.components.WithAppLanguage
+import com.fenceestimator.app.ui.crew.CrewJobScreen
+import com.fenceestimator.app.ui.customers.CustomersScreen
+import com.fenceestimator.app.ui.employees.EmployeesScreen
+import com.fenceestimator.app.ui.estimate.EstimateScreen
+import com.fenceestimator.app.ui.inventory.InventoryScreen
+import com.fenceestimator.app.ui.jobs.JobDetailScreen
+import com.fenceestimator.app.ui.jobs.JobsListScreen
+import com.fenceestimator.app.ui.manufacturers.ManufacturersScreen
+import com.fenceestimator.app.ui.nav.Routes
+import com.fenceestimator.app.ui.reports.ReportsScreen
+import com.fenceestimator.app.ui.runs.RunEditScreen
+import com.fenceestimator.app.ui.schedule.ScheduleScreen
+import com.fenceestimator.app.ui.settings.SettingsScreen
+import com.fenceestimator.app.ui.survey.SurveyDrawScreen
+import com.fenceestimator.app.ui.theme.FenceEstimatorTheme
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        Notifications.ensureChannels(this)
+        setContent {
+            // Android 13+ won't post anything without this, and silently drops
+            // notifications rather than telling you -- so ask once on launch.
+            val notificationPermission = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { }
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    !Notifications.hasPermission(this@MainActivity)
+                ) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+            val app = LocalContext.current.applicationContext as FenceEstimatorApp
+            val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
+            val darkTheme = when (profile.themeMode) {
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+            WithAppLanguage(profile.language) {
+                FenceEstimatorTheme(darkTheme = darkTheme) {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        FenceEstimatorNavHost()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FenceEstimatorNavHost() {
+    val navController: NavHostController = rememberNavController()
+
+    NavHost(navController = navController, startDestination = Routes.JOBS) {
+        composable(Routes.JOBS) {
+            JobsListScreen(
+                onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },
+                onOpenCatalog = { navController.navigate(Routes.CATALOG) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenCustomers = { navController.navigate(Routes.CUSTOMERS) },
+                onOpenSchedule = { navController.navigate(Routes.SCHEDULE) },
+                onOpenReports = { navController.navigate(Routes.REPORTS) },
+                onOpenPipeline = { navController.navigate(Routes.PIPELINE) }
+            )
+        }
+        composable(Routes.REPORTS) {
+            ReportsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.PIPELINE) {
+            com.fenceestimator.app.ui.pipeline.PipelineScreen(
+                onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Routes.HELP) {
+            com.fenceestimator.app.ui.help.HelpScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.FEEDBACK) {
+            com.fenceestimator.app.ui.feedback.FeedbackScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            Routes.JOB_DETAIL,
+            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
+            JobDetailScreen(
+                jobId = jobId,
+                onBack = { navController.popBackStack() },
+                onOpenSurvey = { id -> navController.navigate(Routes.survey(id)) },
+                onOpenEstimate = { id -> navController.navigate(Routes.estimate(id)) },
+                onOpenRun = { runId -> navController.navigate(Routes.runEdit(runId)) },
+                onOpenInventory = { id -> navController.navigate(Routes.inventory(id)) },
+                onOpenCrewView = { id -> navController.navigate(Routes.crewJob(id)) },
+                onDeleted = { navController.popBackStack(Routes.JOBS, inclusive = false) }
+            )
+        }
+        composable(
+            Routes.CREW_JOB,
+            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
+            CrewJobScreen(
+                jobId = jobId,
+                onBack = { navController.popBackStack() },
+                onOpenSurvey = { id -> navController.navigate(Routes.survey(id)) }
+            )
+        }
+        composable(
+            Routes.RUN_EDIT,
+            arguments = listOf(navArgument("runId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val runId = backStackEntry.arguments?.getLong("runId") ?: 0L
+            RunEditScreen(
+                runId = runId,
+                onBack = { navController.popBackStack() },
+                onDeleted = { navController.popBackStack() }
+            )
+        }
+        composable(
+            Routes.SURVEY,
+            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
+            SurveyDrawScreen(
+                jobId = jobId,
+                onBack = { navController.popBackStack() },
+                onGoToEstimate = { id -> navController.navigate(Routes.estimate(id)) }
+            )
+        }
+        composable(
+            Routes.ESTIMATE,
+            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
+            EstimateScreen(jobId = jobId, onBack = { navController.popBackStack() })
+        }
+        composable(
+            Routes.INVENTORY,
+            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
+            InventoryScreen(jobId = jobId, onBack = { navController.popBackStack() })
+        }
+        composable(Routes.CATALOG) {
+            CatalogScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenManufacturers = { navController.navigate(Routes.MANUFACTURERS) },
+                onOpenEmployees = { navController.navigate(Routes.EMPLOYEES) },
+                onOpenAccount = { navController.navigate(Routes.ACCOUNT) },
+                onOpenHelp = { navController.navigate(Routes.HELP) },
+                onOpenFeedback = { navController.navigate(Routes.FEEDBACK) }
+            )
+        }
+        composable(Routes.ACCOUNT) {
+            AccountScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.MANUFACTURERS) {
+            ManufacturersScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.EMPLOYEES) {
+            EmployeesScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.CUSTOMERS) {
+            CustomersScreen(
+                onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Routes.SCHEDULE) {
+            ScheduleScreen(
+                onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+    }
+}

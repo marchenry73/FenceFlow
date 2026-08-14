@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FenceFlow</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Back</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_add">Add</string>
+    <string name="action_done">Done</string>
+    <string name="action_share">Share</string>
+    <string name="action_sign_in">Sign In</string>
+    <string name="action_sign_out">Sign Out</string>
+    <string name="action_sync_now">Sync Now</string>
+
+    <!-- Jobs list -->
+    <string name="jobs_new_job">New job</string>
+    <string name="jobs_no_jobs">No jobs yet</string>
+    <string name="jobs_tap_to_start">Tap + to start a new fence estimate</string>
+    <string name="jobs_untitled">Untitled job</string>
+    <string name="jobs_scheduled_on">Scheduled %1$s</string>
+    <string name="jobs_updated_on">Updated %1$s</string>
+    <string name="stat_this_week">This Week</string>
+    <string name="stat_won_this_month">Won This Month</string>
+    <string name="stat_collected">Collected This Month</string>
+    <string name="stat_unpaid">Unpaid Jobs</string>
+
+    <!-- Job statuses -->
+    <string name="status_draft">Draft</string>
+    <string name="status_sent">Sent</string>
+    <string name="status_accepted">Accepted</string>
+    <string name="status_declined">Declined</string>
+
+    <!-- Job detail sections -->
+    <string name="section_progress">Project Progress</string>
+    <string name="section_customer">Customer</string>
+    <string name="section_fence_runs">Fence Runs</string>
+    <string name="section_pricing">Pricing</string>
+    <string name="section_schedule_crew">Schedule &amp; Crew</string>
+    <string name="section_order_materials">Order Materials</string>
+    <string name="section_hoa_permits">HOA Approval &amp; Permits</string>
+    <string name="section_change_orders">Change Orders (extra work)</string>
+    <string name="section_payment">Payment &amp; Invoice</string>
+    <string name="section_expenses">Job Expenses</string>
+    <string name="section_punch_list">Punch List / Callbacks</string>
+    <string name="section_photos">Before / After Photos</string>
+    <string name="section_review">Ask for a Review</string>
+
+    <!-- Customer fields -->
+    <string name="field_customer_name">Customer name</string>
+    <string name="field_address">Property address</string>
+    <string name="field_phone">Phone</string>
+    <string name="field_email">Email</string>
+    <string name="field_notes">Notes</string>
+    <string name="field_referral">How did they hear about us?</string>
+
+    <!-- Survey / drawing -->
+    <string name="survey_title">Survey &amp; Draw</string>
+    <string name="mode_draw">Draw</string>
+    <string name="mode_calibrate">Calibrate</string>
+    <string name="mode_gate">Gate</string>
+    <string name="mode_mark_site">Mark Site</string>
+    <string name="mode_adjust">Adjust</string>
+    <string name="mode_move_view">Move View</string>
+    <string name="survey_upload_photo">Upload Photo</string>
+    <string name="survey_use_grid">Use Grid Instead</string>
+    <string name="survey_not_calibrated">Not calibrated yet — use Calibrate mode to set scale</string>
+    <string name="survey_drag_to_move">Drag to move the view</string>
+    <string name="survey_drag_point">Drag a highlighted point to move it</string>
+
+    <!-- Estimate -->
+    <string name="estimate_title">Estimate</string>
+    <string name="estimate_suggest">Suggest Quantities</string>
+    <string name="estimate_add_item">+ Add Item</string>
+    <string name="estimate_other_items">Other Items</string>
+    <string name="estimate_materials_subtotal">Materials Subtotal</string>
+    <string name="estimate_labor">Labor</string>
+    <string name="estimate_total">TOTAL</string>
+    <string name="estimate_export">Export &amp; Share PDF Estimate</string>
+    <string name="estimate_invoice">Generate &amp; Share Invoice</string>
+    <string name="estimate_sign">Sign to Accept</string>
+    <string name="estimate_warnings_title">Before you send this</string>
+
+    <!-- Crew view -->
+    <string name="crew_directions">Directions</string>
+    <string name="crew_fence_plan">Fence Plan</string>
+    <string name="crew_what_building">What We\'re Building</string>
+    <string name="crew_walkthrough">Walkthrough With Customer (before starting)</string>
+    <string name="crew_install_steps">Install Steps</string>
+    <string name="crew_photos">Photos</string>
+    <string name="crew_mark_complete">Mark Job Complete</string>
+    <string name="crew_finish_steps_first">Finish all install steps first</string>
+    <string name="crew_customer_confirmed">Customer confirmed</string>
+    <string name="crew_mark_confirmed">Mark confirmed</string>
+    <string name="crew_progress">%1$d of %2$d done</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_business_profile">Business Profile</string>
+    <string name="settings_appearance">Appearance &amp; Language</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_account_team">Account &amp; Team</string>
+    <string name="settings_help_feedback">Help &amp; Feedback</string>
+    <string name="settings_backup">Backup &amp; Restore</string>
+    <string name="settings_backup_now">Back Up Now</string>
+    <string name="settings_restore">Restore From Backup</string>
+    <string name="settings_save">Save Settings</string>
+    <string name="settings_saved">Settings saved</string>
+
+    <!-- Account / sync -->
+    <string name="account_title">Account &amp; Team</string>
+    <string name="account_cloud_save">Cloud Save</string>
+    <string name="sync_saving">Saving to cloud…</string>
+    <string name="sync_saved">Everything saved</string>
+    <string name="sync_failed">Couldn\'t reach the cloud</string>
+    <string name="sync_local_only">Saving on this phone only</string>
+    <string name="sync_explain">Your jobs save automatically — when you make a change, when you open the app, and every so often in the background. Everything works offline; changes upload once you have signal.</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Business Reports</string>
+    <string name="reports_jobs_won">Jobs Won</string>
+    <string name="reports_collected">Collected</string>
+    <string name="reports_profit">Est. Profit</string>
+    <string name="reports_margin">Margin</string>
+    <string name="reports_period_day">Today</string>
+    <string name="reports_period_week">This Week</string>
+    <string name="reports_period_month">This Month</string>
+    <string name="reports_period_year">This Year</string>
+    <string name="reports_period_all">All Time</string>
+
+    <!-- Help -->
+    <string name="help_title">Help &amp; Guides</string>
+    <string name="help_tab_app">Using the App</string>
+    <string name="help_tab_fence">Fence Basics</string>
+    <string name="help_tab_codes">Codes &amp; Permits</string>
+</resources>

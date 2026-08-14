@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_back">返回</string>
+    <string name="action_save">保存</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+    <string name="action_add">添加</string>
+    <string name="action_done">完成</string>
+    <string name="action_share">分享</string>
+    <string name="action_sign_in">登录</string>
+    <string name="action_sign_out">退出登录</string>
+    <string name="action_sync_now">立即同步</string>
+
+    <string name="jobs_new_job">新工程</string>
+    <string name="jobs_no_jobs">暂无工程</string>
+    <string name="jobs_tap_to_start">点击 + 创建新报价</string>
+    <string name="jobs_untitled">未命名工程</string>
+    <string name="jobs_scheduled_on">已安排 %1$s</string>
+    <string name="jobs_updated_on">更新于 %1$s</string>
+    <string name="stat_this_week">本周</string>
+    <string name="stat_won_this_month">本月成交</string>
+    <string name="stat_collected">本月收款</string>
+    <string name="stat_unpaid">未付款工程</string>
+
+    <string name="status_draft">草稿</string>
+    <string name="status_sent">已发送</string>
+    <string name="status_accepted">已接受</string>
+    <string name="status_declined">已拒绝</string>
+
+    <string name="section_progress">项目进度</string>
+    <string name="section_customer">客户</string>
+    <string name="section_fence_runs">围栏段</string>
+    <string name="section_pricing">定价</string>
+    <string name="section_schedule_crew">排程与班组</string>
+    <string name="section_order_materials">订购材料</string>
+    <string name="section_hoa_permits">业委会批准与许可</string>
+    <string name="section_change_orders">变更单（额外工程）</string>
+    <string name="section_payment">付款与发票</string>
+    <string name="section_expenses">工程支出</string>
+    <string name="section_punch_list">整改清单 / 返工</string>
+    <string name="section_photos">施工前 / 后照片</string>
+    <string name="section_review">请求评价</string>
+
+    <string name="field_customer_name">客户姓名</string>
+    <string name="field_address">物业地址</string>
+    <string name="field_phone">电话</string>
+    <string name="field_email">电子邮件</string>
+    <string name="field_notes">备注</string>
+    <string name="field_referral">客户如何得知我们？</string>
+
+    <string name="survey_title">测绘与绘图</string>
+    <string name="mode_draw">绘制</string>
+    <string name="mode_calibrate">校准</string>
+    <string name="mode_gate">大门</string>
+    <string name="mode_mark_site">标记现场</string>
+    <string name="mode_adjust">调整</string>
+    <string name="mode_move_view">移动视图</string>
+    <string name="survey_upload_photo">上传照片</string>
+    <string name="survey_use_grid">改用网格</string>
+    <string name="survey_not_calibrated">尚未校准 — 请用校准模式设置比例</string>
+    <string name="survey_drag_to_move">拖动以移动视图</string>
+    <string name="survey_drag_point">拖动高亮的点以移动它</string>
+
+    <string name="estimate_title">报价</string>
+    <string name="estimate_suggest">建议用量</string>
+    <string name="estimate_add_item">+ 添加项目</string>
+    <string name="estimate_other_items">其他项目</string>
+    <string name="estimate_materials_subtotal">材料小计</string>
+    <string name="estimate_labor">人工</string>
+    <string name="estimate_total">总计</string>
+    <string name="estimate_export">导出并分享 PDF 报价</string>
+    <string name="estimate_invoice">生成并分享发票</string>
+    <string name="estimate_sign">签字确认</string>
+    <string name="estimate_warnings_title">发送前请注意</string>
+
+    <string name="crew_directions">导航</string>
+    <string name="crew_fence_plan">围栏图纸</string>
+    <string name="crew_what_building">施工内容</string>
+    <string name="crew_walkthrough">与客户现场确认（开工前）</string>
+    <string name="crew_install_steps">安装步骤</string>
+    <string name="crew_photos">照片</string>
+    <string name="crew_mark_complete">标记工程完成</string>
+    <string name="crew_finish_steps_first">请先完成所有安装步骤</string>
+    <string name="crew_customer_confirmed">客户已确认</string>
+    <string name="crew_mark_confirmed">标记为已确认</string>
+    <string name="crew_progress">已完成 %1$d / %2$d</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_business_profile">公司资料</string>
+    <string name="settings_appearance">外观与语言</string>
+    <string name="settings_theme">主题</string>
+    <string name="settings_language">语言</string>
+    <string name="settings_account_team">账户与团队</string>
+    <string name="settings_help_feedback">帮助与反馈</string>
+    <string name="settings_backup">备份与恢复</string>
+    <string name="settings_backup_now">立即备份</string>
+    <string name="settings_restore">从备份恢复</string>
+    <string name="settings_save">保存设置</string>
+    <string name="settings_saved">设置已保存</string>
+
+    <string name="account_title">账户与团队</string>
+    <string name="account_cloud_save">云端保存</string>
+    <string name="sync_saving">正在保存到云端…</string>
+    <string name="sync_saved">全部已保存</string>
+    <string name="sync_failed">无法连接云端</string>
+    <string name="sync_local_only">仅保存在本机</string>
+    <string name="sync_explain">您的工程会自动保存：修改时、打开应用时，以及后台定期保存。全部功能可离线使用；有信号后会自动上传。</string>
+
+    <string name="reports_title">经营报表</string>
+    <string name="reports_jobs_won">成交工程</string>
+    <string name="reports_collected">已收款</string>
+    <string name="reports_profit">预估利润</string>
+    <string name="reports_margin">利润率</string>
+    <string name="reports_period_day">今天</string>
+    <string name="reports_period_week">本周</string>
+    <string name="reports_period_month">本月</string>
+    <string name="reports_period_year">今年</string>
+    <string name="reports_period_all">全部时间</string>
+
+    <string name="help_title">帮助与指南</string>
+    <string name="help_tab_app">使用应用</string>
+    <string name="help_tab_fence">围栏基础</string>
+    <string name="help_tab_codes">法规与许可</string>
+</resources>

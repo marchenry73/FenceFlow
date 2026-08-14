@@ -1,0 +1,32 @@
+# Local configuration — contains SDK paths and API credentials.
+local.properties
+
+# Firebase config identifies your project and enables its quotas; keep it out
+# of a public repository. Each developer downloads their own from the console.
+app/google-services.json
+
+# Release signing — losing or leaking these means losing control of the app.
+*.jks
+*.keystore
+keystore.properties
+
+# Build output
+build/
+app/build/
+.gradle/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Node (website tooling)
+node_modules/

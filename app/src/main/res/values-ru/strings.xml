@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_back">Назад</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_add">Добавить</string>
+    <string name="action_done">Готово</string>
+    <string name="action_share">Поделиться</string>
+    <string name="action_sign_in">Войти</string>
+    <string name="action_sign_out">Выйти</string>
+    <string name="action_sync_now">Синхронизировать</string>
+
+    <string name="jobs_new_job">Новый объект</string>
+    <string name="jobs_no_jobs">Объектов пока нет</string>
+    <string name="jobs_tap_to_start">Нажмите +, чтобы создать смету</string>
+    <string name="jobs_untitled">Объект без названия</string>
+    <string name="jobs_scheduled_on">Запланировано %1$s</string>
+    <string name="jobs_updated_on">Изменено %1$s</string>
+    <string name="stat_this_week">На этой неделе</string>
+    <string name="stat_won_this_month">Выиграно за месяц</string>
+    <string name="stat_collected">Получено за месяц</string>
+    <string name="stat_unpaid">Неоплаченные объекты</string>
+
+    <string name="status_draft">Черновик</string>
+    <string name="status_sent">Отправлено</string>
+    <string name="status_accepted">Принято</string>
+    <string name="status_declined">Отклонено</string>
+
+    <string name="section_progress">Ход работ</string>
+    <string name="section_customer">Клиент</string>
+    <string name="section_fence_runs">Участки забора</string>
+    <string name="section_pricing">Цены</string>
+    <string name="section_schedule_crew">График и бригада</string>
+    <string name="section_order_materials">Заказ материалов</string>
+    <string name="section_hoa_permits">Согласования и разрешения</string>
+    <string name="section_change_orders">Доп. работы</string>
+    <string name="section_payment">Оплата и счёт</string>
+    <string name="section_expenses">Расходы по объекту</string>
+    <string name="section_punch_list">Список недоделок</string>
+    <string name="section_photos">Фото до / после</string>
+    <string name="section_review">Попросить отзыв</string>
+
+    <string name="field_customer_name">Имя клиента</string>
+    <string name="field_address">Адрес объекта</string>
+    <string name="field_phone">Телефон</string>
+    <string name="field_email">Эл. почта</string>
+    <string name="field_notes">Заметки</string>
+    <string name="field_referral">Откуда о нас узнали?</string>
+
+    <string name="survey_title">План и чертёж</string>
+    <string name="mode_draw">Чертить</string>
+    <string name="mode_calibrate">Калибровка</string>
+    <string name="mode_gate">Ворота</string>
+    <string name="mode_mark_site">Отметить</string>
+    <string name="mode_adjust">Правка</string>
+    <string name="mode_move_view">Сдвинуть вид</string>
+    <string name="survey_upload_photo">Загрузить фото</string>
+    <string name="survey_use_grid">Использовать сетку</string>
+    <string name="survey_not_calibrated">Не откалибровано — задайте масштаб в режиме калибровки</string>
+    <string name="survey_drag_to_move">Проведите, чтобы сдвинуть вид</string>
+    <string name="survey_drag_point">Перетащите точку, чтобы её сдвинуть</string>
+
+    <string name="estimate_title">Смета</string>
+    <string name="estimate_suggest">Рассчитать количество</string>
+    <string name="estimate_add_item">+ Добавить позицию</string>
+    <string name="estimate_other_items">Прочие позиции</string>
+    <string name="estimate_materials_subtotal">Материалы, итого</string>
+    <string name="estimate_labor">Работа</string>
+    <string name="estimate_total">ИТОГО</string>
+    <string name="estimate_export">Экспорт сметы в PDF</string>
+    <string name="estimate_invoice">Создать и отправить счёт</string>
+    <string name="estimate_sign">Подписать</string>
+    <string name="estimate_warnings_title">Проверьте перед отправкой</string>
+
+    <string name="crew_directions">Маршрут</string>
+    <string name="crew_fence_plan">План забора</string>
+    <string name="crew_what_building">Что строим</string>
+    <string name="crew_walkthrough">Обход с клиентом (до начала работ)</string>
+    <string name="crew_install_steps">Этапы монтажа</string>
+    <string name="crew_photos">Фото</string>
+    <string name="crew_mark_complete">Отметить как завершённый</string>
+    <string name="crew_finish_steps_first">Сначала завершите все этапы</string>
+    <string name="crew_customer_confirmed">Клиент подтвердил</string>
+    <string name="crew_mark_confirmed">Отметить подтверждённым</string>
+    <string name="crew_progress">Выполнено %1$d из %2$d</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="settings_business_profile">Профиль компании</string>
+    <string name="settings_appearance">Оформление и язык</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_account_team">Аккаунт и команда</string>
+    <string name="settings_help_feedback">Помощь и отзывы</string>
+    <string name="settings_backup">Резервная копия</string>
+    <string name="settings_backup_now">Создать копию</string>
+    <string name="settings_restore">Восстановить из копии</string>
+    <string name="settings_save">Сохранить настройки</string>
+    <string name="settings_saved">Настройки сохранены</string>
+
+    <string name="account_title">Аккаунт и команда</string>
+    <string name="account_cloud_save">Сохранение в облаке</string>
+    <string name="sync_saving">Сохранение в облако…</string>
+    <string name="sync_saved">Всё сохранено</string>
+    <string name="sync_failed">Нет связи с облаком</string>
+    <string name="sync_local_only">Сохраняется только на этом телефоне</string>
+    <string name="sync_explain">Объекты сохраняются автоматически: при изменении, при запуске приложения и периодически в фоне. Всё работает без интернета; изменения загрузятся, когда появится связь.</string>
+
+    <string name="reports_title">Отчёты по бизнесу</string>
+    <string name="reports_jobs_won">Выигранные объекты</string>
+    <string name="reports_collected">Получено</string>
+    <string name="reports_profit">Приб. (оценка)</string>
+    <string name="reports_margin">Маржа</string>
+    <string name="reports_period_day">Сегодня</string>
+    <string name="reports_period_week">Эта неделя</string>
+    <string name="reports_period_month">Этот месяц</string>
+    <string name="reports_period_year">Этот год</string>
+    <string name="reports_period_all">За всё время</string>
+
+    <string name="help_title">Помощь и руководства</string>
+    <string name="help_tab_app">Работа с приложением</string>
+    <string name="help_tab_fence">Основы установки</string>
+    <string name="help_tab_codes">Нормы и разрешения</string>
+</resources>
