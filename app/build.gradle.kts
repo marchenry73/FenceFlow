@@ -121,3 +121,23 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
+
+// The project itself stays on the local disk on purpose. Gradle does tens of
+// thousands of small reads, writes, and file locks per build, and a synced
+// virtual drive can't keep up -- that's what broke builds back when this lived
+// in OneDrive. So only the one finished APK travels to Google Drive, where it
+// syncs down to the phone for installing.
+val driveProjectFolder = file("G:/My Drive/Professional Documents/Projects/FenceEstimator")
+
+tasks.register<Copy>("copyDebugApkToDrive") {
+    description = "Copies the debug APK into Google Drive so it syncs to the phone."
+    from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
+    into(driveProjectFolder.resolve("app/build/outputs/apk/debug"))
+    // Skips quietly when the drive isn't mounted -- Drive paused, or a different
+    // machine -- so a missing G: never fails the build.
+    onlyIf { driveProjectFolder.exists() }
+}
+
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+    finalizedBy("copyDebugApkToDrive")
+}
