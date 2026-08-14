@@ -74,6 +74,50 @@
   .card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:7px;cursor:pointer;font-size:13px}
   .card:hover{border-color:var(--orange)}
   @media(max-width:700px){.row2,.row3{grid-template-columns:1fr}.cal .day{min-height:64px}}
+
+  /* ---- Reports ---- */
+  /* Categorical slots below are the validated default palette (light mode,
+     white surface). Two of them sit under 3:1 contrast, so every chart here
+     ships visible direct labels and a table view — the relief rule. */
+  .viz-root{
+    --surface-1:#ffffff;
+    --text-primary:#12151A;
+    --text-secondary:#5A6472;
+    --grid:#EDF0F4;
+    --series-1:#2a78d6;
+    --series-2:#eb6834;
+    --series-3:#1baf7a;
+    --series-4:#eda100;
+  }
+  .filters{position:sticky;top:0;z-index:5}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .chip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 13px;
+        font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit}
+  .chip:hover{border-color:var(--orange)}
+  .chip.on{background:var(--graphite);border-color:var(--graphite);color:#fff}
+  .range{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+  .range-label{margin-top:9px;font-size:12px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
+  .panel .sub{font-size:12px;color:var(--muted);margin:-6px 0 12px}
+  .chart{width:100%;overflow:visible;display:block}
+  .chart .grid-line{stroke:var(--grid);stroke-width:1}
+  .chart .axis-label{fill:var(--text-secondary);font-size:11px}
+  .chart .val-label{fill:var(--text-primary);font-size:11px;font-weight:700}
+  .chart .bar{transition:opacity .12s}
+  .chart g:hover .bar{opacity:.78}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--text-secondary)}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
+  .no-data{color:var(--muted);font-size:13px;padding:22px 0;text-align:center}
+  .cat{margin-bottom:16px}
+  .cat-head{width:100%;text-align:left;background:none;border:none;padding:10px 2px;
+            font-size:17px;font-weight:700;color:var(--text-primary);cursor:pointer;
+            font-family:inherit;display:flex;align-items:baseline;gap:8px}
+  .cat-head:hover{color:var(--orange)}
+  .cat-sub{font-size:12px;font-weight:400;color:var(--muted)}
+  .caret{display:inline-block;transition:transform .15s;font-size:13px;color:var(--muted)}
+  .cat.closed .caret{transform:rotate(-90deg)}
+  .cat.closed .cat-body{display:none}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -176,21 +220,119 @@
       </div>
     </div>
 
-    <div id="tab-reports" style="display:none">
+    <div id="tab-reports" style="display:none" class="viz-root">
+      <!-- Filters live in one row above the charts. -->
+      <div class="panel filters">
+        <div class="chips" id="repPresets">
+          <button class="chip" data-days="7">Last 7 days</button>
+          <button class="chip" data-days="30">Last 30 days</button>
+          <button class="chip on" data-days="90">Last 90 days</button>
+          <button class="chip" data-days="365">Last 12 months</button>
+          <button class="chip" data-days="0">All time</button>
+        </div>
+        <div class="range">
+          <div><label>From</label><input type="date" id="repFrom"></div>
+          <div><label>To</label><input type="date" id="repTo"></div>
+          <div><label>Hours of day</label>
+            <select id="repHours">
+              <option value="all">All hours</option>
+              <option value="early">Before 8am</option>
+              <option value="work">8am – 5pm</option>
+              <option value="late">After 5pm</option>
+            </select></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn btn-sm" id="repApply">Apply</button></div>
+        </div>
+        <div id="repRangeLabel" class="range-label"></div>
+      </div>
+
+      <div class="stats" id="repHero"></div>
+
+      <!-- Grouped so the page opens readable rather than as a wall of eight
+           charts. Each group remembers whether you left it open. -->
+      <section class="cat" data-cat="money">
+        <button class="cat-head"><span class="caret">▾</span> Money <span class="cat-sub">Revenue, costs, what you're owed</span></button>
+        <div class="cat-body"><div class="grid2">
+          <div class="panel">
+            <h2>Revenue collected</h2><p class="sub">Money received, by month</p>
+            <div id="chartRevenue"></div>
+          </div>
+          <div class="panel">
+            <h2>Where the money goes</h2><p class="sub">Costs against what you collected</p>
+            <div id="chartCosts"></div>
+          </div>
+          <div class="panel">
+            <h2>Expenses by category</h2><p class="sub">Fuel, rentals, permits and other</p>
+            <div id="chartExpenses"></div>
+          </div>
+        </div></div>
+      </section>
+
+      <section class="cat" data-cat="sales">
+        <button class="cat-head"><span class="caret">▾</span> Sales <span class="cat-sub">Pipeline, conversion, lead sources</span></button>
+        <div class="cat-body"><div class="grid2">
+          <div class="panel">
+            <h2>Jobs by stage</h2><p class="sub">Everything currently in the pipeline</p>
+            <div id="chartStages"></div>
+          </div>
+          <div class="panel">
+            <h2>Quote conversion</h2><p class="sub">How many quotes turn into work</p>
+            <div id="chartFunnel"></div>
+          </div>
+          <div class="panel">
+            <h2>Where leads come from</h2><p class="sub">Referral source on won jobs</p>
+            <div id="chartLeads"></div>
+          </div>
+        </div></div>
+      </section>
+
+      <section class="cat" data-cat="work">
+        <button class="cat-head"><span class="caret">▾</span> Work &amp; Crew <span class="cat-sub">Hours, fence types built</span></button>
+        <div class="cat-body"><div class="grid2">
+          <div class="panel">
+            <h2>Hours by crew member</h2><p class="sub">Clocked hours in this period</p>
+            <div id="chartCrew"></div>
+          </div>
+          <div class="panel">
+            <h2>Fence types built</h2><p class="sub">Runs by fence type</p>
+            <div id="chartTypes"></div>
+          </div>
+        </div></div>
+      </section>
+
+      <section class="cat" data-cat="detail">
+        <button class="cat-head"><span class="caret">▾</span> Detailed tables <span class="cat-sub">Crew, money owed, clock in/out</span></button>
+        <div class="cat-body">
       <div class="panel">
-        <h2>Business Reports</h2>
-        <select id="repPeriod" style="max-width:220px;margin-bottom:12px">
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-          <option value="365">Last year</option>
-          <option value="0" selected>All time</option>
-        </select>
-        <div class="stats" id="repStats"></div>
-        <h2 style="margin-top:16px">By Installer</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0">Crew detail</h2>
+          <button class="btn btn-sm btn-grey" id="exportCrew">Export CSV</button>
+        </div>
         <div class="scroll"><table>
-          <thead><tr><th>Installer</th><th>Jobs</th><th>Hours</th><th>Labor cost</th></tr></thead>
+          <thead><tr><th>Installer</th><th>Jobs</th><th>Hours</th><th>Labor cost</th><th>Avg $/hr</th></tr></thead>
           <tbody id="repCrew"></tbody></table></div>
       </div>
+
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0">Money owed</h2>
+          <button class="btn btn-sm btn-grey" id="exportOwed">Export CSV</button>
+        </div>
+        <div class="scroll"><table>
+          <thead><tr><th>Customer</th><th>Status</th><th>Materials</th><th>Paid</th><th>Outstanding</th></tr></thead>
+          <tbody id="repOwed"></tbody></table></div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0">Clock in / out detail</h2>
+          <button class="btn btn-sm btn-grey" id="exportTime">Export CSV</button>
+        </div>
+        <div class="scroll"><table>
+          <thead><tr><th>Date</th><th>Job</th><th>In</th><th>Out</th><th>Hours</th><th>Cost</th></tr></thead>
+          <tbody id="repTimeRows"></tbody></table></div>
+      </div>
+        </div>
+      </section>
     </div>
 
     <div id="tab-settings" style="display:none">
@@ -554,45 +696,261 @@ function renderCatalog(){
     <td>${money(c.unit_price)}</td></tr>`).join('');
 }
 
-/* ---------- reports ---------- */
+/* ---------- charts ----------
+   Inline SVG, no libraries. Every chart carries direct value labels because
+   two palette slots fall under 3:1 contrast on white, and a chart whose
+   colours can't be trusted alone must state its numbers. */
+
+const SERIES=['var(--series-1)','var(--series-2)','var(--series-3)','var(--series-4)'];
+
+function noData(el,text){ $(el).innerHTML=`<div class="no-data">${esc(text)}</div>`; }
+
+/**
+ * Horizontal bars. One series → one colour (slot 1); a value-ramp across
+ * nominal categories would double-encode length as hue.
+ */
+function barsH(el,rows,fmt,colorFn){
+  if(!rows.length) return noData(el,'Nothing in this period.');
+  const rowH=34, pad=8, labelW=130, w=560;
+  const h=rows.length*rowH+pad*2;
+  const max=Math.max(...rows.map(r=>r.value),1);
+  const plotW=w-labelW-90;
+
+  const bars=rows.map((r,i)=>{
+    const y=pad+i*rowH;
+    // Cap thickness at 24px and leave the rest of the band as air.
+    const bh=Math.min(24,rowH-10);
+    const bw=Math.max(2,(r.value/max)*plotW);
+    const fill=colorFn?colorFn(r,i):SERIES[0];
+    return `<g><title>${esc(r.label)}: ${esc(fmt(r.value))}</title>
+      <text class="axis-label" x="${labelW-8}" y="${y+bh/2+4}" text-anchor="end">${esc(r.label)}</text>
+      <rect class="bar" x="${labelW}" y="${y+(rowH-bh)/2-4}" width="${bw}" height="${bh}"
+            rx="4" fill="${fill}"/>
+      <rect x="${labelW}" y="${y+(rowH-bh)/2-4}" width="4" height="${bh}" fill="${fill}"/>
+      <text class="val-label" x="${labelW+bw+8}" y="${y+bh/2+4}">${esc(fmt(r.value))}</text>
+    </g>`;
+  }).join('');
+
+  $(el).innerHTML=`<svg class="chart" viewBox="0 0 ${w} ${h}" role="img"
+    aria-label="Bar chart">${bars}</svg>`;
+}
+
+/** Columns over time. Single series, so no legend — the title names it. */
+function colsV(el,rows,fmt){
+  if(!rows.length||rows.every(r=>!r.value)) return noData(el,'Nothing in this period.');
+  const w=560,h=230,padL=54,padB=34,padT=14;
+  const max=Math.max(...rows.map(r=>r.value),1);
+  const plotH=h-padB-padT, plotW=w-padL-14;
+  const band=plotW/rows.length;
+  const bw=Math.min(24,band-10);
+
+  const ticks=[0,.5,1].map(t=>{
+    const y=padT+plotH-t*plotH;
+    return `<line class="grid-line" x1="${padL}" y1="${y}" x2="${w-14}" y2="${y}"/>
+      <text class="axis-label" x="${padL-8}" y="${y+4}" text-anchor="end">${esc(fmt(max*t))}</text>`;
+  }).join('');
+
+  const bars=rows.map((r,i)=>{
+    const bh=(r.value/max)*plotH;
+    const x=padL+i*band+(band-bw)/2, y=padT+plotH-bh;
+    return `<g><title>${esc(r.label)}: ${esc(fmt(r.value))}</title>
+      <rect class="bar" x="${x}" y="${y}" width="${bw}" height="${Math.max(bh,2)}" rx="4" fill="${SERIES[0]}"/>
+      <rect x="${x}" y="${padT+plotH-Math.min(bh,4)}" width="${bw}" height="${Math.min(bh,4)}" fill="${SERIES[0]}"/>
+      <text class="axis-label" x="${x+bw/2}" y="${h-12}" text-anchor="middle">${esc(r.label)}</text>
+      ${r.value>0?`<text class="val-label" x="${x+bw/2}" y="${y-5}" text-anchor="middle">${esc(fmt(r.value))}</text>`:''}
+    </g>`;
+  }).join('');
+
+  $(el).innerHTML=`<svg class="chart" viewBox="0 0 ${w} ${h}" role="img"
+    aria-label="Column chart">${ticks}${bars}</svg>`;
+}
+
+/* ---------- report period ---------- */
+let repFrom=null, repTo=null;
+
+function setPreset(days){
+  const to=new Date(); to.setHours(23,59,59,999);
+  const from = days ? new Date(Date.now()-days*864e5) : new Date(2000,0,1);
+  from.setHours(0,0,0,0);
+  repFrom=from; repTo=to;
+  $('repFrom').value=from.toISOString().slice(0,10);
+  $('repTo').value=to.toISOString().slice(0,10);
+}
+
+function hourFilterOk(dateObj){
+  const mode=$('repHours').value;
+  if(mode==='all'||!dateObj) return true;
+  const h=dateObj.getHours();
+  if(mode==='early') return h<8;
+  if(mode==='work') return h>=8&&h<17;
+  return h>=17;
+}
+
+function inPeriod(dateStr){
+  if(!dateStr) return false;
+  const t=d(dateStr);
+  return t>=repFrom && t<=repTo;
+}
+
 function renderReports(){
-  const days=parseInt($('repPeriod').value,10);
-  const cutoff = days ? new Date(Date.now()-days*864e5) : new Date(0);
-  const inRange=jobs.filter(j=>d(j.updated_at||j.created_at)>=cutoff);
-  const wonJobs=inRange.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED');
-  const syncIds=new Set(inRange.map(j=>j.sync_id));
+  if(!repFrom) setPreset(90);
+  $('repRangeLabel').textContent =
+    `${repFrom.toLocaleDateString()} — ${repTo.toLocaleDateString()}`
+    + ($('repHours').value!=='all' ? ` · ${$('repHours').selectedOptions[0].text.toLowerCase()}` : '');
+
+  const jobsIn=jobs.filter(j=>inPeriod(j.updated_at||j.created_at));
+  const syncIds=new Set(jobsIn.map(j=>j.sync_id));
+  const won=jobsIn.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED');
+  const timesIn=times.filter(t=>t.ended_at&&inPeriod(t.started_at)&&hourFilterOk(d(t.started_at)));
 
   const material=items.filter(i=>syncIds.has(i.job_sync_id))
     .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
   const other=expenses.filter(e=>syncIds.has(e.job_sync_id)).reduce((s,e)=>s+(e.amount||0),0);
-  const labor=times.filter(t=>t.ended_at&&syncIds.has(t.job_sync_id))
-    .reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
-  const collected=inRange.reduce((s,j)=>s+(j.amount_paid||0),0);
+  const labor=timesIn.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
+  const collected=jobsIn.reduce((s,j)=>s+(j.amount_paid||0),0);
   const profit=collected-material-labor-other;
+  const margin=collected>0?(profit/collected*100):0;
+  const hours=timesIn.reduce((s,t)=>s+hoursOf(t),0);
+  const quotes=jobsIn.filter(j=>j.status!=='DRAFT').length;
+  const closing=quotes?(won.length/quotes*100):0;
 
-  $('repStats').innerHTML=`
-    <div class="stat"><div class="n">${wonJobs.length}</div><div class="l">Jobs won</div></div>
+  // Headline numbers are stat tiles, not charts — one number is not a bar.
+  $('repHero').innerHTML=`
     <div class="stat"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>
-    <div class="stat"><div class="n">${money(material)}</div><div class="l">Material cost</div></div>
-    <div class="stat"><div class="n">${money(labor)}</div><div class="l">Labor (clocked)</div></div>
-    <div class="stat"><div class="n">${money(other)}</div><div class="l">Other expenses</div></div>
-    <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit</div></div>`;
+    <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit</div></div>
+    <div class="stat"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>
+    <div class="stat"><div class="n">${won.length}</div><div class="l">Jobs won</div></div>
+    <div class="stat"><div class="n">${closing.toFixed(0)}%</div><div class="l">Close rate</div></div>
+    <div class="stat"><div class="n">${hours.toFixed(0)}</div><div class="l">Hours clocked</div></div>`;
 
+  // Revenue by month
+  const byMonth={};
+  jobsIn.forEach(j=>{
+    if(!(j.amount_paid>0)) return;
+    const t=d(j.updated_at||j.created_at);
+    const k=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
+    byMonth[k]=(byMonth[k]||0)+j.amount_paid;
+  });
+  colsV('chartRevenue',
+    Object.keys(byMonth).sort().slice(-12).map(k=>({
+      label:new Date(k+'-01').toLocaleDateString('en-US',{month:'short'}),
+      value:byMonth[k]
+    })), money);
+
+  // Cost breakdown — named categories, so distinct hues plus a legend.
+  const costRows=[
+    {label:'Collected',value:collected},
+    {label:'Materials',value:material},
+    {label:'Labor',value:labor},
+    {label:'Other expenses',value:other}
+  ].filter(r=>r.value>0);
+  barsH('chartCosts',costRows,money,(r,i)=>SERIES[i%SERIES.length]);
+  $('chartCosts').insertAdjacentHTML('beforeend',
+    `<div class="legend">${costRows.map((r,i)=>
+      `<span><i style="background:${SERIES[i%SERIES.length]}"></i>${esc(r.label)}</span>`).join('')}</div>`);
+
+  // Pipeline stages
+  const stages=['New Lead','Quote Sent','Approved','Deposit Paid','Scheduled','Installed','Paid in Full'];
+  barsH('chartStages',
+    stages.map(s=>({label:s,value:jobs.filter(j=>stageOf(j)===s).length})).filter(r=>r.value>0),
+    v=>String(v));
+
+  // Fence types by linear feet — footage isn't stored, so count runs instead
+  // and say so rather than inventing a number.
+  const byType={};
+  runs.filter(r=>syncIds.has(r.job_sync_id)).forEach(r=>{
+    const k=(r.fence_type||'').replace(/_/g,' ')||'Unknown';
+    byType[k]=(byType[k]||0)+1;
+  });
+  barsH('chartTypes',
+    Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v})),
+    v=>`${v} run${v===1?'':'s'}`);
+
+  // Hours by crew
   const byEmp={};
-  times.filter(t=>t.ended_at&&syncIds.has(t.job_sync_id)).forEach(t=>{
+  timesIn.forEach(t=>{
     const j=jobBySync(t.job_sync_id);
     const emp=employees.find(e=>e.id===j?.assigned_employee_id);
-    const key=emp?emp.name:'Unassigned';
+    const key=emp?(emp.name||'Unnamed'):'Unassigned';
     byEmp[key]=byEmp[key]||{jobs:new Set(),hours:0,cost:0};
     byEmp[key].jobs.add(t.job_sync_id);
     byEmp[key].hours+=hoursOf(t);
     byEmp[key].cost+=hoursOf(t)*(t.hourly_rate||0);
   });
-  const rows=Object.entries(byEmp);
-  $('repCrew').innerHTML = rows.length
-    ? rows.map(([n,v])=>`<tr><td>${esc(n)}</td><td>${v.jobs.size}</td>
-        <td>${v.hours.toFixed(1)}</td><td>${money(v.cost)}</td></tr>`).join('')
-    : '<tr><td colspan="4" style="color:var(--muted)">No clocked time in this period.</td></tr>';
+  barsH('chartCrew',
+    Object.entries(byEmp).sort((a,b)=>b[1].hours-a[1].hours)
+      .map(([k,v])=>({label:k,value:v.hours})),
+    v=>`${v.toFixed(1)} h`);
+
+  // Expenses by category
+  const byCat={};
+  expenses.filter(e=>syncIds.has(e.job_sync_id)).forEach(e=>{
+    const k=(e.category||'OTHER').replace(/_/g,' ');
+    byCat[k]=(byCat[k]||0)+(e.amount||0);
+  });
+  barsH('chartExpenses',
+    Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v})), money);
+
+  // Lead sources
+  const bySrc={};
+  won.forEach(j=>{
+    const k=(j.referral_source||'').trim()||'Not recorded';
+    bySrc[k]=(bySrc[k]||0)+1;
+  });
+  barsH('chartLeads',
+    Object.entries(bySrc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k,value:v})),
+    v=>String(v));
+
+  // Conversion funnel — ordered stages, so a single hue is correct here.
+  barsH('chartFunnel',[
+    {label:'All jobs',value:jobsIn.length},
+    {label:'Quoted',value:quotes},
+    {label:'Won',value:won.length},
+    {label:'Paid in full',value:jobsIn.filter(j=>j.payment_status==='PAID_IN_FULL').length}
+  ].filter(r=>r.value>0), v=>String(v));
+
+  // Tables — the accessible view of the same numbers.
+  const crewRows=Object.entries(byEmp);
+  $('repCrew').innerHTML = crewRows.length
+    ? crewRows.map(([n,v])=>`<tr><td>${esc(n)}</td><td>${v.jobs.size}</td>
+        <td>${v.hours.toFixed(1)}</td><td>${money(v.cost)}</td>
+        <td>${v.hours>0?money(v.cost/v.hours):'—'}</td></tr>`).join('')
+    : '<tr><td colspan="5" style="color:var(--muted)">No clocked time in this period.</td></tr>';
+
+  const owed=jobsIn.map(j=>{
+    const mat=items.filter(i=>i.job_sync_id===j.sync_id)
+      .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
+    return {j,mat,out:Math.max(0,mat-(j.amount_paid||0))};
+  }).filter(r=>r.out>0.01).sort((a,b)=>b.out-a.out);
+  $('repOwed').innerHTML = owed.length
+    ? owed.map(r=>`<tr><td>${esc(r.j.customer_name)||'Untitled'}</td>
+        <td><span class="pill ${esc(r.j.status)}">${esc(r.j.status)}</span></td>
+        <td>${money(r.mat)}</td><td>${money(r.j.amount_paid)}</td>
+        <td><strong>${money(r.out)}</strong></td></tr>`).join('')
+    : '<tr><td colspan="5" style="color:var(--muted)">Nothing outstanding.</td></tr>';
+
+  $('repTimeRows').innerHTML = timesIn.length
+    ? timesIn.sort((a,b)=>d(b.started_at)-d(a.started_at)).map(t=>{
+        const j=jobBySync(t.job_sync_id), h=hoursOf(t);
+        return `<tr><td>${d(t.started_at).toLocaleDateString()}</td>
+          <td>${esc(j?.customer_name)||'—'}</td>
+          <td>${d(t.started_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
+          <td>${d(t.ended_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
+          <td>${h.toFixed(2)}</td><td>${money(h*(t.hourly_rate||0))}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="6" style="color:var(--muted)">No clocked time in this period.</td></tr>';
+
+  window._repExport={crew:crewRows,owed,times:timesIn};
+}
+
+/* Downloads a table as CSV. Values are quoted so commas in names survive. */
+function downloadCsv(name,header,rows){
+  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const csv=[header.map(q).join(','),...rows.map(r=>r.map(q).join(','))].join('\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  const a=document.createElement('a');
+  a.href=url; a.download=name; a.click();
+  URL.revokeObjectURL(url);
 }
 
 function renderTiers(){
@@ -794,7 +1152,50 @@ $('saveEmp').addEventListener('click',saveEmp);
 $('deleteEmp').addEventListener('click',deleteEmp);
 $('saveSettings').addEventListener('click',saveSettings);
 $('catFilter').addEventListener('input',renderCatalog);
-$('repPeriod').addEventListener('change',renderReports);
+
+// Report filters
+document.querySelectorAll('#repPresets .chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#repPresets .chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');
+  setPreset(parseInt(c.dataset.days,10));
+  renderReports();
+}));
+$('repApply').addEventListener('click',()=>{
+  // A hand-typed range is a custom range, so no preset stays highlighted.
+  const f=$('repFrom').value, t=$('repTo').value;
+  if(f) { repFrom=new Date(f+'T00:00:00'); }
+  if(t) { repTo=new Date(t+'T23:59:59'); }
+  document.querySelectorAll('#repPresets .chip').forEach(x=>x.classList.remove('on'));
+  renderReports();
+});
+$('repHours').addEventListener('change',renderReports);
+
+// Collapsible report categories. Open/closed is remembered per browser so the
+// page comes back the way you left it.
+document.querySelectorAll('.cat').forEach(sec=>{
+  const key='ff-cat-'+sec.dataset.cat;
+  if(localStorage.getItem(key)==='closed') sec.classList.add('closed');
+  sec.querySelector('.cat-head').addEventListener('click',()=>{
+    sec.classList.toggle('closed');
+    localStorage.setItem(key, sec.classList.contains('closed')?'closed':'open');
+  });
+});
+$('exportCrew').addEventListener('click',()=>downloadCsv('crew-report.csv',
+  ['Installer','Jobs','Hours','Labor cost','Avg per hour'],
+  (window._repExport?.crew||[]).map(([n,v])=>
+    [n,v.jobs.size,v.hours.toFixed(2),v.cost.toFixed(2),v.hours?(v.cost/v.hours).toFixed(2):''])));
+$('exportOwed').addEventListener('click',()=>downloadCsv('outstanding.csv',
+  ['Customer','Status','Materials','Paid','Outstanding'],
+  (window._repExport?.owed||[]).map(r=>
+    [r.j.customer_name,r.j.status,r.mat.toFixed(2),(r.j.amount_paid||0).toFixed(2),r.out.toFixed(2)])));
+$('exportTime').addEventListener('click',()=>downloadCsv('time-detail.csv',
+  ['Date','Job','In','Out','Hours','Cost'],
+  (window._repExport?.times||[]).map(t=>{
+    const j=jobBySync(t.job_sync_id), h=hoursOf(t);
+    return [d(t.started_at).toLocaleDateString(), j?.customer_name||'',
+            d(t.started_at).toLocaleTimeString(), d(t.ended_at).toLocaleTimeString(),
+            h.toFixed(2), (h*(t.hourly_rate||0)).toFixed(2)];
+  })));
 $('calPrev').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()-1);renderCal();});
 $('calNext').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()+1);renderCal();});
 
