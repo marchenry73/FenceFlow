@@ -48,6 +48,8 @@ fun EmployeesScreen(onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: EmployeesViewModel = viewModel(factory = GenericViewModelFactory { EmployeesViewModel(app.repository) })
     val employees by viewModel.employees.collectAsState()
+    val session by app.session.state.collectAsState()
+    val canDelete = session.canEditCatalogAndSettings
 
     var editing by remember { mutableStateOf<Employee?>(null) }
     var showNew by remember { mutableStateOf(false) }
@@ -98,6 +100,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
             employee = e,
             onSave = { viewModel.save(it); editing = null },
             onDelete = { viewModel.delete(e); editing = null },
+            canDelete = canDelete,
             onDismiss = { editing = null }
         )
     }
@@ -106,6 +109,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
             employee = Employee(),
             onSave = { viewModel.save(it); showNew = false },
             onDelete = { showNew = false },
+            canDelete = canDelete,
             onDismiss = { showNew = false }
         )
     }
@@ -116,6 +120,7 @@ private fun EditEmployeeDialog(
     employee: Employee,
     onSave: (Employee) -> Unit,
     onDelete: () -> Unit,
+    canDelete: Boolean,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(employee.name) }
@@ -196,7 +201,7 @@ private fun EditEmployeeDialog(
         },
         dismissButton = {
             Row {
-                if (employee.id != 0L) {
+                if (employee.id != 0L && canDelete) {
                     OutlinedButton(onClick = onDelete) { Text("Delete") }
                     Spacer(Modifier.width(8.dp))
                 }

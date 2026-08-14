@@ -1,9 +1,17 @@
 package com.fenceestimator.app.cloud
 
 import com.fenceestimator.app.data.Employee
+import com.fenceestimator.app.data.EstimateLineItem
+import com.fenceestimator.app.data.Expense
+import com.fenceestimator.app.data.ExpenseCategory
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.data.Manufacturer
+import com.fenceestimator.app.data.MaterialCategory
+import com.fenceestimator.app.data.MaterialItem
+import com.fenceestimator.app.data.MaterialRole
+import com.fenceestimator.app.data.PricingTier
+import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.data.TimeEntry
 import io.github.jan.supabase.postgrest.postgrest
@@ -297,10 +305,131 @@ object EntitySync {
                 var pulled = 0
                 pulled += pullEmployees(repository, companyId)
                 pulled += pullManufacturers(repository, companyId)
+                pulled += pullPricingTiers(repository, companyId)
+                pulled += pullCatalog(repository, companyId)
                 pulled += pullFenceRuns(repository, companyId)
+                pulled += pullJobChildren(repository, companyId)
                 pulled
             }
         }
+
+    private suspend fun pullPricingTiers(repository: Repository, companyId: String): Int {
+        val cloud = SupabaseModule.client.postgrest.from("pricing_tiers")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudPricingTier>()
+        val known = repository.getAllPricingTiers().map { it.syncId }.toSet()
+        var added = 0
+        cloud.filter { it.syncId !in known }.forEach { row ->
+            repository.savePricingTier(
+                PricingTier(
+                    syncId = row.syncId, name = row.name,
+                    laborRatePerFt = row.laborRatePerFt, laborFlatFee = row.laborFlatFee,
+                    markupPercent = row.markupPercent, discountPercent = row.discountPercent,
+                    sortOrder = row.sortOrder
+                )
+            )
+            added++
+        }
+        return added
+    }
+
+    private suspend fun pullCatalog(repository: Repository, companyId: String): Int {
+        val cloud = SupabaseModule.client.postgrest.from("material_items")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudMaterialItem>()
+        val known = repository.getAllMaterialItems().map { it.syncId }.toSet()
+        var added = 0
+        cloud.filter { it.syncId !in known }.forEach { row ->
+            repository.saveMaterialItem(
+                MaterialItem(
+                    syncId = row.syncId,
+                    name = row.name,
+                    category = runCatching { MaterialCategory.valueOf(row.category) }
+                        .getOrDefault(MaterialCategory.MISC),
+                    role = runCatching { MaterialRole.valueOf(row.role) }
+                        .getOrDefault(MaterialRole.NONE),
+                    fenceType = runCatching { FenceType.valueOf(row.fenceType) }
+                        .getOrDefault(FenceType.UNIVERSAL),
+                    colorOrFinish = row.colorOrFinish,
+                    unit = row.unit,
+                    unitPrice = row.unitPrice,
+                    taxable = row.taxable,
+                    coversFt = row.coversFt,
+                    isActive = row.isActive,
+                    sourceDoc = row.sourceDoc
+                )
+            )
+            added++
+        }
+        return added
+    }
+
+    /**
+     * Restores the records that hang off a job. A child whose job isn't on this
+     * device yet is skipped rather than orphaned -- the next pass picks it up
+     * once the job itself has come down.
+     */
+    private suspend fun pullJobChildren(repository: Repository, companyId: String): Int {
+        val jobIdBySyncId = repository.getAllJobs().associateBy({ it.syncId }, { it.id })
+        if (jobIdBySyncId.isEmpty()) return 0
+        var added = 0
+
+        val lineItems = SupabaseModule.client.postgrest.from("estimate_line_items")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudLineItem>()
+        val knownItems = jobIdBySyncId.values
+            .flatMap { repository.getLineItems(it) }.map { it.syncId }.toSet()
+        lineItems.filter { it.syncId !in knownItems }.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            repository.saveLineItem(
+                EstimateLineItem(
+                    syncId = row.syncId, jobId = jobId, fenceRunId = null,
+                    sortOrder = row.sortOrder, description = row.description,
+                    quantity = row.quantity, unit = row.unit, unitPrice = row.unitPrice,
+                    taxable = row.taxable,
+                    role = row.role?.let { r -> runCatching { MaterialRole.valueOf(r) }.getOrNull() } ?: MaterialRole.NONE,
+                    isAutoGenerated = row.autoGenerated
+                )
+            )
+            added++
+        }
+
+        val expenses = SupabaseModule.client.postgrest.from("expenses")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudExpense>()
+        val knownExpenses = jobIdBySyncId.values
+            .flatMap { repository.getExpenses(it) }.map { it.syncId }.toSet()
+        expenses.filter { it.syncId !in knownExpenses }.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            repository.saveExpense(
+                Expense(
+                    syncId = row.syncId, jobId = jobId,
+                    category = runCatching { ExpenseCategory.valueOf(row.category) }
+                        .getOrDefault(ExpenseCategory.OTHER),
+                    description = row.description, amount = row.amount
+                )
+            )
+            added++
+        }
+
+        val punch = SupabaseModule.client.postgrest.from("punch_list_items")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudPunchItem>()
+        val knownPunch = jobIdBySyncId.values
+            .flatMap { repository.getPunchList(it) }.map { it.syncId }.toSet()
+        punch.filter { it.syncId !in knownPunch }.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            repository.addPunchListItem(
+                PunchListItem(
+                    syncId = row.syncId, jobId = jobId,
+                    description = row.description, resolved = row.resolved
+                )
+            )
+            added++
+        }
+
+        return added
+    }
 
     private suspend fun pullEmployees(repository: Repository, companyId: String): Int {
         val cloud = SupabaseModule.client.postgrest.from("employees")

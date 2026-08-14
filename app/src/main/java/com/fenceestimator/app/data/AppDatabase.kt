@@ -17,9 +17,9 @@ import kotlinx.coroutines.withContext
         Job::class, FenceRun::class, MaterialItem::class, EstimateLineItem::class,
         Manufacturer::class, PricingTier::class, JobPhoto::class, InventoryChecklistItem::class,
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
-        SiteMarker::class, TimeEntry::class
+        SiteMarker::class, TimeEntry::class, PendingDeletion::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -39,6 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun changeOrderDao(): ChangeOrderDao
     abstract fun siteMarkerDao(): SiteMarkerDao
     abstract fun timeEntryDao(): TimeEntryDao
+    abstract fun pendingDeletionDao(): PendingDeletionDao
 
     /** Flushes the write-ahead log into the main .db file so a raw file copy is complete and consistent. */
     suspend fun checkpoint() = withContext(Dispatchers.IO) {
@@ -148,13 +149,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Queue of records deleted locally that still need deleting in the cloud. */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pending_deletions` (" +
+                        "`syncId` TEXT PRIMARY KEY NOT NULL, " +
+                        "`tableName` TEXT NOT NULL, " +
+                        "`queuedAt` INTEGER NOT NULL )"
+                )
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration()
                 // Seeding deliberately lives ONLY in Repository.ensureSeedDataPresent().
                 // There used to also be an onCreate callback doing the same inserts;

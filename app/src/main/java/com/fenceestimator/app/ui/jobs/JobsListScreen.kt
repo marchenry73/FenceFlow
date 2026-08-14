@@ -147,7 +147,15 @@ fun JobsListScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item { DashboardHeader(jobs, showMoney = session.canSeeMoney) }
+                item {
+                    DashboardHeader(
+                        jobs = jobs,
+                        showMoney = session.canSeeMoney,
+                        onOpenSchedule = onOpenSchedule,
+                        onOpenPipeline = onOpenPipeline,
+                        onOpenReports = onOpenReports
+                    )
+                }
                 items(jobs, key = { it.id }) { job ->
                     JobCard(
                         job = job,
@@ -182,7 +190,13 @@ fun JobsListScreen(
 }
 
 @Composable
-private fun DashboardHeader(jobs: List<Job>, showMoney: Boolean) {
+private fun DashboardHeader(
+    jobs: List<Job>,
+    showMoney: Boolean,
+    onOpenSchedule: () -> Unit,
+    onOpenPipeline: () -> Unit,
+    onOpenReports: () -> Unit
+) {
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
     val stats = remember(jobs) {
         val now = Calendar.getInstance()
@@ -201,13 +215,13 @@ private fun DashboardHeader(jobs: List<Job>, showMoney: Boolean) {
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        StatCard("This Week", stats.scheduledThisWeek.toString(), Modifier.weight(1f))
-        StatCard("Won This Month", stats.wonThisMonth.toString(), Modifier.weight(1f))
+        StatCard("This Week", stats.scheduledThisWeek.toString(), Modifier.weight(1f), onOpenSchedule)
+        StatCard("Won This Month", stats.wonThisMonth.toString(), Modifier.weight(1f), onOpenPipeline)
     }
     if (showMoney) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-            StatCard("Collected This Month", currency.format(stats.collectedThisMonth), Modifier.weight(1f))
-            StatCard("Unpaid Jobs", stats.unpaidJobs.toString(), Modifier.weight(1f))
+            StatCard("Collected This Month", currency.format(stats.collectedThisMonth), Modifier.weight(1f), onOpenReports)
+            StatCard("Unpaid Jobs", stats.unpaidJobs.toString(), Modifier.weight(1f), onOpenPipeline)
         }
     }
     Spacer(Modifier.height(4.dp))
@@ -216,8 +230,13 @@ private fun DashboardHeader(jobs: List<Job>, showMoney: Boolean) {
 private data class DashboardStats(val scheduledThisWeek: Int, val wonThisMonth: Int, val collectedThisMonth: Double, val unpaidJobs: Int)
 
 @Composable
-private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+private fun StatCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Card(modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
         Column(Modifier.padding(14.dp)) {
             Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)

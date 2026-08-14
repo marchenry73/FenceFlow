@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -47,7 +48,12 @@ import com.fenceestimator.app.ui.components.currentApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RunEditScreen(runId: Long, onBack: () -> Unit, onDeleted: () -> Unit) {
+fun RunEditScreen(
+    runId: Long,
+    onBack: () -> Unit,
+    onDeleted: () -> Unit,
+    onDrawRun: (Long) -> Unit
+) {
     val app = currentApp()
     val viewModel: RunEditViewModel = viewModel(
         key = "run_edit_$runId",
@@ -69,6 +75,26 @@ fun RunEditScreen(runId: Long, onBack: () -> Unit, onDeleted: () -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item {
+                // The natural next step after naming a run is drawing it. Without
+                // this you had to back out to the job and find the survey screen,
+                // which broke the flow every single time.
+                val hasLine = currentRun.pointsEncoded.isNotBlank()
+                androidx.compose.material3.Button(
+                    onClick = { onDrawRun(currentRun.jobId) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = null)
+                    Text(if (hasLine) "  Edit the Drawing" else "  Next: Draw This Fence")
+                }
+                if (!hasLine) {
+                    Text(
+                        "Set the type and spec below first if you need to, then draw the line.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             item {
                 SectionCard("Run") {
                     DraftTextField(

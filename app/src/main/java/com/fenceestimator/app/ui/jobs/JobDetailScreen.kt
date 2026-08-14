@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -235,14 +236,14 @@ fun JobDetailScreen(
             }
             item { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
-                item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, viewModel) } }
+                item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canEditCatalogAndSettings, viewModel) } }
                 item { SectionCard(title = "Payment & Invoice") { PaymentFields(currentJob, profile, viewModel) } }
-                item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, viewModel) } }
+                item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, session.canEditCatalogAndSettings, viewModel) } }
             }
-            item { SectionCard(title = "Punch List / Callbacks") { PunchListSection(punchList, viewModel) } }
+            item { SectionCard(title = "Punch List / Callbacks") { PunchListSection(punchList, session.canEditCatalogAndSettings, viewModel) } }
             item {
                 SectionCard(title = "Before / After Photos") {
-                    PhotosSection(photos, viewModel)
+                    PhotosSection(photos, session.canEditCatalogAndSettings, viewModel)
                 }
             }
             item { SectionCard(title = "Ask for a Review") { ReviewRequestFields(currentJob, profile, viewModel) } }
@@ -378,23 +379,26 @@ private fun CustomerFields(job: Job, viewModel: JobDetailViewModel) {
 
 @Composable
 private fun PricingFields(job: Job, viewModel: JobDetailViewModel) {
+    // Markup and labor are rewritten when a pricing tier is applied, so these
+    // must re-seed on a tier change or they'd display stale numbers.
+    val tierKey = "${job.id}-${job.pricingTierName}"
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
             stableKey = job.id, label = "Tax rate (%)", initialValue = job.taxRatePercent.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(taxRatePercent = it.toDouble()) } }
         DraftNumberField(
-            stableKey = job.id, label = "Markup (%)", initialValue = job.markupPercent.toFloat(),
+            stableKey = tierKey, label = "Markup (%)", initialValue = job.markupPercent.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(markupPercent = it.toDouble()) } }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
-            stableKey = job.id, label = "Labor $/ft", initialValue = job.laborRatePerFt.toFloat(),
+            stableKey = tierKey, label = "Labor $/ft", initialValue = job.laborRatePerFt.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(laborRatePerFt = it.toDouble()) } }
         DraftNumberField(
-            stableKey = job.id, label = "Labor flat fee ($)", initialValue = job.laborFlatFee.toFloat(),
+            stableKey = tierKey, label = "Labor flat fee ($)", initialValue = job.laborFlatFee.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(laborFlatFee = it.toDouble()) } }
     }
@@ -439,15 +443,28 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
             }
         }
     }
+    // Keyed on the tier name as well as the job: applying a tier rewrites these
+    // values, and a field keyed only on job.id would keep showing the old
+    // numbers because the draft is seeded once and never re-read.
+    val tierKey = "${job.id}-${job.pricingTierName}"
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
-            stableKey = job.id, label = "Discount (%)", initialValue = job.discountPercent.toFloat(),
+            stableKey = tierKey, label = "Discount (%)", initialValue = job.discountPercent.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(discountPercent = it.toDouble()) } }
         DraftNumberField(
             stableKey = job.id, label = "Minimum job charge ($)", initialValue = job.minimumJobCharge.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(minimumJobCharge = it.toDouble()) } }
+    }
+    if (job.pricingTierName.isNotBlank()) {
+        Text(
+            "${job.pricingTierName}: labor \$${"%.2f".format(job.laborRatePerFt)}/ft · " +
+                "markup ${"%.0f".format(job.markupPercent)}%" +
+                if (job.discountPercent > 0) " · discount ${"%.0f".format(job.discountPercent)}%" else "",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
@@ -886,7 +903,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
 }
 
 @Composable
-private fun ExpensesSection(expenses: List<Expense>, viewModel: JobDetailViewModel) {
+private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewModel: JobDetailViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     val total = expenses.sumOf { it.amount }
 
@@ -912,8 +929,10 @@ private fun ExpensesSection(expenses: List<Expense>, viewModel: JobDetailViewMod
                     )
                 }
                 Text("$${String.format("%.2f", expense.amount)}")
-                IconButton(onClick = { viewModel.deleteExpense(expense) }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Remove expense")
+                if (canDelete) {
+                    IconButton(onClick = { viewModel.deleteExpense(expense) }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Remove expense")
+                    }
                 }
             }
         }
@@ -988,8 +1007,27 @@ private fun ProjectProgressSection(job: Job, punchListClear: Boolean, profile: B
     val jobComplete = job.status == JobStatus.COMPLETED && punchListClear
     val stages = remember(job, punchListClear) { ProjectStatus.stages(job, jobComplete) }
 
+    var openStage by remember { mutableStateOf<com.fenceestimator.app.ui.components.ProjectStage?>(null) }
+
+    val doneCount = stages.count { it.done }
+    Text(
+        "$doneCount of ${stages.size} steps done",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    androidx.compose.material3.LinearProgressIndicator(
+        progress = { doneCount.toFloat() / stages.size },
+        modifier = Modifier.fillMaxWidth()
+    )
+
     stages.forEach { stage ->
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { openStage = stage }
+                .padding(vertical = 2.dp)
+        ) {
             Icon(
                 if (stage.done) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                 contentDescription = null,
@@ -1001,12 +1039,40 @@ private fun ProjectProgressSection(job: Job, punchListClear: Boolean, profile: B
             )
             Text(
                 "  ${stage.label}",
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (stage.current) FontWeight.SemiBold else FontWeight.Normal,
                 color = if (stage.done || stage.current) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (stage.current) {
+                Text(
+                    "NEXT",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
         }
+    }
+
+    openStage?.let { stage ->
+        AlertDialog(
+            onDismissRequest = { openStage = null },
+            title = { Text(stage.label) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (stage.done) "Done." else if (stage.current) "This is your next step." else "Not done yet.",
+                        fontWeight = FontWeight.Medium,
+                        color = if (stage.done) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(stage.guidance, style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            confirmButton = { Button(onClick = { openStage = null }) { Text("Got it") } }
+        )
     }
     Text(
         "Send the customer a plain-language update of exactly this progress.",
@@ -1035,7 +1101,7 @@ private fun ProjectProgressSection(job: Job, punchListClear: Boolean, profile: B
 }
 
 @Composable
-private fun ChangeOrdersSection(orders: List<ChangeOrder>, viewModel: JobDetailViewModel) {
+private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, viewModel: JobDetailViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var signingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.US) }
@@ -1064,8 +1130,10 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, viewModel: JobDetailV
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(onClick = { viewModel.deleteChangeOrder(order) }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Remove change order")
+                        if (canDelete) {
+                            IconButton(onClick = { viewModel.deleteChangeOrder(order) }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Remove change order")
+                            }
                         }
                     }
                     if (order.isSigned) {
@@ -1160,7 +1228,7 @@ private fun AddChangeOrderDialog(onConfirm: (String, Double, Double) -> Unit, on
 }
 
 @Composable
-private fun PunchListSection(items: List<PunchListItem>, viewModel: JobDetailViewModel) {
+private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, viewModel: JobDetailViewModel) {
     var newItemText by remember { mutableStateOf("") }
 
     if (items.isEmpty()) {
@@ -1178,8 +1246,10 @@ private fun PunchListSection(items: List<PunchListItem>, viewModel: JobDetailVie
                     modifier = Modifier.weight(1f),
                     style = if (item.resolved) MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant) else MaterialTheme.typography.bodyMedium
                 )
-                IconButton(onClick = { viewModel.deletePunchListItem(item) }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Remove item")
+                if (canDelete) {
+                    IconButton(onClick = { viewModel.deletePunchListItem(item) }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Remove item")
+                    }
                 }
             }
         }
@@ -1231,7 +1301,7 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
 }
 
 @Composable
-private fun PhotosSection(photos: List<JobPhoto>, viewModel: JobDetailViewModel) {
+private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel: JobDetailViewModel) {
     val context = LocalContext.current
     var pendingKind by remember { mutableStateOf(PhotoKind.BEFORE) }
     var pendingTarget by remember { mutableStateOf<NewPhotoTarget?>(null) }
@@ -1275,8 +1345,10 @@ private fun PhotosSection(photos: List<JobPhoto>, viewModel: JobDetailViewModel)
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.size(90.dp).clip(RoundedCornerShape(8.dp))
                         )
-                        IconButton(onClick = { viewModel.deletePhoto(photo) }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Filled.Close, contentDescription = "Remove photo", tint = MaterialTheme.colorScheme.error)
+                        if (canDelete) {
+                            IconButton(onClick = { viewModel.deletePhoto(photo) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Filled.Close, contentDescription = "Remove photo", tint = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }

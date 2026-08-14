@@ -9,8 +9,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** One step of the customer-visible project pipeline. */
-data class ProjectStage(val label: String, val done: Boolean, val current: Boolean)
+/**
+ * One step of the project pipeline, with what to actually do about it.
+ * [guidance] is what the user sees when they tap a step they haven't finished.
+ */
+data class ProjectStage(
+    val label: String,
+    val done: Boolean,
+    val current: Boolean,
+    val guidance: String = "",
+    val action: StageAction = StageAction.NONE
+)
+
+/** Where tapping an unfinished step should take you. */
+enum class StageAction { NONE, DRAW, ESTIMATE, PAYMENT, HOA, SCHEDULE, CREW_VIEW }
 
 object ProjectStatus {
 
@@ -27,19 +39,35 @@ object ProjectStatus {
         val scheduled = job.scheduledDate != null
         val paidInFull = job.paymentStatus == PaymentStatus.PAID_IN_FULL
 
+        // Each step carries the instruction for finishing it, so tapping an
+        // unfinished step tells you what to do rather than just that it's undone.
         val flags = listOf(
-            "Quote sent" to quoteSent,
-            "Quote approved" to approved,
-            "Deposit received" to depositReceived,
-            "HOA / permit cleared" to hoaDone,
-            "Installation scheduled" to scheduled,
-            "Installation complete" to jobComplete,
-            "Final payment" to paidInFull
+            Triple("Quote sent", quoteSent, StageAction.ESTIMATE) to
+                "Draw the fence, run Suggest Quantities, then Export & Share the PDF estimate.",
+            Triple("Quote approved", approved, StageAction.ESTIMATE) to
+                "Once the customer agrees, capture their signature on the Estimate screen or set the job status to Accepted.",
+            Triple("Deposit received", depositReceived, StageAction.PAYMENT) to
+                "Record the deposit under Payment & Invoice, or send them a payment link.",
+            Triple("HOA / permit cleared", hoaDone, StageAction.HOA) to
+                "Send the HOA approval request and set the status to Approved, or mark it Not Required.",
+            Triple("Installation scheduled", scheduled, StageAction.SCHEDULE) to
+                "Set the job date under Schedule & Crew, and assign who's running it.",
+            Triple("Installation complete", jobComplete, StageAction.CREW_VIEW) to
+                "Work through the install checklist in the crew view, then tap Mark Job Complete.",
+            Triple("Final payment", paidInFull, StageAction.PAYMENT) to
+                "Generate the invoice, then set payment status to Paid in Full once the money lands."
         )
 
-        val firstUnfinished = flags.indexOfFirst { !it.second }
-        return flags.mapIndexed { index, (label, done) ->
-            ProjectStage(label = label, done = done, current = index == firstUnfinished)
+        val firstUnfinished = flags.indexOfFirst { !it.first.second }
+        return flags.mapIndexed { index, (triple, guidance) ->
+            val (label, done, action) = triple
+            ProjectStage(
+                label = label,
+                done = done,
+                current = index == firstUnfinished,
+                guidance = guidance,
+                action = action
+            )
         }
     }
 

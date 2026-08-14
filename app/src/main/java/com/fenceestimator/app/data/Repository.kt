@@ -21,6 +21,7 @@ class Repository(private val db: AppDatabase) {
     private val changeOrderDao = db.changeOrderDao()
     private val siteMarkerDao = db.siteMarkerDao()
     private val timeEntryDao = db.timeEntryDao()
+    private val pendingDeletionDao = db.pendingDeletionDao()
 
     fun observeJobs(): Flow<List<Job>> = jobDao.observeAll()
     fun observeJob(id: Long): Flow<Job?> = jobDao.observeById(id)
@@ -40,7 +41,25 @@ class Repository(private val db: AppDatabase) {
     suspend fun updateJobSyncStamp(jobId: Long, syncedAt: Long) {
         jobDao.getById(jobId)?.let { jobDao.update(it.copy(lastSyncedAt = syncedAt)) }
     }
-    suspend fun deleteJob(job: Job) = jobDao.delete(job)
+    /**
+     * Deletes locally and records that the cloud copy must go too.
+     *
+     * Deleting used to be local-only, so the row survived in Supabase and the
+     * next sync pulled it straight back as "a job this phone is missing" --
+     * which is why deleted jobs kept reappearing.
+     */
+    suspend fun deleteJob(job: Job) {
+        jobDao.delete(job)
+        pendingDeletionDao.insert(PendingDeletion(syncId = job.syncId, tableName = "jobs"))
+    }
+
+    suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
+    suspend fun clearPendingDeletion(syncId: String) = pendingDeletionDao.clear(syncId)
+
+    suspend fun deleteEmployeeSynced(employee: Employee) {
+        employeeDao.delete(employee)
+        pendingDeletionDao.insert(PendingDeletion(syncId = employee.syncId, tableName = "employees"))
+    }
 
     fun observeFenceRuns(jobId: Long): Flow<List<FenceRun>> = fenceRunDao.observeForJob(jobId)
     suspend fun getFenceRuns(jobId: Long): List<FenceRun> = fenceRunDao.getForJob(jobId)

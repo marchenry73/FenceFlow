@@ -55,6 +55,8 @@ fun ManufacturersScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel: ManufacturersViewModel = viewModel(factory = GenericViewModelFactory { ManufacturersViewModel(app.repository) })
     val manufacturers by viewModel.manufacturers.collectAsState()
+    val session by app.session.state.collectAsState()
+    val canDelete = session.canEditCatalogAndSettings
 
     var editing by remember { mutableStateOf<Manufacturer?>(null) }
     var showNew by remember { mutableStateOf(false) }
@@ -124,6 +126,7 @@ fun ManufacturersScreen(onBack: () -> Unit) {
             manufacturer = m,
             onSave = { viewModel.save(it); editing = null },
             onDelete = { viewModel.delete(m); editing = null },
+            canDelete = canDelete,
             onDismiss = { editing = null }
         )
     }
@@ -132,6 +135,7 @@ fun ManufacturersScreen(onBack: () -> Unit) {
             manufacturer = Manufacturer(),
             onSave = { viewModel.save(it); showNew = false },
             onDelete = { showNew = false },
+            canDelete = canDelete,
             onDismiss = { showNew = false }
         )
     }
@@ -142,6 +146,7 @@ private fun EditManufacturerDialog(
     manufacturer: Manufacturer,
     onSave: (Manufacturer) -> Unit,
     onDelete: () -> Unit,
+    canDelete: Boolean,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(manufacturer.name) }
@@ -179,7 +184,7 @@ private fun EditManufacturerDialog(
         },
         dismissButton = {
             Row {
-                if (manufacturer.id != 0L) {
+                if (manufacturer.id != 0L && canDelete) {
                     OutlinedButton(onClick = onDelete) { Text("Delete") }
                     Spacer(Modifier.width(8.dp))
                 }

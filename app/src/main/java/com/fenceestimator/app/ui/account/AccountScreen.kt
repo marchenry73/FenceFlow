@@ -3,6 +3,7 @@ package com.fenceestimator.app.ui.account
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -164,13 +165,39 @@ private fun SignedInSection(state: AccountUiState, viewModel: AccountViewModel) 
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 profile.companyId?.let { id ->
+                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                    val context = androidx.compose.ui.platform.LocalContext.current
+
+                    Text("Team invite code", style = MaterialTheme.typography.labelLarge)
+                    // Selectable as well as copyable: a long UUID is miserable
+                    // to retype, and crews will inevitably want to send it on.
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(
+                            id,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(id))
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Copy code") }
+                        OutlinedButton(
+                            onClick = {
+                                com.fenceestimator.app.ui.components.IntentHelpers.openEmailDraft(
+                                    context, "", "Join our FenceFlow team",
+                                    "Install FenceFlow, create an account, then choose \"Join as Crew\" " +
+                                        "and enter this invite code:\n\n$id"
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Share") }
+                    }
                     Text(
-                        "Team invite code:\n$id",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "Share this code with crew members so they can join your business.",
+                        "Crew members enter this when joining your business.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -215,6 +215,18 @@ interface InventoryItemDao {
 }
 
 @Dao
+interface PendingDeletionDao {
+    @Query("SELECT * FROM pending_deletions")
+    suspend fun getAll(): List<PendingDeletion>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(deletion: PendingDeletion)
+
+    @Query("DELETE FROM pending_deletions WHERE syncId = :syncId")
+    suspend fun clear(syncId: String)
+}
+
+@Dao
 interface TimeEntryDao {
     @Query("SELECT * FROM time_entries WHERE jobId = :jobId ORDER BY startedAt DESC")
     fun observeForJob(jobId: Long): Flow<List<TimeEntry>>

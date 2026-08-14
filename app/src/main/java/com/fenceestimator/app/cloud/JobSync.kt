@@ -80,6 +80,23 @@ object JobSync {
 
     suspend fun sync(repository: Repository, companyId: String): Result<SyncResult> = withContext(Dispatchers.IO) {
         runCatching {
+            // Deletions first, always. If a pull ran before them, the rows we
+            // just deleted locally would still be in the cloud and would come
+            // straight back down.
+            repository.pendingDeletions().forEach { deletion ->
+                val removed = runCatching {
+                    SupabaseModule.client.postgrest.from(deletion.tableName).delete {
+                        filter {
+                            eq("company_id", companyId)
+                            eq("sync_id", deletion.syncId)
+                        }
+                    }
+                }
+                // Only clear the tombstone once the cloud actually accepted it,
+                // so an offline delete retries instead of being forgotten.
+                if (removed.isSuccess) repository.clearPendingDeletion(deletion.syncId)
+            }
+
             val localJobs = repository.getAllJobs()
             val cloudJobs = SupabaseModule.client.postgrest.from("jobs")
                 .select { filter { eq("company_id", companyId) } }

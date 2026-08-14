@@ -107,8 +107,21 @@ class AutoSync(
             // Everything else. Failures here are swallowed on purpose -- a
             // problem syncing the crew list should not report the whole sync as
             // failed when the jobs went through fine.
-            runCatching { EntitySync.pushAll(repository, companyId) }
-            runCatching { EntitySync.pullAll(repository, companyId) }
+            // Failures here used to be swallowed entirely, which is exactly how
+            // "some things save and some don't" stays invisible. Report them.
+            val pushResult = EntitySync.pushAll(repository, companyId)
+            val pullResult = EntitySync.pullAll(repository, companyId)
+            val entityError = pushResult.exceptionOrNull() ?: pullResult.exceptionOrNull()
+
+            if (entityError != null) {
+                _state.value = SyncState(
+                    phase = SyncPhase.FAILED,
+                    lastSyncedAt = _state.value.lastSyncedAt,
+                    lastError = entityError.message ?: "Couldn't sync crew and settings"
+                )
+                return@withLock
+            }
+
             _state.value = result.fold(
                 onSuccess = { syncResult ->
                     notifyIncoming(syncResult)

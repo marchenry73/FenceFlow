@@ -200,7 +200,8 @@ fun FenceEstimatorNavHost() {
             RunEditScreen(
                 runId = runId,
                 onBack = { navController.popBackStack() },
-                onDeleted = { navController.popBackStack() }
+                onDeleted = { navController.popBackStack() },
+                onDrawRun = { jobId -> navController.navigate(Routes.survey(jobId)) }
             )
         }
         composable(

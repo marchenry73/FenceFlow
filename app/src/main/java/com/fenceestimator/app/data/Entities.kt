@@ -58,6 +58,21 @@ enum class ExpenseCategory { FUEL, EQUIPMENT_RENTAL, PERMIT_FEE, OTHER }
 enum class PayType { HOURLY, PER_FOOT }
 
 /**
+ * A record of something deleted locally that still needs deleting in the cloud.
+ *
+ * Without this, deleting was local-only: the row stayed in Supabase, and the
+ * next sync saw a record "this phone is missing" and recreated it. Queuing the
+ * deletion means it still works when the delete happens with no signal --
+ * the next successful sync clears the queue.
+ */
+@Entity(tableName = "pending_deletions")
+data class PendingDeletion(
+    @PrimaryKey val syncId: String,
+    val tableName: String,
+    val queuedAt: Long = System.currentTimeMillis()
+)
+
+/**
  * A customer/property. Holds the shared survey image + calibration (one
  * scale for the whole property) plus job-level pricing. The actual fence
  * line(s) live in [FenceRun] rows so one job can mix fence types.

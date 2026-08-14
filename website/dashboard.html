@@ -3,135 +3,200 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FenceFlow — Office Dashboard</title>
+<title>FenceFlow — Office</title>
 <style>
-  :root {
-    --graphite:#0F1826; --graphite-soft:#1E2A3D; --orange:#FF5A1F; --orange-dk:#B23800;
-    --teal:#0E8C7B; --paper:#F7F8FA; --line:#E3E7ED; --text:#12151A; --muted:#5A6472; --red:#E5484D;
-  }
+  :root{--graphite:#0F1826;--graphite2:#1E2A3D;--orange:#FF5A1F;--orange-dk:#B23800;
+        --teal:#0E8C7B;--paper:#F7F8FA;--line:#E3E7ED;--text:#12151A;--muted:#5A6472;--red:#E5484D}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--text)}
   header{background:var(--graphite);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
   .logo{font-weight:800;font-size:18px}.logo span{color:var(--orange)}
   .who{font-size:13px;color:#8A93A3}
-  .wrap{max-width:1240px;margin:0 auto;padding:20px}
-  button{font-family:inherit}
-  .btn{background:var(--orange);color:#fff;border:none;padding:11px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-size:15px}
-  .btn:hover{background:var(--orange-dk)}
-  .btn:disabled{opacity:.5;cursor:not-allowed}
-  .btn-sm{padding:7px 13px;font-size:13px}
+  .wrap{max-width:1280px;margin:0 auto;padding:18px}
+  .btn{background:var(--orange);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;font-family:inherit}
+  .btn:hover{background:var(--orange-dk)}.btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-sm{padding:6px 12px;font-size:13px}
   .btn-ghost{background:transparent;border:1px solid #48566B;color:#fff}
   .btn-grey{background:#fff;border:1px solid var(--line);color:var(--text)}
-  .btn-grey:hover{background:var(--paper)}
-  .btn-danger{background:var(--red)}
-  input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;background:#fff}
-  textarea{min-height:80px;resize:vertical}
-  label{display:block;font-size:12px;font-weight:600;margin:12px 0 5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-  .auth{max-width:400px;margin:60px auto;background:#fff;padding:30px;border-radius:12px;border:1px solid var(--line)}
-  .auth h1{font-size:21px;margin-bottom:6px}
-  .auth p{color:var(--muted);font-size:14px}
-  .msg{padding:11px;border-radius:8px;font-size:14px;margin:12px 0;display:none}
+  input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background:#fff}
+  textarea{min-height:70px;resize:vertical}
+  label{display:block;font-size:11px;font-weight:600;margin:10px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .auth{max-width:380px;margin:60px auto;background:#fff;padding:28px;border-radius:12px;border:1px solid var(--line)}
+  .msg{padding:10px;border-radius:8px;font-size:13px;margin:10px 0;display:none}
   .msg.err{background:#FDECEC;color:#8C1114;display:block}
   .msg.ok{background:#E6F6F3;color:#07473D;display:block}
-  .tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:20px;overflow-x:auto}
-  .tab{background:none;border:none;padding:12px 18px;font-size:15px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+  .tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin-bottom:18px;overflow-x:auto}
+  .tab{background:none;border:none;padding:11px 15px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit}
   .tab.on{color:var(--orange);border-bottom-color:var(--orange)}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
-  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}
-  .stat .n{font-size:26px;font-weight:800;letter-spacing:-1px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}
+  .stat.click{cursor:pointer}.stat.click:hover{border-color:var(--orange)}
+  .stat .n{font-size:24px;font-weight:800;letter-spacing:-1px}
   .stat .l{font-size:12px;color:var(--muted)}
-  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
-  .panel h2{font-size:16px;margin-bottom:12px}
-  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .panel h2{font-size:16px;margin-bottom:10px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   table{width:100%;border-collapse:collapse}
-  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:9px 7px;border-bottom:2px solid var(--line)}
-  td{padding:11px 7px;border-bottom:1px solid var(--line);font-size:14px}
-  tbody tr{cursor:pointer}
-  tbody tr:hover td{background:var(--paper)}
-  .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:8px 6px;border-bottom:2px solid var(--line)}
+  td{padding:10px 6px;border-bottom:1px solid var(--line);font-size:14px}
+  tbody tr.click{cursor:pointer}tbody tr.click:hover td{background:var(--paper)}
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
   .pill.DRAFT{background:#E3E7ED;color:#3A4048}
   .pill.SENT{background:#FFC49A;color:#B23800}
   .pill.ACCEPTED{background:#A9EEE1;color:#07473D}
+  .pill.COMPLETED{background:#D7DEE8;color:#1E2A3D}
   .pill.DECLINED{background:#FBD3D4;color:#8C1114}
-  .empty{color:var(--muted);font-size:14px;padding:18px 0}
+  .empty{color:var(--muted);font-size:14px;padding:16px 0}
   .scroll{overflow-x:auto}
   #app{display:none}
-  .overlay{position:fixed;inset:0;background:rgba(15,24,38,.6);display:none;z-index:50;overflow-y:auto;padding:20px}
+  .overlay{position:fixed;inset:0;background:rgba(15,24,38,.6);display:none;z-index:50;overflow-y:auto;padding:16px}
   .overlay.on{display:block}
-  .sheet{max-width:820px;margin:0 auto;background:var(--paper);border-radius:12px;overflow:hidden}
-  .sheet-head{background:var(--graphite);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0}
-  .sheet-body{padding:18px}
-  .sheet-foot{padding:14px 18px;background:#fff;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0}
-  .readonly-note{background:#FFF4E5;border:1px solid #FFD9A8;color:#7A4A00;padding:11px;border-radius:8px;font-size:13px;margin-bottom:14px}
-  @media(max-width:700px){.row2{grid-template-columns:1fr}}
+  .sheet{max-width:900px;margin:0 auto;background:var(--paper);border-radius:12px;overflow:hidden}
+  .sheet-head{background:var(--graphite);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}
+  .sheet-body{padding:16px}
+  .sheet-foot{padding:12px 16px;background:#fff;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0}
+  .note{background:#FFF4E5;border:1px solid #FFD9A8;color:#7A4A00;padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px}
+  /* Calendar */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .cal .dow{font-size:11px;font-weight:700;color:var(--muted);text-align:center;padding:5px;text-transform:uppercase}
+  .cal .day{background:#fff;border:1px solid var(--line);border-radius:8px;min-height:88px;padding:6px;font-size:12px}
+  .cal .day.pad{background:transparent;border:none}
+  .cal .day.today{border-color:var(--orange);border-width:2px}
+  .cal .dnum{font-weight:700;color:var(--muted);margin-bottom:4px}
+  .cal .ev{background:var(--teal);color:#fff;border-radius:5px;padding:3px 5px;margin-bottom:3px;cursor:pointer;font-size:11px;line-height:1.3;overflow:hidden}
+  .cal .ev:hover{background:#0a6f62}
+  /* Pipeline */
+  .pipe{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+  .col{min-width:230px;flex:0 0 230px}
+  .col h3{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between}
+  .card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:7px;cursor:pointer;font-size:13px}
+  .card:hover{border-color:var(--orange)}
+  @media(max-width:700px){.row2,.row3{grid-template-columns:1fr}.cal .day{min-height:64px}}
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></div>
-  <div style="display:flex;align-items:center;gap:12px">
+  <div style="display:flex;align-items:center;gap:10px">
     <span class="who" id="who"></span>
+    <button class="btn btn-sm btn-ghost" id="refresh" style="display:none">Refresh</button>
     <button class="btn btn-sm btn-ghost" id="signOut" style="display:none">Sign out</button>
   </div>
 </header>
 
 <div class="auth" id="auth">
-  <h1>Office sign in</h1>
-  <p>Same account as the FenceFlow app.</p>
+  <h1 style="font-size:20px;margin-bottom:6px">Office sign in</h1>
+  <p style="color:var(--muted);font-size:14px">Same account as the FenceFlow app.</p>
   <div class="msg" id="authMsg"></div>
   <label>Email</label><input type="email" id="email" autocomplete="email">
   <label>Password</label><input type="password" id="password" autocomplete="current-password">
-  <div style="margin-top:16px"><button class="btn" id="signIn" style="width:100%">Sign in</button></div>
+  <div style="margin-top:14px"><button class="btn" id="signIn" style="width:100%">Sign in</button></div>
   <p style="margin-top:12px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
 </div>
 
 <div id="app">
   <div class="wrap">
     <div class="tabs">
-      <button class="tab on" data-tab="jobs">Jobs</button>
+      <button class="tab on" data-tab="dash">Dashboard</button>
+      <button class="tab" data-tab="jobs">Jobs</button>
+      <button class="tab" data-tab="cal">Calendar</button>
+      <button class="tab" data-tab="pipe">Pipeline</button>
       <button class="tab" data-tab="crew">Crew</button>
-      <button class="tab" data-tab="settings">Business Settings</button>
+      <button class="tab" data-tab="time">Time</button>
+      <button class="tab" data-tab="catalog">Catalog</button>
+      <button class="tab" data-tab="reports">Reports</button>
+      <button class="tab" data-tab="settings">Settings</button>
     </div>
 
-    <div id="tab-jobs">
+    <div id="tab-dash">
       <div class="stats" id="stats"></div>
+      <div class="panel"><h2>Needs attention</h2><div id="attention"></div></div>
+    </div>
+
+    <div id="tab-jobs" style="display:none">
       <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h2 style="margin:0">Jobs</h2>
-          <button class="btn btn-sm" id="newJob">+ New Job</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0">Jobs</h2><button class="btn btn-sm" id="newJob">+ New Job</button>
         </div>
-        <div class="scroll">
-          <table>
-            <thead><tr><th>Customer</th><th>Address</th><th>Status</th><th>Scheduled</th><th>Paid</th></tr></thead>
-            <tbody id="jobRows"></tbody>
-          </table>
-        </div>
+        <div class="scroll"><table>
+          <thead><tr><th>Customer</th><th>Address</th><th>Status</th><th>Scheduled</th><th>Paid</th></tr></thead>
+          <tbody id="jobRows"></tbody></table></div>
         <div class="empty" id="jobsEmpty" style="display:none">No jobs yet.</div>
       </div>
     </div>
 
+    <div id="tab-cal" style="display:none">
+      <div class="panel">
+        <div class="cal-head">
+          <button class="btn btn-sm btn-grey" id="calPrev">‹ Prev</button>
+          <h2 id="calTitle" style="margin:0"></h2>
+          <button class="btn btn-sm btn-grey" id="calNext">Next ›</button>
+        </div>
+        <div class="cal" id="cal"></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">Click a job to open it.</p>
+      </div>
+    </div>
+
+    <div id="tab-pipe" style="display:none"><div class="pipe" id="pipe"></div></div>
+
     <div id="tab-crew" style="display:none">
       <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h2 style="margin:0">Crew &amp; Employees</h2>
-          <button class="btn btn-sm" id="newEmp">+ Add Crew Member</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0">Crew &amp; Employees</h2><button class="btn btn-sm" id="newEmp">+ Add</button>
         </div>
-        <div class="scroll">
-          <table>
-            <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Rate</th></tr></thead>
-            <tbody id="empRows"></tbody>
-          </table>
-        </div>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Rate</th></tr></thead>
+          <tbody id="empRows"></tbody></table></div>
         <div class="empty" id="empEmpty" style="display:none">No crew members yet.</div>
+      </div>
+    </div>
+
+    <div id="tab-time" style="display:none">
+      <div class="panel">
+        <h2>Clock In / Out</h2>
+        <div class="scroll"><table>
+          <thead><tr><th>Job</th><th>Started</th><th>Ended</th><th>Hours</th><th>Labor cost</th></tr></thead>
+          <tbody id="timeRows"></tbody></table></div>
+        <div class="empty" id="timeEmpty" style="display:none">No time logged yet. Crews clock in from the phone app.</div>
+        <div id="timeTotals" style="margin-top:12px;font-weight:600"></div>
+      </div>
+    </div>
+
+    <div id="tab-catalog" style="display:none">
+      <div class="panel">
+        <h2>Materials Catalog</h2>
+        <input id="catFilter" placeholder="Filter by name, type or role…" style="margin-bottom:10px">
+        <div class="scroll"><table>
+          <thead><tr><th>Item</th><th>Fence type</th><th>Role</th><th>Unit</th><th>Price</th></tr></thead>
+          <tbody id="catRows"></tbody></table></div>
+        <div class="empty" id="catEmpty" style="display:none">Catalog hasn't synced from the app yet.</div>
+      </div>
+    </div>
+
+    <div id="tab-reports" style="display:none">
+      <div class="panel">
+        <h2>Business Reports</h2>
+        <select id="repPeriod" style="max-width:220px;margin-bottom:12px">
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last year</option>
+          <option value="0" selected>All time</option>
+        </select>
+        <div class="stats" id="repStats"></div>
+        <h2 style="margin-top:16px">By Installer</h2>
+        <div class="scroll"><table>
+          <thead><tr><th>Installer</th><th>Jobs</th><th>Hours</th><th>Labor cost</th></tr></thead>
+          <tbody id="repCrew"></tbody></table></div>
       </div>
     </div>
 
     <div id="tab-settings" style="display:none">
       <div class="panel">
         <h2>Business Settings</h2>
-        <div id="settingsNote"></div>
-        <div class="msg" id="setMsg"></div>
+        <div id="setNote"></div><div class="msg" id="setMsg"></div>
         <div class="row2">
           <div><label>Business name</label><input id="s_businessName"></div>
           <div><label>Owner name</label><input id="s_ownerName"></div>
@@ -142,7 +207,7 @@
           <div><label>Markup (%)</label><input id="s_markup" type="number" step="0.1"></div>
           <div><label>Labor rate ($/ft)</label><input id="s_labor" type="number" step="0.1"></div>
           <div><label>Post spacing (ft)</label><input id="s_spacing" type="number" step="0.1"></div>
-          <div><label>Concrete bags per post</label><input id="s_bags" type="number" step="0.1"></div>
+          <div><label>Concrete bags/post</label><input id="s_bags" type="number" step="0.1"></div>
           <div><label>Panel width (ft)</label><input id="s_pw" type="number" step="0.1"></div>
           <div><label>Panel height (ft)</label><input id="s_ph" type="number" step="0.1"></div>
           <div><label>Minimum job charge ($)</label><input id="s_min" type="number" step="1"></div>
@@ -150,137 +215,134 @@
         <label>Order email template</label><textarea id="s_order"></textarea>
         <label>HOA email template</label><textarea id="s_hoa"></textarea>
         <label>Review request message</label><textarea id="s_review"></textarea>
-        <div style="margin-top:16px"><button class="btn" id="saveSettings">Save Settings</button></div>
-        <p style="font-size:13px;color:var(--muted);margin-top:12px">
-          Saved to your company account — the phone app picks these up automatically.
-          Your Square payment token is deliberately not stored here; it stays on each device.
+        <div style="margin-top:14px"><button class="btn" id="saveSettings">Save Settings</button></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">
+          Saved to your company account — phones pick these up on next sync.
+          Your Square token is not stored here; it stays on each device.
         </p>
+      </div>
+      <div class="panel">
+        <h2>Pricing Tiers</h2>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>Labor $/ft</th><th>Markup %</th><th>Discount %</th></tr></thead>
+          <tbody id="tierRows"></tbody></table></div>
+        <div class="empty" id="tierEmpty" style="display:none">Tiers haven't synced from the app yet.</div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Job editor -->
-<div class="overlay" id="jobOverlay">
-  <div class="sheet">
-    <div class="sheet-head">
-      <strong id="jobTitle">Job</strong>
-      <button class="btn btn-sm btn-ghost" id="closeJob">Close</button>
-    </div>
-    <div class="sheet-body">
-      <div class="msg" id="jobMsg"></div>
-      <div id="jobReadonly"></div>
-
-      <div class="panel"><h2>Customer</h2>
-        <div class="row2">
-          <div><label>Customer name</label><input id="j_customer_name"></div>
-          <div><label>Phone</label><input id="j_phone"></div>
-        </div>
-        <label>Property address</label><input id="j_address">
-        <div class="row2">
-          <div><label>Email</label><input id="j_email"></div>
-          <div><label>How they found us</label><input id="j_referral_source"></div>
-        </div>
-        <label>Notes</label><textarea id="j_notes"></textarea>
-      </div>
-
-      <div class="panel"><h2>Pricing</h2>
-        <div class="row2">
-          <div><label>Tax rate (%)</label><input id="j_tax_rate_percent" type="number" step="0.1"></div>
-          <div><label>Markup (%)</label><input id="j_markup_percent" type="number" step="0.1"></div>
-          <div><label>Discount (%)</label><input id="j_discount_percent" type="number" step="0.1"></div>
-          <div><label>Minimum charge ($)</label><input id="j_minimum_job_charge" type="number" step="1"></div>
-          <div><label>Labor $/ft</label><input id="j_labor_rate_per_ft" type="number" step="0.1"></div>
-          <div><label>Labor flat fee ($)</label><input id="j_labor_flat_fee" type="number" step="1"></div>
-        </div>
-      </div>
-
-      <div class="panel"><h2>Schedule &amp; Status</h2>
-        <div class="row2">
-          <div><label>Status</label>
-            <select id="j_status">
-              <option value="DRAFT">Draft</option><option value="SENT">Sent</option>
-              <option value="ACCEPTED">Accepted</option><option value="DECLINED">Declined</option>
-            </select>
-          </div>
-          <div><label>Scheduled date</label><input id="j_scheduled_date" type="date"></div>
-          <div><label>Estimated hours</label><input id="j_estimated_duration_hours" type="number" step="0.5"></div>
-          <div><label>Assigned crew</label><select id="j_assigned_employee_id"></select></div>
-        </div>
-      </div>
-
-      <div class="panel"><h2>Payment</h2>
-        <div class="row2">
-          <div><label>Deposit ($)</label><input id="j_deposit_amount" type="number" step="1"></div>
-          <div><label>Amount paid ($)</label><input id="j_amount_paid" type="number" step="1"></div>
-          <div><label>Payment status</label>
-            <select id="j_payment_status">
-              <option value="UNPAID">Unpaid</option><option value="DEPOSIT_PAID">Deposit paid</option>
-              <option value="PAID_IN_FULL">Paid in full</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel"><h2>HOA &amp; Permits</h2>
-        <div class="row2">
-          <div><label>HOA name</label><input id="j_hoa_name"></div>
-          <div><label>HOA email</label><input id="j_hoa_email"></div>
-          <div><label>HOA status</label>
-            <select id="j_hoa_approval_status">
-              <option value="NOT_REQUIRED">Not required</option><option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option><option value="DENIED">Denied</option>
-            </select>
-          </div>
-          <div><label>Permit number</label><input id="j_permit_number"></div>
-          <div><label>Permit status</label>
-            <select id="j_permit_status">
-              <option value="NOT_REQUIRED">Not required</option><option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="sheet-foot">
-      <button class="btn btn-grey" id="deleteJob">Delete</button>
-      <button class="btn" id="saveJob">Save Changes</button>
-    </div>
+<div class="overlay" id="jobOverlay"><div class="sheet">
+  <div class="sheet-head">
+    <strong id="jobTitle">Job</strong>
+    <button class="btn btn-sm btn-ghost" id="closeJob">Close</button>
   </div>
-</div>
+  <div class="sheet-body">
+    <div class="msg" id="jobMsg"></div><div id="jobReadonly"></div>
+
+    <div class="panel"><h2>Progress</h2><div id="jobProgress"></div></div>
+
+    <div class="panel"><h2>Customer</h2>
+      <div class="row2">
+        <div><label>Customer name</label><input id="j_customer_name"></div>
+        <div><label>Phone</label><input id="j_phone"></div>
+      </div>
+      <label>Property address</label><input id="j_address">
+      <div class="row2">
+        <div><label>Email</label><input id="j_email"></div>
+        <div><label>How they found us</label><input id="j_referral_source"></div>
+      </div>
+      <label>Notes</label><textarea id="j_notes"></textarea>
+    </div>
+
+    <div class="panel"><h2>Fence Runs</h2><div id="jobRuns"></div></div>
+    <div class="panel"><h2>Estimate</h2><div id="jobItems"></div></div>
+
+    <div class="panel"><h2>Pricing</h2>
+      <div class="row3">
+        <div><label>Tax rate (%)</label><input id="j_tax_rate_percent" type="number" step="0.1"></div>
+        <div><label>Markup (%)</label><input id="j_markup_percent" type="number" step="0.1"></div>
+        <div><label>Discount (%)</label><input id="j_discount_percent" type="number" step="0.1"></div>
+        <div><label>Labor $/ft</label><input id="j_labor_rate_per_ft" type="number" step="0.1"></div>
+        <div><label>Labor flat fee ($)</label><input id="j_labor_flat_fee" type="number" step="1"></div>
+        <div><label>Minimum charge ($)</label><input id="j_minimum_job_charge" type="number" step="1"></div>
+      </div>
+    </div>
+
+    <div class="panel"><h2>Schedule &amp; Status</h2>
+      <div class="row2">
+        <div><label>Status</label><select id="j_status">
+          <option value="DRAFT">Draft</option><option value="SENT">Sent</option>
+          <option value="ACCEPTED">Accepted</option><option value="COMPLETED">Completed</option>
+          <option value="DECLINED">Declined</option></select></div>
+        <div><label>Scheduled date</label><input id="j_scheduled_date" type="date"></div>
+        <div><label>Estimated hours</label><input id="j_estimated_duration_hours" type="number" step="0.5"></div>
+        <div><label>Assigned crew</label><select id="j_assigned_employee_id"></select></div>
+      </div>
+    </div>
+
+    <div class="panel"><h2>Payment</h2>
+      <div class="row3">
+        <div><label>Deposit ($)</label><input id="j_deposit_amount" type="number" step="1"></div>
+        <div><label>Amount paid ($)</label><input id="j_amount_paid" type="number" step="1"></div>
+        <div><label>Payment status</label><select id="j_payment_status">
+          <option value="UNPAID">Unpaid</option><option value="DEPOSIT_PAID">Deposit paid</option>
+          <option value="PAID_IN_FULL">Paid in full</option></select></div>
+      </div>
+    </div>
+
+    <div class="panel"><h2>HOA &amp; Permits</h2>
+      <div class="row3">
+        <div><label>HOA name</label><input id="j_hoa_name"></div>
+        <div><label>HOA email</label><input id="j_hoa_email"></div>
+        <div><label>HOA status</label><select id="j_hoa_approval_status">
+          <option value="NOT_REQUIRED">Not required</option><option value="PENDING">Pending</option>
+          <option value="APPROVED">Approved</option><option value="DENIED">Denied</option></select></div>
+        <div><label>Permit number</label><input id="j_permit_number"></div>
+        <div><label>Permit status</label><select id="j_permit_status">
+          <option value="NOT_REQUIRED">Not required</option><option value="PENDING">Pending</option>
+          <option value="APPROVED">Approved</option></select></div>
+      </div>
+    </div>
+
+    <div class="panel"><h2>Expenses</h2><div id="jobExpenses"></div></div>
+    <div class="panel"><h2>Punch List</h2><div id="jobPunch"></div></div>
+    <div class="panel"><h2>Change Orders</h2><div id="jobOrders"></div></div>
+    <div class="panel"><h2>Time Logged</h2><div id="jobTime"></div></div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="deleteJob">Delete</button>
+    <button class="btn" id="saveJob">Save Changes</button>
+  </div>
+</div></div>
 
 <!-- Crew editor -->
-<div class="overlay" id="empOverlay">
-  <div class="sheet" style="max-width:520px">
-    <div class="sheet-head">
-      <strong id="empTitle">Crew Member</strong>
-      <button class="btn btn-sm btn-ghost" id="closeEmp">Close</button>
-    </div>
-    <div class="sheet-body">
-      <div class="msg" id="empMsg"></div>
-      <div class="panel">
-        <label>Name</label><input id="e_name">
-        <label>Role</label><input id="e_role" placeholder="Foreman, Laborer…">
-        <div class="row2">
-          <div><label>Phone</label><input id="e_phone"></div>
-          <div><label>Email</label><input id="e_email"></div>
-        </div>
-        <label>Hourly rate ($)</label><input id="e_hourlyRate" type="number" step="0.5">
-        <label>Notes</label><textarea id="e_notes"></textarea>
+<div class="overlay" id="empOverlay"><div class="sheet" style="max-width:520px">
+  <div class="sheet-head"><strong id="empTitle">Crew Member</strong>
+    <button class="btn btn-sm btn-ghost" id="closeEmp">Close</button></div>
+  <div class="sheet-body"><div class="msg" id="empMsg"></div>
+    <div class="panel">
+      <label>Name</label><input id="e_name">
+      <label>Role</label><input id="e_role" placeholder="Foreman, Laborer…">
+      <div class="row2">
+        <div><label>Phone</label><input id="e_phone"></div>
+        <div><label>Email</label><input id="e_email"></div>
       </div>
-    </div>
-    <div class="sheet-foot">
-      <button class="btn btn-grey" id="deleteEmp">Delete</button>
-      <button class="btn" id="saveEmp">Save</button>
+      <label>Hourly rate ($)</label><input id="e_hourly_rate" type="number" step="0.5">
+      <label>Notes</label><textarea id="e_notes"></textarea>
     </div>
   </div>
-</div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="deleteEmp">Delete</button>
+    <button class="btn" id="saveEmp">Save</button>
+  </div>
+</div></div>
 
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
-// Publishable key — safe in client code. Row Level Security in the database is
-// what actually restricts access, not this key.
+// Publishable key — safe client-side. Row Level Security enforces access.
 const db = createClient(
   'https://newcrgafcptspmapacrx.supabase.co',
   'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
@@ -288,15 +350,17 @@ const db = createClient(
 
 const $ = id => document.getElementById(id);
 const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
-const esc = s => (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const esc = s => (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
+const d = s => s ? new Date(s) : null;
 
-let profile = null, jobs = [], employees = [], openJob = null, openEmp = null;
+let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
+    orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null;
+let calMonth = new Date();
 
-function msg(el, text, kind){ const e=$(el); e.textContent=text; e.className='msg '+kind;
-  if(kind==='ok') setTimeout(()=>{e.className='msg';},2500); }
-
-const canEdit = () => profile && (profile.role === 'OWNER' || profile.role === 'MANAGER');
+const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANAGER');
+function msg(el,text,kind){const e=$(el);e.textContent=text;e.className='msg '+kind;
+  if(kind==='ok') setTimeout(()=>{e.className='msg';},2500);}
 
 /* ---------- auth ---------- */
 async function signIn(){
@@ -309,219 +373,417 @@ async function signIn(){
 }
 
 async function boot(){
-  const {data:{user}} = await db.auth.getUser();
+  const {data:{user}}=await db.auth.getUser();
   if(!user) return;
-
-  const {data:prof} = await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
-  profile = prof;
-
-  if(!profile || !profile.company_id){
+  const {data:prof}=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
+  profile=prof;
+  if(!profile||!profile.company_id){
     msg('authMsg','This account is not part of a business yet. Create or join one in the phone app first.','err');
-    await db.auth.signOut();
-    return;
+    await db.auth.signOut(); return;
   }
-
-  $('auth').style.display='none';
-  $('app').style.display='block';
-  $('signOut').style.display='inline-block';
-  $('who').textContent = `${user.email} · ${profile.role}`;
+  $('auth').style.display='none'; $('app').style.display='block';
+  $('signOut').style.display='inline-block'; $('refresh').style.display='inline-block';
+  $('who').textContent=`${user.email} · ${profile.role}`;
 
   if(!canEdit()){
-    const note = '<div class="readonly-note">You have crew-level access, so job financials and settings are read-only here.</div>';
-    $('jobReadonly').innerHTML = note;
-    $('settingsNote').innerHTML = note;
+    const n='<div class="note">Crew-level access: financials and settings are read-only here.</div>';
+    $('jobReadonly').innerHTML=n; $('setNote').innerHTML=n;
     ['saveJob','deleteJob','saveSettings','newJob','newEmp','saveEmp','deleteEmp']
-      .forEach(id => { const b=$(id); if(b) b.disabled = true; });
+      .forEach(id=>{const b=$(id); if(b) b.disabled=true;});
   }
+  await loadAll();
+}
 
-  await Promise.all([loadJobs(), loadEmployees(), loadSettings()]);
+/* ---------- data ---------- */
+async function loadAll(){
+  // One round trip per table; RLS scopes every result to this company.
+  const q = t => db.from(t).select('*');
+  const [j,e,r,i,x,p,o,tm,c,ti] = await Promise.all([
+    q('jobs'), q('employees'), q('fence_runs'), q('estimate_line_items'),
+    q('expenses'), q('punch_list_items'), q('change_orders'), q('time_entries'),
+    q('material_items'), q('pricing_tiers')
+  ]);
+  jobs=j.data||[]; employees=e.data||[]; runs=r.data||[]; items=i.data||[];
+  expenses=x.data||[]; punch=p.data||[]; orders=o.data||[]; times=tm.data||[];
+  catalog=c.data||[]; tiers=ti.data||[];
+  jobs.sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0));
+
+  renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
+  renderTime(); renderCatalog(); renderReports(); renderTiers();
+  await loadSettings();
+}
+
+/* ---------- dashboard ---------- */
+function renderDash(){
+  const m=new Date(); m.setDate(1); m.setHours(0,0,0,0);
+  const won=jobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED').length;
+  const collected=jobs.filter(j=>d(j.updated_at)>=m).reduce((s,j)=>s+(j.amount_paid||0),0);
+  const unpaid=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&j.payment_status!=='PAID_IN_FULL');
+  const week=new Date(); const weekEnd=new Date(Date.now()+7*864e5);
+  const soon=jobs.filter(j=>j.scheduled_date&&d(j.scheduled_date)>=week&&d(j.scheduled_date)<=weekEnd);
+
+  $('stats').innerHTML=`
+    <div class="stat click" data-go="cal"><div class="n">${soon.length}</div><div class="l">Scheduled this week</div></div>
+    <div class="stat click" data-go="pipe"><div class="n">${won}</div><div class="l">Jobs won</div></div>
+    <div class="stat click" data-go="reports"><div class="n">${money(collected)}</div><div class="l">Collected this month</div></div>
+    <div class="stat click" data-go="jobs"><div class="n">${unpaid.length}</div><div class="l">Unpaid jobs</div></div>`;
+  document.querySelectorAll('.stat.click').forEach(s=>
+    s.addEventListener('click',()=>switchTab(s.dataset.go)));
+
+  const open = punch.filter(p=>!p.resolved);
+  const rows=[];
+  if(unpaid.length) rows.push(`${unpaid.length} job(s) finished but not paid in full`);
+  if(open.length) rows.push(`${open.length} open punch-list item(s)`);
+  const noQuote = jobs.filter(j=>j.status==='DRAFT').length;
+  if(noQuote) rows.push(`${noQuote} job(s) still in draft — quote not sent`);
+  $('attention').innerHTML = rows.length
+    ? rows.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--line)">${esc(r)}</div>`).join('')
+    : '<div class="empty">Nothing needs attention.</div>';
 }
 
 /* ---------- jobs ---------- */
-async function loadJobs(){
-  const {data,error} = await db.from('jobs').select('*').order('updated_at',{ascending:false});
-  if(error){ $('jobRows').innerHTML=`<tr><td colspan="5" style="color:var(--red)">${esc(error.message)}</td></tr>`; return; }
-  jobs = data||[];
-  renderStats(); renderJobs();
-}
-
-function renderStats(){
-  const m=new Date(); m.setDate(1); m.setHours(0,0,0,0);
-  const won=jobs.filter(j=>j.status==='ACCEPTED').length;
-  const collected=jobs.filter(j=>new Date(j.updated_at)>=m).reduce((s,j)=>s+(j.amount_paid||0),0);
-  const unpaid=jobs.filter(j=>j.status==='ACCEPTED'&&j.payment_status!=='PAID_IN_FULL').length;
-  $('stats').innerHTML=`
-    <div class="stat"><div class="n">${jobs.length}</div><div class="l">Total jobs</div></div>
-    <div class="stat"><div class="n">${won}</div><div class="l">Jobs won</div></div>
-    <div class="stat"><div class="n">${money(collected)}</div><div class="l">Collected this month</div></div>
-    <div class="stat"><div class="n">${unpaid}</div><div class="l">Unpaid jobs</div></div>`;
-}
-
 function renderJobs(){
-  $('jobsEmpty').style.display = jobs.length ? 'none':'block';
-  $('jobRows').innerHTML = jobs.map(j=>`
-    <tr data-id="${j.id}">
+  $('jobsEmpty').style.display=jobs.length?'none':'block';
+  $('jobRows').innerHTML=jobs.map(j=>`
+    <tr class="click" data-id="${j.id}">
       <td><strong>${esc(j.customer_name)||'Untitled'}</strong></td>
       <td>${esc(j.address)||'—'}</td>
       <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span></td>
-      <td>${j.scheduled_date?new Date(j.scheduled_date).toLocaleDateString():'—'}</td>
-      <td>${money(j.amount_paid)}</td>
-    </tr>`).join('');
+      <td>${j.scheduled_date?d(j.scheduled_date).toLocaleDateString():'—'}</td>
+      <td>${money(j.amount_paid)}</td></tr>`).join('');
   document.querySelectorAll('#jobRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showJob(tr.dataset.id)));
 }
 
-const JOB_TEXT = ['customer_name','phone','address','email','referral_source','notes',
-                  'hoa_name','hoa_email','permit_number'];
-const JOB_NUM  = ['tax_rate_percent','markup_percent','discount_percent','minimum_job_charge',
-                  'labor_rate_per_ft','labor_flat_fee','estimated_duration_hours',
-                  'deposit_amount','amount_paid'];
-const JOB_SEL  = ['status','payment_status','hoa_approval_status','permit_status'];
+/* ---------- calendar ---------- */
+function renderCal(){
+  const y=calMonth.getFullYear(), m=calMonth.getMonth();
+  $('calTitle').textContent=calMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const first=new Date(y,m,1), start=first.getDay(), days=new Date(y,m+1,0).getDate();
+  const today=new Date(); today.setHours(0,0,0,0);
 
-function showJob(id){
-  openJob = jobs.find(j=>String(j.id)===String(id));
-  if(!openJob) return;
-  $('jobTitle').textContent = openJob.customer_name || 'Job';
-
-  JOB_TEXT.forEach(k=>{ const el=$('j_'+k); if(el) el.value = openJob[k]||''; });
-  JOB_NUM.forEach(k=>{ const el=$('j_'+k); if(el) el.value = openJob[k] ?? 0; });
-  JOB_SEL.forEach(k=>{ const el=$('j_'+k); if(el) el.value = openJob[k]||el.options[0].value; });
-
-  $('j_scheduled_date').value = openJob.scheduled_date
-    ? new Date(openJob.scheduled_date).toISOString().slice(0,10) : '';
-
-  $('j_assigned_employee_id').innerHTML =
-    '<option value="">Unassigned</option>' +
-    employees.map(e=>`<option value="${e.id}">${esc(e.name)||'Unnamed'}</option>`).join('');
-  $('j_assigned_employee_id').value = openJob.assigned_employee_id || '';
-
-  // Inputs stay readable for crew but can't be submitted (buttons disabled above).
-  $('jobOverlay').classList.add('on');
+  let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="dow">${x}</div>`).join('');
+  for(let i=0;i<start;i++) html+='<div class="day pad"></div>';
+  for(let day=1;day<=days;day++){
+    const cur=new Date(y,m,day);
+    const evs=jobs.filter(j=>{
+      if(!j.scheduled_date) return false;
+      const s=d(j.scheduled_date);
+      return s.getFullYear()===y&&s.getMonth()===m&&s.getDate()===day;
+    });
+    html+=`<div class="day${cur.getTime()===today.getTime()?' today':''}">
+      <div class="dnum">${day}</div>
+      ${evs.map(j=>`<div class="ev" data-id="${j.id}">${esc(j.customer_name)||'Job'}</div>`).join('')}
+    </div>`;
+  }
+  $('cal').innerHTML=html;
+  document.querySelectorAll('.cal .ev').forEach(el=>
+    el.addEventListener('click',()=>showJob(el.dataset.id)));
 }
 
-async function saveJob(){
-  if(!openJob || !canEdit()) return;
-  const patch = {};
-  JOB_TEXT.forEach(k=>{ const el=$('j_'+k); if(el) patch[k]=el.value; });
-  JOB_NUM.forEach(k=>{ const el=$('j_'+k); if(el) patch[k]=num(el.value); });
-  JOB_SEL.forEach(k=>{ const el=$('j_'+k); if(el) patch[k]=el.value; });
-
-  const d = $('j_scheduled_date').value;
-  patch.scheduled_date = d ? new Date(d+'T08:00:00').toISOString() : null;
-  patch.assigned_employee_id = $('j_assigned_employee_id').value || null;
-
-  const {error} = await db.from('jobs').update(patch).eq('id', openJob.id);
-  if(error) return msg('jobMsg', error.message, 'err');
-  msg('jobMsg','Saved. The phone app will pick this up on its next sync.','ok');
-  await loadJobs();
+/* ---------- pipeline ---------- */
+function stageOf(j){
+  if(j.status==='DECLINED') return 'Lost';
+  if(j.payment_status==='PAID_IN_FULL') return 'Paid in Full';
+  if(j.status==='COMPLETED') return 'Installed';
+  if(j.scheduled_date&&j.status==='ACCEPTED') return 'Scheduled';
+  if((j.amount_paid||0)>0||j.payment_status==='DEPOSIT_PAID') return 'Deposit Paid';
+  if(j.status==='ACCEPTED') return 'Approved';
+  if(j.status==='SENT') return 'Quote Sent';
+  return 'New Lead';
 }
-
-async function createJob(){
-  if(!canEdit()) return;
-  const {data,error} = await db.from('jobs').insert({
-    company_id: profile.company_id,
-    customer_name: 'New job',
-    // Defaults mirror the app so a job started here isn't quoted at zero markup.
-    tax_rate_percent: num($('s_tax').value) || 7,
-    markup_percent: num($('s_markup').value) || 15,
-    labor_rate_per_ft: num($('s_labor').value) || 8,
-    minimum_job_charge: num($('s_min').value) || 200
-  }).select().maybeSingle();
-  if(error) return alert(error.message);
-  await loadJobs();
-  if(data) showJob(data.id);
-}
-
-async function deleteJob(){
-  if(!openJob || !canEdit()) return;
-  if(!confirm(`Delete "${openJob.customer_name||'this job'}"? This cannot be undone.`)) return;
-  const {error} = await db.from('jobs').delete().eq('id', openJob.id);
-  if(error) return msg('jobMsg', error.message, 'err');
-  $('jobOverlay').classList.remove('on');
-  await loadJobs();
+function renderPipe(){
+  const stages=['New Lead','Quote Sent','Approved','Deposit Paid','Scheduled','Installed','Paid in Full','Lost'];
+  $('pipe').innerHTML=stages.map(s=>{
+    const list=jobs.filter(j=>stageOf(j)===s);
+    return `<div class="col"><h3><span>${s}</span><span style="color:var(--orange)">${list.length}</span></h3>
+      ${list.map(j=>`<div class="card" data-id="${j.id}">
+        <strong>${esc(j.customer_name)||'Untitled'}</strong>
+        <div style="color:var(--muted);font-size:12px">${esc(j.address)||''}</div></div>`).join('')
+        || '<div style="color:var(--muted);font-size:12px">—</div>'}</div>`;
+  }).join('');
+  document.querySelectorAll('#pipe .card').forEach(c=>
+    c.addEventListener('click',()=>showJob(c.dataset.id)));
 }
 
 /* ---------- crew ---------- */
-async function loadEmployees(){
-  const {data,error} = await db.from('employees').select('*').order('name');
-  if(error) return;
-  employees = data||[];
-  $('empEmpty').style.display = employees.length?'none':'block';
-  $('empRows').innerHTML = employees.map(e=>`
-    <tr data-id="${e.id}">
-      <td><strong>${esc(e.name)||'Unnamed'}</strong></td>
-      <td>${esc(e.role)||'—'}</td><td>${esc(e.phone)||'—'}</td>
-      <td>${esc(e.email)||'—'}</td><td>${e.hourly_rate?money(e.hourly_rate):'—'}</td>
-    </tr>`).join('');
+function renderEmployees(){
+  $('empEmpty').style.display=employees.length?'none':'block';
+  $('empRows').innerHTML=employees.map(e=>`
+    <tr class="click" data-id="${e.id}">
+      <td><strong>${esc(e.name)||'Unnamed'}</strong></td><td>${esc(e.role)||'—'}</td>
+      <td>${esc(e.phone)||'—'}</td><td>${esc(e.email)||'—'}</td>
+      <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':'—'}</td></tr>`).join('');
   document.querySelectorAll('#empRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showEmp(tr.dataset.id)));
 }
 
+/* ---------- time ---------- */
+function hoursOf(t){
+  if(!t.started_at||!t.ended_at) return 0;
+  return (d(t.ended_at)-d(t.started_at))/3600000;
+}
+function jobBySync(sid){ return jobs.find(j=>j.sync_id===sid); }
+function renderTime(){
+  const done=times.filter(t=>t.ended_at);
+  $('timeEmpty').style.display=done.length?'none':'block';
+  $('timeRows').innerHTML=done.map(t=>{
+    const j=jobBySync(t.job_sync_id), h=hoursOf(t);
+    return `<tr><td>${esc(j?.customer_name)||'—'}</td>
+      <td>${d(t.started_at).toLocaleString()}</td>
+      <td>${d(t.ended_at).toLocaleString()}</td>
+      <td>${h.toFixed(2)}</td><td>${money(h*(t.hourly_rate||0))}</td></tr>`;
+  }).join('');
+  const th=done.reduce((s,t)=>s+hoursOf(t),0);
+  const tc=done.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
+  $('timeTotals').textContent = done.length
+    ? `Total: ${th.toFixed(1)} hours · ${money(tc)} labor` : '';
+}
+
+/* ---------- catalog ---------- */
+function renderCatalog(){
+  const f=($('catFilter').value||'').toLowerCase();
+  const list=catalog.filter(c=>!f||
+    (c.name||'').toLowerCase().includes(f)||
+    (c.fence_type||'').toLowerCase().includes(f)||
+    (c.role||'').toLowerCase().includes(f));
+  $('catEmpty').style.display=catalog.length?'none':'block';
+  $('catRows').innerHTML=list.map(c=>`<tr>
+    <td>${esc(c.name)}</td><td>${esc((c.fence_type||'').replace(/_/g,' '))}</td>
+    <td>${esc((c.role||'').replace(/_/g,' '))}</td><td>${esc(c.unit)}</td>
+    <td>${money(c.unit_price)}</td></tr>`).join('');
+}
+
+/* ---------- reports ---------- */
+function renderReports(){
+  const days=parseInt($('repPeriod').value,10);
+  const cutoff = days ? new Date(Date.now()-days*864e5) : new Date(0);
+  const inRange=jobs.filter(j=>d(j.updated_at||j.created_at)>=cutoff);
+  const wonJobs=inRange.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED');
+  const syncIds=new Set(inRange.map(j=>j.sync_id));
+
+  const material=items.filter(i=>syncIds.has(i.job_sync_id))
+    .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
+  const other=expenses.filter(e=>syncIds.has(e.job_sync_id)).reduce((s,e)=>s+(e.amount||0),0);
+  const labor=times.filter(t=>t.ended_at&&syncIds.has(t.job_sync_id))
+    .reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
+  const collected=inRange.reduce((s,j)=>s+(j.amount_paid||0),0);
+  const profit=collected-material-labor-other;
+
+  $('repStats').innerHTML=`
+    <div class="stat"><div class="n">${wonJobs.length}</div><div class="l">Jobs won</div></div>
+    <div class="stat"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>
+    <div class="stat"><div class="n">${money(material)}</div><div class="l">Material cost</div></div>
+    <div class="stat"><div class="n">${money(labor)}</div><div class="l">Labor (clocked)</div></div>
+    <div class="stat"><div class="n">${money(other)}</div><div class="l">Other expenses</div></div>
+    <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit</div></div>`;
+
+  const byEmp={};
+  times.filter(t=>t.ended_at&&syncIds.has(t.job_sync_id)).forEach(t=>{
+    const j=jobBySync(t.job_sync_id);
+    const emp=employees.find(e=>e.id===j?.assigned_employee_id);
+    const key=emp?emp.name:'Unassigned';
+    byEmp[key]=byEmp[key]||{jobs:new Set(),hours:0,cost:0};
+    byEmp[key].jobs.add(t.job_sync_id);
+    byEmp[key].hours+=hoursOf(t);
+    byEmp[key].cost+=hoursOf(t)*(t.hourly_rate||0);
+  });
+  const rows=Object.entries(byEmp);
+  $('repCrew').innerHTML = rows.length
+    ? rows.map(([n,v])=>`<tr><td>${esc(n)}</td><td>${v.jobs.size}</td>
+        <td>${v.hours.toFixed(1)}</td><td>${money(v.cost)}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="color:var(--muted)">No clocked time in this period.</td></tr>';
+}
+
+function renderTiers(){
+  $('tierEmpty').style.display=tiers.length?'none':'block';
+  $('tierRows').innerHTML=tiers.map(t=>`<tr><td>${esc(t.name)}</td>
+    <td>${money(t.labor_rate_per_ft)}</td><td>${(t.markup_percent||0)}%</td>
+    <td>${(t.discount_percent||0)}%</td></tr>`).join('');
+}
+
+/* ---------- job detail ---------- */
+const J_TEXT=['customer_name','phone','address','email','referral_source','notes','hoa_name','hoa_email','permit_number'];
+const J_NUM=['tax_rate_percent','markup_percent','discount_percent','minimum_job_charge',
+             'labor_rate_per_ft','labor_flat_fee','estimated_duration_hours','deposit_amount','amount_paid'];
+const J_SEL=['status','payment_status','hoa_approval_status','permit_status'];
+
+function showJob(id){
+  openJob=jobs.find(j=>String(j.id)===String(id));
+  if(!openJob) return;
+  $('jobTitle').textContent=openJob.customer_name||'Job';
+  J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||'';});
+  J_NUM.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]??0;});
+  J_SEL.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||el.options[0].value;});
+  $('j_scheduled_date').value=openJob.scheduled_date
+    ? new Date(openJob.scheduled_date).toISOString().slice(0,10) : '';
+  $('j_assigned_employee_id').innerHTML='<option value="">Unassigned</option>'+
+    employees.map(e=>`<option value="${e.id}">${esc(e.name)||'Unnamed'}</option>`).join('');
+  $('j_assigned_employee_id').value=openJob.assigned_employee_id||'';
+
+  const sid=openJob.sync_id;
+  const jr=runs.filter(r=>r.job_sync_id===sid);
+  $('jobRuns').innerHTML = jr.length ? jr.map(r=>`
+    <div style="padding:7px 0;border-bottom:1px solid var(--line)">
+      <strong>${esc(r.label)||'Untitled run'}</strong>
+      <div style="color:var(--muted);font-size:13px">
+        ${esc((r.fence_type||'').replace(/_/g,' '))} · ${r.panel_height_ft} ft tall ·
+        posts ${r.post_spacing_ft} ft apart${r.color_or_finish?' · '+esc(r.color_or_finish):''}
+      </div></div>`).join('') : '<div class="empty">No fence runs. Draw them in the phone app.</div>';
+
+  const li=items.filter(i=>i.job_sync_id===sid);
+  const liTotal=li.reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
+  $('jobItems').innerHTML = li.length ? `<div class="scroll"><table>
+    <thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
+    <tbody>${li.map(i=>`<tr><td>${esc(i.description)}</td><td>${i.quantity}</td>
+      <td>${money(i.unit_price)}</td><td>${money((i.quantity||0)*(i.unit_price||0))}</td></tr>`).join('')}
+    </tbody></table></div><div style="margin-top:8px;font-weight:700">Materials: ${money(liTotal)}</div>`
+    : '<div class="empty">No estimate yet. Run Suggest Quantities in the app.</div>';
+
+  const ex=expenses.filter(e=>e.job_sync_id===sid);
+  $('jobExpenses').innerHTML = ex.length
+    ? ex.map(e=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line)">
+        <span>${esc(e.description)||esc(e.category)}</span><span>${money(e.amount)}</span></div>`).join('')
+      + `<div style="margin-top:8px;font-weight:700">Total: ${money(ex.reduce((s,e)=>s+(e.amount||0),0))}</div>`
+    : '<div class="empty">No expenses logged.</div>';
+
+  const pl=punch.filter(p=>p.job_sync_id===sid);
+  $('jobPunch').innerHTML = pl.length
+    ? pl.map(p=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)">
+        ${p.resolved?'✓':'○'} ${esc(p.description)}</div>`).join('')
+    : '<div class="empty">Nothing outstanding.</div>';
+
+  const co=orders.filter(o=>o.job_sync_id===sid);
+  $('jobOrders').innerHTML = co.length
+    ? co.map(o=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)">
+        <strong>${esc(o.description)}</strong> — ${money(o.additional_cost)}
+        ${o.signed_at?' <span style="color:var(--teal)">signed</span>':' <span style="color:var(--red)">unsigned</span>'}
+      </div>`).join('')
+    : '<div class="empty">No change orders.</div>';
+
+  const tt=times.filter(t=>t.job_sync_id===sid&&t.ended_at);
+  const th=tt.reduce((s,t)=>s+hoursOf(t),0);
+  $('jobTime').innerHTML = tt.length
+    ? tt.map(t=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)">
+        ${d(t.started_at).toLocaleDateString()} — ${hoursOf(t).toFixed(2)} hrs</div>`).join('')
+      + `<div style="margin-top:8px;font-weight:700">Total: ${th.toFixed(1)} hrs</div>`
+    : '<div class="empty">No time clocked.</div>';
+
+  // Same seven stages the phone shows, derived the same way.
+  const st=[
+    ['Quote sent', openJob.status!=='DRAFT'],
+    ['Quote approved', openJob.status==='ACCEPTED'||openJob.status==='COMPLETED'],
+    ['Deposit received', (openJob.amount_paid||0)>0||openJob.payment_status!=='UNPAID'],
+    ['HOA / permit cleared', ['NOT_REQUIRED','APPROVED'].includes(openJob.hoa_approval_status)],
+    ['Installation scheduled', !!openJob.scheduled_date],
+    ['Installation complete', openJob.status==='COMPLETED'],
+    ['Final payment', openJob.payment_status==='PAID_IN_FULL']
+  ];
+  const next=st.findIndex(s=>!s[1]);
+  $('jobProgress').innerHTML=st.map(([label,done],i)=>
+    `<div style="padding:5px 0">${done?'✓':'○'} ${esc(label)}
+      ${i===next?'<span style="color:var(--orange);font-weight:700;font-size:11px"> NEXT</span>':''}</div>`).join('');
+
+  $('jobOverlay').classList.add('on');
+}
+
+async function saveJob(){
+  if(!openJob||!canEdit()) return;
+  const patch={};
+  J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=el.value;});
+  J_NUM.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=num(el.value);});
+  J_SEL.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=el.value;});
+  const dt=$('j_scheduled_date').value;
+  patch.scheduled_date = dt ? new Date(dt+'T08:00:00').toISOString() : null;
+  patch.assigned_employee_id = $('j_assigned_employee_id').value || null;
+  const {error}=await db.from('jobs').update(patch).eq('id',openJob.id);
+  if(error) return msg('jobMsg',error.message,'err');
+  msg('jobMsg','Saved. Phones pick this up on their next sync.','ok');
+  await loadAll();
+}
+
+async function createJob(){
+  if(!canEdit()) return;
+  const {data,error}=await db.from('jobs').insert({
+    company_id:profile.company_id, customer_name:'New job',
+    tax_rate_percent:num($('s_tax').value)||7, markup_percent:num($('s_markup').value)||15,
+    labor_rate_per_ft:num($('s_labor').value)||8, minimum_job_charge:num($('s_min').value)||200
+  }).select().maybeSingle();
+  if(error) return alert(error.message);
+  await loadAll(); if(data) showJob(data.id);
+}
+
+async function deleteJob(){
+  if(!openJob||!canEdit()) return;
+  if(!confirm(`Delete "${openJob.customer_name||'this job'}"? This cannot be undone.`)) return;
+  const {error}=await db.from('jobs').delete().eq('id',openJob.id);
+  if(error) return msg('jobMsg',error.message,'err');
+  $('jobOverlay').classList.remove('on'); await loadAll();
+}
+
+/* ---------- crew editor ---------- */
 function showEmp(id){
   openEmp = id ? employees.find(e=>String(e.id)===String(id)) : null;
   $('empTitle').textContent = openEmp ? (openEmp.name||'Crew Member') : 'New Crew Member';
-  ['name','role','phone','email','notes'].forEach(k=>$('e_'+k).value = openEmp?.[k] || '');
-  $('e_hourlyRate').value = openEmp?.hourly_rate ?? '';
-  $('deleteEmp').style.display = openEmp ? 'inline-block':'none';
+  ['name','role','phone','email','notes'].forEach(k=>$('e_'+k).value=openEmp?.[k]||'');
+  $('e_hourly_rate').value=openEmp?.hourly_rate??'';
+  $('deleteEmp').style.display=openEmp?'inline-block':'none';
   $('empOverlay').classList.add('on');
 }
-
 async function saveEmp(){
   if(!canEdit()) return;
-  const patch = {
-    name:$('e_name').value, role:$('e_role').value, phone:$('e_phone').value,
-    email:$('e_email').value, notes:$('e_notes').value,
-    hourly_rate: num($('e_hourlyRate').value)
-  };
+  const patch={name:$('e_name').value,role:$('e_role').value,phone:$('e_phone').value,
+    email:$('e_email').value,notes:$('e_notes').value,hourly_rate:num($('e_hourly_rate').value)};
   const res = openEmp
     ? await db.from('employees').update(patch).eq('id',openEmp.id)
-    : await db.from('employees').insert({...patch, company_id:profile.company_id});
+    : await db.from('employees').insert({...patch,company_id:profile.company_id});
   if(res.error) return msg('empMsg',res.error.message,'err');
-  $('empOverlay').classList.remove('on');
-  await loadEmployees();
+  $('empOverlay').classList.remove('on'); await loadAll();
 }
-
 async function deleteEmp(){
-  if(!openEmp || !canEdit()) return;
+  if(!openEmp||!canEdit()) return;
   if(!confirm(`Remove ${openEmp.name||'this person'}?`)) return;
-  const {error} = await db.from('employees').delete().eq('id',openEmp.id);
+  const {error}=await db.from('employees').delete().eq('id',openEmp.id);
   if(error) return msg('empMsg',error.message,'err');
-  $('empOverlay').classList.remove('on');
-  await loadEmployees();
+  $('empOverlay').classList.remove('on'); await loadAll();
 }
 
 /* ---------- settings ---------- */
-const SET_MAP = {
-  s_businessName:'business_name', s_ownerName:'owner_name', s_phone:'phone', s_email:'email',
-  s_license:'license_number', s_tax:'tax_rate', s_markup:'markup', s_labor:'labor_rate',
-  s_spacing:'post_spacing', s_bags:'concrete_bags', s_pw:'panel_width', s_ph:'panel_height',
-  s_min:'min_job_charge', s_order:'order_template', s_hoa:'hoa_template', s_review:'review_template'
-};
-const SET_NUMERIC = ['s_tax','s_markup','s_labor','s_spacing','s_bags','s_pw','s_ph','s_min'];
+const SET={s_businessName:'business_name',s_ownerName:'owner_name',s_phone:'phone',s_email:'email',
+  s_license:'license_number',s_tax:'tax_rate',s_markup:'markup',s_labor:'labor_rate',
+  s_spacing:'post_spacing',s_bags:'concrete_bags',s_pw:'panel_width',s_ph:'panel_height',
+  s_min:'min_job_charge',s_order:'order_template',s_hoa:'hoa_template',s_review:'review_template'};
+const SET_NUM=['s_tax','s_markup','s_labor','s_spacing','s_bags','s_pw','s_ph','s_min'];
 
 async function loadSettings(){
-  const {data} = await db.from('company_settings').select('settings')
+  const {data}=await db.from('company_settings').select('settings')
     .eq('company_id',profile.company_id).maybeSingle();
-  const s = data?.settings || {};
-  Object.entries(SET_MAP).forEach(([el,key])=>{ const e=$(el); if(e) e.value = s[key] ?? ''; });
+  const s=data?.settings||{};
+  Object.entries(SET).forEach(([el,key])=>{const e=$(el); if(e) e.value=s[key]??'';});
 }
-
 async function saveSettings(){
   if(!canEdit()) return;
-  const payload = {};
-  Object.entries(SET_MAP).forEach(([el,key])=>{
-    const v = $(el)?.value ?? '';
-    payload[key] = SET_NUMERIC.includes(el) ? num(v) : v;
-  });
-  const {error} = await db.rpc('save_company_settings',{new_settings:payload});
+  const payload={};
+  Object.entries(SET).forEach(([el,key])=>{
+    const v=$(el)?.value??''; payload[key]=SET_NUM.includes(el)?num(v):v;});
+  const {error}=await db.rpc('save_company_settings',{new_settings:payload});
   if(error) return msg('setMsg',error.message,'err');
-  msg('setMsg','Saved. Phones will pick these up on next sign-in or sync.','ok');
+  msg('setMsg','Saved. Phones pick these up on next sign-in or sync.','ok');
 }
 
-/* ---------- wiring ---------- */
+/* ---------- nav ---------- */
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
+  ['dash','jobs','cal','pipe','crew','time','catalog','reports','settings']
+    .forEach(n=>$('tab-'+n).style.display=(n===name)?'block':'none');
+}
+document.querySelectorAll('.tab').forEach(t=>
+  t.addEventListener('click',()=>switchTab(t.dataset.tab)));
+
 $('signIn').addEventListener('click',signIn);
-$('password').addEventListener('keydown',e=>{ if(e.key==='Enter') signIn(); });
-$('signOut').addEventListener('click',async()=>{ await db.auth.signOut(); location.reload(); });
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter') signIn();});
+$('signOut').addEventListener('click',async()=>{await db.auth.signOut();location.reload();});
+$('refresh').addEventListener('click',loadAll);
 $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'));
 $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'));
 $('saveJob').addEventListener('click',saveJob);
@@ -531,13 +793,10 @@ $('newEmp').addEventListener('click',()=>showEmp(null));
 $('saveEmp').addEventListener('click',saveEmp);
 $('deleteEmp').addEventListener('click',deleteEmp);
 $('saveSettings').addEventListener('click',saveSettings);
-
-document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
-  t.classList.add('on');
-  ['jobs','crew','settings'].forEach(n=>
-    $('tab-'+n).style.display = (n===t.dataset.tab)?'block':'none');
-}));
+$('catFilter').addEventListener('input',renderCatalog);
+$('repPeriod').addEventListener('change',renderReports);
+$('calPrev').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()-1);renderCal();});
+$('calNext').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()+1);renderCal();});
 
 boot();
 </script>
