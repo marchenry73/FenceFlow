@@ -4,6 +4,7 @@ import com.fenceestimator.app.data.HoaApprovalStatus
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
+import com.fenceestimator.app.data.isWon
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -19,7 +20,7 @@ object ProjectStatus {
      */
     fun stages(job: Job, jobComplete: Boolean): List<ProjectStage> {
         val quoteSent = job.status != JobStatus.DRAFT
-        val approved = job.status == JobStatus.ACCEPTED || job.signatureImagePath != null
+        val approved = job.status.isWon || job.signatureImagePath != null
         val depositReceived = job.amountPaid > 0.0 || job.paymentStatus != PaymentStatus.UNPAID
         val hoaDone = job.hoaApprovalStatus == HoaApprovalStatus.NOT_REQUIRED ||
             job.hoaApprovalStatus == HoaApprovalStatus.APPROVED

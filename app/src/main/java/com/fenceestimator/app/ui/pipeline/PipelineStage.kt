@@ -19,6 +19,7 @@ enum class PipelineStage(val label: String) {
     APPROVED("Approved"),
     DEPOSIT_PAID("Deposit Paid"),
     SCHEDULED("Scheduled"),
+    INSTALLED("Installed"),
     COMPLETE("Paid in Full"),
     LOST("Lost");
 
@@ -26,6 +27,7 @@ enum class PipelineStage(val label: String) {
         fun of(job: Job, hasDrawnWork: Boolean): PipelineStage = when {
             job.status == JobStatus.DECLINED -> LOST
             job.paymentStatus == PaymentStatus.PAID_IN_FULL -> COMPLETE
+            job.status == JobStatus.COMPLETED -> INSTALLED
             job.scheduledDate != null && job.status == JobStatus.ACCEPTED -> SCHEDULED
             job.amountPaid > 0.0 || job.paymentStatus == PaymentStatus.DEPOSIT_PAID -> DEPOSIT_PAID
             job.status == JobStatus.ACCEPTED -> APPROVED
@@ -36,7 +38,7 @@ enum class PipelineStage(val label: String) {
 
         /** Lost sits apart from the flow, so it isn't shown inline by default. */
         val flow: List<PipelineStage> = listOf(
-            LEAD, ESTIMATING, QUOTE_SENT, APPROVED, DEPOSIT_PAID, SCHEDULED, COMPLETE
+            LEAD, ESTIMATING, QUOTE_SENT, APPROVED, DEPOSIT_PAID, SCHEDULED, INSTALLED, COMPLETE
         )
     }
 }

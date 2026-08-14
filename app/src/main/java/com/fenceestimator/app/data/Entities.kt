@@ -5,7 +5,17 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-enum class JobStatus { DRAFT, SENT, ACCEPTED, DECLINED }
+/**
+ * COMPLETED is distinct from ACCEPTED: accepted means the customer said yes,
+ * completed means the fence is in the ground. Without it, "Mark Job Complete"
+ * had nowhere to move a job that was already accepted, so the button appeared
+ * to do nothing.
+ */
+enum class JobStatus { DRAFT, SENT, ACCEPTED, COMPLETED, DECLINED }
+
+/** Work the customer agreed to -- accepted and completed both count as won. */
+val JobStatus.isWon: Boolean
+    get() = this == JobStatus.ACCEPTED || this == JobStatus.COMPLETED
 
 enum class FenceType {
     VINYL, WOOD, CHAIN_LINK, ALUMINUM, ORNAMENTAL_IRON, SPLIT_RAIL, COMPOSITE, UNIVERSAL
@@ -39,6 +49,13 @@ enum class HoaApprovalStatus { NOT_REQUIRED, PENDING, APPROVED, DENIED }
 enum class PermitStatus { NOT_REQUIRED, PENDING, APPROVED }
 
 enum class ExpenseCategory { FUEL, EQUIPMENT_RENTAL, PERMIT_FEE, OTHER }
+
+/**
+ * How a crew member is paid. Per-foot crews are paid on what they install
+ * regardless of hours, so their clock is a record of time worked rather than
+ * the basis for their pay.
+ */
+enum class PayType { HOURLY, PER_FOOT }
 
 /**
  * A customer/property. Holds the shared survey image + calibration (one
@@ -139,6 +156,8 @@ data class Job(
 )
 data class FenceRun(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     val label: String = "",
     val fenceType: FenceType = FenceType.VINYL,
@@ -183,6 +202,8 @@ data class FenceRun(
 @Entity(tableName = "manufacturers")
 data class Manufacturer(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val name: String = "",
     val email: String = "",
     val phone: String = "",
@@ -195,6 +216,8 @@ data class Manufacturer(
 @Entity(tableName = "pricing_tiers")
 data class PricingTier(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val name: String = "",
     val laborRatePerFt: Double = 0.0,
     val laborFlatFee: Double = 0.0,
@@ -206,6 +229,8 @@ data class PricingTier(
 @Entity(tableName = "material_items")
 data class MaterialItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val category: MaterialCategory,
     val role: MaterialRole = MaterialRole.NONE,
     /** Which fence type this price applies to, or UNIVERSAL if shared (e.g. concrete). */
@@ -247,6 +272,8 @@ data class MaterialItem(
 )
 data class EstimateLineItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     /** Null for job-level items not tied to a specific fence run. */
     val fenceRunId: Long? = null,
@@ -310,6 +337,8 @@ enum class SiteMarkerKind {
 )
 data class SiteMarker(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     val kind: SiteMarkerKind = SiteMarkerKind.OBSTACLE,
     val x: Float = 0f,
@@ -332,6 +361,8 @@ data class SiteMarker(
 )
 data class ChangeOrder(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     val description: String = "",
     val additionalFeet: Double = 0.0,
@@ -358,6 +389,8 @@ enum class JobStepKind { WALKTHROUGH, INSTALL }
 )
 data class JobStep(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     val kind: JobStepKind,
     val description: String,
@@ -383,6 +416,8 @@ data class JobStep(
 )
 data class TimeEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     val employeeId: Long? = null,
     val startedAt: Long = System.currentTimeMillis(),
@@ -401,9 +436,14 @@ data class TimeEntry(
 @Entity(tableName = "employees")
 data class Employee(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val name: String = "",
     val role: String = "",
+    val payType: PayType = PayType.HOURLY,
     val hourlyRate: Double = 0.0,
+    /** Paid per linear foot installed, used when [payType] is PER_FOOT. */
+    val perFootRate: Double = 0.0,
     val phone: String = "",
     val email: String = "",
     val notes: String = ""
@@ -418,6 +458,8 @@ data class Employee(
 )
 data class Expense(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     val category: ExpenseCategory = ExpenseCategory.OTHER,
     val description: String = "",
@@ -434,6 +476,8 @@ data class Expense(
 )
 data class PunchListItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Device-generated identity for cloud sync; Room ids are only unique per phone. */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val jobId: Long,
     val description: String = "",
     val resolved: Boolean = false,

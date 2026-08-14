@@ -61,6 +61,8 @@ interface FenceRunDao {
 
 @Dao
 interface MaterialItemDao {
+    @Query("SELECT * FROM material_items")
+    suspend fun getAll(): List<MaterialItem>
     @Query("SELECT * FROM material_items WHERE isActive = 1 ORDER BY category, name")
     fun observeAllActive(): Flow<List<MaterialItem>>
 
@@ -133,6 +135,9 @@ interface ManufacturerDao {
     @Query("SELECT * FROM manufacturers ORDER BY name")
     fun observeAll(): Flow<List<Manufacturer>>
 
+    @Query("SELECT * FROM manufacturers ORDER BY name")
+    suspend fun getAll(): List<Manufacturer>
+
     @Query("SELECT * FROM manufacturers WHERE id = :id")
     suspend fun getById(id: Long): Manufacturer?
 
@@ -148,6 +153,8 @@ interface ManufacturerDao {
 
 @Dao
 interface PricingTierDao {
+    @Query("SELECT * FROM pricing_tiers")
+    suspend fun getAll(): List<PricingTier>
     @Query("SELECT * FROM pricing_tiers ORDER BY sortOrder ASC, id ASC")
     fun observeAll(): Flow<List<PricingTier>>
 
@@ -237,6 +244,8 @@ interface TimeEntryDao {
 @Dao
 interface SiteMarkerDao {
     @Query("SELECT * FROM site_markers WHERE jobId = :jobId")
+    suspend fun getForJob(jobId: Long): List<SiteMarker>
+    @Query("SELECT * FROM site_markers WHERE jobId = :jobId")
     fun observeForJob(jobId: Long): Flow<List<SiteMarker>>
 
     @Insert
@@ -248,6 +257,8 @@ interface SiteMarkerDao {
 
 @Dao
 interface ChangeOrderDao {
+    @Query("SELECT * FROM change_orders WHERE jobId = :jobId")
+    suspend fun getForJob(jobId: Long): List<ChangeOrder>
     @Query("SELECT * FROM change_orders WHERE jobId = :jobId ORDER BY createdAt DESC")
     fun observeForJob(jobId: Long): Flow<List<ChangeOrder>>
 
@@ -263,6 +274,8 @@ interface ChangeOrderDao {
 
 @Dao
 interface JobStepDao {
+    @Query("SELECT * FROM job_steps WHERE jobId = :jobId")
+    suspend fun getForJob(jobId: Long): List<JobStep>
     @Query("SELECT * FROM job_steps WHERE jobId = :jobId ORDER BY kind, sortOrder")
     fun observeForJob(jobId: Long): Flow<List<JobStep>>
 
@@ -283,6 +296,9 @@ interface EmployeeDao {
 
     @Query("SELECT * FROM employees ORDER BY name")
     suspend fun getAll(): List<Employee>
+
+    @Query("SELECT * FROM employees WHERE id = :id")
+    suspend fun getById(id: Long): Employee?
 
     @Insert
     suspend fun insert(employee: Employee): Long
@@ -317,6 +333,8 @@ interface ExpenseDao {
 
 @Dao
 interface PunchListDao {
+    @Query("SELECT * FROM punch_list_items WHERE jobId = :jobId")
+    suspend fun getForJob(jobId: Long): List<PunchListItem>
     @Query("SELECT * FROM punch_list_items WHERE jobId = :jobId ORDER BY resolved ASC, createdAt DESC")
     fun observeForJob(jobId: Long): Flow<List<PunchListItem>>
 

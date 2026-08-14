@@ -6,6 +6,7 @@ import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.Repository
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -26,7 +27,23 @@ class JobsViewModel(private val repository: Repository) : ViewModel() {
                 minimumJobCharge = defaults.defaultMinimumJobCharge,
                 preferredManufacturerId = defaults.preferredManufacturerId.takeIf { it != 0L }
             )
-            val id = repository.createJob(job)
+            // Start on the standard residential tier rather than "Custom" -- that's
+            // the vast majority of work, and an unset tier means an unpriced job.
+            val tiers = repository.observePricingTiers().first()
+            val residential = tiers.firstOrNull { it.name.equals("Residential", ignoreCase = true) }
+                ?: tiers.firstOrNull()
+
+            val withTier = residential?.let {
+                job.copy(
+                    pricingTierName = it.name,
+                    laborRatePerFt = it.laborRatePerFt,
+                    laborFlatFee = it.laborFlatFee,
+                    markupPercent = it.markupPercent,
+                    discountPercent = it.discountPercent
+                )
+            } ?: job
+
+            val id = repository.createJob(withTier)
             onCreated(id)
         }
     }

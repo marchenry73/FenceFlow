@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -120,13 +120,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Gives every syncable record a device-generated id so it can be matched
+         * across phones. Existing rows are backfilled with UUIDs built from
+         * randomblob(), since SQLite has no uuid function of its own.
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val tables = listOf(
+                    "fence_runs", "estimate_line_items", "employees", "manufacturers",
+                    "pricing_tiers", "material_items", "expenses", "punch_list_items",
+                    "change_orders", "time_entries", "job_steps", "site_markers"
+                )
+                db.execSQL("ALTER TABLE `employees` ADD COLUMN `payType` TEXT NOT NULL DEFAULT 'HOURLY'")
+                db.execSQL("ALTER TABLE `employees` ADD COLUMN `perFootRate` REAL NOT NULL DEFAULT 0")
+
+                tables.forEach { table ->
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+                    db.execSQL(
+                        "UPDATE `$table` SET `syncId` = " +
+                            "lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || " +
+                            "substr(lower(hex(randomblob(2))),2) || '-a' || substr(lower(hex(randomblob(2))),2) || " +
+                            "'-' || lower(hex(randomblob(6))) " +
+                            "WHERE `syncId` = ''"
+                    )
+                }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration()
                 // Seeding deliberately lives ONLY in Repository.ensureSeedDataPresent().
                 // There used to also be an onCreate callback doing the same inserts;

@@ -43,6 +43,10 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     val changeOrders: StateFlow<List<ChangeOrder>> = repository.observeChangeOrders(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val timeEntries: StateFlow<List<com.fenceestimator.app.data.TimeEntry>> =
+        repository.observeTimeEntries(jobId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun update(transform: (Job) -> Job) {
         val current = job.value ?: return
         viewModelScope.launch { repository.updateJob(transform(current)) }

@@ -1,9 +1,11 @@
 package com.fenceestimator.app.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -86,6 +88,13 @@ data class BusinessProfile(
      */
     val squareAccessToken: String = "",
     val squareLocationId: String = "",
+    /**
+     * Minutes of inactivity before the app locks. 0 disables it.
+     * Device-local by design: a crew phone left in a truck may warrant a
+     * tighter timeout than the owner's own phone.
+     */
+    val autoLockMinutes: Int = 0,
+    val biometricUnlockEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val language: AppLanguage = AppLanguage.ENGLISH
 ) {
@@ -118,6 +127,8 @@ class SettingsStore(private val context: Context) {
         val REVIEW_TEMPLATE = stringPreferencesKey("review_template")
         val SQUARE_TOKEN = stringPreferencesKey("square_token")
         val SQUARE_LOCATION = stringPreferencesKey("square_location")
+        val AUTO_LOCK_MINUTES = intPreferencesKey("auto_lock_minutes")
+        val BIOMETRIC_UNLOCK = booleanPreferencesKey("biometric_unlock")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val LANGUAGE = stringPreferencesKey("language")
     }
@@ -146,6 +157,8 @@ class SettingsStore(private val context: Context) {
             reviewRequestTemplate = prefs[Keys.REVIEW_TEMPLATE] ?: BusinessProfile.defaultReviewTemplate(language),
             squareAccessToken = prefs[Keys.SQUARE_TOKEN].orEmpty(),
             squareLocationId = prefs[Keys.SQUARE_LOCATION].orEmpty(),
+            autoLockMinutes = prefs[Keys.AUTO_LOCK_MINUTES] ?: 0,
+            biometricUnlockEnabled = prefs[Keys.BIOMETRIC_UNLOCK] ?: false,
             themeMode = runCatching { ThemeMode.valueOf(prefs[Keys.THEME_MODE] ?: "") }.getOrDefault(ThemeMode.SYSTEM),
             language = language
         )
@@ -173,6 +186,8 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.REVIEW_TEMPLATE] = profile.reviewRequestTemplate
             prefs[Keys.SQUARE_TOKEN] = profile.squareAccessToken
             prefs[Keys.SQUARE_LOCATION] = profile.squareLocationId
+            prefs[Keys.AUTO_LOCK_MINUTES] = profile.autoLockMinutes
+            prefs[Keys.BIOMETRIC_UNLOCK] = profile.biometricUnlockEnabled
             prefs[Keys.THEME_MODE] = profile.themeMode.name
             prefs[Keys.LANGUAGE] = profile.language.name
         }

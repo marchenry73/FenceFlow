@@ -6,6 +6,7 @@ import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.data.Expense
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
+import com.fenceestimator.app.data.isWon
 import com.fenceestimator.app.data.Repository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -98,7 +99,7 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
         var contract = 0.0
         var labor = 0.0
 
-        jobs.filter { it.status == JobStatus.ACCEPTED }.forEach { job ->
+        jobs.filter { it.status.isWon }.forEach { job ->
             val items = repository.getLineItems(job.id)
             val jobMaterials = items.sumOf { it.quantity * it.unitPrice }
             materials += jobMaterials
@@ -111,8 +112,8 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
         }
 
         return ReportTotals(
-            jobsCompleted = jobs.count { it.status == JobStatus.ACCEPTED && it.paymentStatus.name == "PAID_IN_FULL" },
-            jobsWon = jobs.count { it.status == JobStatus.ACCEPTED },
+            jobsCompleted = jobs.count { it.status.isWon && it.paymentStatus.name == "PAID_IN_FULL" },
+            jobsWon = jobs.count { it.status.isWon },
             quotesSent = jobs.count { it.status != JobStatus.DRAFT },
             revenueCollected = jobs.sumOf { it.amountPaid },
             contractValue = contract,
@@ -128,7 +129,7 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
     private suspend fun buildInstallerBreakdown(jobs: List<Job>, staff: List<Employee>): List<InstallerEarnings> {
         val byId = staff.associateBy { it.id }
         return jobs
-            .filter { it.assignedEmployeeId != null && it.status == JobStatus.ACCEPTED }
+            .filter { it.assignedEmployeeId != null && it.status.isWon }
             .groupBy { it.assignedEmployeeId }
             .map { (employeeId, employeeJobs) ->
                 var value = 0.0

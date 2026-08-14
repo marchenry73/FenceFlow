@@ -8,8 +8,20 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fenceestimator.app.notify.Notifications
+import com.fenceestimator.app.ui.lock.IdleTimer
+import com.fenceestimator.app.ui.lock.LockScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -45,7 +57,10 @@ import com.fenceestimator.app.ui.settings.SettingsScreen
 import com.fenceestimator.app.ui.survey.SurveyDrawScreen
 import com.fenceestimator.app.ui.theme.FenceEstimatorTheme
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity rather than ComponentActivity: BiometricPrompt requires a
+// FragmentActivity to host its dialog. FragmentActivity is itself a
+// ComponentActivity, so Compose and the result APIs are unaffected.
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -73,7 +88,45 @@ class MainActivity : ComponentActivity() {
             WithAppLanguage(profile.language) {
                 FenceEstimatorTheme(darkTheme = darkTheme) {
                     Surface(modifier = Modifier.fillMaxSize()) {
-                        FenceEstimatorNavHost()
+                        var locked by remember { mutableStateOf(false) }
+
+                        // Re-check on every return to the foreground; that's when a
+                        // phone left on a truck seat would have gone idle.
+                        val lifecycleOwner = LocalLifecycleOwner.current
+                        DisposableEffect(lifecycleOwner, profile.autoLockMinutes) {
+                            val observer = LifecycleEventObserver { _, event ->
+                                when (event) {
+                                    Lifecycle.Event.ON_RESUME ->
+                                        if (IdleTimer.isExpired(profile.autoLockMinutes)) locked = true
+                                    Lifecycle.Event.ON_PAUSE -> IdleTimer.touch()
+                                    else -> {}
+                                }
+                            }
+                            lifecycleOwner.lifecycle.addObserver(observer)
+                            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                        }
+
+                        if (locked) {
+                            LockScreen(
+                                useBiometric = profile.biometricUnlockEnabled,
+                                onUnlocked = { locked = false }
+                            )
+                        } else {
+                            // Any touch anywhere counts as activity, so the timer
+                            // only fires on genuine inactivity.
+                            Box(
+                                Modifier.fillMaxSize().pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            awaitPointerEvent()
+                                            IdleTimer.touch()
+                                        }
+                                    }
+                                }
+                            ) {
+                                FenceEstimatorNavHost()
+                            }
+                        }
                     }
                 }
             }

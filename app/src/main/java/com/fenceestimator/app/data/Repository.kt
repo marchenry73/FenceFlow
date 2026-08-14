@@ -71,6 +71,8 @@ class Repository(private val db: AppDatabase) {
     suspend fun deleteLineItem(item: EstimateLineItem) = lineItemDao.delete(item)
 
     fun observeManufacturers(): Flow<List<Manufacturer>> = manufacturerDao.observeAll()
+    suspend fun getAllManufacturers(): List<Manufacturer> = manufacturerDao.getAll()
+    suspend fun getEmployee(id: Long): Employee? = employeeDao.getById(id)
     suspend fun getManufacturer(id: Long): Manufacturer? = manufacturerDao.getById(id)
     suspend fun saveManufacturer(m: Manufacturer): Long =
         if (m.id == 0L) manufacturerDao.insert(m) else { manufacturerDao.update(m); m.id }
@@ -126,6 +128,15 @@ class Repository(private val db: AppDatabase) {
     }
 
     suspend fun catalogCount(): Int = materialDao.count()
+
+    // Suspend readers used by cloud sync, which needs a one-shot snapshot
+    // rather than a Flow it would have to collect and cancel.
+    suspend fun getAllMaterialItems(): List<MaterialItem> = materialDao.getAll()
+    suspend fun getAllPricingTiers(): List<PricingTier> = pricingTierDao.getAll()
+    suspend fun getPunchList(jobId: Long): List<PunchListItem> = punchListDao.getForJob(jobId)
+    suspend fun getChangeOrders(jobId: Long): List<ChangeOrder> = changeOrderDao.getForJob(jobId)
+    suspend fun getJobSteps(jobId: Long): List<JobStep> = jobStepDao.getForJob(jobId)
+    suspend fun getSiteMarkers(jobId: Long): List<SiteMarker> = siteMarkerDao.getForJob(jobId)
 
     fun observeTimeEntries(jobId: Long): Flow<List<TimeEntry>> = timeEntryDao.observeForJob(jobId)
     fun observeRunningTimers(): Flow<List<TimeEntry>> = timeEntryDao.observeRunning()

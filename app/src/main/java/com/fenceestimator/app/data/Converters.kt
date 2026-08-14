@@ -95,6 +95,13 @@ class Converters {
         runCatching { JobStepKind.valueOf(value) }.getOrDefault(JobStepKind.INSTALL)
 
     @TypeConverter
+    fun fromPayType(value: PayType): String = value.name
+
+    @TypeConverter
+    fun toPayType(value: String): PayType =
+        runCatching { PayType.valueOf(value) }.getOrDefault(PayType.HOURLY)
+
+    @TypeConverter
     fun fromSiteMarkerKind(value: SiteMarkerKind): String = value.name
 
     @TypeConverter

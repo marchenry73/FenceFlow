@@ -152,6 +152,42 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
+                SectionCard("Security") {
+                    Text(
+                        "Locks the app after a period of inactivity. Useful on crew phones that get left in trucks.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    SettingsEnumDropdown(
+                        "Auto-lock after",
+                        listOf(0, 1, 5, 15, 30, 60),
+                        local.autoLockMinutes,
+                        { if (it == 0) "Never" else "$it minute${if (it == 1) "" else "s"}" }
+                    ) { local = local.copy(autoLockMinutes = it) }
+
+                    val biometricReady = remember { com.fenceestimator.app.ui.lock.biometricAvailable(context) }
+                    if (biometricReady) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Unlock with fingerprint or face", modifier = Modifier.weight(1f))
+                            androidx.compose.material3.Switch(
+                                checked = local.biometricUnlockEnabled,
+                                onCheckedChange = { local = local.copy(biometricUnlockEnabled = it) }
+                            )
+                        }
+                        Text(
+                            "Your device PIN or pattern always works as a fallback, so a fingerprint that stops reading can't lock you out mid-job.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "This device has no fingerprint or face unlock set up, so biometric unlock isn't available.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            item {
                 SectionCard("Help & Feedback") {
                     OutlinedButton(onClick = onOpenHelp, modifier = Modifier.fillMaxWidth()) {
                         Text("How to Use the App + Fence Basics")

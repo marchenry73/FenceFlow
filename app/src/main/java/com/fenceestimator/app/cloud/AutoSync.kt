@@ -99,7 +99,16 @@ class AutoSync(
 
         mutex.withLock {
             _state.value = _state.value.copy(phase = SyncPhase.SYNCING, lastError = null)
+
+            // Jobs first: fence runs and time entries reference their job by
+            // syncId, so pulling children before their parent would orphan them.
             val result = JobSync.sync(repository, companyId)
+
+            // Everything else. Failures here are swallowed on purpose -- a
+            // problem syncing the crew list should not report the whole sync as
+            // failed when the jobs went through fine.
+            runCatching { EntitySync.pushAll(repository, companyId) }
+            runCatching { EntitySync.pullAll(repository, companyId) }
             _state.value = result.fold(
                 onSuccess = { syncResult ->
                     notifyIncoming(syncResult)

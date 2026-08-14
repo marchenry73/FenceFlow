@@ -160,21 +160,40 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             )
                         }
                         runs.forEach { run ->
+                            val points = FenceCodec.decodePoints(run.pointsEncoded)
+                            // Fall back to the grid's fixed scale rather than showing 0 ft.
+                            // A crew reading "0 ft of fence" has no idea whether that means
+                            // nothing was drawn or the scale was simply never set.
                             val pxPerFt = currentJob.calibrationPixelsPerFoot
-                            val feet = if (pxPerFt != null) {
-                                FenceGeometryEngine.analyze(
-                                    FenceCodec.decodePoints(run.pointsEncoded), pxPerFt, run.closedLoop
-                                ).totalLinearFeet
-                            } else 0f
+                                ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
+                            val geometry = FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop)
                             val gates = FenceCodec.decodeGates(run.gatesEncoded)
+
                             Text(run.label.ifBlank { "Untitled run" }, fontWeight = FontWeight.Medium)
-                            Text(
-                                "${run.fenceType.name.replace("_", " ")} · ${run.panelHeightFt} ft tall · " +
-                                    "${"%.0f".format(feet)} ft · ${gates.size} gate(s)" +
-                                    if (run.colorOrFinish.isNotBlank()) " · ${run.colorOrFinish}" else "",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            if (points.size < 2) {
+                                Text(
+                                    "No fence line drawn for this run yet.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            } else {
+                                Text(
+                                    buildString {
+                                        append(run.fenceType.name.replace("_", " "))
+                                        append(" · ${"%.0f".format(geometry.totalLinearFeet)} ft")
+                                        append(" · ${run.panelHeightFt.toInt()} ft tall")
+                                        if (run.colorOrFinish.isNotBlank()) append(" · ${run.colorOrFinish}")
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "${geometry.cornerCount} corners · ${geometry.endCount} ends · " +
+                                        "${gates.size} gate(s) · posts ${run.postSpacingFt.toInt()} ft apart",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -182,11 +201,46 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 
             item {
                 val entries by viewModel.timeEntries.collectAsState()
+                val crew by viewModel.employees.collectAsState()
                 TimeClockCard(
                     entries = entries,
                     onClockIn = { viewModel.clockIn() },
                     onClockOut = { viewModel.clockOut() }
                 )
+                val assigned = crew.firstOrNull { it.id == currentJob.assignedEmployeeId }
+                if (assigned != null) {
+                    val pxPerFt = currentJob.calibrationPixelsPerFoot
+                        ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
+                    val pay = com.fenceestimator.app.estimate.CrewPay
+                        .forJob(assigned, entries, runs, pxPerFt)
+                    if (pay.amount > 0.0) {
+                        Card(
+                            Modifier.fillMaxWidth().padding(top = 10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Your Pay — This Job", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "$${"%.2f".format(pay.amount)}",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(pay.explain(), style = MaterialTheme.typography.bodySmall)
+                                if (pay.payType == com.fenceestimator.app.data.PayType.PER_FOOT &&
+                                    pay.effectiveHourly > 0.0
+                                ) {
+                                    Text(
+                                        "Works out to $${"%.2f".format(pay.effectiveHourly)}/hr",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             item {

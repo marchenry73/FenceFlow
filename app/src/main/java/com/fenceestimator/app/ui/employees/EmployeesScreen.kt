@@ -121,6 +121,8 @@ private fun EditEmployeeDialog(
     var name by remember { mutableStateOf(employee.name) }
     var role by remember { mutableStateOf(employee.role) }
     var hourlyRate by remember { mutableStateOf(if (employee.hourlyRate > 0) employee.hourlyRate.toString() else "") }
+    var perFootRate by remember { mutableStateOf(if (employee.perFootRate > 0) employee.perFootRate.toString() else "") }
+    var payType by remember { mutableStateOf(employee.payType) }
     var phone by remember { mutableStateOf(employee.phone) }
     var email by remember { mutableStateOf(employee.email) }
     var notes by remember { mutableStateOf(employee.notes) }
@@ -134,14 +136,42 @@ private fun EditEmployeeDialog(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = role, onValueChange = { role = it }, label = { Text("Role (e.g. Foreman, Laborer)") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = hourlyRate, onValueChange = { hourlyRate = it },
-                    label = { Text("Hourly rate ($)") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Text("How they're paid", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.fenceestimator.app.data.PayType.values().forEach { type ->
+                        androidx.compose.material3.FilterChip(
+                            selected = payType == type,
+                            onClick = { payType = type },
+                            label = { Text(if (type == com.fenceestimator.app.data.PayType.HOURLY) "Per hour" else "Per foot") }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                if (payType == com.fenceestimator.app.data.PayType.HOURLY) {
+                    OutlinedTextField(
+                        value = hourlyRate, onValueChange = { hourlyRate = it },
+                        label = { Text("Hourly rate ($)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = perFootRate, onValueChange = { perFootRate = it },
+                        label = { Text("Rate per linear foot ($)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Hours are still tracked so you can see how the rate is working out.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
@@ -155,7 +185,9 @@ private fun EditEmployeeDialog(
                 onSave(
                     employee.copy(
                         name = name, role = role, phone = phone, email = email, notes = notes,
-                        hourlyRate = hourlyRate.toDoubleOrNull() ?: 0.0
+                        payType = payType,
+                        hourlyRate = hourlyRate.toDoubleOrNull() ?: 0.0,
+                        perFootRate = perFootRate.toDoubleOrNull() ?: 0.0
                     )
                 )
             }) {

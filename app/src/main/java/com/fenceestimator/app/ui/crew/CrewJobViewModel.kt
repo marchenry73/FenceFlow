@@ -79,10 +79,16 @@ class CrewJobViewModel(private val repository: Repository, private val jobId: Lo
     }
 
     /** Crew marking the job finished is what tells the office it's ready for final billing. */
+    /**
+     * Marks the fence built. Also closes any running time entry -- crews forget
+     * to clock out, and a shift left open would silently inflate the job's
+     * labor cost forever.
+     */
     fun markJobComplete() {
         viewModelScope.launch {
+            repository.clockOut(jobId)
             val current = job.value ?: return@launch
-            repository.updateJob(current.copy(status = JobStatus.ACCEPTED))
+            repository.updateJob(current.copy(status = JobStatus.COMPLETED))
         }
     }
 }

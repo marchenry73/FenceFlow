@@ -137,6 +137,7 @@ fun JobDetailScreen(
     val expenses by viewModel.expenses.collectAsState()
     val punchList by viewModel.punchList.collectAsState()
     val changeOrders by viewModel.changeOrders.collectAsState()
+    val timeEntries by viewModel.timeEntries.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
     val session by app.session.state.collectAsState()
     val currentJob = job ?: return
@@ -219,7 +220,12 @@ fun JobDetailScreen(
                 item { SectionCard(title = "Pricing Tier & Discount") { TierFields(currentJob, pricingTiers, viewModel) } }
                 item { SectionCard(title = "Teardown of Existing Fence") { TeardownFields(currentJob, viewModel) } }
             }
-            item { SectionCard(title = "Schedule & Crew") { ScheduleFields(currentJob, runs, viewModel); CrewFields(currentJob, employees, viewModel) } }
+            item {
+                SectionCard(title = "Schedule & Crew") {
+                    ScheduleFields(currentJob, runs, timeEntries, viewModel)
+                    CrewFields(currentJob, employees, viewModel)
+                }
+            }
             if (session.canSeeMoney) {
                 item {
                     SectionCard(title = "Order Materials") {
@@ -466,7 +472,12 @@ private fun TeardownFields(job: Job, viewModel: JobDetailViewModel) {
 }
 
 @Composable
-private fun ScheduleFields(job: Job, runs: List<FenceRun>, viewModel: JobDetailViewModel) {
+private fun ScheduleFields(
+    job: Job,
+    runs: List<FenceRun>,
+    timeEntries: List<com.fenceestimator.app.data.TimeEntry>,
+    viewModel: JobDetailViewModel
+) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.US) }
 
@@ -490,21 +501,56 @@ private fun ScheduleFields(job: Job, runs: List<FenceRun>, viewModel: JobDetailV
         Text("  " + (job.scheduledDate?.let { "Scheduled: ${dateFormat.format(Date(it))}" } ?: "Set Job Date"))
     }
 
-    val totalLinearFeet = job.calibrationPixelsPerFoot?.let { pxPerFt ->
-        runs.sumOf { run ->
-            FenceGeometryEngine.analyze(FenceCodec.decodePoints(run.pointsEncoded), pxPerFt, run.closedLoop).totalLinearFeet.toDouble()
-        }
-    } ?: 0.0
-    val roughGuideHours = if (totalLinearFeet > 0.0) (1.5 + totalLinearFeet / 15.0) else null
+    val pxPerFt = job.calibrationPixelsPerFoot
+        ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
+    val estimate = remember(job, runs) {
+        com.fenceestimator.app.estimate.DurationEstimator.estimate(job, runs, pxPerFt)
+    }
 
     DraftNumberField(
         stableKey = job.id, label = "Estimated duration (hours)", initialValue = job.estimatedDurationHours.toFloat(),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(estimatedDurationHours = it.toDouble()) } }
-    if (roughGuideHours != null) {
+
+    if (estimate.totalHours > 0.0) {
         Text(
-            "Rough guide based on ${String.format("%.0f", totalLinearFeet)} ft of fence: ~${String.format("%.1f", roughGuideHours)} hours. Adjust for crew size and site conditions.",
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+            "Calculated: ${estimate.summary()}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            "Based on 125 ft per 8-hour day, adjusted for fence type, corners, gates and teardown.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedButton(
+            onClick = {
+                viewModel.update { j -> j.copy(estimatedDurationHours = estimate.totalHours) }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Use calculated ${"%.1f".format(estimate.totalHours)} hours")
+        }
+    } else {
+        Text(
+            "Draw the fence on the Survey screen and the app will work out how long it should take.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    // Once time has been clocked, show planned against actual so the estimate
+    // improves with each job instead of staying a guess.
+    val loggedHours = timeEntries.filter { !it.isRunning }.sumOf { it.hours }
+    if (loggedHours > 0.0) {
+        val planned = if (job.estimatedDurationHours > 0) job.estimatedDurationHours else estimate.totalHours
+        val diff = loggedHours - planned
+        Text(
+            "Actually took ${"%.1f".format(loggedHours)} hrs" +
+                if (planned > 0) " — ${if (diff > 0) "${"%.1f".format(diff)} over" else "${"%.1f".format(-diff)} under"} the estimate" else "",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = if (diff > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
         )
     }
 
@@ -939,7 +985,7 @@ private fun AddExpenseDialog(onConfirm: (ExpenseCategory, String, Double) -> Uni
 @Composable
 private fun ProjectProgressSection(job: Job, punchListClear: Boolean, profile: BusinessProfile) {
     val context = LocalContext.current
-    val jobComplete = job.status == JobStatus.ACCEPTED && punchListClear
+    val jobComplete = job.status == JobStatus.COMPLETED && punchListClear
     val stages = remember(job, punchListClear) { ProjectStatus.stages(job, jobComplete) }
 
     stages.forEach { stage ->
