@@ -19,8 +19,13 @@ data class QtyEntry(val role: MaterialRole, val quantity: Double, val preferCove
 data class EstimateSuggestions(
     val geometry: FenceGeometryResult,
     val netLinearFeet: Float,
-    val entries: List<QtyEntry>
+    val entries: List<QtyEntry>,
+    /** Plain-English counts, shown to the contractor whether or not the catalog has a matching item. */
+    val takeoff: List<TakeoffLine> = emptyList()
 )
+
+/** One "8 line posts" style readout for the takeoff summary. */
+data class TakeoffLine(val label: String, val quantity: Double, val unit: String = "")
 
 /** Fence types whose gate uses a built gate-frame kit rather than a matching panel. */
 private val FRAME_KIT_GATE_TYPES = setOf(FenceType.WOOD, FenceType.CHAIN_LINK, FenceType.SPLIT_RAIL, FenceType.COMPOSITE)
@@ -42,10 +47,23 @@ object EstimateEngine {
         val totalPosts: Int
     )
 
-    fun suggestQuantities(run: FenceRun, pixelsPerFoot: Float): EstimateSuggestions {
-        val points = FenceCodec.decodePoints(run.pointsEncoded)
+    /**
+     * Roles bought by length or by the piece, where an extra cut-and-waste
+     * allowance makes sense. Posts, caps, and hardware are deliberately absent:
+     * you buy those as whole units off an exact count.
+     */
+    private val WASTE_ROLES = setOf(
+        MaterialRole.PANEL, MaterialRole.WOOD_PICKET, MaterialRole.WOOD_RAIL,
+        MaterialRole.CHAIN_FABRIC, MaterialRole.TOP_RAIL, MaterialRole.TENSION_WIRE,
+        MaterialRole.PRIVACY_SLAT, MaterialRole.CONCRETE_BAG, MaterialRole.TRIM
+    )
+
+    /**
+     * @param wastePercent extra allowance applied to cut-and-waste roles only.
+     */
+    fun suggestQuantities(run: FenceRun, pixelsPerFoot: Float, wastePercent: Double = 0.0): EstimateSuggestions {
         val gates = FenceCodec.decodeGates(run.gatesEncoded)
-        val geometry = FenceGeometryEngine.analyze(points, pixelsPerFoot, run.closedLoop)
+        val geometry = resolveGeometry(run, pixelsPerFoot)
         val gateWidthTotal = gates.sumOf { it.widthFt.toDouble() }.toFloat()
         val netFt = (geometry.totalLinearFeet - gateWidthTotal).coerceAtLeast(0f)
 
@@ -64,7 +82,74 @@ object EstimateEngine {
 
         gates.forEach { gate -> entries += gateEntries(run.fenceType, gate) }
 
-        return EstimateSuggestions(geometry, netFt, entries)
+        val withWaste = applyWaste(entries, wastePercent)
+        val kept = withWaste.filter { it.role !in run.suppressedRoles }
+
+        return EstimateSuggestions(
+            geometry = geometry,
+            netLinearFeet = netFt,
+            entries = kept,
+            takeoff = buildTakeoff(geometry, gates.size, postCounts, kept)
+        )
+    }
+
+    /**
+     * Footage either comes from the drawing or is typed in. Typed-in footage
+     * wins outright, which is what lets a run be quoted with no drawing and no
+     * calibration -- corners are taken from the run's own count instead of being
+     * measured off vertices that don't exist.
+     */
+    private fun resolveGeometry(run: FenceRun, pixelsPerFoot: Float): FenceGeometryResult {
+        val manual = run.manualLinearFeet
+        if (manual != null && manual > 0f) {
+            return FenceGeometryResult(
+                totalLinearFeet = manual,
+                segments = emptyList(),
+                vertices = emptyList(),
+                cornerCount = run.manualCornerCount.coerceAtLeast(0),
+                // A closed loop has no loose ends; an open run has two.
+                endCount = if (run.closedLoop) 0 else 2,
+                lineVertexCount = 0
+            )
+        }
+        return FenceGeometryEngine.analyze(FenceCodec.decodePoints(run.pointsEncoded), pixelsPerFoot, run.closedLoop)
+    }
+
+    private fun applyWaste(entries: List<QtyEntry>, wastePercent: Double): List<QtyEntry> {
+        if (wastePercent <= 0.0) return entries
+        val factor = 1.0 + wastePercent / 100.0
+        return entries.map { entry ->
+            if (entry.role in WASTE_ROLES) entry.copy(quantity = ceil(entry.quantity * factor)) else entry
+        }
+    }
+
+    /** The counts a contractor actually reads off before ordering. */
+    private fun buildTakeoff(
+        geometry: FenceGeometryResult,
+        gateCount: Int,
+        posts: PostCounts,
+        entries: List<QtyEntry>
+    ): List<TakeoffLine> {
+        fun qty(role: MaterialRole) = entries.filter { it.role == role }.sumOf { it.quantity }
+        return listOf(
+            TakeoffLine("Fence length", geometry.totalLinearFeet.toDouble(), "ft"),
+            TakeoffLine("Gates", gateCount.toDouble()),
+            TakeoffLine("Line posts", posts.linePosts.toDouble()),
+            TakeoffLine("Corner posts", posts.cornerPosts.toDouble()),
+            TakeoffLine("End posts", posts.endPosts.toDouble()),
+            TakeoffLine("Gate posts", posts.gatePosts.toDouble()),
+            TakeoffLine("Total posts", posts.totalPosts.toDouble()),
+            TakeoffLine("Panels", qty(MaterialRole.PANEL)),
+            TakeoffLine("Pickets", qty(MaterialRole.WOOD_PICKET)),
+            TakeoffLine("Rails", qty(MaterialRole.WOOD_RAIL)),
+            TakeoffLine("Chain link fabric", qty(MaterialRole.CHAIN_FABRIC), "ft"),
+            TakeoffLine("Post caps", qty(MaterialRole.POST_CAP)),
+            TakeoffLine("Concrete", qty(MaterialRole.CONCRETE_BAG), "bags"),
+            TakeoffLine("Hinge sets", qty(MaterialRole.HINGE_SET)),
+            TakeoffLine("Latches", qty(MaterialRole.LATCH)),
+            TakeoffLine("Gate handles", qty(MaterialRole.HANDLE)),
+            TakeoffLine("Gate braces", qty(MaterialRole.BRACE))
+        ).filter { it.quantity > 0.0 }
     }
 
     private fun computePostCounts(
@@ -78,8 +163,15 @@ object EstimateEngine {
         val cornerPosts = geometry.cornerCount
         val endPosts = geometry.endCount
 
-        val standardPostEstimate = if (postSpacingFt > 0f) ceil(netFt / postSpacingFt).roundToInt() + 1 else 0
-        val linePosts = (standardPostEstimate - cornerPosts - endPosts - gatePosts).coerceAtLeast(0)
+        // A closed loop needs no closing post -- the last bay lands back on the
+        // first one -- so only an open run gets the extra post on the end.
+        val bays = if (postSpacingFt > 0f) ceil(netFt / postSpacingFt).roundToInt() else 0
+        val standardPostEstimate = if (bays == 0) 0 else if (endPosts == 0) bays else bays + 1
+
+        // Gate posts are NOT subtracted here: the gate openings were already
+        // taken out of netFt, so those posts sit outside this count. Subtracting
+        // them was wiping out the line posts on short runs.
+        val linePosts = (standardPostEstimate - cornerPosts - endPosts).coerceAtLeast(0)
         val totalPosts = linePosts + cornerPosts + endPosts + gatePosts
 
         return PostCounts(linePosts, cornerPosts, endPosts, gatePosts, cornerPosts + endPosts + gatePosts, totalPosts)
@@ -150,14 +242,25 @@ object EstimateEngine {
         return entries
     }
 
+    /**
+     * Every gate gets its hinges, latch, handle, and brace regardless of fence
+     * type -- forgetting one of those is what sends a crew back to the supply
+     * house mid-install. Anything the contractor doesn't want is removed on the
+     * estimate and stays removed (see FenceRun.suppressedRoles).
+     */
     private fun gateEntries(fenceType: FenceType, gate: GateMarker): List<QtyEntry> {
         val panelRole = if (fenceType in FRAME_KIT_GATE_TYPES) MaterialRole.GATE_FRAME_KIT else MaterialRole.GATE_PANEL
         val entries = mutableListOf(QtyEntry(panelRole, 1.0, preferCoversFt = gate.widthFt))
         entries += QtyEntry(MaterialRole.HINGE_SET, 1.0)
         entries += QtyEntry(MaterialRole.LATCH, 1.0)
-        if (fenceType == FenceType.VINYL) {
-            entries += QtyEntry(MaterialRole.HANDLE, 1.0)
+        entries += QtyEntry(MaterialRole.HANDLE, 1.0)
+        entries += QtyEntry(MaterialRole.BRACE, 1.0)
+        // A wide gate sags without a second brace and a heavier hinge set.
+        if (gate.widthFt >= 8f) {
             entries += QtyEntry(MaterialRole.BRACE, 1.0)
+            entries += QtyEntry(MaterialRole.HINGE_SET, 1.0)
+        }
+        if (fenceType == FenceType.VINYL) {
             entries += QtyEntry(MaterialRole.STIFFENER, 1.0)
             entries += QtyEntry(MaterialRole.TRIM, 4.0)
         }
@@ -171,6 +274,14 @@ object EstimateEngine {
      * more than one catalog item matches a role; falls back gracefully when
      * a role has no matching catalog item at all.
      */
+    data class BuiltItems(
+        val items: List<EstimateLineItem>,
+        /** Roles the takeoff called for that the catalog has nothing priced for. */
+        val unmatchedRoles: List<MaterialRole>,
+        /** Matched items whose catalog price is still zero, so the estimate would read $0. */
+        val zeroPricedNames: List<String>
+    )
+
     fun buildLineItems(
         jobId: Long,
         fenceRunId: Long,
@@ -178,18 +289,30 @@ object EstimateEngine {
         suggestions: EstimateSuggestions,
         catalog: List<MaterialItem>,
         preferredManufacturerId: Long?
-    ): List<EstimateLineItem> {
+    ): BuiltItems {
         val candidatesByRole = catalog
             .filter { it.isActive && (it.fenceType == run.fenceType || it.fenceType == FenceType.UNIVERSAL) }
             .groupBy { it.role }
 
         val items = mutableListOf<EstimateLineItem>()
+        val unmatched = mutableListOf<MaterialRole>()
+        val zeroPriced = mutableListOf<String>()
         var order = 0
 
-        suggestions.entries.forEach { entry ->
-            if (entry.quantity <= 0.0) return@forEach
+        // The same role can be suggested more than once (two braces on a wide
+        // gate, hinges for each of several gates). Merge before pricing so the
+        // estimate shows one line with the full count instead of duplicates.
+        val mergedEntries = suggestions.entries
+            .filter { it.quantity > 0.0 }
+            .groupBy { it.role to it.preferCoversFt }
+            .map { (key, group) -> QtyEntry(key.first, group.sumOf { it.quantity }, key.second) }
+
+        mergedEntries.forEach { entry ->
             var candidates = candidatesByRole[entry.role].orEmpty()
-            if (candidates.isEmpty()) return@forEach
+            if (candidates.isEmpty()) {
+                unmatched += entry.role
+                return@forEach
+            }
 
             if (run.colorOrFinish.isNotBlank()) {
                 val colorMatches = candidates.filter { it.colorOrFinish.equals(run.colorOrFinish, ignoreCase = true) }
@@ -204,8 +327,15 @@ object EstimateEngine {
             val chosen = if (entry.preferCoversFt != null) {
                 candidates.minByOrNull { kotlin.math.abs((it.coversFt ?: entry.preferCoversFt) - entry.preferCoversFt) }
             } else {
-                candidates.firstOrNull()
-            } ?: return@forEach
+                // Prefer something actually priced. Picking the first match blind
+                // is how a $0.00 placeholder ended up representing a whole role
+                // and quietly zeroed out the materials total.
+                candidates.firstOrNull { it.unitPrice > 0.0 } ?: candidates.firstOrNull()
+            } ?: run {
+                unmatched += entry.role
+                return@forEach
+            }
+            if (chosen.unitPrice <= 0.0) zeroPriced += chosen.name
 
             items.add(
                 EstimateLineItem(
@@ -223,7 +353,7 @@ object EstimateEngine {
             )
         }
 
-        return items
+        return BuiltItems(items, unmatched.distinct(), zeroPriced.distinct())
     }
 
     data class Totals(

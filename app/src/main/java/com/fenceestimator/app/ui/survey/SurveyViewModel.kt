@@ -181,10 +181,23 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     fun ensureGridCalibration() {
         val current = job.value ?: return
         if (current.surveyImagePath != null) return
-        if (current.calibrationPixelsPerFoot != PIXELS_PER_FOOT_GRID) {
+        // Only seed a scale when there isn't one. This used to force the grid
+        // default back on every visit, which silently threw away any scale the
+        // user set by hand -- so calibrating on the grid never stuck.
+        if (current.calibrationPixelsPerFoot == null) {
             viewModelScope.launch {
                 repository.updateJob(current.copy(calibrationPixelsPerFoot = PIXELS_PER_FOOT_GRID, calibrationKnownFeet = null))
             }
+        }
+    }
+
+    /** Puts the no-photo grid back on its default scale after a hand calibration. */
+    fun resetGridCalibration() {
+        val current = job.value ?: return
+        viewModelScope.launch {
+            repository.updateJob(
+                current.copy(calibrationPixelsPerFoot = PIXELS_PER_FOOT_GRID, calibrationKnownFeet = null)
+            )
         }
     }
 

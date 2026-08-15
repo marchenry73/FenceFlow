@@ -61,7 +61,10 @@ data class CloudFenceRun(
     @SerialName("panel_width_ft") val panelWidthFt: Float = 6f,
     @SerialName("panel_height_ft") val panelHeightFt: Float = 6f,
     @SerialName("post_spacing_ft") val postSpacingFt: Float = 6f,
-    @SerialName("concrete_bags_per_post") val concreteBagsPerPost: Float = 1f
+    @SerialName("concrete_bags_per_post") val concreteBagsPerPost: Float = 1f,
+    @SerialName("manual_linear_feet") val manualLinearFeet: Float? = null,
+    @SerialName("manual_corner_count") val manualCornerCount: Int = 0,
+    @SerialName("suppressed_roles") val suppressedRolesCsv: String = ""
 )
 
 @Serializable
@@ -494,7 +497,10 @@ object EntitySync {
                     panelWidthFt = row.panelWidthFt,
                     panelHeightFt = row.panelHeightFt,
                     postSpacingFt = row.postSpacingFt,
-                    concreteBagsPerPost = row.concreteBagsPerPost
+                    concreteBagsPerPost = row.concreteBagsPerPost,
+                    manualLinearFeet = row.manualLinearFeet,
+                    manualCornerCount = row.manualCornerCount,
+                    suppressedRolesCsv = row.suppressedRolesCsv
                 )
             )
             added++
@@ -562,7 +568,9 @@ private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceR
     label = label, fenceType = fenceType.name, colorOrFinish = colorOrFinish,
     pointsEncoded = pointsEncoded, gatesEncoded = gatesEncoded, closedLoop = closedLoop,
     panelWidthFt = panelWidthFt, panelHeightFt = panelHeightFt,
-    postSpacingFt = postSpacingFt, concreteBagsPerPost = concreteBagsPerPost
+    postSpacingFt = postSpacingFt, concreteBagsPerPost = concreteBagsPerPost,
+    manualLinearFeet = manualLinearFeet, manualCornerCount = manualCornerCount,
+    suppressedRolesCsv = suppressedRolesCsv
 )
 
 private fun TimeEntry.toCloud(companyId: String, jobSyncId: String) = CloudTimeEntry(

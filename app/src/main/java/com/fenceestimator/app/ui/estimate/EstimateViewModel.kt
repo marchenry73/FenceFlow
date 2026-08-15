@@ -11,14 +11,17 @@ import com.fenceestimator.app.data.MaterialItem
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.PdfExporter
+import com.fenceestimator.app.estimate.TakeoffLine
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.ui.survey.SurveyViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -42,26 +45,62 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     /** Surfaces why a generate attempt produced nothing, instead of failing silently. */
     val message: SharedFlow<String> = _message
 
+    /** Last computed takeoff per run, so the counts stay on screen after generating. */
+    private val _takeoff = MutableStateFlow<Map<Long, List<TakeoffLine>>>(emptyMap())
+    val takeoff: StateFlow<Map<Long, List<TakeoffLine>>> = _takeoff
+
+    /**
+     * Totals have to be a real observable. They used to be a plain function
+     * call, and Compose skipped recomposing the totals card when only the line
+     * items changed -- which is exactly why the materials total sat at $0 and
+     * "sometimes went back to 0" depending on what else happened to redraw.
+     */
+    val totals: StateFlow<EstimateEngine.Totals> =
+        combine(job, lineItems, runs) { currentJob, items, currentRuns ->
+            if (currentJob == null) EMPTY_TOTALS
+            else EstimateEngine.computeTotals(currentJob, items, feetAcross(currentJob, currentRuns))
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
+
+    /** Total footage across runs, counting typed-in lengths as well as drawn ones. */
+    private fun feetAcross(currentJob: Job, currentRuns: List<FenceRun>): Float =
+        currentRuns.sumOf { feetFor(currentJob, it).toDouble() }.toFloat()
+
+    private fun feetFor(currentJob: Job, run: FenceRun): Float {
+        run.manualLinearFeet?.let { if (it > 0f) return it }
+        val pxPerFt = currentJob.calibrationPixelsPerFoot ?: return 0f
+        val points = FenceCodec.decodePoints(run.pointsEncoded)
+        return FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop).totalLinearFeet
+    }
+
     fun regenerateSuggested(run: FenceRun) {
         viewModelScope.launch {
-            // Grid drawings have a known fixed scale, so there is no reason to
-            // demand a calibration step first -- set it here and carry on rather
-            // than refusing to generate anything.
+            // Typed-in footage needs no scale and no drawing at all. Only fall
+            // back to measuring the drawing when there's no number to work from.
             var pxPerFt = job.value?.calibrationPixelsPerFoot
-            if (pxPerFt == null) {
-                val current = job.value
-                if (current != null && current.surveyImagePath == null) {
-                    pxPerFt = SurveyViewModel.PIXELS_PER_FOOT_GRID
-                    repository.updateJob(current.copy(calibrationPixelsPerFoot = pxPerFt))
-                } else {
-                    _message.tryEmit("Tap two points in Calibrate mode on the survey photo to set the scale first.")
+            if (!run.usesManualFeet) {
+                if (pxPerFt == null) {
+                    val current = job.value
+                    if (current != null && current.surveyImagePath == null) {
+                        // A grid drawing has a fixed known scale, so set it and carry
+                        // on rather than refusing to generate anything.
+                        pxPerFt = SurveyViewModel.PIXELS_PER_FOOT_GRID
+                        repository.updateJob(current.copy(calibrationPixelsPerFoot = pxPerFt))
+                    } else {
+                        _message.tryEmit(
+                            "Set the scale on the Survey screen, or just type the length into " +
+                                "\"Total feet\" on this run and press Suggest again."
+                        )
+                        return@launch
+                    }
+                }
+                val points = FenceCodec.decodePoints(run.pointsEncoded)
+                if (points.size < 2) {
+                    _message.tryEmit(
+                        "Draw \"${run.label.ifBlank { "this run" }}\" on the Survey screen, " +
+                            "or type its length into \"Total feet\" here."
+                    )
                     return@launch
                 }
-            }
-            val points = FenceCodec.decodePoints(run.pointsEncoded)
-            if (points.size < 2) {
-                _message.tryEmit("Draw the fence line for \"${run.label.ifBlank { "this run" }}\" on the Survey screen first.")
-                return@launch
             }
 
             var availableCatalog = catalog.value
@@ -75,8 +114,12 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
                 return@launch
             }
 
-            val suggestions = EstimateEngine.suggestQuantities(run, pxPerFt)
-            val items = EstimateEngine.buildLineItems(
+            val suggestions = EstimateEngine.suggestQuantities(
+                run = run,
+                pixelsPerFoot = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
+                wastePercent = job.value?.wastePercent ?: 0.0
+            )
+            val built = EstimateEngine.buildLineItems(
                 jobId = jobId,
                 fenceRunId = run.id,
                 run = run,
@@ -84,20 +127,50 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
                 catalog = availableCatalog,
                 preferredManufacturerId = job.value?.preferredManufacturerId
             )
-            repository.replaceAutoGeneratedLineItemsForRun(run.id, items)
+            repository.replaceAutoGeneratedLineItemsForRun(run.id, built.items)
+            _takeoff.value = _takeoff.value + (run.id to suggestions.takeoff)
 
-            if (items.isEmpty()) {
-                _message.tryEmit(
-                    "No catalog items matched ${run.fenceType.name.replace("_", " ").lowercase()}. " +
-                        "Add items for that fence type in Catalog."
-                )
-            } else {
-                val posts = suggestions.entries
-                    .filter { it.role.name.endsWith("POST") }
-                    .sumOf { it.quantity }
-                _message.tryEmit("Generated ${items.size} line items (${posts.toInt()} posts).")
+            // Say exactly what's missing. Silence here is what left people
+            // staring at a $0 estimate with nothing to act on.
+            val problems = mutableListOf<String>()
+            if (built.unmatchedRoles.isNotEmpty()) {
+                problems += "no catalog item for " + built.unmatchedRoles.joinToString(", ") {
+                    it.name.replace("_", " ").lowercase()
+                }
             }
+            if (built.zeroPricedNames.isNotEmpty()) {
+                problems += "priced at \$0: " + built.zeroPricedNames.joinToString(", ")
+            }
+
+            _message.tryEmit(
+                when {
+                    built.items.isEmpty() -> "Nothing priced -- your catalog has no ${
+                        run.fenceType.name.replace("_", " ").lowercase()
+                    } items. Add them under Catalog."
+                    problems.isEmpty() -> "Generated ${built.items.size} line items."
+                    else -> "Generated ${built.items.size} line items. Check: ${problems.joinToString("; ")}"
+                }
+            )
         }
+    }
+
+    /** Clears the run's removed-item list so auto-added hardware comes back. */
+    fun restoreRemovedItems(run: FenceRun) {
+        viewModelScope.launch {
+            repository.updateFenceRun(run.copy(suppressedRolesCsv = ""))
+            _message.tryEmit("Removed items restored. Press Suggest Quantities to add them back.")
+        }
+    }
+
+    fun setManualFeet(run: FenceRun, feet: Float?, corners: Int) {
+        viewModelScope.launch {
+            repository.updateFenceRun(run.copy(manualLinearFeet = feet, manualCornerCount = corners))
+        }
+    }
+
+    fun setWastePercent(percent: Double) {
+        val current = job.value ?: return
+        viewModelScope.launch { repository.updateJob(current.copy(wastePercent = percent)) }
     }
 
     fun regenerateAll() {
@@ -108,8 +181,20 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
         viewModelScope.launch { repository.updateLineItem(item) }
     }
 
+    /**
+     * Deleting an auto-added item also records its role against the run, so
+     * Suggest Quantities won't put it straight back the next time it runs.
+     * That's what makes "unless I remove them" actually hold.
+     */
     fun deleteLineItem(item: EstimateLineItem) {
-        viewModelScope.launch { repository.deleteLineItem(item) }
+        viewModelScope.launch {
+            repository.deleteLineItem(item)
+            val role = item.role ?: return@launch
+            val run = runs.value.firstOrNull { it.id == item.fenceRunId } ?: return@launch
+            if (role in run.suppressedRoles) return@launch
+            val updated = (run.suppressedRoles + role).joinToString(",") { it.name }
+            repository.updateFenceRun(run.copy(suppressedRolesCsv = updated))
+        }
     }
 
     fun addManualLineItem() {
@@ -129,16 +214,13 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     }
 
     fun linearFeetFor(run: FenceRun): Float {
-        val pxPerFt = job.value?.calibrationPixelsPerFoot ?: return 0f
-        val points = FenceCodec.decodePoints(run.pointsEncoded)
-        return FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop).totalLinearFeet
+        val currentJob = job.value ?: return run.manualLinearFeet ?: 0f
+        return feetFor(currentJob, run)
     }
 
-    fun totalLinearFeet(): Float = runs.value.sumOf { linearFeetFor(it).toDouble() }.toFloat()
-
-    fun totals(): EstimateEngine.Totals {
-        val currentJob = job.value ?: return EstimateEngine.Totals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        return EstimateEngine.computeTotals(currentJob, lineItems.value, totalLinearFeet())
+    fun totalLinearFeet(): Float {
+        val currentJob = job.value ?: return 0f
+        return feetAcross(currentJob, runs.value)
     }
 
     fun exportPdf(context: Context, business: BusinessProfile, isInvoice: Boolean = false, onReady: (File) -> Unit) {
@@ -152,7 +234,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
                     business = business,
                     runs = runs.value,
                     lineItems = lineItems.value,
-                    totals = totals(),
+                    totals = totals.value,
                     linearFeet = totalLinearFeet(),
                     isInvoice = isInvoice
                 )
@@ -166,5 +248,9 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
         viewModelScope.launch {
             repository.updateJob(current.copy(signatureImagePath = path, signedAt = System.currentTimeMillis()))
         }
+    }
+
+    private companion object {
+        val EMPTY_TOTALS = EstimateEngine.Totals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 }

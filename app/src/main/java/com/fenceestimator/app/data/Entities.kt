@@ -104,6 +104,12 @@ data class Job(
     val pricingTierName: String = "",
     val discountPercent: Double = 0.0,
     val minimumJobCharge: Double = 0.0,
+    /**
+     * Extra cut-and-waste allowance on materials you buy by length or count --
+     * panels, pickets, rails, fabric, concrete. Never applied to posts, caps, or
+     * hardware, because you can't buy 10% of a hinge.
+     */
+    val wastePercent: Double = 0.0,
 
     // Teardown of an existing fence
     val teardownEnabled: Boolean = false,
@@ -211,8 +217,31 @@ data class FenceRun(
     // kept equal to panelWidthFt by the UI (a post at every panel edge); the
     // other types carry their own independent spacing default.
     val postSpacingFt: Float = 6f,
-    val concreteBagsPerPost: Float = 1f
-)
+    val concreteBagsPerPost: Float = 1f,
+
+    /**
+     * Typed-in footage. When set, this is the truth and the drawing is ignored,
+     * so a contractor who already knows the length can quote without drawing or
+     * calibrating anything. Null means "measure it from the drawing".
+     */
+    val manualLinearFeet: Float? = null,
+    /** Corners to assume when working from [manualLinearFeet] -- there's no drawing to count them from. */
+    val manualCornerCount: Int = 0,
+    /**
+     * Roles the user deleted off this run's estimate, comma-separated. Suggest
+     * Quantities skips them, so removing the auto-added handle (or anything
+     * else) sticks instead of coming back on the next regenerate.
+     */
+    val suppressedRolesCsv: String = ""
+) {
+    val suppressedRoles: Set<MaterialRole>
+        get() = suppressedRolesCsv.split(",")
+            .mapNotNull { name -> runCatching { MaterialRole.valueOf(name.trim()) }.getOrNull() }
+            .toSet()
+
+    /** True when this run is quoted from typed-in footage rather than a drawing. */
+    val usesManualFeet: Boolean get() = (manualLinearFeet ?: 0f) > 0f
+}
 
 @Entity(tableName = "manufacturers")
 data class Manufacturer(

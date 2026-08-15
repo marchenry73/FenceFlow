@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -161,13 +161,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Lets a run be quoted from typed-in footage instead of a drawing, lets
+         * the user permanently remove auto-added items, and adds the job-level
+         * waste allowance.
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `fence_runs` ADD COLUMN `manualLinearFeet` REAL")
+                db.execSQL("ALTER TABLE `fence_runs` ADD COLUMN `manualCornerCount` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `fence_runs` ADD COLUMN `suppressedRolesCsv` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `wastePercent` REAL NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration()
                 // Seeding deliberately lives ONLY in Repository.ensureSeedDataPresent().
                 // There used to also be an onCreate callback doing the same inserts;

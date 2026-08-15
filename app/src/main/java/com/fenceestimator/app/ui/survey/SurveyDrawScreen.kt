@@ -168,6 +168,24 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         initialValue = job2.gridFeetPerSquare,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     ) { viewModel.setGridLineSpacingFt(it) }
+
+                    val custom = job2.calibrationPixelsPerFoot != null &&
+                        job2.calibrationPixelsPerFoot != SurveyViewModel.PIXELS_PER_FOOT_GRID
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (custom) "Using your own scale (${job2.calibrationKnownFeet?.let { "%.1f ft reference".format(it) } ?: "custom"})"
+                            else "Using the standard grid scale",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (custom) {
+                            OutlinedButton(onClick = { viewModel.resetGridCalibration() }) { Text("Reset scale") }
+                        }
+                    }
                 }
             }
 
