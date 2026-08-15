@@ -1,0 +1,339 @@
+<title>FenceFlow Admin</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --ink: #14181d; --muted: #5c6672;
+    --line: #e3e7ec; --brand: #2a78d6; --good: #1baf7a; --warn: #eda100; --bad: #d64545;
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181d; --surface: #1c2128; --ink: #eef1f5; --muted: #97a2b0;
+      --line: #2a313a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181d; --surface: #1c2128; --ink: #eef1f5; --muted: #97a2b0; --line: #2a313a;
+  }
+
+  body { background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
+  header { background: var(--surface); border-bottom: 1px solid var(--line);
+           padding: 16px 20px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .panel { background: var(--surface); border: 1px solid var(--line);
+           border-radius: 12px; padding: 18px; margin-bottom: 18px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat { background: var(--surface); border: 1px solid var(--line);
+          border-radius: 12px; padding: 14px; }
+  .stat b { display: block; font-size: 26px; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px;
+          font-size: 12px; font-weight: 600; }
+  .pill.ok    { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+  .pill.warn  { background: color-mix(in srgb, var(--warn) 20%, transparent); color: #8a6100; }
+  .pill.bad   { background: color-mix(in srgb, var(--bad) 14%, transparent);  color: var(--bad); }
+  .pill.muted { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+  button { font: inherit; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--surface); color: var(--ink); padding: 7px 12px; cursor: pointer; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button.danger  { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+  button:disabled { opacity: .5; cursor: default; }
+  input, textarea { font: inherit; width: 100%; box-sizing: border-box; padding: 8px 10px;
+                    border: 1px solid var(--line); border-radius: 8px;
+                    background: var(--bg); color: var(--ink); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .msg { color: var(--muted); font-size: 13px; min-height: 18px; }
+  .gate { max-width: 420px; margin: 60px auto; }
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+           color: var(--ink); max-width: 520px; width: 92%; padding: 20px; }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+</style>
+
+<header>
+  <h1>FenceFlow Admin</h1>
+  <span class="sub">Your clients, not theirs — who's paying, who isn't, and what to do about it.</span>
+</header>
+
+<main>
+  <!-- Sign in -->
+  <div id="gate" class="panel gate">
+    <h2 style="margin-top:0">Sign in</h2>
+    <div class="msg" id="gateMsg"></div>
+    <label>Email</label><input id="email" type="email" autocomplete="username">
+    <label>Password</label><input id="password" type="password" autocomplete="current-password">
+    <div style="margin-top:14px"><button class="primary" id="signIn">Sign in</button></div>
+    <p style="font-size:12px;color:var(--muted)">
+      Only an account flagged as a platform admin can see anything here. That flag is set
+      by hand in the database and nothing in the app can grant it.
+    </p>
+  </div>
+
+  <div id="app" style="display:none">
+    <div class="stats" id="stats"></div>
+
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <h2 style="margin:0">Client companies</h2>
+        <div>
+          <button id="refresh">Refresh</button>
+          <button id="exportCsv">Export CSV</button>
+          <button id="signOut">Sign out</button>
+        </div>
+      </div>
+      <div class="msg" id="msg"></div>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            <th>Company</th><th>Status</th><th>Plan</th><th>$/mo</th>
+            <th>Users</th><th>Jobs</th><th>Last active</th><th>Renews / ends</th><th></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="msg" id="empty" style="display:none">No client companies yet.</div>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0">How suspension works</h2>
+      <p style="color:var(--muted);font-size:14px;margin:0">
+        Stripe reports a failed payment and the company moves to <b>past due</b>. They keep
+        working through the grace period — cutting a crew off mid-installation over a failed
+        card punishes the customer standing in the yard, not the person who owes you.
+        When the grace period runs out, <b>Suspend</b> stops the service. Suspension is
+        always yours to press; nothing here suspends anyone automatically.
+      </p>
+    </div>
+  </div>
+</main>
+
+<dialog id="editDialog">
+  <h3 style="margin-top:0" id="editTitle">Client</h3>
+  <div class="row2">
+    <div><label>Plan</label><input id="e_plan"></div>
+    <div><label>Price per month ($)</label><input id="e_price" type="number" step="1"></div>
+    <div><label>Billing email</label><input id="e_email" type="email"></div>
+    <div><label>Grace period ends</label><input id="e_grace" type="date"></div>
+  </div>
+  <label>Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
+  <div class="msg" id="editMsg"></div>
+  <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+    <button id="e_cancel">Cancel</button>
+    <button class="danger" id="e_suspend">Suspend</button>
+    <button class="primary" id="e_save">Save</button>
+  </div>
+</dialog>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+
+// Publishable key by design -- Row Level Security is the actual gate, and the
+// platform-admin policy is what makes this page show anything at all.
+const SUPA_URL = 'https://newcrgafcptspmapacrx.supabase.co';
+const db = createClient(SUPA_URL, 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b');
+
+const $ = id => document.getElementById(id);
+const money = n => '$' + Number(n || 0).toFixed(0);
+const d = v => v ? new Date(v) : null;
+const day = v => { const x = d(v); return x ? x.toLocaleDateString() : '—'; };
+
+let clients = [];
+let editing = null;
+
+/* ---------- auth ---------- */
+async function signIn() {
+  $('gateMsg').textContent = 'Signing in…';
+  const { error } = await db.auth.signInWithPassword({
+    email: $('email').value.trim(), password: $('password').value
+  });
+  if (error) { $('gateMsg').textContent = error.message; return; }
+  boot();
+}
+
+async function boot() {
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) { $('gate').style.display = ''; $('app').style.display = 'none'; return; }
+
+  // The policy decides. An ordinary company owner signing in here sees their
+  // own row and nothing else, which is exactly what should happen -- but it
+  // would be confusing, so say plainly that this page is not for them.
+  const { data: me } = await db.from('profiles')
+    .select('is_platform_admin').eq('id', session.user.id).maybeSingle();
+
+  if (!me?.is_platform_admin) {
+    $('gate').style.display = '';
+    $('app').style.display = 'none';
+    $('gateMsg').textContent =
+      'That account is not a platform admin. This page is for the owner of FenceFlow, ' +
+      'not for a fencing company — use the normal dashboard instead.';
+    await db.auth.signOut();
+    return;
+  }
+
+  $('gate').style.display = 'none';
+  $('app').style.display = '';
+  await load();
+}
+
+/* ---------- data ---------- */
+async function load() {
+  $('msg').textContent = 'Loading…';
+  const { data, error } = await db.from('platform_clients')
+    .select('*').order('created_at', { ascending: false });
+
+  if (error) { $('msg').textContent = error.message; return; }
+  clients = data || [];
+  $('msg').textContent = '';
+  render();
+}
+
+function statusPill(c) {
+  if (c.suspended) return '<span class="pill bad">Suspended</span>';
+  switch (c.subscription_status) {
+    case 'active':   return '<span class="pill ok">Active</span>';
+    case 'trialing': return '<span class="pill ok">Trial</span>';
+    case 'past_due': return '<span class="pill warn">Past due</span>';
+    case 'canceled': return '<span class="pill bad">Cancelled</span>';
+    default:         return '<span class="pill muted">No plan</span>';
+  }
+}
+
+function render() {
+  const paying = clients.filter(c => c.subscription_status === 'active' && !c.suspended);
+  const owing  = clients.filter(c => c.subscription_status === 'past_due' && !c.suspended);
+  const mrr    = paying.reduce((s, c) => s + Number(c.monthly_price || 0), 0);
+
+  $('stats').innerHTML = `
+    <div class="stat"><b>${clients.length}</b><span>Companies</span></div>
+    <div class="stat"><b>${paying.length}</b><span>Paying</span></div>
+    <div class="stat"><b>${money(mrr)}</b><span>Monthly recurring</span></div>
+    <div class="stat"><b>${owing.length}</b><span>Behind on payment</span></div>`;
+
+  $('empty').style.display = clients.length ? 'none' : 'block';
+  $('rows').innerHTML = clients.map(c => `
+    <tr>
+      <td><b>${esc(c.name || 'Unnamed')}</b><br>
+          <span style="color:var(--muted);font-size:12px">${esc(c.billing_email || c.email || '')}</span></td>
+      <td>${statusPill(c)}</td>
+      <td>${esc(c.subscription_plan || '—')}</td>
+      <td>${money(c.monthly_price)}</td>
+      <td>${c.user_count}</td>
+      <td>${c.job_count}</td>
+      <td>${day(c.last_activity)}</td>
+      <td>${day(c.subscription_ends_at)}</td>
+      <td>
+        <button data-edit="${c.id}">Manage</button>
+        ${c.billing_email || c.email
+          ? `<button data-chase="${c.id}">Chase</button>` : ''}
+      </td>
+    </tr>`).join('');
+
+  document.querySelectorAll('[data-edit]').forEach(b =>
+    b.addEventListener('click', () => openEdit(b.dataset.edit)));
+  document.querySelectorAll('[data-chase]').forEach(b =>
+    b.addEventListener('click', () => chase(b.dataset.chase)));
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, m =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+
+/* ---------- manage one client ---------- */
+function openEdit(id) {
+  editing = clients.find(c => c.id === id);
+  if (!editing) return;
+  $('editTitle').textContent = editing.name || 'Unnamed company';
+  $('e_plan').value  = editing.subscription_plan || '';
+  $('e_price').value = editing.monthly_price || 0;
+  $('e_email').value = editing.billing_email || editing.email || '';
+  $('e_grace').value = editing.grace_ends_at ? editing.grace_ends_at.slice(0, 10) : '';
+  $('e_notes').value = editing.admin_notes || '';
+  $('e_suspend').textContent = editing.suspended ? 'Un-suspend' : 'Suspend';
+  $('editMsg').textContent = '';
+  $('editDialog').showModal();
+}
+
+async function saveEdit() {
+  if (!editing) return;
+  $('editMsg').textContent = 'Saving…';
+  const { error } = await db.from('companies').update({
+    subscription_plan: $('e_plan').value.trim(),
+    monthly_price: Number($('e_price').value || 0),
+    billing_email: $('e_email').value.trim(),
+    grace_ends_at: $('e_grace').value ? new Date($('e_grace').value).toISOString() : null,
+    admin_notes: $('e_notes').value
+  }).eq('id', editing.id);
+
+  if (error) { $('editMsg').textContent = error.message; return; }
+  $('editDialog').close();
+  await load();
+}
+
+async function toggleSuspend() {
+  if (!editing) return;
+  const turningOn = !editing.suspended;
+  // Suspension stops a business working. Worth one deliberate confirmation,
+  // and never something this page does on a timer by itself.
+  if (turningOn && !confirm(
+    `Suspend ${editing.name}?\n\nTheir crews lose access to FenceFlow immediately. ` +
+    `Their data is untouched and comes back the moment you un-suspend.`
+  )) return;
+
+  const { error } = await db.from('companies')
+    .update({ suspended: turningOn }).eq('id', editing.id);
+  if (error) { $('editMsg').textContent = error.message; return; }
+  $('editDialog').close();
+  await load();
+}
+
+/* ---------- chasing payment ---------- */
+function chase(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  const to = c.billing_email || c.email;
+  const grace = c.grace_ends_at
+    ? ` Access continues until ${day(c.grace_ends_at)}.`
+    : '';
+  const body =
+    `Hi,\n\nYour FenceFlow payment didn't go through, so the subscription for ` +
+    `${c.name} is showing as past due.${grace}\n\n` +
+    `You can update your card from the Billing tab in your dashboard. ` +
+    `If something's wrong on our end, just reply and we'll sort it.\n\nThanks`;
+  location.href = `mailto:${encodeURIComponent(to)}` +
+    `?subject=${encodeURIComponent('FenceFlow payment issue — ' + (c.name || ''))}` +
+    `&body=${encodeURIComponent(body)}`;
+}
+
+function exportCsv() {
+  const head = ['Company','Status','Plan','MonthlyPrice','Users','Jobs','LastActive','Suspended','BillingEmail'];
+  const rows = clients.map(c => [
+    c.name, c.subscription_status, c.subscription_plan, c.monthly_price,
+    c.user_count, c.job_count, day(c.last_activity), c.suspended ? 'yes' : 'no',
+    c.billing_email || c.email || ''
+  ]);
+  const csv = [head, ...rows]
+    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  // A blob download, because the file is generated here and never leaves the browser.
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `fenceflow-clients-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+/* ---------- wiring ---------- */
+$('signIn').addEventListener('click', signIn);
+$('password').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
+$('refresh').addEventListener('click', load);
+$('exportCsv').addEventListener('click', exportCsv);
+$('signOut').addEventListener('click', async () => { await db.auth.signOut(); location.reload(); });
+$('e_cancel').addEventListener('click', () => $('editDialog').close());
+$('e_save').addEventListener('click', saveEdit);
+$('e_suspend').addEventListener('click', toggleSuspend);
+
+boot();
+</script>
