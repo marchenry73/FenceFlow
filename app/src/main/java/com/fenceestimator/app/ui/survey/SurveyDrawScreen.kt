@@ -168,39 +168,28 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         initialValue = job2.gridFeetPerSquare,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     ) { viewModel.setGridLineSpacingFt(it) }
-
-                    val custom = job2.calibrationPixelsPerFoot != null &&
-                        job2.calibrationPixelsPerFoot != SurveyViewModel.PIXELS_PER_FOOT_GRID
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            if (custom) "Using your own scale (${job2.calibrationKnownFeet?.let { "%.1f ft reference".format(it) } ?: "custom"})"
-                            else "Using the standard grid scale",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (custom) {
-                            OutlinedButton(onClick = { viewModel.resetGridCalibration() }) { Text("Reset scale") }
-                        }
-                    }
                 }
             }
 
             val visibleModes = remember(usingGrid) {
                 buildList {
                     add(SurveyMode.DRAW to "Draw")
-                    // Calibrate is offered on the grid too. The grid has a working
-                    // default scale, but someone tracing a known distance should be
-                    // free to set their own instead of being locked out of it.
-                    add(SurveyMode.CALIBRATE to "Calibrate")
+                    // No Calibrate on the grid. The grid already knows its own
+                    // scale, so the step asked people to solve a problem they did
+                    // not have -- it was the single most confusing thing here.
+                    // On a survey photo it is unavoidable: nothing else can tell
+                    // the app how big the picture is.
+                    if (!usingGrid) add(SurveyMode.CALIBRATE to "Calibrate")
                     add(SurveyMode.GATE to "Gate")
                     add(SurveyMode.MARKER to "Mark Site")
                     add(SurveyMode.ADJUST to "Adjust")
                     add(SurveyMode.PAN to "Move View")
                 }
+            }
+            // Leaving Calibrate selected while switching to the grid would strand
+            // the canvas in a mode with no button to leave it by.
+            LaunchedEffect(usingGrid) {
+                if (usingGrid && mode == SurveyMode.CALIBRATE) viewModel.setMode(SurveyMode.DRAW)
             }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                 visibleModes.forEachIndexed { index, (m, label) ->

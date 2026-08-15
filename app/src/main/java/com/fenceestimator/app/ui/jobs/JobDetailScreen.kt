@@ -781,6 +781,25 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(amountPaid = it.toDouble()) } }
     }
+
+    // A deposit that doesn't cover materials means buying the customer's fence
+    // with your own money, so offer the covering figure in one tap.
+    val materialCost by viewModel.materialCost.collectAsState()
+    val suggested = viewModel.suggestedDeposit()
+    if (suggested > 0.0 && job.depositAmount < materialCost) {
+        OutlinedButton(
+            onClick = { viewModel.applySuggestedDeposit() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Set deposit to $${"%.0f".format(suggested)} (covers materials)")
+        }
+        Text(
+            "Materials on this estimate come to $${"%.2f".format(materialCost)}. " +
+                "Rounded up to the next \$10.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var creatingLink by remember { mutableStateOf(false) }
@@ -824,6 +843,16 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 requestAmount >= 0.50 -> "Request $${"%.2f".format(requestAmount)} by Card"
                 else -> "Request Payment by Card"
             }
+        )
+    }
+    // This has to sit right under the button, outside the Square block below.
+    // It used to live inside it, so with Square unconfigured a failed request
+    // printed nothing at all and the button looked simply dead.
+    linkError?.let { problem ->
+        Text(
+            problem,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
         )
     }
     Text(
@@ -890,8 +919,8 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(paymentLinkUrl = it) } }
     Text(
-        "Created by Square above, or paste any link you already use (PayPal, Venmo, Stripe). " +
-            "Money goes straight to your own account -- FenceFlow never holds it.",
+        "Filled in by the button above, or paste any link you already use " +
+            "(PayPal, Venmo, Square). Money goes straight to your own account.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

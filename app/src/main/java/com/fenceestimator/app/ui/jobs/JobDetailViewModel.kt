@@ -15,6 +15,7 @@ import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -24,6 +25,28 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
 
     val pricingTiers: StateFlow<List<PricingTier>> = repository.observePricingTiers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * What the materials on this estimate cost. A deposit below this figure
+     * means fronting the customer's material out of pocket, so the deposit
+     * field uses it as a floor.
+     */
+    val materialCost: StateFlow<Double> = repository.observeLineItems(jobId)
+        .map { items -> items.sumOf { it.quantity * it.unitPrice } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** Rounds a deposit up to the next $10 so it reads like a real figure, not a calculation. */
+    fun suggestedDeposit(): Double {
+        val cost = materialCost.value
+        if (cost <= 0.0) return 0.0
+        return kotlin.math.ceil(cost / 10.0) * 10.0
+    }
+
+    fun applySuggestedDeposit() {
+        val amount = suggestedDeposit()
+        if (amount <= 0.0) return
+        update { it.copy(depositAmount = amount) }
+    }
 
     val manufacturers: StateFlow<List<Manufacturer>> = repository.observeManufacturers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
