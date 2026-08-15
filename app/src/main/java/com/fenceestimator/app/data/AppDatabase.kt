@@ -242,7 +242,18 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DB_NAME
                 ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
-                .fallbackToDestructiveMigration()
+                // Destructive ONLY from the pre-release versions that predate the
+                // migration chain (it starts at 4). Blanket
+                // fallbackToDestructiveMigration() was a standing offer to wipe a
+                // customer's entire business -- jobs, estimates, signed change
+                // orders, photos -- silently, on an ordinary update, if anyone
+                // ever forgot a migration. It never bit here only because this
+                // phone gets uninstalled and reinstalled; a paying customer
+                // updating from the Play Store would have found it first.
+                //
+                // Now a missing migration throws instead, which is loud in
+                // testing and impossible to ship past.
+                .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 // Seeding deliberately lives ONLY in Repository.ensureSeedDataPresent().
                 // There used to also be an onCreate callback doing the same inserts;
                 // on a fresh install both ran concurrently and neither saw the other's

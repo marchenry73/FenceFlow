@@ -158,7 +158,20 @@ tasks.register("copyDebugApkToDrive") {
 
         // Confirm from the destination, not from the copy call, so a partial or
         // blocked write shows up here instead of on someone's phone.
-        val ok = target.exists() && target.length() == source.length()
+        //
+        // Retried, because G: is a streaming virtual drive: copyTo() returns
+        // before Drive has finished committing, so an immediate size check can
+        // read a short file that is about to be correct. Failing on that was a
+        // false alarm that broke otherwise-good builds. A genuinely truncated
+        // write still never settles, so it still fails.
+        var ok = false
+        repeat(10) { attempt ->
+            if (!ok) {
+                ok = target.exists() && target.length() == source.length()
+                if (!ok) Thread.sleep(300L * (attempt + 1))
+            }
+        }
+
         logger.lifecycle(
             if (ok) "APK -> Drive: copied ${source.length() / 1_000_000}MB to $target"
             else "APK -> Drive: FAILED, $target is ${target.length()} bytes, expected ${source.length()}"
