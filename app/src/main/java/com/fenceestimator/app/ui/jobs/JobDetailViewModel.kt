@@ -82,6 +82,24 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         update { it.copy(depositAmount = amount) }
     }
 
+    /**
+     * Sets the deposit to cover materials as soon as the takeoff produces a
+     * figure, unless someone has already set one themselves.
+     *
+     * Fronting the customer's material out of your own pocket is the default
+     * failure here, and it happens by omission -- nobody decides to do it, they
+     * just never set a deposit. Only fills a blank; never overwrites a number
+     * you chose, and never moves once payment has started.
+     */
+    fun autoFillDepositFromMaterials() {
+        val current = job.value ?: return
+        if (current.depositAmount > 0.0) return
+        if (current.amountPaid > 0.0) return
+        val amount = suggestedDeposit()
+        if (amount <= 0.0) return
+        update { it.copy(depositAmount = amount) }
+    }
+
     val manufacturers: StateFlow<List<Manufacturer>> = repository.observeManufacturers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

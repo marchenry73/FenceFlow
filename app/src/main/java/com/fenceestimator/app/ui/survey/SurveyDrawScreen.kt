@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -469,27 +470,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         ZoomButton(Icons.Filled.MyLocation) { viewZoom = 1f; viewPan = Offset.Zero }
                     }
 
+                    // Plain Box, not Surface. Material3's Surface deliberately
+                    // swallows pointer events so clicks can't fall through to
+                    // whatever is behind it -- which meant these hints ate every
+                    // tap along the bottom of the drawing area. A Box with a
+                    // background looks the same and lets taps through.
                     if (mode == SurveyMode.PAN) {
-                        Surface(
-                            modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
-                            tonalElevation = 3.dp
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
-                                Icon(Icons.Filled.OpenWith, contentDescription = null)
-                                Text("  Drag to move the view")
-                            }
-                        }
+                        CanvasHint(Modifier.align(Alignment.BottomCenter), "Drag to move the view")
                     }
                     if (mode == SurveyMode.ADJUST) {
-                        Surface(
-                            modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
-                            tonalElevation = 3.dp
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
-                                Icon(Icons.Filled.PanTool, contentDescription = null)
-                                Text("  Drag a point, a gate or a marker to move it")
-                            }
-                        }
+                        CanvasHint(
+                            Modifier.align(Alignment.BottomCenter),
+                            "Drag a point, a gate or a marker to move it"
+                        )
                     }
 
                 }
@@ -804,5 +797,32 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform:
         )
         y += stepUnits
         lineIndex++
+    }
+}
+
+/**
+ * A caption over the drawing area that does not steal touches.
+ *
+ * Material3's Surface installs a pointer-input handler so clicks cannot fall
+ * through to whatever sits behind it. Useful for a card; wrong for a hint
+ * floating over the surface someone is drawing on, where it silently ate every
+ * tap that landed on it.
+ */
+@Composable
+private fun CanvasHint(modifier: Modifier = Modifier, text: String) {
+    Box(
+        modifier
+            .padding(8.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+                androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

@@ -58,6 +58,24 @@ class Repository(private val db: AppDatabase) {
     suspend fun queueDeletion(syncId: String, tableName: String) =
         pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName))
 
+    /**
+     * Deletes locally and records that the cloud copy must go too.
+     *
+     * Only jobs and employees used to do this. Everything else deleted locally
+     * and left its cloud row alone, so the next pull saw a record this phone
+     * was "missing" and put it straight back -- which is why deleted change
+     * orders, expenses and punch list items kept returning, and why they
+     * multiplied across devices.
+     *
+     * The tombstone is written first: if the sync runs between the two steps,
+     * a delete that is queued but not yet applied locally is harmless, whereas
+     * the reverse loses the instruction entirely.
+     */
+    private suspend fun deleteSynced(syncId: String, tableName: String, deleteLocal: suspend () -> Unit) {
+        pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName))
+        deleteLocal()
+    }
+
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
     suspend fun clearPendingDeletion(syncId: String) = pendingDeletionDao.clear(syncId)
 
@@ -72,7 +90,7 @@ class Repository(private val db: AppDatabase) {
     suspend fun getFenceRun(id: Long): FenceRun? = fenceRunDao.getById(id)
     suspend fun createFenceRun(run: FenceRun): Long = fenceRunDao.insert(run)
     suspend fun updateFenceRun(run: FenceRun) = fenceRunDao.update(run)
-    suspend fun deleteFenceRun(run: FenceRun) = fenceRunDao.delete(run)
+    suspend fun deleteFenceRun(run: FenceRun) = deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
 
     fun observeCatalog(): Flow<List<MaterialItem>> = materialDao.observeAllActive()
     fun observeFullCatalog(): Flow<List<MaterialItem>> = materialDao.observeAll()
@@ -81,7 +99,7 @@ class Repository(private val db: AppDatabase) {
         materialDao.insert(item.copy(lastUpdated = System.currentTimeMillis()))
     suspend fun updateMaterialItem(item: MaterialItem) =
         materialDao.update(item.copy(lastUpdated = System.currentTimeMillis()))
-    suspend fun deleteMaterialItem(item: MaterialItem) = materialDao.delete(item)
+    suspend fun deleteMaterialItem(item: MaterialItem) = deleteSynced(item.syncId, "material_items") { materialDao.delete(item) }
     suspend fun addMaterialItems(items: List<MaterialItem>) = materialDao.insertAll(items)
 
     fun observeLineItems(jobId: Long): Flow<List<EstimateLineItem>> = lineItemDao.observeForJob(jobId)
@@ -129,7 +147,7 @@ class Repository(private val db: AppDatabase) {
 
     suspend fun saveLineItem(item: EstimateLineItem): Long = lineItemDao.insert(item)
     suspend fun updateLineItem(item: EstimateLineItem) = lineItemDao.update(item)
-    suspend fun deleteLineItem(item: EstimateLineItem) = lineItemDao.delete(item)
+    suspend fun deleteLineItem(item: EstimateLineItem) = deleteSynced(item.syncId, "estimate_line_items") { lineItemDao.delete(item) }
 
     fun observeManufacturers(): Flow<List<Manufacturer>> = manufacturerDao.observeAll()
     suspend fun getAllManufacturers(): List<Manufacturer> = manufacturerDao.getAll()
@@ -137,12 +155,12 @@ class Repository(private val db: AppDatabase) {
     suspend fun getManufacturer(id: Long): Manufacturer? = manufacturerDao.getById(id)
     suspend fun saveManufacturer(m: Manufacturer): Long =
         if (m.id == 0L) manufacturerDao.insert(m) else { manufacturerDao.update(m); m.id }
-    suspend fun deleteManufacturer(m: Manufacturer) = manufacturerDao.delete(m)
+    suspend fun deleteManufacturer(m: Manufacturer) = deleteSynced(m.syncId, "manufacturers") { manufacturerDao.delete(m) }
 
     fun observePricingTiers(): Flow<List<PricingTier>> = pricingTierDao.observeAll()
     suspend fun savePricingTier(tier: PricingTier): Long =
         if (tier.id == 0L) pricingTierDao.insert(tier) else { pricingTierDao.update(tier); tier.id }
-    suspend fun deletePricingTier(tier: PricingTier) = pricingTierDao.delete(tier)
+    suspend fun deletePricingTier(tier: PricingTier) = deleteSynced(tier.syncId, "pricing_tiers") { pricingTierDao.delete(tier) }
 
     fun observePhotos(jobId: Long): Flow<List<JobPhoto>> = jobPhotoDao.observeForJob(jobId)
     suspend fun addPhoto(photo: JobPhoto): Long = jobPhotoDao.insert(photo)
@@ -166,7 +184,7 @@ class Repository(private val db: AppDatabase) {
     suspend fun getExpenses(jobId: Long): List<Expense> = expenseDao.getForJob(jobId)
     suspend fun getAllExpenses(): List<Expense> = expenseDao.getAll()
     suspend fun saveExpense(expense: Expense): Long = expenseDao.insert(expense)
-    suspend fun deleteExpense(expense: Expense) = expenseDao.delete(expense)
+    suspend fun deleteExpense(expense: Expense) = deleteSynced(expense.syncId, "expenses") { expenseDao.delete(expense) }
 
     /**
      * Seeds the starter catalog and pricing tiers if they're missing.
@@ -203,7 +221,7 @@ class Repository(private val db: AppDatabase) {
     fun observeRunningTimers(): Flow<List<TimeEntry>> = timeEntryDao.observeRunning()
     suspend fun getTimeEntries(jobId: Long): List<TimeEntry> = timeEntryDao.getForJob(jobId)
     suspend fun getAllTimeEntries(): List<TimeEntry> = timeEntryDao.getAll()
-    suspend fun deleteTimeEntry(entry: TimeEntry) = timeEntryDao.delete(entry)
+    suspend fun deleteTimeEntry(entry: TimeEntry) = deleteSynced(entry.syncId, "time_entries") { timeEntryDao.delete(entry) }
     suspend fun updateTimeEntry(entry: TimeEntry) = timeEntryDao.update(entry)
 
     /**
@@ -226,12 +244,12 @@ class Repository(private val db: AppDatabase) {
     fun observeSiteMarkers(jobId: Long): Flow<List<SiteMarker>> = siteMarkerDao.observeForJob(jobId)
     suspend fun addSiteMarker(marker: SiteMarker): Long = siteMarkerDao.insert(marker)
     suspend fun updateSiteMarker(marker: SiteMarker) = siteMarkerDao.update(marker)
-    suspend fun deleteSiteMarker(marker: SiteMarker) = siteMarkerDao.delete(marker)
+    suspend fun deleteSiteMarker(marker: SiteMarker) = deleteSynced(marker.syncId, "site_markers") { siteMarkerDao.delete(marker) }
 
     fun observeChangeOrders(jobId: Long): Flow<List<ChangeOrder>> = changeOrderDao.observeForJob(jobId)
     suspend fun saveChangeOrder(order: ChangeOrder): Long = changeOrderDao.insert(order)
     suspend fun updateChangeOrder(order: ChangeOrder) = changeOrderDao.update(order)
-    suspend fun deleteChangeOrder(order: ChangeOrder) = changeOrderDao.delete(order)
+    suspend fun deleteChangeOrder(order: ChangeOrder) = deleteSynced(order.syncId, "change_orders") { changeOrderDao.delete(order) }
 
     fun observeJobSteps(jobId: Long): Flow<List<JobStep>> = jobStepDao.observeForJob(jobId)
     suspend fun updateJobStep(step: JobStep) = jobStepDao.update(step)
@@ -263,5 +281,5 @@ class Repository(private val db: AppDatabase) {
     fun observePunchList(jobId: Long): Flow<List<PunchListItem>> = punchListDao.observeForJob(jobId)
     suspend fun addPunchListItem(item: PunchListItem): Long = punchListDao.insert(item)
     suspend fun updatePunchListItem(item: PunchListItem) = punchListDao.update(item)
-    suspend fun deletePunchListItem(item: PunchListItem) = punchListDao.delete(item)
+    suspend fun deletePunchListItem(item: PunchListItem) = deleteSynced(item.syncId, "punch_list_items") { punchListDao.delete(item) }
 }

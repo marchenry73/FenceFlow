@@ -1008,6 +1008,11 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // A deposit that doesn't cover materials means buying the customer's fence
     // with your own money, so offer the covering figure in one tap.
     val materialCost by viewModel.materialCost.collectAsState()
+
+    // And fill it in automatically the first time there is a figure to use.
+    // Waiting for someone to notice the button is how the default becomes
+    // "no deposit at all".
+    LaunchedEffect(materialCost) { viewModel.autoFillDepositFromMaterials() }
     val suggested = viewModel.suggestedDeposit()
     if (suggested > 0.0 && job.depositAmount < materialCost) {
         OutlinedButton(

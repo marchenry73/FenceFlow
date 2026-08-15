@@ -275,6 +275,16 @@ object EstimateEngine {
      * more than one catalog item matches a role; falls back gracefully when
      * a role has no matching catalog item at all.
      */
+    /**
+     * A stable uuid for one run's line of a given material role.
+     *
+     * nameUUIDFromBytes is a content hash, so the same run and role always
+     * produce the same uuid on every device and every regenerate -- which is
+     * what makes the cloud upsert replace the row rather than add another.
+     */
+    private fun deterministicSyncId(runSyncId: String, role: String): String =
+        java.util.UUID.nameUUIDFromBytes("fenceflow-line:$runSyncId:$role".toByteArray()).toString()
+
     data class BuiltItems(
         val items: List<EstimateLineItem>,
         /** Roles the takeoff called for that the catalog has nothing priced for. */
@@ -344,7 +354,12 @@ object EstimateEngine {
                     // regenerating overwrites the cloud row instead of adding a
                     // second one next to it. Roles are unique per run after the
                     // merge above, so this can't collide.
-                    syncId = "${run.syncId}:${entry.role.name}",
+                    //
+                    // It has to BE a uuid, not merely be unique: the cloud column
+                    // is typed uuid, and "<uuid>:PANEL" was rejected outright --
+                    // which broke syncing estimates entirely. Hashing the same
+                    // two inputs into a uuid keeps the determinism and the type.
+                    syncId = deterministicSyncId(run.syncId, entry.role.name),
                     jobId = jobId,
                     fenceRunId = fenceRunId,
                     sortOrder = order++,
