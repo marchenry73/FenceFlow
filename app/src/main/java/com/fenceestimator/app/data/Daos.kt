@@ -133,10 +133,14 @@ interface EstimateLineItemDao {
      * so the old delete skipped edited lines and the next Suggest added a second
      * copy of each one. Hand-typed extras have no role and are left alone.
      */
-    @Query("DELETE FROM estimate_line_items WHERE fenceRunId = :runId AND role IS NOT NULL")
+    // role != 'NONE', not "role is not null". The column is not nullable -- it
+    // stores the enum name and defaults to NONE -- so a null check matches every
+    // row, which would take hand-typed extras with it if one were ever attached
+    // to a run. NONE is what "no material role" actually looks like here.
+    @Query("DELETE FROM estimate_line_items WHERE fenceRunId = :runId AND role != 'NONE'")
     suspend fun deleteGeneratedForRun(runId: Long)
 
-    @Query("SELECT * FROM estimate_line_items WHERE fenceRunId = :runId AND role IS NOT NULL")
+    @Query("SELECT * FROM estimate_line_items WHERE fenceRunId = :runId AND role != 'NONE'")
     suspend fun getGeneratedForRun(runId: Long): List<EstimateLineItem>
 
     /**
@@ -154,11 +158,21 @@ interface EstimateLineItemDao {
     suspend fun deleteAllForJob(jobId: Long)
 
     /**
-     * Takeoff lines with no fence run. Only the old cloud pull could produce
-     * these; a hand-typed extra has no role, so it is never matched here.
+     * Takeoff lines that lost their fence run. Only the old cloud pull could
+     * produce these.
+     *
+     * Matched on role != 'NONE', NOT on "role is not null". The column is not
+     * nullable -- it stores the enum name and defaults to NONE -- so a null
+     * check is always true and would delete the user's hand-typed extras along
+     * with the orphans. A hand-typed item has no material role, which is what
+     * NONE means, and that is what keeps it safe here.
      */
-    @Query("DELETE FROM estimate_line_items WHERE fenceRunId IS NULL AND role IS NOT NULL")
+    @Query("DELETE FROM estimate_line_items WHERE fenceRunId IS NULL AND role != 'NONE'")
     suspend fun deleteOrphanedGenerated(): Int
+
+    /** The orphans, so their cloud copies can be tombstoned before they are removed. */
+    @Query("SELECT * FROM estimate_line_items WHERE fenceRunId IS NULL AND role != 'NONE'")
+    suspend fun orphanedGenerated(): List<EstimateLineItem>
 }
 
 @Dao

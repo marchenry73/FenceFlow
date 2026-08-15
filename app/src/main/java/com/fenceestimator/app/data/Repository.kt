@@ -54,6 +54,10 @@ class Repository(private val db: AppDatabase) {
         pendingDeletionDao.insert(PendingDeletion(syncId = job.syncId, tableName = "jobs"))
     }
 
+    /** Queues a cloud row for deletion on the next sync. */
+    suspend fun queueDeletion(syncId: String, tableName: String) =
+        pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName))
+
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
     suspend fun clearPendingDeletion(syncId: String) = pendingDeletionDao.clear(syncId)
 
@@ -102,11 +106,26 @@ class Repository(private val db: AppDatabase) {
         lineItemDao.replaceGeneratedForRun(runId, items)
     }
     /**
-     * Removes takeoff lines that lost their fence run. They can only have come
-     * from the old cloud pull, which discarded the run and dropped everything
-     * into "Other Items". Hand-typed extras carry no role, so they survive.
+     * Removes takeoff lines that lost their fence run, and tombstones them so
+     * the cloud copy goes too.
+     *
+     * Deleting them locally alone did nothing lasting: the cloud rows survived,
+     * the next pull saw sync ids it no longer recognised, and inserted them
+     * straight back. That is why the stray items kept reappearing -- and why
+     * they multiplied, since every device did this independently.
+     *
+     * Hand-typed extras have role NONE and are never touched.
      */
-    suspend fun deleteOrphanedGeneratedLineItems(): Int = lineItemDao.deleteOrphanedGenerated()
+    suspend fun deleteOrphanedGeneratedLineItems(): Int {
+        val orphans = lineItemDao.orphanedGenerated()
+        orphans.forEach { item ->
+            pendingDeletionDao.insert(
+                PendingDeletion(syncId = item.syncId, tableName = "estimate_line_items")
+            )
+        }
+        lineItemDao.deleteOrphanedGenerated()
+        return orphans.size
+    }
 
     suspend fun saveLineItem(item: EstimateLineItem): Long = lineItemDao.insert(item)
     suspend fun updateLineItem(item: EstimateLineItem) = lineItemDao.update(item)

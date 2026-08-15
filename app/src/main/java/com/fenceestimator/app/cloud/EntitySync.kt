@@ -428,7 +428,20 @@ object EntitySync {
             .flatMap { repository.getFenceRuns(it) }.associate { it.syncId to it.id }
         val knownItems = jobIdBySyncId.values
             .flatMap { repository.getLineItems(it) }.map { it.syncId }.toSet()
-        lineItems.filter { it.syncId !in knownItems }.forEach { row ->
+
+        // Refuse legacy orphans outright rather than pulling them and cleaning
+        // up afterwards. A row with a real material role but no run was pushed
+        // before line items carried their run; re-inserting it just recreates
+        // the stray item, and the cleanup and the pull chase each other forever.
+        // Hand-typed extras have role NONE or none at all, and still come down.
+        val (legacyOrphans, usable) = lineItems.partition { row ->
+            row.fenceRunSyncId == null && row.role != null && row.role != "NONE"
+        }
+        legacyOrphans.forEach { row ->
+            repository.queueDeletion(row.syncId, "estimate_line_items")
+        }
+
+        usable.filter { it.syncId !in knownItems }.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
             repository.saveLineItem(
                 EstimateLineItem(

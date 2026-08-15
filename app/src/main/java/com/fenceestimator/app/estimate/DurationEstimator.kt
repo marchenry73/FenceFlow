@@ -104,21 +104,22 @@ object DurationEstimator {
             // Typed-in footage counts the same as a drawing. This used to look
             // at the drawing only, so a run quoted by typing its length produced
             // no hours at all -- and changing that length changed nothing.
-            val manual = run.manualLinearFeet
-            val usingManual = manual != null && manual > 0f
-
+            // Smart-cast rather than !!: the two branches are decided by the
+            // same condition, and a later edit that separated them would turn
+            // those assertions into a crash.
+            val manual = run.manualLinearFeet?.takeIf { it > 0f }
             val points = FenceCodec.decodePoints(run.pointsEncoded)
-            if (!usingManual && points.size < 2) return@forEach
 
-            val geometry = if (usingManual) null
-            else FenceGeometryEngine.analyze(points, pixelsPerFoot, run.closedLoop)
+            val geometry = if (manual == null) {
+                if (points.size < 2) return@forEach
+                FenceGeometryEngine.analyze(points, pixelsPerFoot, run.closedLoop)
+            } else null
 
-            val runFeet = if (usingManual) manual!!.toDouble()
-            else geometry!!.totalLinearFeet.toDouble()
+            val runFeet = manual?.toDouble() ?: geometry?.totalLinearFeet?.toDouble() ?: return@forEach
             val runGates = FenceCodec.decodeGates(run.gatesEncoded).size
 
             feet += runFeet
-            corners += if (usingManual) run.manualCornerCount else geometry!!.cornerCount
+            corners += geometry?.cornerCount ?: run.manualCornerCount
             gates += runGates
 
             // Scale this run's footage against this company's own rate, weighted
