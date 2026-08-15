@@ -297,6 +297,15 @@ fun JobDetailScreen(
                 item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, session.canDelete, viewModel) } }
             }
             item {
+                val changes by viewModel.fieldChanges.collectAsState()
+                SectionCard(
+                    title = "Changes from the Field" +
+                        if (changes.any { !it.isAcknowledged }) "  ●" else ""
+                ) {
+                    FieldChangesSection(changes, viewModel)
+                }
+            }
+            item {
                 SectionCard(title = "Held Up / Not Completed") {
                     JobBlockedSection(currentJob, profile, viewModel)
                 }

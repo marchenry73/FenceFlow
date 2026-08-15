@@ -287,6 +287,9 @@ interface SiteMarkerDao {
     @Insert
     suspend fun insert(marker: SiteMarker): Long
 
+    @Update
+    suspend fun update(marker: SiteMarker)
+
     @Delete
     suspend fun delete(marker: SiteMarker)
 }

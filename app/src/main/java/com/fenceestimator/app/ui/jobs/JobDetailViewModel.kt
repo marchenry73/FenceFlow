@@ -191,6 +191,14 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         }
     }
 
+    val fieldChanges: StateFlow<List<com.fenceestimator.app.data.FieldChange>> =
+        repository.observeFieldChanges(jobId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun acknowledgeFieldChanges() {
+        viewModelScope.launch { repository.acknowledgeFieldChanges(jobId) }
+    }
+
     /** Stamps that the customer has actually been told why the job is held up. */
     fun markCustomerNotified() {
         update { it.copy(customerNotifiedAt = System.currentTimeMillis()) }

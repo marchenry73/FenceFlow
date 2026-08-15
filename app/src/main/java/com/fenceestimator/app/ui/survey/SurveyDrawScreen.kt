@@ -89,6 +89,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         key = "survey_$jobId",
         factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId) }
     )
+    // Attribute edits so the office knows who changed the plan and when. Only
+    // for people working under someone -- an owner editing their own drawing
+    // has nobody to report to, and logging that would be noise.
+    val session by app.session.state.collectAsState()
+    LaunchedEffect(session.role, session.email) {
+        val reportsToSomeone = session.role in setOf(
+            com.fenceestimator.app.cloud.UserRole.CREW,
+            com.fenceestimator.app.cloud.UserRole.FOREMAN
+        )
+        viewModel.editorName = if (reportsToSomeone) session.email ?: "Crew" else null
+        viewModel.editorRole = session.role.label
+    }
+
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
     val selectedRunId by viewModel.selectedRunId.collectAsState()
@@ -232,7 +245,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         modifier = Modifier
                             .fillMaxSize()
                             .onSizeChanged { canvasSize = it }
-                            .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid) {
+                            // gates and siteMarkers belong in this key list: the
+                            // gesture detector captures whatever these were when
+                            // it was created, so leaving them out meant a gate
+                            // added or moved after the fact couldn't be grabbed.
+                            .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid, gates, siteMarkers) {
                                 // Only one gesture detector is ever active at a time -- mixing a tap
                                 // detector and a drag detector on the same pointer stream is a real
                                 // source of flaky gesture recognition, so each mode that needs drag
@@ -240,33 +257,77 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 when (mode) {
                                     SurveyMode.PAN -> detectDragGestures { _, dragAmount -> viewPan += dragAmount }
                                     SurveyMode.ADJUST -> {
+                                        // Three things can be dragged: a fence
+                                        // vertex, a gate, or a site marker. Gates
+                                        // and markers previously had to be deleted
+                                        // and re-added to move a few feet, which
+                                        // also threw away the gate's width.
                                         var draggingIndex: Int? = null
+                                        var draggingGate: Int? = null
+                                        var draggingMarker: SiteMarker? = null
                                         var lastImagePoint: FencePoint? = null
+
                                         detectDragGestures(
                                             onDragStart = { startOffset ->
                                                 val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan)
-                                                val nearest = committedPoints.withIndex().minByOrNull { (_, p) -> (transform.toCanvas(p) - startOffset).getDistance() }
-                                                draggingIndex = nearest?.takeIf { (_, p) -> (transform.toCanvas(p) - startOffset).getDistance() <= VERTEX_HIT_RADIUS_PX }?.index
+                                                fun distTo(x: Float, y: Float) =
+                                                    (transform.toCanvas(FencePoint(x, y)) - startOffset).getDistance()
+
+                                                // Gates and markers sit on top of
+                                                // the line, so they win a tie --
+                                                // otherwise a gate placed on a
+                                                // vertex could never be grabbed.
+                                                val gateHit = gates.withIndex()
+                                                    .minByOrNull { (_, g) -> distTo(g.x, g.y) }
+                                                    ?.takeIf { (_, g) -> distTo(g.x, g.y) <= VERTEX_HIT_RADIUS_PX }
+                                                val markerHit = siteMarkers
+                                                    .minByOrNull { m -> distTo(m.x, m.y) }
+                                                    ?.takeIf { m -> distTo(m.x, m.y) <= VERTEX_HIT_RADIUS_PX }
+
+                                                when {
+                                                    gateHit != null -> draggingGate = gateHit.index
+                                                    markerHit != null -> draggingMarker = markerHit
+                                                    else -> {
+                                                        val nearest = committedPoints.withIndex().minByOrNull { (_, p) -> (transform.toCanvas(p) - startOffset).getDistance() }
+                                                        draggingIndex = nearest?.takeIf { (_, p) -> (transform.toCanvas(p) - startOffset).getDistance() <= VERTEX_HIT_RADIUS_PX }?.index
+                                                    }
+                                                }
                                             },
                                             onDragEnd = {
                                                 val idx = draggingIndex
                                                 val finalPoint = lastImagePoint
-                                                if (idx != null && finalPoint != null) viewModel.movePoint(idx, finalPoint)
+                                                if (finalPoint != null) {
+                                                    when {
+                                                        idx != null -> viewModel.movePoint(idx, finalPoint)
+                                                        draggingGate != null ->
+                                                            viewModel.moveGate(draggingGate!!, finalPoint.x, finalPoint.y)
+                                                        draggingMarker != null ->
+                                                            viewModel.moveSiteMarker(draggingMarker!!, finalPoint.x, finalPoint.y)
+                                                    }
+                                                }
                                                 draggingIndex = null
+                                                draggingGate = null
+                                                draggingMarker = null
                                                 lastImagePoint = null
                                                 draftPoints = null
                                             },
                                             onDragCancel = {
                                                 draggingIndex = null
+                                                draggingGate = null
+                                                draggingMarker = null
                                                 lastImagePoint = null
                                                 draftPoints = null
                                             }
                                         ) { change, _ ->
-                                            val idx = draggingIndex ?: return@detectDragGestures
+                                            if (draggingIndex == null && draggingGate == null && draggingMarker == null) {
+                                                return@detectDragGestures
+                                            }
                                             val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan)
                                             val imgPoint = transform.toImage(change.position)
                                             lastImagePoint = imgPoint
-                                            draftPoints = committedPoints.toMutableList().also { it[idx] = imgPoint }
+                                            draggingIndex?.let { idx ->
+                                                draftPoints = committedPoints.toMutableList().also { it[idx] = imgPoint }
+                                            }
                                         }
                                     }
                                     else -> detectTapGestures { tapOffset ->
@@ -395,8 +456,32 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
                                 Icon(Icons.Filled.PanTool, contentDescription = null)
-                                Text("  Drag a highlighted point to move it")
+                                Text("  Drag a point, a gate or a marker to move it")
                             }
+                        }
+                    }
+
+                    // Running total on the canvas itself. The full readout sits
+                    // below the drawing area, which on a phone means it is off
+                    // screen exactly when you are drawing and want to see it.
+                    val livePoints = draftPoints ?: committedPoints
+                    if (livePoints.size >= 2) {
+                        val liveFeet = FenceGeometryEngine.analyze(
+                            livePoints,
+                            pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
+                            activeRun.closedLoop
+                        ).totalLinearFeet
+                        Surface(
+                            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                            tonalElevation = 4.dp,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "  ${String.format("%.1f", liveFeet)} ft  ",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
                         }
                     }
                 }

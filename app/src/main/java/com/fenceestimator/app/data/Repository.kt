@@ -18,6 +18,7 @@ class Repository(private val db: AppDatabase) {
     private val expenseDao = db.expenseDao()
     private val punchListDao = db.punchListDao()
     private val jobStepDao = db.jobStepDao()
+    private val fieldChangeDao = db.fieldChangeDao()
     private val changeOrderDao = db.changeOrderDao()
     private val siteMarkerDao = db.siteMarkerDao()
     private val timeEntryDao = db.timeEntryDao()
@@ -198,6 +199,7 @@ class Repository(private val db: AppDatabase) {
 
     fun observeSiteMarkers(jobId: Long): Flow<List<SiteMarker>> = siteMarkerDao.observeForJob(jobId)
     suspend fun addSiteMarker(marker: SiteMarker): Long = siteMarkerDao.insert(marker)
+    suspend fun updateSiteMarker(marker: SiteMarker) = siteMarkerDao.update(marker)
     suspend fun deleteSiteMarker(marker: SiteMarker) = siteMarkerDao.delete(marker)
 
     fun observeChangeOrders(jobId: Long): Flow<List<ChangeOrder>> = changeOrderDao.observeForJob(jobId)
@@ -211,6 +213,14 @@ class Repository(private val db: AppDatabase) {
     /** Used by cloud pull to restore records made on another phone. */
     suspend fun insertJobStep(step: JobStep): Long = jobStepDao.insert(step)
     suspend fun insertTimeEntry(entry: TimeEntry): Long = timeEntryDao.insert(entry)
+
+    // ---- Changes the crew made on site ----
+    fun observeFieldChanges(jobId: Long): Flow<List<FieldChange>> = fieldChangeDao.observeForJob(jobId)
+    fun observeUnacknowledgedChanges(): Flow<List<FieldChange>> = fieldChangeDao.observeUnacknowledged()
+    suspend fun getFieldChanges(jobId: Long): List<FieldChange> = fieldChangeDao.getForJob(jobId)
+    suspend fun recordFieldChange(change: FieldChange): Long = fieldChangeDao.insert(change)
+    suspend fun acknowledgeFieldChanges(jobId: Long) =
+        fieldChangeDao.acknowledgeAllForJob(jobId, System.currentTimeMillis())
 
     /** Seeds the standard walkthrough + install checklists the first time a job's crew view is opened. */
     suspend fun ensureJobStepsSeeded(jobId: Long) {

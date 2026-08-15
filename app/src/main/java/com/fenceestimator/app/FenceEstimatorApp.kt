@@ -27,6 +27,10 @@ class FenceEstimatorApp : Application() {
 
     val autoSync: AutoSync by lazy { AutoSync(applicationScope, repository, session, this) }
 
+    val overdueWatcher: com.fenceestimator.app.notify.OverdueWatcher by lazy {
+        com.fenceestimator.app.notify.OverdueWatcher(applicationScope, repository, this)
+    }
+
     override fun onCreate() {
         super.onCreate()
         PDFBoxResourceLoader.init(applicationContext)
@@ -48,5 +52,8 @@ class FenceEstimatorApp : Application() {
             runCatching { repository.ensureSeedDataPresent() }
         }
         autoSync.start()
+        // Checks hourly, and once now, so a job that ran long yesterday is
+        // flagged on opening the app rather than an hour later.
+        overdueWatcher.start()
     }
 }

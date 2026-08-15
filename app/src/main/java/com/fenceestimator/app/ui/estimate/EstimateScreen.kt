@@ -104,7 +104,12 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(runs, key = { it.id }) { run ->
+            // Keys have to be unique across the WHOLE list, not just within one
+            // items() block. Runs and line items both used their raw row id, so
+            // a run with id 3 and a line item with id 3 produced the same key --
+            // and Compose throws the moment the second one scrolls into view.
+            // That is the crash on scrolling down the estimate.
+            items(runs, key = { "run-${it.id}" }) { run ->
                 RunSection(
                     run = run,
                     linearFeet = viewModel.linearFeetFor(run),
@@ -132,7 +137,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit) {
                     OutlinedButton(onClick = { viewModel.addManualLineItem() }) { Text("+ Add Item") }
                 }
             }
-            items(unassigned, key = { it.id }) { item ->
+            items(unassigned, key = { "item-${it.id}" }) { item ->
                 LineItemRow(item, currency, onClick = { editingItem = item })
             }
 

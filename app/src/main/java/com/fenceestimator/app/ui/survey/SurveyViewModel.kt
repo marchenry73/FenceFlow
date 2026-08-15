@@ -5,11 +5,13 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.FenceRun
+import com.fenceestimator.app.data.FieldChange
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.data.SiteMarker
 import com.fenceestimator.app.data.SiteMarkerKind
 import com.fenceestimator.app.geometry.FenceCodec
+import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
 import kotlinx.coroutines.Dispatchers
@@ -112,10 +114,54 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         viewModelScope.launch { repository.updateFenceRun(run.copy(closedLoop = closed)) }
     }
 
+    /**
+     * Who is editing, so a change made in the field can be attributed. Null on
+     * an owner's own phone, where there is nobody to report to.
+     */
+    var editorName: String? = null
+    var editorRole: String? = null
+
     private fun persistPoints(run: FenceRun, points: List<FencePoint>) {
         viewModelScope.launch {
+            val before = measure(run, FenceCodec.decodePoints(run.pointsEncoded))
             repository.updateFenceRun(run.copy(pointsEncoded = FenceCodec.encodePoints(points)))
+            val after = measure(run, points)
+            noteFootageChange(run, before, after)
         }
+    }
+
+    private fun measure(run: FenceRun, points: List<FencePoint>): Float {
+        if (points.size < 2) return 0f
+        val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
+        return FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop).totalLinearFeet
+    }
+
+    /**
+     * Records a footage change so the office sees it.
+     *
+     * Only worth logging when the length actually moved by something that
+     * changes an order -- a foot of drift while nudging a corner is noise, and
+     * a log full of noise is a log nobody reads. Footage drives the estimate,
+     * the post count and the material order, so a real change the office never
+     * hears about is a job that stops matching what the customer agreed to pay.
+     */
+    private suspend fun noteFootageChange(run: FenceRun, before: Float, after: Float) {
+        val name = editorName ?: return
+        if (kotlin.math.abs(after - before) < MIN_REPORTABLE_FEET) return
+
+        repository.recordFieldChange(
+            FieldChange(
+                jobId = jobId,
+                summary = "${run.label.ifBlank { "Fence run" }}: " +
+                    "${"%.0f".format(before)} ft → ${"%.0f".format(after)} ft",
+                detail = if (after > before)
+                    "Longer than planned — the estimate and material order may need redoing."
+                else
+                    "Shorter than planned — there may be material left over.",
+                changedBy = name,
+                changedByRole = editorRole.orEmpty()
+            )
+        )
     }
 
     fun tapCalibrationPoint(point: FencePoint, onNeedDistance: (FencePoint, FencePoint) -> Unit) {
@@ -158,6 +204,28 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         gates.add(GateMarker(x, y, widthFt))
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+        }
+    }
+
+    /**
+     * Moves an already-placed gate. Previously a gate in the wrong spot had to
+     * be deleted and re-added, which loses its width and is a poor trade for
+     * something you nudge a few feet.
+     */
+    fun moveGate(index: Int, x: Float, y: Float) {
+        val run = selectedRun() ?: return
+        val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
+        if (index !in gates.indices) return
+        gates[index] = gates[index].copy(x = x, y = y)
+        viewModelScope.launch {
+            repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+        }
+    }
+
+    /** Moves a site marker, for the same reason gates can be moved. */
+    fun moveSiteMarker(marker: SiteMarker, x: Float, y: Float) {
+        viewModelScope.launch {
+            repository.updateSiteMarker(marker.copy(x = x, y = y))
         }
     }
 
@@ -223,5 +291,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         const val PIXELS_PER_FOOT_GRID = 20f
         /** Virtual canvas size (width == height) used when there's no survey photo -- 400ft x 400ft of drawable area. */
         const val GRID_CANVAS_SIZE = 8000
+        /** Below this, a footage change is someone nudging a corner, not a real change. */
+        const val MIN_REPORTABLE_FEET = 3f
     }
 }
