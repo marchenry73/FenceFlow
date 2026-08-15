@@ -129,15 +129,45 @@ dependencies {
 // syncs down to the phone for installing.
 val driveProjectFolder = file("G:/My Drive/Professional Documents/Projects/FenceEstimator")
 
-tasks.register<Copy>("copyDebugApkToDrive") {
+val driveApkFolder = driveProjectFolder.resolve("app/build/outputs/apk/debug")
+
+tasks.register("copyDebugApkToDrive") {
     description = "Copies the debug APK into Google Drive so it syncs to the phone."
-    from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
-    into(driveProjectFolder.resolve("app/build/outputs/apk/debug"))
-    // Skips quietly when the drive isn't mounted -- Drive paused, or a different
-    // machine -- so a missing G: never fails the build.
-    onlyIf { driveProjectFolder.exists() }
+
+    // Never treat this as up to date. A Copy task that decides nothing changed
+    // is silently doing nothing, and the only symptom is an APK on the phone
+    // that is quietly a build or two behind -- which is worse than a failure.
+    outputs.upToDateWhen { false }
+
+    doLast {
+        val source = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+        if (!source.exists()) {
+            logger.lifecycle("APK -> Drive: nothing to copy, ${source.name} was not built.")
+            return@doLast
+        }
+        // Missing drive means Drive is paused or this is another machine; say so
+        // rather than failing the build over it.
+        if (!driveProjectFolder.exists()) {
+            logger.lifecycle("APK -> Drive: SKIPPED, ${driveProjectFolder} is not available.")
+            return@doLast
+        }
+
+        driveApkFolder.mkdirs()
+        val target = driveApkFolder.resolve(source.name)
+        source.copyTo(target, overwrite = true)
+
+        // Confirm from the destination, not from the copy call, so a partial or
+        // blocked write shows up here instead of on someone's phone.
+        val ok = target.exists() && target.length() == source.length()
+        logger.lifecycle(
+            if (ok) "APK -> Drive: copied ${source.length() / 1_000_000}MB to $target"
+            else "APK -> Drive: FAILED, $target is ${target.length()} bytes, expected ${source.length()}"
+        )
+        if (!ok) throw GradleException("Could not write the APK to Google Drive at $target")
+    }
 }
 
-tasks.matching { it.name == "assembleDebug" }.configureEach {
+// Both build types, so a release APK lands there too once signing is set up.
+tasks.matching { it.name == "assembleDebug" || it.name == "assembleRelease" }.configureEach {
     finalizedBy("copyDebugApkToDrive")
 }
