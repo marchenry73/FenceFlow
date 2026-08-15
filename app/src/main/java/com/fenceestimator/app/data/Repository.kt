@@ -173,6 +173,8 @@ class Repository(private val db: AppDatabase) {
     suspend fun deletePricingTier(tier: PricingTier) = deleteSynced(tier.syncId, "pricing_tiers") { pricingTierDao.delete(tier) }
 
     fun observePhotos(jobId: Long): Flow<List<JobPhoto>> = jobPhotoDao.observeForJob(jobId)
+    suspend fun getPhotos(jobId: Long): List<JobPhoto> = jobPhotoDao.getForJob(jobId)
+    suspend fun updatePhoto(photo: JobPhoto) = jobPhotoDao.update(photo)
     suspend fun addPhoto(photo: JobPhoto): Long = jobPhotoDao.insert(photo)
     suspend fun deletePhoto(photo: JobPhoto) = jobPhotoDao.delete(photo)
 

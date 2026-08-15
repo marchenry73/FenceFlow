@@ -71,6 +71,9 @@ class AutoSync(
     private val manualTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val mutex = Mutex()
 
+    /** Uploads signatures, surveys and photos. Set by the app on startup. */
+    var fileUploader: JobFileUploader? = null
+
     /** A trigger that arrived while a sync was already running, to be honoured after it. */
     private val pendingSync = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -180,6 +183,16 @@ class AutoSync(
             // "some things save and some don't" stays invisible. Report them.
             val pushResult = EntitySync.pushAll(repository, companyId)
             val pullResult = EntitySync.pullAll(repository, companyId)
+
+            // Files last, and never allowed to fail the sync. A signature that
+            // hasn't uploaded yet is a retry; a job list that didn't sync is a
+            // problem, and conflating the two would hide the one that matters.
+            runCatching {
+                fileUploader?.let { uploader ->
+                    uploader.uploadPending(companyId)
+                    uploader.downloadMissing()
+                }
+            }
             val entityError = pushResult.exceptionOrNull() ?: pullResult.exceptionOrNull()
 
             if (entityError != null) {

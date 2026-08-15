@@ -127,6 +127,8 @@ data class Job(
 
     // Survey + calibration (shared across all fence runs on this property)
     val surveyImagePath: String? = null,
+    /** Where the survey image lives in cloud storage, so another phone can fetch it. */
+    val surveyStoragePath: String? = null,
     val calibrationPixelsPerFoot: Float? = null,
     val calibrationKnownFeet: Float? = null,
     /** Feet represented by one grid square when drawing with no survey photo. */
@@ -217,6 +219,8 @@ data class Job(
     /** Tips are tracked separately from the contract so they can go 100% to the installer. */
     val tipAmount: Double = 0.0,
     val signatureImagePath: String? = null,
+    /** The acceptance signature in cloud storage. Local files do not survive a new phone. */
+    val signatureStoragePath: String? = null,
     val signedAt: Long? = null,
 
     // Referral & compliance
@@ -411,8 +415,11 @@ data class EstimateLineItem(
 data class JobPhoto(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val jobId: Long,
+    val syncId: String = java.util.UUID.randomUUID().toString(),
     val kind: PhotoKind,
     val filePath: String,
+    /** Where this photo lives in cloud storage. */
+    val storagePath: String? = null,
     val caption: String = "",
     val takenAt: Long = System.currentTimeMillis()
 )
@@ -489,6 +496,8 @@ data class ChangeOrder(
      */
     val materialCost: Double = 0.0,
     val signatureImagePath: String? = null,
+    /** The signature in cloud storage. Without it a signed order loses its proof on a new phone. */
+    val signatureStoragePath: String? = null,
     val signedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {

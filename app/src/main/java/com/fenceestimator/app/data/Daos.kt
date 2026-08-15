@@ -228,6 +228,12 @@ interface JobPhotoDao {
     @Query("SELECT * FROM job_photos WHERE jobId = :jobId ORDER BY takenAt DESC")
     fun observeForJob(jobId: Long): Flow<List<JobPhoto>>
 
+    @Query("SELECT * FROM job_photos WHERE jobId = :jobId")
+    suspend fun getForJob(jobId: Long): List<JobPhoto>
+
+    @Update
+    suspend fun update(photo: JobPhoto)
+
     @Insert
     suspend fun insert(photo: JobPhoto): Long
 

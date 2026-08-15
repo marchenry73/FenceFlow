@@ -195,7 +195,19 @@ object PdfExporter {
         totalRow(labels.materialsSubtotal, currency.format(totals.materialsSubtotal))
         totalRow("${labels.tax} (${job.taxRatePercent}% ${labels.onTaxable})", currency.format(totals.tax))
         if (totals.laborCost > 0.0) totalRow(labels.labor, currency.format(totals.laborCost))
-        if (totals.teardownCost > 0.0) totalRow(labels.teardown, currency.format(totals.teardownCost))
+        // These are all in the grand total, so they have to be on the page. A
+        // customer reading a total larger than the lines above it is a customer
+        // about to phone and argue, and they would be right to.
+        if (totals.gateCharge > 0.0) {
+            totalRow("Gates (${"%.0f".format(totals.gateFeet)} ft)", currency.format(totals.gateCharge))
+        }
+        if (totals.teardownCost > 0.0) {
+            totalRow(labels.teardown, currency.format(totals.teardownCost - totals.trashHaulFee))
+        }
+        if (totals.trashHaulFee > 0.0) totalRow("Haul away", currency.format(totals.trashHaulFee))
+        if (totals.changeOrderCost > 0.0) {
+            totalRow("Approved extra work", currency.format(totals.changeOrderCost))
+        }
         if (totals.markupAmount > 0.0) totalRow("${labels.markup} (${job.markupPercent}%)", currency.format(totals.markupAmount))
         if (totals.discountAmount > 0.0) {
             val label = if (job.pricingTierName.isNotBlank()) "${labels.discount} (${job.pricingTierName}, ${job.discountPercent}%)" else "${labels.discount} (${job.discountPercent}%)"

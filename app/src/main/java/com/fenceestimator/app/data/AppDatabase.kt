@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -235,13 +235,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Cloud storage paths for signatures, survey images and job photos. */
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `surveyStoragePath` TEXT")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `signatureStoragePath` TEXT")
+                db.execSQL("ALTER TABLE `change_orders` ADD COLUMN `signatureStoragePath` TEXT")
+                db.execSQL("ALTER TABLE `job_photos` ADD COLUMN `storagePath` TEXT")
+                db.execSQL("ALTER TABLE `job_photos` ADD COLUMN `syncId` TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    "UPDATE `job_photos` SET `syncId` = " +
+                        "lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || " +
+                        "substr(lower(hex(randomblob(2))),2) || '-a' || substr(lower(hex(randomblob(2))),2) || " +
+                        "'-' || lower(hex(randomblob(6))) " +
+                        "WHERE `syncId` = ''"
+                )
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a

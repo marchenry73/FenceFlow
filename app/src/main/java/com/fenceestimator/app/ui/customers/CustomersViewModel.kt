@@ -26,7 +26,10 @@ class CustomersViewModel(private val repository: Repository) : ViewModel() {
                 .filter { it.customerName.isNotBlank() }
                 .groupBy { it.customerName.trim().lowercase() to it.phone.trim() }
                 .map { (_, jobsForCustomer) ->
-                    val mostRecent = jobsForCustomer.maxByOrNull { it.updatedAt }!!
+                    // maxBy, not maxByOrNull!!: groupBy never yields an empty
+                    // group, so this cannot fail -- and saying so in the code
+                    // beats an assertion that looks like a latent crash.
+                    val mostRecent = jobsForCustomer.maxBy { it.updatedAt }
                     CustomerSummary(
                         name = mostRecent.customerName,
                         phone = mostRecent.phone,

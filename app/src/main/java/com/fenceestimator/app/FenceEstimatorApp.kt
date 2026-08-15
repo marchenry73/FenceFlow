@@ -62,6 +62,9 @@ class FenceEstimatorApp : Application() {
         applicationScope.launch(Dispatchers.IO) {
             runCatching { repository.ensureSeedDataPresent() }
         }
+        autoSync.fileUploader = com.fenceestimator.app.cloud.JobFileUploader(
+            applicationScope, repository, this
+        )
         autoSync.start()
         connectivity.start()
         // Checks hourly, and once now, so a job that ran long yesterday is

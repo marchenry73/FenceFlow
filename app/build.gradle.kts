@@ -109,6 +109,9 @@ dependencies {
     implementation(platform("io.github.jan-tennert.supabase:bom:3.0.2"))
     implementation("io.github.jan-tennert.supabase:auth-kt")
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    // Signatures, survey images and job photos are files, not rows. Without
+    // this they only ever existed on the phone that took them.
+    implementation("io.github.jan-tennert.supabase:storage-kt")
     // CIO engine (not the Android engine) because it supports websockets, which
     // Supabase Realtime needs if we add live sync later.
     implementation("io.ktor:ktor-client-cio:3.0.1")
