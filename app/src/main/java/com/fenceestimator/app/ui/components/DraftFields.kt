@@ -4,25 +4,37 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 
 /**
- * A text field whose displayed value is a local draft, seeded once from
- * [initialValue] and never re-synced from upstream while [stableKey] stays
- * the same. Edits are pushed out one-way via [onValueChange].
+ * A text field whose displayed value is a local draft, seeded from
+ * [initialValue] and pushed out one-way via [onValueChange].
  *
- * Binding a TextField directly to state that round-trips through an async
+ * Binding a TextField straight to state that round-trips through an async
  * DB/Flow write (as this app's job/run screens do on every keystroke) resets
  * the cursor mid-type once the write lands and the Flow re-emits -- the next
- * character then lands in the wrong place. Keying the local draft on a
- * stable identity (e.g. the job/run id) instead of the live value avoids
- * that: the draft only resets when you switch to editing a different
- * record, never on your own keystrokes.
+ * character then goes in the wrong place. So the draft is kept local and only
+ * reseeded when [stableKey] changes, i.e. when you move to a different record.
+ *
+ * That alone was too strict, though: a value changed by anything *other* than
+ * typing -- the Request Payment button filling in a link, a pricing tier
+ * rewriting a rate, a sync pulling an edit made on another phone -- left the
+ * box showing the old number forever, so the change looked like it had failed
+ * when it had actually saved.
+ *
+ * So an upstream value is adopted, but only while the field is unfocused.
+ * Focus is what separates the two cases: nobody is mid-word in a box they
+ * aren't in. Adopting whenever the value merely differed was not enough --
+ * each keystroke writes asynchronously, and a late echo of an earlier
+ * keystroke would arrive looking exactly like an outside edit and rewind the
+ * field under the user's fingers.
  */
 @Composable
 fun DraftTextField(
@@ -36,14 +48,25 @@ fun DraftTextField(
     onValueChange: (String) -> Unit
 ) {
     var text by remember(stableKey) { mutableStateOf(initialValue) }
+    var lastPushed by remember(stableKey) { mutableStateOf(initialValue) }
+    var focused by remember(stableKey) { mutableStateOf(false) }
+
+    LaunchedEffect(stableKey, initialValue, focused) {
+        if (!focused && initialValue != lastPushed) {
+            text = initialValue
+            lastPushed = initialValue
+        }
+    }
+
     OutlinedTextField(
         value = text,
         onValueChange = { newText ->
             text = newText
+            lastPushed = newText
             onValueChange(newText)
         },
         label = { Text(label) },
-        modifier = modifier,
+        modifier = modifier.onFocusChanged { focused = it.isFocused },
         minLines = minLines,
         enabled = enabled,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType)
@@ -61,16 +84,31 @@ fun DraftNumberField(
     onValueChange: (Float) -> Unit
 ) {
     var text by remember(stableKey) { mutableStateOf(formatFloat(initialValue)) }
+    // Compared as a number, not as text: "1.50" and "1.5" are the same value,
+    // and treating them as different would fight the user mid-decimal.
+    var lastPushed by remember(stableKey) { mutableStateOf(initialValue) }
+    var focused by remember(stableKey) { mutableStateOf(false) }
+
+    LaunchedEffect(stableKey, initialValue, focused) {
+        if (!focused && initialValue != lastPushed) {
+            text = formatFloat(initialValue)
+            lastPushed = initialValue
+        }
+    }
+
     OutlinedTextField(
         value = text,
         onValueChange = { newText ->
             text = newText
-            newText.toFloatOrNull()?.let(onValueChange)
+            newText.toFloatOrNull()?.let { parsed ->
+                lastPushed = parsed
+                onValueChange(parsed)
+            }
         },
         label = { Text(label) },
         enabled = enabled,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = modifier
+        modifier = modifier.onFocusChanged { focused = it.isFocused }
     )
 }
 

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,7 +40,9 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -84,6 +87,7 @@ import com.fenceestimator.app.data.JobPhoto
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.cloud.PaymentsApi
+import com.fenceestimator.app.ui.components.StageAction
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.PermitStatus
 import com.fenceestimator.app.data.PunchListItem
@@ -146,6 +150,27 @@ fun JobDetailScreen(
 
     var showAddRunDialog by remember { mutableStateOf(false) }
 
+    val listState = rememberLazyListState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    // The order of the sections below, in one place. Some are hidden from crew
+    // accounts, so a hardcoded index would land on the wrong card for them.
+    // Only needs to run as far as the last section anything scrolls to.
+    val sectionOrder = remember(session.canSeeMoney) {
+        buildList {
+            add(SECTION_PROGRESS); add("customer"); add("actions"); add("crew-view"); add("inventory"); add("runs")
+            if (session.canSeeMoney) { add("pricing"); add("tier"); add("teardown") }
+            add(SECTION_SCHEDULE)
+            if (session.canSeeMoney) add("order")
+            add(SECTION_HOA)
+            if (session.canSeeMoney) { add("change-orders"); add(SECTION_PAYMENT) }
+        }
+    }
+    fun scrollTo(key: String) {
+        val index = sectionOrder.indexOf(key)
+        if (index >= 0) scope.launch { listState.animateScrollToItem(index) }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -157,11 +182,34 @@ fun JobDetailScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxWidth().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { SectionCard(title = "Project Progress") { ProjectProgressSection(currentJob, punchList.isEmpty(), profile) } }
+            item(key = SECTION_PROGRESS) {
+                SectionCard(title = "Project Progress") {
+                    ProjectProgressSection(
+                        job = currentJob,
+                        punchListClear = punchList.isEmpty(),
+                        profile = profile,
+                        onGoToStage = { action ->
+                            when (action) {
+                                StageAction.DRAW -> onOpenSurvey(jobId)
+                                StageAction.ESTIMATE -> onOpenEstimate(jobId)
+                                StageAction.CREW_VIEW -> onOpenCrewView(jobId)
+                                // These live further down this same screen, so
+                                // take them there instead of naming a section
+                                // and leaving them to hunt for it.
+                                StageAction.PAYMENT -> scrollTo(SECTION_PAYMENT)
+                                StageAction.HOA -> scrollTo(SECTION_HOA)
+                                StageAction.SCHEDULE -> scrollTo(SECTION_SCHEDULE)
+                                StageAction.NONE -> Unit
+                            }
+                        }
+                    )
+                }
+            }
             item { SectionCard(title = "Customer") { CustomerFields(currentJob, viewModel) } }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -222,7 +270,7 @@ fun JobDetailScreen(
                 item { SectionCard(title = "Pricing Tier & Discount") { TierFields(currentJob, pricingTiers, viewModel) } }
                 item { SectionCard(title = "Teardown of Existing Fence") { TeardownFields(currentJob, viewModel) } }
             }
-            item {
+            item(key = SECTION_SCHEDULE) {
                 SectionCard(title = "Schedule & Crew") {
                     ScheduleFields(currentJob, runs, timeEntries, viewModel)
                     CrewFields(currentJob, employees, viewModel)
@@ -235,10 +283,10 @@ fun JobDetailScreen(
                     }
                 }
             }
-            item { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
+            item(key = SECTION_HOA) { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
                 item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canEditCatalogAndSettings, viewModel) } }
-                item { SectionCard(title = "Payment & Invoice") { PaymentFields(currentJob, profile, viewModel) } }
+                item(key = SECTION_PAYMENT) { SectionCard(title = "Payment & Invoice") { PaymentFields(currentJob, profile, viewModel) } }
                 item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, session.canEditCatalogAndSettings, viewModel) } }
             }
             item { SectionCard(title = "Punch List / Callbacks") { PunchListSection(punchList, session.canEditCatalogAndSettings, viewModel) } }
@@ -772,12 +820,8 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Keyed on the value as well as the job: the field only re-seeds when
-        // its key changes, so keying on the job alone meant the "covers
-        // materials" button updated the stored deposit while the box on screen
-        // carried on showing the old number.
         DraftNumberField(
-            stableKey = "${job.id}-${job.depositAmount}",
+            stableKey = job.id,
             label = "Deposit amount ($)", initialValue = job.depositAmount.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(depositAmount = it.toDouble()) } }
@@ -834,7 +878,9 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 )
                 creatingLink = false
                 when (result) {
-                    is PaymentsApi.Result.Ok -> viewModel.update { j -> j.copy(paymentLinkUrl = result.url) }
+                    is PaymentsApi.Result.Ok -> viewModel.update { j ->
+                        j.copy(paymentLinkUrl = result.url, paymentLinkAmount = requestAmount)
+                    }
                     is PaymentsApi.Result.Failed -> linkError = result.reason
                 }
             }
@@ -929,22 +975,56 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+    // A Stripe link is locked to the amount it was made for. Once the price
+    // moves, sending the old one charges the customer the wrong total, so say
+    // so loudly rather than letting it go out quietly.
+    val linkIsStale = job.paymentLinkUrl.isNotBlank() &&
+        job.paymentLinkAmount > 0.0 &&
+        kotlin.math.abs(job.paymentLinkAmount - requestAmount) > 0.005
+    if (linkIsStale) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text(
+                    "This link still bills $${"%.2f".format(job.paymentLinkAmount)}, " +
+                        "but the amount due is now $${"%.2f".format(requestAmount)}.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    "Tap Request by Card again to replace it before you send anything.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+
     if (job.paymentLinkUrl.isNotBlank()) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton(
                 onClick = {
-                    val body = "Hi ${job.customerName.ifBlank { "there" }}, here's the payment link for your fence at ${job.address}:\n\n${job.paymentLinkUrl}"
+                    // Naming the amount in the message means the customer can
+                    // check it against the estimate before they tap anything.
+                    val amountText = if (job.paymentLinkAmount > 0.0) " for $${"%.2f".format(job.paymentLinkAmount)}" else ""
+                    val body = "Hi ${job.customerName.ifBlank { "there" }}, here's the payment link$amountText " +
+                        "for your fence at ${job.address}:\n\n${job.paymentLinkUrl}"
                     IntentHelpers.openSmsDraft(context, job.phone, body)
                 },
-                enabled = job.phone.isNotBlank(),
+                enabled = job.phone.isNotBlank() && !linkIsStale,
                 modifier = Modifier.weight(1f)
             ) { Text("Text Link") }
             Button(
                 onClick = {
-                    val body = "Hi ${job.customerName.ifBlank { "there" }},\n\nHere's the payment link for your fence at ${job.address}:\n\n${job.paymentLinkUrl}\n\nThank you!"
+                    val amountText = if (job.paymentLinkAmount > 0.0) " for $${"%.2f".format(job.paymentLinkAmount)}" else ""
+                    val body = "Hi ${job.customerName.ifBlank { "there" }},\n\nHere's the payment link$amountText " +
+                        "for your fence at ${job.address}:\n\n${job.paymentLinkUrl}\n\nThank you!"
                     IntentHelpers.openEmailDraft(context, job.email, "Payment link for your fence", body)
                 },
-                enabled = job.email.isNotBlank(),
+                enabled = job.email.isNotBlank() && !linkIsStale,
                 modifier = Modifier.weight(1f)
             ) { Text("Email Link") }
         }
@@ -1079,7 +1159,24 @@ private fun AddExpenseDialog(onConfirm: (ExpenseCategory, String, Double) -> Uni
 }
 
 @Composable
-private fun ProjectProgressSection(job: Job, punchListClear: Boolean, profile: BusinessProfile) {
+/** Button wording for where a step gets finished, or null if it's finished right here. */
+private fun stageDestination(action: StageAction): String? = when (action) {
+    StageAction.DRAW -> "Go to Draw"
+    StageAction.ESTIMATE -> "Go to Estimate"
+    StageAction.CREW_VIEW -> "Go to Crew View"
+    StageAction.PAYMENT -> "Go to Payment"
+    StageAction.HOA -> "Go to HOA & Permits"
+    StageAction.SCHEDULE -> "Go to Scheduling"
+    StageAction.NONE -> null
+}
+
+@Composable
+private fun ProjectProgressSection(
+    job: Job,
+    punchListClear: Boolean,
+    profile: BusinessProfile,
+    onGoToStage: (StageAction) -> Unit
+) {
     val context = LocalContext.current
     val jobComplete = job.status == JobStatus.COMPLETED && punchListClear
     val stages = remember(job, punchListClear) { ProjectStatus.stages(job, jobComplete) }
@@ -1148,7 +1245,23 @@ private fun ProjectProgressSection(job: Job, punchListClear: Boolean, profile: B
                     Text(stage.guidance, style = MaterialTheme.typography.bodyMedium)
                 }
             },
-            confirmButton = { Button(onClick = { openStage = null }) { Text("Got it") } }
+            // Every step knows where it gets done; taking you there beats
+            // describing it and leaving you to find the screen yourself.
+            confirmButton = {
+                val destination = stageDestination(stage.action)
+                if (destination != null && !stage.done) {
+                    Button(onClick = { openStage = null; onGoToStage(stage.action) }) {
+                        Text(destination)
+                    }
+                } else {
+                    Button(onClick = { openStage = null }) { Text("Got it") }
+                }
+            },
+            dismissButton = {
+                if (stageDestination(stage.action) != null && !stage.done) {
+                    OutlinedButton(onClick = { openStage = null }) { Text("Close") }
+                }
+            }
         )
     }
     Text(
@@ -1182,6 +1295,42 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
     var showAdd by remember { mutableStateOf(false) }
     var signingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.US) }
+    val totals by viewModel.contractTotal.collectAsState()
+
+    // The running total sits here on purpose. The quote lives on the Estimate
+    // screen, so approving extra work here appeared to change nothing at all.
+    if (orders.isNotEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Extra work approved", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(
+                        "+$${"%.2f".format(totals.changeOrderCost)}" +
+                            if (totals.changeOrderFeet > 0) "  (+${"%.0f".format(totals.changeOrderFeet)} ft)" else "",
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("New contract total", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(
+                        "$${"%.2f".format(totals.grandTotal)}",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+                Text(
+                    "Extra feet are billed at your labor rate, so the total can rise by more than the cost you typed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
 
     if (orders.isEmpty()) {
         Text(
@@ -1434,3 +1583,13 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
     }
 }
 
+
+/**
+ * Stable ids for the sections that Project Progress can jump to. They are the
+ * LazyColumn item keys and the entries in `sectionOrder`; both have to agree,
+ * so they live here rather than as loose strings at either site.
+ */
+private const val SECTION_PROGRESS = "progress"
+private const val SECTION_SCHEDULE = "schedule"
+private const val SECTION_HOA = "hoa"
+private const val SECTION_PAYMENT = "payment"

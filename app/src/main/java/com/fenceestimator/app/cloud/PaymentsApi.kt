@@ -4,6 +4,8 @@ import com.fenceestimator.app.BuildConfig
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -76,7 +78,17 @@ object PaymentsApi {
         // is how a $100.00 charge becomes $99.99.
         val cents = Math.round(amountDollars * 100.0)
 
-        val client = HttpClient(CIO)
+        // A generous timeout on purpose. A backend function that hasn't run in a
+        // while has to cold-start before it even reaches Stripe, and the default
+        // socket timeout was short enough to give up first -- which looked
+        // exactly like the button doing nothing.
+        val client = HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = 60_000
+                connectTimeoutMillis = 20_000
+                socketTimeoutMillis = 60_000
+            }
+        }
         try {
             val body = json.encodeToString(
                 PaymentLinkRequest.serializer(),
@@ -94,10 +106,16 @@ object PaymentsApi {
             when {
                 parsed?.url != null -> Result.Ok(parsed.url)
                 parsed?.error != null -> Result.Failed(parsed.error)
-                else -> Result.Failed("Payments aren't set up yet. Add your Stripe key in Supabase.")
+                // Include the status and body so an unexpected reply is
+                // diagnosable instead of collapsing into a generic sentence.
+                else -> Result.Failed(
+                    "Payment service replied ${response.status.value}: ${text.take(200).ifBlank { "(empty)" }}"
+                )
             }
+        } catch (e: HttpRequestTimeoutException) {
+            Result.Failed("Timed out waiting for the payment service. Try once more -- the first request after a quiet spell is the slow one.")
         } catch (e: Exception) {
-            Result.Failed(e.message ?: "Couldn't reach the payment service.")
+            Result.Failed("${e::class.simpleName}: ${e.message ?: "couldn't reach the payment service"}")
         } finally {
             client.close()
         }

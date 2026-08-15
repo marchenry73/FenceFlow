@@ -13,8 +13,12 @@ import com.fenceestimator.app.data.PhotoKind
 import com.fenceestimator.app.data.PricingTier
 import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
+import com.fenceestimator.app.estimate.EstimateEngine
+import com.fenceestimator.app.geometry.FenceCodec
+import com.fenceestimator.app.geometry.FenceGeometryEngine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,6 +38,32 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     val materialCost: StateFlow<Double> = repository.observeLineItems(jobId)
         .map { items -> items.sumOf { it.quantity * it.unitPrice } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /**
+     * The live contract total, so approving extra work visibly moves the money
+     * on the same screen where the change order was entered. Adding one and
+     * seeing nothing change reads as a failure even when it saved fine.
+     */
+    val contractTotal: StateFlow<EstimateEngine.Totals> = combine(
+        repository.observeJob(jobId),
+        repository.observeLineItems(jobId),
+        repository.observeFenceRuns(jobId),
+        repository.observeChangeOrders(jobId)
+    ) { currentJob, items, runs, orders ->
+        if (currentJob == null) EMPTY_TOTALS
+        else {
+            val feet = runs.sumOf { run ->
+                val manual = run.manualLinearFeet
+                if (manual != null && manual > 0f) manual.toDouble()
+                else currentJob.calibrationPixelsPerFoot?.let { pxPerFt ->
+                    FenceGeometryEngine.analyze(
+                        FenceCodec.decodePoints(run.pointsEncoded), pxPerFt, run.closedLoop
+                    ).totalLinearFeet.toDouble()
+                } ?: 0.0
+            }.toFloat()
+            EstimateEngine.computeTotals(currentJob, items, feet, orders)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 
     /** Rounds a deposit up to the next $10 so it reads like a real figure, not a calculation. */
     fun suggestedDeposit(): Double {
@@ -161,5 +191,9 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
             repository.deleteJob(current)
             onDeleted()
         }
+    }
+
+    private companion object {
+        val EMPTY_TOTALS = EstimateEngine.Totals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 }

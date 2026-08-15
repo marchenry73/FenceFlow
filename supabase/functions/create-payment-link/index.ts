@@ -84,14 +84,11 @@ Deno.serve(async (req) => {
       .from("companies").select("name, stripe_account_id").eq("id", profile.company_id).single();
     const account = company?.stripe_account_id ?? undefined;
 
-    // A Price needs a Product; both are cheap and keep the Stripe dashboard
-    // readable instead of a wall of identical ad-hoc charges.
-    const product = await stripe("/products", {
-      name: `${description} -- ${company?.name ?? "FenceFlow"}`,
-    }, account);
-
+    // Create the product inline with the price. This used to be a separate
+    // /products call first: three sequential Stripe round trips on top of a
+    // cold start was slow enough to look like the button did nothing.
     const price = await stripe("/prices", {
-      product: product.id,
+      "product_data[name]": `${description} -- ${company?.name ?? "FenceFlow"}`,
       unit_amount: String(amount),
       currency: "usd",
     }, account);

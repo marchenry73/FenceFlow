@@ -144,6 +144,13 @@ data class Job(
      * never touches the money itself, so there's no processor account or fee here.
      */
     val paymentLinkUrl: String = "",
+    /**
+     * The figure [paymentLinkUrl] actually bills. A link is fixed at the amount
+     * it was created for, so once the price moves the old link would quietly
+     * charge the customer the wrong total -- this is what lets the app notice
+     * and say so instead.
+     */
+    val paymentLinkAmount: Double = 0.0,
     /** Tips are tracked separately from the contract so they can go 100% to the installer. */
     val tipAmount: Double = 0.0,
     val signatureImagePath: String? = null,
