@@ -65,6 +65,42 @@ enum class PayType { HOURLY, PER_FOOT }
  * deletion means it still works when the delete happens with no signal --
  * the next successful sync clears the queue.
  */
+/**
+ * Something the field changed after the office planned it.
+ *
+ * The crew standing at the fence line usually knows better than the drawing --
+ * the yard is longer, a gate has to move, there's a tree nobody saw. Stopping
+ * them from correcting it just means they build something the plan doesn't
+ * match. So they can change it, and this records what moved, who moved it and
+ * when, and stays unacknowledged until a manager has actually looked.
+ *
+ * That matters for money: footage drives the estimate, the post count and the
+ * material order, so a change the office never sees is a job that quietly
+ * stops matching what the customer agreed to pay.
+ */
+@Entity(
+    tableName = "field_changes",
+    foreignKeys = [
+        ForeignKey(entity = Job::class, parentColumns = ["id"], childColumns = ["jobId"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("jobId")]
+)
+data class FieldChange(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncId: String = java.util.UUID.randomUUID().toString(),
+    val jobId: Long,
+    /** Short line a manager can read at a glance: "Fence line: 120 ft -> 138 ft". */
+    val summary: String = "",
+    /** Anything extra worth keeping, e.g. which run, or a note the crew typed. */
+    val detail: String = "",
+    val changedBy: String = "",
+    val changedByRole: String = "",
+    val at: Long = System.currentTimeMillis(),
+    val acknowledgedAt: Long? = null
+) {
+    val isAcknowledged: Boolean get() = acknowledgedAt != null
+}
+
 @Entity(tableName = "pending_deletions")
 data class PendingDeletion(
     @PrimaryKey val syncId: String,

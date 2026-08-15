@@ -386,3 +386,25 @@ interface PunchListDao {
     @Delete
     suspend fun delete(item: PunchListItem)
 }
+
+@Dao
+interface FieldChangeDao {
+    @Query("SELECT * FROM field_changes WHERE jobId = :jobId ORDER BY at DESC")
+    fun observeForJob(jobId: Long): Flow<List<FieldChange>>
+
+    /** Everything a manager hasn't looked at yet, newest first, across all jobs. */
+    @Query("SELECT * FROM field_changes WHERE acknowledgedAt IS NULL ORDER BY at DESC")
+    fun observeUnacknowledged(): Flow<List<FieldChange>>
+
+    @Query("SELECT * FROM field_changes WHERE jobId = :jobId")
+    suspend fun getForJob(jobId: Long): List<FieldChange>
+
+    @Insert
+    suspend fun insert(change: FieldChange): Long
+
+    @Update
+    suspend fun update(change: FieldChange)
+
+    @Query("UPDATE field_changes SET acknowledgedAt = :at WHERE jobId = :jobId AND acknowledgedAt IS NULL")
+    suspend fun acknowledgeAllForJob(jobId: Long, at: Long)
+}

@@ -9,7 +9,10 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -49,6 +52,9 @@ class AutoSync(
     private val manualTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val mutex = Mutex()
 
+    /** A trigger that arrived while a sync was already running, to be honoured after it. */
+    private val pendingSync = java.util.concurrent.atomic.AtomicBoolean(false)
+
     /**
      * The first sync after launch pulls down everything this phone hasn't seen,
      * which on a fresh install is the whole job list. Announcing all of it would
@@ -73,6 +79,24 @@ class AutoSync(
             manualTrigger.collect { runSync() }
         }
 
+        // The moment this phone learns which company it belongs to, pull.
+        //
+        // Signing in used to fire a sync straight away, while the profile fetch
+        // that supplies the company id was still in flight -- so the sync saw a
+        // null company, returned immediately, and nothing arrived until the
+        // heartbeat fifteen minutes later. Someone signing in on a second phone
+        // saw an empty app and reasonably concluded nothing had been saved.
+        //
+        // Reacting to the id arriving, rather than firing at the moment we ask
+        // for it, removes the race instead of narrowing it.
+        scope.launch {
+            session.state
+                .map { it.companyId }
+                .distinctUntilChanged()
+                .filterNotNull()
+                .collect { runSync() }
+        }
+
         // Heartbeat, so another phone's edits eventually land here even if
         // nothing changes locally.
         scope.launch {
@@ -93,9 +117,15 @@ class AutoSync(
             _state.value = _state.value.copy(phase = SyncPhase.OFFLINE_ONLY)
             return
         }
-        // A second trigger while one is already running is dropped rather than
-        // queued -- it would only repeat work that is already in flight.
-        if (mutex.isLocked) return
+        // A trigger arriving mid-sync is remembered, not thrown away. It used to
+        // be dropped on the grounds that the running pass was already doing the
+        // work -- but that pass may have started before the change that
+        // triggered this one, and at launch several triggers fire at once. The
+        // dropped one then waited fifteen minutes for the heartbeat.
+        if (mutex.isLocked) {
+            pendingSync.set(true)
+            return
+        }
 
         mutex.withLock {
             _state.value = _state.value.copy(phase = SyncPhase.SYNCING, lastError = null)
@@ -139,6 +169,11 @@ class AutoSync(
                 }
             )
         }
+
+        // Honour anything that was triggered while we held the lock. Cleared
+        // before re-running, so a burst of triggers costs one extra pass and
+        // cannot loop.
+        if (pendingSync.getAndSet(false)) runSync()
     }
 
     /**
