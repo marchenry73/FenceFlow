@@ -11,12 +11,44 @@ data class SessionState(
     val companyId: String? = null,
     /**
      * Signed-out means local-only mode on your own phone, so it gets full
-     * access -- the restricted CREW level only applies to a real crew login.
+     * access -- the restricted roles only apply to a real company login.
      */
     val role: UserRole = UserRole.OWNER
 ) {
-    val canSeeMoney: Boolean get() = role != UserRole.CREW
-    val canEditCatalogAndSettings: Boolean get() = role != UserRole.CREW
+    /** Prices, margins, costs and payment figures. */
+    val canSeeMoney: Boolean
+        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.SALES, UserRole.ACCOUNTANT)
+
+    /** Catalog prices, pricing tiers, company settings. */
+    val canEditCatalogAndSettings: Boolean
+        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER)
+
+    /** Editing the job itself: customer, spec, scheduling. */
+    val canEditJobs: Boolean
+        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.SALES)
+
+    /** Assigning crew and moving work around the calendar. */
+    val canScheduleAndAssign: Boolean
+        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.FOREMAN)
+
+    /** Asking a customer for money. */
+    val canRequestPayment: Boolean
+        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+
+    /** Marking progress, ticking checklists, adding photos on site. */
+    val canRecordFieldWork: Boolean
+        get() = role != UserRole.ACCOUNTANT && role != UserRole.SALES
+
+    /** Customer phone numbers, emails and addresses beyond the job site. */
+    val canSeeCustomerContact: Boolean
+        get() = role != UserRole.CREW
+
+    /**
+     * Deleting is deliberately owner-only. A mistaken delete on a signed change
+     * order or a paid invoice destroys the record you would need in a dispute,
+     * and there is no undo -- so managers archive, owners delete.
+     */
+    val canDelete: Boolean get() = role == UserRole.OWNER
 }
 
 /** App-wide view of who is signed in and what they're allowed to see. */

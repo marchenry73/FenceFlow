@@ -160,7 +160,7 @@ fun JobsListScreen(
                     JobCard(
                         job = job,
                         onClick = { onOpenJob(job.id) },
-                        onDelete = if (session.canEditCatalogAndSettings) {
+                        onDelete = if (session.canDelete) {
                             { pendingDelete = job }
                         } else null
                     )

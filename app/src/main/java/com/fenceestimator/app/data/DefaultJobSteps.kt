@@ -15,6 +15,13 @@ object DefaultJobSteps {
         "Agree on where old fence and debris will go",
         "Confirm access route for equipment and material drop",
         "Note any trees, slopes, or obstacles that change the plan",
+        // Standing rule, on the checklist so it gets read aloud on every job.
+        // A crew clearing a bush or a planter to make their day easier is how
+        // you end up paying for something you never quoted.
+        "Tell the customer: we clear leaves and loose debris only. Anything " +
+            "needing a tool -- bushes, planters, sheds, tree limbs, old posts -- " +
+            "they clear before we start, or it goes on a change order",
+        "List anything on the fence line the customer must move themselves",
         "Review price, deposit, and payment terms"
     )
 

@@ -131,6 +131,19 @@ data class Job(
      */
     val durationManuallySet: Boolean = false,
 
+    /**
+     * Why the crew couldn't finish, and what the customer has to do about it.
+     * Recorded on the job rather than left in someone's head, because the
+     * common causes -- a locked gate, a bush nobody cleared, an unmarked
+     * sprinkler line -- all need the customer told and all get disputed later.
+     */
+    val blockedReason: String = "",
+    /** What the customer must move or clear before the crew can come back. */
+    val customerMustClear: String = "",
+    val blockedAt: Long? = null,
+    /** Set once the customer has actually been told, so nobody assumes someone else called. */
+    val customerNotifiedAt: Long? = null,
+
     // Payment / invoice
     val depositAmount: Double = 0.0,
     val amountPaid: Double = 0.0,

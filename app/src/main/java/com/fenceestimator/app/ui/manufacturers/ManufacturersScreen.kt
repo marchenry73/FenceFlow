@@ -56,7 +56,7 @@ fun ManufacturersScreen(onBack: () -> Unit) {
     val viewModel: ManufacturersViewModel = viewModel(factory = GenericViewModelFactory { ManufacturersViewModel(app.repository) })
     val manufacturers by viewModel.manufacturers.collectAsState()
     val session by app.session.state.collectAsState()
-    val canDelete = session.canEditCatalogAndSettings
+    val canDelete = session.canDelete
 
     var editing by remember { mutableStateOf<Manufacturer?>(null) }
     var showNew by remember { mutableStateOf(false) }

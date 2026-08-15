@@ -49,7 +49,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
     val viewModel: EmployeesViewModel = viewModel(factory = GenericViewModelFactory { EmployeesViewModel(app.repository) })
     val employees by viewModel.employees.collectAsState()
     val session by app.session.state.collectAsState()
-    val canDelete = session.canEditCatalogAndSettings
+    val canDelete = session.canDelete
 
     var editing by remember { mutableStateOf<Employee?>(null) }
     var showNew by remember { mutableStateOf(false) }

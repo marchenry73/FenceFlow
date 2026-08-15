@@ -191,6 +191,11 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         }
     }
 
+    /** Stamps that the customer has actually been told why the job is held up. */
+    fun markCustomerNotified() {
+        update { it.copy(customerNotifiedAt = System.currentTimeMillis()) }
+    }
+
     fun deleteChangeOrder(order: ChangeOrder) {
         viewModelScope.launch { repository.deleteChangeOrder(order) }
     }

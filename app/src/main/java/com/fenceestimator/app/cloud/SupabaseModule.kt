@@ -21,7 +21,23 @@ import kotlinx.serialization.json.put
  * Access level for a signed-in user. CREW is the restricted field role: job
  * details and progress, but no pricing, costs, margins, or company settings.
  */
-enum class UserRole { OWNER, MANAGER, CREW }
+/**
+ * What someone is allowed to do. Ordered loosely from most to least access,
+ * but permissions are declared explicitly per role rather than inferred from
+ * the order -- an accountant sees money a foreman never should, while a foreman
+ * schedules work an accountant never should. A ranking can't express that.
+ *
+ * Unknown values from the server fall back to CREW, so a role added later can
+ * never accidentally grant access to an older build.
+ */
+enum class UserRole(val label: String, val description: String) {
+    OWNER("Owner", "Everything, including deleting records and changing billing."),
+    MANAGER("Manager", "Runs the work: jobs, estimates, scheduling, crew, customers."),
+    SALES("Sales", "Leads, customers and estimates. No crew, costs or settings."),
+    ACCOUNTANT("Accountant", "Invoices, payments, expenses and reports. Can't change jobs."),
+    FOREMAN("Foreman", "Crew lead: job details, checklists, photos, clock in/out for the crew."),
+    CREW("Crew", "Today's work only. No pricing, costs or customer contact details.")
+}
 
 @Serializable
 data class CloudProfile(

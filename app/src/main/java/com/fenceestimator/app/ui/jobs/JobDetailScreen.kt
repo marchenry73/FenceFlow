@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Card
@@ -157,6 +158,7 @@ fun JobDetailScreen(
 
     val listState = rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var confirmDeleteJob by remember { mutableStateOf(false) }
 
     // The order of the sections below, in one place. Some are hidden from crew
     // accounts, so a hardcoded index would land on the wrong card for them.
@@ -290,27 +292,47 @@ fun JobDetailScreen(
             }
             item(key = SECTION_HOA) { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
-                item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canEditCatalogAndSettings, viewModel) } }
+                item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
                 item(key = SECTION_PAYMENT) { SectionCard(title = "Payment & Invoice") { PaymentFields(currentJob, profile, viewModel) } }
-                item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, session.canEditCatalogAndSettings, viewModel) } }
+                item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, session.canDelete, viewModel) } }
             }
-            item { SectionCard(title = "Punch List / Callbacks") { PunchListSection(punchList, session.canEditCatalogAndSettings, viewModel) } }
+            item {
+                SectionCard(title = "Held Up / Not Completed") {
+                    JobBlockedSection(currentJob, profile, viewModel)
+                }
+            }
+            item { SectionCard(title = "Punch List / Callbacks") { PunchListSection(punchList, session.canDelete, viewModel) } }
             item {
                 SectionCard(title = "Before / After Photos") {
-                    PhotosSection(photos, session.canEditCatalogAndSettings, viewModel)
+                    PhotosSection(photos, session.canDelete, viewModel)
                 }
             }
             item { SectionCard(title = "Ask for a Review") { ReviewRequestFields(currentJob, profile, viewModel) } }
             item { StatusSelector(currentJob, viewModel) }
-            if (session.canEditCatalogAndSettings) {
+            // Owner only, and behind a typed confirmation. Deleting a job takes
+            // its signed change orders, its payment record and its photos with
+            // it -- exactly the evidence you would need in a dispute.
+            if (session.canDelete) {
                 item {
                     OutlinedButton(
-                        onClick = { viewModel.delete(onDeleted) },
-                        modifier = Modifier.fillMaxWidth()
+                        onClick = { confirmDeleteJob = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
                     ) {
                         Icon(Icons.Filled.Delete, contentDescription = null)
                         Text("  Delete Job")
                     }
+                }
+            } else {
+                item {
+                    Text(
+                        "Only the owner can delete a job. Ask them, or set the status to " +
+                            "Declined to take it out of your way.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -325,6 +347,68 @@ fun JobDetailScreen(
             onDismiss = { showAddRunDialog = false }
         )
     }
+
+    if (confirmDeleteJob) {
+        ConfirmDeleteJobDialog(
+            job = currentJob,
+            onConfirm = { confirmDeleteJob = false; viewModel.delete(onDeleted) },
+            onDismiss = { confirmDeleteJob = false }
+        )
+    }
+}
+
+/**
+ * Deleting a job takes its estimate, its signed change orders, its payment
+ * record and its photos with it, and none of it comes back. So the confirmation
+ * spells out what goes and makes you type the customer's name -- a dialog you
+ * can dismiss with a reflex tap is not a safeguard.
+ */
+@Composable
+private fun ConfirmDeleteJobDialog(job: Job, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val expected = job.customerName.trim().ifBlank { "DELETE" }
+    var typed by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete this job permanently?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("This also deletes, with no way to get any of it back:")
+                Text(
+                    "•  The estimate and every line item\n" +
+                        "•  Signed change orders\n" +
+                        "•  The payment record and invoice history\n" +
+                        "•  Before and after photos\n" +
+                        "•  Clocked hours for this job",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    "If you only want it out of the way, close this and set the status " +
+                        "to Declined instead.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = typed,
+                    onValueChange = { typed = it },
+                    label = { Text("Type \"$expected\" to confirm") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = typed.trim().equals(expected, ignoreCase = true),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
+            ) { Text("Delete permanently") }
+        },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Keep it") } }
+    )
 }
 
 @Composable

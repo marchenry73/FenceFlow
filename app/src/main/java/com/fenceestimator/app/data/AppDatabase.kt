@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -196,13 +196,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Records why a job stalled and what the customer has to clear. */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `blockedReason` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `customerMustClear` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `blockedAt` INTEGER")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `customerNotifiedAt` INTEGER")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .fallbackToDestructiveMigration()
                 // Seeding deliberately lives ONLY in Repository.ensureSeedDataPresent().
                 // There used to also be an onCreate callback doing the same inserts;
