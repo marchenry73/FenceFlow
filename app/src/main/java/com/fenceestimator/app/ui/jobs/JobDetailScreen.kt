@@ -772,8 +772,13 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Keyed on the value as well as the job: the field only re-seeds when
+        // its key changes, so keying on the job alone meant the "covers
+        // materials" button updated the stored deposit while the box on screen
+        // carried on showing the old number.
         DraftNumberField(
-            stableKey = job.id, label = "Deposit amount ($)", initialValue = job.depositAmount.toFloat(),
+            stableKey = "${job.id}-${job.depositAmount}",
+            label = "Deposit amount ($)", initialValue = job.depositAmount.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(depositAmount = it.toDouble()) } }
         DraftNumberField(

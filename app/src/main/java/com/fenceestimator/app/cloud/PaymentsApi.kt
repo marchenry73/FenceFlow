@@ -62,8 +62,12 @@ object PaymentsApi {
         if (!SupabaseModule.isConfigured) {
             return@withContext Result.Failed("Cloud isn't set up on this build.")
         }
+        // Worded so it is obvious this came from the phone, not the server --
+        // two different causes that used to produce near-identical messages.
         val token = SupabaseModule.client.auth.currentSessionOrNull()?.accessToken
-            ?: return@withContext Result.Failed("Sign in first.")
+            ?: return@withContext Result.Failed(
+                "This phone isn't signed in to FenceFlow. Open Account and sign in, then try again."
+            )
         if (amountDollars < 0.50) {
             return@withContext Result.Failed("Amount has to be at least $0.50.")
         }

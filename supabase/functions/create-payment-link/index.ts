@@ -46,23 +46,24 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Not signed in" }, 401);
-
-    // Identify the caller from their own token, never from the request body --
-    // otherwise anyone could bill on behalf of any company.
-    const asUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: userData } = await asUser.auth.getUser();
-    const uid = userData?.user?.id;
-    if (!uid) return json({ error: "Not signed in" }, 401);
+    if (!authHeader) return json({ error: "No login sent with the request" }, 401);
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Validate the caller's token explicitly. Handing the header to a client
+    // and calling getUser() with no argument does not reliably read it, which
+    // is why a properly signed-in user was still being told "Not signed in".
+    // The identity always comes from the token, never from the request body --
+    // otherwise anyone could bill on behalf of any company.
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const { data: userData, error: authError } = await admin.auth.getUser(jwt);
+    const uid = userData?.user?.id;
+    if (!uid) {
+      return json({ error: `Login not accepted: ${authError?.message ?? "unknown"}` }, 401);
+    }
 
     const { data: profile } = await admin
       .from("profiles").select("company_id, role").eq("id", uid).single();
