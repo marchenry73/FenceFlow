@@ -17,13 +17,32 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class SyncPhase { IDLE, SYNCING, OK, FAILED, OFFLINE_ONLY }
+enum class SyncPhase { IDLE, SYNCING, OK, FAILED, OFFLINE_ONLY, WAITING_FOR_SIGNAL }
 
 data class SyncState(
     val phase: SyncPhase = SyncPhase.OFFLINE_ONLY,
     val lastSyncedAt: Long? = null,
-    val lastError: String? = null
-)
+    val lastError: String? = null,
+    /** True when work is saved on this phone but not yet in the cloud. */
+    val hasUnsyncedWork: Boolean = false
+) {
+    /**
+     * What to tell the user. "Saved on this phone" matters more than any
+     * technical detail -- the fear when a sync fails is that the work is gone,
+     * and it never is.
+     */
+    val message: String
+        get() = when (phase) {
+            SyncPhase.SYNCING -> "Syncing..."
+            SyncPhase.OK -> "Everything is backed up"
+            SyncPhase.WAITING_FOR_SIGNAL ->
+                "No signal. Your work is saved on this phone and will upload by itself."
+            SyncPhase.FAILED ->
+                "Couldn't sync: ${lastError ?: "unknown"}. Your work is safe on this phone."
+            SyncPhase.OFFLINE_ONLY -> "Working on this phone only. Sign in to back up."
+            SyncPhase.IDLE -> "Ready"
+        }
+}
 
 /**
  * Keeps the cloud copy up to date without anyone pressing a button.
@@ -111,6 +130,26 @@ class AutoSync(
         manualTrigger.tryEmit(Unit)
     }
 
+    /**
+     * Whether a failure is just "no signal" rather than something wrong.
+     *
+     * Matched on the exception text because the failure surfaces from several
+     * layers -- Ktor, OkHttp, the JDK -- with no common type between them. The
+     * cost of guessing wrong is only which message the user reads, and the
+     * behaviour is identical either way: keep the work, retry later.
+     */
+    private fun looksLikeNoSignal(error: Throwable): Boolean {
+        val text = generateSequence(error) { it.cause }
+            .mapNotNull { "${it::class.simpleName} ${it.message}" }
+            .joinToString(" ")
+            .lowercase()
+        return listOf(
+            "unable to resolve host", "failed to connect", "timeout", "timed out",
+            "no address associated", "network is unreachable", "unknownhost",
+            "connectexception", "sockettimeout", "connect timeout", "software caused connection abort"
+        ).any { it in text }
+    }
+
     private suspend fun runSync() {
         val companyId = session.state.value.companyId
         if (companyId == null) {
@@ -144,10 +183,15 @@ class AutoSync(
             val entityError = pushResult.exceptionOrNull() ?: pullResult.exceptionOrNull()
 
             if (entityError != null) {
+                // A network failure is not the same as a real error. The crew
+                // being out of signal is normal and self-correcting; saying
+                // "sync failed" for it teaches people to ignore the message.
                 _state.value = SyncState(
-                    phase = SyncPhase.FAILED,
+                    phase = if (looksLikeNoSignal(entityError)) SyncPhase.WAITING_FOR_SIGNAL
+                    else SyncPhase.FAILED,
                     lastSyncedAt = _state.value.lastSyncedAt,
-                    lastError = entityError.message ?: "Couldn't sync crew and settings"
+                    lastError = entityError.message ?: "Couldn't sync crew and settings",
+                    hasUnsyncedWork = true
                 )
                 return@withLock
             }
@@ -158,13 +202,16 @@ class AutoSync(
                     SyncState(
                         phase = SyncPhase.OK,
                         lastSyncedAt = System.currentTimeMillis(),
-                        lastError = null
+                        lastError = null,
+                        hasUnsyncedWork = false
                     )
                 },
                 onFailure = {
                     _state.value.copy(
-                        phase = SyncPhase.FAILED,
-                        lastError = it.message ?: "Couldn't reach the cloud"
+                        phase = if (looksLikeNoSignal(it)) SyncPhase.WAITING_FOR_SIGNAL
+                        else SyncPhase.FAILED,
+                        lastError = it.message ?: "Couldn't reach the cloud",
+                        hasUnsyncedWork = true
                     )
                 }
             )

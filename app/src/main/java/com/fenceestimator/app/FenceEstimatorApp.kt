@@ -31,6 +31,11 @@ class FenceEstimatorApp : Application() {
         com.fenceestimator.app.notify.OverdueWatcher(applicationScope, repository, this)
     }
 
+    /** Syncs the second signal returns, rather than waiting out the heartbeat. */
+    val connectivity: com.fenceestimator.app.cloud.ConnectivityWatcher by lazy {
+        com.fenceestimator.app.cloud.ConnectivityWatcher(this) { autoSync.requestSync() }
+    }
+
     override fun onCreate() {
         super.onCreate()
         PDFBoxResourceLoader.init(applicationContext)
@@ -52,6 +57,7 @@ class FenceEstimatorApp : Application() {
             runCatching { repository.ensureSeedDataPresent() }
         }
         autoSync.start()
+        connectivity.start()
         // Checks hourly, and once now, so a job that ran long yesterday is
         // flagged on opening the app rather than an hour later.
         overdueWatcher.start()

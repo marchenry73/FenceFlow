@@ -147,6 +147,35 @@ fun JobsListScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Only shown when there is something to say. A permanent "all
+                // good" badge is wallpaper -- people stop seeing it, and then
+                // miss the one time it says something different.
+                item {
+                    val sync by app.autoSync.state.collectAsState()
+                    if (sync.hasUnsyncedWork ||
+                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL
+                    ) {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    sync.message,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    "Nothing is lost. Keep working — it uploads on its own.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
                 item {
                     DashboardHeader(
                         jobs = jobs,

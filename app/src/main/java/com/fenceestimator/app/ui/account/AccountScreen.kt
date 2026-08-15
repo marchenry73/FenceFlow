@@ -223,6 +223,11 @@ private fun SyncStatusCard() {
                 SyncPhase.SYNCING -> "Saving to cloud..." to null
                 SyncPhase.OK -> "Everything saved" to
                     sync.lastSyncedAt?.let { "Last saved ${timeFormat.format(java.util.Date(it))}" }
+                // No signal is normal on a job site and fixes itself, so it
+                // reads as a status rather than a failure. Calling it an error
+                // teaches people to ignore the one that isn't.
+                SyncPhase.WAITING_FOR_SIGNAL -> "Waiting for signal" to
+                    "Your work is saved on this phone and uploads the moment you're back online."
                 SyncPhase.FAILED -> "Couldn't reach the cloud" to
                     (sync.lastError ?: "Your work is safe on this phone and will upload automatically when you're back online.")
                 SyncPhase.OFFLINE_ONLY -> "Saving on this phone only" to
