@@ -153,6 +153,7 @@
       <button class="tab" data-tab="catalog">Catalog</button>
       <button class="tab" data-tab="reports">Reports</button>
       <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="billing">Billing</button>
     </div>
 
     <div id="tab-dash">
@@ -371,6 +372,33 @@
         <div class="empty" id="tierEmpty" style="display:none">Tiers haven't synced from the app yet.</div>
       </div>
     </div>
+
+    <div id="tab-billing" style="display:none">
+      <div class="panel">
+        <h2>Your FenceFlow Subscription</h2>
+        <div class="msg" id="billMsg"></div>
+        <p id="billState" style="font-size:15px;margin:6px 0 16px">Checking your plan…</p>
+        <div class="row2" id="planCards"></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:14px">
+          Billing is handled here on the web rather than in the Android app, so none of it
+          goes through Play Store billing. Card details are entered on Stripe's own checkout
+          page — they never reach FenceFlow.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h2>Getting Paid by Customers</h2>
+        <p style="font-size:14px;color:var(--muted)">
+          Deposits and invoices your customers pay you are a separate thing from the
+          subscription above, and the money goes straight to your Stripe account.
+          Request one from any job in the app: <strong>Payment &amp; Invoice → Request by Card</strong>.
+        </p>
+        <div class="scroll" style="margin-top:12px"><table>
+          <thead><tr><th>Job</th><th>Type</th><th>Amount</th><th>Status</th><th>Requested</th></tr></thead>
+          <tbody id="payRows"></tbody></table></div>
+        <div class="empty" id="payEmpty" style="display:none">No payment requests yet.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -485,8 +513,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 // Publishable key — safe client-side. Row Level Security enforces access.
+// Publishable key on purpose -- it is designed to be public. Row Level
+// Security in Postgres is what actually keeps one company out of another's data.
+const SUPA_URL = 'https://newcrgafcptspmapacrx.supabase.co';
 const db = createClient(
-  'https://newcrgafcptspmapacrx.supabase.co',
+  SUPA_URL,
   'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
 );
 
@@ -553,6 +584,91 @@ async function loadAll(){
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
   renderTime(); renderCatalog(); renderReports(); renderTiers();
   await loadSettings();
+  await loadBilling();
+}
+
+/* ---------- billing ----------
+   Two separate money flows that people mix up constantly:
+     * this company's FenceFlow subscription  (web only, so Play Billing never applies)
+     * deposits and invoices its customers pay it  (straight to their own Stripe)   */
+
+/* Fill these in after creating the products in Stripe -> Product catalog.
+   A price id looks like price_1ABC...; it is public, not a secret. */
+const PLANS = [
+  { id:'', name:'Solo',  price:'$99/mo',  blurb:'One crew. Estimating, jobs, scheduling, invoicing.' },
+  { id:'', name:'Crew',  price:'$199/mo', blurb:'Up to 5 crew, time tracking, crew pay, full reports.' },
+  { id:'', name:'Pro',   price:'$349/mo', blurb:'Unlimited crew, multi-location, priority support.' }
+];
+
+async function loadBilling(){
+  const { data, error } = await db.rpc('my_billing_status');
+  const row = Array.isArray(data) ? data[0] : data;
+
+  const state = $('billState');
+  if (error) {
+    state.textContent = 'Run supabase_stripe_patch.sql to switch billing on.';
+  } else {
+    const status = row?.subscription_status || 'none';
+    const plan = row?.subscription_plan || '';
+    const ends = row?.subscription_ends_at ? d(row.subscription_ends_at).toLocaleDateString() : '';
+    state.textContent =
+      status === 'active'   ? `Active${plan?' — '+plan:''}${ends?', renews '+ends:''}.` :
+      status === 'trialing' ? `Free trial${ends?' until '+ends:''}.` :
+      status === 'past_due' ? 'Last payment failed — update your card to stay active.' :
+      status === 'canceled' ? 'Cancelled. Pick a plan below to start again.' :
+                              'No plan yet. Pick one below.';
+  }
+
+  $('planCards').innerHTML = PLANS.map((p,i)=>`
+    <div class="panel" style="margin:0">
+      <h3 style="margin:0 0 4px">${p.name}</h3>
+      <div style="font-size:22px;font-weight:700;margin-bottom:6px">${p.price}</div>
+      <p style="font-size:13px;color:var(--muted);min-height:38px">${p.blurb}</p>
+      <button class="btn" data-plan="${i}"${p.id?'':' disabled title="Add this plan\'s Stripe price id in dashboard.html"'}>
+        ${p.id?'Choose '+p.name:'Not set up yet'}
+      </button>
+    </div>`).join('');
+
+  document.querySelectorAll('#planCards button[data-plan]').forEach(b=>
+    b.addEventListener('click',()=>startCheckout(PLANS[+b.dataset.plan])));
+
+  await loadJobPayments();
+}
+
+async function startCheckout(plan){
+  const msg = $('billMsg');
+  msg.textContent = 'Opening secure checkout…';
+  try {
+    const { data: sess } = await db.auth.getSession();
+    const res = await fetch(`${SUPA_URL}/functions/v1/create-checkout-session`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${sess?.session?.access_token}` },
+      body: JSON.stringify({ priceId: plan.id, plan: plan.name })
+    });
+    const body = await res.json();
+    if (body.url) location.href = body.url;
+    else msg.textContent = body.error || 'Could not start checkout.';
+  } catch (e) {
+    msg.textContent = String(e.message || e);
+  }
+}
+
+async function loadJobPayments(){
+  const { data, error } = await db.from('job_payments')
+    .select('*').order('created_at',{ascending:false});
+  const rows = error ? [] : (data||[]);
+  $('payEmpty').style.display = rows.length ? 'none' : 'block';
+  $('payRows').innerHTML = rows.map(p=>{
+    const j = jobBySync(p.job_sync_id);
+    const paid = p.status === 'paid';
+    return `<tr>
+      <td>${j?.customer_name || '—'}</td>
+      <td>${p.kind || ''}</td>
+      <td>$${((p.amount_cents||0)/100).toFixed(2)}</td>
+      <td>${paid ? '✅ Paid' : '⏳ Waiting'}</td>
+      <td>${d(p.created_at).toLocaleDateString()}</td>
+    </tr>`;
+  }).join('');
 }
 
 /* ---------- dashboard ---------- */
@@ -1132,7 +1248,7 @@ async function saveSettings(){
 /* ---------- nav ---------- */
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
-  ['dash','jobs','cal','pipe','crew','time','catalog','reports','settings']
+  ['dash','jobs','cal','pipe','crew','time','catalog','reports','settings','billing']
     .forEach(n=>$('tab-'+n).style.display=(n===name)?'block':'none');
 }
 document.querySelectorAll('.tab').forEach(t=>

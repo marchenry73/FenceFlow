@@ -83,6 +83,7 @@ import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobPhoto
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.Manufacturer
+import com.fenceestimator.app.cloud.PaymentsApi
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.PermitStatus
 import com.fenceestimator.app.data.PunchListItem
@@ -791,6 +792,54 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     }
     val squareReady = profile.squareAccessToken.isNotBlank() && profile.squareLocationId.isNotBlank()
 
+    // Stripe runs through the backend, so there is no key on this phone to set
+    // up and nothing to leak if the phone is lost. Ask for the balance if we
+    // know one, otherwise the deposit.
+    val requestAmount = if (balanceDue > 0.0) balanceDue else job.depositAmount
+    Button(
+        onClick = {
+            scope.launch {
+                creatingLink = true
+                linkError = null
+                val result = PaymentsApi.createPaymentLink(
+                    jobSyncId = job.syncId,
+                    amountDollars = requestAmount,
+                    kind = if (balanceDue > 0.0 && job.amountPaid > 0.0) PaymentsApi.Kind.FINAL
+                    else PaymentsApi.Kind.DEPOSIT,
+                    description = "Fence installation - ${job.address.ifBlank { job.customerName }}"
+                )
+                creatingLink = false
+                when (result) {
+                    is PaymentsApi.Result.Ok -> viewModel.update { j -> j.copy(paymentLinkUrl = result.url) }
+                    is PaymentsApi.Result.Failed -> linkError = result.reason
+                }
+            }
+        },
+        enabled = !creatingLink && requestAmount >= 0.50,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            when {
+                creatingLink -> "Creating link..."
+                requestAmount >= 0.50 -> "Request $${"%.2f".format(requestAmount)} by Card"
+                else -> "Request Payment by Card"
+            }
+        )
+    }
+    Text(
+        "Creates a Stripe checkout link. The money goes to your Stripe account -- " +
+            "FenceFlow never holds it, and the card details never touch this phone.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    if (requestAmount < 0.50) {
+        Text(
+            "Set a deposit amount below and the link will bill that exact figure.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
     if (squareReady) {
         Button(
             onClick = {
@@ -833,12 +882,6 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         linkError?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
-    } else {
-        Text(
-            "Connect Square in Settings and FenceFlow will create the payment link for you automatically.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 
     DraftTextField(
