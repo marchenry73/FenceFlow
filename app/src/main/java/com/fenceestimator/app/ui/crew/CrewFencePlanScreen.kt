@@ -1,0 +1,303 @@
+package com.fenceestimator.app.ui.crew
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.data.FenceRun
+import com.fenceestimator.app.data.Job
+import com.fenceestimator.app.data.SiteMarker
+import com.fenceestimator.app.geometry.FenceCodec
+import com.fenceestimator.app.geometry.FenceGeometryEngine
+import com.fenceestimator.app.geometry.FencePoint
+import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.survey.SurveyViewModel
+
+private val LineBlue = Color(0xFF2A78D6)
+private val GateOrange = Color(0xFFEB6834)
+private val MarkerAmber = Color(0xFFEDA100)
+
+/**
+ * The fence plan as the crew needs it: what to build and where, with nothing
+ * they can accidentally change.
+ *
+ * The crew used to be sent to the full drawing screen, where a stray tap moves
+ * a corner or drops a new point -- and the drawing is what the estimate, the
+ * post count and the material order were all built from. Reading it and editing
+ * it are different jobs, so this is a separate screen with no edit tools at all.
+ * Prices are absent by design; the crew's own pay lives on the job screen.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
+    val app = currentApp()
+    val viewModel: SurveyViewModel = viewModel(
+        key = "crew_plan_$jobId",
+        factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId) }
+    )
+    val job by viewModel.job.collectAsState()
+    val runs by viewModel.runs.collectAsState()
+    val markers by viewModel.siteMarkers.collectAsState()
+    val currentJob = job ?: return
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Fence Plan") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Text(
+                    "Read only — tell the office if anything here is wrong.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val drawn = runs.filter { FenceCodec.decodePoints(it.pointsEncoded).size >= 2 }
+            if (drawn.isNotEmpty()) {
+                item { PlanCanvas(currentJob, drawn, markers) }
+                item { Legend() }
+            }
+
+            items(runs.size) { index ->
+                RunCard(currentJob, runs[index])
+            }
+
+            if (markers.isNotEmpty()) {
+                item { MarkersCard(markers) }
+            }
+
+            item {
+                Text(
+                    "Leaves and loose debris are ours to clear. Anything needing a tool — " +
+                        "bushes, planters, sheds, limbs, old posts — is the customer's, or it " +
+                        "goes on a change order. Don't remove it without checking.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Draws every run to fit the screen. The scale is derived from the drawing's
+ * own bounds rather than the survey image, so the plan is legible on a phone
+ * regardless of where on the canvas the fence was drawn.
+ */
+@Composable
+private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>) {
+    Card(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1.1f)
+                .padding(12.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            val allPoints = runs.flatMap { FenceCodec.decodePoints(it.pointsEncoded) }
+            if (allPoints.isEmpty()) return@Box
+
+            val minX = allPoints.minOf { it.x }
+            val maxX = allPoints.maxOf { it.x }
+            val minY = allPoints.minOf { it.y }
+            val maxY = allPoints.maxOf { it.y }
+            // Guard against a perfectly straight run, where one span is zero and
+            // would divide the scale to infinity.
+            val spanX = (maxX - minX).coerceAtLeast(1f)
+            val spanY = (maxY - minY).coerceAtLeast(1f)
+
+            Canvas(Modifier.fillMaxSize()) {
+                val pad = 32f
+                val usableW = (size.width - pad * 2).coerceAtLeast(1f)
+                val usableH = (size.height - pad * 2).coerceAtLeast(1f)
+                val scale = minOf(usableW / spanX, usableH / spanY)
+
+                // Centre whatever is left over, so the plan sits in the middle
+                // instead of hugging a corner.
+                val offsetX = pad + (usableW - spanX * scale) / 2f
+                val offsetY = pad + (usableH - spanY * scale) / 2f
+
+                fun place(p: FencePoint) = Offset(
+                    offsetX + (p.x - minX) * scale,
+                    offsetY + (p.y - minY) * scale
+                )
+
+                runs.forEach { run ->
+                    val points = FenceCodec.decodePoints(run.pointsEncoded)
+                    if (points.size < 2) return@forEach
+
+                    val count = if (run.closedLoop) points.size else points.size - 1
+                    for (i in 0 until count) {
+                        drawLine(
+                            color = LineBlue,
+                            start = place(points[i]),
+                            end = place(points[(i + 1) % points.size]),
+                            strokeWidth = 6f
+                        )
+                    }
+                    // Every vertex is a post the crew has to set, so mark them.
+                    points.forEach { drawCircle(LineBlue, radius = 9f, center = place(it)) }
+
+                    FenceCodec.decodeGates(run.gatesEncoded).forEach { gate ->
+                        val at = place(FencePoint(gate.x, gate.y))
+                        drawCircle(GateOrange, radius = 16f, center = at)
+                        drawCircle(Color.White, radius = 16f, center = at, style = Stroke(width = 4f))
+                    }
+                }
+
+                markers.forEach { marker ->
+                    val at = place(FencePoint(marker.x, marker.y))
+                    drawCircle(MarkerAmber, radius = 13f, center = at)
+                    drawCircle(Color.White, radius = 13f, center = at, style = Stroke(width = 3f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Legend() {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        LegendDot(LineBlue, "Fence line & posts")
+        LegendDot(GateOrange, "Gate")
+        LegendDot(MarkerAmber, "Watch out")
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Box(
+            Modifier.padding(end = 6.dp)
+                .size(12.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color)
+        )
+        Text(label, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** The spec for one run, in the terms a crew works in. No prices. */
+@Composable
+private fun RunCard(job: Job, run: FenceRun) {
+    val points = FenceCodec.decodePoints(run.pointsEncoded)
+    val gates = FenceCodec.decodeGates(run.gatesEncoded)
+    val manual = run.manualLinearFeet
+    val usingManual = manual != null && manual > 0f
+
+    // Honour typed-in footage. Reading "no fence line drawn" on a run that was
+    // quoted by typing its length tells the crew the job isn't ready when it is.
+    val pxPerFt = job.calibrationPixelsPerFoot ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
+    val geometry = if (points.size >= 2) FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop) else null
+    val feet = if (usingManual) manual!!.toDouble() else geometry?.totalLinearFeet?.toDouble() ?: 0.0
+    val corners = if (usingManual) run.manualCornerCount else geometry?.cornerCount ?: 0
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(run.label.ifBlank { "Fence run" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+
+            if (feet <= 0.0) {
+                Text(
+                    "Nothing measured for this run yet — check with the office before starting.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                return@Column
+            }
+
+            SpecRow("Type", run.fenceType.name.replace("_", " "))
+            SpecRow("Length", "${"%.0f".format(feet)} ft" + if (usingManual) "  (measured on site)" else "")
+            SpecRow("Height", "${run.panelHeightFt.toInt()} ft")
+            if (run.colorOrFinish.isNotBlank()) SpecRow("Color", run.colorOrFinish)
+            SpecRow("Post spacing", "${run.postSpacingFt.toInt()} ft")
+            SpecRow("Concrete", "${run.concreteBagsPerPost} bag(s) per post")
+            SpecRow("Corners", corners.toString())
+            if (geometry != null) SpecRow("Ends", geometry.endCount.toString())
+            SpecRow("Gates", gates.size.toString())
+            if (gates.isNotEmpty()) {
+                Text(
+                    "Gate widths: " + gates.joinToString(", ") { "${"%.0f".format(it.widthFt)} ft" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpecRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun MarkersCard(markers: List<SiteMarker>) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                "Watch out on site",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            markers.forEach { marker ->
+                Text(
+                    "•  ${marker.kind.name.replace("_", " ").lowercase()
+                        .replaceFirstChar { it.uppercase() }}" +
+                        if (marker.label.isNotBlank()) " — ${marker.label}" else "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+    }
+}

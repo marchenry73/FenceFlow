@@ -21,10 +21,14 @@ object Routes {
     const val RUN_EDIT = "run/{runId}"
     const val CREW_JOB = "job/{jobId}/crew"
 
+    /** Read-only plan for the crew. Deliberately not the editable survey screen. */
+    const val CREW_PLAN = "job/{jobId}/crew/plan"
+
     fun jobDetail(jobId: Long) = "job/$jobId"
     fun survey(jobId: Long) = "job/$jobId/survey"
     fun estimate(jobId: Long) = "job/$jobId/estimate"
     fun inventory(jobId: Long) = "job/$jobId/inventory"
     fun runEdit(runId: Long) = "run/$runId"
     fun crewJob(jobId: Long) = "job/$jobId/crew"
+    fun crewPlan(jobId: Long) = "job/$jobId/crew/plan"
 }

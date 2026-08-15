@@ -189,7 +189,20 @@ fun FenceEstimatorNavHost() {
             CrewJobScreen(
                 jobId = jobId,
                 onBack = { navController.popBackStack() },
-                onOpenSurvey = { id -> navController.navigate(Routes.survey(id)) }
+                // Crew get the read-only plan. The editable drawing is what the
+                // estimate, post count and material order were built from, so a
+                // stray tap on it costs real money.
+                onOpenSurvey = { id -> navController.navigate(Routes.crewPlan(id)) }
+            )
+        }
+        composable(
+            Routes.CREW_PLAN,
+            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
+            com.fenceestimator.app.ui.crew.CrewFencePlanScreen(
+                jobId = jobId,
+                onBack = { navController.popBackStack() }
             )
         }
         composable(

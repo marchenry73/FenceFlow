@@ -169,10 +169,19 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             val geometry = FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop)
                             val gates = FenceCodec.decodeGates(run.gatesEncoded)
 
+                            // A run quoted by typing its length has no drawing.
+                            // Reporting "nothing drawn" there tells the crew the
+                            // job isn't ready when it is.
+                            val manual = run.manualLinearFeet
+                            val usingManual = manual != null && manual > 0f
+                            val feet = if (usingManual) manual!!.toDouble()
+                            else geometry.totalLinearFeet.toDouble()
+                            val corners = if (usingManual) run.manualCornerCount else geometry.cornerCount
+
                             Text(run.label.ifBlank { "Untitled run" }, fontWeight = FontWeight.Medium)
-                            if (points.size < 2) {
+                            if (feet <= 0.0) {
                                 Text(
-                                    "No fence line drawn for this run yet.",
+                                    "Nothing measured for this run yet — check with the office.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.error
                                 )
@@ -180,7 +189,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                 Text(
                                     buildString {
                                         append(run.fenceType.name.replace("_", " "))
-                                        append(" · ${"%.0f".format(geometry.totalLinearFeet)} ft")
+                                        append(" · ${"%.0f".format(feet)} ft")
                                         append(" · ${run.panelHeightFt.toInt()} ft tall")
                                         if (run.colorOrFinish.isNotBlank()) append(" · ${run.colorOrFinish}")
                                     },
@@ -188,8 +197,8 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    "${geometry.cornerCount} corners · ${geometry.endCount} ends · " +
-                                        "${gates.size} gate(s) · posts ${run.postSpacingFt.toInt()} ft apart",
+                                    "$corners corners · ${gates.size} gate(s) · " +
+                                        "posts ${run.postSpacingFt.toInt()} ft apart",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
