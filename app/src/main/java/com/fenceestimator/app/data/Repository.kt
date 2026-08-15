@@ -101,6 +101,13 @@ class Repository(private val db: AppDatabase) {
         }
         lineItemDao.replaceGeneratedForRun(runId, items)
     }
+    /**
+     * Removes takeoff lines that lost their fence run. They can only have come
+     * from the old cloud pull, which discarded the run and dropped everything
+     * into "Other Items". Hand-typed extras carry no role, so they survive.
+     */
+    suspend fun deleteOrphanedGeneratedLineItems(): Int = lineItemDao.deleteOrphanedGenerated()
+
     suspend fun saveLineItem(item: EstimateLineItem): Long = lineItemDao.insert(item)
     suspend fun updateLineItem(item: EstimateLineItem) = lineItemDao.update(item)
     suspend fun deleteLineItem(item: EstimateLineItem) = lineItemDao.delete(item)

@@ -152,6 +152,13 @@ interface EstimateLineItemDao {
 
     @Query("DELETE FROM estimate_line_items WHERE jobId = :jobId")
     suspend fun deleteAllForJob(jobId: Long)
+
+    /**
+     * Takeoff lines with no fence run. Only the old cloud pull could produce
+     * these; a hand-typed extra has no role, so it is never matched here.
+     */
+    @Query("DELETE FROM estimate_line_items WHERE fenceRunId IS NULL AND role IS NOT NULL")
+    suspend fun deleteOrphanedGenerated(): Int
 }
 
 @Dao

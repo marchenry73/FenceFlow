@@ -215,7 +215,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             }
             if (mode == SurveyMode.ADJUST) {
                 Text(
-                    "Drag an existing point to move it -- calibration and other modes still work at any zoom.",
+                    "Drag a point, a gate or a marker to move it -- works at any zoom.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 8.dp)
@@ -230,6 +230,37 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 var draftPoints by remember(activeRun.id) { mutableStateOf<List<FencePoint>?>(null) }
                 val points = draftPoints ?: committedPoints
                 val pxPerFt = job2.calibrationPixelsPerFoot
+
+                // Running total ABOVE the drawing area, not on top of it. Put on
+                // the canvas it covered part of the very surface you tap to draw,
+                // and swallowed those taps.
+                val liveFeet = if (points.size >= 2) {
+                    FenceGeometryEngine.analyze(
+                        points,
+                        pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
+                        activeRun.closedLoop
+                    ).totalLinearFeet
+                } else 0f
+                Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Straighten, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text(
+                            if (liveFeet > 0f) "  ${String.format("%.1f", liveFeet)} ft" else "  Tap to start drawing",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        if (liveFeet > 0f) {
+                            Text(
+                                "   ${points.size} points · ${gates.size} gate(s)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
                 val otherRuns = runs.filter { it.id != activeRun.id }
                 val canvasContentSize = bitmap?.let { it.width to it.height }
                     ?: (SurveyViewModel.GRID_CANVAS_SIZE to SurveyViewModel.GRID_CANVAS_SIZE)
@@ -461,29 +492,6 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         }
                     }
 
-                    // Running total on the canvas itself. The full readout sits
-                    // below the drawing area, which on a phone means it is off
-                    // screen exactly when you are drawing and want to see it.
-                    val livePoints = draftPoints ?: committedPoints
-                    if (livePoints.size >= 2) {
-                        val liveFeet = FenceGeometryEngine.analyze(
-                            livePoints,
-                            pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
-                            activeRun.closedLoop
-                        ).totalLinearFeet
-                        Surface(
-                            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                            tonalElevation = 4.dp,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                "  ${String.format("%.1f", liveFeet)} ft  ",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                modifier = Modifier.padding(vertical = 6.dp)
-                            )
-                        }
-                    }
                 }
 
                 val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
