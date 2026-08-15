@@ -205,6 +205,19 @@ class SettingsStore(private val context: Context) {
         )
     }
 
+    /**
+     * Wipes every stored setting, including the Square access token.
+     *
+     * Used when the phone changes hands between accounts. Business name,
+     * licence number, pricing and email templates all belong to one company --
+     * but the Square token is the sharp one: it is a live payment credential,
+     * and leaving it behind would let whoever signs in next take money into the
+     * previous company's account.
+     */
+    suspend fun clearAll() {
+        context.dataStore.edit { it.clear() }
+    }
+
     suspend fun save(profile: BusinessProfile) {
         context.dataStore.edit { prefs ->
             prefs[Keys.BUSINESS_NAME] = profile.businessName

@@ -23,7 +23,10 @@ data class AccountUiState(
     val needsCompany: Boolean get() = isSignedIn && profile?.companyId == null
 }
 
-class AccountViewModel(private val repository: Repository? = null) : ViewModel() {
+class AccountViewModel(
+    private val repository: Repository? = null,
+    private val dataOwnership: com.fenceestimator.app.cloud.DataOwnership? = null
+) : ViewModel() {
     private val _state = MutableStateFlow(AccountUiState())
     val state: StateFlow<AccountUiState> = _state
 
@@ -56,7 +59,26 @@ class AccountViewModel(private val repository: Repository? = null) : ViewModel()
         SupabaseModule.joinCompany(companyId.trim(), memberName.trim())
     }
 
-    fun signOut() = run("Signed out") {
+    /**
+     * Signs out and clears this phone.
+     *
+     * Leaving the data behind meant the next person to open the app -- or sign
+     * in with a different account -- saw the previous company's jobs, customers
+     * and revenue. On a shared crew phone that is one company's books shown to
+     * another.
+     *
+     * Blocked while anything is still waiting to upload, so signing out can
+     * never be what destroys a day's work recorded somewhere with no signal.
+     * @param force skips that guard once the user has been told and chosen to.
+     */
+    fun signOut(force: Boolean = false) = run("Signed out") {
+        val ownership = dataOwnership
+        if (ownership != null && !ownership.onSignedOut(force)) {
+            throw IllegalStateException(
+                "You have work that hasn't uploaded yet. Get signal and let it sync, " +
+                    "or sign out anyway to discard it."
+            )
+        }
         SupabaseModule.signOut()
     }
 

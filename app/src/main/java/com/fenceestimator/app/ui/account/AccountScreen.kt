@@ -47,7 +47,9 @@ import com.fenceestimator.app.ui.components.currentApp
 fun AccountScreen(onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: AccountViewModel = viewModel(
-        factory = com.fenceestimator.app.ui.components.GenericViewModelFactory { AccountViewModel(app.repository) }
+        factory = com.fenceestimator.app.ui.components.GenericViewModelFactory {
+            AccountViewModel(app.repository, app.dataOwnership)
+        }
     )
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }

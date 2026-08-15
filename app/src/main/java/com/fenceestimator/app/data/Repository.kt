@@ -54,6 +54,16 @@ class Repository(private val db: AppDatabase) {
         pendingDeletionDao.insert(PendingDeletion(syncId = job.syncId, tableName = "jobs"))
     }
 
+    /**
+     * Wipes every table on this phone.
+     *
+     * Used when the phone changes hands between accounts. The cloud copy is
+     * untouched, so this removes the local view, not the data -- signing back in
+     * downloads it again. Deliberately does NOT write tombstones: this is "these
+     * records are not mine to see", not "delete these records".
+     */
+    suspend fun clearAllLocalData() = db.clearAllTables()
+
     /** Queues a cloud row for deletion on the next sync. */
     suspend fun queueDeletion(syncId: String, tableName: String) =
         pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName))

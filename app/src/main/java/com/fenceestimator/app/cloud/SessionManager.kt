@@ -66,6 +66,15 @@ class SessionManager(private val scope: CoroutineScope) {
     /** Set by the app on startup so signing in can restore company settings. */
     var settingsStore: com.fenceestimator.app.data.SettingsStore? = null
 
+    /** Set by the app on startup so signing in can clear another company's data. */
+    var dataOwnership: DataOwnership? = null
+
+    /** Raised when this phone's data was wiped because a different account signed in. */
+    private val _wipedForNewAccount = MutableStateFlow(false)
+    val wipedForNewAccount: StateFlow<Boolean> = _wipedForNewAccount
+
+    fun acknowledgeWipe() { _wipedForNewAccount.value = false }
+
     fun refresh() {
         if (!SupabaseModule.isConfigured) return
         scope.launch {
@@ -81,6 +90,17 @@ class SessionManager(private val scope: CoroutineScope) {
                 companyId = profile?.companyId,
                 role = profile?.userRole ?: UserRole.OWNER
             )
+
+            // Before anything else: if this phone is holding a DIFFERENT
+            // company's data, clear it. Otherwise signing in on a shared crew
+            // phone shows the previous company's jobs, customers and revenue.
+            profile?.companyId?.let { company ->
+                runCatching {
+                    if (dataOwnership?.onSignedIn(company) == true) {
+                        _wipedForNewAccount.value = true
+                    }
+                }
+            }
 
             // Bring down the company's saved settings so a reinstall or a new
             // crew phone starts with the right pricing and templates rather than

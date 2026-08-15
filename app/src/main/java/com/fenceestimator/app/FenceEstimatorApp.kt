@@ -31,6 +31,11 @@ class FenceEstimatorApp : Application() {
         com.fenceestimator.app.notify.OverdueWatcher(applicationScope, repository, this)
     }
 
+    /** Ties the data on this phone to an account, not to the phone. */
+    val dataOwnership: com.fenceestimator.app.cloud.DataOwnership by lazy {
+        com.fenceestimator.app.cloud.DataOwnership(this, repository, settingsStore)
+    }
+
     /** Syncs the second signal returns, rather than waiting out the heartbeat. */
     val connectivity: com.fenceestimator.app.cloud.ConnectivityWatcher by lazy {
         com.fenceestimator.app.cloud.ConnectivityWatcher(this) { autoSync.requestSync() }
@@ -49,6 +54,7 @@ class FenceEstimatorApp : Application() {
         PushTokenStore.refresh(this)
         session.pushTokenProvider = { PushTokenStore.cached(this) }
         session.settingsStore = settingsStore
+        session.dataOwnership = dataOwnership
 
         session.refresh()
         // Self-heals installs whose catalog never got seeded -- without a catalog,
