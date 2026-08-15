@@ -388,7 +388,12 @@ object EstimateEngine {
         val grandTotal: Double,
         /** Approved extra work, already included in [grandTotal]. */
         val changeOrderCost: Double = 0.0,
-        val changeOrderFeet: Double = 0.0
+        val changeOrderFeet: Double = 0.0,
+        /** Gate openings charged by the foot, already included in [grandTotal]. */
+        val gateCharge: Double = 0.0,
+        val gateFeet: Double = 0.0,
+        /** Hauling the old fence away, already included in [grandTotal]. */
+        val trashHaulFee: Double = 0.0
     )
 
     /**
@@ -397,11 +402,18 @@ object EstimateEngine {
      *   is added on top -- a change order that doesn't move the total is just a
      *   note, and the whole point of one is that the customer owes more.
      */
+    /**
+     * @param runs used to price gate openings. A gate is charged by the foot of
+     *   opening, not at the fence rate -- hanging and squaring one is the
+     *   slowest work on the job per foot, and pricing it like fence line loses
+     *   money on every gate.
+     */
     fun computeTotals(
         job: Job,
         lineItems: List<EstimateLineItem>,
         totalLinearFeet: Float,
-        changeOrders: List<ChangeOrder> = emptyList()
+        changeOrders: List<ChangeOrder> = emptyList(),
+        runs: List<FenceRun> = emptyList()
     ): Totals {
         val materialsSubtotal = lineItems.sumOf { it.quantity * it.unitPrice }
         val taxableSubtotal = lineItems.filter { it.taxable }.sumOf { it.quantity * it.unitPrice }
@@ -411,11 +423,21 @@ object EstimateEngine {
         val changeOrderFeet = changeOrders.sumOf { it.additionalFeet }
         val billableFeet = totalLinearFeet + changeOrderFeet
 
-        val laborCost = job.laborFlatFee + (job.laborRatePerFt * billableFeet)
-        val teardownCost =
-            if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * billableFeet else 0.0
+        // Gate openings, charged by the foot of opening. The gate width was
+        // already removed from the fence footage by the takeoff, so this adds
+        // rather than double-charges.
+        val gateFeet = runs.sumOf { run ->
+            FenceCodec.decodeGates(run.gatesEncoded).sumOf { it.widthFt.toDouble() }
+        }
+        val gateCharge = gateFeet * job.gateRatePerFt
 
-        val preMarkup = materialsSubtotal + tax + laborCost + teardownCost + changeOrderCost
+        val laborCost = job.laborFlatFee + (job.laborRatePerFt * billableFeet)
+        val trashHaul = if (job.teardownEnabled) job.trashHaulFee else 0.0
+        val teardownCost =
+            if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * billableFeet + trashHaul
+            else 0.0
+
+        val preMarkup = materialsSubtotal + tax + laborCost + teardownCost + changeOrderCost + gateCharge
         val markupAmount = preMarkup * (job.markupPercent / 100.0)
         val afterMarkup = preMarkup + markupAmount
 
@@ -426,7 +448,8 @@ object EstimateEngine {
 
         return Totals(
             materialsSubtotal, taxableSubtotal, tax, laborCost, teardownCost,
-            markupAmount, discountAmount, grandTotal, changeOrderCost, changeOrderFeet
+            markupAmount, discountAmount, grandTotal, changeOrderCost, changeOrderFeet,
+            gateCharge, gateFeet, trashHaul
         )
     }
 
@@ -441,11 +464,16 @@ object EstimateEngine {
     fun estimateWarnings(job: Job, runs: List<FenceRun>, lineItems: List<EstimateLineItem>, totals: Totals): List<String> {
         val warnings = mutableListOf<String>()
 
-        if (totals.grandTotal > 0.0) {
+        // Only worth saying when a markup was actually set. With markup at 0 the
+        // margin is 0 by definition, so warning about it fires on every single
+        // job and becomes noise -- and then the one job that really is
+        // underpriced reads the same as all the others.
+        if (totals.grandTotal > 0.0 && job.markupPercent > 0.0) {
             val cost = totals.materialsSubtotal + totals.tax + totals.laborCost + totals.teardownCost
             val marginPercent = (totals.grandTotal - cost) / totals.grandTotal * 100.0
             if (marginPercent < LOW_MARGIN_THRESHOLD_PERCENT) {
-                warnings += "This project only has an estimated ${marginPercent.roundToInt()}% profit margin."
+                warnings += "Only ${marginPercent.roundToInt()}% profit margin -- that's what's left " +
+                    "after materials, labor and teardown, as a share of the price."
             }
         }
 

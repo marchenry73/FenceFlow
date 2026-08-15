@@ -65,7 +65,7 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
                     ).totalLinearFeet.toDouble()
                 } ?: 0.0
             }.toFloat()
-            EstimateEngine.computeTotals(currentJob, items, feet, orders)
+            EstimateEngine.computeTotals(currentJob, items, feet, orders, runs)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 

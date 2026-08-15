@@ -146,6 +146,14 @@ data class Job(
      * hardware, because you can't buy 10% of a hinge.
      */
     val wastePercent: Double = 0.0,
+    /**
+     * Charged per foot of gate opening, not per gate. A 5 ft gate at $20/ft is
+     * $100. Gates are the slowest part of a fence per foot -- hanging, squaring,
+     * hardware -- so pricing them at the fence rate loses money on every one.
+     */
+    val gateRatePerFt: Double = 20.0,
+    /** Hauling the old fence away, on top of the per-foot teardown labour. */
+    val trashHaulFee: Double = 0.0,
 
     // Teardown of an existing fence
     val teardownEnabled: Boolean = false,

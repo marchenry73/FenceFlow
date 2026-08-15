@@ -303,11 +303,21 @@ private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
             Text("Waste allowance", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Adds extra panels, pickets, rails, fabric, and concrete for cuts and breakage. " +
-                    "Posts, caps, and hardware are never padded.",
+                "Orders extra material for cuts and breakage. At 10%, a takeoff of 17 panels " +
+                    "orders 19 — because some get ruined being cut. Only applies to things you " +
+                    "cut or break: panels, pickets, rails, fabric, concrete. Never to posts, " +
+                    "caps or hardware, which you buy by exact count.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (wastePercent > 0.0) {
+                Text(
+                    "Press Suggest Quantities after changing this — it only affects newly " +
+                        "generated quantities, not lines already on the estimate.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0.0, 5.0, 10.0, 15.0).forEach { pct ->
@@ -371,7 +381,16 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: Numbe
             TotalRow("Materials Subtotal", currency.format(totals.materialsSubtotal))
             TotalRow("Tax (${job?.taxRatePercent ?: 0}%)", currency.format(totals.tax))
             if (totals.laborCost > 0.0) TotalRow("Labor", currency.format(totals.laborCost))
-            if (totals.teardownCost > 0.0) TotalRow("Teardown of existing fence", currency.format(totals.teardownCost))
+            if (totals.gateCharge > 0.0) {
+                TotalRow(
+                    "Gates (${"%.0f".format(totals.gateFeet)} ft @ ${currency.format(job?.gateRatePerFt ?: 0.0)}/ft)",
+                    currency.format(totals.gateCharge)
+                )
+            }
+            if (totals.teardownCost > 0.0) {
+                TotalRow("Teardown of existing fence", currency.format(totals.teardownCost - totals.trashHaulFee))
+            }
+            if (totals.trashHaulFee > 0.0) TotalRow("Haul away / dump fee", currency.format(totals.trashHaulFee))
             if (totals.markupAmount > 0.0) TotalRow("Markup (${job?.markupPercent ?: 0}%)", currency.format(totals.markupAmount))
             if (totals.discountAmount > 0.0) {
                 TotalRow(

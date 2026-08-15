@@ -63,7 +63,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
         combine(job, lineItems, runs, changeOrders) { currentJob, items, currentRuns, orders ->
             if (currentJob == null) EMPTY_TOTALS
             else EstimateEngine.computeTotals(
-                currentJob, items, feetAcross(currentJob, currentRuns), orders
+                currentJob, items, feetAcross(currentJob, currentRuns), orders, currentRuns
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 

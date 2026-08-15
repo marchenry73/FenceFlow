@@ -20,7 +20,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloseFullscreen
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.PanTool
@@ -53,6 +60,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -229,6 +237,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 val committedPoints = remember(activeRun.pointsEncoded) { FenceCodec.decodePoints(activeRun.pointsEncoded) }
                 val gates = remember(activeRun.gatesEncoded) { FenceCodec.decodeGates(activeRun.gatesEncoded) }
                 var draftPoints by remember(activeRun.id) { mutableStateOf<List<FencePoint>?>(null) }
+                // Which vertex the arrow pad nudges. A finger covers the point
+                // it is moving, so fine adjustment by dragging is guesswork --
+                // the arrows move it a known distance you can see.
+                var selectedPoint by remember(activeRun.id) { mutableStateOf<Int?>(null) }
+                var fullScreen by rememberSaveable { mutableStateOf(false) }
                 val points = draftPoints ?: committedPoints
                 val pxPerFt = job2.calibrationPixelsPerFoot
 
@@ -257,7 +270,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             Text(
                                 "   ${points.size} points · ${gates.size} gate(s)",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        // Full screen hides everything but the drawing, which on
+                        // a phone is the difference between seeing the whole
+                        // property and seeing a third of it.
+                        IconButton(onClick = { fullScreen = !fullScreen }) {
+                            Icon(
+                                if (fullScreen) Icons.Filled.CloseFullscreen else Icons.Filled.OpenInFull,
+                                contentDescription = if (fullScreen) "Exit full screen" else "Full screen"
                             )
                         }
                     }
@@ -288,6 +313,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 // (Move View, Adjust) gets the canvas to itself.
                                 when (mode) {
                                     SurveyMode.PAN -> detectDragGestures { _, dragAmount -> viewPan += dragAmount }
+                                    // Adjust needs BOTH: drag to move roughly, tap
+                                    // to select a point for the arrow pad. One
+                                    // pointer stream can't run two detectors, so
+                                    // the drag detector reports a tap that never
+                                    // moved as a selection.
                                     SurveyMode.ADJUST -> {
                                         // Three things can be dragged: a fence
                                         // vertex, a gate, or a site marker. Gates
@@ -328,6 +358,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                             onDragEnd = {
                                                 val idx = draggingIndex
                                                 val finalPoint = lastImagePoint
+                                                // Grabbed a point but never moved
+                                                // it: that's a tap, so select it
+                                                // for the arrow pad.
+                                                if (idx != null && finalPoint == null) selectedPoint = idx
                                                 if (finalPoint != null) {
                                                     when {
                                                         idx != null -> viewModel.movePoint(idx, finalPoint)
@@ -479,10 +513,26 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         CanvasHint(Modifier.align(Alignment.BottomCenter), "Drag to move the view")
                     }
                     if (mode == SurveyMode.ADJUST) {
-                        CanvasHint(
-                            Modifier.align(Alignment.BottomCenter),
-                            "Drag a point, a gate or a marker to move it"
-                        )
+                        if (selectedPoint == null) {
+                            CanvasHint(
+                                Modifier.align(Alignment.BottomCenter),
+                                "Drag to move, or tap a point to nudge it with the arrows"
+                            )
+                        } else {
+                            NudgePad(
+                                modifier = Modifier.align(Alignment.BottomEnd),
+                                onNudge = { dx, dy ->
+                                    val idx = selectedPoint ?: return@NudgePad
+                                    val p = committedPoints.getOrNull(idx) ?: return@NudgePad
+                                    // One tap = one foot, in the drawing's own
+                                    // units, so the step means the same thing at
+                                    // any zoom.
+                                    val step = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
+                                    viewModel.movePoint(idx, FencePoint(p.x + dx * step, p.y + dy * step))
+                                },
+                                onDone = { selectedPoint = null }
+                            )
+                        }
                     }
 
                 }
@@ -824,5 +874,54 @@ private fun CanvasHint(modifier: Modifier = Modifier, text: String) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+/**
+ * Arrow pad for moving the selected point one foot at a time.
+ *
+ * Dragging is fine for roughing a line in, but a fingertip covers the very
+ * point it is moving, so the last few inches are guesswork. The arrows move a
+ * known distance you can watch happen, which is what makes a drawing accurate
+ * enough to order material from.
+ */
+@Composable
+private fun NudgePad(
+    modifier: Modifier = Modifier,
+    onNudge: (Float, Float) -> Unit,
+    onDone: () -> Unit
+) {
+    Surface(
+        modifier = modifier.padding(8.dp),
+        tonalElevation = 6.dp,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            Modifier.padding(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "1 ft per tap",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            IconButton(onClick = { onNudge(0f, -1f) }) {
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up one foot")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onNudge(-1f, 0f) }) {
+                    Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "Move left one foot")
+                }
+                IconButton(onClick = onDone) {
+                    Icon(Icons.Filled.Check, contentDescription = "Done")
+                }
+                IconButton(onClick = { onNudge(1f, 0f) }) {
+                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "Move right one foot")
+                }
+            }
+            IconButton(onClick = { onNudge(0f, 1f) }) {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down one foot")
+            }
+        }
     }
 }

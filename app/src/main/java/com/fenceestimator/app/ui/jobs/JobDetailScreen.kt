@@ -219,6 +219,32 @@ fun JobDetailScreen(
             }
             item { SectionCard(title = "Customer") { CustomerFields(currentJob, viewModel) } }
             item {
+                // Everything already saves as you type -- this is here because
+                // an app with no Save button leaves people unsure whether their
+                // work is safe, and they leave the screen expecting to lose it.
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Saved automatically as you type.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Button(onClick = { app.autoSync.requestSync(); onBack() }) {
+                            Text("Save & Close")
+                        }
+                    }
+                }
+            }
+            item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
                         onClick = { onOpenSurvey(jobId) },
@@ -649,7 +675,34 @@ private fun TeardownFields(job: Job, viewModel: JobDetailViewModel) {
                 modifier = Modifier.weight(1f)
             ) { viewModel.update { j -> j.copy(teardownRatePerFt = it.toDouble()) } }
         }
+        DraftNumberField(
+            stableKey = job.id, label = "Haul away / dump fee ($)", initialValue = job.trashHaulFee.toFloat(),
+            modifier = Modifier.fillMaxWidth()
+        ) { viewModel.update { j -> j.copy(trashHaulFee = it.toDouble()) } }
+        Text(
+            "Teardown is charged on the same footage as the new fence. If the old fence " +
+                "ran a different length, add a separate run for it and type its length in " +
+                "\"Total feet\" -- that keeps it off the new fence's takeoff.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
+
+    Spacer(Modifier.height(12.dp))
+    Text("Gates", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    DraftNumberField(
+        stableKey = job.id, label = "Gate rate ($ per foot of opening)",
+        initialValue = job.gateRatePerFt.toFloat(),
+        modifier = Modifier.fillMaxWidth()
+    ) { viewModel.update { j -> j.copy(gateRatePerFt = it.toDouble()) } }
+    Text(
+        "Charged on the gate opening only, not the whole fence. A 5 ft gate at " +
+            "$${"%.0f".format(job.gateRatePerFt)}/ft is $${"%.0f".format(job.gateRatePerFt * 5)}. " +
+            "Gates are the slowest work on a job per foot, so pricing them at the fence " +
+            "rate loses money on every one.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable
