@@ -417,7 +417,14 @@ data class ChangeOrder(
     val jobId: Long,
     val description: String = "",
     val additionalFeet: Double = 0.0,
+    /** What the customer is charged for this change, materials included. */
     val additionalCost: Double = 0.0,
+    /**
+     * How much of [additionalCost] is materials you have to buy up front.
+     * Tracked separately so the suggested deposit covers extra work too --
+     * otherwise agreeing to another 40 ft means fronting its material yourself.
+     */
+    val materialCost: Double = 0.0,
     val signatureImagePath: String? = null,
     val signedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis()

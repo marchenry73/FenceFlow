@@ -109,6 +109,7 @@ data class CloudChangeOrder(
     val description: String = "",
     @SerialName("additional_feet") val additionalFeet: Double = 0.0,
     @SerialName("additional_cost") val additionalCost: Double = 0.0,
+    @SerialName("material_cost") val materialCost: Double = 0.0,
     @SerialName("signed_at") val signedAt: String? = null
 )
 
@@ -238,6 +239,7 @@ object EntitySync {
             repository.getChangeOrders(job.id).forEach {
                 orders += CloudChangeOrder(
                     companyId, it.syncId, js, it.description, it.additionalFeet, it.additionalCost,
+                    it.materialCost,
                     it.signedAt?.let { at -> Instant.ofEpochMilli(at).toString() }
                 )
             }

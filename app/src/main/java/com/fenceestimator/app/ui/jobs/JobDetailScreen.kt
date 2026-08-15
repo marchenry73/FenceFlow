@@ -27,7 +27,10 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Construction
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -1293,6 +1296,7 @@ private fun ProjectProgressSection(
 @Composable
 private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, viewModel: JobDetailViewModel) {
     var showAdd by remember { mutableStateOf(false) }
+    var editingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
     var signingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.US) }
     val totals by viewModel.contractTotal.collectAsState()
@@ -1356,11 +1360,21 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        IconButton(onClick = { editingOrder = order }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit change order")
+                        }
                         if (canDelete) {
                             IconButton(onClick = { viewModel.deleteChangeOrder(order) }) {
                                 Icon(Icons.Filled.Close, contentDescription = "Remove change order")
                             }
                         }
+                    }
+                    if (order.materialCost > 0) {
+                        Text(
+                            "Includes $${"%.2f".format(order.materialCost)} of materials",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     if (order.isSigned) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1392,10 +1406,21 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
         Text("  Add Change Order")
     }
 
+    editingOrder?.let { order ->
+        AddChangeOrderDialog(
+            existing = order,
+            onConfirm = { description, feet, cost, materials ->
+                viewModel.updateChangeOrder(order, description, feet, cost, materials)
+                editingOrder = null
+            },
+            onDismiss = { editingOrder = null }
+        )
+    }
+
     if (showAdd) {
         AddChangeOrderDialog(
-            onConfirm = { description, feet, cost ->
-                viewModel.addChangeOrder(description, feet, cost)
+            onConfirm = { description, feet, cost, materials ->
+                viewModel.addChangeOrder(description, feet, cost, materials)
                 showAdd = false
             },
             onDismiss = { showAdd = false }
@@ -1411,43 +1436,84 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
 }
 
 @Composable
-private fun AddChangeOrderDialog(onConfirm: (String, Double, Double) -> Unit, onDismiss: () -> Unit) {
-    var description by remember { mutableStateOf("") }
-    var feetText by remember { mutableStateOf("") }
-    var costText by remember { mutableStateOf("") }
+private fun AddChangeOrderDialog(
+    existing: ChangeOrder? = null,
+    onConfirm: (String, Double, Double, Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var description by remember { mutableStateOf(existing?.description ?: "") }
+    var feetText by remember { mutableStateOf(existing?.additionalFeet?.takeIf { it > 0 }?.toString() ?: "") }
+    var costText by remember { mutableStateOf(existing?.additionalCost?.takeIf { it > 0 }?.toString() ?: "") }
+    var materialText by remember { mutableStateOf(existing?.materialCost?.takeIf { it > 0 }?.toString() ?: "") }
+
+    val cost = costText.toDoubleOrNull() ?: 0.0
+    val materials = materialText.toDoubleOrNull() ?: 0.0
+    val materialsTooHigh = materials > cost && cost > 0.0
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Additional Work Authorization") },
+        title = { Text(if (existing == null) "Additional Work Authorization" else "Edit Change Order") },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = description, onValueChange = { description = it },
                     label = { Text("What's being added?") }, minLines = 2, modifier = Modifier.fillMaxWidth()
                 )
-                androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = feetText, onValueChange = { feetText = it },
                     label = { Text("Additional feet (optional)") },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
-                androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = costText, onValueChange = { costText = it },
-                    label = { Text("Additional cost ($)") },
+                    label = { Text("Total charged to customer ($)") },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = materialText, onValueChange = { materialText = it },
+                    label = { Text("Of that, extra materials ($)") },
+                    isError = materialsTooHigh,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    if (materialsTooHigh)
+                        "Materials are more than you're charging -- this change order loses money."
+                    else
+                        "Materials you have to buy for this extra work. Kept separate so the " +
+                            "suggested deposit covers it instead of you fronting it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (materialsTooHigh) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (existing?.signatureImagePath != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Changing the feet, the cost, or the materials clears the customer's " +
+                            "signature -- they signed for the old figures, so it has to be signed again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(description, feetText.toDoubleOrNull() ?: 0.0, costText.toDoubleOrNull() ?: 0.0)
+                    onConfirm(
+                        description,
+                        feetText.toDoubleOrNull() ?: 0.0,
+                        cost,
+                        materials
+                    )
                 },
                 enabled = description.isNotBlank()
-            ) { Text("Add") }
+            ) { Text(if (existing == null) "Add" else "Save") }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
     )

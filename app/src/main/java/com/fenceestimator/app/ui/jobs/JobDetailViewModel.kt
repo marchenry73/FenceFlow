@@ -31,13 +31,17 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * What the materials on this estimate cost. A deposit below this figure
-     * means fronting the customer's material out of pocket, so the deposit
-     * field uses it as a floor.
+     * Everything you have to buy before this job can be finished: the estimate's
+     * materials plus the materials on any approved change order. A deposit below
+     * this means fronting the customer's material out of pocket, so the deposit
+     * suggestion uses it as a floor.
      */
-    val materialCost: StateFlow<Double> = repository.observeLineItems(jobId)
-        .map { items -> items.sumOf { it.quantity * it.unitPrice } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    val materialCost: StateFlow<Double> = combine(
+        repository.observeLineItems(jobId),
+        repository.observeChangeOrders(jobId)
+    ) { items, orders ->
+        items.sumOf { it.quantity * it.unitPrice } + orders.sumOf { it.materialCost }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     /**
      * The live contract total, so approving extra work visibly moves the money
@@ -160,14 +164,20 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         viewModelScope.launch { repository.deletePunchListItem(item) }
     }
 
-    fun addChangeOrder(description: String, additionalFeet: Double, additionalCost: Double) {
+    fun addChangeOrder(
+        description: String,
+        additionalFeet: Double,
+        additionalCost: Double,
+        materialCost: Double = 0.0
+    ) {
         viewModelScope.launch {
             repository.saveChangeOrder(
                 ChangeOrder(
                     jobId = jobId,
                     description = description,
                     additionalFeet = additionalFeet,
-                    additionalCost = additionalCost
+                    additionalCost = additionalCost,
+                    materialCost = materialCost
                 )
             )
         }
@@ -183,6 +193,35 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
 
     fun deleteChangeOrder(order: ChangeOrder) {
         viewModelScope.launch { repository.deleteChangeOrder(order) }
+    }
+
+    /**
+     * Editing keeps the signature only when nothing about the money or the
+     * scope moved. A customer signed for what it said at the time; letting an
+     * edited amount keep the old signature would make that record worthless.
+     */
+    fun updateChangeOrder(
+        order: ChangeOrder,
+        description: String,
+        additionalFeet: Double,
+        additionalCost: Double,
+        materialCost: Double
+    ) {
+        val termsChanged = additionalCost != order.additionalCost ||
+            additionalFeet != order.additionalFeet ||
+            materialCost != order.materialCost
+        viewModelScope.launch {
+            repository.saveChangeOrder(
+                order.copy(
+                    description = description,
+                    additionalFeet = additionalFeet,
+                    additionalCost = additionalCost,
+                    materialCost = materialCost,
+                    signatureImagePath = if (termsChanged) null else order.signatureImagePath,
+                    signedAt = if (termsChanged) null else order.signedAt
+                )
+            )
+        }
     }
 
     fun delete(onDeleted: () -> Unit) {

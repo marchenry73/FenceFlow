@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -182,13 +182,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Splits out the material half of a change order so deposits can cover it. */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `change_orders` ADD COLUMN `materialCost` REAL NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 // Seeding deliberately lives ONLY in Repository.ensureSeedDataPresent().
                 // There used to also be an onCreate callback doing the same inserts;
