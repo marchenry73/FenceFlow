@@ -17,21 +17,27 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
  */
 object DurationEstimator {
 
-    /** The contractor's benchmark: 125 ft in an 8-hour day. */
-    private const val BASELINE_FEET = 125.0
-    private const val BASELINE_HOURS = 8.0
-
-    /** Each corner means extra layout, bracing, and a deeper hole. */
-    private const val HOURS_PER_CORNER = 0.4
-
-    /** Hanging and squaring a gate is slow work relative to its width. */
-    private const val HOURS_PER_GATE = 1.0
-
-    /** Pulling an old fence and hauling it off, per foot. */
-    private const val TEARDOWN_HOURS_PER_FOOT = 0.02
-
-    /** Mobilising, unloading, and the final walkthrough, regardless of size. */
-    private const val SETUP_HOURS = 1.0
+    /**
+     * The rates a job is costed against. Defaults match a typical crew, but
+     * every company works at its own pace -- a schedule built on someone
+     * else's numbers is a schedule that slips -- so all of it is editable in
+     * Settings and carried here rather than hardcoded.
+     */
+    data class Rates(
+        val feetPerDay: Double = 125.0,
+        val workdayHours: Double = 8.0,
+        val breakHoursPerDay: Double = 1.0,
+        val hoursPerGate: Double = 1.5,
+        val hoursPerTree: Double = 0.25,
+        val hoursPerObstacle: Double = 0.5,
+        val hoursPerCorner: Double = 0.4,
+        val setupHours: Double = 1.0,
+        val teardownHoursPerFoot: Double = 0.02
+    ) {
+        /** Hours of actual installing in a day, once breaks are taken out. */
+        val installHoursPerDay: Double
+            get() = (workdayHours - breakHoursPerDay).coerceAtLeast(1.0)
+    }
 
     /**
      * How much slower each type is per foot than the baseline. Wood is built
@@ -54,10 +60,15 @@ object DurationEstimator {
         val fenceHours: Double,
         val cornerHours: Double,
         val gateHours: Double,
-        val teardownHours: Double
+        val teardownHours: Double,
+        val obstacleHours: Double = 0.0,
+        val trees: Int = 0,
+        val obstacles: Int = 0,
+        /** Install hours per day after breaks, used to turn hours into days. */
+        val installHoursPerDay: Double = 7.0
     ) {
-        /** Crews work in days, not decimals -- 8-hour days, rounded up. */
-        val days: Double get() = totalHours / 8.0
+        /** Working days, counting only the hours a crew actually installs in. */
+        val days: Double get() = totalHours / installHoursPerDay.coerceAtLeast(1.0)
 
         fun summary(): String = buildString {
             append("${"%.2f".format(totalHours)} hrs")
@@ -65,11 +76,25 @@ object DurationEstimator {
             append(" — ${"%.0f".format(feet)} ft")
             if (corners > 0) append(", $corners corners")
             if (gates > 0) append(", $gates gate${if (gates == 1) "" else "s"}")
+            if (trees > 0) append(", $trees tree${if (trees == 1) "" else "s"}")
+            if (obstacles > 0) append(", $obstacles obstacle${if (obstacles == 1) "" else "s"}")
             if (teardownHours > 0) append(", teardown")
         }
     }
 
-    fun estimate(job: Job, runs: List<FenceRun>, pixelsPerFoot: Float): Breakdown {
+    /**
+     * @param markers site markers on this job. Trees and obstacles on the fence
+     *   line are real hours -- a tree the crew has to work around or clear is
+     *   not free, and pretending it is produces a schedule that slips on the
+     *   first job with a hedge in the way.
+     */
+    fun estimate(
+        job: Job,
+        runs: List<FenceRun>,
+        pixelsPerFoot: Float,
+        rates: Rates = Rates(),
+        markers: List<com.fenceestimator.app.data.SiteMarker> = emptyList()
+    ): Breakdown {
         var feet = 0.0
         var corners = 0
         var gates = 0
@@ -96,17 +121,32 @@ object DurationEstimator {
             corners += if (usingManual) run.manualCornerCount else geometry!!.cornerCount
             gates += runGates
 
-            // Scale this run's footage against the baseline rate, weighted by
-            // how labour-intensive its fence type is.
-            weightedFenceHours += (runFeet / BASELINE_FEET) * BASELINE_HOURS * typeFactor(run.fenceType)
+            // Scale this run's footage against this company's own rate, weighted
+            // by how labour-intensive its fence type is.
+            weightedFenceHours +=
+                (runFeet / rates.feetPerDay.coerceAtLeast(1.0)) *
+                    rates.installHoursPerDay * typeFactor(run.fenceType)
         }
 
-        val cornerHours = corners * HOURS_PER_CORNER
-        val gateHours = gates * HOURS_PER_GATE
-        val teardownHours = if (job.teardownEnabled) feet * TEARDOWN_HOURS_PER_FOOT else 0.0
+        // Only markers that actually cost time. A house or a driveway is drawn
+        // for orientation; a tree or a slope is work.
+        val trees = markers.count { it.kind == com.fenceestimator.app.data.SiteMarkerKind.TREE }
+        val obstacles = markers.count {
+            it.kind in setOf(
+                com.fenceestimator.app.data.SiteMarkerKind.OBSTACLE,
+                com.fenceestimator.app.data.SiteMarkerKind.SLOPE,
+                com.fenceestimator.app.data.SiteMarkerKind.EXISTING_FENCE
+            )
+        }
+
+        val cornerHours = corners * rates.hoursPerCorner
+        val gateHours = gates * rates.hoursPerGate
+        val obstacleHours = trees * rates.hoursPerTree + obstacles * rates.hoursPerObstacle
+        val teardownHours = if (job.teardownEnabled) feet * rates.teardownHoursPerFoot else 0.0
 
         val raw = if (feet <= 0.0) 0.0
-        else SETUP_HOURS + weightedFenceHours + cornerHours + gateHours + teardownHours
+        else rates.setupHours + weightedFenceHours + cornerHours + gateHours +
+            obstacleHours + teardownHours
         // Two decimals. A figure like 12.833333 hours reads as false precision
         // on an estimate that is a rule of thumb to begin with.
         val total = kotlin.math.round(raw * 100.0) / 100.0
@@ -116,6 +156,10 @@ object DurationEstimator {
             feet = feet,
             corners = corners,
             gates = gates,
+            obstacleHours = obstacleHours,
+            trees = trees,
+            obstacles = obstacles,
+            installHoursPerDay = rates.installHoursPerDay,
             fenceHours = weightedFenceHours,
             cornerHours = cornerHours,
             gateHours = gateHours,

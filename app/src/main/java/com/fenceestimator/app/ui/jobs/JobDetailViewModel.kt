@@ -191,6 +191,10 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         }
     }
 
+    val siteMarkers: StateFlow<List<com.fenceestimator.app.data.SiteMarker>> =
+        repository.observeSiteMarkers(jobId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val fieldChanges: StateFlow<List<com.fenceestimator.app.data.FieldChange>> =
         repository.observeFieldChanges(jobId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

@@ -77,6 +77,28 @@ data class BusinessProfile(
     val defaultPanelHeightFt: Float = 6f,
     val defaultMinimumJobCharge: Double = 200.0,
     val defaultToolsListCsv: String = "Post hole digger,4' level,Drill/driver,Circular saw,Tape measure,Post level,Wheelbarrow,Safety glasses,Gloves,String line",
+
+    // ---- How fast this company actually works ----
+    // Every crew is different, and a schedule built on someone else's numbers
+    // is a schedule that slips. These drive the duration estimate.
+    /** Feet of standard fence this crew installs in one working day. */
+    val feetPerDay: Double = 125.0,
+    /** Length of a working day before breaks. */
+    val workdayHours: Double = 8.0,
+    /** Unpaid break time in a day -- real hours that aren't install hours. */
+    val breakHoursPerDay: Double = 1.0,
+    /** Hanging and squaring one gate. Slow, fiddly work regardless of width. */
+    val hoursPerGate: Double = 1.5,
+    /** Clearing one tree or stump off the fence line. */
+    val hoursPerTree: Double = 0.25,
+    /** Working around an obstacle that isn't a tree -- rock, a shed, a slope. */
+    val hoursPerObstacle: Double = 0.5,
+    /** Extra layout, bracing and a deeper hole at each corner. */
+    val hoursPerCorner: Double = 0.4,
+    /** Mobilising, unloading and the final walkthrough, whatever the size. */
+    val setupHours: Double = 1.0,
+    /** Pulling and hauling off an old fence, per foot. */
+    val teardownHoursPerFoot: Double = 0.02,
     val preferredManufacturerId: Long = 0L,
     val orderEmailTemplate: String = DEFAULT_ORDER_TEMPLATE,
     val hoaEmailTemplate: String = DEFAULT_HOA_TEMPLATE,
@@ -131,6 +153,16 @@ class SettingsStore(private val context: Context) {
         val BIOMETRIC_UNLOCK = booleanPreferencesKey("biometric_unlock")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val LANGUAGE = stringPreferencesKey("language")
+        // How fast this crew works -- drives every duration estimate.
+        val FEET_PER_DAY = doublePreferencesKey("feet_per_day")
+        val WORKDAY_HOURS = doublePreferencesKey("workday_hours")
+        val BREAK_HOURS = doublePreferencesKey("break_hours")
+        val HOURS_PER_GATE = doublePreferencesKey("hours_per_gate")
+        val HOURS_PER_TREE = doublePreferencesKey("hours_per_tree")
+        val HOURS_PER_OBSTACLE = doublePreferencesKey("hours_per_obstacle")
+        val HOURS_PER_CORNER = doublePreferencesKey("hours_per_corner")
+        val SETUP_HOURS = doublePreferencesKey("setup_hours")
+        val TEARDOWN_HOURS_FT = doublePreferencesKey("teardown_hours_ft")
     }
 
     val profile: Flow<BusinessProfile> = context.dataStore.data.map { prefs ->
@@ -146,6 +178,15 @@ class SettingsStore(private val context: Context) {
             defaultPostSpacingFt = prefs[Keys.POST_SPACING] ?: 6f,
             defaultConcreteBagsPerPost = prefs[Keys.CONCRETE_BAGS] ?: 1f,
             defaultLaborRatePerFt = prefs[Keys.LABOR_RATE] ?: 8.0,
+            feetPerDay = prefs[Keys.FEET_PER_DAY] ?: 125.0,
+            workdayHours = prefs[Keys.WORKDAY_HOURS] ?: 8.0,
+            breakHoursPerDay = prefs[Keys.BREAK_HOURS] ?: 1.0,
+            hoursPerGate = prefs[Keys.HOURS_PER_GATE] ?: 1.5,
+            hoursPerTree = prefs[Keys.HOURS_PER_TREE] ?: 0.25,
+            hoursPerObstacle = prefs[Keys.HOURS_PER_OBSTACLE] ?: 0.5,
+            hoursPerCorner = prefs[Keys.HOURS_PER_CORNER] ?: 0.4,
+            setupHours = prefs[Keys.SETUP_HOURS] ?: 1.0,
+            teardownHoursPerFoot = prefs[Keys.TEARDOWN_HOURS_FT] ?: 0.02,
             defaultPanelWidthFt = prefs[Keys.PANEL_WIDTH] ?: 6f,
             defaultPanelHeightFt = prefs[Keys.PANEL_HEIGHT] ?: 6f,
             defaultMinimumJobCharge = prefs[Keys.MIN_JOB_CHARGE] ?: 200.0,
@@ -176,6 +217,15 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.POST_SPACING] = profile.defaultPostSpacingFt
             prefs[Keys.CONCRETE_BAGS] = profile.defaultConcreteBagsPerPost
             prefs[Keys.LABOR_RATE] = profile.defaultLaborRatePerFt
+            prefs[Keys.FEET_PER_DAY] = profile.feetPerDay
+            prefs[Keys.WORKDAY_HOURS] = profile.workdayHours
+            prefs[Keys.BREAK_HOURS] = profile.breakHoursPerDay
+            prefs[Keys.HOURS_PER_GATE] = profile.hoursPerGate
+            prefs[Keys.HOURS_PER_TREE] = profile.hoursPerTree
+            prefs[Keys.HOURS_PER_OBSTACLE] = profile.hoursPerObstacle
+            prefs[Keys.HOURS_PER_CORNER] = profile.hoursPerCorner
+            prefs[Keys.SETUP_HOURS] = profile.setupHours
+            prefs[Keys.TEARDOWN_HOURS_FT] = profile.teardownHoursPerFoot
             prefs[Keys.PANEL_WIDTH] = profile.defaultPanelWidthFt
             prefs[Keys.PANEL_HEIGHT] = profile.defaultPanelHeightFt
             prefs[Keys.MIN_JOB_CHARGE] = profile.defaultMinimumJobCharge

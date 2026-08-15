@@ -282,6 +282,65 @@ fun SettingsScreen(
                 }
             }
             item {
+                SectionCard("How Fast Your Crew Works") {
+                    Text(
+                        "These drive the estimated hours on every job, and whether it warns you " +
+                            "that a date can't be finished. Every crew is different — a schedule " +
+                            "built on someone else's numbers is a schedule that slips.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "ftday", label = "Feet per day", initialValue = local.feetPerDay.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(feetPerDay = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "workday", label = "Hours per day", initialValue = local.workdayHours.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(workdayHours = it.toDouble())
+                        }
+                    }
+                    DraftNumberField(stableKey = "breaks", label = "Break hours per day (lunch etc.)", initialValue = local.breakHoursPerDay.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                        local = local.copy(breakHoursPerDay = it.toDouble())
+                    }
+                    Text(
+                        "Breaks come off the working day, so ${"%.1f".format(
+                            (local.workdayHours - local.breakHoursPerDay).coerceAtLeast(1.0)
+                        )} hours a day are actual install time.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "gatehrs", label = "Hours per gate", initialValue = local.hoursPerGate.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerGate = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "cornerhrs", label = "Hours per corner", initialValue = local.hoursPerCorner.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerCorner = it.toDouble())
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "treehrs", label = "Hours per tree", initialValue = local.hoursPerTree.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerTree = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "obshrs", label = "Hours per obstacle", initialValue = local.hoursPerObstacle.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerObstacle = it.toDouble())
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "setuphrs", label = "Setup hours per job", initialValue = local.setupHours.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(setupHours = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "teardownhrs", label = "Teardown hrs/ft", initialValue = local.teardownHoursPerFoot.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(teardownHoursPerFoot = it.toDouble())
+                        }
+                    }
+                    Text(
+                        "Trees and obstacles are counted from the markers placed on the drawing, " +
+                            "so mark them during the walkthrough and the hours follow.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            item {
                 SectionCard("Pricing Tiers & Discounts") {
                     Text(
                         "Used per job to set labor rate, markup, and any discount (family, church, military, commercial, etc).",

@@ -279,7 +279,7 @@ fun JobDetailScreen(
             }
             item(key = SECTION_SCHEDULE) {
                 SectionCard(title = "Schedule & Crew") {
-                    ScheduleFields(currentJob, runs, timeEntries, viewModel)
+                    ScheduleFields(currentJob, runs, timeEntries, profile, viewModel)
                     CrewFields(currentJob, employees, viewModel)
                 }
             }
@@ -372,6 +372,23 @@ fun JobDetailScreen(
  * spells out what goes and makes you type the customer's name -- a dialog you
  * can dismiss with a reflex tap is not a safeguard.
  */
+@Composable
+private fun MoneyLine(label: String, amount: Double, bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+        Text(
+            "$${"%.2f".format(amount)}",
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    }
+}
+
 @Composable
 private fun ConfirmDeleteJobDialog(job: Job, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val expected = job.customerName.trim().ifBlank { "DELETE" }
@@ -640,6 +657,7 @@ private fun ScheduleFields(
     job: Job,
     runs: List<FenceRun>,
     timeEntries: List<com.fenceestimator.app.data.TimeEntry>,
+    profile: BusinessProfile,
     viewModel: JobDetailViewModel
 ) {
     val context = LocalContext.current
@@ -667,8 +685,22 @@ private fun ScheduleFields(
 
     val pxPerFt = job.calibrationPixelsPerFoot
         ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
-    val estimate = remember(job, runs) {
-        com.fenceestimator.app.estimate.DurationEstimator.estimate(job, runs, pxPerFt)
+    val markers by viewModel.siteMarkers.collectAsState()
+    val rates = remember(profile) {
+        com.fenceestimator.app.estimate.DurationEstimator.Rates(
+            feetPerDay = profile.feetPerDay,
+            workdayHours = profile.workdayHours,
+            breakHoursPerDay = profile.breakHoursPerDay,
+            hoursPerGate = profile.hoursPerGate,
+            hoursPerTree = profile.hoursPerTree,
+            hoursPerObstacle = profile.hoursPerObstacle,
+            hoursPerCorner = profile.hoursPerCorner,
+            setupHours = profile.setupHours,
+            teardownHoursPerFoot = profile.teardownHoursPerFoot
+        )
+    }
+    val estimate = remember(job, runs, rates, markers) {
+        com.fenceestimator.app.estimate.DurationEstimator.estimate(job, runs, pxPerFt, rates, markers)
     }
 
     // Keep the stored duration in step with the footage until someone types
@@ -708,6 +740,24 @@ private fun ScheduleFields(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium
         )
+        // Say plainly when one day isn't enough. Booking a customer for a date
+        // the work can't finish by is a promise broken before the crew arrives.
+        if (estimate.days > 1.05) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Text(
+                    "This won't finish in one day — it needs about " +
+                        "${"%.1f".format(estimate.days)} working days at " +
+                        "${"%.1f".format(estimate.installHoursPerDay)} install hours a day. " +
+                        "Book the customer accordingly, or split it across runs.",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
         Text(
             "Based on 125 ft per 8-hour day, adjusted for fence type, corners, gates and teardown.",
             style = MaterialTheme.typography.bodySmall,
@@ -987,10 +1037,76 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     }
     val squareReady = profile.squareAccessToken.isNotBlank() && profile.squareLocationId.isNotBlank()
 
+    // ---- One contract figure, derived from the estimate ----
+    //
+    // The deposit used to be a number typed by hand with nothing checking it
+    // against the estimate, and the payment link billed that. So the customer
+    // could be charged a figure the estimate never said. Everything below hangs
+    // off the estimate total instead, and anything that disagrees with it is
+    // called out rather than quietly billed.
+    val totals by viewModel.contractTotal.collectAsState()
+    val contractTotal = totals.grandTotal
+    val stillOwed = (contractTotal - job.amountPaid).coerceAtLeast(0.0)
+    val depositOverContract = contractTotal > 0.0 && job.depositAmount > contractTotal + 0.005
+    val paidOverContract = contractTotal > 0.0 && job.amountPaid > contractTotal + 0.005
+
+    if (contractTotal > 0.0) {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                MoneyLine("Contract total (from the estimate)", contractTotal)
+                MoneyLine("Paid so far", job.amountPaid)
+                MoneyLine("Still owed", stillOwed, bold = true)
+                if (totals.changeOrderCost > 0.0) {
+                    Text(
+                        "Includes $${"%.2f".format(totals.changeOrderCost)} of approved extra work.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+        if (depositOverContract || paidOverContract) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Text(
+                    if (paidOverContract)
+                        "Paid ($${"%.2f".format(job.amountPaid)}) is more than the contract total " +
+                            "($${"%.2f".format(contractTotal)}). Either the estimate is out of date or " +
+                            "the customer has been overcharged."
+                    else
+                        "The deposit ($${"%.2f".format(job.depositAmount)}) is more than the whole " +
+                            "contract ($${"%.2f".format(contractTotal)}).",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+
     // Stripe runs through the backend, so there is no key on this phone to set
-    // up and nothing to leak if the phone is lost. Ask for the balance if we
-    // know one, otherwise the deposit.
-    val requestAmount = if (balanceDue > 0.0) balanceDue else job.depositAmount
+    // up and nothing to leak if the phone is lost.
+    //
+    // What to charge, in the order a job actually goes: the unpaid part of the
+    // deposit first, then whatever the estimate says is still owed. Falling
+    // back to the deposit alone was how a final payment could be billed at the
+    // deposit figure instead of the balance.
+    val requestAmount = when {
+        balanceDue > 0.0 -> balanceDue
+        stillOwed > 0.0 -> stillOwed
+        else -> job.depositAmount
+    }
+    val requestLabel = when {
+        balanceDue > 0.0 -> "deposit"
+        stillOwed > 0.0 -> "balance"
+        else -> "deposit"
+    }
     Button(
         onClick = {
             scope.launch {
@@ -1021,7 +1137,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         Text(
             when {
                 creatingLink -> "Creating link..."
-                requestAmount >= 0.50 -> "Request $${"%.2f".format(requestAmount)} by Card"
+                requestAmount >= 0.50 -> "Request $${"%.2f".format(requestAmount)} $requestLabel by Card"
                 else -> "Request Payment by Card"
             }
         )
