@@ -1,11 +1,14 @@
 package com.fenceestimator.app.cloud
 
+import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.Expense
 import com.fenceestimator.app.data.ExpenseCategory
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
+import com.fenceestimator.app.data.JobStep
+import com.fenceestimator.app.data.JobStepKind
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.data.MaterialCategory
 import com.fenceestimator.app.data.MaterialItem
@@ -13,6 +16,8 @@ import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.data.PricingTier
 import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
+import com.fenceestimator.app.data.SiteMarker
+import com.fenceestimator.app.data.SiteMarkerKind
 import com.fenceestimator.app.data.TimeEntry
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
@@ -428,6 +433,94 @@ object EntitySync {
                 PunchListItem(
                     syncId = row.syncId, jobId = jobId,
                     description = row.description, resolved = row.resolved
+                )
+            )
+            added++
+        }
+
+        // These four were pushed but never pulled back, so switching phones lost
+        // signed change orders and clocked hours -- money and payroll records --
+        // along with job checklists and site markers.
+
+        val orders = SupabaseModule.client.postgrest.from("change_orders")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudChangeOrder>()
+        val knownOrders = jobIdBySyncId.values
+            .flatMap { repository.getChangeOrders(it) }.map { it.syncId }.toSet()
+        orders.filter { it.syncId !in knownOrders }.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            repository.saveChangeOrder(
+                ChangeOrder(
+                    syncId = row.syncId, jobId = jobId,
+                    description = row.description,
+                    additionalFeet = row.additionalFeet,
+                    additionalCost = row.additionalCost,
+                    materialCost = row.materialCost,
+                    // The signature image itself is a local file that isn't
+                    // synced yet, so only the fact and date of signing survive.
+                    signedAt = row.signedAt?.let { at ->
+                        runCatching { Instant.parse(at).toEpochMilli() }.getOrNull()
+                    }
+                )
+            )
+            added++
+        }
+
+        val times = SupabaseModule.client.postgrest.from("time_entries")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudTimeEntry>()
+        val knownTimes = jobIdBySyncId.values
+            .flatMap { repository.getTimeEntries(it) }.map { it.syncId }.toSet()
+        times.filter { it.syncId !in knownTimes }.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            val startedAt = runCatching { Instant.parse(row.startedAt).toEpochMilli() }.getOrNull()
+                ?: return@forEach
+            repository.insertTimeEntry(
+                TimeEntry(
+                    syncId = row.syncId, jobId = jobId,
+                    startedAt = startedAt,
+                    endedAt = row.endedAt?.let { at ->
+                        runCatching { Instant.parse(at).toEpochMilli() }.getOrNull()
+                    },
+                    hourlyRate = row.hourlyRate, notes = row.notes
+                )
+            )
+            added++
+        }
+
+        val steps = SupabaseModule.client.postgrest.from("job_steps")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudJobStep>()
+        val knownSteps = jobIdBySyncId.values
+            .flatMap { repository.getJobSteps(it) }.map { it.syncId }.toSet()
+        steps.filter { it.syncId !in knownSteps }.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            repository.insertJobStep(
+                JobStep(
+                    syncId = row.syncId, jobId = jobId,
+                    kind = runCatching { JobStepKind.valueOf(row.kind) }
+                        .getOrDefault(JobStepKind.INSTALL),
+                    description = row.description, checked = row.checked,
+                    verifiedWithCustomer = row.verifiedWithCustomer,
+                    sortOrder = row.sortOrder
+                )
+            )
+            added++
+        }
+
+        val markers = SupabaseModule.client.postgrest.from("site_markers")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudSiteMarker>()
+        val knownMarkers = jobIdBySyncId.values
+            .flatMap { repository.getSiteMarkers(it) }.map { it.syncId }.toSet()
+        markers.filter { it.syncId !in knownMarkers }.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            repository.addSiteMarker(
+                SiteMarker(
+                    syncId = row.syncId, jobId = jobId,
+                    kind = runCatching { SiteMarkerKind.valueOf(row.kind) }
+                        .getOrDefault(SiteMarkerKind.OBSTACLE),
+                    x = row.x, y = row.y, label = row.label
                 )
             )
             added++

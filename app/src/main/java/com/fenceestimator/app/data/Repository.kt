@@ -208,6 +208,10 @@ class Repository(private val db: AppDatabase) {
     fun observeJobSteps(jobId: Long): Flow<List<JobStep>> = jobStepDao.observeForJob(jobId)
     suspend fun updateJobStep(step: JobStep) = jobStepDao.update(step)
 
+    /** Used by cloud pull to restore records made on another phone. */
+    suspend fun insertJobStep(step: JobStep): Long = jobStepDao.insert(step)
+    suspend fun insertTimeEntry(entry: TimeEntry): Long = timeEntryDao.insert(entry)
+
     /** Seeds the standard walkthrough + install checklists the first time a job's crew view is opened. */
     suspend fun ensureJobStepsSeeded(jobId: Long) {
         if (jobStepDao.countForJob(jobId) > 0) return

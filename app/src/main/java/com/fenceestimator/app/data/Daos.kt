@@ -321,6 +321,9 @@ interface JobStepDao {
     @Insert
     suspend fun insertAll(steps: List<JobStep>)
 
+    @Insert
+    suspend fun insert(step: JobStep): Long
+
     @Update
     suspend fun update(step: JobStep)
 }
