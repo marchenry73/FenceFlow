@@ -124,6 +124,12 @@ data class Job(
     // Scheduling
     val scheduledDate: Long? = null,
     val estimatedDurationHours: Double = 4.0,
+    /**
+     * True once someone types their own duration. Until then the estimate
+     * tracks the footage automatically -- changing the length and watching the
+     * hours stay put is indistinguishable from the calculation being broken.
+     */
+    val durationManuallySet: Boolean = false,
 
     // Payment / invoice
     val depositAmount: Double = 0.0,

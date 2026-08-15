@@ -407,10 +407,15 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Straighten, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Text(
-                                text = if (pxPerFt != null)
-                                    "  ${String.format("%.1f", geometry.totalLinearFeet)} ft total  |  ${geometry.cornerCount} corners  |  ${gates.size} gate(s)"
-                                else
-                                    "  Not calibrated yet -- use Calibrate mode to set scale",
+                                // The grid has its own known scale, so there is
+                                // nothing to calibrate and nothing to warn about.
+                                // Only a survey photo can be missing a scale.
+                                text = when {
+                                    pxPerFt != null ->
+                                        "  ${String.format("%.1f", geometry.totalLinearFeet)} ft total  |  ${geometry.cornerCount} corners  |  ${gates.size} gate(s)"
+                                    usingGrid -> "  Draw the fence line -- the grid is already to scale"
+                                    else -> "  Tap Calibrate, then tap two points a known distance apart"
+                                },
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }

@@ -60,7 +60,7 @@ object DurationEstimator {
         val days: Double get() = totalHours / 8.0
 
         fun summary(): String = buildString {
-            append("${"%.1f".format(totalHours)} hrs")
+            append("${"%.2f".format(totalHours)} hrs")
             if (days > 1.2) append(" (~${"%.1f".format(days)} days)")
             append(" — ${"%.0f".format(feet)} ft")
             if (corners > 0) append(", $corners corners")
@@ -76,15 +76,24 @@ object DurationEstimator {
         var weightedFenceHours = 0.0
 
         runs.forEach { run ->
-            val points = FenceCodec.decodePoints(run.pointsEncoded)
-            if (points.size < 2) return@forEach
+            // Typed-in footage counts the same as a drawing. This used to look
+            // at the drawing only, so a run quoted by typing its length produced
+            // no hours at all -- and changing that length changed nothing.
+            val manual = run.manualLinearFeet
+            val usingManual = manual != null && manual > 0f
 
-            val geometry = FenceGeometryEngine.analyze(points, pixelsPerFoot, run.closedLoop)
-            val runFeet = geometry.totalLinearFeet.toDouble()
+            val points = FenceCodec.decodePoints(run.pointsEncoded)
+            if (!usingManual && points.size < 2) return@forEach
+
+            val geometry = if (usingManual) null
+            else FenceGeometryEngine.analyze(points, pixelsPerFoot, run.closedLoop)
+
+            val runFeet = if (usingManual) manual!!.toDouble()
+            else geometry!!.totalLinearFeet.toDouble()
             val runGates = FenceCodec.decodeGates(run.gatesEncoded).size
 
             feet += runFeet
-            corners += geometry.cornerCount
+            corners += if (usingManual) run.manualCornerCount else geometry!!.cornerCount
             gates += runGates
 
             // Scale this run's footage against the baseline rate, weighted by
@@ -96,8 +105,11 @@ object DurationEstimator {
         val gateHours = gates * HOURS_PER_GATE
         val teardownHours = if (job.teardownEnabled) feet * TEARDOWN_HOURS_PER_FOOT else 0.0
 
-        val total = if (feet <= 0.0) 0.0
+        val raw = if (feet <= 0.0) 0.0
         else SETUP_HOURS + weightedFenceHours + cornerHours + gateHours + teardownHours
+        // Two decimals. A figure like 12.833333 hours reads as false precision
+        // on an estimate that is a rule of thumb to begin with.
+        val total = kotlin.math.round(raw * 100.0) / 100.0
 
         return Breakdown(
             totalHours = total,

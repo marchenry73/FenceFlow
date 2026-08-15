@@ -60,6 +60,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -576,10 +578,36 @@ private fun ScheduleFields(
         com.fenceestimator.app.estimate.DurationEstimator.estimate(job, runs, pxPerFt)
     }
 
+    // Keep the stored duration in step with the footage until someone types
+    // their own. Without this, changing the length left the hours frozen.
+    LaunchedEffect(estimate.totalHours, job.durationManuallySet) {
+        if (!job.durationManuallySet &&
+            estimate.totalHours > 0.0 &&
+            kotlin.math.abs(estimate.totalHours - job.estimatedDurationHours) > 0.005
+        ) {
+            viewModel.update { j -> j.copy(estimatedDurationHours = estimate.totalHours) }
+        }
+    }
+
     DraftNumberField(
         stableKey = job.id, label = "Estimated duration (hours)", initialValue = job.estimatedDurationHours.toFloat(),
         modifier = Modifier.fillMaxWidth()
-    ) { viewModel.update { j -> j.copy(estimatedDurationHours = it.toDouble()) } }
+    ) { viewModel.update { j -> j.copy(estimatedDurationHours = it.toDouble(), durationManuallySet = true) } }
+    if (job.durationManuallySet) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Set by hand -- it won't follow the footage any more.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = {
+                viewModel.update { j ->
+                    j.copy(durationManuallySet = false, estimatedDurationHours = estimate.totalHours)
+                }
+            }) { Text("Recalculate") }
+        }
+    }
 
     if (estimate.totalHours > 0.0) {
         Text(
