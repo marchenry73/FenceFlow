@@ -26,7 +26,12 @@ private data class PaymentLinkRequest(
 )
 
 @Serializable
-private data class PaymentLinkResponse(val url: String? = null, val error: String? = null)
+private data class PaymentLinkResponse(
+    val url: String? = null,
+    val error: String? = null,
+    /** True when this link will charge a real card. */
+    val livemode: Boolean = false
+)
 
 /**
  * Asks the backend to create a Stripe payment link for a job.
@@ -51,7 +56,8 @@ object PaymentsApi {
     }
 
     sealed interface Result {
-        data class Ok(val url: String) : Result
+        /** @param liveMode true when this link charges a real card, not a test one. */
+        data class Ok(val url: String, val liveMode: Boolean) : Result
         data class Failed(val reason: String) : Result
     }
 
@@ -104,7 +110,7 @@ object PaymentsApi {
             val parsed = runCatching { json.decodeFromString(PaymentLinkResponse.serializer(), text) }.getOrNull()
 
             when {
-                parsed?.url != null -> Result.Ok(parsed.url)
+                parsed?.url != null -> Result.Ok(parsed.url, parsed.livemode)
                 parsed?.error != null -> Result.Failed(parsed.error)
                 // Include the status and body so an unexpected reply is
                 // diagnosable instead of collapsing into a generic sentence.

@@ -112,7 +112,11 @@ Deno.serve(async (req) => {
     });
     if (insertError) throw new Error(insertError.message);
 
-    return json({ url: link.url, id: link.id });
+    // Report which mode the key is operating in. Test and live keys behave
+    // identically right up until a real card is charged, and the only visible
+    // difference is a test card being declined -- which reads like a broken
+    // integration, not like "this is billing real money".
+    return json({ url: link.url, id: link.id, livemode: link.livemode === true });
   } catch (e) {
     return json({ error: String(e instanceof Error ? e.message : e) }, 400);
   }

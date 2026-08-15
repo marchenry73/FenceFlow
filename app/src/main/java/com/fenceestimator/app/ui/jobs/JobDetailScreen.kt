@@ -856,6 +856,9 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var creatingLink by remember { mutableStateOf(false) }
     var linkError by remember { mutableStateOf<String?>(null) }
+    // Null until a link is made this session: test and live links look identical,
+    // and the difference is whether a real card gets charged.
+    var liveLink by remember { mutableStateOf<Boolean?>(null) }
 
     val balanceDue = (job.amountPaid).let { paid ->
         // Deposit is what we can bill for with confidence before the estimate is final.
@@ -881,8 +884,11 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 )
                 creatingLink = false
                 when (result) {
-                    is PaymentsApi.Result.Ok -> viewModel.update { j ->
-                        j.copy(paymentLinkUrl = result.url, paymentLinkAmount = requestAmount)
+                    is PaymentsApi.Result.Ok -> {
+                        liveLink = result.liveMode
+                        viewModel.update { j ->
+                            j.copy(paymentLinkUrl = result.url, paymentLinkAmount = requestAmount)
+                        }
                     }
                     is PaymentsApi.Result.Failed -> linkError = result.reason
                 }
@@ -908,6 +914,29 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.error
         )
+    }
+    liveLink?.let { isLive ->
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isLive) MaterialTheme.colorScheme.errorContainer
+                else MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
+            Text(
+                if (isLive)
+                    "LIVE MODE -- this link charges a real card and moves real money. " +
+                        "Test cards will be declined."
+                else
+                    "TEST MODE -- no real money moves. Pay it with 4242 4242 4242 4242.",
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = if (isLive) MaterialTheme.colorScheme.onErrorContainer
+                else MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+        Spacer(Modifier.height(8.dp))
     }
     Text(
         "Creates a Stripe checkout link. The money goes to your Stripe account -- " +
