@@ -9,14 +9,13 @@
 -- ============================================================
 
 -- ---------- 1. New roles ----------
--- SALES, ACCOUNTANT and FOREMAN join the original three.
-do $$
-begin
-    alter type user_role add value if not exists 'SALES';
-    alter type user_role add value if not exists 'ACCOUNTANT';
-    alter type user_role add value if not exists 'FOREMAN';
-exception when others then null;
-end $$;
+-- These MUST be top-level statements. Postgres refuses ALTER TYPE ... ADD
+-- VALUE from inside a function or DO block, and wrapping them in one with an
+-- exception handler hid that failure completely -- the script reported
+-- success while the roles were never created.
+alter type user_role add value if not exists 'SALES';
+alter type user_role add value if not exists 'ACCOUNTANT';
+alter type user_role add value if not exists 'FOREMAN';
 
 -- ---------- 2. Helper: what is the caller allowed to be? ----------
 create or replace function my_role()
