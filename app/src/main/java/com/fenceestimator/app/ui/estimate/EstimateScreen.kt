@@ -374,6 +374,13 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: Numbe
                     "-" + currency.format(totals.discountAmount)
                 )
             }
+            if (totals.changeOrderCost > 0.0 || totals.changeOrderFeet > 0.0) {
+                TotalRow(
+                    "Approved extra work" +
+                        if (totals.changeOrderFeet > 0.0) " (+${"%.0f".format(totals.changeOrderFeet)} ft)" else "",
+                    currency.format(totals.changeOrderCost)
+                )
+            }
             Divider(modifier = Modifier.padding(vertical = 8.dp))
             TotalRow("TOTAL", currency.format(totals.grandTotal), bold = true)
             if (job != null && totals.grandTotal <= job!!.minimumJobCharge && job!!.minimumJobCharge > 0.0) {

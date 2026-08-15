@@ -1,7 +1,10 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.data.ChangeOrder
+import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
+import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.MaterialCategory
 import com.fenceestimator.app.data.MaterialItem
 import com.fenceestimator.app.data.MaterialRole
@@ -182,6 +185,64 @@ class EstimateEngineTest {
         assertTrue(built.items.isEmpty())
         assertTrue(built.unmatchedRoles.contains(MaterialRole.LINE_POST))
         assertTrue(built.unmatchedRoles.contains(MaterialRole.PANEL))
+    }
+
+    @Test
+    fun `generating twice produces identical sync ids, so nothing can duplicate`() {
+        val run = vinylRun(feet = 80f, gates = listOf(GateMarker(0f, 0f, 4f)))
+        val catalog = listOf(
+            MaterialItem(
+                category = MaterialCategory.POST, role = MaterialRole.LINE_POST,
+                fenceType = FenceType.VINYL, name = "Post", unitPrice = 16.56
+            ),
+            MaterialItem(
+                category = MaterialCategory.PANEL, role = MaterialRole.PANEL,
+                fenceType = FenceType.VINYL, name = "Panel", unitPrice = 52.35, coversFt = 6f
+            )
+        )
+
+        val first = EstimateEngine.buildLineItems(
+            1, 1, run, EstimateEngine.suggestQuantities(run, 0f), catalog, null
+        ).items
+        val second = EstimateEngine.buildLineItems(
+            1, 1, run, EstimateEngine.suggestQuantities(run, 0f), catalog, null
+        ).items
+
+        assertEquals(first.map { it.syncId }, second.map { it.syncId })
+        // Unique per line, so an upsert replaces rather than appends.
+        assertEquals(first.size, first.map { it.syncId }.distinct().size)
+    }
+
+    @Test
+    fun `change orders move the total`() {
+        val job = Job(customerName = "Test", laborRatePerFt = 10.0, taxRatePercent = 0.0)
+        val items = listOf(
+            EstimateLineItem(jobId = 1, description = "Panels", quantity = 10.0, unitPrice = 50.0)
+        )
+
+        val before = EstimateEngine.computeTotals(job, items, 100f)
+        val after = EstimateEngine.computeTotals(
+            job, items, 100f,
+            listOf(ChangeOrder(jobId = 1, additionalFeet = 30.0, additionalCost = 400.0))
+        )
+
+        // 400 of extra cost, plus 30 more feet at the same $10/ft labor rate.
+        assertEquals(before.grandTotal + 400.0 + 300.0, after.grandTotal, 0.001)
+        assertEquals(400.0, after.changeOrderCost, 0.001)
+        assertEquals(30.0, after.changeOrderFeet, 0.001)
+    }
+
+    @Test
+    fun `no change orders leaves the total exactly as it was`() {
+        val job = Job(customerName = "Test", laborRatePerFt = 10.0)
+        val items = listOf(
+            EstimateLineItem(jobId = 1, description = "Panels", quantity = 10.0, unitPrice = 50.0)
+        )
+        assertEquals(
+            EstimateEngine.computeTotals(job, items, 100f).grandTotal,
+            EstimateEngine.computeTotals(job, items, 100f, emptyList()).grandTotal,
+            0.001
+        )
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
@@ -339,6 +340,11 @@ object EstimateEngine {
 
             items.add(
                 EstimateLineItem(
+                    // Same run + same role always lands on the same sync id, so
+                    // regenerating overwrites the cloud row instead of adding a
+                    // second one next to it. Roles are unique per run after the
+                    // merge above, so this can't collide.
+                    syncId = "${run.syncId}:${entry.role.name}",
                     jobId = jobId,
                     fenceRunId = fenceRunId,
                     sortOrder = order++,
@@ -364,17 +370,37 @@ object EstimateEngine {
         val teardownCost: Double,
         val markupAmount: Double,
         val discountAmount: Double,
-        val grandTotal: Double
+        val grandTotal: Double,
+        /** Approved extra work, already included in [grandTotal]. */
+        val changeOrderCost: Double = 0.0,
+        val changeOrderFeet: Double = 0.0
     )
 
-    fun computeTotals(job: Job, lineItems: List<EstimateLineItem>, totalLinearFeet: Float): Totals {
+    /**
+     * @param changeOrders extra work agreed after the original quote. Their feet
+     *   are billed at the same labor rate as the rest of the job, and their cost
+     *   is added on top -- a change order that doesn't move the total is just a
+     *   note, and the whole point of one is that the customer owes more.
+     */
+    fun computeTotals(
+        job: Job,
+        lineItems: List<EstimateLineItem>,
+        totalLinearFeet: Float,
+        changeOrders: List<ChangeOrder> = emptyList()
+    ): Totals {
         val materialsSubtotal = lineItems.sumOf { it.quantity * it.unitPrice }
         val taxableSubtotal = lineItems.filter { it.taxable }.sumOf { it.quantity * it.unitPrice }
         val tax = taxableSubtotal * (job.taxRatePercent / 100.0)
-        val laborCost = job.laborFlatFee + (job.laborRatePerFt * totalLinearFeet)
-        val teardownCost = if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * totalLinearFeet else 0.0
 
-        val preMarkup = materialsSubtotal + tax + laborCost + teardownCost
+        val changeOrderCost = changeOrders.sumOf { it.additionalCost }
+        val changeOrderFeet = changeOrders.sumOf { it.additionalFeet }
+        val billableFeet = totalLinearFeet + changeOrderFeet
+
+        val laborCost = job.laborFlatFee + (job.laborRatePerFt * billableFeet)
+        val teardownCost =
+            if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * billableFeet else 0.0
+
+        val preMarkup = materialsSubtotal + tax + laborCost + teardownCost + changeOrderCost
         val markupAmount = preMarkup * (job.markupPercent / 100.0)
         val afterMarkup = preMarkup + markupAmount
 
@@ -383,7 +409,10 @@ object EstimateEngine {
 
         val grandTotal = maxOf(afterDiscount, job.minimumJobCharge)
 
-        return Totals(materialsSubtotal, taxableSubtotal, tax, laborCost, teardownCost, markupAmount, discountAmount, grandTotal)
+        return Totals(
+            materialsSubtotal, taxableSubtotal, tax, laborCost, teardownCost,
+            markupAmount, discountAmount, grandTotal, changeOrderCost, changeOrderFeet
+        )
     }
 
     private val POST_ROLES = setOf(MaterialRole.LINE_POST, MaterialRole.CORNER_POST, MaterialRole.END_POST, MaterialRole.GATE_POST)

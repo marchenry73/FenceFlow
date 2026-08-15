@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.BusinessProfile
+import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
@@ -55,10 +56,15 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
      * items changed -- which is exactly why the materials total sat at $0 and
      * "sometimes went back to 0" depending on what else happened to redraw.
      */
+    val changeOrders: StateFlow<List<ChangeOrder>> = repository.observeChangeOrders(jobId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val totals: StateFlow<EstimateEngine.Totals> =
-        combine(job, lineItems, runs) { currentJob, items, currentRuns ->
+        combine(job, lineItems, runs, changeOrders) { currentJob, items, currentRuns, orders ->
             if (currentJob == null) EMPTY_TOTALS
-            else EstimateEngine.computeTotals(currentJob, items, feetAcross(currentJob, currentRuns))
+            else EstimateEngine.computeTotals(
+                currentJob, items, feetAcross(currentJob, currentRuns), orders
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 
     /** Total footage across runs, counting typed-in lengths as well as drawn ones. */

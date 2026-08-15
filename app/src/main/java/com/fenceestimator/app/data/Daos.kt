@@ -136,6 +136,9 @@ interface EstimateLineItemDao {
     @Query("DELETE FROM estimate_line_items WHERE fenceRunId = :runId AND role IS NOT NULL")
     suspend fun deleteGeneratedForRun(runId: Long)
 
+    @Query("SELECT * FROM estimate_line_items WHERE fenceRunId = :runId AND role IS NOT NULL")
+    suspend fun getGeneratedForRun(runId: Long): List<EstimateLineItem>
+
     /**
      * Delete and re-insert as one unit. Two quick taps on Suggest Quantities
      * used to interleave -- both deletes ran, then both inserts -- which is the
