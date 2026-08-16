@@ -109,6 +109,10 @@ Deno.serve(async (req) => {
       status: "pending",
       payment_url: link.url,
       stripe_id: link.id,
+      // Recorded at creation, not inferred later. Whether this is real money
+      // is a property of the key that made the link, and a job's balance is
+      // summed within one mode so a test payment can never credit a live job.
+      livemode: link.livemode === true,
     });
     if (insertError) throw new Error(insertError.message);
 

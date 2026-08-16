@@ -71,11 +71,22 @@ async function applyPaymentToJob(admin: any, payment: any) {
     .maybeSingle();
   if (!job) return;
 
+  // Within one Stripe mode only.
+  //
+  // Test and live payments live in the same table, and summing across both
+  // meant testing the checkout four times on a real job left it reading
+  // $57,240 paid against a $10,595 contract. The direction of that error is
+  // what makes it dangerous: after go-live a test payment would still credit a
+  // real customer as having paid, and the job would show settled with no money
+  // moved. Scoped to the mode of the payment that just cleared.
+  const livemode = payment.livemode === true;
+
   const { data: cleared } = await admin.from("job_payments")
     .select("amount_cents")
     .eq("company_id", payment.company_id)
     .eq("job_sync_id", payment.job_sync_id)
-    .eq("status", "paid");
+    .eq("status", "paid")
+    .eq("livemode", livemode);
 
   const paidDollars =
     (cleared ?? []).reduce((sum: number, r: any) => sum + Number(r.amount_cents || 0), 0) / 100;
@@ -88,6 +99,10 @@ async function applyPaymentToJob(admin: any, payment: any) {
   await admin.from("jobs").update({
     amount_paid: paidDollars,
     payment_status: "DEPOSIT_PAID",
+    // Latches the paid figure read-only in the app. What the processor reports
+    // is the record; typing over it is not a correction, it is a discrepancy
+    // that only surfaces when the customer disputes the bill.
+    payments_from_processor: true,
     updated_at: new Date().toISOString(),
   }).eq("id", job.id);
 
@@ -196,7 +211,7 @@ Deno.serve(async (req) => {
             // webhooks, and adding the same amount twice would silently
             // overstate what the customer has paid.
             const { data: pending } = await admin.from("job_payments")
-              .select("id, job_sync_id, amount_cents, company_id, status")
+              .select("id, job_sync_id, amount_cents, company_id, status, livemode")
               .eq("stripe_id", linkId).maybeSingle();
 
             if (pending && pending.status !== "paid") {

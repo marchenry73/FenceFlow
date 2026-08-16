@@ -15,6 +15,7 @@ import com.fenceestimator.app.data.PricingTier
 import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.EstimateEngine
+import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import kotlinx.coroutines.flow.SharingStarted
@@ -238,9 +239,74 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         val current = job.value ?: return
         val total = contractTotal.value.grandTotal
         if (total <= 0.0) return
-        if (current.paymentStatus == PaymentStatus.PAID_IN_FULL) return
-        if (current.amountPaid + 0.005 < total) return
-        update { it.copy(paymentStatus = PaymentStatus.PAID_IN_FULL) }
+        // Net of refunds. Giving money back has to be able to move a job out of
+        // "paid in full", or a refunded job reads as settled forever.
+        val net = JobMoney.netPaid(current)
+        val settled = net + 0.005 >= total
+        val target = when {
+            settled -> PaymentStatus.PAID_IN_FULL
+            net > 0.005 -> PaymentStatus.DEPOSIT_PAID
+            else -> PaymentStatus.UNPAID
+        }
+        if (current.paymentStatus == target) return
+        // Only a refund may walk the status backwards. Otherwise this never
+        // downgrades: someone who marked a job paid by hand -- cash, a check, a
+        // bank transfer -- had a reason, and quietly undoing it would make the
+        // status untrustworthy.
+        val goingBackwards = target.ordinal < current.paymentStatus.ordinal
+        if (goingBackwards && current.refundedAmount <= 0.005) return
+        update { it.copy(paymentStatus = target) }
+    }
+
+    /**
+     * Records money handed back to the customer.
+     *
+     * Added to a refund total rather than subtracted from what they paid. Sync
+     * keeps the larger of each figure so a race can never erase money, which
+     * means a payment cannot be edited downward -- so a refund is recorded as
+     * its own fact and the two are netted when the balance is shown.
+     *
+     * The amount is capped at what has actually been collected: refunding more
+     * than was ever taken is always a typo, and it would leave the job showing
+     * the customer as owed money that never existed.
+     */
+    fun recordRefund(amount: Double, reason: String) {
+        val current = job.value ?: return
+        if (amount <= 0.0) return
+        val capped = minOf(amount, JobMoney.netPaid(current))
+        if (capped <= 0.0) return
+        update {
+            it.copy(
+                refundedAmount = it.refundedAmount + capped,
+                refundedAt = System.currentTimeMillis(),
+                refundReason = listOf(it.refundReason, reason)
+                    .filter { line -> line.isNotBlank() }
+                    .joinToString("; ")
+            )
+        }
+        // The status has to follow the money straight away, or the job sits at
+        // "paid in full" while the customer is holding a refund.
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(50)
+            reconcilePaymentStatus()
+        }
+    }
+
+    /**
+     * Stamps what the customer actually agreed to, at the moment they agree.
+     *
+     * Without this a signature is just "someone signed something": redraw the
+     * layout afterwards and the old signature silently stands as agreement to a
+     * job that no longer exists.
+     */
+    fun recordSignedTerms() {
+        val totals = contractTotal.value
+        update {
+            it.copy(
+                signedContractTotal = totals.grandTotal,
+                signedLinearFeet = totals.billableLinearFeet
+            )
+        }
     }
 
     /** Stamps that the customer has actually been told why the job is held up. */

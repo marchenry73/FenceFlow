@@ -218,10 +218,42 @@ data class Job(
     val paymentLinkAmount: Double = 0.0,
     /** Tips are tracked separately from the contract so they can go 100% to the installer. */
     val tipAmount: Double = 0.0,
+    /**
+     * Money given back, and the reason.
+     *
+     * Kept as its own running total rather than by subtracting from
+     * [amountPaid], because a cleared payment is a fact that sync refuses to
+     * let go backwards -- the merge rule keeps the larger figure precisely so a
+     * race can't erase money. A refund is a second fact rather than an edit to
+     * the first, so it can be recorded without fighting that rule. Both totals
+     * only ever grow, and what the customer actually owes is the difference.
+     */
+    val refundedAmount: Double = 0.0,
+    val refundedAt: Long? = null,
+    val refundReason: String = "",
+    /**
+     * True once money has arrived through a processor rather than being typed
+     * in. What Stripe says was paid is the record, so the app stops letting the
+     * figure be edited by hand -- an accidental keystroke over a real payment
+     * is not a correction, it is a discrepancy nobody will spot until the
+     * customer disputes the bill.
+     */
+    val paymentsFromProcessor: Boolean = false,
     val signatureImagePath: String? = null,
     /** The acceptance signature in cloud storage. Local files do not survive a new phone. */
     val signatureStoragePath: String? = null,
     val signedAt: Long? = null,
+    /**
+     * What the customer was actually looking at when they signed.
+     *
+     * A signature means "I agree to this", and "this" was a price and a length
+     * of fence. Redraw the layout afterwards and the old signature silently
+     * becomes a customer's agreement to a job that no longer exists. Recording
+     * the terms at signing is what lets the app notice and ask for a new one,
+     * rather than everyone forgetting until it is disputed.
+     */
+    val signedContractTotal: Double = 0.0,
+    val signedLinearFeet: Float = 0f,
 
     // Referral & compliance
     val referralSource: String = "",

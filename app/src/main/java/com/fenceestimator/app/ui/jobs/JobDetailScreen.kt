@@ -97,6 +97,7 @@ import com.fenceestimator.app.ui.components.StageAction
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.PermitStatus
 import com.fenceestimator.app.data.PunchListItem
+import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.data.PhotoKind
@@ -141,6 +142,8 @@ fun JobDetailScreen(
         factory = GenericViewModelFactory { FenceRunListViewModel(app.repository, jobId) }
     )
     val job by viewModel.job.collectAsState()
+    /** The live contract figures, so the signature check compares against what the estimate says now. */
+    val jobTotals by viewModel.contractTotal.collectAsState()
     val runs by runsViewModel.runs.collectAsState()
     val pricingTiers by viewModel.pricingTiers.collectAsState()
     val manufacturers by viewModel.manufacturers.collectAsState()
@@ -319,7 +322,17 @@ fun JobDetailScreen(
             item(key = SECTION_HOA) { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
                 item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
-                item(key = SECTION_PAYMENT) { SectionCard(title = "Payment & Invoice") { PaymentFields(currentJob, profile, viewModel) } }
+                item(key = SECTION_PAYMENT) {
+                    SectionCard(title = "Payment & Invoice") {
+                        StaleSignatureBanner(
+                            job = currentJob,
+                            contractTotal = jobTotals.grandTotal,
+                            linearFeet = jobTotals.billableLinearFeet,
+                            onGetNewSignature = { onOpenEstimate(currentJob.id) }
+                        )
+                        PaymentFields(currentJob, profile, viewModel)
+                    }
+                }
                 item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, session.canDelete, viewModel) } }
             }
             item {
@@ -1052,10 +1065,38 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             label = "Deposit amount ($)", initialValue = job.depositAmount.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(depositAmount = it.toDouble()) } }
-        DraftNumberField(
-            stableKey = job.id, label = "Total paid so far ($)", initialValue = job.amountPaid.toFloat(),
-            modifier = Modifier.weight(1f)
-        ) { viewModel.update { j -> j.copy(amountPaid = it.toDouble()) } }
+
+        // Once a card has actually been charged, this stops being a field you
+        // fill in and becomes a record of what happened. Typing over it would
+        // not correct anything -- Stripe would still hold the real figure --
+        // it would just create a disagreement that surfaces when the customer
+        // queries the bill.
+        if (JobMoney.paidFigureIsReadOnly(job)) {
+            OutlinedTextField(
+                value = "$${"%.2f".format(job.amountPaid)}",
+                onValueChange = {},
+                readOnly = true,
+                enabled = false,
+                label = { Text("Paid (from Stripe)") },
+                supportingText = { Text("Card payments -- not editable") },
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            DraftNumberField(
+                stableKey = job.id, label = "Total paid so far ($)", initialValue = job.amountPaid.toFloat(),
+                modifier = Modifier.weight(1f)
+            ) { viewModel.update { j -> j.copy(amountPaid = it.toDouble()) } }
+        }
+    }
+
+    if (job.refundedAmount > 0.0) {
+        Text(
+            "Refunded: $${"%.2f".format(job.refundedAmount)}" +
+                if (job.refundReason.isNotBlank()) " -- ${job.refundReason}" else "",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 
     // A deposit that doesn't cover materials means buying the customer's fence
@@ -1089,10 +1130,8 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // and the difference is whether a real card gets charged.
     var liveLink by remember { mutableStateOf<Boolean?>(null) }
 
-    val balanceDue = (job.amountPaid).let { paid ->
-        // Deposit is what we can bill for with confidence before the estimate is final.
-        if (job.depositAmount > paid) job.depositAmount - paid else 0.0
-    }
+    // Everything billable is now derived from the estimate net of refunds, in
+    // JobMoney, so the screen, the PDF and the payment link cannot disagree.
     val squareReady = profile.squareAccessToken.isNotBlank() && profile.squareLocationId.isNotBlank()
 
     // ---- One contract figure, derived from the estimate ----
@@ -1104,11 +1143,23 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // called out rather than quietly billed.
     val totals by viewModel.contractTotal.collectAsState()
     val contractTotal = totals.grandTotal
-    val stillOwed = (contractTotal - job.amountPaid).coerceAtLeast(0.0)
+    val netPaid = JobMoney.netPaid(job)
+    val stillOwed = JobMoney.stillOwed(job, contractTotal)
 
     // The backend books the money; this decides whether that finishes the job.
     // It has the contract total and the server does not.
-    LaunchedEffect(job.amountPaid, contractTotal) { viewModel.reconcilePaymentStatus() }
+    LaunchedEffect(job.amountPaid, job.refundedAmount, contractTotal) {
+        viewModel.reconcilePaymentStatus()
+    }
+
+    // Pull the moment this screen is looked at.
+    //
+    // Opening the job and finding a stale figure sent people to Settings to
+    // press Sync and then back again -- at which point the app has taught them
+    // it cannot be trusted without being nursed. The screen that shows money is
+    // the one screen that should never be showing yesterday's answer.
+    val paymentApp = currentApp()
+    LaunchedEffect(job.id) { paymentApp.autoSync.requestSync() }
 
     // While a payment link is out and unpaid, check often.
     //
@@ -1117,7 +1168,6 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // waiting for a customer to pay is the one moment where a fifteen-minute
     // heartbeat is plainly too slow, so poll while they are actually looking --
     // and stop the moment they leave, which is what makes this affordable.
-    val paymentApp = currentApp()
     val awaitingPayment = job.paymentLinkUrl.isNotBlank() && stillOwed > 0.005
     if (awaitingPayment) {
         LaunchedEffect(job.id) {
@@ -1128,7 +1178,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         }
     }
     val depositOverContract = contractTotal > 0.0 && job.depositAmount > contractTotal + 0.005
-    val paidOverContract = contractTotal > 0.0 && job.amountPaid > contractTotal + 0.005
+    val paidOverContract = JobMoney.overpaid(job, contractTotal)
 
     if (contractTotal > 0.0) {
         Card(
@@ -1137,7 +1187,10 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         ) {
             Column(Modifier.padding(12.dp)) {
                 MoneyLine("Contract total (from the estimate)", contractTotal)
-                MoneyLine("Paid so far", job.amountPaid)
+                MoneyLine("Paid so far", netPaid)
+                if (job.refundedAmount > 0.0) {
+                    MoneyLine("Refunded", -job.refundedAmount)
+                }
                 MoneyLine("Still owed", stillOwed, bold = true)
                 if (job.amountPaid > 0.0) {
                     Text(
@@ -1161,20 +1214,32 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
-                Text(
-                    if (paidOverContract)
-                        "Paid ($${"%.2f".format(job.amountPaid)}) is more than the contract total " +
-                            "($${"%.2f".format(contractTotal)}). Either the estimate is out of date or " +
-                            "the customer has been overcharged."
-                    else
-                        "The deposit ($${"%.2f".format(job.depositAmount)}) is more than the whole " +
-                            "contract ($${"%.2f".format(contractTotal)}).",
-                    modifier = Modifier.padding(12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        if (paidOverContract)
+                            "Paid ($${"%.2f".format(netPaid)}) is more than the contract total " +
+                                "($${"%.2f".format(contractTotal)}). Either the estimate is out of date or " +
+                                "the customer has been overcharged."
+                        else
+                            "The deposit ($${"%.2f".format(job.depositAmount)}) is more than the whole " +
+                                "contract ($${"%.2f".format(contractTotal)}).",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    if (paidOverContract) {
+                        Text(
+                            "Give back $${"%.2f".format(JobMoney.refundable(job, contractTotal))} " +
+                                "with Record a refund below.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+                }
             }
         }
+
+        RefundControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
         Spacer(Modifier.height(8.dp))
     }
 
@@ -1185,16 +1250,12 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // deposit first, then whatever the estimate says is still owed. Falling
     // back to the deposit alone was how a final payment could be billed at the
     // deposit figure instead of the balance.
-    val requestAmount = when {
-        balanceDue > 0.0 -> balanceDue
-        stillOwed > 0.0 -> stillOwed
-        else -> job.depositAmount
-    }
-    val requestLabel = when {
-        balanceDue > 0.0 -> "deposit"
-        stillOwed > 0.0 -> "balance"
-        else -> "deposit"
-    }
+    // The old fallback was "the deposit", which is how a fully paid job still
+    // offered to charge $5,730 -- the original deposit, for money already
+    // collected. There is no case where the right answer is a figure from
+    // earlier in the job: it is always what is left.
+    val requestAmount = JobMoney.nextRequestAmount(job, contractTotal)
+    val requestLabel = JobMoney.nextRequestLabel(job, contractTotal)
     Button(
         onClick = {
             scope.launch {
@@ -1203,7 +1264,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 val result = PaymentsApi.createPaymentLink(
                     jobSyncId = job.syncId,
                     amountDollars = requestAmount,
-                    kind = if (balanceDue > 0.0 && job.amountPaid > 0.0) PaymentsApi.Kind.FINAL
+                    kind = if (requestLabel == "balance") PaymentsApi.Kind.FINAL
                     else PaymentsApi.Kind.DEPOSIT,
                     description = "Fence installation - ${job.address.ifBlank { job.customerName }}"
                 )
@@ -1283,7 +1344,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 scope.launch {
                     creatingLink = true
                     linkError = null
-                    val amount = if (balanceDue > 0.0) balanceDue else job.depositAmount
+                    val amount = requestAmount
                     val result = com.fenceestimator.app.payments.SquarePayments.createPaymentLink(
                         token = profile.squareAccessToken.trim(),
                         locationId = profile.squareLocationId.trim(),
@@ -1298,18 +1359,18 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                     )
                 }
             },
-            enabled = !creatingLink && (balanceDue > 0.0 || job.depositAmount > 0.0),
+            enabled = !creatingLink && requestAmount > 0.005,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
                 when {
                     creatingLink -> "Creating link..."
-                    balanceDue > 0.0 -> "Create Square Link for $${"%.2f".format(balanceDue)}"
+                    requestAmount > 0.005 -> "Create Square Link for ${"%.2f".format(requestAmount)}"
                     else -> "Create Square Payment Link"
                 }
             )
         }
-        if (balanceDue <= 0.0 && job.depositAmount <= 0.0) {
+        if (requestAmount <= 0.005) {
             Text(
                 "Set a deposit amount below and the link will bill that exact figure.",
                 style = MaterialTheme.typography.bodySmall,
@@ -2013,3 +2074,129 @@ private const val SECTION_PROGRESS = "progress"
 private const val SECTION_SCHEDULE = "schedule"
 private const val SECTION_HOA = "hoa"
 private const val SECTION_PAYMENT = "payment"
+
+/**
+ * Recording money handed back.
+ *
+ * Deliberately an explicit action rather than letting the paid figure be edited
+ * down. Sync keeps the larger payment figure so a race can never erase money,
+ * which means "just type a smaller number" cannot work -- and should not: a
+ * refund is a thing that happened, with a date and a reason, not a correction
+ * to a number. The customer may ask about it a year from now.
+ */
+@Composable
+private fun RefundControl(job: Job, contractTotal: Double, viewModel: JobDetailViewModel) {
+    val netPaid = JobMoney.netPaid(job)
+    if (netPaid <= 0.005) return
+
+    var showDialog by remember { mutableStateOf(false) }
+    val overpaid = JobMoney.refundable(job, contractTotal)
+
+    OutlinedButton(
+        onClick = { showDialog = true },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text("Record a refund") }
+
+    if (showDialog) {
+        // Pre-filled with the overpayment when there is one, because that is
+        // the figure being given back in the overwhelmingly common case.
+        var amountText by remember {
+            mutableStateOf(if (overpaid > 0.005) "%.2f".format(overpaid) else "")
+        }
+        var reason by remember { mutableStateOf("") }
+        val amount = amountText.toDoubleOrNull() ?: 0.0
+        val tooMuch = amount > netPaid + 0.005
+
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Record a refund") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Collected so far: $${"%.2f".format(netPaid)}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("Refund amount ($)") },
+                        isError = tooMuch,
+                        supportingText = if (tooMuch) {
+                            { Text("More than has been collected on this job.") }
+                        } else null,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = reason,
+                        onValueChange = { reason = it },
+                        label = { Text("Reason") },
+                        placeholder = { Text("Overpaid, cancelled gate, goodwill...") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // Said plainly, because it is the part people get wrong: the
+                    // app records the refund, it does not move the money.
+                    Text(
+                        "This records the refund on the job. Sending the money back " +
+                            "is done in your Stripe dashboard -- FenceFlow never holds it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = amount > 0.0 && !tooMuch,
+                    onClick = {
+                        viewModel.recordRefund(amount, reason.trim())
+                        showDialog = false
+                    }
+                ) { Text("Record") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+/**
+ * Tells you when the customer's signature no longer covers the job.
+ *
+ * The failure this prevents is quiet and expensive: the layout gets redrawn
+ * after the customer signs, and the signature on file stays attached to a price
+ * and a length that no longer exist. Nobody notices until the bill is queried,
+ * and by then the signed document actively contradicts the invoice.
+ */
+@Composable
+private fun StaleSignatureBanner(
+    job: Job,
+    contractTotal: Double,
+    linearFeet: Float,
+    onGetNewSignature: () -> Unit
+) {
+    if (!JobMoney.signatureIsStale(job, contractTotal, linearFeet)) return
+
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "This job changed after it was signed",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                "Since ${job.customerName.ifBlank { "the customer" }} signed, " +
+                    JobMoney.staleSignatureReason(job, contractTotal, linearFeet) +
+                    ". The signature on file is for the old job -- get a new one before you bill.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Button(onClick = onGetNewSignature, modifier = Modifier.fillMaxWidth()) {
+                Text("Get a new signature")
+            }
+        }
+    }
+}

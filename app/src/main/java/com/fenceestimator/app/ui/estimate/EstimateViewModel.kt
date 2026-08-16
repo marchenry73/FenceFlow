@@ -281,10 +281,26 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
         }
     }
 
+    /**
+     * Stores the signature together with what it is a signature FOR.
+     *
+     * Recording the path alone leaves "someone signed something": redraw the
+     * layout afterwards and the file on disk silently stands as agreement to a
+     * price and a length that no longer exist. Written in the same update so a
+     * signature can never exist without its terms.
+     */
     fun captureSignature(path: String) {
         val current = job.value ?: return
+        val agreed = totals.value
         viewModelScope.launch {
-            repository.updateJob(current.copy(signatureImagePath = path, signedAt = System.currentTimeMillis()))
+            repository.updateJob(
+                current.copy(
+                    signatureImagePath = path,
+                    signedAt = System.currentTimeMillis(),
+                    signedContractTotal = agreed.grandTotal,
+                    signedLinearFeet = agreed.billableLinearFeet
+                )
+            )
         }
     }
 

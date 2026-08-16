@@ -393,7 +393,14 @@ object EstimateEngine {
         val gateCharge: Double = 0.0,
         val gateFeet: Double = 0.0,
         /** Hauling the old fence away, already included in [grandTotal]. */
-        val trashHaulFee: Double = 0.0
+        val trashHaulFee: Double = 0.0,
+        /**
+         * Fence billed, including change-order feet. Carried on the totals so
+         * that "what the customer signed for" can be recorded as one thing --
+         * a price and a length -- rather than re-derived from the geometry
+         * somewhere else and drifting from what the estimate actually said.
+         */
+        val billableLinearFeet: Float = 0f
     )
 
     /**
@@ -449,7 +456,7 @@ object EstimateEngine {
         return Totals(
             materialsSubtotal, taxableSubtotal, tax, laborCost, teardownCost,
             markupAmount, discountAmount, grandTotal, changeOrderCost, changeOrderFeet,
-            gateCharge, gateFeet, trashHaul
+            gateCharge, gateFeet, trashHaul, billableFeet.toFloat()
         )
     }
 

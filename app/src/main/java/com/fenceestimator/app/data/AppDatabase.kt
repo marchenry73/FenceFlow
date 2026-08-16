@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -253,13 +253,34 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Refunds, processor-locked payment figures, and the terms a signature
+         * was actually given for.
+         *
+         * All additive with defaults that match the old behaviour: existing
+         * jobs have refunded nothing, have no processor payments recorded, and
+         * carry signed terms of zero -- which the staleness check reads as
+         * "signed before we tracked this" and leaves alone rather than
+         * pestering about every historical job.
+         */
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `refundedAmount` REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `refundedAt` INTEGER")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `refundReason` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `paymentsFromProcessor` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `signedContractTotal` REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `signedLinearFeet` REAL NOT NULL DEFAULT 0.0")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
