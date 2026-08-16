@@ -81,6 +81,20 @@ data class SyncResult(
  */
 object JobSync {
 
+    /**
+     * Which side's payment figure to keep.
+     *
+     * Deliberately not last-edit-wins. A job open on screen is always "newer",
+     * so plain last-edit-wins let the phone push a stale copy over a payment
+     * the webhook had just recorded, and the money vanished. A cleared payment
+     * is a fact; an unsaved edit is not. The larger figure survives.
+     *
+     * The consequence worth naming: correcting a payment DOWNWARD has to be
+     * done deliberately, and the app treats that as a refund rather than an
+     * edit. Silently losing money to a sync race is the worse failure.
+     */
+    fun mergedAmountPaid(localPaid: Double, cloudPaid: Double): Double = maxOf(localPaid, cloudPaid)
+
     suspend fun sync(repository: Repository, companyId: String): Result<SyncResult> = withContext(Dispatchers.IO) {
         runCatching {
             // Deletions first, always. If a pull ran before them, the rows we
@@ -117,11 +131,38 @@ object JobSync {
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
                     uploaded++
                 } else if (job.updatedAt > cloudJob.updatedAtMillis()) {
-                    SupabaseModule.client.postgrest.from("jobs").update(job.toCloud(companyId)) {
+                    // Money that cleared is a fact, not an opinion.
+                    //
+                    // Last-edit-wins on the whole row meant a job open on screen
+                    // was always "newer", so the app pushed its stale copy over
+                    // a payment the webhook had just recorded -- and the money
+                    // disappeared. Payment fields are never pushed downward:
+                    // the higher figure survives whichever side is newer.
+                    val payload = job.toCloud(companyId).let { local ->
+                        if (cloudJob.amountPaid > local.amountPaid) {
+                            local.copy(
+                                amountPaid = cloudJob.amountPaid,
+                                paymentStatus = cloudJob.paymentStatus
+                            )
+                        } else local
+                    }
+                    SupabaseModule.client.postgrest.from("jobs").update(payload) {
                         filter {
                             eq("company_id", companyId)
                             eq("sync_id", job.syncId)
                         }
+                    }
+                    // Keep the phone in step with what we just agreed the cloud
+                    // holds, or the next pass would try to undo it again.
+                    if (payload.amountPaid > job.amountPaid) {
+                        repository.updateJobFromCloud(
+                            job.copy(
+                                amountPaid = payload.amountPaid,
+                                paymentStatus = runCatching {
+                                    PaymentStatus.valueOf(payload.paymentStatus)
+                                }.getOrDefault(job.paymentStatus)
+                            )
+                        )
                     }
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
                     uploaded++
@@ -136,6 +177,20 @@ object JobSync {
                     val newId = repository.createJob(cloudJob.toLocalJob())
                     downloaded++
                     incoming += IncomingChange(newId, cloudJob.customerName, ChangeKind.NEW_JOB)
+                } else if (cloudJob.amountPaid > local.amountPaid + 0.005) {
+                    // A payment cleared while this phone was editing the job.
+                    // Take the money and nothing else -- overwriting the whole
+                    // row here would throw away whatever they were typing.
+                    repository.updateJobFromCloud(
+                        local.copy(
+                            amountPaid = cloudJob.amountPaid,
+                            paymentStatus = runCatching {
+                                PaymentStatus.valueOf(cloudJob.paymentStatus)
+                            }.getOrDefault(local.paymentStatus)
+                        )
+                    )
+                    downloaded++
+                    incoming += IncomingChange(local.id, cloudJob.customerName, ChangeKind.NEW_JOB)
                 } else if (cloudJob.updatedAtMillis() > local.updatedAt) {
                     val wasComplete = local.status == JobStatus.ACCEPTED
                     val nowComplete = cloudJob.status == JobStatus.ACCEPTED.name
