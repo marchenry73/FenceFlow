@@ -54,6 +54,117 @@ async function verify(rawBody: string, header: string | null, secret: string): P
   return diff === 0;
 }
 
+/**
+ * Books a paid deposit or invoice against the job itself.
+ *
+ * Marking the payment row "paid" is only half the job: the money has to land
+ * on the job, or the app still shows the customer owing what they just paid.
+ * The balance is recomputed from the payments that actually cleared rather
+ * than incremented, so a replayed webhook or a manual correction can't drift
+ * the total.
+ */
+async function applyPaymentToJob(admin: any, payment: any) {
+  const { data: job } = await admin.from("jobs")
+    .select("id, sync_id, company_id, customer_name, deposit_amount")
+    .eq("company_id", payment.company_id)
+    .eq("sync_id", payment.job_sync_id)
+    .maybeSingle();
+  if (!job) return;
+
+  const { data: cleared } = await admin.from("job_payments")
+    .select("amount_cents")
+    .eq("company_id", payment.company_id)
+    .eq("job_sync_id", payment.job_sync_id)
+    .eq("status", "paid");
+
+  const paidDollars =
+    (cleared ?? []).reduce((sum: number, r: any) => sum + Number(r.amount_cents || 0), 0) / 100;
+
+  // Records that money arrived, and no more than that. Whether the job is paid
+  // in full depends on the contract total, which is computed in the app from
+  // the line items, change orders and gate charges -- the server does not have
+  // it and should not guess. The app promotes this to PAID_IN_FULL once the
+  // amount actually covers the total.
+  await admin.from("jobs").update({
+    amount_paid: paidDollars,
+    payment_status: "DEPOSIT_PAID",
+    updated_at: new Date().toISOString(),
+  }).eq("id", job.id);
+
+  await notifyPaid(admin, job, Number(payment.amount_cents || 0) / 100, paidDollars);
+}
+
+/** Tells the company's phones that money arrived, and how much. */
+async function notifyPaid(admin: any, job: any, justPaid: number, totalPaid: number) {
+  const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
+  if (!raw) return;
+
+  const { data: devices } = await admin.from("device_tokens")
+    .select("token").eq("company_id", job.company_id);
+  if (!devices?.length) return;
+
+  const sa = JSON.parse(raw);
+  const token = await fcmAccessToken(sa);
+  const who = job.customer_name || "a customer";
+
+  for (const d of devices) {
+    await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          token: d.token,
+          data: {
+            title: `Payment received: $${justPaid.toFixed(2)}`,
+            body: `${who} paid $${justPaid.toFixed(2)}. Total paid on this job is now $${totalPaid.toFixed(2)}.`,
+            jobId: String(job.id ?? ""),
+          },
+          android: { priority: "HIGH" },
+        },
+      }),
+    }).catch(() => {});
+  }
+}
+
+const b64url = (o: unknown) =>
+  btoa(JSON.stringify(o)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+
+/** Service-account JWT exchanged for an FCM access token. */
+async function fcmAccessToken(sa: any): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = `${b64url({ alg: "RS256", typ: "JWT" })}.${b64url({
+    iss: sa.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  })}`;
+  const pem = sa.private_key.replace(/-----[A-Z ]+-----/g, "").replace(/\s/g, "");
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    Uint8Array.from(atob(pem), (c) => c.charCodeAt(0)),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sigBuf = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned),
+  );
+  const sig = btoa(String.fromCharCode(...new Uint8Array(sigBuf)))
+    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: `${unsigned}.${sig}`,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()).access_token;
+}
+
 Deno.serve(async (req) => {
   const raw = await req.text();
 
@@ -81,9 +192,20 @@ Deno.serve(async (req) => {
           // Payment Links carry the link id, which is what we stored.
           const linkId = session.payment_link;
           if (linkId) {
-            await admin.from("job_payments")
-              .update({ status: "paid", paid_at: new Date().toISOString() })
-              .eq("stripe_id", linkId);
+            // Only act on a payment we haven't already banked. Stripe retries
+            // webhooks, and adding the same amount twice would silently
+            // overstate what the customer has paid.
+            const { data: pending } = await admin.from("job_payments")
+              .select("id, job_sync_id, amount_cents, company_id, status")
+              .eq("stripe_id", linkId).maybeSingle();
+
+            if (pending && pending.status !== "paid") {
+              await admin.from("job_payments")
+                .update({ status: "paid", paid_at: new Date().toISOString() })
+                .eq("id", pending.id);
+
+              await applyPaymentToJob(admin, pending);
+            }
           }
         } else if (session.mode === "subscription" && companyId) {
           await admin.from("companies").update({

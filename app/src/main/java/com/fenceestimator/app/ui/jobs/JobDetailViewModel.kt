@@ -10,6 +10,7 @@ import com.fenceestimator.app.data.JobPhoto
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.data.PhotoKind
+import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.PricingTier
 import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
@@ -219,6 +220,27 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
 
     fun acknowledgeFieldChanges() {
         viewModelScope.launch { repository.acknowledgeFieldChanges(jobId) }
+    }
+
+    /**
+     * Moves a job to Paid in Full once the money actually covers the contract.
+     *
+     * The backend records that a payment arrived but deliberately does not
+     * decide this: the contract total is computed here from line items, change
+     * orders and gate charges, and the server has none of that. So the server
+     * says "money came in" and this says "that's all of it".
+     *
+     * Never downgrades. Someone who marked a job paid by hand -- cash, a check,
+     * a bank transfer -- had a reason, and having the app quietly undo it would
+     * make the status untrustworthy.
+     */
+    fun reconcilePaymentStatus() {
+        val current = job.value ?: return
+        val total = contractTotal.value.grandTotal
+        if (total <= 0.0) return
+        if (current.paymentStatus == PaymentStatus.PAID_IN_FULL) return
+        if (current.amountPaid + 0.005 < total) return
+        update { it.copy(paymentStatus = PaymentStatus.PAID_IN_FULL) }
     }
 
     /** Stamps that the customer has actually been told why the job is held up. */

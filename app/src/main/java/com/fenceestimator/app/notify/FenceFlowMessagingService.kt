@@ -31,6 +31,15 @@ class FenceFlowMessagingService : FirebaseMessagingService() {
             body = body,
             channelId = Notifications.CHANNEL_CREW
         )
+
+        // Pull straight away rather than waiting for the heartbeat.
+        //
+        // A push means something changed on the server this second -- a payment
+        // cleared, a job was reassigned. Showing "Payment received: $500" while
+        // the job behind it still reads unpaid for the next fifteen minutes is
+        // worse than not notifying at all: it tells someone the app is wrong.
+        (applicationContext as? com.fenceestimator.app.FenceEstimatorApp)
+            ?.autoSync?.requestSync()
     }
 
     /**

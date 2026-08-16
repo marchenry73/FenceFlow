@@ -1105,6 +1105,28 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     val totals by viewModel.contractTotal.collectAsState()
     val contractTotal = totals.grandTotal
     val stillOwed = (contractTotal - job.amountPaid).coerceAtLeast(0.0)
+
+    // The backend books the money; this decides whether that finishes the job.
+    // It has the contract total and the server does not.
+    LaunchedEffect(job.amountPaid, contractTotal) { viewModel.reconcilePaymentStatus() }
+
+    // While a payment link is out and unpaid, check often.
+    //
+    // The push notification is the fast path, but it only fires if notifications
+    // are allowed and Firebase can reach the phone. Someone watching this screen
+    // waiting for a customer to pay is the one moment where a fifteen-minute
+    // heartbeat is plainly too slow, so poll while they are actually looking --
+    // and stop the moment they leave, which is what makes this affordable.
+    val paymentApp = currentApp()
+    val awaitingPayment = job.paymentLinkUrl.isNotBlank() && stillOwed > 0.005
+    if (awaitingPayment) {
+        LaunchedEffect(job.id) {
+            while (true) {
+                kotlinx.coroutines.delay(20_000)
+                paymentApp.autoSync.requestSync()
+            }
+        }
+    }
     val depositOverContract = contractTotal > 0.0 && job.depositAmount > contractTotal + 0.005
     val paidOverContract = contractTotal > 0.0 && job.amountPaid > contractTotal + 0.005
 
@@ -1117,6 +1139,14 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 MoneyLine("Contract total (from the estimate)", contractTotal)
                 MoneyLine("Paid so far", job.amountPaid)
                 MoneyLine("Still owed", stillOwed, bold = true)
+                if (job.amountPaid > 0.0) {
+                    Text(
+                        if (stillOwed <= 0.005) "Paid in full."
+                        else "Card payments post here automatically once they clear.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
                 if (totals.changeOrderCost > 0.0) {
                     Text(
                         "Includes $${"%.2f".format(totals.changeOrderCost)} of approved extra work.",
