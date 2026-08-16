@@ -15,7 +15,10 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
 import kotlinx.coroutines.Dispatchers
+import com.fenceestimator.app.estimate.TakeoffRefresher
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -33,6 +36,58 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
 
     val runs: StateFlow<List<FenceRun>> = repository.observeFenceRuns(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Re-prices a run's materials when its drawing changes.
+     *
+     * Watching the runs rather than hooking every mutation is deliberate:
+     * points, gates, the closed-loop toggle, Clear and typed-in footage all
+     * change the takeoff, and five separate hooks is five chances to miss one.
+     *
+     * Debounced, because dragging a corner emits on every frame and each pass
+     * rewrites line items. The first emission is the initial load, not an edit,
+     * so it only establishes the baseline.
+     *
+     * [TakeoffRefresher] declines to act on runs that have never been priced,
+     * so this cannot invent an estimate for a job nobody has estimated.
+     */
+    @kotlinx.coroutines.FlowPreview
+    private fun watchDrawingForRepricing() {
+        viewModelScope.launch {
+            var lastSeen: Map<Long, String>? = null
+            repository.observeFenceRuns(jobId)
+                .map { runs -> runs.associate { it.id to it.geometrySignature() } }
+                .debounce(REPRICE_DEBOUNCE_MS)
+                .collect { current ->
+                    val previous = lastSeen
+                    lastSeen = current
+                    if (previous == null) return@collect
+                    val movedRunIds = current.filter { (id, sig) -> previous[id] != null && previous[id] != sig }.keys
+                    if (movedRunIds.isEmpty()) return@collect
+                    withContext(Dispatchers.IO) {
+                        movedRunIds.forEach { id ->
+                            repository.getFenceRun(id)?.let { run ->
+                                runCatching { TakeoffRefresher.refreshRun(repository, run) }
+                            }
+                        }
+                    }
+                }
+        }
+    }
+
+    /**
+     * Everything about a run that changes what it costs in material.
+     *
+     * Taken from the whole row rather than a hand-listed set of fields, minus
+     * the two that are presentation only. Listing them by hand means every new
+     * spec field added later is one the re-pricing silently ignores.
+     */
+    private fun FenceRun.geometrySignature(): String =
+        copy(label = "", sortOrder = 0).toString()
+
+    init {
+        watchDrawingForRepricing()
+    }
 
     private val _selectedRunId = MutableStateFlow<Long?>(null)
     val selectedRunId: StateFlow<Long?> = _selectedRunId
@@ -289,6 +344,9 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         /** Fixed virtual-units-per-foot for the no-photo grid canvas. Never changes once set, so
          *  display/zoom changes can't retroactively alter the real-world size of drawn lines. */
         const val PIXELS_PER_FOOT_GRID = 20f
+
+        /** Long enough that dragging a corner re-prices once, not once per frame. */
+        private const val REPRICE_DEBOUNCE_MS = 700L
         /** Virtual canvas size (width == height) used when there's no survey photo -- 400ft x 400ft of drawable area. */
         const val GRID_CANVAS_SIZE = 8000
         /** Below this, a footage change is someone nudging a corner, not a real change. */

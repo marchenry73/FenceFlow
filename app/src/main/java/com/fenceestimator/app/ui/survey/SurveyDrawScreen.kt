@@ -125,6 +125,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
+    var fullScreenDrawing by rememberSaveable { mutableStateOf(false) }
     var calibrationDialogPoints by remember { mutableStateOf<Pair<FencePoint, FencePoint>?>(null) }
     var gateDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     var markerDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
@@ -164,32 +165,38 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 return@Column
             }
 
-            RunSelector(runs = runs, selectedRunId = selectedRunId, onSelect = { viewModel.selectRun(it) })
+            // Full screen hides everything that isn't the drawing. On a phone
+            // the chrome above and below eats more than half the height, which
+            // is the difference between seeing a whole property and a third of
+            // it. The mode buttons stay -- you still have to switch tools.
+            if (!fullScreenDrawing) {
+                RunSelector(runs = runs, selectedRunId = selectedRunId, onSelect = { viewModel.selectRun(it) })
 
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (usingGrid) "Drawing on a scaled grid (no survey photo)" else "Drawing on your uploaded survey",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(onClick = {
-                    if (usingGrid) {
-                        imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    } else {
-                        viewModel.clearSurveyImage()
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (usingGrid) "Drawing on a scaled grid (no survey photo)" else "Drawing on your uploaded survey",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = {
+                        if (usingGrid) {
+                            imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        } else {
+                            viewModel.clearSurveyImage()
+                        }
+                    }) {
+                        Text(if (usingGrid) "Upload Photo" else "Use Grid Instead")
                     }
-                }) {
-                    Text(if (usingGrid) "Upload Photo" else "Use Grid Instead")
                 }
-            }
 
-            if (usingGrid) {
-                val job2 = job
-                if (job2 != null) {
-                    DraftNumberField(
-                        stableKey = job2.id, label = "Gridline spacing (ft) -- display only, won't resize your drawing",
-                        initialValue = job2.gridFeetPerSquare,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-                    ) { viewModel.setGridLineSpacingFt(it) }
+                if (usingGrid) {
+                    val job2 = job
+                    if (job2 != null) {
+                        DraftNumberField(
+                            stableKey = job2.id, label = "Feet per grid square",
+                            initialValue = job2.gridFeetPerSquare,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                        ) { viewModel.setGridLineSpacingFt(it) }
+                    }
                 }
             }
 
@@ -241,7 +248,6 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 // it is moving, so fine adjustment by dragging is guesswork --
                 // the arrows move it a known distance you can see.
                 var selectedPoint by remember(activeRun.id) { mutableStateOf<Int?>(null) }
-                var fullScreen by rememberSaveable { mutableStateOf(false) }
                 val points = draftPoints ?: committedPoints
                 val pxPerFt = job2.calibrationPixelsPerFoot
 
@@ -279,10 +285,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // Full screen hides everything but the drawing, which on
                         // a phone is the difference between seeing the whole
                         // property and seeing a third of it.
-                        IconButton(onClick = { fullScreen = !fullScreen }) {
+                        IconButton(onClick = { fullScreenDrawing = !fullScreenDrawing }) {
                             Icon(
-                                if (fullScreen) Icons.Filled.CloseFullscreen else Icons.Filled.OpenInFull,
-                                contentDescription = if (fullScreen) "Exit full screen" else "Full screen"
+                                if (fullScreenDrawing) Icons.Filled.CloseFullscreen else Icons.Filled.OpenInFull,
+                                contentDescription = if (fullScreenDrawing) "Exit full screen" else "Full screen"
                             )
                         }
                     }

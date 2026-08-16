@@ -68,7 +68,20 @@ class AutoSync(
     private val _state = MutableStateFlow(SyncState())
     val state: StateFlow<SyncState> = _state
 
-    private val manualTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /**
+     * `replay = 1` on purpose, and it is load-bearing.
+     *
+     * A "payment received" push starts the process, so [FenceEstimatorApp.onCreate]
+     * and the push handler run within milliseconds of each other. The handler
+     * calls [requestSync] immediately, but [start]'s collector subscribes from a
+     * coroutine that may not have run yet -- and a SharedFlow with no replay
+     * discards emissions made while nobody is listening. The trigger vanished,
+     * and the payment then waited for the fifteen-minute heartbeat: the user saw
+     * the notification say money arrived while the job still read unpaid.
+     *
+     * With a replay slot the late collector still receives it.
+     */
+    private val manualTrigger = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
     private val mutex = Mutex()
 
     /** Uploads signatures, surveys and photos. Set by the app on startup. */

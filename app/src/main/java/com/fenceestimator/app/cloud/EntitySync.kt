@@ -512,7 +512,7 @@ object EntitySync {
                     // The signature image itself is a local file that isn't
                     // synced yet, so only the fact and date of signing survive.
                     signedAt = row.signedAt?.let { at ->
-                        runCatching { Instant.parse(at).toEpochMilli() }.getOrNull()
+                        CloudTime.parseMillis(at)
                     }
                 )
             )
@@ -526,14 +526,14 @@ object EntitySync {
             .flatMap { repository.getTimeEntries(it) }.map { it.syncId }.toSet()
         times.filter { it.syncId !in knownTimes }.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            val startedAt = runCatching { Instant.parse(row.startedAt).toEpochMilli() }.getOrNull()
+            val startedAt = CloudTime.parseMillis(row.startedAt)
                 ?: return@forEach
             repository.insertTimeEntry(
                 TimeEntry(
                     syncId = row.syncId, jobId = jobId,
                     startedAt = startedAt,
                     endedAt = row.endedAt?.let { at ->
-                        runCatching { Instant.parse(at).toEpochMilli() }.getOrNull()
+                        CloudTime.parseMillis(at)
                     },
                     hourlyRate = row.hourlyRate, notes = row.notes
                 )

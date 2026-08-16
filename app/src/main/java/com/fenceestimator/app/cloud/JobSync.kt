@@ -49,9 +49,15 @@ data class CloudJob(
     @SerialName("permit_status") val permitStatus: String = "NOT_REQUIRED",
     @SerialName("updated_at") val updatedAt: String? = null
 ) {
-    /** Server timestamps are ISO-8601; fall back to 0 so a bad value never beats real local work. */
-    fun updatedAtMillis(): Long =
-        updatedAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L
+    /**
+     * Falls back to 0 so a genuinely absent value never beats real local work.
+     *
+     * It must be a real parse, though. This used to be [Instant.parse], which
+     * rejects the numeric offset Postgres returns, so every cloud row read as
+     * epoch 0 -- older than everything local -- and nothing was ever pulled
+     * down. See [CloudTime].
+     */
+    fun updatedAtMillis(): Long = CloudTime.parseMillis(updatedAt) ?: 0L
 }
 
 /** A change that arrived from someone else's phone and is worth telling this user about. */
@@ -120,7 +126,6 @@ object JobSync {
                 .decodeList<CloudJob>()
 
             val cloudBySyncId = cloudJobs.associateBy { it.syncId }
-            val localBySyncId = localJobs.associateBy { it.syncId }
             var uploaded = 0
             var downloaded = 0
 
@@ -171,8 +176,15 @@ object JobSync {
 
             val incoming = mutableListOf<IncomingChange>()
 
+            // Re-read before pulling. The push loop above writes to these same
+            // rows -- it merges cleared payments back down and stamps sync
+            // times -- so the snapshot taken at the top is already out of date
+            // by the time we get here. Pulling against the stale copy re-applied
+            // work that had just been done and could hand back an older row.
+            val freshBySyncId = repository.getAllJobs().associateBy { it.syncId }
+
             for (cloudJob in cloudJobs) {
-                val local = localBySyncId[cloudJob.syncId]
+                val local = freshBySyncId[cloudJob.syncId]
                 if (local == null) {
                     val newId = repository.createJob(cloudJob.toLocalJob())
                     downloaded++
@@ -194,7 +206,17 @@ object JobSync {
                 } else if (cloudJob.updatedAtMillis() > local.updatedAt) {
                     val wasComplete = local.status == JobStatus.ACCEPTED
                     val nowComplete = cloudJob.status == JobStatus.ACCEPTED.name
-                    repository.updateJobFromCloud(cloudJob.toLocalJob().copy(id = local.id))
+                    // Merged onto the local row, never substituted for it.
+                    //
+                    // [CloudJob] carries 33 of the Job's 53 fields. Building a
+                    // fresh Job from it and keeping only the id meant the other
+                    // twenty silently reverted to their defaults -- the survey
+                    // image, the calibration the whole takeoff depends on, the
+                    // customer's signature, the payment link. This branch never
+                    // ran while cloud timestamps were misparsed as epoch 0, so
+                    // the damage was latent rather than absent; fixing the
+                    // parsing without fixing this would have armed it.
+                    repository.updateJobFromCloud(cloudJob.mergeOnto(local))
                     downloaded++
                     incoming += IncomingChange(
                         jobId = local.id,
@@ -219,7 +241,7 @@ private fun Job.toCloud(companyId: String) = CloudJob(
     notes = notes,
     status = status.name,
     referralSource = referralSource,
-    scheduledDate = scheduledDate?.let { Instant.ofEpochMilli(it).toString() },
+    scheduledDate = scheduledDate?.let { CloudTime.format(it) },
     estimatedDurationHours = estimatedDurationHours,
     taxRatePercent = taxRatePercent,
     markupPercent = markupPercent,
@@ -244,6 +266,55 @@ private fun Job.toCloud(companyId: String) = CloudJob(
     permitStatus = permitStatus.name
 )
 
+/**
+ * Applies the cloud's copy of the shared fields onto the row this phone already
+ * has, leaving everything the cloud does not carry exactly as it was.
+ *
+ * The distinction that matters: a field absent from [CloudJob] is not "empty in
+ * the cloud", it is "not synced at all". Treating the two the same is how a
+ * pull erases a signature or a calibration that was never in danger.
+ *
+ * Written as an explicit field list rather than `toLocalJob().copy(...)` so
+ * that adding a column to [CloudJob] without adding it here is a compile error
+ * in the mapper below, not a silent reset here.
+ */
+internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
+    customerName = customerName,
+    address = address,
+    phone = phone,
+    email = email,
+    notes = notes,
+    status = runCatching { JobStatus.valueOf(status) }.getOrDefault(local.status),
+    referralSource = referralSource,
+    scheduledDate = CloudTime.parseMillis(scheduledDate),
+    estimatedDurationHours = estimatedDurationHours,
+    taxRatePercent = taxRatePercent,
+    markupPercent = markupPercent,
+    discountPercent = discountPercent,
+    laborRatePerFt = laborRatePerFt,
+    laborFlatFee = laborFlatFee,
+    minimumJobCharge = minimumJobCharge,
+    wastePercent = wastePercent,
+    blockedReason = blockedReason,
+    customerMustClear = customerMustClear,
+    teardownEnabled = teardownEnabled,
+    teardownFlatFee = teardownFlatFee,
+    teardownRatePerFt = teardownRatePerFt,
+    depositAmount = depositAmount,
+    // Money that cleared is still never allowed to go backwards, even on a
+    // branch where the cloud row is unambiguously newer.
+    amountPaid = JobSync.mergedAmountPaid(local.amountPaid, amountPaid),
+    paymentStatus = runCatching { PaymentStatus.valueOf(paymentStatus) }.getOrDefault(local.paymentStatus),
+    isInvoiced = isInvoiced,
+    hoaName = hoaName,
+    hoaEmail = hoaEmail,
+    hoaApprovalStatus = runCatching { HoaApprovalStatus.valueOf(hoaApprovalStatus) }
+        .getOrDefault(local.hoaApprovalStatus),
+    permitNumber = permitNumber,
+    permitStatus = runCatching { PermitStatus.valueOf(permitStatus) }.getOrDefault(local.permitStatus),
+    updatedAt = updatedAtMillis()
+)
+
 private fun CloudJob.toLocalJob() = Job(
     syncId = syncId,
     customerName = customerName,
@@ -253,7 +324,7 @@ private fun CloudJob.toLocalJob() = Job(
     notes = notes,
     status = runCatching { JobStatus.valueOf(status) }.getOrDefault(JobStatus.DRAFT),
     referralSource = referralSource,
-    scheduledDate = scheduledDate?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() },
+    scheduledDate = CloudTime.parseMillis(scheduledDate),
     estimatedDurationHours = estimatedDurationHours,
     taxRatePercent = taxRatePercent,
     markupPercent = markupPercent,
