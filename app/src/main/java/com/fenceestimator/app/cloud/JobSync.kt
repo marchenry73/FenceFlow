@@ -55,6 +55,7 @@ data class CloudJob(
     @SerialName("hoa_approval_status") val hoaApprovalStatus: String = "NOT_REQUIRED",
     @SerialName("permit_number") val permitNumber: String = "",
     @SerialName("permit_status") val permitStatus: String = "NOT_REQUIRED",
+    @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     /** Set when this record was deleted. The row stays so every device learns of it. */
     @SerialName("deleted_at") val deletedAt: String? = null
@@ -322,6 +323,7 @@ private fun Job.toCloud(companyId: String) = CloudJob(
     notes = notes,
     status = status.name,
     referralSource = referralSource,
+    createdAt = CloudTime.format(createdAt),
     scheduledDate = scheduledDate?.let { CloudTime.format(it) },
     estimatedDurationHours = estimatedDurationHours,
     taxRatePercent = taxRatePercent,
@@ -373,6 +375,7 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
     notes = notes,
     status = runCatching { JobStatus.valueOf(status) }.getOrDefault(local.status),
     referralSource = referralSource,
+    createdAt = CloudTime.parseMillis(createdAt) ?: System.currentTimeMillis(),
     scheduledDate = CloudTime.parseMillis(scheduledDate),
     estimatedDurationHours = estimatedDurationHours,
     taxRatePercent = taxRatePercent,

@@ -19,6 +19,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,16 +43,128 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     val viewModel: ScheduleViewModel = viewModel(factory = GenericViewModelFactory { ScheduleViewModel(app.repository) })
     val jobs by viewModel.scheduledJobs.collectAsState()
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.US) }
+    val profile by app.settingsStore.profile.collectAsState(
+        initial = com.fenceestimator.app.data.BusinessProfile()
+    )
+
+    // Both views stay. The list answers "what is next"; the month answers "is
+    // the week of the twelfth free", which is the question every time somebody
+    // rings wanting a date. Neither is a worse version of the other.
+    var monthView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var monthStart by remember {
+        mutableStateOf(
+            java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.DAY_OF_MONTH, 1)
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        )
+    }
+    var selectedDay by remember { mutableStateOf<Long?>(null) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Schedule") },
+                actions = {
+                    androidx.compose.material3.TextButton(onClick = { monthView = !monthView }) {
+                        Text(if (monthView) "List" else "Month")
+                    }
+                },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
             )
         }
     ) { padding ->
-        if (jobs.isEmpty()) {
+        if (monthView) {
+            val workday = (profile.workdayHours - profile.breakHoursPerDay).coerceAtLeast(1.0)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    MonthCalendar(
+                        monthStart = monthStart,
+                        jobs = jobs,
+                        workdayHours = workday,
+                        selectedDay = selectedDay,
+                        onSelectDay = { selectedDay = it },
+                        onPreviousMonth = {
+                            monthStart = java.util.Calendar.getInstance().apply {
+                                timeInMillis = monthStart
+                                add(java.util.Calendar.MONTH, -1)
+                            }.timeInMillis
+                        },
+                        onNextMonth = {
+                            monthStart = java.util.Calendar.getInstance().apply {
+                                timeInMillis = monthStart
+                                add(java.util.Calendar.MONTH, 1)
+                            }.timeInMillis
+                        }
+                    )
+                }
+
+                // What is actually on the chosen day. A grid of dots tells you
+                // a day is busy; it does not tell you whose fence it is, which
+                // is the next thing anybody asks.
+                val day = selectedDay
+                if (day != null) {
+                    val onDay = jobs.filter { job ->
+                        val start = job.scheduledDate ?: return@filter false
+                        val days = com.fenceestimator.app.estimate.JobSchedule
+                            .plan(job, workday).totalDays
+                        (0 until days).any { offset ->
+                            com.fenceestimator.app.estimate.JobSchedule.startOfDay(
+                                com.fenceestimator.app.estimate.JobSchedule.addDays(start, offset)
+                            ) == day
+                        }
+                    }
+                    item {
+                        Text(
+                            dateFormat.format(java.util.Date(day)),
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
+                    if (onDay.isEmpty()) {
+                        item {
+                            Text(
+                                "Nothing booked. This day is free.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    items(onDay, key = { it.id }) { job ->
+                        Card(
+                            onClick = { onOpenJob(job.id) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    job.customerName.ifBlank { "Untitled job" },
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                if (job.address.isNotBlank()) {
+                                    Text(
+                                        job.address,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    com.fenceestimator.app.estimate.JobSchedule
+                                        .plan(job, workday, day).crewSummary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (jobs.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("No jobs scheduled yet -- set a date on a job to see it here.", modifier = Modifier.padding(24.dp))
             }

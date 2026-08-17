@@ -117,6 +117,16 @@ data class BusinessProfile(
      */
     val contractTerms: String = DEFAULT_CONTRACT_TERMS,
     /**
+     * Which figures appear on the home screen, in order.
+     *
+     * A dashboard showing everything shows nothing -- the number somebody
+     * checks every morning is different for every business, and a fixed set
+     * means most of it is scenery they learn to look past.
+     */
+    val homeCardsCsv: String = HomeCard.DEFAULT_CSV,
+    /** False until the first-run tour has been seen or skipped. */
+    val hasSeenTour: Boolean = false,
+    /**
      * The contractor's own Square access token, kept on this device only.
      * It is never sent to the FenceFlow cloud -- each business bills into
      * its own Square account, and nobody else should be able to read it.
@@ -142,6 +152,16 @@ data class BusinessProfile(
 }
 
 class SettingsStore(private val context: Context) {
+
+    /**
+     * Records that the tour has been seen, without going through a full profile
+     * save -- that would write every setting back and race with anyone editing
+     * Settings at the same moment.
+     */
+    suspend fun markTourSeen() {
+        context.dataStore.edit { it[Keys.SEEN_TOUR] = true }
+    }
+
     private object Keys {
         val BUSINESS_NAME = stringPreferencesKey("business_name")
         val OWNER_NAME = stringPreferencesKey("owner_name")
@@ -149,6 +169,8 @@ class SettingsStore(private val context: Context) {
         val EMAIL = stringPreferencesKey("email")
         val LICENSE = stringPreferencesKey("license")
         val CONTRACT_TERMS = stringPreferencesKey("contract_terms")
+        val HOME_CARDS = stringPreferencesKey("home_cards")
+        val SEEN_TOUR = androidx.datastore.preferences.core.booleanPreferencesKey("seen_tour")
         val TAX_RATE = doublePreferencesKey("tax_rate")
         val MARKUP = doublePreferencesKey("markup")
         val POST_SPACING = floatPreferencesKey("post_spacing")
@@ -189,6 +211,8 @@ class SettingsStore(private val context: Context) {
             email = prefs[Keys.EMAIL] ?: "",
             licenseNumber = prefs[Keys.LICENSE] ?: "",
             contractTerms = prefs[Keys.CONTRACT_TERMS] ?: DEFAULT_CONTRACT_TERMS,
+            homeCardsCsv = prefs[Keys.HOME_CARDS] ?: HomeCard.DEFAULT_CSV,
+            hasSeenTour = prefs[Keys.SEEN_TOUR] ?: false,
             defaultTaxRatePercent = prefs[Keys.TAX_RATE] ?: 7.0,
             defaultMarkupPercent = prefs[Keys.MARKUP] ?: 0.0,
             defaultPostSpacingFt = prefs[Keys.POST_SPACING] ?: 6f,
@@ -242,6 +266,8 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.EMAIL] = profile.email
             prefs[Keys.LICENSE] = profile.licenseNumber
             prefs[Keys.CONTRACT_TERMS] = profile.contractTerms
+            prefs[Keys.HOME_CARDS] = profile.homeCardsCsv
+            prefs[Keys.SEEN_TOUR] = profile.hasSeenTour
             prefs[Keys.TAX_RATE] = profile.defaultTaxRatePercent
             prefs[Keys.MARKUP] = profile.defaultMarkupPercent
             prefs[Keys.POST_SPACING] = profile.defaultPostSpacingFt

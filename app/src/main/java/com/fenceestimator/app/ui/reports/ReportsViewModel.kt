@@ -351,7 +351,17 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
     }
 
     /** Scheduled date is when the work happened; fall back to last edit. */
-    private fun jobDate(job: Job): Long = job.scheduledDate ?: job.updatedAt
+    /**
+     * When a job belongs to, for counting it into a period.
+     *
+     * Falls back to when it was CREATED, not when it was last touched. updatedAt
+     * is a sync artifact -- it moves whenever any device writes the row -- so
+     * using it meant editing an old job silently moved it into this month, and
+     * two devices could disagree about which month a job belonged to. Money
+     * stopped using this when the payments ledger landed; job counts had the
+     * same flaw and it is the same fix.
+     */
+    private fun jobDate(job: Job): Long = job.scheduledDate ?: job.createdAt
 
     private companion object {
         fun startOfDaysAgo(days: Int): Long = Calendar.getInstance().apply {

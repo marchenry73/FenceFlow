@@ -71,7 +71,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -377,14 +377,104 @@ fun SettingsScreen(
             item {
                 SectionCard("Tools & Materials") {
                     Text(
-                        "One tool per line -- copied onto every job's inventory checklist.",
+                        "Copied onto every job's checklist, so nothing gets left in the yard.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    DraftTextField(
-                        stableKey = "tools", initialValue = local.defaultToolsListCsv.split(",").joinToString("\n") { it.trim() },
-                        label = "Default tools list", minLines = 4, modifier = Modifier.fillMaxWidth()
-                    ) { text -> local = local.copy(defaultToolsListCsv = text.split("\n").map { it.trim() }.filter { it.isNotBlank() }.joinToString(",")) }
+
+                    // Chips rather than a wall of text.
+                    //
+                    // A newline-separated blob is quick to build and miserable to
+                    // use: you cannot see at a glance whether the ladder is on the
+                    // list, and removing one item means editing text around it.
+                    // Each tool as its own thing is how people think about a
+                    // toolbox.
+                    val tools = local.defaultToolsListCsv.split(",")
+                        .map { it.trim() }.filter { it.isNotBlank() }
+
+                    androidx.compose.foundation.layout.FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        tools.forEach { tool ->
+                            androidx.compose.material3.InputChip(
+                                selected = false,
+                                onClick = {
+                                    local = local.copy(
+                                        defaultToolsListCsv = tools.filter { it != tool }.joinToString(",")
+                                    )
+                                },
+                                label = { Text(tool) }
+                            )
+                        }
+                    }
+
+                    var newTool by remember { mutableStateOf("") }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newTool,
+                            onValueChange = { newTool = it },
+                            label = { Text("Add a tool") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            enabled = newTool.isNotBlank(),
+                            onClick = {
+                                local = local.copy(
+                                    defaultToolsListCsv = (tools + newTool.trim()).joinToString(",")
+                                )
+                                newTool = ""
+                            }
+                        ) { Text("Add") }
+                    }
+                    Text(
+                        "${tools.size} on the list. Tap one to remove it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Which figures the home screen shows.
+                //
+                // A dashboard showing everything shows nothing -- the number
+                // somebody checks every morning differs by business, and a fixed
+                // set means most of it becomes scenery they look past.
+                SectionCard("Home Screen") {
+                    Text(
+                        "Pick the figures worth seeing every morning.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val chosen = com.fenceestimator.app.data.HomeCard.parse(local.homeCardsCsv)
+                    com.fenceestimator.app.data.HomeCard.values().forEach { card ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(card.label, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    card.explains,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = card in chosen,
+                                onCheckedChange = { on ->
+                                    val next = if (on) chosen + card else chosen - card
+                                    local = local.copy(
+                                        homeCardsCsv = next.joinToString(",") { it.name }
+                                    )
+                                }
+                            )
+                        }
+                    }
                 }
             }
             item {

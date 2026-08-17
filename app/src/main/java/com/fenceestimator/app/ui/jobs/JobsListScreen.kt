@@ -86,7 +86,22 @@ fun JobsListScreen(
     val profile by app.settingsStore.profile.collectAsState(initial = com.fenceestimator.app.data.BusinessProfile())
     val session by app.session.state.collectAsState()
     val pendingHours by viewModel.pendingHours.collectAsState()
+    val allPayments by viewModel.allPayments.collectAsState()
+    val outstanding by viewModel.outstandingTotal.collectAsState()
     var pendingDelete by remember { mutableStateOf<Job?>(null) }
+
+    // Shown once, on the first open. Covers only the things that are not
+    // guessable and cost money when found out late.
+    val tourScope = rememberCoroutineScope()
+    var showTour by remember(profile.hasSeenTour) { mutableStateOf(!profile.hasSeenTour) }
+    if (showTour) {
+        com.fenceestimator.app.ui.onboarding.FirstRunTour(
+            onFinished = {
+                showTour = false
+                tourScope.launch { app.settingsStore.markTourSeen() }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -258,10 +273,17 @@ fun JobsListScreen(
                 item {
                     DashboardHeader(
                         jobs = jobs,
+                        payments = allPayments,
+                        pendingHours = pendingHours.size,
+                        outstanding = outstanding,
+                        cards = com.fenceestimator.app.data.HomeCard.parse(profile.homeCardsCsv),
                         showMoney = session.canSeeMoney,
+                        workdayHours = (profile.workdayHours - profile.breakHoursPerDay)
+                            .coerceAtLeast(1.0),
                         onOpenSchedule = onOpenSchedule,
                         onOpenPipeline = onOpenPipeline,
-                        onOpenReports = onOpenReports
+                        onOpenReports = onOpenReports,
+                        onOpenTimeApproval = onOpenTimeApproval
                     )
                 }
                 items(jobs, key = { it.id }) { job ->
@@ -301,42 +323,88 @@ fun JobsListScreen(
 @Composable
 private fun DashboardHeader(
     jobs: List<Job>,
+    payments: List<com.fenceestimator.app.data.PaymentRecord>,
+    pendingHours: Int,
+    outstanding: Double,
+    cards: List<com.fenceestimator.app.data.HomeCard>,
     showMoney: Boolean,
+    workdayHours: Double,
     onOpenSchedule: () -> Unit,
     onOpenPipeline: () -> Unit,
-    onOpenReports: () -> Unit
+    onOpenReports: () -> Unit,
+    onOpenTimeApproval: () -> Unit
 ) {
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
-    val stats = remember(jobs) {
-        val now = Calendar.getInstance()
-        val weekEnd = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 7) }.timeInMillis
-        val monthStart = (now.clone() as Calendar).apply {
-            set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+
+    val monthStart = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
-
-        val scheduledThisWeek = jobs.count { it.scheduledDate != null && it.scheduledDate in now.timeInMillis..weekEnd }
-        val monthReference = { j: Job -> j.scheduledDate ?: j.updatedAt }
-        val wonThisMonth = jobs.count { it.status.isWon && monthReference(it) >= monthStart }
-        val collectedThisMonth = jobs.filter { monthReference(it) >= monthStart }.sumOf { it.amountPaid }
-        val unpaidJobs = jobs.count { it.status.isWon && it.paymentStatus != PaymentStatus.PAID_IN_FULL }
-
-        DashboardStats(scheduledThisWeek, wonThisMonth, collectedThisMonth, unpaidJobs)
     }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        StatCard("This Week", stats.scheduledThisWeek.toString(), Modifier.weight(1f), onOpenSchedule)
-        StatCard("Won This Month", stats.wonThisMonth.toString(), Modifier.weight(1f), onOpenPipeline)
+    // Money comes from the ledger, by the date it actually arrived.
+    //
+    // This screen had the same bug the reports screen did: it attributed a
+    // job's whole lifetime amountPaid to a single job timestamp, and for an
+    // unscheduled job that timestamp was updatedAt -- a sync artifact. Editing
+    // an old job dragged its payments into this month, and two devices
+    // disagreed. Same fix, because it is the same mistake.
+    val collectedThisMonth = remember(payments, monthStart) {
+        payments.filter { it.receivedAt >= monthStart }.sumOf { it.amount }
     }
-    if (showMoney) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-            StatCard("Collected This Month", currency.format(stats.collectedThisMonth), Modifier.weight(1f), onOpenReports)
-            StatCard("Unpaid Jobs", stats.unpaidJobs.toString(), Modifier.weight(1f), onOpenPipeline)
+
+    fun valueFor(card: com.fenceestimator.app.data.HomeCard): String {
+        val now = System.currentTimeMillis()
+        val weekEnd = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 7) }.timeInMillis
+        return when (card) {
+            com.fenceestimator.app.data.HomeCard.SCHEDULED_THIS_WEEK ->
+                jobs.count { it.scheduledDate != null && it.scheduledDate in now..weekEnd }.toString()
+            com.fenceestimator.app.data.HomeCard.WON_THIS_MONTH ->
+                jobs.count { it.status.isWon && (it.scheduledDate ?: it.createdAt) >= monthStart }.toString()
+            com.fenceestimator.app.data.HomeCard.COLLECTED_THIS_MONTH ->
+                currency.format(collectedThisMonth)
+            com.fenceestimator.app.data.HomeCard.OUTSTANDING -> currency.format(outstanding)
+            com.fenceestimator.app.data.HomeCard.UNPAID_JOBS ->
+                jobs.count { it.status.isWon && it.paymentStatus != PaymentStatus.PAID_IN_FULL }.toString()
+            com.fenceestimator.app.data.HomeCard.HOURS_TO_APPROVE -> pendingHours.toString()
+            com.fenceestimator.app.data.HomeCard.DRAFT_ESTIMATES ->
+                jobs.count { it.status == JobStatus.DRAFT }.toString()
+            com.fenceestimator.app.data.HomeCard.OVERRUNNING ->
+                jobs.count {
+                    com.fenceestimator.app.estimate.JobSchedule.hasOverrun(it, workdayHours)
+                }.toString()
+        }
+    }
+
+    fun destinationFor(card: com.fenceestimator.app.data.HomeCard): () -> Unit = when (card) {
+        com.fenceestimator.app.data.HomeCard.SCHEDULED_THIS_WEEK,
+        com.fenceestimator.app.data.HomeCard.OVERRUNNING -> onOpenSchedule
+        com.fenceestimator.app.data.HomeCard.COLLECTED_THIS_MONTH,
+        com.fenceestimator.app.data.HomeCard.OUTSTANDING -> onOpenReports
+        com.fenceestimator.app.data.HomeCard.HOURS_TO_APPROVE -> onOpenTimeApproval
+        else -> onOpenPipeline
+    }
+
+    // Money cards are dropped rather than blanked for anyone without permission
+    // to see money -- an empty card labelled "Collected" still tells them there
+    // is money to know about.
+    val visible = cards.filter { showMoney || !it.needsMoney }
+
+    visible.chunked(2).forEach { pair ->
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+        ) {
+            pair.forEach { card ->
+                StatCard(card.label, valueFor(card), Modifier.weight(1f), destinationFor(card))
+            }
+            if (pair.size == 1) Box(Modifier.weight(1f))
         }
     }
     Spacer(Modifier.height(4.dp))
 }
 
-private data class DashboardStats(val scheduledThisWeek: Int, val wonThisMonth: Int, val collectedThisMonth: Double, val unpaidJobs: Int)
 
 @Composable
 private fun StatCard(
