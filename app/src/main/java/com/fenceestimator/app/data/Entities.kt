@@ -107,7 +107,9 @@ data class FieldChange(
 data class PendingDeletion(
     @PrimaryKey val syncId: String,
     val tableName: String,
-    val queuedAt: Long = System.currentTimeMillis()
+    val queuedAt: Long = System.currentTimeMillis(),
+    /** Who deleted it, so the trash can say who to ask about it. */
+    val deletedBy: String = ""
 )
 
 /**

@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -444,4 +445,33 @@ interface FieldChangeDao {
 
     @Query("UPDATE field_changes SET acknowledgedAt = :at WHERE jobId = :jobId AND acknowledgedAt IS NULL")
     suspend fun acknowledgeAllForJob(jobId: Long, at: Long)
+}
+
+/**
+ * Removes local rows that another device deleted.
+ *
+ * One raw-query DAO rather than thirteen near-identical `DELETE ... WHERE
+ * syncId IN (...)` methods, because the difference between them is only the
+ * table name and thirteen copies is thirteen chances to miss one when a table
+ * is added.
+ *
+ * The table name is interpolated, which would be an injection risk if it came
+ * from anywhere but a fixed list in [SyncTables]. It never does -- the values
+ * are compile-time constants, and the sync ids are bound as parameters.
+ */
+@Dao
+interface SyncMaintenanceDao {
+    @RawQuery
+    suspend fun execute(query: androidx.sqlite.db.SupportSQLiteQuery): Int
+}
+
+/** Every table that syncs, so the reaper and the pusher cannot drift apart. */
+object SyncTables {
+    /** Local Room table name to the cloud table it maps to; they match today. */
+    val ALL: List<String> = listOf(
+        "fence_runs", "estimate_line_items", "change_orders", "job_steps",
+        "site_markers", "time_entries", "expenses", "punch_list_items",
+        "employees", "manufacturers", "material_items", "pricing_tiers",
+        "field_changes"
+    )
 }

@@ -727,3 +727,46 @@ private fun TimeEntry.toCloud(companyId: String, jobSyncId: String) = CloudTimeE
     endedAt = endedAt?.let { Instant.ofEpochMilli(it).toString() },
     hourlyRate = hourlyRate, notes = notes
 )
+
+/**
+ * Removes local rows that another device deleted.
+ *
+ * The other half of the tombstone fix. [JobSync] handles jobs; every other
+ * synced table went through a blanket upsert, which meant a device that still
+ * held a local copy of a deleted line item or change order pushed it straight
+ * back up. For money-bearing tables that is not just clutter -- resurrected
+ * line items and change orders inflate the job total, which is why two devices
+ * showed different figures for the same job.
+ *
+ * Runs before the push, so nothing deleted elsewhere is uploaded again on the
+ * same pass.
+ */
+object DeletionReaper {
+
+    @kotlinx.serialization.Serializable
+    private data class TombstonedRow(@kotlinx.serialization.SerialName("sync_id") val syncId: String)
+
+    suspend fun reap(repository: com.fenceestimator.app.data.Repository, companyId: String): Result<Int> =
+        runCatching {
+            var removed = 0
+            com.fenceestimator.app.data.SyncTables.ALL.forEach { table ->
+                val deletedIds = SupabaseModule.client.postgrest.from(table)
+                    .select(io.github.jan.supabase.postgrest.query.Columns.list("sync_id")) {
+                        filter {
+                            eq("company_id", companyId)
+                            // "not null" rather than a date window: a device that
+                            // has been off for a month must still learn about
+                            // everything deleted while it was away.
+                            filterNot("deleted_at", io.github.jan.supabase.postgrest.query.filter.FilterOperator.IS, "null")
+                        }
+                    }
+                    .decodeList<TombstonedRow>()
+                    .map { it.syncId }
+
+                if (deletedIds.isNotEmpty()) {
+                    removed += repository.deleteLocalRowsBySyncId(table, deletedIds)
+                }
+            }
+            removed
+        }
+}

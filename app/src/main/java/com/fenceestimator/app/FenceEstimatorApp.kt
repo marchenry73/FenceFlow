@@ -61,6 +61,11 @@ class FenceEstimatorApp : Application() {
         session.settingsStore = settingsStore
         session.dataOwnership = dataOwnership
 
+        // Tombstones record who deleted the record, so the trash can say who to
+        // ask before restoring it.
+        applicationScope.launch {
+            session.state.collect { repository.deletingUser = it.email.orEmpty() }
+        }
         session.refresh()
         // Self-heals installs whose catalog never got seeded -- without a catalog,
         // Suggest Quantities silently returns nothing.

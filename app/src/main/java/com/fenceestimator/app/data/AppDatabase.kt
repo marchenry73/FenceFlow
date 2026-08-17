@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -41,6 +41,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun timeEntryDao(): TimeEntryDao
     abstract fun pendingDeletionDao(): PendingDeletionDao
     abstract fun fieldChangeDao(): FieldChangeDao
+    abstract fun syncMaintenanceDao(): SyncMaintenanceDao
 
     /** Flushes the write-ahead log into the main .db file so a raw file copy is complete and consistent. */
     suspend fun checkpoint() = withContext(Dispatchers.IO) {
@@ -303,13 +304,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Records who deleted something, so the trash can say who to ask about it. */
+        private val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pending_deletions` ADD COLUMN `deletedBy` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a

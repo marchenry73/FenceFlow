@@ -3,6 +3,14 @@ package com.fenceestimator.app.data
 import kotlinx.coroutines.flow.Flow
 
 class Repository(private val db: AppDatabase) {
+
+    /**
+     * Who is deleting things on this device, recorded on the tombstone so the
+     * trash can say who to ask about a record before restoring it. Set by the
+     * app when the session resolves; blank when working signed-out alone.
+     */
+    var deletingUser: String = ""
+
     /** Flushes pending writes to disk so a raw copy of the DB file for backup is complete. */
     suspend fun checkpointForBackup() = db.checkpoint()
 
@@ -23,6 +31,7 @@ class Repository(private val db: AppDatabase) {
     private val siteMarkerDao = db.siteMarkerDao()
     private val timeEntryDao = db.timeEntryDao()
     private val pendingDeletionDao = db.pendingDeletionDao()
+    private val syncMaintenanceDao = db.syncMaintenanceDao()
 
     fun observeJobs(): Flow<List<Job>> = jobDao.observeAll()
     fun observeJob(id: Long): Flow<Job?> = jobDao.observeById(id)
@@ -51,7 +60,7 @@ class Repository(private val db: AppDatabase) {
      */
     suspend fun deleteJob(job: Job) {
         jobDao.delete(job)
-        pendingDeletionDao.insert(PendingDeletion(syncId = job.syncId, tableName = "jobs"))
+        pendingDeletionDao.insert(PendingDeletion(syncId = job.syncId, tableName = "jobs", deletedBy = deletingUser))
     }
 
     /**
@@ -66,7 +75,7 @@ class Repository(private val db: AppDatabase) {
 
     /** Queues a cloud row for deletion on the next sync. */
     suspend fun queueDeletion(syncId: String, tableName: String) =
-        pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName))
+        pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName, deletedBy = deletingUser))
 
     /**
      * Deletes locally and records that the cloud copy must go too.
@@ -82,8 +91,43 @@ class Repository(private val db: AppDatabase) {
      * the reverse loses the instruction entirely.
      */
     private suspend fun deleteSynced(syncId: String, tableName: String, deleteLocal: suspend () -> Unit) {
-        pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName))
+        pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName, deletedBy = deletingUser))
         deleteLocal()
+    }
+
+    /**
+     * Removes a job because the cloud says it was deleted somewhere else.
+     *
+     * Deliberately does NOT queue a deletion of its own: the tombstone already
+     * exists in the cloud, and queueing another would have this device stamp a
+     * row that is already stamped. The cloud copy is what keeps it restorable.
+     */
+    suspend fun deleteJobLocallyOnly(job: Job) = jobDao.delete(job)
+
+    /**
+     * Removes rows another device deleted, without queueing a deletion of our
+     * own -- the cloud tombstone already exists and is what keeps them
+     * restorable.
+     *
+     * [table] is interpolated into the statement, which would be an injection
+     * risk if it came from anywhere but [SyncTables.ALL]. It does not: those are
+     * compile-time constants. The sync ids are bound as parameters.
+     */
+    suspend fun deleteLocalRowsBySyncId(table: String, syncIds: List<String>): Int {
+        if (syncIds.isEmpty()) return 0
+        require(table in SyncTables.ALL) { "refusing to delete from an unknown table: $table" }
+        var removed = 0
+        // Chunked because SQLite caps how many bind variables one statement takes.
+        syncIds.chunked(400).forEach { chunk ->
+            val placeholders = chunk.joinToString(",") { "?" }
+            removed += syncMaintenanceDao.execute(
+                androidx.sqlite.db.SimpleSQLiteQuery(
+                    "DELETE FROM `$table` WHERE syncId IN ($placeholders)",
+                    chunk.toTypedArray()
+                )
+            )
+        }
+        return removed
     }
 
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
@@ -91,7 +135,7 @@ class Repository(private val db: AppDatabase) {
 
     suspend fun deleteEmployeeSynced(employee: Employee) {
         employeeDao.delete(employee)
-        pendingDeletionDao.insert(PendingDeletion(syncId = employee.syncId, tableName = "employees"))
+        pendingDeletionDao.insert(PendingDeletion(syncId = employee.syncId, tableName = "employees", deletedBy = deletingUser))
     }
 
     fun observeFenceRuns(jobId: Long): Flow<List<FenceRun>> = fenceRunDao.observeForJob(jobId)

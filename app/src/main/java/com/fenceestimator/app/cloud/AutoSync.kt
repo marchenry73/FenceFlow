@@ -194,6 +194,11 @@ class AutoSync(
             // failed when the jobs went through fine.
             // Failures here used to be swallowed entirely, which is exactly how
             // "some things save and some don't" stays invisible. Report them.
+            // Before the push, always. Reaping after it would upload rows that
+            // another device deleted, which is the resurrection this exists to
+            // stop.
+            val reaped = DeletionReaper.reap(repository, companyId)
+
             val pushResult = EntitySync.pushAll(repository, companyId)
             val pullResult = EntitySync.pullAll(repository, companyId)
 
@@ -206,7 +211,9 @@ class AutoSync(
                     uploader.downloadMissing()
                 }
             }
-            val entityError = pushResult.exceptionOrNull() ?: pullResult.exceptionOrNull()
+            val entityError = reaped.exceptionOrNull()
+                ?: pushResult.exceptionOrNull()
+                ?: pullResult.exceptionOrNull()
 
             if (entityError != null) {
                 // A network failure is not the same as a real error. The crew

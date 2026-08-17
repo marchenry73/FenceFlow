@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.time.Instant
 
 @Serializable
@@ -53,7 +55,9 @@ data class CloudJob(
     @SerialName("hoa_approval_status") val hoaApprovalStatus: String = "NOT_REQUIRED",
     @SerialName("permit_number") val permitNumber: String = "",
     @SerialName("permit_status") val permitStatus: String = "NOT_REQUIRED",
-    @SerialName("updated_at") val updatedAt: String? = null
+    @SerialName("updated_at") val updatedAt: String? = null,
+    /** Set when this record was deleted. The row stays so every device learns of it. */
+    @SerialName("deleted_at") val deletedAt: String? = null
 ) {
     /**
      * Falls back to 0 so a genuinely absent value never beats real local work.
@@ -86,10 +90,14 @@ data class SyncResult(
  * per-phone auto-increment id -- two phones would otherwise both claim id 1
  * and clobber each other.
  *
- * Conflicts resolve last-edit-wins on the update timestamp. Nothing is ever
- * deleted by sync: a row missing on one side means "not synced yet", never
- * "delete the other copy", so a phone that has been offline can't wipe the
- * team's work when it reconnects.
+ * Conflicts resolve last-edit-wins on the update timestamp.
+ *
+ * A row missing from the cloud still means "not synced yet", never "delete the
+ * other copy" -- a phone that has been offline must not wipe the team's work
+ * when it reconnects. Deletion is expressed as a tombstone instead: the row
+ * stays with deleted_at set, so every device can tell "not uploaded yet" apart
+ * from "deleted on purpose". Reading those two as the same thing is what made
+ * deleted jobs come back from any device that had not synced.
  */
 object JobSync {
 
@@ -113,16 +121,29 @@ object JobSync {
             // just deleted locally would still be in the cloud and would come
             // straight back down.
             repository.pendingDeletions().forEach { deletion ->
+                // Stamped, not removed.
+                //
+                // A hard delete is invisible to every other device: they read
+                // "on my phone but not in the cloud" as "not uploaded yet" and
+                // upload it again, so the record came straight back and the
+                // deleting device pulled it down as brand new. A tombstone
+                // makes the deletion itself a thing that syncs, and makes it
+                // recoverable from the trash.
                 val removed = runCatching {
-                    SupabaseModule.client.postgrest.from(deletion.tableName).delete {
+                    SupabaseModule.client.postgrest.from(deletion.tableName).update(
+                        buildJsonObject {
+                            put("deleted_at", Instant.now().toString())
+                            put("deleted_by", deletion.deletedBy)
+                        }
+                    ) {
                         filter {
                             eq("company_id", companyId)
                             eq("sync_id", deletion.syncId)
                         }
                     }
                 }
-                // Only clear the tombstone once the cloud actually accepted it,
-                // so an offline delete retries instead of being forgotten.
+                // Only clear the local marker once the cloud actually accepted
+                // it, so an offline delete retries instead of being forgotten.
                 if (removed.isSuccess) repository.clearPendingDeletion(deletion.syncId)
             }
 
@@ -137,6 +158,19 @@ object JobSync {
 
             for (job in localJobs) {
                 val cloudJob = cloudBySyncId[job.syncId]
+
+                // Deleted elsewhere. This is the resurrection the whole
+                // tombstone exists to stop: without it this branch fell through
+                // to "not in the cloud, so upload it", and a device that had
+                // simply not synced yet put back everything another device had
+                // deleted. Nothing is pushed for a deleted row -- it is removed
+                // here instead, and stays recoverable from the cloud trash.
+                if (cloudJob?.deletedAt != null) {
+                    repository.deleteJobLocallyOnly(job)
+                    downloaded++
+                    continue
+                }
+
                 if (cloudJob == null) {
                     SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId))
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
@@ -191,6 +225,15 @@ object JobSync {
 
             for (cloudJob in cloudJobs) {
                 val local = freshBySyncId[cloudJob.syncId]
+
+                // Never recreate something that was deleted. This is the other
+                // half of the loop: the pull used to treat a tombstoned row as
+                // simply "a job this phone is missing".
+                if (cloudJob.deletedAt != null) {
+                    local?.let { repository.deleteJobLocallyOnly(it); downloaded++ }
+                    continue
+                }
+
                 if (local == null) {
                     val newId = repository.createJob(cloudJob.toLocalJob())
                     downloaded++
