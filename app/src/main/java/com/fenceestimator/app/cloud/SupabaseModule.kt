@@ -44,7 +44,9 @@ data class CloudProfile(
     val id: String = "",
     @SerialName("company_id") val companyId: String? = null,
     @SerialName("full_name") val fullName: String = "",
-    val role: String = "CREW"
+    val role: String = "CREW",
+    /** Per-person adjustments to the role, e.g. "+SEE_MONEY,-DELETE_RECORDS". */
+    @SerialName("permission_overrides") val permissionOverrides: String = ""
 ) {
     val userRole: UserRole
         get() = runCatching { UserRole.valueOf(role) }.getOrDefault(UserRole.CREW)
@@ -116,6 +118,31 @@ object SupabaseModule {
         return client.postgrest.from("profiles")
             .select { filter { eq("id", uid) } }
             .decodeSingleOrNull<CloudProfile>()
+    }
+
+    /** Everyone in this company, so their access can be set individually. */
+    suspend fun fetchTeam(companyId: String): List<CloudProfile> =
+        client.postgrest.from("profiles")
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudProfile>()
+
+    /**
+     * Changes one person's access.
+     *
+     * The database has the final say: profiles_manage only permits this for a
+     * caller holding MANAGE_ACCESS, and never on their own row. So a phone with
+     * a modified build cannot grant itself anything -- the update is simply
+     * rejected. Hiding the screen is a courtesy to honest people, not the lock.
+     */
+    suspend fun updateMemberAccess(userId: String, role: UserRole, overrides: String) {
+        client.postgrest.from("profiles").update(
+            buildJsonObject {
+                put("role", role.name)
+                put("permission_overrides", overrides)
+            }
+        ) {
+            filter { eq("id", userId) }
+        }
     }
 
     /** Creates a new company and makes the current user its OWNER. */

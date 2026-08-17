@@ -44,7 +44,7 @@ import com.fenceestimator.app.ui.components.currentApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AccountScreen(onBack: () -> Unit) {
+fun AccountScreen(onBack: () -> Unit, onOpenAccess: () -> Unit = {}) {
     val app = currentApp()
     val viewModel: AccountViewModel = viewModel(
         factory = com.fenceestimator.app.ui.components.GenericViewModelFactory {
@@ -52,6 +52,7 @@ fun AccountScreen(onBack: () -> Unit) {
         }
     )
     val state by viewModel.state.collectAsState()
+    val session by app.session.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.message) {
@@ -103,7 +104,14 @@ fun AccountScreen(onBack: () -> Unit) {
             if (!state.isSignedIn) {
                 item { SignedOutSection(viewModel) }
             } else {
-                item { SignedInSection(state, viewModel) }
+                item {
+                    SignedInSection(
+                        state = state,
+                        viewModel = viewModel,
+                        canManageAccess = session.canManageAccess,
+                        onOpenAccess = onOpenAccess
+                    )
+                }
                 item { SyncStatusCard() }
                 if (state.needsCompany) {
                     item { CompanySetupSection(viewModel) }
@@ -155,7 +163,12 @@ private fun SignedOutSection(viewModel: AccountViewModel) {
 }
 
 @Composable
-private fun SignedInSection(state: AccountUiState, viewModel: AccountViewModel) {
+private fun SignedInSection(
+    state: AccountUiState,
+    viewModel: AccountViewModel,
+    canManageAccess: Boolean,
+    onOpenAccess: () -> Unit
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Signed In", style = MaterialTheme.typography.titleMedium)
@@ -203,6 +216,13 @@ private fun SignedInSection(state: AccountUiState, viewModel: AccountViewModel) 
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            // Only shown to someone who can actually use it. Offering a screen
+            // that refuses you when you arrive is worse than not offering it.
+            if (canManageAccess) {
+                Button(onClick = onOpenAccess, modifier = Modifier.fillMaxWidth()) {
+                    Text("Who Can Do What")
                 }
             }
             OutlinedButton(onClick = { viewModel.signOut() }, modifier = Modifier.fillMaxWidth()) {

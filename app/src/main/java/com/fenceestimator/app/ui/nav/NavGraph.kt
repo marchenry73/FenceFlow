@@ -10,6 +10,7 @@ object Routes {
     const val CUSTOMERS = "customers"
     const val SCHEDULE = "schedule"
     const val ACCOUNT = "account"
+    const val ACCESS = "access"
     const val REPORTS = "reports"
     const val PIPELINE = "pipeline"
     const val HELP = "help"

@@ -256,7 +256,13 @@ fun FenceEstimatorNavHost() {
             )
         }
         composable(Routes.ACCOUNT) {
-            AccountScreen(onBack = { navController.popBackStack() })
+            AccountScreen(
+                onBack = { navController.popBackStack() },
+                onOpenAccess = { navController.navigate(Routes.ACCESS) }
+            )
+        }
+        composable(Routes.ACCESS) {
+            com.fenceestimator.app.ui.account.AccessScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.MANUFACTURERS) {
             ManufacturersScreen(onBack = { navController.popBackStack() })

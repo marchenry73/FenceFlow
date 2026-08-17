@@ -13,42 +13,59 @@ data class SessionState(
      * Signed-out means local-only mode on your own phone, so it gets full
      * access -- the restricted roles only apply to a real company login.
      */
-    val role: UserRole = UserRole.OWNER
+    val role: UserRole = UserRole.OWNER,
+    /**
+     * This person's adjustments to their role, as stored on their profile.
+     * Blank means "whatever the role says", which is the case for most people.
+     */
+    val permissionOverrides: String = ""
 ) {
+    /**
+     * What this person can actually do, role plus their own adjustments.
+     *
+     * Signed out means working alone on your own phone, so everything is
+     * allowed -- the restrictions exist to divide a team, and there is no team.
+     */
+    val permissions: Set<Permission>
+        get() = if (!signedIn) Permission.ALL
+        else PermissionOverrides.resolve(role, permissionOverrides)
+
+    fun can(permission: Permission): Boolean = permission in permissions
+
     /** Prices, margins, costs and payment figures. */
-    val canSeeMoney: Boolean
-        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.SALES, UserRole.ACCOUNTANT)
+    val canSeeMoney: Boolean get() = can(Permission.SEE_MONEY)
 
     /** Catalog prices, pricing tiers, company settings. */
-    val canEditCatalogAndSettings: Boolean
-        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER)
+    val canEditCatalogAndSettings: Boolean get() = can(Permission.EDIT_CATALOG_AND_SETTINGS)
 
     /** Editing the job itself: customer, spec, scheduling. */
-    val canEditJobs: Boolean
-        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.SALES)
+    val canEditJobs: Boolean get() = can(Permission.EDIT_JOBS)
 
     /** Assigning crew and moving work around the calendar. */
-    val canScheduleAndAssign: Boolean
-        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.FOREMAN)
+    val canScheduleAndAssign: Boolean get() = can(Permission.SCHEDULE_AND_ASSIGN)
 
     /** Asking a customer for money. */
-    val canRequestPayment: Boolean
-        get() = role in setOf(UserRole.OWNER, UserRole.MANAGER, UserRole.ACCOUNTANT)
+    val canRequestPayment: Boolean get() = can(Permission.REQUEST_PAYMENT)
 
     /** Marking progress, ticking checklists, adding photos on site. */
-    val canRecordFieldWork: Boolean
-        get() = role != UserRole.ACCOUNTANT && role != UserRole.SALES
+    val canRecordFieldWork: Boolean get() = can(Permission.RECORD_FIELD_WORK)
 
     /** Customer phone numbers, emails and addresses beyond the job site. */
-    val canSeeCustomerContact: Boolean
-        get() = role != UserRole.CREW
+    val canSeeCustomerContact: Boolean get() = can(Permission.SEE_CUSTOMER_CONTACT)
 
     /**
-     * Deleting is deliberately owner-only. A mistaken delete on a signed change
-     * order or a paid invoice destroys the record you would need in a dispute,
-     * and there is no undo -- so managers archive, owners delete.
+     * Deleting stays hard. It is absent from every role's defaults including
+     * manager, so it only ever applies to someone it was deliberately granted
+     * to -- a mistaken delete on a signed change order or a paid invoice
+     * destroys the record you would need in a dispute, and there is no undo.
      */
-    val canDelete: Boolean get() = role == UserRole.OWNER
+    val canDelete: Boolean get() = can(Permission.DELETE_RECORDS)
+
+    val canApproveTime: Boolean get() = can(Permission.APPROVE_TIME)
+    val canApprovePlanChanges: Boolean get() = can(Permission.APPROVE_PLAN_CHANGES)
+    val canRecordRefunds: Boolean get() = can(Permission.RECORD_REFUNDS)
+    val canSeeReports: Boolean get() = can(Permission.SEE_REPORTS)
+    val canManageAccess: Boolean get() = can(Permission.MANAGE_ACCESS)
 }
 
 /** App-wide view of who is signed in and what they're allowed to see. */
@@ -88,7 +105,8 @@ class SessionManager(private val scope: CoroutineScope) {
                 signedIn = true,
                 email = email,
                 companyId = profile?.companyId,
-                role = profile?.userRole ?: UserRole.OWNER
+                role = profile?.userRole ?: UserRole.OWNER,
+                permissionOverrides = profile?.permissionOverrides.orEmpty()
             )
 
             // Before anything else: if this phone is holding a DIFFERENT
