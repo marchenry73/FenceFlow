@@ -24,7 +24,9 @@ data class SyncState(
     val lastSyncedAt: Long? = null,
     val lastError: String? = null,
     /** True when work is saved on this phone but not yet in the cloud. */
-    val hasUnsyncedWork: Boolean = false
+    val hasUnsyncedWork: Boolean = false,
+    /** Signed in, but not part of a company -- so there is nowhere to sync to. */
+    val signedInWithoutCompany: Boolean = false
 ) {
     /**
      * What to tell the user. "Saved on this phone" matters more than any
@@ -39,7 +41,15 @@ data class SyncState(
                 "No signal. Your work is saved on this phone and will upload by itself."
             SyncPhase.FAILED ->
                 "Couldn't sync: ${lastError ?: "unknown"}. Your work is safe on this phone."
-            SyncPhase.OFFLINE_ONLY -> "Working on this phone only. Sign in to back up."
+            // Two very different situations used to share one sentence. Telling
+            // somebody who IS signed in to "sign in" reads as the app being
+            // broken, and hides the actual step: they have no company yet, so
+            // there is nowhere for the work to go.
+            SyncPhase.OFFLINE_ONLY ->
+                if (signedInWithoutCompany)
+                    "Not backing up yet. Create your company or join one with an " +
+                        "invite code, and everything saves to the cloud from then on."
+                else "Working on this phone only. Sign in to back up."
             SyncPhase.IDLE -> "Ready"
         }
 }
@@ -184,7 +194,10 @@ class AutoSync(
     private suspend fun runSync() {
         val companyId = session.state.value.companyId
         if (companyId == null) {
-            _state.value = _state.value.copy(phase = SyncPhase.OFFLINE_ONLY)
+            _state.value = _state.value.copy(
+                phase = SyncPhase.OFFLINE_ONLY,
+                signedInWithoutCompany = session.state.value.signedIn
+            )
             return
         }
         // A trigger arriving mid-sync is remembered, not thrown away. It used to

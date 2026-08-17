@@ -176,12 +176,20 @@ class SessionManager(private val scope: CoroutineScope) {
             // Before anything else: if this phone is holding a DIFFERENT
             // company's data, clear it. Otherwise signing in on a shared crew
             // phone shows the previous company's jobs, customers and revenue.
-            profile?.companyId?.let { company ->
-                runCatching {
-                    if (dataOwnership?.onSignedIn(company) == true) {
-                        _wipedForNewAccount.value = true
-                    }
+            //
+            // The no-company case is handled too, and used not to be. Signing
+            // in with an account that has not joined a company left companyId
+            // null, so this check was skipped entirely and the previous
+            // account's data stayed on screen -- while the app simultaneously
+            // reported "working on this phone only". Somebody who has not
+            // joined a company is not entitled to any company's books.
+            runCatching {
+                val wiped = if (profile?.companyId != null) {
+                    dataOwnership?.onSignedIn(profile.companyId!!)
+                } else {
+                    dataOwnership?.onSignedInWithoutCompany()
                 }
+                if (wiped == true) _wipedForNewAccount.value = true
             }
 
             // Bring down the company's saved settings so a reinstall or a new

@@ -89,6 +89,29 @@ class DataOwnership(
     }
 
     /**
+     * Called when someone signs in who has not joined a company.
+     *
+     * They are entitled to nothing that belongs to one. This case was missed
+     * entirely: the ownership check only ran when a company id was present, so
+     * signing in with a fresh account left the previous company's jobs,
+     * customers and revenue sitting on screen -- while the app reported
+     * "working on this phone only", which made it read like a local quirk
+     * rather than another company's books.
+     *
+     * Unclaimed work is still kept. Somebody who tried the app before making an
+     * account is looking at their own work on their own phone, and taking it
+     * away at the moment they sign up would be the wrong end of this trade.
+     *
+     * @return true if local data was wiped.
+     */
+    suspend fun onSignedInWithoutCompany(): Boolean {
+        val owner = currentOwner() ?: return false
+        wipeEverything()
+        setOwner(null)
+        return true
+    }
+
+    /**
      * Called on sign-out. Clears the phone so the next person sees nothing.
      *
      * Refuses while anything is still waiting to upload, so signing out can
