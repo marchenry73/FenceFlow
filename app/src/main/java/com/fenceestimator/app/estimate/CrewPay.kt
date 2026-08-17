@@ -18,10 +18,19 @@ object CrewPay {
 
     data class Earnings(
         val payType: PayType,
+        /** Hours that have been signed off. These are what [amount] is built from. */
         val hours: Double,
         val feet: Double,
         val rate: Double,
-        val amount: Double
+        val amount: Double,
+        /**
+         * Finished shifts still waiting on a manager.
+         *
+         * Carried separately rather than folded in or dropped. Folding it in
+         * would promise pay for hours nobody has checked; dropping it silently
+         * is how a crew member concludes the app lost their day.
+         */
+        val hoursAwaitingApproval: Double = 0.0
     ) {
         /** What the crew member sees: the arithmetic, not just the total. */
         fun explain(): String = when (payType) {
@@ -42,7 +51,16 @@ object CrewPay {
         runs: List<FenceRun>,
         pixelsPerFoot: Float
     ): Earnings {
-        val hours = timeEntries.filter { !it.isRunning }.sumOf { it.hours }
+        // Approved hours only, on both sides of the figure.
+        //
+        // Summing raw hours here while the amount came from laborCost -- which
+        // only counts approved time -- put hours and dollars on the same card
+        // that contradicted each other: five hours worked, nothing earned.
+        // Pay is what has been signed off, so both come from the same place.
+        val approved = timeEntries.filter { it.isApproved }
+        val hours = approved.sumOf { it.payableHours }
+        /** Finished but not yet signed off -- shown separately so it is not simply missing. */
+        val awaitingApproval = timeEntries.filter { it.isAwaitingApproval }.sumOf { it.hours }
         val feet = runs.sumOf { run ->
             val points = FenceCodec.decodePoints(run.pointsEncoded)
             if (points.size < 2) 0.0
@@ -51,7 +69,7 @@ object CrewPay {
         }
 
         if (employee == null) {
-            return Earnings(PayType.HOURLY, hours, feet, 0.0, 0.0)
+            return Earnings(PayType.HOURLY, hours, feet, 0.0, 0.0, awaitingApproval)
         }
 
         return when (employee.payType) {
@@ -62,14 +80,16 @@ object CrewPay {
                 rate = employee.hourlyRate,
                 // Uses the rate stored on each entry, so a raise doesn't
                 // retroactively change what past work cost.
-                amount = timeEntries.filter { !it.isRunning }.sumOf { it.laborCost }
+                amount = approved.sumOf { it.laborCost },
+                hoursAwaitingApproval = awaitingApproval
             )
             PayType.PER_FOOT -> Earnings(
                 payType = PayType.PER_FOOT,
                 hours = hours,
                 feet = feet,
                 rate = employee.perFootRate,
-                amount = feet * employee.perFootRate
+                amount = feet * employee.perFootRate,
+                hoursAwaitingApproval = awaitingApproval
             )
         }
     }

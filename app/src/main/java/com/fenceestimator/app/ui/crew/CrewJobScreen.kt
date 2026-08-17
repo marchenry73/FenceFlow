@@ -224,7 +224,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
                     val pay = com.fenceestimator.app.estimate.CrewPay
                         .forJob(assigned, entries, runs, pxPerFt)
-                    if (pay.amount > 0.0) {
+                    if (pay.amount > 0.0 || pay.hoursAwaitingApproval > 0.0) {
                         Card(
                             Modifier.fillMaxWidth().padding(top = 10.dp),
                             colors = CardDefaults.cardColors(
@@ -239,6 +239,18 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(pay.explain(), style = MaterialTheme.typography.bodySmall)
+                                // Said plainly rather than left as a gap. Hours
+                                // that are simply missing from the total read as
+                                // the app having lost the day worked.
+                                if (pay.hoursAwaitingApproval > 0.0) {
+                                    Text(
+                                        "%.2f".format(pay.hoursAwaitingApproval) +
+                                            " more hrs waiting to be approved -- not counted yet.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
                                 if (pay.payType == com.fenceestimator.app.data.PayType.PER_FOOT &&
                                     pay.effectiveHourly > 0.0
                                 ) {

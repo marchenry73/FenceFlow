@@ -285,6 +285,13 @@ interface TimeEntryDao {
     @Query("SELECT * FROM time_entries WHERE endedAt IS NULL ORDER BY startedAt DESC")
     fun observeRunning(): Flow<List<TimeEntry>>
 
+    /** Finished shifts nobody has signed off yet, oldest first so the queue drains in order. */
+    @Query(
+        "SELECT * FROM time_entries WHERE endedAt IS NOT NULL " +
+            "AND approvedAt IS NULL AND rejectedAt IS NULL ORDER BY endedAt ASC"
+    )
+    fun observeAwaitingApproval(): Flow<List<TimeEntry>>
+
     @Query("SELECT * FROM time_entries WHERE jobId = :jobId AND endedAt IS NULL LIMIT 1")
     suspend fun runningForJob(jobId: Long): TimeEntry?
 

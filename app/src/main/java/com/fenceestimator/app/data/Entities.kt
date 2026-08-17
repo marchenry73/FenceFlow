@@ -605,13 +605,47 @@ data class TimeEntry(
     val endedAt: Long? = null,
     /** Snapshot of the rate when worked, so later raises don't rewrite past job costs. */
     val hourlyRate: Double = 0.0,
-    val notes: String = ""
+    val notes: String = "",
+    /**
+     * A finished shift is a claim until somebody signs off on it.
+     *
+     * Hours become pay and become job cost, and both are wrong if the clock ran
+     * through a two-hour lunch or somebody forgot to clock out until the next
+     * morning. Neither of those is dishonesty -- they are what happens on a
+     * site -- but they are why a shift is reviewed before it counts.
+     */
+    val approvedAt: Long? = null,
+    val approvedBy: String = "",
+    /** Set when a shift is sent back, with the reason the crew needs to see. */
+    val rejectedAt: Long? = null,
+    val reviewNote: String = ""
 ) {
     val isRunning: Boolean get() = endedAt == null
+
+    /** Finished, and neither approved nor sent back yet. */
+    val isAwaitingApproval: Boolean
+        get() = endedAt != null && approvedAt == null && rejectedAt == null
+
+    val isApproved: Boolean get() = approvedAt != null
+    val isRejected: Boolean get() = rejectedAt != null && approvedAt == null
+
     val hours: Double
         get() = ((endedAt ?: System.currentTimeMillis()) - startedAt)
             .coerceAtLeast(0L) / 3_600_000.0
-    val laborCost: Double get() = hours * hourlyRate
+
+    /**
+     * Hours that actually count -- towards pay and towards what this job cost.
+     *
+     * Unapproved time is deliberately zero rather than provisional. A job cost
+     * built on hours nobody has checked reads as fact on the reports screen,
+     * and the whole point of the review is that it might be wrong.
+     */
+    val payableHours: Double get() = if (isApproved) hours else 0.0
+
+    val laborCost: Double get() = payableHours * hourlyRate
+
+    /** What the shift is worth if approved as it stands -- shown to the reviewer. */
+    val claimedCost: Double get() = hours * hourlyRate
 }
 
 @Entity(tableName = "employees")

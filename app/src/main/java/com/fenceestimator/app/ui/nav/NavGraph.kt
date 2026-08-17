@@ -11,6 +11,7 @@ object Routes {
     const val SCHEDULE = "schedule"
     const val ACCOUNT = "account"
     const val ACCESS = "access"
+    const val TIME_APPROVAL = "time_approval"
     const val REPORTS = "reports"
     const val PIPELINE = "pipeline"
     const val HELP = "help"

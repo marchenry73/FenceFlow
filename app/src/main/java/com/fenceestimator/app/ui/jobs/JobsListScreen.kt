@@ -74,13 +74,15 @@ fun JobsListScreen(
     onOpenCustomers: () -> Unit,
     onOpenSchedule: () -> Unit,
     onOpenReports: () -> Unit,
-    onOpenPipeline: () -> Unit
+    onOpenPipeline: () -> Unit,
+    onOpenTimeApproval: () -> Unit
 ) {
     val app = currentApp()
     val viewModel: JobsViewModel = viewModel(factory = GenericViewModelFactory { JobsViewModel(app.repository) })
     val jobs by viewModel.jobs.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = com.fenceestimator.app.data.BusinessProfile())
     val session by app.session.state.collectAsState()
+    val pendingHours by viewModel.pendingHours.collectAsState()
     var pendingDelete by remember { mutableStateOf<Job?>(null) }
 
     Scaffold(
@@ -171,6 +173,34 @@ fun JobsListScreen(
                                     "Nothing is lost. Keep working — it uploads on its own.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
+                // A banner rather than a menu entry. Unapproved hours are money
+                // standing still -- the crew are not paid and the job cost is
+                // understated -- and a buried menu item is how a queue goes
+                // unread for a fortnight.
+                if (session.canApproveTime && pendingHours.isNotEmpty()) {
+                    item {
+                        Card(
+                            onClick = onOpenTimeApproval,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Column(Modifier.padding(14.dp)) {
+                                Text(
+                                    "${pendingHours.size} shift(s) waiting on you",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Text(
+                                    "Crew hours don't count towards pay or job cost until approved.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
                             }
                         }

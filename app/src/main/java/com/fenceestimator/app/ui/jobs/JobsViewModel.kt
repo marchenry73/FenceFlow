@@ -12,6 +12,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class JobsViewModel(private val repository: Repository) : ViewModel() {
+
+    /** Finished shifts nobody has signed off, so the queue is visible without hunting for it. */
+    val pendingHours: StateFlow<List<com.fenceestimator.app.data.TimeEntry>> =
+        repository.observeTimeAwaitingApproval()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val jobs: StateFlow<List<Job>> = repository.observeJobs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

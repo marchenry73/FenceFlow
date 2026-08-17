@@ -147,7 +147,8 @@ fun FenceEstimatorNavHost() {
                 onOpenCustomers = { navController.navigate(Routes.CUSTOMERS) },
                 onOpenSchedule = { navController.navigate(Routes.SCHEDULE) },
                 onOpenReports = { navController.navigate(Routes.REPORTS) },
-                onOpenPipeline = { navController.navigate(Routes.PIPELINE) }
+                onOpenPipeline = { navController.navigate(Routes.PIPELINE) },
+                onOpenTimeApproval = { navController.navigate(Routes.TIME_APPROVAL) }
             )
         }
         composable(Routes.REPORTS) {
@@ -260,6 +261,9 @@ fun FenceEstimatorNavHost() {
                 onBack = { navController.popBackStack() },
                 onOpenAccess = { navController.navigate(Routes.ACCESS) }
             )
+        }
+        composable(Routes.TIME_APPROVAL) {
+            com.fenceestimator.app.ui.crew.TimeApprovalScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.ACCESS) {
             com.fenceestimator.app.ui.account.AccessScreen(onBack = { navController.popBackStack() })

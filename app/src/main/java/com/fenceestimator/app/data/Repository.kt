@@ -248,9 +248,56 @@ class Repository(private val db: AppDatabase) {
         return entry.copy(id = id)
     }
 
+    /**
+     * Ends the shift and puts it in the queue rather than straight onto the
+     * books. Clocking out is a claim about hours worked; approving it is what
+     * turns that into pay and into job cost.
+     */
     suspend fun clockOut(jobId: Long) {
         val running = timeEntryDao.runningForJob(jobId) ?: return
         timeEntryDao.update(running.copy(endedAt = System.currentTimeMillis()))
+    }
+
+    /** Shifts waiting on a manager or the owner. */
+    fun observeTimeAwaitingApproval(): Flow<List<TimeEntry>> = timeEntryDao.observeAwaitingApproval()
+
+    /**
+     * Signs off a shift so its hours count.
+     *
+     * Optionally with corrected times: the two things that actually go wrong
+     * are a clock left running overnight and a lunch nobody clocked out for,
+     * and both need the figure adjusted rather than the shift thrown away.
+     */
+    suspend fun approveTimeEntry(
+        entry: TimeEntry,
+        approvedBy: String,
+        correctedStart: Long? = null,
+        correctedEnd: Long? = null,
+        note: String = ""
+    ) {
+        timeEntryDao.update(
+            entry.copy(
+                startedAt = correctedStart ?: entry.startedAt,
+                endedAt = correctedEnd ?: entry.endedAt,
+                approvedAt = System.currentTimeMillis(),
+                approvedBy = approvedBy,
+                rejectedAt = null,
+                reviewNote = note
+            )
+        )
+    }
+
+    /**
+     * Sends a shift back with a reason.
+     *
+     * Kept rather than deleted. The crew member needs to see why, and a
+     * disputed shift that has been quietly removed is exactly the record you
+     * want when someone says they were not paid for a day they worked.
+     */
+    suspend fun rejectTimeEntry(entry: TimeEntry, note: String) {
+        timeEntryDao.update(
+            entry.copy(rejectedAt = System.currentTimeMillis(), approvedAt = null, reviewNote = note)
+        )
     }
 
     fun observeSiteMarkers(jobId: Long): Flow<List<SiteMarker>> = siteMarkerDao.observeForJob(jobId)
