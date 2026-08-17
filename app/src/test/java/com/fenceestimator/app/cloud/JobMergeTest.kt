@@ -83,15 +83,30 @@ class JobMergeTest {
     }
 
     @Test
-    fun `a cleared payment is never undone by a newer cloud row`() {
-        val stale = cloudJob().copy(amountPaid = 0.0)
-        assertEquals(500.0, stale.mergeOnto(localJob()).amountPaid, 0.001)
-    }
-
-    @Test
     fun `a larger cloud payment is taken`() {
         val paid = cloudJob().copy(amountPaid = 1200.0)
         assertEquals(1200.0, paid.mergeOnto(localJob()).amountPaid, 0.001)
+    }
+
+    @Test
+    fun `a payment figure can come DOWN to match the cloud`() {
+        // This is what kept two devices apart. The merge used to keep the
+        // larger of the two figures, so a phone holding a stale 10,000 against
+        // a cloud saying 4,938.93 kept the 10,000 forever and pushed it -- and
+        // the two could never converge on anything.
+        //
+        // Safe now because the money lives in the ledger: the rows behind the
+        // figure are append-only and synced, and the total is recomputed from
+        // them. Taking the cloud value cannot lose a payment, because the row
+        // it came from is still there.
+        val corrected = cloudJob().copy(amountPaid = 4938.93)
+        assertEquals(4938.93, corrected.mergeOnto(localJob()).amountPaid, 0.001)
+    }
+
+    @Test
+    fun `a refund figure can come down too`() {
+        val corrected = cloudJob().copy(refundedAmount = 0.0)
+        assertEquals(0.0, corrected.mergeOnto(localJob().copy(refundedAmount = 250.0)).refundedAmount, 0.001)
     }
 
     @Test

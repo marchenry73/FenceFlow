@@ -841,6 +841,33 @@ object PaymentLedgerSync {
                 moved += toPush.size
             }
 
+            // Rows this phone already has, but the cloud disagrees about.
+            //
+            // The cloud wins. The opening balance row is backfilled from each
+            // device's own cached total, which is exactly the figure that had
+            // drifted -- so two devices generate the same row id carrying
+            // different amounts. Ignoring the conflict left them permanently
+            // apart; taking the server value gives both a single answer to
+            // converge on.
+            val corrections = cloud.filter { row ->
+                row.deletedAt == null && localBySyncId[row.syncId]?.let { existing ->
+                    kotlin.math.abs(existing.amount - row.amount) > 0.005 ||
+                        existing.receivedAt != (CloudTime.parseMillis(row.receivedAt) ?: existing.receivedAt)
+                } == true
+            }
+            corrections.forEach { row ->
+                val existing = localBySyncId[row.syncId] ?: return@forEach
+                repository.updatePaymentFromCloud(
+                    existing.copy(
+                        amount = row.amount,
+                        receivedAt = CloudTime.parseMillis(row.receivedAt) ?: existing.receivedAt,
+                        note = row.note,
+                        reference = row.reference
+                    )
+                )
+                moved++
+            }
+
             // Down: anything the cloud has that this phone does not, skipping
             // tombstoned rows and any whose job has not arrived yet -- those
             // come down on a later pass once the job exists.
@@ -868,6 +895,17 @@ object PaymentLedgerSync {
                 // job would disagree until something else touched the job.
                 landed.map { it.jobId }.distinct().forEach { repository.syncJobTotalsFromLedger(it) }
             }
+
+            // Rebuild every job's cached total from its rows. The cache is what
+            // screens and the payment link read, and it is the thing that had
+            // drifted between devices -- so it is recomputed from the ledger on
+            // every pass rather than trusted to have stayed right.
+            (corrections.mapNotNull { jobIdBySyncId[it.jobSyncId] } +
+                landed.map { it.jobId } +
+                jobs.map { it.id })
+                .distinct()
+                .forEach { repository.syncJobTotalsFromLedger(it) }
+
             moved
         }
     }

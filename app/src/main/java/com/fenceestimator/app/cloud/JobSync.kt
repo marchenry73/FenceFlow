@@ -115,6 +115,23 @@ object JobSync {
      */
     fun mergedAmountPaid(localPaid: Double, cloudPaid: Double): Double = maxOf(localPaid, cloudPaid)
 
+    /**
+     * Which payment figure to keep now that a ledger exists.
+     *
+     * The cloud value wins outright. [mergedAmountPaid] kept the larger of the
+     * two, which protected a cleared payment from being erased by a race -- but
+     * it also meant a figure could never come DOWN. A device holding a stale
+     * $10,000 against a cloud that said $4,938.93 kept the $10,000 forever, and
+     * pushed it, so two phones stayed apart with no way to converge.
+     *
+     * That guard is no longer what protects the money. Payments are ledger rows
+     * now, the ledger is append-only and synced, and the job total is recomputed
+     * from those rows -- so a payment cannot be lost by taking the cloud value,
+     * because the row it came from is still there. Keeping the maximum would
+     * only preserve a figure with no rows behind it.
+     */
+    fun ledgerBackedAmountPaid(cloudPaid: Double): Double = cloudPaid
+
     suspend fun sync(repository: Repository, companyId: String): Result<SyncResult> = withContext(Dispatchers.IO) {
         runCatching {
             // Deletions first, always. If a pull ran before them, the rows we
@@ -358,10 +375,11 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
     depositAmount = depositAmount,
     // Money that cleared is still never allowed to go backwards, even on a
     // branch where the cloud row is unambiguously newer.
-    amountPaid = JobSync.mergedAmountPaid(local.amountPaid, amountPaid),
-    // A refund is a total that only grows, for the same reason a payment is:
-    // whichever side saw it first, it is a fact and must not be undone.
-    refundedAmount = JobSync.mergedAmountPaid(local.refundedAmount, refundedAmount),
+    // Both are caches of the ledger, so the cloud value is taken as-is and
+    // then recomputed from the rows after the ledger syncs. Keeping the larger
+    // of the two is what pinned a stale figure permanently high.
+    amountPaid = JobSync.ledgerBackedAmountPaid(amountPaid),
+    refundedAmount = JobSync.ledgerBackedAmountPaid(refundedAmount),
     refundedAt = CloudTime.parseMillis(refundedAt) ?: local.refundedAt,
     refundReason = refundReason.ifBlank { local.refundReason },
     // Latches on. Once a processor has reported money, hand-editing the figure

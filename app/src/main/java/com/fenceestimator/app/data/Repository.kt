@@ -150,6 +150,9 @@ class Repository(private val db: AppDatabase) {
 
     suspend fun getAllPayments(): List<PaymentRecord> = paymentRecordDao.getAll()
 
+    /** Replaces a ledger row with the cloud's version of it. */
+    suspend fun updatePaymentFromCloud(record: PaymentRecord) = paymentRecordDao.insert(record)
+
     /** Inserts ledger rows pulled from the cloud, ignoring ones already held. */
     suspend fun insertPaymentsFromCloud(records: List<PaymentRecord>) =
         paymentRecordDao.insertAll(records)
