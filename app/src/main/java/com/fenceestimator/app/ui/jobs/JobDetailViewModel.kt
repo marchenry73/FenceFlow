@@ -259,6 +259,25 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     }
 
     /**
+     * Records money taken in person -- cash, a check, a bank transfer.
+     *
+     * Adds to the total rather than setting it, which is the whole reason the
+     * figure stopped being a text box. A typed total is a number someone can
+     * overwrite: tap in 500 on a job that already had a 500 deposit banked and
+     * the second 500 silently replaces the first instead of adding to it. Card
+     * payments post themselves, so every route into this figure is now an
+     * addition and none of them is a keystroke over the top of another.
+     */
+    fun recordPayment(amount: Double) {
+        if (amount <= 0.0) return
+        update { it.copy(amountPaid = it.amountPaid + amount) }
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(50)
+            reconcilePaymentStatus()
+        }
+    }
+
+    /**
      * Records money handed back to the customer.
      *
      * Added to a refund total rather than subtracted from what they paid. Sync

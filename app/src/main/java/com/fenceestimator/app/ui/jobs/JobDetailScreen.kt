@@ -1071,22 +1071,20 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         // not correct anything -- Stripe would still hold the real figure --
         // it would just create a disagreement that surfaces when the customer
         // queries the bill.
-        if (JobMoney.paidFigureIsReadOnly(job)) {
-            OutlinedTextField(
-                value = "$${"%.2f".format(job.amountPaid)}",
-                onValueChange = {},
-                readOnly = true,
-                enabled = false,
-                label = { Text("Paid (from Stripe)") },
-                supportingText = { Text("Card payments -- not editable") },
-                modifier = Modifier.weight(1f)
-            )
-        } else {
-            DraftNumberField(
-                stableKey = job.id, label = "Total paid so far ($)", initialValue = job.amountPaid.toFloat(),
-                modifier = Modifier.weight(1f)
-            ) { viewModel.update { j -> j.copy(amountPaid = it.toDouble()) } }
-        }
+        OutlinedTextField(
+            value = "$${"%.2f".format(job.amountPaid)}",
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
+            label = { Text("Total paid so far") },
+            supportingText = {
+                Text(
+                    if (job.paymentsFromProcessor) "Updates by itself as payments clear"
+                    else "Use Record a payment below"
+                )
+            },
+            modifier = Modifier.weight(1f)
+        )
     }
 
     if (job.refundedAmount > 0.0) {
@@ -1239,6 +1237,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             }
         }
 
+        RecordPaymentControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
         RefundControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
         Spacer(Modifier.height(8.dp))
     }
@@ -2198,5 +2197,67 @@ private fun StaleSignatureBanner(
                 Text("Get a new signature")
             }
         }
+    }
+}
+
+/**
+ * Logging money taken in person.
+ *
+ * Deliberately an "add" rather than an editable total. A typed total is a number
+ * anyone can overwrite: type 500 on a job that already had a 500 deposit banked
+ * and the second replaces the first instead of adding to it, and the job now
+ * says the customer owes 500 they have already paid. Card payments post
+ * themselves through the change feed, so every route into this figure is an
+ * addition and none of them is a keystroke over the top of another.
+ */
+@Composable
+private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: JobDetailViewModel) {
+    var showDialog by remember { mutableStateOf(false) }
+    val owed = JobMoney.stillOwed(job, contractTotal)
+
+    OutlinedButton(onClick = { showDialog = true }, modifier = Modifier.fillMaxWidth()) {
+        Text("Record a payment (cash, check, transfer)")
+    }
+
+    if (showDialog) {
+        // Pre-filled with what is outstanding, since paying off the balance is
+        // the common case and retyping a figure the app already knows is how
+        // typos get in.
+        var amountText by remember { mutableStateOf(if (owed > 0.005) "%.2f".format(owed) else "") }
+        val amount = amountText.toDoubleOrNull() ?: 0.0
+
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Record a payment") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Already recorded: $${"%.2f".format(JobMoney.netPaid(job))}" +
+                            if (owed > 0.005) "\nStill owed: $${"%.2f".format(owed)}" else "",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("Amount received ($)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "This is added to what has already been paid, not typed over it. " +
+                            "Card payments post here by themselves.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = amount > 0.0,
+                    onClick = { viewModel.recordPayment(amount); showDialog = false }
+                ) { Text("Add $${"%.2f".format(amount)}") }
+            },
+            dismissButton = { OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") } }
+        )
     }
 }
