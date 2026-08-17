@@ -31,6 +31,8 @@ enum class MaterialRole {
     PANEL, GATE_PANEL,
     LINE_POST, END_POST, CORNER_POST, GATE_POST,
     POST_CAP, CONCRETE_BAG, HOLE_PLUG,
+    /** Undrilled post a wall-hung gate bolts through; it is not set in concrete. */
+    BLANK_POST,
     HINGE_SET, LATCH, HANDLE, BRACE, STIFFENER, TRIM,
     WOOD_PICKET, WOOD_RAIL, GATE_FRAME_KIT,
     CHAIN_FABRIC, TOP_RAIL, TENSION_WIRE, TENSION_BAND, BRACE_BAND, RAIL_END,

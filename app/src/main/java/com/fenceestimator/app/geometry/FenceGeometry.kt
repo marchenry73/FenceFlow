@@ -13,10 +13,37 @@ data class FencePoint(val x: Float, val y: Float)
  * the fence line itself, so it can mark a walk gate, drive gate, or opening
  * anywhere on the property.
  */
+/**
+ * Where a gate is hung, which decides what it is built from.
+ *
+ * This is not cosmetic -- the three cases need genuinely different material,
+ * and guessing wrong is a truck coming back from the yard. A wall-hung gate
+ * needs no concrete at all, which is the single biggest difference.
+ */
+enum class GateMounting {
+    /**
+     * Hung off a wall. The hinge side bolts through a blank post: holes are
+     * drilled through the econo stiffener into the post, so it needs plugs to
+     * close them and no concrete, since nothing is set in the ground.
+     */
+    WALL,
+
+    /** Hung in the fence line, set in concrete like any other post. */
+    LINE,
+
+    /**
+     * In the line, with the rest of the fence carrying on to a wall -- so the
+     * run terminates twice and needs a second end post.
+     */
+    LINE_TO_WALL
+}
+
 data class GateMarker(
     val x: Float,
     val y: Float,
-    val widthFt: Float
+    val widthFt: Float,
+    /** Defaults to the commonest case so older saved gates read sensibly. */
+    val mounting: GateMounting = GateMounting.LINE
 )
 
 /** Encodes/decodes the point list and gate list to compact strings for Room storage. */
@@ -36,17 +63,28 @@ object FenceCodec {
     }
 
     fun encodeGates(gates: List<GateMarker>): String =
-        gates.joinToString(",") { "${it.x}:${it.y}:${it.widthFt}" }
+        gates.joinToString(",") { "${it.x}:${it.y}:${it.widthFt}:${it.mounting.name}" }
 
+    /**
+     * Reads both the old three-part form and the four-part form with mounting.
+     *
+     * Every gate already drawn was saved without a mounting, and refusing to
+     * parse those would silently empty the gate list on jobs that are already
+     * quoted. A gate with no recorded mounting is read as LINE, which is what
+     * the estimate already assumed when it charged concrete for every gate.
+     */
     fun decodeGates(raw: String): List<GateMarker> {
         if (raw.isBlank()) return emptyList()
-        return raw.split(",").mapNotNull { triple ->
-            val parts = triple.split(":")
-            if (parts.size != 3) return@mapNotNull null
+        return raw.split(",").mapNotNull { entry ->
+            val parts = entry.split(":")
+            if (parts.size < 3) return@mapNotNull null
             val x = parts[0].toFloatOrNull() ?: return@mapNotNull null
             val y = parts[1].toFloatOrNull() ?: return@mapNotNull null
             val w = parts[2].toFloatOrNull() ?: return@mapNotNull null
-            GateMarker(x, y, w)
+            val mounting = parts.getOrNull(3)
+                ?.let { name -> runCatching { GateMounting.valueOf(name) }.getOrNull() }
+                ?: GateMounting.LINE
+            GateMarker(x, y, w, mounting)
         }
     }
 }

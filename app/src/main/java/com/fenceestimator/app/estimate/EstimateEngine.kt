@@ -11,6 +11,7 @@ import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FenceGeometryResult
 import com.fenceestimator.app.geometry.GateMarker
+import com.fenceestimator.app.geometry.GateMounting
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -149,7 +150,10 @@ object EstimateEngine {
             TakeoffLine("Hinge sets", qty(MaterialRole.HINGE_SET)),
             TakeoffLine("Latches", qty(MaterialRole.LATCH)),
             TakeoffLine("Gate handles", qty(MaterialRole.HANDLE)),
-            TakeoffLine("Gate braces", qty(MaterialRole.BRACE))
+            TakeoffLine("Gate braces", qty(MaterialRole.BRACE)),
+            TakeoffLine("Econo stiffeners", qty(MaterialRole.STIFFENER)),
+            TakeoffLine("Blank posts (wall-hung gates)", qty(MaterialRole.BLANK_POST)),
+            TakeoffLine("Hole plugs", qty(MaterialRole.HOLE_PLUG))
         ).filter { it.quantity > 0.0 }
     }
 
@@ -262,11 +266,58 @@ object EstimateEngine {
             entries += QtyEntry(MaterialRole.HINGE_SET, 1.0)
         }
         if (fenceType == FenceType.VINYL) {
-            entries += QtyEntry(MaterialRole.STIFFENER, 1.0)
             entries += QtyEntry(MaterialRole.TRIM, 4.0)
+        }
+        entries += gateAreaEntries(gate)
+        return entries
+    }
+
+    /**
+     * What the gate area itself is built from, which depends on where the gate
+     * hangs rather than on the fence type.
+     *
+     * Every gate takes one econo stiffener. After that the three cases are
+     * genuinely different builds, and treating them alike is a truck going back
+     * to the yard:
+     *
+     *  - **On the wall**: the hinge side bolts through a blank post. Four 5/8"
+     *    holes are drilled through the stiffener into that post, so it needs
+     *    plugs to close them. Nothing is set in the ground, so **no concrete** --
+     *    this is the case the old code got most wrong, since it charged concrete
+     *    for every gate regardless. Takes a blank post plus an end post.
+     *  - **In the line**: an end post, set in concrete -- two bags.
+     *  - **In the line with the fence carrying on to a wall**: the run
+     *    terminates twice, so two end posts, still in concrete.
+     *
+     * Gate posts are counted separately by [computePostCounts]; these are the
+     * posts the gate area needs on top of that.
+     */
+    private fun gateAreaEntries(gate: GateMarker): List<QtyEntry> {
+        val entries = mutableListOf(QtyEntry(MaterialRole.STIFFENER, 1.0))
+        when (gate.mounting) {
+            GateMounting.WALL -> {
+                entries += QtyEntry(MaterialRole.BLANK_POST, 1.0)
+                entries += QtyEntry(MaterialRole.END_POST, 1.0)
+                entries += QtyEntry(MaterialRole.HOLE_PLUG, WALL_MOUNT_HOLES)
+                // Deliberately no concrete: a wall-hung gate is bolted, not set.
+            }
+            GateMounting.LINE -> {
+                entries += QtyEntry(MaterialRole.END_POST, 1.0)
+                entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_CONCRETE_BAGS)
+            }
+            GateMounting.LINE_TO_WALL -> {
+                entries += QtyEntry(MaterialRole.END_POST, 2.0)
+                entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_CONCRETE_BAGS)
+            }
         }
         return entries
     }
+
+    /** Holes drilled through the stiffener into the blank post, each needing a plug. */
+    private const val WALL_MOUNT_HOLES = 4.0
+
+    /** Concrete for a gate post set in the ground. */
+    private const val GATE_CONCRETE_BAGS = 2.0
 
     /**
      * Builds priced, editable line items from suggested quantities and the

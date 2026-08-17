@@ -81,6 +81,7 @@ import com.fenceestimator.app.data.SiteMarkerKind
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
+import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.VertexKind
 import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
@@ -599,8 +600,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
     gateDialogPoint?.let { point ->
         GateWidthDialog(
-            onConfirm = { widthFt ->
-                viewModel.addGate(point.x, point.y, widthFt)
+            onConfirm = { widthFt, mounting ->
+                viewModel.addGate(point.x, point.y, widthFt, mounting)
                 gateDialogPoint = null
             },
             onDismiss = { gateDialogPoint = null }
@@ -761,23 +762,63 @@ private fun CalibrationDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit)
 }
 
 @Composable
-private fun GateWidthDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit) {
+private fun GateWidthDialog(onConfirm: (Float, GateMounting) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("5") }
+    var mounting by remember { mutableStateOf(GateMounting.LINE) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Gate width") },
+        title = { Text("Gate") },
         text = {
             Column {
                 Text("How wide is this gate opening, in feet? It'll be placed right where you tapped.")
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Feet") })
+                Spacer(Modifier.height(16.dp))
+
+                // Asked here rather than left to the estimate, because it
+                // changes what gets loaded on the truck: a wall-hung gate takes
+                // a blank post and plugs and no concrete at all.
+                Text("Where is it hanging?", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                GateMountingChoice(selected = mounting, onSelect = { mounting = it })
             }
         },
         confirmButton = {
-            Button(onClick = { text.toFloatOrNull()?.let(onConfirm) }) { Text("Add Gate") }
+            Button(onClick = { text.toFloatOrNull()?.let { onConfirm(it, mounting) } }) { Text("Add Gate") }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+/** The three builds a gate area can be, with what each one costs you in material. */
+@Composable
+private fun GateMountingChoice(selected: GateMounting, onSelect: (GateMounting) -> Unit) {
+    val options = listOf(
+        Triple(GateMounting.LINE, "In the fence line", "End post, set in concrete (2 bags)"),
+        Triple(GateMounting.LINE_TO_WALL, "In the line, fence runs on to a wall", "Two end posts, concrete"),
+        Triple(GateMounting.WALL, "Off the wall", "Blank post + end post, 4 hole plugs, no concrete")
+    )
+    Column {
+        options.forEach { (value, label, detail) ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.RadioButton(
+                    selected = selected == value,
+                    onClick = { onSelect(value) }
+                )
+                Column(Modifier.padding(start = 4.dp)) {
+                    Text(label, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
 }
 
 // Matches the app's Graphite/SafetyOrange/SteelTeal theme -- these used to be a leftover

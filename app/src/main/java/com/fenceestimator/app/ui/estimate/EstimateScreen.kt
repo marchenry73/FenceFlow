@@ -55,6 +55,7 @@ import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.estimate.EstimateEngine
+import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.TakeoffLine
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
@@ -447,6 +448,7 @@ private fun TotalRow(label: String, value: String, bold: Boolean = false) {
 @Composable
 private fun ExportSection(viewModel: EstimateViewModel, profile: BusinessProfile, job: Job) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val totals by viewModel.totals.collectAsState()
     var showSignaturePad by remember { mutableStateOf(false) }
 
     fun sharePdf(isInvoice: Boolean) {
@@ -461,14 +463,46 @@ private fun ExportSection(viewModel: EstimateViewModel, profile: BusinessProfile
         }
     }
 
+    // A job that was signed and then changed cannot go anywhere until it is
+    // signed again. A warning above the button was not enough: the estimate and
+    // the invoice both still went out, carrying a signature for a price the
+    // customer never agreed to. Nothing downstream is reachable while this is
+    // true -- the signed document and the bill have to describe the same job.
+    val needsResign = JobMoney.signatureIsStale(job, totals.grandTotal, totals.billableLinearFeet)
+
     Column {
+        if (needsResign) {
+            Card(
+                Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        "This estimate changed after it was signed",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Text(
+                        "Since it was signed, " +
+                            JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet) +
+                            ". Nothing can be sent out until " +
+                            "${job.customerName.ifBlank { "the customer" }} signs the new figures.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+
         if (job.signatureImagePath != null) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                 coil.compose.AsyncImage(
                     model = job.signatureImagePath, contentDescription = null,
                     modifier = Modifier.height(40.dp).weight(1f)
                 )
-                OutlinedButton(onClick = { showSignaturePad = true }) { Text("Re-sign") }
+                Button(onClick = { showSignaturePad = true }) {
+                    Text(if (needsResign) "Get new signature" else "Re-sign")
+                }
             }
         } else {
             OutlinedButton(onClick = { showSignaturePad = true }, modifier = Modifier.fillMaxWidth()) {
@@ -476,12 +510,20 @@ private fun ExportSection(viewModel: EstimateViewModel, profile: BusinessProfile
             }
             Spacer(Modifier.height(8.dp))
         }
-        Button(onClick = { sharePdf(isInvoice = false) }, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = { sharePdf(isInvoice = false) },
+            enabled = !needsResign,
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Icon(Icons.Filled.Share, contentDescription = null)
             Text("  Export & Share PDF Estimate")
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = { sharePdf(isInvoice = true) }, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = { sharePdf(isInvoice = true) },
+            enabled = !needsResign,
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Icon(Icons.Filled.Share, contentDescription = null)
             Text("  Generate & Share Invoice")
         }

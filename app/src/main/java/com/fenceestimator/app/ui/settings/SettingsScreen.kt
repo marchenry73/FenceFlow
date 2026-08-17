@@ -523,7 +523,13 @@ fun SettingsScreen(
                 }
             }
             item {
-                Button(onClick = { viewModel.save(local) }, modifier = Modifier.fillMaxWidth()) {
+                // Saving is the end of the job, so leave. Sitting on the same
+                // screen afterwards reads as "did that work?" and invites a
+                // second press.
+                Button(
+                    onClick = { viewModel.save(local); onBack() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Save Settings")
                 }
             }
