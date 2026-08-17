@@ -27,7 +27,30 @@ data class EstimateSuggestions(
 )
 
 /** One "8 line posts" style readout for the takeoff summary. */
-data class TakeoffLine(val label: String, val quantity: Double, val unit: String = "")
+data class TakeoffLine(
+    val label: String,
+    val quantity: Double,
+    val unit: String = "",
+    /**
+     * Which heading this belongs under.
+     *
+     * The list used to run as one flat column, so total posts sat several rows
+     * away from the line, end and corner posts it is the sum of -- and the
+     * person loading the truck had to hold the grouping in their head. Things
+     * you count together are now printed together.
+     */
+    val group: TakeoffGroup = TakeoffGroup.OTHER
+)
+
+/** Headings on the takeoff, in the order someone actually works through them. */
+enum class TakeoffGroup(val heading: String) {
+    SITE("The fence line"),
+    POSTS("Posts"),
+    PANELS("Panels, rails and pickets"),
+    CONCRETE("Concrete"),
+    GATES("Gate hardware"),
+    OTHER("Everything else")
+}
 
 /** Fence types whose gate uses a built gate-frame kit rather than a matching panel. */
 private val FRAME_KIT_GATE_TYPES = setOf(FenceType.WOOD, FenceType.CHAIN_LINK, FenceType.SPLIT_RAIL, FenceType.COMPOSITE)
@@ -134,26 +157,30 @@ object EstimateEngine {
     ): List<TakeoffLine> {
         fun qty(role: MaterialRole) = entries.filter { it.role == role }.sumOf { it.quantity }
         return listOf(
-            TakeoffLine("Fence length", geometry.totalLinearFeet.toDouble(), "ft"),
-            TakeoffLine("Gates", gateCount.toDouble()),
-            TakeoffLine("Line posts", posts.linePosts.toDouble()),
-            TakeoffLine("Corner posts", posts.cornerPosts.toDouble()),
-            TakeoffLine("End posts", posts.endPosts.toDouble()),
-            TakeoffLine("Gate posts", posts.gatePosts.toDouble()),
-            TakeoffLine("Total posts", posts.totalPosts.toDouble()),
-            TakeoffLine("Panels", qty(MaterialRole.PANEL)),
-            TakeoffLine("Pickets", qty(MaterialRole.WOOD_PICKET)),
-            TakeoffLine("Rails", qty(MaterialRole.WOOD_RAIL)),
-            TakeoffLine("Chain link fabric", qty(MaterialRole.CHAIN_FABRIC), "ft"),
-            TakeoffLine("Post caps", qty(MaterialRole.POST_CAP)),
-            TakeoffLine("Concrete", qty(MaterialRole.CONCRETE_BAG), "bags"),
-            TakeoffLine("Hinge sets", qty(MaterialRole.HINGE_SET)),
-            TakeoffLine("Latches", qty(MaterialRole.LATCH)),
-            TakeoffLine("Gate handles", qty(MaterialRole.HANDLE)),
-            TakeoffLine("Gate braces", qty(MaterialRole.BRACE)),
-            TakeoffLine("Econo stiffeners", qty(MaterialRole.STIFFENER)),
-            TakeoffLine("Blank posts (wall-hung gates)", qty(MaterialRole.BLANK_POST)),
-            TakeoffLine("Hole plugs", qty(MaterialRole.HOLE_PLUG))
+            TakeoffLine("Fence length", geometry.totalLinearFeet.toDouble(), "ft", TakeoffGroup.SITE),
+            TakeoffLine("Gates", gateCount.toDouble(), "", TakeoffGroup.SITE),
+
+            TakeoffLine("Line posts", posts.linePosts.toDouble(), "", TakeoffGroup.POSTS),
+            TakeoffLine("Corner posts", posts.cornerPosts.toDouble(), "", TakeoffGroup.POSTS),
+            TakeoffLine("End posts", posts.endPosts.toDouble(), "", TakeoffGroup.POSTS),
+            TakeoffLine("Gate posts", posts.gatePosts.toDouble(), "", TakeoffGroup.POSTS),
+            TakeoffLine("Blank posts (wall-hung gates)", qty(MaterialRole.BLANK_POST), "", TakeoffGroup.POSTS),
+            TakeoffLine("Total posts", posts.totalPosts.toDouble(), "", TakeoffGroup.POSTS),
+            TakeoffLine("Post caps", qty(MaterialRole.POST_CAP), "", TakeoffGroup.POSTS),
+
+            TakeoffLine("Panels", qty(MaterialRole.PANEL), "", TakeoffGroup.PANELS),
+            TakeoffLine("Pickets", qty(MaterialRole.WOOD_PICKET), "", TakeoffGroup.PANELS),
+            TakeoffLine("Rails", qty(MaterialRole.WOOD_RAIL), "", TakeoffGroup.PANELS),
+            TakeoffLine("Chain link fabric", qty(MaterialRole.CHAIN_FABRIC), "ft", TakeoffGroup.PANELS),
+
+            TakeoffLine("Concrete", qty(MaterialRole.CONCRETE_BAG), "bags", TakeoffGroup.CONCRETE),
+
+            TakeoffLine("Hinge sets", qty(MaterialRole.HINGE_SET), "", TakeoffGroup.GATES),
+            TakeoffLine("Latches", qty(MaterialRole.LATCH), "", TakeoffGroup.GATES),
+            TakeoffLine("Gate handles", qty(MaterialRole.HANDLE), "", TakeoffGroup.GATES),
+            TakeoffLine("Gate braces", qty(MaterialRole.BRACE), "", TakeoffGroup.GATES),
+            TakeoffLine("Econo stiffeners", qty(MaterialRole.STIFFENER), "", TakeoffGroup.GATES),
+            TakeoffLine("Hole plugs", qty(MaterialRole.HOLE_PLUG), "", TakeoffGroup.GATES)
         ).filter { it.quantity > 0.0 }
     }
 
@@ -535,8 +562,48 @@ object EstimateEngine {
             }
         }
 
-        if (totals.materialsSubtotal > 0.0 && job.depositAmount < totals.materialsSubtotal) {
-            warnings += "Deposit (\$${"%.2f".format(job.depositAmount)}) doesn't cover the estimated material cost (\$${"%.2f".format(totals.materialsSubtotal)})."
+        // Money already collected counts.
+        //
+        // This used to compare the deposit against materials and nothing else,
+        // so it went on warning that the deposit would not cover materials long
+        // after the customer had paid -- sometimes after they had paid in full.
+        // A warning that is wrong on a job you have already been paid for is
+        // worse than no warning: it teaches people to scroll past this whole
+        // section, including the times it is right.
+        val collected = JobMoney.netPaid(job)
+        val owed = JobMoney.stillOwed(job, totals.grandTotal)
+
+        if (totals.materialsSubtotal > 0.0 && collected < totals.materialsSubtotal) {
+            val shortfall = totals.materialsSubtotal - collected
+            warnings += if (collected > 0.005) {
+                "You have collected \$${"%.2f".format(collected)} but the materials cost " +
+                    "\$${"%.2f".format(totals.materialsSubtotal)} -- you are fronting " +
+                    "\$${"%.2f".format(shortfall)} of the customer's material."
+            } else {
+                "Deposit (\$${"%.2f".format(job.depositAmount)}) doesn't cover the estimated " +
+                    "material cost (\$${"%.2f".format(totals.materialsSubtotal)}). You would be " +
+                    "buying their fence with your own money."
+            }
+        }
+
+        // Said as a fact rather than a warning, because it is what someone most
+        // often opens this screen to find out.
+        if (collected > 0.005 && owed > 0.005) {
+            warnings += "Still to collect: \$${"%.2f".format(owed)} of " +
+                "\$${"%.2f".format(totals.grandTotal)}."
+        }
+
+        // The price is still a guess until the supplier comes back.
+        if (job.materialPricesConfirmedAt == null && totals.materialsSubtotal > 0.0) {
+            warnings += "Materials are priced from your catalog, not a supplier quote. " +
+                "The total can still move."
+        }
+
+        // A signature that no longer covers the job is not a small problem.
+        if (JobMoney.signatureIsStale(job, totals.grandTotal, totals.billableLinearFeet)) {
+            warnings += "This changed after it was signed -- " +
+                JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet) +
+                ". Get a new signature before sending anything."
         }
 
         val hasPosts = lineItems.any { it.role in POST_ROLES && it.quantity > 0.0 }

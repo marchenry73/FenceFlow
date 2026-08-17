@@ -281,16 +281,41 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text("What this job needs", style = MaterialTheme.typography.labelLarge)
-        takeoff.forEach { line ->
-            val qty = if (line.quantity % 1.0 == 0.0) line.quantity.toInt().toString()
-            else String.format("%.1f", line.quantity)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(line.label, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    "$qty ${line.unit}".trim(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
+
+        // Grouped under headings, in the order someone works through them.
+        //
+        // As one flat column, "total posts" sat several rows below the line,
+        // end and corner posts it is the sum of, and whoever was loading the
+        // truck had to hold that relationship in their head. Things counted
+        // together are printed together.
+        com.fenceestimator.app.estimate.TakeoffGroup.values().forEach { group ->
+            val lines = takeoff.filter { it.group == group }
+            if (lines.isEmpty()) return@forEach
+
+            Spacer(Modifier.height(6.dp))
+            Text(
+                group.heading,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            lines.forEach { line ->
+                val qty = if (line.quantity % 1.0 == 0.0) line.quantity.toInt().toString()
+                else String.format("%.1f", line.quantity)
+                // The total is the one line worth setting apart, since it is
+                // what gets counted against the delivery.
+                val isTotal = line.label.startsWith("Total")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        line.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal
+                    )
+                    Text(
+                        "$qty ${line.unit}".trim(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
             }
         }
     }
