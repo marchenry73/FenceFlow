@@ -30,3 +30,6 @@ captures/
 
 # Node (website tooling)
 node_modules/
+
+# Kotlin compiler scratch output, not source
+.kotlin/
