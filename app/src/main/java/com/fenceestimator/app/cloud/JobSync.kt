@@ -73,7 +73,22 @@ data class CloudJob(
 /** A change that arrived from someone else's phone and is worth telling this user about. */
 data class IncomingChange(val jobId: Long, val customerName: String, val kind: ChangeKind)
 
-enum class ChangeKind { NEW_JOB, ASSIGNED_TO_ME, MARKED_COMPLETE, UPDATED }
+enum class ChangeKind {
+    NEW_JOB,
+    ASSIGNED_TO_ME,
+    MARKED_COMPLETE,
+    UPDATED,
+
+    /**
+     * Money landed on a job this phone already had.
+     *
+     * Its own kind because it was being reported as NEW_JOB, so every payment
+     * that synced announced "New job on your list" -- for a job that was
+     * already there, and alongside the webhook push that had just correctly
+     * said a payment arrived. Two notifications, one of them wrong.
+     */
+    PAYMENT_RECEIVED
+}
 
 data class SyncResult(
     val uploaded: Int,
@@ -268,7 +283,7 @@ object JobSync {
                         )
                     )
                     downloaded++
-                    incoming += IncomingChange(local.id, cloudJob.customerName, ChangeKind.NEW_JOB)
+                    incoming += IncomingChange(local.id, cloudJob.customerName, ChangeKind.PAYMENT_RECEIVED)
                 } else if (cloudJob.updatedAtMillis() > local.updatedAt) {
                     val wasComplete = local.status == JobStatus.ACCEPTED
                     val nowComplete = cloudJob.status == JobStatus.ACCEPTED.name

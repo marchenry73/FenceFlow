@@ -116,6 +116,16 @@ class AutoSync(
      */
     private var hasCompletedFirstSync = false
 
+    /**
+     * Jobs this phone has already told the user about.
+     *
+     * Unbounded on purpose -- it holds longs for one session, and the failure
+     * it prevents (the same job announced on every sync pass) is worse than the
+     * memory. Cleared with the process, which is also when "new to you" stops
+     * meaning anything.
+     */
+    private val alreadyAnnounced = java.util.Collections.synchronizedSet(mutableSetOf<Long>())
+
     fun start() {
         if (!SupabaseModule.isConfigured) return
 
@@ -308,7 +318,20 @@ class AutoSync(
             hasCompletedFirstSync = true
             return
         }
-        val worthTelling = result.incoming.filter { it.kind != ChangeKind.UPDATED }
+        val worthTelling = result.incoming
+            // UPDATED is ordinary editing and PAYMENT_RECEIVED already has its
+            // own push from the backend naming the amount -- announcing it
+            // again here was the second of two notifications for one event.
+            .filter { it.kind != ChangeKind.UPDATED && it.kind != ChangeKind.PAYMENT_RECEIVED }
+            // One per job. A job that appears in several changes in the same
+            // pass is still one thing that happened.
+            .distinctBy { it.jobId }
+            // And one per job EVER. Several triggers fire together at launch,
+            // and each pass that pulled the same job announced it again -- the
+            // notifications arrived back to back and looked like the app was
+            // malfunctioning rather than reporting anything.
+            .filter { alreadyAnnounced.add(it.jobId) }
+
         if (worthTelling.isEmpty()) return
 
         if (worthTelling.size > NOTIFY_LIMIT) {
@@ -328,7 +351,10 @@ class AutoSync(
                 ChangeKind.NEW_JOB -> "New job on your list" to "$customer was added by your team."
                 ChangeKind.MARKED_COMPLETE -> "Job marked complete" to "$customer was finished by the crew."
                 ChangeKind.ASSIGNED_TO_ME -> "You've been assigned a job" to "You're on $customer."
-                ChangeKind.UPDATED -> return@forEach
+                // Both are filtered out above; listed rather than folded into an
+                // else so that adding a new kind is a compile error here and
+                // has to be decided on, instead of silently never notifying.
+                ChangeKind.UPDATED, ChangeKind.PAYMENT_RECEIVED -> return@forEach
             }
             Notifications.show(
                 context = context,
