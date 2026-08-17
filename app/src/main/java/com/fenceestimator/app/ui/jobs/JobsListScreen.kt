@@ -30,6 +30,9 @@ import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -135,6 +138,30 @@ fun JobsListScreen(
             }
         }
     ) { padding ->
+        // Pull to refresh.
+        //
+        // The app keeps itself current on its own -- change feed, sync passes,
+        // and a re-check whenever it comes to the foreground. This is not the
+        // mechanism, it is the reassurance: when a figure looks wrong, people
+        // need something to pull, and being able to prove it is current is
+        // worth as much as it being current.
+        val scope = rememberCoroutineScope()
+        var refreshing by remember { mutableStateOf(false) }
+        val onRefresh: () -> Unit = {
+            refreshing = true
+            app.session.refresh()
+            app.autoSync.requestSync()
+            scope.launch {
+                kotlinx.coroutines.delay(900)
+                refreshing = false
+            }
+        }
+
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) {
         if (jobs.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -154,8 +181,15 @@ fun JobsListScreen(
                 // miss the one time it says something different.
                 item {
                     val sync by app.autoSync.state.collectAsState()
+                    // OFFLINE_ONLY and FAILED are shown too. They were not, and
+                    // that is how a phone sat disconnected from the company for
+                    // hours showing stale money with nothing on screen to say
+                    // so -- the one state where silence is actively misleading,
+                    // because everything looks like it is working.
                     if (sync.hasUnsyncedWork ||
-                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL
+                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL ||
+                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY ||
+                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.FAILED
                     ) {
                         Card(
                             Modifier.fillMaxWidth(),
@@ -170,10 +204,24 @@ fun JobsListScreen(
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                                 Text(
-                                    "Nothing is lost. Keep working — it uploads on its own.",
+                                    if (sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY)
+                                        "This phone is not connected to your company, so these " +
+                                            "figures are its own. Open Account & Team and sign in."
+                                    else
+                                        "Nothing is lost. Keep working — it uploads on its own.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
+                                sync.lastSyncedAt?.let { at ->
+                                    // A figure with no time against it invites
+                                    // the assumption that it is current.
+                                    Text(
+                                        "Last updated " + android.text.format.DateUtils
+                                            .getRelativeTimeSpanString(at),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
                             }
                         }
                     }
@@ -225,6 +273,7 @@ fun JobsListScreen(
                     )
                 }
             }
+        }
         }
     }
 

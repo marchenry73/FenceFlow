@@ -86,9 +86,16 @@ class FenceEstimatorApp : Application() {
         // out of signal has no socket to be told over.
         androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(
             androidx.lifecycle.LifecycleEventObserver { _, event ->
-                if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
-                    session.refresh()
-                    autoSync.requestSync()
+                when (event) {
+                    androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                        autoSync.inForeground = true
+                        session.refresh()
+                        autoSync.requestSync()
+                    }
+                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                        autoSync.inForeground = false
+                    }
+                    else -> Unit
                 }
             }
         )

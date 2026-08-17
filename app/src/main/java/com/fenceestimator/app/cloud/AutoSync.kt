@@ -87,6 +87,14 @@ class AutoSync(
     /** Uploads signatures, surveys and photos. Set by the app on startup. */
     var fileUploader: JobFileUploader? = null
 
+    /**
+     * Whether the app is on screen. Set from the process lifecycle.
+     *
+     * Only paces the heartbeat. Everything else runs regardless, so a
+     * backgrounded phone still receives pushes and change-feed updates.
+     */
+    @Volatile var inForeground: Boolean = true
+
     /** A trigger that arrived while a sync was already running, to be honoured after it. */
     private val pendingSync = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -132,12 +140,19 @@ class AutoSync(
                 .collect { runSync() }
         }
 
-        // Heartbeat, so another phone's edits eventually land here even if
-        // nothing changes locally.
+        // Heartbeat, so another phone's edits land here even when nothing
+        // changes locally.
+        //
+        // Paced by whether anyone is actually looking. Fifteen minutes is fine
+        // for a phone in a pocket and far too long for one open on the reports
+        // screen -- that is how a device sat showing a stale figure while the
+        // cloud held the right one, with nothing on screen admitting it. The
+        // change feed normally gets there first; this is the backstop for when
+        // the socket is down, which on a phone is often.
         scope.launch {
             while (true) {
                 runSync()
-                delay(HEARTBEAT_MS)
+                delay(if (inForeground) FOREGROUND_HEARTBEAT_MS else HEARTBEAT_MS)
             }
         }
     }
@@ -315,6 +330,9 @@ class AutoSync(
     private companion object {
         const val DEBOUNCE_MS = 4_000L
         const val HEARTBEAT_MS = 15 * 60 * 1000L
+
+        /** While someone is looking at the app, a figure should never be more than a minute old. */
+        const val FOREGROUND_HEARTBEAT_MS = 60 * 1000L
         const val NOTIFY_LIMIT = 5
         const val SUMMARY_NOTIFICATION_ID = 9_000
     }
