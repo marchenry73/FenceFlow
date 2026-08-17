@@ -115,6 +115,27 @@ object TrashBin {
             }
         }
 
+    /**
+     * Removes a record for good.
+     *
+     * The tombstone is what makes a delete recoverable, so clearing it out is
+     * the only genuinely irreversible action in the app -- and the only place
+     * that word is honest. Kept separate from restore, behind its own
+     * confirmation, and gone from every device rather than only this one.
+     */
+    suspend fun purge(companyId: String, record: TrashedRecord): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                SupabaseModule.client.postgrest.from(record.table).delete {
+                    filter {
+                        eq("company_id", companyId)
+                        eq("sync_id", record.syncId)
+                    }
+                }
+                Unit
+            }
+        }
+
     private fun JsonObject.text(key: String): String =
         (this[key] as? JsonPrimitive)?.contentOrNull().orEmpty()
 

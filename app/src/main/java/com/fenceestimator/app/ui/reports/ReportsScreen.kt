@@ -551,12 +551,41 @@ private fun BigStat(
  * and a report that can show its working is one people stop double-checking in
  * a spreadsheet.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
-    AlertDialog(
+    // A full-height sheet rather than a small dialog.
+    //
+    // Asked for as "a page like the tables underneath", and rightly: a
+    // dialog that scrolls three rows at a time is not somewhere you read a
+    // statement. This is the same rows-and-columns shape as the tables lower
+    // down the reports screen, so it reads as part of the same report.
+    androidx.compose.material3.BasicAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(detail.title + ": " + detail.value) },
-        text = {
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+      androidx.compose.material3.Surface(
+        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface
+      ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(detail.title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        detail.value,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                TextButton(onClick = onDismiss) { Text("Close") }
+            }
+            Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
                     Text(detail.howItWorks, style = MaterialTheme.typography.bodyMedium)
@@ -579,6 +608,23 @@ private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
                 }
                 if (detail.lines.isNotEmpty()) {
                     item { Divider() }
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "What / when",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "Amount",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     items(detail.lines) { line ->
                         Row(
                             Modifier.fillMaxWidth(),
@@ -607,9 +653,9 @@ private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
                     }
                 }
             }
-        },
-        confirmButton = { Button(onClick = onDismiss) { Text("Close") } }
-    )
+        }
+      }
+    }
 }
 
 @Composable

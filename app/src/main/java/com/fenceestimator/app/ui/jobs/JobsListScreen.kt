@@ -93,7 +93,17 @@ fun JobsListScreen(
     // Shown once, on the first open. Covers only the things that are not
     // guessable and cost money when found out late.
     val tourScope = rememberCoroutineScope()
-    var showTour by remember(profile.hasSeenTour) { mutableStateOf(!profile.hasSeenTour) }
+
+    // Only for somebody who has genuinely never used it.
+    //
+    // Keying on a flag alone made it reappear on every update: the settings
+    // flow emits its defaults before DataStore has loaded, so hasSeenTour reads
+    // false for a moment and the tour fires. Requiring an empty job list as
+    // well means it cannot show to anybody with work in the app, whatever the
+    // flag says -- and "no jobs at all" IS what a new company looks like.
+    var showTour by remember(profile.hasSeenTour, jobs.isEmpty()) {
+        mutableStateOf(!profile.hasSeenTour && jobs.isEmpty() && profile.updatedAt == 0L)
+    }
     if (showTour) {
         com.fenceestimator.app.ui.onboarding.FirstRunTour(
             onFinished = {

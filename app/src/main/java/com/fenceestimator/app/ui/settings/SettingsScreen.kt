@@ -141,6 +141,18 @@ fun SettingsScreen(
     var showNewTier by remember { mutableStateOf(false) }
     var manufacturerMenuExpanded by remember { mutableStateOf(false) }
 
+    // Saves itself shortly after you stop changing things.
+    //
+    // The Save button stays -- people want to see something confirm it -- but
+    // relying on it means a setting changed and then backed out of is lost, and
+    // it is never obvious that it was. Debounced so a burst of typing is one
+    // write rather than one per keystroke.
+    androidx.compose.runtime.LaunchedEffect(local) {
+        if (local == loadedProfile) return@LaunchedEffect
+        kotlinx.coroutines.delay(1_200)
+        viewModel.save(local)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +64,7 @@ fun TrashScreen(onBack: () -> Unit) {
     LaunchedEffect(message) { message?.let { snackbarHostState.showSnackbar(it) } }
 
     val dayFormat = remember { java.text.SimpleDateFormat("d MMM yyyy, h:mm a", java.util.Locale.US) }
+    var purging by remember { mutableStateOf<com.fenceestimator.app.cloud.TrashedRecord?>(null) }
 
     Scaffold(
         topBar = {
@@ -123,10 +126,16 @@ fun TrashScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        OutlinedButton(
-                            onClick = { viewModel.restore(record) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Put it back") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { viewModel.restore(record) },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Put it back") }
+                            OutlinedButton(
+                                onClick = { purging = record },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Delete for good") }
+                        }
                     }
                 }
             }
@@ -148,4 +157,35 @@ fun TrashScreen(onBack: () -> Unit) {
             }
         }
     }
+
+    purging?.let { record ->
+        PurgeConfirmDialog(
+            record = record,
+            onConfirm = { viewModel.purge(record); purging = null },
+            onDismiss = { purging = null }
+        )
+    }
+}
+
+
+/** Confirmation for the one action in the app that genuinely cannot be undone. */
+@Composable
+private fun PurgeConfirmDialog(
+    record: com.fenceestimator.app.cloud.TrashedRecord,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete for good?") },
+        text = {
+            Text(
+                "\"" + record.label + "\" will be gone from every device with no way " +
+                    "to get it back. Everything else in this app can be undone -- this " +
+                    "cannot."
+            )
+        },
+        confirmButton = { Button(onClick = onConfirm) { Text("Delete permanently") } },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Keep it") } }
+    )
 }

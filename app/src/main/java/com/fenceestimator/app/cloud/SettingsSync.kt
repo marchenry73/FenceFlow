@@ -44,6 +44,7 @@ data class CloudSettings(
 
 @Serializable
 private data class SettingsRow(
+    @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("company_id") val companyId: String,
     val settings: CloudSettings
 )
@@ -76,7 +77,19 @@ object SettingsSync {
                 ?: return@runCatching false
 
             val local = store.profile.first()
-            store.save(local.mergedWith(row.settings))
+
+            // The cloud only wins when it is genuinely newer.
+            //
+            // This used to overwrite every local value unconditionally, and it
+            // runs on every session refresh -- so a save whose push had not
+            // landed was quietly undone on the next app start. The user saw a
+            // setting they had changed revert after an update and reasonably
+            // concluded the save was broken. It was not: it was being
+            // overwritten by an older copy.
+            val cloudChangedAt = CloudTime.parseMillis(row.updatedAt) ?: 0L
+            if (cloudChangedAt <= local.updatedAt) return@runCatching false
+
+            store.save(local.mergedWith(row.settings), stamp = false)
             true
         }
     }

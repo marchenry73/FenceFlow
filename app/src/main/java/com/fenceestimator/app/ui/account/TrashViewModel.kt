@@ -46,6 +46,25 @@ class TrashViewModel(
      * rather than only this one, and it comes down the path that has already
      * been made to behave correctly.
      */
+    /**
+     * Deletes for good. The one action in the app with no way back, which is
+     * why it is confirmed separately rather than sitting next to Restore as an
+     * equal-looking button.
+     */
+    fun purge(record: TrashedRecord) {
+        val companyId = session.state.value.companyId ?: return
+        viewModelScope.launch {
+            _busy.value = true
+            TrashBin.purge(companyId, record)
+                .onSuccess {
+                    _message.value = "Permanently deleted."
+                    load()
+                }
+                .onFailure { _message.value = "Couldn't delete it: ${it.message}" }
+            _busy.value = false
+        }
+    }
+
     fun restore(record: TrashedRecord) {
         val companyId = session.state.value.companyId ?: return
         viewModelScope.launch {

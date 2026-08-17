@@ -185,7 +185,20 @@ data class CloudTimeEntry(
     @SerialName("started_at") val startedAt: String,
     @SerialName("ended_at") val endedAt: String? = null,
     @SerialName("hourly_rate") val hourlyRate: Double = 0.0,
-    val notes: String = ""
+    val notes: String = "",
+    /**
+     * Approval has to travel with the shift.
+     *
+     * Without these the cloud row could not carry it, so any device pulling a
+     * shift it did not already hold recreated it as pending -- hours that had
+     * been signed off came back unapproved, which reads as the approval not
+     * having saved. Verified in live data: an approved local shift sat in the
+     * cloud with approved_at null.
+     */
+    @SerialName("approved_at") val approvedAt: String? = null,
+    @SerialName("approved_by") val approvedBy: String = "",
+    @SerialName("rejected_at") val rejectedAt: String? = null,
+    @SerialName("review_note") val reviewNote: String = ""
 )
 
 /**
@@ -535,7 +548,11 @@ object EntitySync {
                     endedAt = row.endedAt?.let { at ->
                         CloudTime.parseMillis(at)
                     },
-                    hourlyRate = row.hourlyRate, notes = row.notes
+                    hourlyRate = row.hourlyRate, notes = row.notes,
+                    approvedAt = CloudTime.parseMillis(row.approvedAt),
+                    approvedBy = row.approvedBy,
+                    rejectedAt = CloudTime.parseMillis(row.rejectedAt),
+                    reviewNote = row.reviewNote
                 )
             )
             added++
@@ -725,7 +742,11 @@ private fun TimeEntry.toCloud(companyId: String, jobSyncId: String) = CloudTimeE
     companyId = companyId, syncId = syncId, jobSyncId = jobSyncId,
     startedAt = Instant.ofEpochMilli(startedAt).toString(),
     endedAt = endedAt?.let { Instant.ofEpochMilli(it).toString() },
-    hourlyRate = hourlyRate, notes = notes
+    hourlyRate = hourlyRate, notes = notes,
+    approvedAt = approvedAt?.let { CloudTime.format(it) },
+    approvedBy = approvedBy,
+    rejectedAt = rejectedAt?.let { CloudTime.format(it) },
+    reviewNote = reviewNote
 )
 
 /**

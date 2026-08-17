@@ -127,6 +127,14 @@ data class BusinessProfile(
     /** False until the first-run tour has been seen or skipped. */
     val hasSeenTour: Boolean = false,
     /**
+     * When these settings were last changed on this device.
+     *
+     * Without it the cloud copy always won a pull, newer or not -- so a save
+     * whose push did not land was silently reverted on the next app start and
+     * looked exactly like the save never worked.
+     */
+    val updatedAt: Long = 0L,
+    /**
      * The contractor's own Square access token, kept on this device only.
      * It is never sent to the FenceFlow cloud -- each business bills into
      * its own Square account, and nobody else should be able to read it.
@@ -171,6 +179,7 @@ class SettingsStore(private val context: Context) {
         val CONTRACT_TERMS = stringPreferencesKey("contract_terms")
         val HOME_CARDS = stringPreferencesKey("home_cards")
         val SEEN_TOUR = androidx.datastore.preferences.core.booleanPreferencesKey("seen_tour")
+        val UPDATED_AT = androidx.datastore.preferences.core.longPreferencesKey("settings_updated_at")
         val TAX_RATE = doublePreferencesKey("tax_rate")
         val MARKUP = doublePreferencesKey("markup")
         val POST_SPACING = floatPreferencesKey("post_spacing")
@@ -213,6 +222,7 @@ class SettingsStore(private val context: Context) {
             contractTerms = prefs[Keys.CONTRACT_TERMS] ?: DEFAULT_CONTRACT_TERMS,
             homeCardsCsv = prefs[Keys.HOME_CARDS] ?: HomeCard.DEFAULT_CSV,
             hasSeenTour = prefs[Keys.SEEN_TOUR] ?: false,
+            updatedAt = prefs[Keys.UPDATED_AT] ?: 0L,
             defaultTaxRatePercent = prefs[Keys.TAX_RATE] ?: 7.0,
             defaultMarkupPercent = prefs[Keys.MARKUP] ?: 0.0,
             defaultPostSpacingFt = prefs[Keys.POST_SPACING] ?: 6f,
@@ -258,7 +268,14 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it.clear() }
     }
 
-    suspend fun save(profile: BusinessProfile) {
+    /**
+     * @param stamp false when writing values that came FROM the cloud, so a
+     *   pull does not make itself look like the newest edit and win every
+     *   subsequent comparison.
+     */
+    suspend fun save(profile: BusinessProfile, stamp: Boolean = true) {
+        val toWrite = if (stamp) profile.copy(updatedAt = System.currentTimeMillis()) else profile
+        val profile = toWrite
         context.dataStore.edit { prefs ->
             prefs[Keys.BUSINESS_NAME] = profile.businessName
             prefs[Keys.OWNER_NAME] = profile.ownerName
@@ -268,6 +285,7 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.CONTRACT_TERMS] = profile.contractTerms
             prefs[Keys.HOME_CARDS] = profile.homeCardsCsv
             prefs[Keys.SEEN_TOUR] = profile.hasSeenTour
+            prefs[Keys.UPDATED_AT] = profile.updatedAt
             prefs[Keys.TAX_RATE] = profile.defaultTaxRatePercent
             prefs[Keys.MARKUP] = profile.defaultMarkupPercent
             prefs[Keys.POST_SPACING] = profile.defaultPostSpacingFt
