@@ -89,6 +89,20 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
     val finalWalkthrough = steps.filter { it.kind == JobStepKind.FINAL_WALKTHROUGH }
     val install = steps.filter { it.kind == JobStepKind.INSTALL }
 
+    // Whether they are finishing tonight or coming back.
+    //
+    // Estimated hours does not answer that, and it is the question that decides
+    // whether the crew start hanging gates at four o clock or pack up clean for
+    // tomorrow. Working day comes from the company settings, less breaks --
+    // a schedule built on somebody else numbers is a schedule that slips.
+    val crewProfile by app.settingsStore.profile.collectAsState(
+        initial = com.fenceestimator.app.data.BusinessProfile()
+    )
+    val dayPlan = com.fenceestimator.app.estimate.JobSchedule.plan(
+        job = currentJob,
+        workdayHours = (crewProfile.workdayHours - crewProfile.breakHoursPerDay).coerceAtLeast(1.0)
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -102,6 +116,35 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // First thing on the screen, because it changes how the day is
+            // worked. Knowing at eight in the morning that this is day two of
+            // three is the difference between pacing the work and finding out
+            // at five that the gates are not going on today.
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (dayPlan.isFinalDay || dayPlan.totalDays <= 1)
+                            MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            dayPlan.crewSummary,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (!dayPlan.isFinalDay && dayPlan.totalDays > 1) {
+                            Text(
+                                "Leave it safe and tidy tonight -- you're back tomorrow.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+
             item {
                 Card(
                     Modifier.fillMaxWidth(),

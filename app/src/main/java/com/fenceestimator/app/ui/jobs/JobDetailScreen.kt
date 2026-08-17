@@ -145,6 +145,7 @@ fun JobDetailScreen(
     val job by viewModel.job.collectAsState()
     /** The live contract figures, so the signature check compares against what the estimate says now. */
     val jobTotals by viewModel.contractTotal.collectAsState()
+    val allJobs by viewModel.allJobs.collectAsState()
     val runs by runsViewModel.runs.collectAsState()
     val pricingTiers by viewModel.pricingTiers.collectAsState()
     val manufacturers by viewModel.manufacturers.collectAsState()
@@ -323,6 +324,17 @@ fun JobDetailScreen(
             item(key = SECTION_HOA) { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
                 item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
+                // Above the money, because a job running over is the thing
+                // that has to be dealt with today -- the invoice can wait.
+                item(key = "overrun") {
+                    OverrunSection(
+                        job = currentJob,
+                        allJobs = allJobs,
+                        workdayHours = (profile.workdayHours - profile.breakHoursPerDay)
+                            .coerceAtLeast(1.0),
+                        viewModel = viewModel
+                    )
+                }
                 item(key = SECTION_PAYMENT) {
                     SectionCard(title = "Payment & Invoice") {
                         StaleSignatureBanner(

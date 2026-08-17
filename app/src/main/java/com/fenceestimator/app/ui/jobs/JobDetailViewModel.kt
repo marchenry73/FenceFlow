@@ -29,6 +29,10 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     val job: StateFlow<Job?> = repository.observeJob(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /** Every job, so an overrun can work out whose date it pushes. */
+    val allJobs: StateFlow<List<Job>> = repository.observeJobs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val pricingTiers: StateFlow<List<PricingTier>> = repository.observePricingTiers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -359,6 +363,21 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     fun decidePlanChange(change: com.fenceestimator.app.data.FieldChange, approved: Boolean, note: String) {
         viewModelScope.launch {
             repository.decidePlanChange(change, approved, decidedByName, note)
+        }
+    }
+
+    /**
+     * Moves another job on the calendar -- the one this overrun pushed.
+     *
+     * Done from here rather than making somebody open that job, find the date
+     * field and work out the new day. The whole point is that it happens at the
+     * moment the problem is noticed, because the alternative is remembering to
+     * do it later and the customer finding out when nobody turns up.
+     */
+    fun rescheduleOtherJob(other: com.fenceestimator.app.data.Job, newDate: Long?) {
+        if (newDate == null) return
+        viewModelScope.launch {
+            repository.updateJob(other.copy(scheduledDate = newDate))
         }
     }
 
