@@ -188,7 +188,8 @@ fun JobsListScreen(
                     // because everything looks like it is working.
                     if (sync.hasUnsyncedWork ||
                         sync.phase == com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL ||
-                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY ||
+                        (sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY &&
+                            sync.sessionResolved) ||
                         sync.phase == com.fenceestimator.app.cloud.SyncPhase.FAILED
                     ) {
                         Card(

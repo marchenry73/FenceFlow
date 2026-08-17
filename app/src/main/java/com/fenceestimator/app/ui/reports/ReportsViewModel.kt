@@ -14,6 +14,9 @@ import com.fenceestimator.app.data.isWon
 import com.fenceestimator.app.geometry.FenceCodec
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -107,7 +110,41 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
     private val _data = MutableStateFlow(ReportData())
     val data: StateFlow<ReportData> = _data
 
-    init { recompute() }
+    init {
+        recompute()
+        watchForChanges()
+    }
+
+    /**
+     * Recomputes whenever the underlying data moves.
+     *
+     * This screen was a snapshot: computed once on open and then only when a
+     * filter changed. So a payment that synced in, or a job another phone
+     * added, never reached it -- the figures sat still until the screen was
+     * reopened or dragged down. Pulling to refresh should be reassurance that a
+     * number is current, not the only way to make it current.
+     *
+     * Debounced because a sync pass writes many rows in quick succession and
+     * each one would otherwise trigger a full recompute.
+     */
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private fun watchForChanges() {
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                repository.observeJobs(),
+                repository.observeAllPayments()
+            ) { jobs, payments ->
+                // A cheap fingerprint. The values themselves are re-read by
+                // recompute against the current filters; this only has to
+                // change when something that could move a figure changes.
+                jobs.size to payments.sumOf { it.amount }
+            }
+                .distinctUntilChanged()
+                .debounce(400)
+                .drop(1) // the first emission is the load that init already did
+                .collect { recompute() }
+        }
+    }
 
     fun setPreset(p: ReportPreset) {
         _preset.value = p

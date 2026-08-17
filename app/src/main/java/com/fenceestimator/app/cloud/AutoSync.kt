@@ -26,7 +26,9 @@ data class SyncState(
     /** True when work is saved on this phone but not yet in the cloud. */
     val hasUnsyncedWork: Boolean = false,
     /** Signed in, but not part of a company -- so there is nowhere to sync to. */
-    val signedInWithoutCompany: Boolean = false
+    val signedInWithoutCompany: Boolean = false,
+    /** False while the app is still working out who is signed in. */
+    val sessionResolved: Boolean = false
 ) {
     /**
      * What to tell the user. "Saved on this phone" matters more than any
@@ -206,7 +208,12 @@ class AutoSync(
         if (companyId == null) {
             _state.value = _state.value.copy(
                 phase = SyncPhase.OFFLINE_ONLY,
-                signedInWithoutCompany = session.state.value.signedIn
+                signedInWithoutCompany = session.state.value.signedIn,
+                // Startup has no company id yet simply because the answer has
+                // not arrived. Reporting "not backing up" during that moment
+                // put an alarming banner on screen at every launch, saying
+                // something that was not true a second later.
+                sessionResolved = session.state.value.resolved
             )
             return
         }

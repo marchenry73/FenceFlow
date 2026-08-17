@@ -28,7 +28,16 @@ data class SessionState(
      */
     val accessKnown: Boolean = false,
     /** The profile could not be reached -- temporary, and being retried. */
-    val accessUnavailable: Boolean = false
+    val accessUnavailable: Boolean = false,
+    /**
+     * True once we have actually established who is signed in, if anyone.
+     *
+     * Before this, the state is only the defaults -- signed out, no company --
+     * which is indistinguishable from genuinely being signed out. Screens that
+     * warn about not being connected must wait for this, or they announce it
+     * every single launch during the moment before the answer arrives.
+     */
+    val resolved: Boolean = false
 ) {
     /**
      * What this person can actually do, role plus their own adjustments.
@@ -138,7 +147,7 @@ class SessionManager(private val scope: CoroutineScope) {
         scope.launch {
             val email = runCatching { SupabaseModule.currentUserEmail() }.getOrNull()
             if (email == null) {
-                _state.value = SessionState()
+                _state.value = SessionState(resolved = true)
                 return@launch
             }
             // Fail closed, never open.
@@ -165,7 +174,8 @@ class SessionManager(private val scope: CoroutineScope) {
                 role = profile?.userRole ?: UserRole.CREW,
                 permissionOverrides = profile?.permissionOverrides.orEmpty(),
                 accessKnown = fetched.isSuccess && profile != null,
-                accessUnavailable = fetched.isFailure
+                accessUnavailable = fetched.isFailure,
+                resolved = true
             )
 
             // Keep trying. Somebody stuck with no access because their phone
