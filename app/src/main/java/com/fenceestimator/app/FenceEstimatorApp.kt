@@ -27,6 +27,11 @@ class FenceEstimatorApp : Application() {
 
     val autoSync: AutoSync by lazy { AutoSync(applicationScope, repository, session, this) }
 
+    /** Live row changes, so money lands without anyone pressing anything. */
+    val realtimeWatcher: com.fenceestimator.app.cloud.RealtimeWatcher by lazy {
+        com.fenceestimator.app.cloud.RealtimeWatcher(applicationScope, session, autoSync)
+    }
+
     val overdueWatcher: com.fenceestimator.app.notify.OverdueWatcher by lazy {
         com.fenceestimator.app.notify.OverdueWatcher(applicationScope, repository, this)
     }
@@ -66,6 +71,7 @@ class FenceEstimatorApp : Application() {
             applicationScope, repository, this
         )
         autoSync.start()
+        realtimeWatcher.start()
         connectivity.start()
         // Checks hourly, and once now, so a job that ran long yesterday is
         // flagged on opening the app rather than an hour later.

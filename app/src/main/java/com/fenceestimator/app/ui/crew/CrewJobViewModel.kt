@@ -66,9 +66,22 @@ class CrewJobViewModel(private val repository: Repository, private val jobId: Lo
         }
     }
 
-    fun setVerifiedWithCustomer(step: JobStep, verified: Boolean) {
+    /**
+     * The customer signing that the finished work is right.
+     *
+     * Kept apart from the acceptance signature: one says "I agree to this
+     * price", this one says "this was built properly". When a gate is said to
+     * have never latched, this is the record that answers it.
+     */
+    fun captureFinalSignOff(path: String) {
         viewModelScope.launch {
-            repository.updateJobStep(step.copy(verifiedWithCustomer = verified))
+            val current = job.value ?: return@launch
+            repository.updateJob(
+                current.copy(
+                    finalSignOffImagePath = path,
+                    finalSignOffAt = System.currentTimeMillis()
+                )
+            )
         }
     }
 

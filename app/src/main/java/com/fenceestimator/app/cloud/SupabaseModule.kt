@@ -80,6 +80,9 @@ object SupabaseModule {
             install(Auth)
             install(Postgrest)
             install(io.github.jan.supabase.storage.Storage)
+            // Live row changes, so a cleared payment reaches the phone the moment
+            // Postgres commits it rather than on the next sync pass.
+            install(io.github.jan.supabase.realtime.Realtime)
         }
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -85,6 +86,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
     }
 
     val walkthrough = steps.filter { it.kind == JobStepKind.WALKTHROUGH }
+    val finalWalkthrough = steps.filter { it.kind == JobStepKind.FINAL_WALKTHROUGH }
     val install = steps.filter { it.kind == JobStepKind.INSTALL }
 
     Scaffold(
@@ -255,11 +257,9 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             item {
                 StepSection(
                     title = "Walkthrough With Customer (before starting)",
-                    subtitle = "Go through each item with the customer and tick it once they confirm.",
+                    subtitle = "Go through each item with the customer and tick it once they agree.",
                     steps = walkthrough,
-                    showVerify = true,
-                    onToggle = { viewModel.toggleStep(it) },
-                    onVerify = { step, v -> viewModel.setVerifiedWithCustomer(step, v) }
+                    onToggle = { viewModel.toggleStep(it) }
                 )
             }
 
@@ -268,9 +268,24 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                     title = "Install Steps",
                     subtitle = null,
                     steps = install,
-                    showVerify = false,
-                    onToggle = { viewModel.toggleStep(it) },
-                    onVerify = { _, _ -> }
+                    onToggle = { viewModel.toggleStep(it) }
+                )
+            }
+
+            item {
+                StepSection(
+                    title = "Final Walkthrough (before you leave)",
+                    subtitle = "Walk the finished fence with the customer, then have them sign below.",
+                    steps = finalWalkthrough,
+                    onToggle = { viewModel.toggleStep(it) }
+                )
+            }
+
+            item {
+                FinalSignOffCard(
+                    job = currentJob,
+                    steps = finalWalkthrough,
+                    onSign = { path -> viewModel.captureFinalSignOff(path) }
                 )
             }
 
@@ -398,9 +413,7 @@ private fun StepSection(
     title: String,
     subtitle: String?,
     steps: List<JobStep>,
-    showVerify: Boolean,
-    onToggle: (JobStep) -> Unit,
-    onVerify: (JobStep, Boolean) -> Unit
+    onToggle: (JobStep) -> Unit
 ) {
     val done = steps.count { it.checked }
     Card(Modifier.fillMaxWidth()) {
@@ -426,16 +439,71 @@ private fun StepSection(
                             textDecoration = if (step.checked) TextDecoration.LineThrough else null,
                             color = if (step.checked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                         )
-                        if (showVerify) {
-                            FilterChip(
-                                selected = step.verifiedWithCustomer,
-                                onClick = { onVerify(step, !step.verifiedWithCustomer) },
-                                label = { Text(if (step.verifiedWithCustomer) "Customer confirmed" else "Mark confirmed") }
-                            )
-                        }
+                        // One tick per item, deliberately. Ticking a box and
+                        // then separately marking it "confirmed" was two
+                        // confirmations for one fact, so people did one or the
+                        // other and neither meant anything. The customer
+                        // signature at the end is what makes it binding.
                     }
                 }
             }
         }
+    }
+}
+
+
+/**
+ * The customer's signature closing the job out.
+ *
+ * Held back until the closing checklist is actually done, because a signature
+ * collected before anyone walked the fence records nothing except that someone
+ * held out a phone.
+ */
+@Composable
+private fun FinalSignOffCard(
+    job: com.fenceestimator.app.data.Job,
+    steps: List<JobStep>,
+    onSign: (String) -> Unit
+) {
+    var showPad by remember { mutableStateOf(false) }
+    val remaining = steps.count { !it.checked }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Customer Sign-Off", style = MaterialTheme.typography.titleMedium)
+
+            if (job.finalSignOffImagePath != null) {
+                Text(
+                    "Signed off -- the customer confirmed the work is complete.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                coil.compose.AsyncImage(
+                    model = job.finalSignOffImagePath,
+                    contentDescription = "Customer sign-off signature",
+                    modifier = Modifier.height(60.dp)
+                )
+            } else {
+                Text(
+                    if (remaining > 0)
+                        "Finish the $remaining remaining item(s) above, then have the customer sign."
+                    else
+                        "Walk through is done. Have the customer sign to confirm the work is complete.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = { showPad = true },
+                    enabled = remaining == 0,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Customer Signs Off") }
+            }
+        }
+    }
+
+    if (showPad) {
+        com.fenceestimator.app.ui.components.SignaturePadDialog(
+            onSave = { path -> onSign(path); showPad = false },
+            onDismiss = { showPad = false }
+        )
     }
 }

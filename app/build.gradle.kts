@@ -112,8 +112,12 @@ dependencies {
     // Signatures, survey images and job photos are files, not rows. Without
     // this they only ever existed on the phone that took them.
     implementation("io.github.jan-tennert.supabase:storage-kt")
+    // Money has to land without anyone pressing anything. Sync passes and push
+    // notifications both have a gap between the card clearing and the phone
+    // showing it; a Postgres change feed does not.
+    implementation("io.github.jan-tennert.supabase:realtime-kt")
     // CIO engine (not the Android engine) because it supports websockets, which
-    // Supabase Realtime needs if we add live sync later.
+    // Supabase Realtime needs.
     implementation("io.ktor:ktor-client-cio:3.0.1")
 
     // Firebase Cloud Messaging only -- no analytics, no other Firebase products.

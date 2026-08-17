@@ -278,16 +278,34 @@ class Repository(private val db: AppDatabase) {
     suspend fun acknowledgeFieldChanges(jobId: Long) =
         fieldChangeDao.acknowledgeAllForJob(jobId, System.currentTimeMillis())
 
-    /** Seeds the standard walkthrough + install checklists the first time a job's crew view is opened. */
+    /**
+     * Seeds the three checklists the first time a job's crew view is opened.
+     *
+     * Checked per kind rather than "has any steps at all", so a job seeded
+     * before the closing walkthrough existed gains it on next open instead of
+     * being stuck without one forever.
+     */
     suspend fun ensureJobStepsSeeded(jobId: Long) {
-        if (jobStepDao.countForJob(jobId) > 0) return
-        val walkthrough = DefaultJobSteps.WALKTHROUGH.mapIndexed { index, text ->
-            JobStep(jobId = jobId, kind = JobStepKind.WALKTHROUGH, description = text, sortOrder = index)
+        val existing = jobStepDao.getForJob(jobId)
+        val present = existing.map { it.kind }.toSet()
+        val toAdd = mutableListOf<JobStep>()
+
+        if (JobStepKind.WALKTHROUGH !in present) {
+            toAdd += DefaultJobSteps.WALKTHROUGH.mapIndexed { index, text ->
+                JobStep(jobId = jobId, kind = JobStepKind.WALKTHROUGH, description = text, sortOrder = index)
+            }
         }
-        val install = DefaultJobSteps.INSTALL.mapIndexed { index, text ->
-            JobStep(jobId = jobId, kind = JobStepKind.INSTALL, description = text, sortOrder = index)
+        if (JobStepKind.INSTALL !in present) {
+            toAdd += DefaultJobSteps.INSTALL.mapIndexed { index, text ->
+                JobStep(jobId = jobId, kind = JobStepKind.INSTALL, description = text, sortOrder = index)
+            }
         }
-        jobStepDao.insertAll(walkthrough + install)
+        if (JobStepKind.FINAL_WALKTHROUGH !in present) {
+            toAdd += DefaultJobSteps.FINAL.mapIndexed { index, text ->
+                JobStep(jobId = jobId, kind = JobStepKind.FINAL_WALKTHROUGH, description = text, sortOrder = index)
+            }
+        }
+        if (toAdd.isNotEmpty()) jobStepDao.insertAll(toAdd)
     }
 
     fun observePunchList(jobId: Long): Flow<List<PunchListItem>> = punchListDao.observeForJob(jobId)

@@ -256,6 +256,17 @@ data class Job(
      */
     val signedContractTotal: Double = 0.0,
     val signedLinearFeet: Float = 0f,
+    /**
+     * The customer signing off the finished work at the closing walkthrough.
+     *
+     * Separate from the acceptance signature on purpose: one says "I agree to
+     * this price", the other says "this was built right". Three months later
+     * when someone says a gate never latched, this is the record that answers
+     * it, and it is worthless if it is the same field as the estimate.
+     */
+    val finalSignOffImagePath: String? = null,
+    val finalSignOffStoragePath: String? = null,
+    val finalSignOffAt: Long? = null,
 
     // Referral & compliance
     val referralSource: String = "",
@@ -539,10 +550,16 @@ data class ChangeOrder(
 }
 
 /**
- * Two checklists per job: the pre-start walkthrough done with the customer,
- * and the install steps the crew works through on site.
+ * Three checklists per job: the walkthrough done with the customer before
+ * anything is dug, the install steps the crew works through, and the closing
+ * walkthrough the customer signs off.
+ *
+ * Two walkthroughs and no more. Ticking an item and then separately marking it
+ * "confirmed" was two confirmations for one fact, so people did one or the
+ * other and the record meant nothing either way. One tick per item now, and the
+ * customer signature at the end is what makes the whole thing binding.
  */
-enum class JobStepKind { WALKTHROUGH, INSTALL }
+enum class JobStepKind { WALKTHROUGH, INSTALL, FINAL_WALKTHROUGH }
 
 @Entity(
     tableName = "job_steps",

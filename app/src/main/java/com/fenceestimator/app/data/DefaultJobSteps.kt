@@ -21,8 +21,10 @@ object DefaultJobSteps {
         "Tell the customer: we clear leaves and loose debris only. Anything " +
             "needing a tool -- bushes, planters, sheds, tree limbs, old posts -- " +
             "they clear before we start, or it goes on a change order",
-        "List anything on the fence line the customer must move themselves",
-        "Review price, deposit, and payment terms"
+        "List anything on the fence line the customer must move themselves"
+        // Deliberately no pricing here. This list is read out on site by the
+        // crew with the customer standing next to them, and neither of them is
+        // the person who should be discussing the money.
     )
 
     val INSTALL = listOf(
@@ -34,8 +36,23 @@ object DefaultJobSteps {
         "Install rails and panels",
         "Hang gates and hardware",
         "Clean up property and haul debris",
-        "Take after photos",
-        "Final walkthrough with customer",
+        "Take after photos"
+    )
+
+    /**
+     * The closing walkthrough, done with the customer before the crew leaves.
+     *
+     * Separate from the install list because it ends in a signature: this is
+     * the moment the customer says the work is right, and it is the record that
+     * settles a complaint three months later.
+     */
+    val FINAL = listOf(
+        "Walk the finished fence line with the customer",
+        "Check every gate opens, closes and latches",
+        "Confirm height, style and colour match what was agreed",
+        "Check posts are plumb and the line is straight",
+        "Confirm the site is clean and all debris is gone",
+        "Point out anything the customer wants corrected",
         "Ask the customer for a review"
     )
 }
