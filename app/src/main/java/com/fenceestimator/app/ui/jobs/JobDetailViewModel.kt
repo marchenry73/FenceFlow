@@ -355,6 +355,16 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         }
     }
 
+    /** Answers a crew request to change the plan. */
+    fun decidePlanChange(change: com.fenceestimator.app.data.FieldChange, approved: Boolean, note: String) {
+        viewModelScope.launch {
+            repository.decidePlanChange(change, approved, decidedByName, note)
+        }
+    }
+
+    /** Who is answering, set by the screen from the session. */
+    var decidedByName: String = ""
+
     /** Stamps that the customer has actually been told why the job is held up. */
     fun markCustomerNotified() {
         update { it.copy(customerNotifiedAt = System.currentTimeMillis()) }

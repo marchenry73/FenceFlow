@@ -424,6 +424,40 @@ class Repository(private val db: AppDatabase) {
     fun observeUnacknowledgedChanges(): Flow<List<FieldChange>> = fieldChangeDao.observeUnacknowledged()
     suspend fun getFieldChanges(jobId: Long): List<FieldChange> = fieldChangeDao.getForJob(jobId)
     suspend fun recordFieldChange(change: FieldChange): Long = fieldChangeDao.insert(change)
+    /**
+     * Records the crew asking for a change rather than making one.
+     *
+     * Kept apart from a report of work already done. A report says the line
+     * moved and the office needs to know; a request says the crew think it
+     * should move and are standing there waiting. Filing the second as the
+     * first means nobody realises a decision is owed and the crew wait all
+     * afternoon.
+     */
+    suspend fun requestPlanChange(jobId: Long, summary: String, detail: String, by: String, role: String) {
+        fieldChangeDao.insert(
+            FieldChange(
+                jobId = jobId,
+                summary = summary,
+                detail = detail,
+                changedBy = by,
+                changedByRole = role,
+                isRequest = true
+            )
+        )
+    }
+
+    suspend fun decidePlanChange(change: FieldChange, approved: Boolean, by: String, note: String) {
+        fieldChangeDao.update(
+            change.copy(
+                approvedAt = if (approved) System.currentTimeMillis() else null,
+                rejectedAt = if (approved) null else System.currentTimeMillis(),
+                decidedBy = by,
+                decisionNote = note,
+                acknowledgedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
     suspend fun acknowledgeFieldChanges(jobId: Long) =
         fieldChangeDao.acknowledgeAllForJob(jobId, System.currentTimeMillis())
 

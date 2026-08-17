@@ -98,9 +98,30 @@ data class FieldChange(
     val changedBy: String = "",
     val changedByRole: String = "",
     val at: Long = System.currentTimeMillis(),
-    val acknowledgedAt: Long? = null
+    val acknowledgedAt: Long? = null,
+    /**
+     * True when the crew are ASKING rather than reporting.
+     *
+     * The two need telling apart. A report says the fence line already moved
+     * and the office needs to know; a request says the crew think it should
+     * move and are waiting to be told. Treating a request as a report means
+     * work stops while nobody realises a decision is owed.
+     */
+    val isRequest: Boolean = false,
+    val approvedAt: Long? = null,
+    val rejectedAt: Long? = null,
+    val decidedBy: String = "",
+    /** The reason given when a request is turned down, so the crew know why. */
+    val decisionNote: String = ""
 ) {
     val isAcknowledged: Boolean get() = acknowledgedAt != null
+
+    /** A request nobody has answered yet. */
+    val isAwaitingDecision: Boolean
+        get() = isRequest && approvedAt == null && rejectedAt == null
+
+    val isApproved: Boolean get() = approvedAt != null
+    val isRejected: Boolean get() = rejectedAt != null && approvedAt == null
 }
 
 @Entity(tableName = "pending_deletions")

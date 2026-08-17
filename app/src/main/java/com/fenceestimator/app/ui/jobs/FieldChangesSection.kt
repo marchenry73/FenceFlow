@@ -15,6 +15,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Button
 import com.fenceestimator.app.data.FieldChange
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -43,7 +48,33 @@ fun FieldChangesSection(changes: List<FieldChange>, viewModel: JobDetailViewMode
         return
     }
 
-    val unseen = changes.count { !it.isAcknowledged }
+    // Requests come first and stay first. A crew standing at a fence line
+    // waiting on an answer is a different thing from a note about work already
+    // done, and burying the first among the second is how they end up waiting
+    // all afternoon.
+    val waiting = changes.filter { it.isAwaitingDecision }
+    if (waiting.isNotEmpty()) {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "The crew are waiting on you",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+                Text(
+                    "They have stopped rather than build it different. Answer and they carry on.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+        waiting.forEach { request -> PlanRequestCard(request, viewModel) }
+    }
+
+    val unseen = changes.count { !it.isAcknowledged && !it.isAwaitingDecision }
     if (unseen > 0) {
         Card(
             Modifier.fillMaxWidth(),
@@ -66,7 +97,7 @@ fun FieldChangesSection(changes: List<FieldChange>, viewModel: JobDetailViewMode
         }
     }
 
-    changes.forEach { change ->
+    changes.filter { !it.isAwaitingDecision }.forEach { change ->
         Card(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -98,4 +129,56 @@ fun FieldChangesSection(changes: List<FieldChange>, viewModel: JobDetailViewMode
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+/**
+ * One crew request, and the two answers to it.
+ *
+ * A reason is required to turn one down. "Rejected" with no explanation gets
+ * the crew asking on the phone anyway, which is the call the request existed to
+ * avoid -- and the person who has to explain it is standing in a yard rather
+ * than sitting at a desk.
+ */
+@Composable
+private fun PlanRequestCard(request: FieldChange, viewModel: JobDetailViewModel) {
+    var note by remember { mutableStateOf("") }
+
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(request.summary, style = MaterialTheme.typography.titleSmall)
+            if (request.detail.isNotBlank()) {
+                Text(request.detail, style = MaterialTheme.typography.bodyMedium)
+            }
+            Text(
+                listOfNotNull(
+                    request.changedBy.takeIf { it.isNotBlank() },
+                    request.changedByRole.takeIf { it.isNotBlank() }
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text("Answer (the crew will see this)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { viewModel.decidePlanChange(request, approved = true, note = note.trim()) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Approve") }
+                OutlinedButton(
+                    // A reason is required to say no, but not to say yes -- yes
+                    // needs no defending, and requiring one just slows the crew.
+                    enabled = note.isNotBlank(),
+                    onClick = { viewModel.decidePlanChange(request, approved = false, note = note.trim()) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Not this time") }
+            }
+        }
+    }
 }

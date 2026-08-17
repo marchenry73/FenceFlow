@@ -1,5 +1,13 @@
 package com.fenceestimator.app.ui.crew
 
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +54,9 @@ import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.survey.SurveyViewModel
 
+/** Faint enough to read the fence line over, visible enough to count squares against. */
+private val GridLine = androidx.compose.ui.graphics.Color(0xFFDCE3EC)
+
 private val LineBlue = Color(0xFF2A78D6)
 private val GateOrange = Color(0xFFEB6834)
 private val MarkerAmber = Color(0xFFEDA100)
@@ -90,11 +101,21 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "Read only — tell the office if anything here is wrong.",
+                    "Read only. If the line needs to move, ask -- do not build it different.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            // Asking, rather than changing it and telling them afterwards.
+            //
+            // The crew standing at the fence line often DO know better than the
+            // drawing. But footage drives the estimate, the post count and the
+            // material order, so a change made on site and discovered later is
+            // a job that has quietly stopped matching what the customer agreed
+            // to pay. Asking costs a few minutes; finding out at invoicing
+            // costs the difference.
+            item { RequestChangeCard(jobId = jobId) }
 
             val drawn = runs.filter { FenceCodec.decodePoints(it.pointsEncoded).size >= 2 }
             if (drawn.isNotEmpty()) {
@@ -135,7 +156,10 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
             Modifier.fillMaxWidth().aspectRatio(1.1f)
                 .padding(12.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                // White, like the drawing surface the plan was made on, so the
+                // crew are looking at the same picture rather than a recoloured
+                // version of it.
+                .background(androidx.compose.ui.graphics.Color.White)
         ) {
             val allPoints = runs.flatMap { FenceCodec.decodePoints(it.pointsEncoded) }
             if (allPoints.isEmpty()) return@Box
@@ -164,6 +188,30 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
                     offsetX + (p.x - minX) * scale,
                     offsetY + (p.y - minY) * scale
                 )
+
+                // The same grid the plan was drawn on.
+                //
+                // Without it the crew were reading a bare outline while the
+                // office was looking at a scaled drawing -- the same fence, but
+                // no shared way to say "about two squares past the corner".
+                // Spacing comes from the job so both views agree on what a
+                // square means.
+                val feetPerSquare = job.gridFeetPerSquare.coerceAtLeast(0.5f)
+                val pxPerFoot = job.calibrationPixelsPerFoot
+                    ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
+                val squarePx = feetPerSquare * pxPerFoot * scale
+                if (squarePx > 6f) {
+                    var gx = offsetX
+                    while (gx <= size.width) {
+                        drawLine(GridLine, Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
+                        gx += squarePx
+                    }
+                    var gy = offsetY
+                    while (gy <= size.height) {
+                        drawLine(GridLine, Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
+                        gy += squarePx
+                    }
+                }
 
                 runs.forEach { run ->
                     val points = FenceCodec.decodePoints(run.pointsEncoded)
@@ -299,5 +347,103 @@ private fun MarkersCard(markers: List<SiteMarker>) {
                 )
             }
         }
+    }
+}
+
+/**
+ * The crew asking the office to change the plan.
+ *
+ * Deliberately a request and not an edit. The crew at the fence line often know
+ * something the drawing does not -- the yard is longer, there is a tree nobody
+ * saw, the gate wants to be on the other side. But footage drives the estimate,
+ * the post count and the material order, so a change made on site and noticed
+ * later is a job that has quietly stopped matching what the customer signed.
+ *
+ * Sent with what they would do and why, because "can we move the gate" without
+ * a reason just produces a phone call to ask why.
+ */
+@Composable
+private fun RequestChangeCard(jobId: Long) {
+    val app = currentApp()
+    val session by app.session.state.collectAsState()
+    var showDialog by remember { mutableStateOf(false) }
+    var sent by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                if (sent) "Change requested" else "Something not right?",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Text(
+                if (sent)
+                    "The office has it. Carry on with the rest of the job while you wait."
+                else
+                    "Ask the office before building it different. They will see it straight away.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            if (!sent) {
+                OutlinedButton(
+                    onClick = { showDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Ask to change the plan") }
+            }
+        }
+    }
+
+    if (showDialog) {
+        var what by remember { mutableStateOf("") }
+        var why by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Ask to change the plan") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = what,
+                        onValueChange = { what = it },
+                        label = { Text("What should change?") },
+                        placeholder = { Text("Move the gate to the north side") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = why,
+                        onValueChange = { why = it },
+                        label = { Text("Why?") },
+                        placeholder = { Text("There's a septic lid where it's drawn") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = what.isNotBlank(),
+                    onClick = {
+                        scope.launch {
+                            app.repository.requestPlanChange(
+                                jobId = jobId,
+                                summary = what.trim(),
+                                detail = why.trim(),
+                                by = session.email.orEmpty(),
+                                role = session.role.label
+                            )
+                            app.autoSync.requestSync()
+                        }
+                        sent = true
+                        showDialog = false
+                    }
+                ) { Text("Send it") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
