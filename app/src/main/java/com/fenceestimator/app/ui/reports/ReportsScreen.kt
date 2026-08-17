@@ -15,12 +15,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -82,6 +85,9 @@ fun ReportsScreen(onBack: () -> Unit) {
     val totals = data.totals
 
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
+    val dayFormat = remember { java.text.SimpleDateFormat("d MMM yyyy", Locale.US) }
+    // Which figure the reader has asked to see the working for.
+    var showing by remember { mutableStateOf<StatDetail?>(null) }
     val dateFmt = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
     val timeFmt = remember { SimpleDateFormat("MMM d  h:mm a", Locale.getDefault()) }
 
@@ -154,20 +160,38 @@ fun ReportsScreen(onBack: () -> Unit) {
             // ---- Headline numbers ----------------------------------------
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat("Collected", currency.format(totals.collected), Modifier.weight(1f))
-                    BigStat("Profit", currency.format(totals.profit), Modifier.weight(1f))
+                    BigStat("Collected", currency.format(totals.collected), Modifier.weight(1f)) {
+                        showing = StatDetails.collected(
+                            totals = totals,
+                            payments = data.payments,
+                            jobNameFor = { id -> data.jobNamesById[id] ?: "Untitled" },
+                            money = { currency.format(it) },
+                            date = { dayFormat.format(java.util.Date(it)) }
+                        )
+                    }
+                    BigStat("Profit", currency.format(totals.profit), Modifier.weight(1f)) {
+                        showing = StatDetails.profit(totals) { currency.format(it) }
+                    }
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat("Margin", "${"%.0f".format(totals.marginPercent)}%", Modifier.weight(1f))
-                    BigStat("Jobs won", totals.jobsWon.toString(), Modifier.weight(1f))
+                    BigStat("Margin", "${"%.0f".format(totals.marginPercent)}%", Modifier.weight(1f)) {
+                        showing = StatDetails.margin(totals)
+                    }
+                    BigStat("Jobs won", totals.jobsWon.toString(), Modifier.weight(1f)) {
+                        showing = StatDetails.jobsWon(totals, data.wonJobNames)
+                    }
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat("Close rate", "${"%.0f".format(totals.closeRatePercent)}%", Modifier.weight(1f))
-                    BigStat("Hours clocked", "%.1f".format(totals.hoursClocked), Modifier.weight(1f))
+                    BigStat("Close rate", "${"%.0f".format(totals.closeRatePercent)}%", Modifier.weight(1f)) {
+                        showing = StatDetails.closeRate(totals)
+                    }
+                    BigStat("Hours clocked", "%.1f".format(totals.hoursClocked), Modifier.weight(1f)) {
+                        showing = StatDetails.hoursClocked(totals) { currency.format(it) }
+                    }
                 }
             }
 
@@ -368,6 +392,10 @@ fun ReportsScreen(onBack: () -> Unit) {
             onDismiss = { pickingTo = false }
         )
     }
+
+    showing?.let { detail ->
+        StatDetailSheet(detail = detail, onDismiss = { showing = null })
+    }
 }
 
 /**
@@ -480,6 +508,7 @@ private fun ChartCard(
             }
         }
     }
+
 }
 
 @Composable
@@ -488,13 +517,99 @@ private fun EmptyNote(text: String) {
 }
 
 @Composable
-private fun BigStat(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+private fun BigStat(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Card(
+        modifier = modifier,
+        onClick = onClick ?: {},
+        enabled = onClick != null,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
         Column(Modifier.padding(14.dp)) {
             Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            if (onClick != null) {
+                Text(
+                    "Tap for detail",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
         }
     }
+}
+
+/**
+ * What a figure is made of, and how it was worked out.
+ *
+ * A number on its own can only be believed or disbelieved. Someone who thinks
+ * a total looks wrong needs to be able to find out why without asking anybody,
+ * and a report that can show its working is one people stop double-checking in
+ * a spreadsheet.
+ */
+@Composable
+private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(detail.title + ": " + detail.value) },
+        text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    Text(detail.howItWorks, style = MaterialTheme.typography.bodyMedium)
+                }
+                detail.caveat?.let { caveat ->
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Text(
+                                caveat,
+                                Modifier.padding(10.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+                if (detail.lines.isNotEmpty()) {
+                    item { Divider() }
+                    items(detail.lines) { line ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(line.label, style = MaterialTheme.typography.bodyMedium)
+                                if (line.sublabel.isNotBlank()) {
+                                    Text(
+                                        line.sublabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            if (line.amount.isNotBlank()) {
+                                Text(
+                                    (if (line.isNegative) "-" else "") + line.amount,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (line.isNegative) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = onDismiss) { Text("Close") } }
+    )
 }
 
 @Composable

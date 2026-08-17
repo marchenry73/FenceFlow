@@ -80,7 +80,13 @@ data class ReportData(
     val fenceTypes: List<ChartRow> = emptyList(),
     val crewDetail: List<CrewRow> = emptyList(),
     val outstanding: List<OwedRow> = emptyList(),
-    val timeDetail: List<TimeRow> = emptyList()
+    val timeDetail: List<TimeRow> = emptyList(),
+    /** The payments behind "Collected", so the figure can show its working. */
+    val payments: List<PaymentRecord> = emptyList(),
+    /** Names of the jobs counted as won, so that figure can too. */
+    val wonJobNames: List<String> = emptyList(),
+    /** Job name lookup for the payment rows. */
+    val jobNamesById: Map<Long, String> = emptyMap()
 )
 
 data class CrewRow(val name: String, val jobs: Int, val hours: Double, val cost: Double) {
@@ -219,6 +225,12 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
                         materialsByJob[it.id] ?: 0.0, it.amountPaid
                     )
                 }.filter { it.outstanding > 0.01 }.sortedByDescending { it.outstanding },
+                payments = paymentsInPeriod,
+                wonJobNames = jobs.filter { it.status.isWon }
+                    .map { it.customerName.ifBlank { "Untitled" } }
+                    .sorted(),
+                jobNamesById = repository.getAllJobs()
+                    .associate { it.id to it.customerName.ifBlank { "Untitled" } },
                 timeDetail = times.sortedByDescending { it.startedAt }.map { t ->
                     val job = jobs.firstOrNull { it.id == t.jobId }
                     TimeRow(
