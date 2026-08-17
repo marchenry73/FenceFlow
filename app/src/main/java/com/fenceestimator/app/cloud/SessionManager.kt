@@ -18,7 +18,17 @@ data class SessionState(
      * This person's adjustments to their role, as stored on their profile.
      * Blank means "whatever the role says", which is the case for most people.
      */
-    val permissionOverrides: String = ""
+    val permissionOverrides: String = "",
+    /**
+     * True once this person's profile has actually been read.
+     *
+     * Signed in but unread means we do not know who they are yet, and the only
+     * safe answer to "what may they do" is nothing. Guessing generously here is
+     * how a crew phone briefly became an owner.
+     */
+    val accessKnown: Boolean = false,
+    /** The profile could not be reached -- temporary, and being retried. */
+    val accessUnavailable: Boolean = false
 ) {
     /**
      * What this person can actually do, role plus their own adjustments.
@@ -27,8 +37,14 @@ data class SessionState(
      * allowed -- the restrictions exist to divide a team, and there is no team.
      */
     val permissions: Set<Permission>
-        get() = if (!signedIn) Permission.ALL
-        else PermissionOverrides.resolve(role, permissionOverrides)
+        get() = when {
+            // Working alone on your own phone. The restrictions exist to divide
+            // a team, and there is no team.
+            !signedIn -> Permission.ALL
+            // Signed in but we have not read who they are. Nothing, until we do.
+            !accessKnown -> emptySet()
+            else -> PermissionOverrides.resolve(role, permissionOverrides)
+        }
 
     fun can(permission: Permission): Boolean = permission in permissions
 
@@ -92,6 +108,31 @@ class SessionManager(private val scope: CoroutineScope) {
 
     fun acknowledgeWipe() { _wipedForNewAccount.value = false }
 
+    /** Set while a retry is pending, so a burst of failures queues one retry, not many. */
+    private var accessRetryQueued = false
+
+    /**
+     * Re-reads access shortly after a failed attempt, backing off.
+     *
+     * Without this, one dropped request leaves someone locked out of their own
+     * work until they restart the app -- which, given the read fails closed, is
+     * the difference between a brief hiccup and a crew standing at a fence line
+     * unable to open the job.
+     */
+    private fun scheduleAccessRetry() {
+        if (accessRetryQueued) return
+        accessRetryQueued = true
+        scope.launch {
+            var wait = 2_000L
+            repeat(5) {
+                kotlinx.coroutines.delay(wait)
+                if (_state.value.accessKnown || !_state.value.signedIn) return@launch
+                refresh()
+                wait = (wait * 2).coerceAtMost(30_000L)
+            }
+        }.invokeOnCompletion { accessRetryQueued = false }
+    }
+
     fun refresh() {
         if (!SupabaseModule.isConfigured) return
         scope.launch {
@@ -100,14 +141,37 @@ class SessionManager(private val scope: CoroutineScope) {
                 _state.value = SessionState()
                 return@launch
             }
-            val profile = runCatching { SupabaseModule.fetchProfile() }.getOrNull()
+            // Fail closed, never open.
+            //
+            // This used to read `profile?.userRole ?: UserRole.OWNER` with the
+            // fetch wrapped in runCatching{}.getOrNull(), so ANY failure to read
+            // the profile -- a dead spot, a slow response, an RLS denial --
+            // silently promoted whoever was holding the phone to owner. That is
+            // an access control that grants everything precisely when it cannot
+            // verify anything, and it is why access levels appeared not to work
+            // on a second device.
+            //
+            // A failed read and a genuinely absent profile are told apart
+            // deliberately: the first is temporary and retries, the second is a
+            // real person who has not joined a company yet. Neither gets
+            // permissions, but only one of them is a problem.
+            val fetched = runCatching { SupabaseModule.fetchProfile() }
+            val profile = fetched.getOrNull()
+
             _state.value = SessionState(
                 signedIn = true,
                 email = email,
                 companyId = profile?.companyId,
-                role = profile?.userRole ?: UserRole.OWNER,
-                permissionOverrides = profile?.permissionOverrides.orEmpty()
+                role = profile?.userRole ?: UserRole.CREW,
+                permissionOverrides = profile?.permissionOverrides.orEmpty(),
+                accessKnown = fetched.isSuccess && profile != null,
+                accessUnavailable = fetched.isFailure
             )
+
+            // Keep trying. Somebody stuck with no access because their phone
+            // dipped out of signal for a second must not have to restart the
+            // app to get their work back.
+            if (fetched.isFailure) scheduleAccessRetry()
 
             // Before anything else: if this phone is holding a DIFFERENT
             // company's data, clear it. Otherwise signing in on a shared crew

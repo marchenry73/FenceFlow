@@ -104,10 +104,45 @@ class PermissionsTest {
 
     @Test
     fun `signing in applies the role`() {
-        val crew = SessionState(signedIn = true, role = UserRole.CREW)
+        val crew = SessionState(signedIn = true, role = UserRole.CREW, accessKnown = true)
         assertFalse(crew.canSeeMoney)
         assertFalse(crew.canDelete)
         assertTrue(crew.canRecordFieldWork)
+    }
+
+    // ---- fails closed ----
+    //
+    // The profile read used to fall back to OWNER, wrapped in a runCatching
+    // that swallowed the failure. So a dead spot, a slow response or an RLS
+    // denial promoted whoever held the phone to owner -- an access control
+    // that grants everything exactly when it can verify nothing.
+
+    @Test
+    fun `a signed-in user whose profile has not loaded can do nothing`() {
+        val unknown = SessionState(signedIn = true, role = UserRole.CREW, accessKnown = false)
+        assertEquals(emptySet<Permission>(), unknown.permissions)
+        assertFalse(unknown.canRecordFieldWork)
+    }
+
+    @Test
+    fun `an unreachable profile never grants owner`() {
+        val offline = SessionState(
+            signedIn = true,
+            role = UserRole.OWNER,
+            accessKnown = false,
+            accessUnavailable = true
+        )
+        assertFalse("could not verify must never mean full access", offline.canDelete)
+        assertFalse(offline.canManageAccess)
+        assertFalse(offline.canSeeMoney)
+    }
+
+    @Test
+    fun `access returns once the profile loads`() {
+        val loaded = SessionState(
+            signedIn = true, role = UserRole.OWNER, accessKnown = true
+        )
+        assertTrue(loaded.canDelete)
     }
 
     @Test
@@ -115,14 +150,16 @@ class PermissionsTest {
         val trustedForeman = SessionState(
             signedIn = true,
             role = UserRole.FOREMAN,
-            permissionOverrides = "+SEE_MONEY"
+            permissionOverrides = "+SEE_MONEY",
+            accessKnown = true
         )
         assertTrue(trustedForeman.canSeeMoney)
 
         val restrictedManager = SessionState(
             signedIn = true,
             role = UserRole.MANAGER,
-            permissionOverrides = "-EDIT_CATALOG_AND_SETTINGS"
+            permissionOverrides = "-EDIT_CATALOG_AND_SETTINGS",
+            accessKnown = true
         )
         assertFalse(restrictedManager.canEditCatalogAndSettings)
         assertTrue(restrictedManager.canEditJobs)

@@ -77,6 +77,21 @@ class FenceEstimatorApp : Application() {
         )
         autoSync.start()
         realtimeWatcher.start()
+
+        // Coming back to the app re-checks everything.
+        //
+        // Someone reads the screen the second they open it, so that is exactly
+        // when the numbers and the access level must already be right. The
+        // change feed usually got there first, but a phone that was asleep or
+        // out of signal has no socket to be told over.
+        androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(
+            androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                    session.refresh()
+                    autoSync.requestSync()
+                }
+            }
+        )
         connectivity.start()
         // Checks hourly, and once now, so a job that ran long yesterday is
         // flagged on opening the app rather than an hour later.

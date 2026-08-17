@@ -197,6 +197,13 @@ class AutoSync(
             // Before the push, always. Reaping after it would upload rows that
             // another device deleted, which is the resurrection this exists to
             // stop.
+            // Re-read who this person is and what they are allowed to do, on
+            // every pass. The change feed is the fast path, but a websocket on a
+            // phone drops constantly -- a tunnel, a dead spot, doze -- and
+            // access is the one thing that must not quietly go stale while the
+            // socket is down.
+            session.refresh()
+
             val reaped = DeletionReaper.reap(repository, companyId)
 
             val pushResult = EntitySync.pushAll(repository, companyId)

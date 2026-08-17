@@ -73,6 +73,9 @@ configurations.all {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
+    // Knowing when the app comes back to the foreground: access and money both
+    // have to be current the moment someone looks, not whenever a timer fires.
+    implementation("androidx.lifecycle:lifecycle-process:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.activity:activity-compose:1.9.2")
 

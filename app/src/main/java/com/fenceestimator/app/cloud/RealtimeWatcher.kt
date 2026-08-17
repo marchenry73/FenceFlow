@@ -72,7 +72,22 @@ class RealtimeWatcher(
                     filter("company_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, companyId)
                 }
 
+                // Access changes, applied within seconds.
+                //
+                // An owner revoking someone's access is frequently not routine
+                // housekeeping -- it is somebody being cut off part way through
+                // doing something. The app only re-read a profile at startup or
+                // on the Account screen, so a revocation could sit unapplied on
+                // the other phone for as long as they kept it open. Watching the
+                // whole company's profiles rather than only our own row also
+                // keeps the owner's view of the team current.
+                val accessChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                    table = "profiles"
+                    filter("company_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, companyId)
+                }
+
                 scope.launch { paymentChanges.collect { autoSync.requestSync() } }
+                scope.launch { accessChanges.collect { session.refresh() } }
 
                 SupabaseModule.client.realtime.connect()
                 channel.subscribe(blockUntilSubscribed = true)
