@@ -263,7 +263,8 @@ fun FenceEstimatorNavHost() {
         composable(Routes.ACCOUNT) {
             AccountScreen(
                 onBack = { navController.popBackStack() },
-                onOpenAccess = { navController.navigate(Routes.ACCESS) }
+                onOpenAccess = { navController.navigate(Routes.ACCESS) },
+                onOpenTrash = { navController.navigate(Routes.TRASH) }
             )
         }
         composable(Routes.TIME_APPROVAL) {
@@ -277,6 +278,9 @@ fun FenceEstimatorNavHost() {
                 jobId = entry.arguments?.getLong("jobId") ?: 0L,
                 onBack = { navController.popBackStack() }
             )
+        }
+        composable(Routes.TRASH) {
+            com.fenceestimator.app.ui.account.TrashScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.ACCESS) {
             com.fenceestimator.app.ui.account.AccessScreen(onBack = { navController.popBackStack() })

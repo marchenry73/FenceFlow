@@ -44,7 +44,11 @@ import com.fenceestimator.app.ui.components.currentApp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AccountScreen(onBack: () -> Unit, onOpenAccess: () -> Unit = {}) {
+fun AccountScreen(
+    onBack: () -> Unit,
+    onOpenAccess: () -> Unit = {},
+    onOpenTrash: () -> Unit = {}
+) {
     val app = currentApp()
     val viewModel: AccountViewModel = viewModel(
         factory = com.fenceestimator.app.ui.components.GenericViewModelFactory {
@@ -110,7 +114,9 @@ fun AccountScreen(onBack: () -> Unit, onOpenAccess: () -> Unit = {}) {
                         viewModel = viewModel,
                         canManageAccess = session.canManageAccess,
                         canShareInviteCode = session.canShareInviteCode,
-                        onOpenAccess = onOpenAccess
+                        canRestore = session.canDelete,
+                        onOpenAccess = onOpenAccess,
+                        onOpenTrash = onOpenTrash
                     )
                 }
                 item { SyncStatusCard() }
@@ -169,7 +175,9 @@ private fun SignedInSection(
     viewModel: AccountViewModel,
     canManageAccess: Boolean,
     canShareInviteCode: Boolean,
-    onOpenAccess: () -> Unit
+    canRestore: Boolean,
+    onOpenAccess: () -> Unit,
+    onOpenTrash: () -> Unit
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -225,6 +233,11 @@ private fun SignedInSection(
             if (canManageAccess) {
                 Button(onClick = onOpenAccess, modifier = Modifier.fillMaxWidth()) {
                     Text("Who Can Do What")
+                }
+            }
+            if (canRestore) {
+                OutlinedButton(onClick = onOpenTrash, modifier = Modifier.fillMaxWidth()) {
+                    Text("Deleted Items")
                 }
             }
             OutlinedButton(onClick = { viewModel.signOut() }, modifier = Modifier.fillMaxWidth()) {
