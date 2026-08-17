@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.data.Expense
 import com.fenceestimator.app.data.Job
+import com.fenceestimator.app.data.PaymentRecord
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.Repository
@@ -135,6 +136,18 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
             val toMillis = _to.value
             val hours = _hourFilter.value
 
+            // Money is counted from the ledger, by when it actually arrived.
+            //
+            // "Collected this month" used to sum each job's lifetime amountPaid
+            // and bucket the whole figure by a single job timestamp -- and for
+            // an unscheduled job that timestamp was updatedAt, which is a sync
+            // artifact. So editing an old job dragged all of its historical
+            // payments into the current month, and because updatedAt differs
+            // per device, two phones in the same company showed two different
+            // numbers. Payments in the period are now exactly the payments
+            // whose receivedAt falls in it.
+            val paymentsInPeriod = repository.getPaymentsBetween(fromMillis, toMillis)
+
             val jobs = repository.getAllJobs().filter { jobDate(it) in fromMillis..toMillis }
             val jobIds = jobs.map { it.id }.toSet()
             val employees = repository.getAllEmployees()
@@ -148,8 +161,8 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
                 .sumOf { li -> li.quantity * li.unitPrice } }
 
             _data.value = ReportData(
-                totals = buildTotals(jobs, expenses, times, materialsByJob),
-                revenueByMonth = revenueByMonth(jobs),
+                totals = buildTotals(jobs, expenses, times, materialsByJob, paymentsInPeriod),
+                revenueByMonth = revenueByMonth(paymentsInPeriod),
                 costBreakdown = costBreakdown(jobs, expenses, times, materialsByJob),
                 expensesByCategory = expenses.groupBy { it.category.name.replace("_", " ") }
                     .map { (k, v) -> ChartRow(k, v.sumOf { it.amount }) }
@@ -181,9 +194,14 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
     }
 
     private fun buildTotals(
-        jobs: List<Job>, expenses: List<Expense>, times: List<TimeEntry>, materials: Map<Long, Double>
+        jobs: List<Job>,
+        expenses: List<Expense>,
+        times: List<TimeEntry>,
+        materials: Map<Long, Double>,
+        payments: List<PaymentRecord>
     ) = ReportTotals(
-        collected = jobs.sumOf { it.amountPaid },
+        // Net of refunds, because a refunded payment is money you do not have.
+        collected = payments.sumOf { it.amount },
         materialCost = jobs.sumOf { materials[it.id] ?: 0.0 },
         laborCost = times.sumOf { it.laborCost },
         otherExpenses = expenses.sumOf { it.amount },
@@ -193,13 +211,13 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
         tipsToInstallers = jobs.sumOf { it.tipAmount }
     )
 
-    private fun revenueByMonth(jobs: List<Job>): List<ChartRow> {
+    private fun revenueByMonth(payments: List<PaymentRecord>): List<ChartRow> {
         val cal = Calendar.getInstance()
         val months = linkedMapOf<String, Double>()
-        jobs.filter { it.amountPaid > 0 }.sortedBy { jobDate(it) }.forEach { job ->
-            cal.timeInMillis = jobDate(job)
+        payments.sortedBy { it.receivedAt }.forEach { payment ->
+            cal.timeInMillis = payment.receivedAt
             val key = "${cal.get(Calendar.YEAR)}-${String.format("%02d", cal.get(Calendar.MONTH) + 1)}"
-            months[key] = (months[key] ?: 0.0) + job.amountPaid
+            months[key] = (months[key] ?: 0.0) + payment.amount
         }
         val names = arrayOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
         return months.entries.toList().takeLast(12).map { entry ->

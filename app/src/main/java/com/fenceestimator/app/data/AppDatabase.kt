@@ -17,9 +17,10 @@ import kotlinx.coroutines.withContext
         Job::class, FenceRun::class, MaterialItem::class, EstimateLineItem::class,
         Manufacturer::class, PricingTier::class, JobPhoto::class, InventoryChecklistItem::class,
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
-        SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class
+        SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
+        PaymentRecord::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -42,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pendingDeletionDao(): PendingDeletionDao
     abstract fun fieldChangeDao(): FieldChangeDao
     abstract fun syncMaintenanceDao(): SyncMaintenanceDao
+    abstract fun paymentRecordDao(): PaymentRecordDao
 
     /** Flushes the write-ahead log into the main .db file so a raw file copy is complete and consistent. */
     suspend fun checkpoint() = withContext(Dispatchers.IO) {
@@ -311,13 +313,69 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * The payments ledger, plus a row for every payment already recorded.
+         *
+         * The backfill matters as much as the table. Without it the ledger
+         * starts empty while jobs still carry an amountPaid, so every report
+         * built on the ledger would read zero against jobs that are visibly
+         * paid -- which looks exactly like the app having lost the money.
+         *
+         * Backfilled rows are dated to the job's scheduled date where there is
+         * one, falling back to when the job was created. Neither is certain to
+         * be the day the money arrived, but both are stable and identical on
+         * every device, which is the property that was missing before.
+         */
+        private val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `payment_records` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`syncId` TEXT NOT NULL, " +
+                        "`jobId` INTEGER NOT NULL, " +
+                        "`amount` REAL NOT NULL, " +
+                        "`method` TEXT NOT NULL, " +
+                        "`receivedAt` INTEGER NOT NULL, " +
+                        "`reference` TEXT NOT NULL DEFAULT '', " +
+                        "`note` TEXT NOT NULL DEFAULT '', " +
+                        "`recordedBy` TEXT NOT NULL DEFAULT '', " +
+                        "FOREIGN KEY(`jobId`) REFERENCES `jobs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_payment_records_jobId` ON `payment_records` (`jobId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_payment_records_receivedAt` ON `payment_records` (`receivedAt`)")
+
+                // One opening row per job that has taken money. The syncId is
+                // derived from the job's own syncId rather than random, so two
+                // devices running this migration produce the SAME id and the
+                // cloud upsert merges them instead of double-counting every
+                // historical payment.
+                db.execSQL(
+                    "INSERT INTO `payment_records` " +
+                        "(`syncId`, `jobId`, `amount`, `method`, `receivedAt`, `reference`, `note`, `recordedBy`) " +
+                        "SELECT 'opening-' || `syncId`, `id`, `amountPaid`, 'OTHER', " +
+                        "COALESCE(`scheduledDate`, `createdAt`), '', " +
+                        "'Recorded before the payments ledger existed', '' " +
+                        "FROM `jobs` WHERE `amountPaid` > 0"
+                )
+                // Refunds already recorded become their own negative row.
+                db.execSQL(
+                    "INSERT INTO `payment_records` " +
+                        "(`syncId`, `jobId`, `amount`, `method`, `receivedAt`, `reference`, `note`, `recordedBy`) " +
+                        "SELECT 'opening-refund-' || `syncId`, `id`, -`refundedAmount`, 'OTHER', " +
+                        "COALESCE(`refundedAt`, `scheduledDate`, `createdAt`), '', " +
+                        "`refundReason`, '' " +
+                        "FROM `jobs` WHERE `refundedAmount` > 0"
+                )
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a

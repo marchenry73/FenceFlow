@@ -106,6 +106,26 @@ async function applyPaymentToJob(admin: any, payment: any) {
     updated_at: new Date().toISOString(),
   }).eq("id", job.id);
 
+  // A ledger row for the money that just arrived, dated to now -- which for a
+  // card payment IS when it moved. Reports count rows in a period, so without
+  // this a cleared card payment would raise the job total while being invisible
+  // to "collected this month".
+  //
+  // sync_id is derived from the Stripe payment row rather than random, so a
+  // replayed webhook writes the same id and the unique constraint collapses it
+  // instead of banking the payment twice.
+  await admin.from("payment_records").upsert({
+    sync_id: `stripe-${payment.id}`,
+    company_id: payment.company_id,
+    job_sync_id: payment.job_sync_id,
+    amount: Number(payment.amount_cents || 0) / 100,
+    method: "CARD",
+    received_at: new Date().toISOString(),
+    reference: String(payment.stripe_id ?? ""),
+    note: "",
+    recorded_by: "Stripe",
+  }, { onConflict: "company_id,sync_id" });
+
   await notifyPaid(admin, job, Number(payment.amount_cents || 0) / 100, paidDollars);
 }
 
@@ -211,7 +231,7 @@ Deno.serve(async (req) => {
             // webhooks, and adding the same amount twice would silently
             // overstate what the customer has paid.
             const { data: pending } = await admin.from("job_payments")
-              .select("id, job_sync_id, amount_cents, company_id, status, livemode")
+              .select("id, job_sync_id, amount_cents, company_id, status, livemode, stripe_id")
               .eq("stripe_id", linkId).maybeSingle();
 
             if (pending && pending.status !== "paid") {

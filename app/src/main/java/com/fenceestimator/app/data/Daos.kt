@@ -475,3 +475,31 @@ object SyncTables {
         "field_changes"
     )
 }
+
+@Dao
+interface PaymentRecordDao {
+    @Query("SELECT * FROM payment_records WHERE jobId = :jobId ORDER BY receivedAt DESC")
+    fun observeForJob(jobId: Long): Flow<List<PaymentRecord>>
+
+    @Query("SELECT * FROM payment_records ORDER BY receivedAt DESC")
+    fun observeAll(): Flow<List<PaymentRecord>>
+
+    @Query("SELECT * FROM payment_records")
+    suspend fun getAll(): List<PaymentRecord>
+
+    /** The money that actually moved inside a period -- what a report should count. */
+    @Query("SELECT * FROM payment_records WHERE receivedAt BETWEEN :fromMillis AND :toMillis ORDER BY receivedAt DESC")
+    suspend fun getBetween(fromMillis: Long, toMillis: Long): List<PaymentRecord>
+
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM payment_records WHERE jobId = :jobId")
+    suspend fun netForJob(jobId: Long): Double
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(record: PaymentRecord): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(records: List<PaymentRecord>)
+
+    @Query("SELECT * FROM payment_records WHERE syncId = :syncId LIMIT 1")
+    suspend fun bySyncId(syncId: String): PaymentRecord?
+}

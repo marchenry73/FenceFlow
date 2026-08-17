@@ -268,11 +268,29 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
      * payments post themselves, so every route into this figure is now an
      * addition and none of them is a keystroke over the top of another.
      */
-    fun recordPayment(amount: Double) {
+    fun recordPayment(
+        amount: Double,
+        method: com.fenceestimator.app.data.PaymentMethod,
+        receivedAt: Long,
+        reference: String,
+        note: String
+    ) {
         if (amount <= 0.0) return
-        update { it.copy(amountPaid = it.amountPaid + amount) }
         viewModelScope.launch {
-            kotlinx.coroutines.delay(50)
+            // Written to the ledger, which then recomputes the job's total.
+            // Adding straight to amountPaid would leave a figure with no row
+            // behind it -- and "collected this month" is a sum of rows, so the
+            // payment would be invisible to every report.
+            repository.recordPayment(
+                com.fenceestimator.app.data.PaymentRecord(
+                    jobId = jobId,
+                    amount = amount,
+                    method = method,
+                    receivedAt = receivedAt,
+                    reference = reference,
+                    note = note
+                )
+            )
             reconcilePaymentStatus()
         }
     }
@@ -294,19 +312,28 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         if (amount <= 0.0) return
         val capped = minOf(amount, JobMoney.netPaid(current))
         if (capped <= 0.0) return
-        update {
-            it.copy(
-                refundedAmount = it.refundedAmount + capped,
-                refundedAt = System.currentTimeMillis(),
-                refundReason = listOf(it.refundReason, reason)
-                    .filter { line -> line.isNotBlank() }
-                    .joinToString("; ")
-            )
-        }
-        // The status has to follow the money straight away, or the job sits at
-        // "paid in full" while the customer is holding a refund.
         viewModelScope.launch {
-            kotlinx.coroutines.delay(50)
+            // A negative ledger row, so the statement reads in one place and a
+            // refund lands in the month it was actually given back rather than
+            // being netted invisibly off an older payment.
+            repository.recordPayment(
+                com.fenceestimator.app.data.PaymentRecord(
+                    jobId = jobId,
+                    amount = -capped,
+                    method = com.fenceestimator.app.data.PaymentMethod.OTHER,
+                    note = reason
+                )
+            )
+            update {
+                it.copy(
+                    refundedAt = System.currentTimeMillis(),
+                    refundReason = listOf(it.refundReason, reason)
+                        .filter { line -> line.isNotBlank() }
+                        .joinToString("; ")
+                )
+            }
+            // The status has to follow the money straight away, or the job sits
+            // at "paid in full" while the customer is holding a refund.
             reconcilePaymentStatus()
         }
     }

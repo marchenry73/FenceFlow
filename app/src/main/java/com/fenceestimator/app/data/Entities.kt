@@ -702,3 +702,53 @@ data class PunchListItem(
     val resolvedAt: Long? = null,
     val photoPath: String? = null
 )
+
+/** How money arrived. Card payments post themselves; the rest are recorded by hand. */
+enum class PaymentMethod(val label: String) {
+    CARD("Card"),
+    CASH("Cash"),
+    CHECK("Check"),
+    BANK_TRANSFER("Bank transfer"),
+    OTHER("Other")
+}
+
+/**
+ * One movement of money on a job, with the date it actually happened.
+ *
+ * Built because "Collected this month" could not be answered without it. The
+ * report used to sum each job's lifetime `amountPaid` and attribute the whole
+ * figure to a single job timestamp -- so a job edited today dragged every
+ * payment it had ever taken into this month, and because that timestamp is a
+ * sync artifact it differed between devices. Two phones showed two numbers for
+ * the same company and both were wrong.
+ *
+ * A payment is an event with a date. Totals are sums of events, and a period
+ * total is the events inside it. That is the only arrangement where every
+ * device agrees and the figure means what it says.
+ *
+ * Refunds are rows too, with a negative [amount], so the ledger reads as a
+ * statement rather than needing a second table to reconcile against.
+ */
+@Entity(
+    tableName = "payment_records",
+    foreignKeys = [
+        ForeignKey(entity = Job::class, parentColumns = ["id"], childColumns = ["jobId"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("jobId"), Index("receivedAt")]
+)
+data class PaymentRecord(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncId: String = java.util.UUID.randomUUID().toString(),
+    val jobId: Long,
+    /** Negative for a refund. */
+    val amount: Double,
+    val method: PaymentMethod = PaymentMethod.OTHER,
+    /** When the money moved -- not when the row was written. This is what reports bucket on. */
+    val receivedAt: Long = System.currentTimeMillis(),
+    /** Check number, Stripe payment id, whatever identifies it on a statement. */
+    val reference: String = "",
+    val note: String = "",
+    val recordedBy: String = ""
+) {
+    val isRefund: Boolean get() = amount < 0.0
+}

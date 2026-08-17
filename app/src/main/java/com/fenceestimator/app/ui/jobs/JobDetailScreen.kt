@@ -50,6 +50,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -2224,7 +2225,14 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
         // the common case and retyping a figure the app already knows is how
         // typos get in.
         var amountText by remember { mutableStateOf(if (owed > 0.005) "%.2f".format(owed) else "") }
+        var method by remember { mutableStateOf(com.fenceestimator.app.data.PaymentMethod.CASH) }
+        var reference by remember { mutableStateOf("") }
+        val dayFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US) }
+        var dateText by remember { mutableStateOf(dayFormat.format(java.util.Date())) }
         val amount = amountText.toDoubleOrNull() ?: 0.0
+        val parsedDate = remember(dateText) {
+            runCatching { dayFormat.parse(dateText)?.time }.getOrNull()
+        }
 
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -2243,6 +2251,47 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // How it arrived, and when. Both go on the ledger row: the
+                    // method is what reconciles against a bank statement, and
+                    // the date is what decides which month the money counts in.
+                    // Defaulting the date to today is right most of the time and
+                    // wrong exactly when someone is catching up on paperwork,
+                    // which is when it matters.
+                    Text("How did it arrive?", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            com.fenceestimator.app.data.PaymentMethod.CASH,
+                            com.fenceestimator.app.data.PaymentMethod.CHECK,
+                            com.fenceestimator.app.data.PaymentMethod.BANK_TRANSFER
+                        ).forEach { option ->
+                            FilterChip(
+                                selected = method == option,
+                                onClick = { method = option },
+                                label = { Text(option.label) }
+                            )
+                        }
+                    }
+                    if (method == com.fenceestimator.app.data.PaymentMethod.CHECK) {
+                        OutlinedTextField(
+                            value = reference,
+                            onValueChange = { reference = it },
+                            label = { Text("Check number") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    OutlinedTextField(
+                        value = dateText,
+                        onValueChange = { dateText = it },
+                        label = { Text("Date received (YYYY-MM-DD)") },
+                        isError = parsedDate == null,
+                        supportingText = if (parsedDate == null) {
+                            { Text("Use YYYY-MM-DD so it lands in the right month.") }
+                        } else null,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Text(
                         "This is added to what has already been paid, not typed over it. " +
                             "Card payments post here by themselves.",
@@ -2253,9 +2302,18 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
             },
             confirmButton = {
                 Button(
-                    enabled = amount > 0.0,
-                    onClick = { viewModel.recordPayment(amount); showDialog = false }
-                ) { Text("Add $${"%.2f".format(amount)}") }
+                    enabled = amount > 0.0 && parsedDate != null,
+                    onClick = {
+                        viewModel.recordPayment(
+                            amount = amount,
+                            method = method,
+                            receivedAt = parsedDate ?: System.currentTimeMillis(),
+                            reference = reference.trim(),
+                            note = ""
+                        )
+                        showDialog = false
+                    }
+                ) { Text("Add ${"%.2f".format(amount)}") }
             },
             dismissButton = { OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") } }
         )

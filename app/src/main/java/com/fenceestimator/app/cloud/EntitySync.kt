@@ -770,3 +770,105 @@ object DeletionReaper {
             removed
         }
 }
+
+@kotlinx.serialization.Serializable
+data class CloudPaymentRecord(
+    @kotlinx.serialization.SerialName("sync_id") val syncId: String,
+    @kotlinx.serialization.SerialName("company_id") val companyId: String,
+    @kotlinx.serialization.SerialName("job_sync_id") val jobSyncId: String,
+    val amount: Double = 0.0,
+    val method: String = "OTHER",
+    @kotlinx.serialization.SerialName("received_at") val receivedAt: String? = null,
+    val reference: String = "",
+    val note: String = "",
+    @kotlinx.serialization.SerialName("recorded_by") val recordedBy: String = "",
+    @kotlinx.serialization.SerialName("deleted_at") val deletedAt: String? = null
+)
+
+/**
+ * Two-way sync for the payments ledger.
+ *
+ * Kept apart from the generic entity sync because payments are matched to their
+ * job by the job's syncId rather than a local row id -- the same job has a
+ * different local id on every phone, so anything else would attach payments to
+ * the wrong job or drop them.
+ *
+ * Rows are never updated once written. A payment is a record of something that
+ * happened; correcting one is a second row, not an edit to the first.
+ */
+object PaymentLedgerSync {
+
+    suspend fun sync(
+        repository: com.fenceestimator.app.data.Repository,
+        companyId: String
+    ): Result<Int> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val jobs = repository.getAllJobs()
+            val jobIdBySyncId = jobs.associate { it.syncId to it.id }
+            val jobSyncIdById = jobs.associate { it.id to it.syncId }
+
+            val local = repository.getAllPayments()
+            val localBySyncId = local.associateBy { it.syncId }
+
+            val cloud = SupabaseModule.client.postgrest.from("payment_records")
+                .select { filter { eq("company_id", companyId) } }
+                .decodeList<CloudPaymentRecord>()
+            val cloudBySyncId = cloud.associateBy { it.syncId }
+
+            var moved = 0
+
+            // Up: anything this phone has that the cloud does not.
+            val toPush = local.filter { it.syncId !in cloudBySyncId }
+                .mapNotNull { row ->
+                    val jobSyncId = jobSyncIdById[row.jobId] ?: return@mapNotNull null
+                    CloudPaymentRecord(
+                        syncId = row.syncId,
+                        companyId = companyId,
+                        jobSyncId = jobSyncId,
+                        amount = row.amount,
+                        method = row.method.name,
+                        receivedAt = CloudTime.format(row.receivedAt),
+                        reference = row.reference,
+                        note = row.note,
+                        recordedBy = row.recordedBy
+                    )
+                }
+            if (toPush.isNotEmpty()) {
+                toPush.chunked(200).forEach { chunk ->
+                    SupabaseModule.client.postgrest.from("payment_records")
+                        .upsert(chunk) { onConflict = "company_id,sync_id" }
+                }
+                moved += toPush.size
+            }
+
+            // Down: anything the cloud has that this phone does not, skipping
+            // tombstoned rows and any whose job has not arrived yet -- those
+            // come down on a later pass once the job exists.
+            val toPull = cloud.filter { it.deletedAt == null && it.syncId !in localBySyncId }
+            val landed = toPull.mapNotNull { row ->
+                val jobId = jobIdBySyncId[row.jobSyncId] ?: return@mapNotNull null
+                com.fenceestimator.app.data.PaymentRecord(
+                    syncId = row.syncId,
+                    jobId = jobId,
+                    amount = row.amount,
+                    method = runCatching {
+                        com.fenceestimator.app.data.PaymentMethod.valueOf(row.method)
+                    }.getOrDefault(com.fenceestimator.app.data.PaymentMethod.OTHER),
+                    receivedAt = CloudTime.parseMillis(row.receivedAt) ?: System.currentTimeMillis(),
+                    reference = row.reference,
+                    note = row.note,
+                    recordedBy = row.recordedBy
+                )
+            }
+            if (landed.isNotEmpty()) {
+                repository.insertPaymentsFromCloud(landed)
+                moved += landed.size
+                // Job totals are a cache of these rows, so they are rebuilt for
+                // every job that just gained one. Otherwise the ledger and the
+                // job would disagree until something else touched the job.
+                landed.map { it.jobId }.distinct().forEach { repository.syncJobTotalsFromLedger(it) }
+            }
+            moved
+        }
+    }
+}

@@ -1,6 +1,7 @@
 package com.fenceestimator.app.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 
 class Repository(private val db: AppDatabase) {
 
@@ -32,6 +33,7 @@ class Repository(private val db: AppDatabase) {
     private val timeEntryDao = db.timeEntryDao()
     private val pendingDeletionDao = db.pendingDeletionDao()
     private val syncMaintenanceDao = db.syncMaintenanceDao()
+    private val paymentRecordDao = db.paymentRecordDao()
 
     fun observeJobs(): Flow<List<Job>> = jobDao.observeAll()
     fun observeJob(id: Long): Flow<Job?> = jobDao.observeById(id)
@@ -128,6 +130,59 @@ class Repository(private val db: AppDatabase) {
             )
         }
         return removed
+    }
+
+    // ---- Payments ledger ---------------------------------------------------
+    //
+    // Every figure about money is a sum of these rows. Reports bucket on
+    // receivedAt -- when the money actually moved -- so the same period gives
+    // the same answer on every device. The previous arrangement attributed a
+    // job's whole lifetime payment total to a single job timestamp, and that
+    // timestamp was a sync artifact that differed per device.
+
+    fun observePaymentsForJob(jobId: Long): Flow<List<PaymentRecord>> =
+        paymentRecordDao.observeForJob(jobId)
+
+    fun observeAllPayments(): Flow<List<PaymentRecord>> = paymentRecordDao.observeAll()
+
+    suspend fun getPaymentsBetween(fromMillis: Long, toMillis: Long): List<PaymentRecord> =
+        paymentRecordDao.getBetween(fromMillis, toMillis)
+
+    suspend fun getAllPayments(): List<PaymentRecord> = paymentRecordDao.getAll()
+
+    /** Inserts ledger rows pulled from the cloud, ignoring ones already held. */
+    suspend fun insertPaymentsFromCloud(records: List<PaymentRecord>) =
+        paymentRecordDao.insertAll(records)
+
+    /**
+     * Records money moving, and brings the job's cached total in step.
+     *
+     * The job still carries amountPaid because the payment link, the invoice
+     * and the sync merge all read it, and it is what the webhook writes. It is
+     * a cache of the ledger rather than a second source of truth: recomputed
+     * from the rows every time one is added, so the two cannot drift.
+     */
+    suspend fun recordPayment(record: PaymentRecord) {
+        paymentRecordDao.insert(record.copy(recordedBy = record.recordedBy.ifBlank { deletingUser }))
+        syncJobTotalsFromLedger(record.jobId)
+    }
+
+    /** Recomputes the job's paid and refunded figures from the ledger. */
+    suspend fun syncJobTotalsFromLedger(jobId: Long) {
+        val rows = paymentRecordDao.observeForJob(jobId).firstOrNull().orEmpty()
+        val paid = rows.filter { !it.isRefund }.sumOf { it.amount }
+        val refunded = rows.filter { it.isRefund }.sumOf { -it.amount }
+        val job = jobDao.getById(jobId) ?: return
+        if (kotlin.math.abs(job.amountPaid - paid) < 0.005 &&
+            kotlin.math.abs(job.refundedAmount - refunded) < 0.005
+        ) return
+        jobDao.update(
+            job.copy(
+                amountPaid = paid,
+                refundedAmount = refunded,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
     }
 
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
@@ -404,3 +459,4 @@ class Repository(private val db: AppDatabase) {
     suspend fun updatePunchListItem(item: PunchListItem) = punchListDao.update(item)
     suspend fun deletePunchListItem(item: PunchListItem) = deleteSynced(item.syncId, "punch_list_items") { punchListDao.delete(item) }
 }
+

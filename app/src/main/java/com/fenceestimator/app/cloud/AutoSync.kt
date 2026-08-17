@@ -206,6 +206,10 @@ class AutoSync(
 
             val reaped = DeletionReaper.reap(repository, companyId)
 
+            // After jobs, because a payment attaches to its job by syncId and
+            // cannot land on a phone that has not pulled the job yet.
+            val ledgerResult = PaymentLedgerSync.sync(repository, companyId)
+
             val pushResult = EntitySync.pushAll(repository, companyId)
             val pullResult = EntitySync.pullAll(repository, companyId)
 
@@ -219,6 +223,7 @@ class AutoSync(
                 }
             }
             val entityError = reaped.exceptionOrNull()
+                ?: ledgerResult.exceptionOrNull()
                 ?: pushResult.exceptionOrNull()
                 ?: pullResult.exceptionOrNull()
 
