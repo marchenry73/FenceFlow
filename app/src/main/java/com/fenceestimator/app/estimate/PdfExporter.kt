@@ -64,8 +64,15 @@ object PdfExporter {
         lineItems: List<EstimateLineItem>,
         totals: EstimateEngine.Totals,
         linearFeet: Float,
-        isInvoice: Boolean = false
+        isInvoice: Boolean = false,
+        /**
+         * Who this copy is for. Decides what appears -- material pricing is
+         * internal, quantities without prices go to the supplier, and the
+         * customer gets scope, price and terms.
+         */
+        document_: JobDocument = if (isInvoice) JobDocument.CUSTOMER_INVOICE else JobDocument.WORKING_ESTIMATE
     ): File {
+        val docKind = document_
         val labels = PdfLabels(business.language == AppLanguage.SPANISH)
         val document = PdfDocument()
         var pageNumber = 1
@@ -192,6 +199,10 @@ object PdfExporter {
         canvas.drawLine(MARGIN, y, rightX, y, linePaint)
         y += 18f
 
+        // A customer agreed a price for a finished fence, not a shopping list
+        // with your buying prices on it. Showing the breakdown invites an
+        // argument about your margin rather than about the work.
+        if (docKind.showsMaterialPricing) {
         totalRow(labels.materialsSubtotal, currency.format(totals.materialsSubtotal))
         totalRow("${labels.tax} (${job.taxRatePercent}% ${labels.onTaxable})", currency.format(totals.tax))
         if (totals.laborCost > 0.0) totalRow(labels.labor, currency.format(totals.laborCost))
@@ -213,23 +224,73 @@ object PdfExporter {
             val label = if (job.pricingTierName.isNotBlank()) "${labels.discount} (${job.pricingTierName}, ${job.discountPercent}%)" else "${labels.discount} (${job.discountPercent}%)"
             totalRow(label, "-" + currency.format(totals.discountAmount))
         }
-        y += 4f
-        canvas.drawLine(colRate, y, rightX, y, linePaint)
-        y += 18f
-        totalRow(labels.total, currency.format(totals.grandTotal), bold = true)
+        }
 
-        if (isInvoice) {
+        // The supplier is the one who sends prices back, so their copy carries
+        // no money at all -- only what to quote.
+        if (!docKind.showsQuantitiesOnly) {
+            y += 4f
+            canvas.drawLine(colRate, y, rightX, y, linePaint)
+            y += 18f
+            totalRow(labels.total, currency.format(totals.grandTotal), bold = true)
+        }
+
+        if (docKind.showsPaymentStatus) {
             y += 4f
             if (job.depositAmount > 0.0) totalRow(labels.deposit, currency.format(job.depositAmount))
-            totalRow(labels.amountPaid, currency.format(job.amountPaid))
-            val balance = (totals.grandTotal - job.amountPaid).coerceAtLeast(0.0)
-            totalRow(labels.balanceDue, currency.format(balance), bold = true)
+            // Net of refunds, and from the same place every other screen reads,
+            // so the bill cannot disagree with the app.
+            totalRow(labels.amountPaid, currency.format(JobMoney.netPaid(job)))
+            totalRow(
+                labels.balanceDue,
+                currency.format(JobMoney.stillOwed(job, totals.grandTotal)),
+                bold = true
+            )
         }
 
         y += 20f
         newPageIfNeeded(60f)
         canvas.drawText("${labels.totalLinearFeet}: ${String.format(Locale.US, "%.1f", linearFeet)} ft", MARGIN, y, headerPaint)
         y += 24f
+
+        // The terms the customer is signing, in the company own words. Printed
+        // ON the contract rather than referenced, because terms nobody can
+        // produce afterwards are terms that were never agreed.
+        if (docKind.showsContractTerms && business.contractTerms.isNotBlank()) {
+            newPageIfNeeded(80f)
+            y += 8f
+            canvas.drawText("TERMS", MARGIN, y, Paint(headerPaint).apply { typeface = Typeface.DEFAULT_BOLD })
+            y += 16f
+
+            val termsPaint = Paint().apply { textSize = 8.5f; color = 0xFF333333.toInt() }
+            val filled = business.contractTerms
+                .replace("{COMPANY}", business.businessName.ifBlank { "The contractor" })
+                .replace("{ADDRESS}", job.address.ifBlank { "the address above" })
+                .replace("{TOTAL}", currency.format(totals.grandTotal))
+                .replace("{DEPOSIT}", currency.format(job.depositAmount))
+                .replace("{WARRANTY_PERIOD}", "one year")
+
+            val maxWidth = rightX - MARGIN
+            filled.trim().lines().forEach { rawLine ->
+                if (rawLine.isBlank()) { y += 6f; return@forEach }
+                // Wrapped by measuring, because a terms paragraph that runs off
+                // the edge of the page is a term the customer never saw.
+                var remaining = rawLine.trim()
+                while (remaining.isNotEmpty()) {
+                    val count = termsPaint.breakText(remaining, true, maxWidth, null)
+                    var cut = count
+                    if (cut < remaining.length) {
+                        val lastSpace = remaining.lastIndexOf(' ', cut)
+                        if (lastSpace > 0) cut = lastSpace
+                    }
+                    newPageIfNeeded(14f)
+                    canvas.drawText(remaining.substring(0, cut).trim(), MARGIN, y, termsPaint)
+                    y += 11f
+                    remaining = remaining.substring(cut).trim()
+                }
+            }
+            y += 10f
+        }
 
         val signaturePath = job.signatureImagePath
         if (signaturePath != null) {
@@ -254,8 +315,11 @@ object PdfExporter {
         document.finishPage(page)
 
         val pdfDir = File(context.cacheDir, "pdfs").apply { mkdirs() }
-        val docKind = if (isInvoice) "Invoice" else "Estimate"
-        val outFile = File(pdfDir, "${docKind}_${estimateNumber}_${job.customerName.ifBlank { "customer" }.replace(" ", "_")}.pdf")
+        // Named for what it is, so a contract and a supplier request do not
+        // arrive in someone inbox as two files called Estimate.
+        val fileLabel = docKind.name.lowercase().split("_")
+            .joinToString("") { part -> part.replaceFirstChar { it.uppercase() } }
+        val outFile = File(pdfDir, "${fileLabel}_${estimateNumber}_${job.customerName.ifBlank { "customer" }.replace(" ", "_")}.pdf")
         FileOutputStream(outFile).use { document.writeTo(it) }
         document.close()
         return outFile

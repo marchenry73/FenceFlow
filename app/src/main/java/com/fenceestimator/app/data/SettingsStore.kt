@@ -104,6 +104,19 @@ data class BusinessProfile(
     val hoaEmailTemplate: String = DEFAULT_HOA_TEMPLATE,
     val reviewRequestTemplate: String = DEFAULT_REVIEW_TEMPLATE,
     /**
+     * The terms printed on the contract the customer signs.
+     *
+     * Editable per company on purpose. Every fencing business has its own
+     * warranty period, its own deposit rule, its own line about property
+     * lines and utility locates -- and a contractor cannot use terms they
+     * cannot change. The default below is a workable starting point, NOT
+     * legal advice; anyone selling real work should have it read once by an
+     * attorney in their own state.
+     *
+     * Placeholders are filled in when the document is produced.
+     */
+    val contractTerms: String = DEFAULT_CONTRACT_TERMS,
+    /**
      * The contractor's own Square access token, kept on this device only.
      * It is never sent to the FenceFlow cloud -- each business bills into
      * its own Square account, and nobody else should be able to read it.
@@ -121,6 +134,7 @@ data class BusinessProfile(
     val language: AppLanguage = AppLanguage.ENGLISH
 ) {
     companion object {
+        fun defaultContractTerms() = DEFAULT_CONTRACT_TERMS
         fun defaultOrderTemplate(language: AppLanguage) = if (language == AppLanguage.SPANISH) DEFAULT_ORDER_TEMPLATE_ES else DEFAULT_ORDER_TEMPLATE
         fun defaultHoaTemplate(language: AppLanguage) = if (language == AppLanguage.SPANISH) DEFAULT_HOA_TEMPLATE_ES else DEFAULT_HOA_TEMPLATE
         fun defaultReviewTemplate(language: AppLanguage) = if (language == AppLanguage.SPANISH) DEFAULT_REVIEW_TEMPLATE_ES else DEFAULT_REVIEW_TEMPLATE
@@ -134,6 +148,7 @@ class SettingsStore(private val context: Context) {
         val PHONE = stringPreferencesKey("phone")
         val EMAIL = stringPreferencesKey("email")
         val LICENSE = stringPreferencesKey("license")
+        val CONTRACT_TERMS = stringPreferencesKey("contract_terms")
         val TAX_RATE = doublePreferencesKey("tax_rate")
         val MARKUP = doublePreferencesKey("markup")
         val POST_SPACING = floatPreferencesKey("post_spacing")
@@ -173,6 +188,7 @@ class SettingsStore(private val context: Context) {
             phone = prefs[Keys.PHONE] ?: "",
             email = prefs[Keys.EMAIL] ?: "",
             licenseNumber = prefs[Keys.LICENSE] ?: "",
+            contractTerms = prefs[Keys.CONTRACT_TERMS] ?: DEFAULT_CONTRACT_TERMS,
             defaultTaxRatePercent = prefs[Keys.TAX_RATE] ?: 7.0,
             defaultMarkupPercent = prefs[Keys.MARKUP] ?: 0.0,
             defaultPostSpacingFt = prefs[Keys.POST_SPACING] ?: 6f,
@@ -225,6 +241,7 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.PHONE] = profile.phone
             prefs[Keys.EMAIL] = profile.email
             prefs[Keys.LICENSE] = profile.licenseNumber
+            prefs[Keys.CONTRACT_TERMS] = profile.contractTerms
             prefs[Keys.TAX_RATE] = profile.defaultTaxRatePercent
             prefs[Keys.MARKUP] = profile.defaultMarkupPercent
             prefs[Keys.POST_SPACING] = profile.defaultPostSpacingFt

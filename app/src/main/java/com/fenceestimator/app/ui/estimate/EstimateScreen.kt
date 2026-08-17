@@ -451,15 +451,17 @@ private fun ExportSection(viewModel: EstimateViewModel, profile: BusinessProfile
     val totals by viewModel.totals.collectAsState()
     var showSignaturePad by remember { mutableStateOf(false) }
 
-    fun sharePdf(isInvoice: Boolean) {
-        viewModel.exportPdf(context, profile, isInvoice) { file ->
+    fun shareDocument(document: com.fenceestimator.app.estimate.JobDocument) {
+        viewModel.exportDocument(context, profile, document) { file ->
             val uri = PdfExporter.shareUri(context, file)
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, if (isInvoice) "Share Invoice" else "Share Estimate"))
+            // The system share sheet, so it can go by text, WhatsApp or email
+            // -- whatever that particular customer or supplier actually uses.
+            context.startActivity(Intent.createChooser(intent, "Send ${document.title}"))
         }
     }
 
@@ -510,23 +512,69 @@ private fun ExportSection(viewModel: EstimateViewModel, profile: BusinessProfile
             }
             Spacer(Modifier.height(8.dp))
         }
+        // Four documents, named for who reads them.
+        //
+        // There used to be two buttons that produced nearly the same page: the
+        // customer got a full material breakdown with buying prices on it, and
+        // the "invoice" was that same page again under another heading. Neither
+        // reader was served -- the customer agreed a price for a finished
+        // fence, and the supplier is the one who sends prices back.
         Button(
-            onClick = { sharePdf(isInvoice = false) },
+            onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_CONTRACT) },
             enabled = !needsResign,
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
-            Text("  Export & Share PDF Estimate")
+            Text("  Send Contract to Customer")
         }
+        Text(
+            "Scope, price and your terms. No material breakdown.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(8.dp))
+
         OutlinedButton(
-            onClick = { sharePdf(isInvoice = true) },
+            onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.SUPPLIER_REQUEST) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.Share, contentDescription = null)
+            Text("  Send Material List to Supplier")
+        }
+        Text(
+            "Quantities only, no prices -- they quote it back to you.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_INVOICE) },
             enabled = !needsResign,
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
-            Text("  Generate & Share Invoice")
+            Text("  Send Invoice")
         }
+        Text(
+            "What was agreed, what is paid, what is left.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.WORKING_ESTIMATE) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.Share, contentDescription = null)
+            Text("  Your Working Copy")
+        }
+        Text(
+            "Every line and every cost. For you, not the customer.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 
     if (showSignaturePad) {

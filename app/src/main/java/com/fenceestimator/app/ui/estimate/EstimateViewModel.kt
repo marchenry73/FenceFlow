@@ -261,6 +261,31 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
         return feetAcross(currentJob, runs.value)
     }
 
+    fun exportDocument(
+        context: Context,
+        business: BusinessProfile,
+        document: com.fenceestimator.app.estimate.JobDocument,
+        onReady: (File) -> Unit
+    ) {
+        val currentJob = job.value ?: return
+        viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) {
+                PdfExporter.export(
+                    context = context,
+                    job = currentJob,
+                    estimateNumber = jobId.toString().padStart(5, (48).toChar()),
+                    business = business,
+                    runs = runs.value,
+                    lineItems = lineItems.value,
+                    totals = totals.value,
+                    linearFeet = totalLinearFeet(),
+                    document_ = document
+                )
+            }
+            onReady(file)
+        }
+    }
+
     fun exportPdf(context: Context, business: BusinessProfile, isInvoice: Boolean = false, onReady: (File) -> Unit) {
         val currentJob = job.value ?: return
         viewModelScope.launch {
