@@ -109,6 +109,7 @@ fun AccountScreen(onBack: () -> Unit, onOpenAccess: () -> Unit = {}) {
                         state = state,
                         viewModel = viewModel,
                         canManageAccess = session.canManageAccess,
+                        canShareInviteCode = session.canShareInviteCode,
                         onOpenAccess = onOpenAccess
                     )
                 }
@@ -167,6 +168,7 @@ private fun SignedInSection(
     state: AccountUiState,
     viewModel: AccountViewModel,
     canManageAccess: Boolean,
+    canShareInviteCode: Boolean,
     onOpenAccess: () -> Unit
 ) {
     Card(Modifier.fillMaxWidth()) {
@@ -179,7 +181,7 @@ private fun SignedInSection(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                profile.companyId?.let { id ->
+                profile.companyId?.takeIf { canShareInviteCode }?.let { id ->
                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -280,6 +282,7 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
     var companyName by remember { mutableStateOf("") }
     var ownerName by remember { mutableStateOf("") }
     var inviteCode by remember { mutableStateOf("") }
+    var requestedRole by remember { mutableStateOf(com.fenceestimator.app.cloud.UserRole.CREW) }
     var memberName by remember { mutableStateOf("") }
 
     Card(Modifier.fillMaxWidth()) {
@@ -314,11 +317,41 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
                 value = memberName, onValueChange = { memberName = it },
                 label = { Text("Your name") }, modifier = Modifier.fillMaxWidth()
             )
+            // What they do, in their words.
+            //
+            // This is a statement, not a choice: everybody joins as crew
+            // whatever they pick here, and the owner confirms it. Letting the
+            // joiner set their own role would mean anyone holding the invite
+            // code could arrive as a manager and read the company's money. But
+            // asking is still worth it -- the alternative is the owner facing a
+            // list of unnamed crew rows and having to work out who is who.
+            Text("What do you do?", style = MaterialTheme.typography.labelLarge)
+            com.fenceestimator.app.cloud.UserRole.values()
+                .filter { it != com.fenceestimator.app.cloud.UserRole.OWNER }
+                .forEach { option ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = requestedRole == option,
+                            onClick = { requestedRole = option }
+                        )
+                        Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            Text(
+                "Your owner confirms this before it takes effect. Until then you " +
+                    "will see today's work only.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             OutlinedButton(
-                onClick = { viewModel.joinCompany(inviteCode, memberName) },
+                onClick = { viewModel.joinCompany(inviteCode, memberName, requestedRole) },
                 enabled = inviteCode.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Join as Crew") }
+            ) { Text("Join the team") }
         }
     }
 }

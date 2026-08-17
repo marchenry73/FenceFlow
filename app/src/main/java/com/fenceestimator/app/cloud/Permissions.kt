@@ -78,6 +78,12 @@ enum class Permission(
             "evidence you would need in a dispute.",
         sensitive = true
     ),
+    SHARE_INVITE_CODE(
+        "Share the team invite code",
+        "The code lets someone join your company. Anyone holding it can put " +
+            "themselves on your team.",
+        sensitive = true
+    ),
     MANAGE_ACCESS(
         "Manage who can do what",
         "Change other people's access, including granting this. Give it to nobody you " +
@@ -108,6 +114,9 @@ val UserRole.defaultPermissions: Set<Permission>
             Permission.SCHEDULE_AND_ASSIGN, Permission.REQUEST_PAYMENT, Permission.RECORD_FIELD_WORK,
             Permission.SEE_CUSTOMER_CONTACT, Permission.SEE_REPORTS, Permission.APPROVE_TIME,
             Permission.APPROVE_PLAN_CHANGES
+            // Deliberately no SHARE_INVITE_CODE and no MANAGE_ACCESS. Handing
+            // out the code is handing out entry to the company, and a manager
+            // who needs to do it can be given it by name.
         )
 
         UserRole.SALES -> setOf(

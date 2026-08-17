@@ -46,7 +46,9 @@ data class CloudProfile(
     @SerialName("full_name") val fullName: String = "",
     val role: String = "CREW",
     /** Per-person adjustments to the role, e.g. "+SEE_MONEY,-DELETE_RECORDS". */
-    @SerialName("permission_overrides") val permissionOverrides: String = ""
+    @SerialName("permission_overrides") val permissionOverrides: String = "",
+    /** What this person said they were when joining. Not authoritative. */
+    @SerialName("requested_role") val requestedRole: String = ""
 ) {
     val userRole: UserRole
         get() = runCatching { UserRole.valueOf(role) }.getOrDefault(UserRole.CREW)
@@ -168,12 +170,22 @@ object SupabaseModule {
     }
 
     /** Attaches the current user to an existing company as CREW, using the company id as an invite code. */
-    suspend fun joinCompany(companyId: String, memberName: String) {
+    /**
+     * Joins a company, stating a role rather than choosing one.
+     *
+     * The requested role is recorded but never applied -- the server puts
+     * everyone in as CREW regardless. Letting the joiner pick would mean anyone
+     * holding the invite code could join as a manager and read the money. The
+     * owner sees what they said they were and confirms it in one tap, which is
+     * also better than a list of unnamed crew rows nobody can identify.
+     */
+    suspend fun joinCompany(companyId: String, memberName: String, requestedRole: UserRole?) {
         client.postgrest.rpc(
             "join_company",
             buildJsonObject {
                 put("target_company_id", companyId)
                 put("member_name", memberName)
+                put("requested_role_in", requestedRole?.name ?: "")
             }
         )
     }

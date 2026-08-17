@@ -55,8 +55,12 @@ class AccountViewModel(
         SupabaseModule.createCompany(companyName.trim(), ownerName.trim())
     }
 
-    fun joinCompany(companyId: String, memberName: String) = run("Joined business") {
-        SupabaseModule.joinCompany(companyId.trim(), memberName.trim())
+    fun joinCompany(
+        companyId: String,
+        memberName: String,
+        requestedRole: com.fenceestimator.app.cloud.UserRole?
+    ) = run("Joined business -- your owner will confirm your access") {
+        SupabaseModule.joinCompany(companyId.trim(), memberName.trim(), requestedRole)
     }
 
     /**

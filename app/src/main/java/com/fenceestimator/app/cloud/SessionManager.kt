@@ -91,6 +91,7 @@ data class SessionState(
     val canRecordRefunds: Boolean get() = can(Permission.RECORD_REFUNDS)
     val canSeeReports: Boolean get() = can(Permission.SEE_REPORTS)
     val canManageAccess: Boolean get() = can(Permission.MANAGE_ACCESS)
+    val canShareInviteCode: Boolean get() = can(Permission.SHARE_INVITE_CODE)
 }
 
 /** App-wide view of who is signed in and what they're allowed to see. */

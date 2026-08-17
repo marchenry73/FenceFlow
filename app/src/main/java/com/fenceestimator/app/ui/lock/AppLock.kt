@@ -127,7 +127,7 @@ fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
     }
 }
 
-private fun android.content.Context.findFragmentActivity(): FragmentActivity? {
+internal fun android.content.Context.findFragmentActivity(): FragmentActivity? {
     var ctx = this
     while (ctx is android.content.ContextWrapper) {
         if (ctx is FragmentActivity) return ctx

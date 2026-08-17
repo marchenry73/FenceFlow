@@ -46,6 +46,7 @@ import com.fenceestimator.app.cloud.UserRole
 import com.fenceestimator.app.cloud.defaultPermissions
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.lock.confirmIdentity
 
 /**
  * Who on the team can do what.
@@ -63,6 +64,7 @@ fun AccessScreen(onBack: () -> Unit) {
         factory = GenericViewModelFactory { AccessViewModel(app.session) }
     )
     val session by app.session.state.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val team by viewModel.team.collectAsState()
     val message by viewModel.message.collectAsState()
 
@@ -126,6 +128,20 @@ fun AccessScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        // What they said they were when they joined. Everybody
+                        // arrives as crew whatever they pick, so this is the
+                        // only place it gets acted on -- and a request nobody
+                        // ever sees is the same as not having asked.
+                        val requested = runCatching {
+                            UserRole.valueOf(member.requestedRole)
+                        }.getOrNull()
+                        if (requested != null && requested != member.userRole) {
+                            Text(
+                                "Says they are a " + requested.label + " -- tap to confirm",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         Text(
                             "${effective.size} of ${Permission.ALL.size} things allowed",
                             style = MaterialTheme.typography.bodySmall,
@@ -171,8 +187,21 @@ fun AccessScreen(onBack: () -> Unit) {
             member = member,
             isSelf = member.id == com.fenceestimator.app.cloud.SupabaseModule.currentUserId(),
             onSave = { role, permissions ->
-                viewModel.save(member, role, permissions)
-                editing = null
+                // Prove it is really you before this applies.
+                //
+                // Changing what somebody can do is not ordinary editing -- it
+                // is the action that can hand over the money, the deletions, or
+                // the ability to grant anything else. An unlocked phone left on
+                // a truck seat should not be enough on its own.
+                confirmIdentity(
+                    context = context,
+                    title = "Confirm access change",
+                    subtitle = "Changing what this person can do",
+                    onConfirmed = {
+                        viewModel.save(member, role, permissions)
+                        editing = null
+                    }
+                )
             },
             onDismiss = { editing = null }
         )
