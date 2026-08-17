@@ -212,10 +212,15 @@ private fun SignedInSection(
                         ) { Text("Copy code") }
                         OutlinedButton(
                             onClick = {
-                                com.fenceestimator.app.ui.components.IntentHelpers.openEmailDraft(
-                                    context, "", "Join our FenceFlow team",
-                                    "Install FenceFlow, create an account, then choose \"Join as Crew\" " +
-                                        "and enter this invite code:\n\n$id"
+                                // Share sheet, not email. Crew get sent this on
+                                // whatever they actually use, and assuming email
+                                // is how a code ends up read out over the phone.
+                                com.fenceestimator.app.ui.components.IntentHelpers.shareText(
+                                    context = context,
+                                    subject = "Join our FenceFlow team",
+                                    body = "Install FenceFlow, create an account, then choose " +
+                                        "\"Join the team\" and enter this invite code:\n\n$id",
+                                    chooserTitle = "Send invite code"
                                 )
                             },
                             modifier = Modifier.weight(1f)

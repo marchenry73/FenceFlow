@@ -1990,32 +1990,105 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
 @Composable
 private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: JobDetailViewModel) {
     val context = LocalContext.current
-    val body = TemplateFiller.fillReviewTemplate(
-        template = profile.reviewRequestTemplate,
-        customerName = job.customerName,
-        businessName = profile.businessName
-    )
+    val allJobs by viewModel.allJobs.collectAsState()
+
+    // A customer who has used you before is a different ask, so it is worked
+    // out rather than remembered -- matched on name, since the same person
+    // booking twice is two job records.
+    val isRepeat = remember(allJobs, job.id) {
+        allJobs.count {
+            it.id != job.id &&
+                it.customerName.isNotBlank() &&
+                it.customerName.equals(job.customerName, ignoreCase = true)
+        } > 0
+    }
+
+    var template by remember(job.id) {
+        mutableStateOf(com.fenceestimator.app.data.ReviewTemplate.suggestFor(job, isRepeat))
+    }
+    // Editable before it goes out, because the person sending it knows things
+    // the job record never will.
+    var body by remember(template, job.id) {
+        mutableStateOf(
+            TemplateFiller.fillReviewTemplate(
+                template = template.body,
+                customerName = job.customerName,
+                businessName = profile.businessName
+            ).replace("{reviewLink}", profile.reviewRequestTemplate.takeIf { it.startsWith("http") } ?: "")
+                .trim()
+        )
+    }
+
     Text(
         "Send once the job is finished and the customer is happy.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+
+    Text("Which message?", style = MaterialTheme.typography.labelLarge)
+    com.fenceestimator.app.data.ReviewTemplate.values().forEach { option ->
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.RadioButton(
+                selected = template == option,
+                onClick = { template = option }
+            )
+            Column(Modifier.padding(start = 4.dp)) {
+                Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    option.describes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = body,
+        onValueChange = { body = it },
+        label = { Text("Message") },
+        modifier = Modifier.fillMaxWidth()
+    )
+
+    // The share sheet first, because it is the one that always works. Email and
+    // SMS both assume you know how this customer wants to be reached, and half
+    // the time the number on file is a landline or they only answer WhatsApp.
+    Button(
+        onClick = {
+            IntentHelpers.shareText(
+                context = context,
+                subject = "Thanks from " + profile.businessName.ifBlank { "us" },
+                body = body,
+                chooserTitle = "Send review request"
+            )
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(Icons.Filled.Star, contentDescription = null)
+        Text("  Send it")
+    }
+
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedButton(
             onClick = { IntentHelpers.openSmsDraft(context, job.phone, body) },
             enabled = job.phone.isNotBlank(),
             modifier = Modifier.weight(1f)
-        ) {
-            Icon(Icons.Filled.Star, contentDescription = null)
-            Text("  Text")
-        }
-        Button(
-            onClick = { IntentHelpers.openEmailDraft(context, job.email, "Thanks from ${profile.businessName.ifBlank { "us" }}!", body) },
+        ) { Text("Text") }
+        OutlinedButton(
+            onClick = {
+                IntentHelpers.openEmailDraft(
+                    context,
+                    job.email,
+                    "Thanks from " + profile.businessName.ifBlank { "us" },
+                    body
+                )
+            },
             enabled = job.email.isNotBlank(),
             modifier = Modifier.weight(1f)
-        ) {
-            Text("Email")
-        }
+        ) { Text("Email") }
     }
 }
 

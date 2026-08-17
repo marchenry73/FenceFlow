@@ -20,6 +20,23 @@ object IntentHelpers {
         context.startActivity(Intent.createChooser(intent, "Send Email"))
     }
 
+    /**
+     * Hands text to whatever the person actually uses.
+     *
+     * Email and SMS both assume you know how this customer wants to be reached,
+     * and half the time you do not -- they message on WhatsApp, or the number
+     * on file is a landline. The share sheet lets the person holding the phone
+     * decide, which is the only one who knows.
+     */
+    fun shareText(context: Context, subject: String, body: String, chooserTitle: String) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            if (subject.isNotBlank()) putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
+            putExtra(android.content.Intent.EXTRA_TEXT, body)
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
+    }
+
     fun openSmsDraft(context: Context, phone: String, body: String) {
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$phone")).apply {
             putExtra("sms_body", body)
