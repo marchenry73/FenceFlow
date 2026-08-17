@@ -473,8 +473,8 @@ object EstimateEngine {
         changeOrders: List<ChangeOrder> = emptyList(),
         runs: List<FenceRun> = emptyList()
     ): Totals {
-        val materialsSubtotal = lineItems.sumOf { it.quantity * it.unitPrice }
-        val taxableSubtotal = lineItems.filter { it.taxable }.sumOf { it.quantity * it.unitPrice }
+        val materialsSubtotal = lineItems.sumOf { it.lineTotal }
+        val taxableSubtotal = lineItems.filter { it.taxable }.sumOf { it.lineTotal }
         val tax = taxableSubtotal * (job.taxRatePercent / 100.0)
 
         val changeOrderCost = changeOrders.sumOf { it.additionalCost }

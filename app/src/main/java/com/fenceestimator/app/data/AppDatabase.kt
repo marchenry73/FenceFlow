@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
         PaymentRecord::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -369,13 +369,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Supplier prices, kept apart from the catalog guess they replace.
+         *
+         * supplierUnitPrice is nullable on purpose: null means nobody has
+         * quoted it yet, which is different from a quote of zero, and the
+         * estimate needs to be able to say which it is.
+         */
+        private val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `estimate_line_items` ADD COLUMN `supplierUnitPrice` REAL")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `materialPricesConfirmedAt` INTEGER")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `supplierQuoteReference` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a

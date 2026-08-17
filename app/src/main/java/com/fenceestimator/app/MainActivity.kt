@@ -234,7 +234,11 @@ fun FenceEstimatorNavHost() {
             arguments = listOf(navArgument("jobId") { type = NavType.LongType })
         ) { backStackEntry ->
             val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
-            EstimateScreen(jobId = jobId, onBack = { navController.popBackStack() })
+            EstimateScreen(
+                jobId = jobId,
+                onBack = { navController.popBackStack() },
+                onOpenSupplierPrices = { id -> navController.navigate(Routes.supplierPrices(id)) }
+            )
         }
         composable(
             Routes.INVENTORY,
@@ -264,6 +268,15 @@ fun FenceEstimatorNavHost() {
         }
         composable(Routes.TIME_APPROVAL) {
             com.fenceestimator.app.ui.crew.TimeApprovalScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            Routes.SUPPLIER_PRICES,
+            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+        ) { entry ->
+            com.fenceestimator.app.ui.estimate.SupplierPricesScreen(
+                jobId = entry.arguments?.getLong("jobId") ?: 0L,
+                onBack = { navController.popBackStack() }
+            )
         }
         composable(Routes.ACCESS) {
             com.fenceestimator.app.ui.account.AccessScreen(onBack = { navController.popBackStack() })

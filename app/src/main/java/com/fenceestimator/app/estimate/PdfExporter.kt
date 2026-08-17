@@ -177,7 +177,7 @@ object PdfExporter {
             y += 18f
             drawTableHeader()
             drawItems(items)
-            val subtotal = items.sumOf { it.quantity * it.unitPrice }
+            val subtotal = items.sumOf { it.lineTotal }
             y += 4f
             val subtotalText = "${labels.sectionSubtotal}: ${currency.format(subtotal)}"
             canvas.drawText(subtotalText, rightX - boldPaint.measureText(subtotalText), y, boldPaint)

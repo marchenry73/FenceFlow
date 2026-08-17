@@ -42,7 +42,7 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         repository.observeLineItems(jobId),
         repository.observeChangeOrders(jobId)
     ) { items, orders ->
-        items.sumOf { it.quantity * it.unitPrice } + orders.sumOf { it.materialCost }
+        items.sumOf { it.lineTotal } + orders.sumOf { it.materialCost }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     /**

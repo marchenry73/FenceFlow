@@ -261,6 +261,48 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
         return feetAcross(currentJob, runs.value)
     }
 
+    /**
+     * Records what the supplier quoted and re-costs the job from it.
+     *
+     * A line left blank keeps its catalog estimate rather than being zeroed --
+     * "they did not quote this" is not the same as "this is free", and treating
+     * it as free is how a job looks profitable right up until the invoice
+     * arrives.
+     *
+     * The job counts as confirmed only when every line has a real price. Half a
+     * quote is still a guess, and a guess that calls itself confirmed is worse
+     * than one that admits it.
+     */
+    fun applySupplierPrices(pricesByItemId: Map<Long, Double>, reference: String) {
+        viewModelScope.launch {
+            val items = lineItems.value
+            items.forEach { item ->
+                val quoted = pricesByItemId[item.id]
+                if (quoted != null && quoted != item.supplierUnitPrice) {
+                    repository.updateLineItem(item.copy(supplierUnitPrice = quoted))
+                }
+            }
+
+            val allPriced = items.all { item ->
+                pricesByItemId.containsKey(item.id) || item.supplierUnitPrice != null
+            }
+            val current = job.value ?: return@launch
+            repository.updateJob(
+                current.copy(
+                    supplierQuoteReference = reference,
+                    materialPricesConfirmedAt = if (allPriced && items.isNotEmpty()) {
+                        System.currentTimeMillis()
+                    } else null
+                )
+            )
+            _message.tryEmit(
+                if (allPriced && items.isNotEmpty())
+                    "Supplier prices saved. This job is now priced on real numbers."
+                else "Saved. Some lines still use the catalog estimate."
+            )
+        }
+    }
+
     fun exportDocument(
         context: Context,
         business: BusinessProfile,

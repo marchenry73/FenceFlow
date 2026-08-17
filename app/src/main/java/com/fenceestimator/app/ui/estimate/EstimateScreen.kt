@@ -65,7 +65,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EstimateScreen(jobId: Long, onBack: () -> Unit) {
+fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long) -> Unit = {}) {
     val app = currentApp()
     val viewModel: EstimateViewModel = viewModel(
         key = "estimate_$jobId",
@@ -146,7 +146,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit) {
             if (warnings.isNotEmpty()) {
                 item { WarningsCard(warnings) }
             }
-            item { ExportSection(viewModel, profile, currentJob) }
+            item { ExportSection(viewModel, profile, currentJob, onOpenSupplierPrices) }
         }
     }
 
@@ -172,7 +172,7 @@ private fun RunSection(
     onRestoreRemoved: () -> Unit,
     onItemClick: (EstimateLineItem) -> Unit
 ) {
-    val subtotal = items.sumOf { it.quantity * it.unitPrice }
+    val subtotal = items.sumOf { it.lineTotal }
     var feetText by remember(run.id, run.manualLinearFeet) {
         mutableStateOf(run.manualLinearFeet?.let { if (it % 1f == 0f) it.toInt().toString() else it.toString() } ?: "")
     }
@@ -446,7 +446,12 @@ private fun TotalRow(label: String, value: String, bold: Boolean = false) {
 }
 
 @Composable
-private fun ExportSection(viewModel: EstimateViewModel, profile: BusinessProfile, job: Job) {
+private fun ExportSection(
+    viewModel: EstimateViewModel,
+    profile: BusinessProfile,
+    job: Job,
+    onOpenSupplierPrices: (Long) -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val totals by viewModel.totals.collectAsState()
     var showSignaturePad by remember { mutableStateOf(false) }
@@ -512,6 +517,40 @@ private fun ExportSection(viewModel: EstimateViewModel, profile: BusinessProfile
             }
             Spacer(Modifier.height(8.dp))
         }
+        // Says plainly that the figures are a guess, because they are.
+        //
+        // A contractor who signs a customer to a number and then finds the
+        // material costs more has no way back. The catalog is close enough to
+        // quote from and not close enough to bank on, so the difference is
+        // stated rather than left for someone to remember.
+        if (job.materialPricesConfirmedAt == null) {
+            Card(
+                Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        "Provisional pricing",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        "Materials are costed from your catalog, not from a supplier quote. " +
+                            "Send the material list, then enter what they come back with.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { onOpenSupplierPrices(job.id) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Enter supplier prices") }
+                }
+            }
+        }
+
         // Four documents, named for who reads them.
         //
         // There used to be two buttons that produced nearly the same page: the

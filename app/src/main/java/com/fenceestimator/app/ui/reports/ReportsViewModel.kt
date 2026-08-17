@@ -195,7 +195,7 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
             // Materials come from the priced line items, so this reflects what
             // was actually quoted rather than a guess from footage.
             val materialsByJob = jobs.associate { it.id to repository.getLineItems(it.id)
-                .sumOf { li -> li.quantity * li.unitPrice } }
+                .sumOf { li -> li.lineTotal } }
 
             _data.value = ReportData(
                 totals = buildTotals(jobs, expenses, times, materialsByJob, paymentsInPeriod),

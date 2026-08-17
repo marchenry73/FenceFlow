@@ -11,6 +11,8 @@ object Routes {
     const val SCHEDULE = "schedule"
     const val ACCOUNT = "account"
     const val ACCESS = "access"
+    const val SUPPLIER_PRICES = "supplier_prices/{jobId}"
+    fun supplierPrices(jobId: Long) = "supplier_prices/$jobId"
     const val TIME_APPROVAL = "time_approval"
     const val REPORTS = "reports"
     const val PIPELINE = "pipeline"
