@@ -22,7 +22,8 @@
 <header><div class="logo">Fence<span>Flow</span></div></header>
 
 <h1>Terms of Service</h1>
-<p class="updated">Last updated: <span id="d"></span></p>
+<!-- Hard-coded on purpose; see the note in privacy.html. Update by hand. -->
+<p class="updated">Last updated: August 17, 2026</p>
 
 <div class="box">
   <strong>Read this part especially:</strong> FenceFlow produces estimates and material counts to help you
@@ -71,9 +72,32 @@
 
 <h2>6. Payments to you</h2>
 <p>
-  FenceFlow does not process payments and never holds your money. If you connect a payment provider such as
-  Square, your relationship for those transactions is with that provider under their terms, and their fees
-  apply. We are not responsible for their availability, holds, chargebacks, or payouts.
+  FenceFlow does not process payments and never holds your money. Card payments are handled by
+  <strong>Stripe</strong> or <strong>Square</strong>; your relationship for those transactions is with that
+  provider under their terms, and their fees apply. We are not responsible for their availability, holds,
+  chargebacks, payout timing, or account decisions.
+</p>
+<p>
+  Payment amounts recorded in the app are a record for your own bookkeeping. Where the app's figure and your
+  provider's statement disagree, <strong>the provider's statement is the authoritative one.</strong>
+</p>
+
+<h2>6a. Contracts, invoices, and documents the app produces</h2>
+<p>
+  FenceFlow generates contracts, estimates, invoices, and change orders from templates and from what you
+  enter. <strong>These are starting points, not legal documents prepared for your situation.</strong> We are
+  not a law firm and this is not legal advice. Contract requirements for home-improvement work — mandatory
+  disclosures, cancellation rights, deposit limits, lien notices, warranty language — vary by state and by
+  the size of the job, and getting them wrong can make a contract unenforceable or expose you to penalties.
+</p>
+<p>
+  Have a lawyer in your state review the contract template before you use it with customers, and edit the
+  wording to match what your state requires. You are responsible for the documents you send out under your
+  own business name.
+</p>
+<p>
+  Signatures captured in the app record that someone signed on a device at a time. Whether that constitutes a
+  binding signature depends on your jurisdiction and the transaction.
 </p>
 
 <h2>7. Subscription and billing</h2>
@@ -87,8 +111,16 @@
 <h2>8. Your data</h2>
 <p>
   Your business and customer data remains yours. We store and process it to run the service as described in
-  our <a href="privacy.html">Privacy Policy</a>. You can export or request deletion at any time. Keep your
-  own backups of anything you cannot afford to lose — the app includes a backup feature for this purpose.
+  our <a href="privacy.html">Privacy Policy</a>.
+</p>
+<p>
+  You can export everything at any time from Settings, as spreadsheets that open outside this app, without
+  asking us and without an active subscription. Deletion is described in the Privacy Policy — note that
+  deleted items sit in a trash bin until the account owner empties it.
+</p>
+<p>
+  Keep your own backups of anything you cannot afford to lose. The app has both an export and a backup
+  feature; neither helps if it is never run.
 </p>
 
 <h2>9. Acceptable use</h2>
@@ -127,16 +159,29 @@
   Continuing to use FenceFlow after that means you accept the updated terms.
 </p>
 
-<h2>14. Contact</h2>
+<h2>14. Governing law</h2>
+<!--
+  PLACEHOLDER -- must be filled in before anyone outside the company signs up.
+  A terms page with no governing law clause leaves the venue for any dispute
+  open to argument, which is the opposite of what this section is for. It should
+  name the state the business is registered in. Not filled in automatically
+  because guessing a jurisdiction is worse than leaving it visibly blank.
+-->
+<p>
+  These terms are governed by the laws of the State of <strong>[STATE]</strong>, without regard to its
+  conflict of law rules. Any dispute will be brought in the state or federal courts located in
+  <strong>[COUNTY, STATE]</strong>, and both parties consent to that venue.
+</p>
+<p>
+  If any part of these terms is found unenforceable, the rest continues to apply.
+</p>
+
+<h2>15. Contact</h2>
 <p><a href="mailto:support@fenceflow.app">support@fenceflow.app</a></p>
 
 <footer>
   <a href="index.html">Home</a> &nbsp;·&nbsp; <a href="privacy.html">Privacy Policy</a>
 </footer>
 
-<script>
-  document.getElementById('d').textContent =
-    new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-</script>
 </body>
 </html>
