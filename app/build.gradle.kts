@@ -14,6 +14,33 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+/**
+ * The build number, counted from the commit history.
+ *
+ * It used to be hard-coded to 1, which quietly broke the in-app update prompt:
+ * the app compares its own version against the newest published one, so with
+ * every build numbered 1, installing an update did nothing to stop the prompt.
+ * It would have asked forever, which teaches people to dismiss it -- including
+ * the time it matters.
+ *
+ * Commit count is monotonic and needs no remembering. Android also refuses to
+ * install an APK whose version is lower than the one already on the phone, so a
+ * number that never moves would eventually have blocked updates outright.
+ *
+ * Falls back to 1 outside a git checkout so a source download still builds.
+ */
+// ProcessBuilder rather than Gradle's exec {}: inside a build script, `java`
+// resolves to the Java plugin extension, so java.io.* does not name the package.
+val gitVersionCode: Int = runCatching {
+    val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .directory(rootProject.projectDir)
+        .redirectErrorStream(true)
+        .start()
+    val text = process.inputStream.bufferedReader().readText().trim()
+    process.waitFor()
+    text.toInt()
+}.getOrDefault(1).coerceAtLeast(1)
+
 android {
     namespace = "com.fenceestimator.app"
     compileSdk = 35
@@ -22,8 +49,8 @@ android {
         applicationId = "com.fenceestimator.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = gitVersionCode
+        versionName = "1.$gitVersionCode"
 
         buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("supabase.url", "")}\"")
         buildConfigField("String", "SUPABASE_KEY", "\"${localProperties.getProperty("supabase.key", "")}\"")
