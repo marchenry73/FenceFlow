@@ -40,8 +40,44 @@ async function accessToken(sa: any): Promise<string> {
   return (await res.json()).access_token;
 }
 
+/**
+ * Constant-time string compare.
+ *
+ * `a === b` on a secret leaks its length and, in principle, how many leading
+ * characters matched, because it stops at the first difference. This always
+ * walks the whole string.
+ */
+function secretMatches(supplied: string | null, expected: string): boolean {
+  if (!supplied || supplied.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= supplied.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   try {
+    // This function is deployed with JWT verification off, so this header is
+    // the only thing standing between the open internet and a push to every
+    // device in a company. It is checked before the body is even read.
+    //
+    // It exists because the alternative was worse: the database trigger used
+    // to authenticate with the service_role key, which meant a key that can
+    // read and write every table for every company was sitting in plain text
+    // in a trigger definition, just to say "a job changed". This secret can do
+    // exactly one thing -- ask for a notification to be sent -- so leaking it
+    // costs a spam notification rather than the whole database.
+    const expected = Deno.env.get("NOTIFY_TRIGGER_SECRET");
+    if (!expected) {
+      // Fail closed. A missing secret must never mean "let everyone in".
+      console.error("NOTIFY_TRIGGER_SECRET is not set; refusing to run.");
+      return new Response("not configured", { status: 503 });
+    }
+    if (!secretMatches(req.headers.get("x-fenceflow-trigger"), expected)) {
+      return new Response("unauthorized", { status: 401 });
+    }
+
     const sa = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT")!);
     const p = await req.json();
     const rec = p.record ?? {};
