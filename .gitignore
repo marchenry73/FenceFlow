@@ -33,3 +33,8 @@ node_modules/
 
 # Kotlin compiler scratch output, not source
 .kotlin/
+
+# Cloud backups contain customer personal data. Never commit them.
+# The backup script also refuses to write inside this repo.
+fenceflow-*/
+*Backups/
