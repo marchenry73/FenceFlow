@@ -33,11 +33,50 @@ android {
         }
     }
 
+    /**
+     * Release signing, read from local.properties so no key or password ever
+     * enters the repository. local.properties is gitignored and stays that way.
+     *
+     * Absent config is not an error: the build still works for anyone who only
+     * wants a debug APK, and `assembleRelease` simply produces an unsigned one.
+     * Failing the whole build because a keystore is missing would stop a fresh
+     * clone from compiling at all.
+     */
+    val keystorePath = localProperties.getProperty("keystore.path")
+    val hasKeystore = keystorePath != null && file(keystorePath).exists()
+
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                storeFile = file(keystorePath!!)
+                storePassword = localProperties.getProperty("keystore.password")
+                keyAlias = localProperties.getProperty("keystore.alias")
+                keyPassword = localProperties.getProperty("keystore.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Both matter, for different reasons. isDebuggable=false stops
+            // anyone with the APK and a cable reading the app's database off a
+            // phone; shrinking removes unused code and the names that make it
+            // trivial to read what is left.
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
+        // Deliberately NO applicationIdSuffix on debug.
+        //
+        // It would be tidy -- debug and release side by side -- but it changes
+        // the application id, so every phone already carrying a debug build
+        // would treat the next one as a different app and open with nothing in
+        // it. Local drawings, signatures and photos live under the old id. That
+        // reads as total data loss, and it is not worth the tidiness.
     }
 
     compileOptions {
