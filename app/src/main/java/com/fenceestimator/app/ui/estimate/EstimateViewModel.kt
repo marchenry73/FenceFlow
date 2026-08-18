@@ -14,7 +14,6 @@ import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.TakeoffLine
 import com.fenceestimator.app.geometry.FenceCodec
-import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.ui.survey.SurveyViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -69,14 +68,10 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
 
     /** Total footage across runs, counting typed-in lengths as well as drawn ones. */
     private fun feetAcross(currentJob: Job, currentRuns: List<FenceRun>): Float =
-        currentRuns.sumOf { feetFor(currentJob, it).toDouble() }.toFloat()
+        EstimateEngine.linearFeet(currentJob, currentRuns)
 
-    private fun feetFor(currentJob: Job, run: FenceRun): Float {
-        run.manualLinearFeet?.let { if (it > 0f) return it }
-        val pxPerFt = currentJob.calibrationPixelsPerFoot ?: return 0f
-        val points = FenceCodec.decodePoints(run.pointsEncoded)
-        return FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop).totalLinearFeet
-    }
+    private fun feetFor(currentJob: Job, run: FenceRun): Float =
+        EstimateEngine.linearFeet(currentJob, listOf(run))
 
     /** Runs currently regenerating, so a double-tap can't produce two sets of items. */
     private val regenerating = mutableSetOf<Long>()

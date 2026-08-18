@@ -28,22 +28,24 @@ class JobsViewModel(private val repository: Repository) : ViewModel() {
         repository.observeAllPayments()
     ) { allJobs, _ -> allJobs }
         .map { allJobs ->
-            allJobs.filter { it.status.isWon }.sumOf { job ->
-                val items = repository.getLineItems(job.id)
-                val runs = repository.getFenceRuns(job.id)
-                val orders = repository.getChangeOrders(job.id)
-                val feet = runs.sumOf { run ->
-                    val manual = run.manualLinearFeet
-                    if (manual != null && manual > 0f) manual.toDouble()
-                    else job.calibrationPixelsPerFoot?.let { px ->
-                        com.fenceestimator.app.geometry.FenceGeometryEngine.analyze(
-                            com.fenceestimator.app.geometry.FenceCodec.decodePoints(run.pointsEncoded),
-                            px, run.closedLoop
-                        ).totalLinearFeet.toDouble()
-                    } ?: 0.0
-                }.toFloat()
-                val totals = com.fenceestimator.app.estimate.EstimateEngine
-                    .computeTotals(job, items, feet, orders, runs)
+            val won = allJobs.filter { it.status.isWon }
+            if (won.isEmpty()) return@map 0.0
+            // Three queries for the whole business, not three per job. Fetching
+            // per job meant the home screen fired 3xN round trips every time any
+            // payment landed, which is what made it slow to settle once a company
+            // had real history behind it.
+            val itemsByJob = repository.getAllLineItemsByJob()
+            val runsByJob = repository.getAllFenceRunsByJob()
+            val ordersByJob = repository.getAllChangeOrdersByJob()
+            won.sumOf { job ->
+                val runs = runsByJob[job.id].orEmpty()
+                val totals = com.fenceestimator.app.estimate.EstimateEngine.computeTotals(
+                    job,
+                    itemsByJob[job.id].orEmpty(),
+                    com.fenceestimator.app.estimate.EstimateEngine.linearFeet(job, runs),
+                    ordersByJob[job.id].orEmpty(),
+                    runs
+                )
                 com.fenceestimator.app.estimate.JobMoney.stillOwed(job, totals.grandTotal)
             }
         }

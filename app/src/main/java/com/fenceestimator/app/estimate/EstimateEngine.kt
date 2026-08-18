@@ -119,6 +119,27 @@ object EstimateEngine {
     }
 
     /**
+     * Total footage across a job's runs.
+     *
+     * The one place this is worked out. It used to be copied by hand into the
+     * home screen, the job screen and the estimate screen, and three copies of
+     * a rule is three chances for the home total to stop matching the job it
+     * came from -- the sort of disagreement that reads as the app inventing
+     * numbers. Calling this from all of them means they cannot drift apart.
+     *
+     * An uncalibrated run with no typed-in footage contributes nothing rather
+     * than guessing, so a half-set-up job reads as incomplete instead of wrong.
+     */
+    fun linearFeet(job: Job, runs: List<FenceRun>): Float =
+        runs.sumOf { run ->
+            val manual = run.manualLinearFeet
+            if (manual != null && manual > 0f) manual.toDouble()
+            else job.calibrationPixelsPerFoot
+                ?.let { resolveGeometry(run, it).totalLinearFeet.toDouble() }
+                ?: 0.0
+        }.toFloat()
+
+    /**
      * Footage either comes from the drawing or is typed in. Typed-in footage
      * wins outright, which is what lets a run be quoted with no drawing and no
      * calibration -- corners are taken from the run's own count instead of being

@@ -198,6 +198,18 @@ class Repository(private val db: AppDatabase) {
 
     fun observeFenceRuns(jobId: Long): Flow<List<FenceRun>> = fenceRunDao.observeForJob(jobId)
     suspend fun getFenceRuns(jobId: Long): List<FenceRun> = fenceRunDao.getForJob(jobId)
+
+    /**
+     * Everything for every job, grouped by job id.
+     *
+     * A figure that spans all jobs -- what the whole business is still owed --
+     * needs the same three tables for each one. Asking per job is three round
+     * trips times the job count, which is what made the home screen slow to
+     * settle once a company had real history in it. These are three queries
+     * total no matter how many jobs there are.
+     */
+    suspend fun getAllFenceRunsByJob(): Map<Long, List<FenceRun>> =
+        fenceRunDao.getAll().groupBy { it.jobId }
     fun observeFenceRun(id: Long): Flow<FenceRun?> = fenceRunDao.observeById(id)
     suspend fun getFenceRun(id: Long): FenceRun? = fenceRunDao.getById(id)
     suspend fun createFenceRun(run: FenceRun): Long = fenceRunDao.insert(run)
@@ -216,6 +228,10 @@ class Repository(private val db: AppDatabase) {
 
     fun observeLineItems(jobId: Long): Flow<List<EstimateLineItem>> = lineItemDao.observeForJob(jobId)
     suspend fun getLineItems(jobId: Long): List<EstimateLineItem> = lineItemDao.getForJob(jobId)
+
+    /** See [getAllFenceRunsByJob]. */
+    suspend fun getAllLineItemsByJob(): Map<Long, List<EstimateLineItem>> =
+        lineItemDao.getAll().groupBy { it.jobId }
     /**
      * Swaps this run's takeoff for a freshly generated one.
      *
@@ -328,6 +344,10 @@ class Repository(private val db: AppDatabase) {
     suspend fun getAllPricingTiers(): List<PricingTier> = pricingTierDao.getAll()
     suspend fun getPunchList(jobId: Long): List<PunchListItem> = punchListDao.getForJob(jobId)
     suspend fun getChangeOrders(jobId: Long): List<ChangeOrder> = changeOrderDao.getForJob(jobId)
+
+    /** See [getAllFenceRunsByJob]. */
+    suspend fun getAllChangeOrdersByJob(): Map<Long, List<ChangeOrder>> =
+        changeOrderDao.getAll().groupBy { it.jobId }
     suspend fun getJobSteps(jobId: Long): List<JobStep> = jobStepDao.getForJob(jobId)
     suspend fun getSiteMarkers(jobId: Long): List<SiteMarker> = siteMarkerDao.getForJob(jobId)
 

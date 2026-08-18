@@ -16,8 +16,6 @@ import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
-import com.fenceestimator.app.geometry.FenceCodec
-import com.fenceestimator.app.geometry.FenceGeometryEngine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -62,16 +60,9 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     ) { currentJob, items, runs, orders ->
         if (currentJob == null) EMPTY_TOTALS
         else {
-            val feet = runs.sumOf { run ->
-                val manual = run.manualLinearFeet
-                if (manual != null && manual > 0f) manual.toDouble()
-                else currentJob.calibrationPixelsPerFoot?.let { pxPerFt ->
-                    FenceGeometryEngine.analyze(
-                        FenceCodec.decodePoints(run.pointsEncoded), pxPerFt, run.closedLoop
-                    ).totalLinearFeet.toDouble()
-                } ?: 0.0
-            }.toFloat()
-            EstimateEngine.computeTotals(currentJob, items, feet, orders, runs)
+            EstimateEngine.computeTotals(
+                currentJob, items, EstimateEngine.linearFeet(currentJob, runs), orders, runs
+            )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 

@@ -45,6 +45,10 @@ interface FenceRunDao {
     @Query("SELECT * FROM fence_runs WHERE jobId = :jobId ORDER BY sortOrder ASC, id ASC")
     suspend fun getForJob(jobId: Long): List<FenceRun>
 
+    /** Every run in one query, for figures that span all jobs. */
+    @Query("SELECT * FROM fence_runs ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAll(): List<FenceRun>
+
     @Query("SELECT * FROM fence_runs WHERE id = :id")
     suspend fun getById(id: Long): FenceRun?
 
@@ -112,6 +116,10 @@ interface EstimateLineItemDao {
 
     @Query("SELECT * FROM estimate_line_items WHERE jobId = :jobId ORDER BY sortOrder ASC, id ASC")
     suspend fun getForJob(jobId: Long): List<EstimateLineItem>
+
+    /** Every line item in one query, for figures that span all jobs. */
+    @Query("SELECT * FROM estimate_line_items ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAll(): List<EstimateLineItem>
 
     @Insert
     suspend fun insert(item: EstimateLineItem): Long
@@ -333,6 +341,9 @@ interface SiteMarkerDao {
 interface ChangeOrderDao {
     @Query("SELECT * FROM change_orders WHERE jobId = :jobId")
     suspend fun getForJob(jobId: Long): List<ChangeOrder>
+
+    @Query("SELECT * FROM change_orders")
+    suspend fun getAll(): List<ChangeOrder>
     @Query("SELECT * FROM change_orders WHERE jobId = :jobId ORDER BY createdAt DESC")
     fun observeForJob(jobId: Long): Flow<List<ChangeOrder>>
 
