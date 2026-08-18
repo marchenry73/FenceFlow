@@ -32,6 +32,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -59,6 +60,7 @@ import com.fenceestimator.app.data.AppLanguage
 import com.fenceestimator.app.data.BackupManager
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.CsvExporter
+import com.fenceestimator.app.data.DataExporter
 import com.fenceestimator.app.data.PricingTier
 import com.fenceestimator.app.data.ThemeMode
 import com.fenceestimator.app.ui.components.DraftNumberField
@@ -130,6 +132,30 @@ fun SettingsScreen(
                 val jobs = app.repository.observeJobs().first()
                 val result = CsvExporter.exportExpenses(context, expenses, jobs, uri)
                 snackbarHostState.showSnackbar(if (result.isSuccess) "Expenses exported" else "Export failed: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+    var exporting by remember { mutableStateOf(false) }
+    val fullExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                exporting = true
+                val result = runCatching {
+                    DataExporter.Bundle(
+                        jobs = app.repository.getAllJobs(),
+                        payments = app.repository.getAllPayments(),
+                        expenses = app.repository.getAllExpenses(),
+                        timeEntries = app.repository.getAllTimeEntries(),
+                        changeOrders = app.repository.getAllChangeOrdersByJob().values.flatten(),
+                        lineItems = app.repository.getAllLineItemsByJob().values.flatten(),
+                        employees = app.repository.getAllEmployees()
+                    )
+                }.mapCatching { DataExporter.export(context, it, uri).getOrThrow() }
+                exporting = false
+                snackbarHostState.showSnackbar(
+                    if (result.isSuccess) "Your data was exported"
+                    else "Export failed: ${result.exceptionOrNull()?.message}"
+                )
             }
         }
     }
@@ -592,18 +618,37 @@ fun SettingsScreen(
                 }
             }
             item {
-                SectionCard("Accounting Export") {
+                SectionCard("Export Your Data") {
                     Text(
-                        "Export every job expense (fuel, equipment rental, permit fees, etc) to a CSV file for your bookkeeper or tax software.",
+                        "Everything you have -- jobs, payments, expenses, crew hours, change orders and materials -- as a set of spreadsheets you can open in Excel, Numbers or Google Sheets.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        "Your records are yours. You never need to ask us for a copy.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Button(
+                        onClick = {
+                            val name = "fenceflow_export_${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.zip"
+                            fullExportLauncher.launch(name)
+                        },
+                        enabled = !exporting,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (exporting) "Exporting..." else "Export Everything") }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Text(
+                        "Just the expenses, as a single CSV for a bookkeeper or tax software.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
                         onClick = {
                             val name = "fence_flow_expenses_${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.csv"
                             csvLauncher.launch(name)
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Export Expenses (CSV)") }
+                    ) { Text("Export Expenses Only (CSV)") }
                 }
             }
             item {
