@@ -30,10 +30,17 @@ Run this once, from anywhere. Replace nothing except the answers it asks for.
 "C:\Users\march\.jdks\jdk-17.0.20+8\bin\keytool" -genkeypair -v -keystore fenceflow-release.jks -keyalg RSA -keysize 4096 -validity 10000 -alias fenceflow
 ```
 
-It asks for two passwords — the keystore password and the key password. Use
-different ones, and put both in your password manager as you type them. It also
-asks for your name and organisation; those appear in the certificate, so use the
-business name you actually trade under.
+It asks a keystore password, then some details about you, then a key password.
+
+**At the key password prompt, press Enter to reuse the keystore password.**
+JDK 17 creates PKCS12 keystores by default, and PKCS12 cannot hold a separate
+key password — asking for one produces a warning and gets ignored. One password,
+saved in your password manager as you type it.
+
+The details it asks for (name, organisation, city, state, country) go into the
+certificate. Use the business name you actually trade under. At the end it shows
+what you typed and asks if it is correct: you must type `yes` — pressing Enter
+means no and it starts over.
 
 `-validity 10000` is about 27 years. Play Store requires the certificate to
 outlast 2033, and a certificate expiring is another way to lose the ability to
