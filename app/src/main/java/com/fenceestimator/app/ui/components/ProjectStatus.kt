@@ -1,6 +1,7 @@
 package com.fenceestimator.app.ui.components
 
 import com.fenceestimator.app.data.HoaApprovalStatus
+import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
@@ -33,7 +34,9 @@ object ProjectStatus {
     fun stages(job: Job, jobComplete: Boolean): List<ProjectStage> {
         val quoteSent = job.status != JobStatus.DRAFT
         val approved = job.status.isWon || job.signatureImagePath != null
-        val depositReceived = job.amountPaid > 0.0 || job.paymentStatus != PaymentStatus.UNPAID
+        // netPaid, not amountPaid: a job paid and then fully refunded has not
+        // had its deposit received, however much passed through it.
+        val depositReceived = JobMoney.netPaid(job) > 0.0 || job.paymentStatus != PaymentStatus.UNPAID
         val hoaDone = job.hoaApprovalStatus == HoaApprovalStatus.NOT_REQUIRED ||
             job.hoaApprovalStatus == HoaApprovalStatus.APPROVED
         val scheduled = job.scheduledDate != null
@@ -85,7 +88,10 @@ object ProjectStatus {
         val scheduleNote = job.scheduledDate?.let {
             "\n\nInstallation is scheduled for ${dateFormat.format(Date(it))}."
         }.orEmpty()
-        val balance = (job.amountPaid).let { paid ->
+        // Net of refunds. This line goes to the customer, so telling them we
+        // received more than we kept is the one version of this figure that
+        // could start an argument.
+        val balance = JobMoney.netPaid(job).let { paid ->
             if (paid > 0.0) "\n\nReceived so far: $${"%.2f".format(paid)}." else ""
         }
 

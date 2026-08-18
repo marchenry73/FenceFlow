@@ -75,7 +75,9 @@ enum class ReviewTemplate(val label: String, val describes: String, val body: St
         fun suggestFor(job: Job, isRepeatCustomer: Boolean): ReviewTemplate = when {
             job.blockedReason.isNotBlank() -> AFTER_A_PROBLEM
             isRepeatCustomer -> REPEAT_CUSTOMER
-            job.amountPaid >= LARGE_JOB_THRESHOLD -> BIG_JOB
+            // Net of refunds: a large job that was mostly refunded is not the
+            // one to ask for a glowing review about.
+            com.fenceestimator.app.estimate.JobMoney.netPaid(job) >= LARGE_JOB_THRESHOLD -> BIG_JOB
             else -> STRAIGHTFORWARD
         }
 

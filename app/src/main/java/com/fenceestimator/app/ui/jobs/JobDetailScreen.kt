@@ -1084,8 +1084,11 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         // not correct anything -- Stripe would still hold the real figure --
         // it would just create a disagreement that surfaces when the customer
         // queries the bill.
+        // netPaid, so this agrees with "Paid so far" further down the same
+        // screen. Showing the gross figure here meant a refunded job displayed
+        // two different "paid" numbers a few inches apart.
         OutlinedTextField(
-            value = "$${"%.2f".format(job.amountPaid)}",
+            value = "$${"%.2f".format(JobMoney.netPaid(job))}",
             onValueChange = {},
             readOnly = true,
             enabled = false,

@@ -3,6 +3,7 @@ package com.fenceestimator.app.ui.reports
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.Employee
+import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.data.Expense
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.PaymentRecord
@@ -222,7 +223,7 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
                 outstanding = jobs.map {
                     OwedRow(
                         it.customerName.ifBlank { "Untitled" }, it.status.name,
-                        materialsByJob[it.id] ?: 0.0, it.amountPaid
+                        materialsByJob[it.id] ?: 0.0, JobMoney.netPaid(it)
                     )
                 }.filter { it.outstanding > 0.01 }.sortedByDescending { it.outstanding },
                 payments = paymentsInPeriod,
@@ -278,7 +279,9 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
     private fun costBreakdown(
         jobs: List<Job>, expenses: List<Expense>, times: List<TimeEntry>, materials: Map<Long, Double>
     ) = listOf(
-        ChartRow("Collected", jobs.sumOf { it.amountPaid }),
+        // Net of refunds. Money handed back was never collected, and this is
+        // the figure a contractor carries into their tax return.
+        ChartRow("Collected", jobs.sumOf { JobMoney.netPaid(it) }),
         ChartRow("Materials", jobs.sumOf { materials[it.id] ?: 0.0 }),
         ChartRow("Labor", times.sumOf { it.laborCost }),
         ChartRow("Other", expenses.sumOf { it.amount })
@@ -294,7 +297,7 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
                 j.paymentStatus == PaymentStatus.PAID_IN_FULL -> "Paid in Full"
                 j.status == JobStatus.COMPLETED -> "Installed"
                 j.scheduledDate != null && j.status == JobStatus.ACCEPTED -> "Scheduled"
-                j.amountPaid > 0 || j.paymentStatus == PaymentStatus.DEPOSIT_PAID -> "Deposit Paid"
+                JobMoney.netPaid(j) > 0 || j.paymentStatus == PaymentStatus.DEPOSIT_PAID -> "Deposit Paid"
                 j.status == JobStatus.ACCEPTED -> "Approved"
                 j.status == JobStatus.SENT -> "Quote Sent"
                 else -> "New Lead"

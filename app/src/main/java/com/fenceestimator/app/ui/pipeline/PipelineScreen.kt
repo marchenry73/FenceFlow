@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.data.Job
+import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.jobs.JobsViewModel
@@ -135,9 +136,9 @@ private fun StageColumn(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        if (job.amountPaid > 0.0) {
+                        if (JobMoney.netPaid(job) > 0.0) {
                             Text(
-                                "Paid ${currency.format(job.amountPaid)}",
+                                "Paid ${currency.format(JobMoney.netPaid(job))}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

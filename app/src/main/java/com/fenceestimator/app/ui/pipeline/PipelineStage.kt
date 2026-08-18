@@ -1,6 +1,7 @@
 package com.fenceestimator.app.ui.pipeline
 
 import com.fenceestimator.app.data.Job
+import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
 
@@ -29,7 +30,7 @@ enum class PipelineStage(val label: String) {
             job.paymentStatus == PaymentStatus.PAID_IN_FULL -> COMPLETE
             job.status == JobStatus.COMPLETED -> INSTALLED
             job.scheduledDate != null && job.status == JobStatus.ACCEPTED -> SCHEDULED
-            job.amountPaid > 0.0 || job.paymentStatus == PaymentStatus.DEPOSIT_PAID -> DEPOSIT_PAID
+            JobMoney.netPaid(job) > 0.0 || job.paymentStatus == PaymentStatus.DEPOSIT_PAID -> DEPOSIT_PAID
             job.status == JobStatus.ACCEPTED -> APPROVED
             job.status == JobStatus.SENT -> QUOTE_SENT
             hasDrawnWork -> ESTIMATING
