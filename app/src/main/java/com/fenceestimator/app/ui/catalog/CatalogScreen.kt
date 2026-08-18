@@ -19,10 +19,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -50,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fenceestimator.app.data.FenceType
@@ -60,6 +64,7 @@ import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.estimate.ImportMatch
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.NumberFormat
 import java.util.Locale
@@ -80,6 +85,37 @@ fun CatalogScreen(onBack: () -> Unit) {
     var showNewDialog by remember { mutableStateOf(false) }
     val tabs = remember { FenceType.values().toList() }
     var selectedTab by remember { mutableStateOf(FenceType.VINYL) }
+    var search by remember { mutableStateOf("") }
+    var showOnlyUnpriced by remember { mutableStateOf(false) }
+
+    // Searching looks across every fence type, not just the open tab. With
+    // hundreds of items, someone typing "cedar" wants the cedar, and having to
+    // guess which tab it was filed under is the whole problem with tabs.
+    val searching = search.isNotBlank()
+    val visibleItems = remember(catalog, selectedTab, search, showOnlyUnpriced) {
+        val base = when {
+            searching -> {
+                val needle = search.trim().lowercase()
+                catalog.filter {
+                    it.name.lowercase().contains(needle) ||
+                        it.colorOrFinish.lowercase().contains(needle) ||
+                        it.category.label.lowercase().contains(needle) ||
+                        it.fenceType.label.lowercase().contains(needle)
+                }
+            }
+            // Unpriced items are a whole-catalog problem, so this filter
+            // deliberately ignores the open tab -- they need finding wherever
+            // they are, not one fence type at a time.
+            showOnlyUnpriced -> catalog
+            else -> catalog.filter { it.fenceType == selectedTab }
+        }
+        if (showOnlyUnpriced) base.filter { it.unitPrice <= 0.0 } else base
+    }
+
+    // An item priced at zero is not free, it is unfilled -- and it silently
+    // drags every estimate using it below cost. Worth surfacing before it is
+    // quoted rather than after.
+    val unpricedCount = remember(catalog) { catalog.count { it.unitPrice <= 0.0 } }
 
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) viewModel.importPdf(app, uri)
@@ -99,13 +135,36 @@ fun CatalogScreen(onBack: () -> Unit) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            ScrollableTabRow(selectedTabIndex = tabs.indexOf(selectedTab)) {
-                tabs.forEach { type ->
-                    Tab(
-                        selected = selectedTab == type,
-                        onClick = { selectedTab = type },
-                        text = { Text(type.name.replace("_", " ")) }
-                    )
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                singleLine = true,
+                label = { Text("Search all materials") },
+                placeholder = { Text("cedar, 4x4 post, latch...") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searching) {
+                        IconButton(onClick = { search = "" }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            // The tabs are meaningless while a search is filtering across all
+            // of them, and leaving one highlighted suggests the results are
+            // confined to it.
+            if (!searching) {
+                ScrollableTabRow(selectedTabIndex = tabs.indexOf(selectedTab)) {
+                    tabs.forEach { type ->
+                        val count = catalog.count { it.fenceType == type }
+                        Tab(
+                            selected = selectedTab == type,
+                            onClick = { selectedTab = type },
+                            text = { Text(if (count > 0) "${type.label} ($count)" else type.label) }
+                        )
+                    }
                 }
             }
             LazyColumn(
@@ -113,16 +172,47 @@ fun CatalogScreen(onBack: () -> Unit) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item {
-                    Text(
-                        "Prices used to price your estimates. Tap an item to edit, or import an invoice/estimate PDF to update prices in bulk.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                item {
-                    Button(onClick = { showNewDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Add Custom Item")
+                if (!searching) {
+                    item {
+                        Text(
+                            "Prices used to price your estimates. Tap an item to edit, or import an invoice/estimate PDF to update prices in bulk.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (unpricedCount > 0) {
+                        item {
+                            Card(
+                                onClick = { showOnlyUnpriced = !showOnlyUnpriced },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        if (unpricedCount == 1) "1 item has no price set"
+                                        else "$unpricedCount items have no price set",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        if (showOnlyUnpriced)
+                                            "Showing only those. Tap to show everything again."
+                                        else
+                                            "They count as $0.00 in an estimate, so any quote using one " +
+                                                "comes out under cost. Tap to see just those.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Button(onClick = { showNewDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Add Custom Item")
+                        }
                     }
                 }
                 if (isImporting) {
@@ -133,25 +223,43 @@ fun CatalogScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-                val tabItems = catalog.filter { it.fenceType == selectedTab }
-                if (tabItems.isEmpty()) {
+                if (searching) {
                     item {
                         Text(
-                            "No items for this fence type yet.",
+                            if (visibleItems.isEmpty()) "Nothing matches \"${search.trim()}\"."
+                            else "${visibleItems.size} " +
+                                (if (visibleItems.size == 1) "match" else "matches") +
+                                " across all fence types",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (visibleItems.isEmpty()) {
+                    item {
+                        Text(
+                            if (showOnlyUnpriced) "Every item has a price. Nothing to fix."
+                            else "No items for this fence type yet.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-                items(tabItems.groupBy { it.category }.toList(), key = { it.first }) { (category, itemsInCategory) ->
+                items(visibleItems.groupBy { it.category }.toList(), key = { it.first }) { (category, itemsInCategory) ->
                     Column {
                         Text(
-                            category.name.replace("_", " "),
+                            category.label,
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                         )
                         itemsInCategory.forEach { item ->
-                            CatalogRow(item, currency, manufacturers) { editingItem = item }
+                            // Which fence type an item belongs to is obvious
+                            // from the tab, but not from a search result.
+                            CatalogRow(
+                                item = item,
+                                currency = currency,
+                                manufacturers = manufacturers,
+                                showFenceType = searching || showOnlyUnpriced
+                            ) { editingItem = item }
                         }
                     }
                 }
@@ -192,8 +300,15 @@ fun CatalogScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun CatalogRow(item: MaterialItem, currency: NumberFormat, manufacturers: List<Manufacturer>, onClick: () -> Unit) {
+private fun CatalogRow(
+    item: MaterialItem,
+    currency: NumberFormat,
+    manufacturers: List<Manufacturer>,
+    showFenceType: Boolean = false,
+    onClick: () -> Unit
+) {
     val manufacturerName = manufacturers.firstOrNull { it.id == item.manufacturerId }?.name
+    val unpriced = item.unitPrice <= 0.0
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -212,6 +327,13 @@ private fun CatalogRow(item: MaterialItem, currency: NumberFormat, manufacturers
                 if (item.colorOrFinish.isNotBlank()) {
                     Text(item.colorOrFinish, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                if (showFenceType) {
+                    Text(
+                        item.fenceType.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .padding(top = 3.dp)
@@ -229,7 +351,13 @@ private fun CatalogRow(item: MaterialItem, currency: NumberFormat, manufacturers
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(currency.format(item.unitPrice) + " / " + item.unit, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (unpriced) "No price" else currency.format(item.unitPrice) + " / " + item.unit,
+                    fontWeight = FontWeight.SemiBold,
+                    // "No price" rather than "$0.00 / ea", because $0.00 reads
+                    // as a decision and this is an omission.
+                    color = if (unpriced) MaterialTheme.colorScheme.error else Color.Unspecified
+                )
                 Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
             }
         }
