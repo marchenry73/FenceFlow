@@ -191,10 +191,6 @@ class Repository(private val db: AppDatabase) {
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
     suspend fun clearPendingDeletion(syncId: String) = pendingDeletionDao.clear(syncId)
 
-    suspend fun deleteEmployeeSynced(employee: Employee) {
-        employeeDao.delete(employee)
-        pendingDeletionDao.insert(PendingDeletion(syncId = employee.syncId, tableName = "employees", deletedBy = deletingUser))
-    }
 
     fun observeFenceRuns(jobId: Long): Flow<List<FenceRun>> = fenceRunDao.observeForJob(jobId)
     suspend fun getFenceRuns(jobId: Long): List<FenceRun> = fenceRunDao.getForJob(jobId)
@@ -308,12 +304,22 @@ class Repository(private val db: AppDatabase) {
     suspend fun getAllEmployees(): List<Employee> = employeeDao.getAll()
     suspend fun saveEmployee(e: Employee): Long =
         if (e.id == 0L) employeeDao.insert(e) else { employeeDao.update(e); e.id }
-    suspend fun deleteEmployee(e: Employee) = employeeDao.delete(e)
+    /**
+     * Removes a crew member everywhere, not just here.
+     *
+     * There used to be two of these: this one, which the screen called and which
+     * deleted only the local row, and a "Synced" variant that wrote the
+     * tombstone and which nothing called. So a crew member deleted on one phone
+     * stayed on every other phone, and came back here on the next sync.
+     */
+    suspend fun deleteEmployee(e: Employee) =
+        deleteSynced(e.syncId, "employees") { employeeDao.delete(e) }
 
     fun observeExpenses(jobId: Long): Flow<List<Expense>> = expenseDao.observeForJob(jobId)
     suspend fun getExpenses(jobId: Long): List<Expense> = expenseDao.getForJob(jobId)
     suspend fun getAllExpenses(): List<Expense> = expenseDao.getAll()
     suspend fun saveExpense(expense: Expense): Long = expenseDao.insert(expense)
+    suspend fun updateExpense(expense: Expense) = expenseDao.update(expense)
     suspend fun deleteExpense(expense: Expense) = deleteSynced(expense.syncId, "expenses") { expenseDao.delete(expense) }
 
     /**

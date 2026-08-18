@@ -92,6 +92,35 @@ class PullFiltersDeletedTest {
         )
     }
 
+    /**
+     * The second half of the same fault.
+     *
+     * Filtering tombstones stops deleted rows coming back. It does nothing for
+     * the other half: every pull only INSERTED rows the device did not have and
+     * never UPDATED ones it did, so an edit made on one phone never reached
+     * another. An approved shift stayed pending on the crew's phone forever,
+     * because their phone already held the row and skipped it.
+     *
+     * `filter { it.syncId !in known... }` is the shape that does that. Its
+     * absence is what this asserts. The fixed pulls key local rows by sync id
+     * with associateBy and branch on whether one already exists.
+     */
+    @Test
+    fun `no pull silently skips rows the device already has`() {
+        val source = syncSource()
+
+        val insertOnly = Regex("""filter\s*\{\s*it\.syncId\s*!in\s*known""")
+            .findAll(source).count()
+
+        assertTrue(
+            "Found $insertOnly pull(s) that skip rows already held locally. That means an " +
+                "edit made on one device never reaches another. Key the local rows by sync id " +
+                "with associateBy and update the existing row instead, naming only the fields " +
+                "the cloud shape carries so local-only ones survive.",
+            insertOnly == 0
+        )
+    }
+
     @Test
     fun `the helper that does the excluding still exists`() {
         val source = syncSource()

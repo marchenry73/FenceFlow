@@ -377,8 +377,27 @@ object EntitySync {
         val existing = repository.getAllPricingTiers()
         val knownIds = existing.map { it.syncId }.toSet()
         val knownNames = existing.map { it.name.trim().lowercase() }.toSet()
+        val localBySyncId = existing.associateBy { it.syncId }
         var added = 0
-        cloud.filter { it.syncId !in knownIds && it.name.trim().lowercase() !in knownNames }.forEach { row ->
+        cloud.forEach { row ->
+            val held = localBySyncId[row.syncId]
+            if (held != null) {
+                // Rates are what every estimate is priced from, so a change made
+                // in the office has to reach the phone quoting in the driveway.
+                val merged = held.copy(
+                    name = row.name,
+                    laborRatePerFt = row.laborRatePerFt,
+                    laborFlatFee = row.laborFlatFee,
+                    markupPercent = row.markupPercent,
+                    discountPercent = row.discountPercent,
+                    sortOrder = row.sortOrder
+                )
+                if (merged != held) { repository.savePricingTier(merged); added++ }
+                return@forEach
+            }
+            // Unknown id, but the name-matching above still applies: a tier
+            // seeded separately on each phone is one tier, not two.
+            if (row.name.trim().lowercase() in knownNames) return@forEach
             repository.savePricingTier(
                 PricingTier(
                     syncId = row.syncId, name = row.name,
@@ -406,21 +425,55 @@ object EntitySync {
         val knownIdentities = existingItems
             .map { identity(it.name, it.role.name, it.fenceType.name, it.colorOrFinish) }
             .toSet()
+        val localBySyncId = existingItems.associateBy { it.syncId }
         var added = 0
-        cloud.filter {
-            it.syncId !in knownIds &&
-                identity(it.name, it.role, it.fenceType, it.colorOrFinish) !in knownIdentities
-        }.forEach { row ->
+        cloud.forEach { row ->
+            val category = runCatching { MaterialCategory.valueOf(row.category) }
+                .getOrDefault(MaterialCategory.MISC)
+            val role = runCatching { MaterialRole.valueOf(row.role) }
+                .getOrDefault(MaterialRole.NONE)
+            val fenceType = runCatching { FenceType.valueOf(row.fenceType) }
+                .getOrDefault(FenceType.UNIVERSAL)
+            val existing = localBySyncId[row.syncId]
+            if (existing != null) {
+                // A price corrected after a supplier invoice has to reach every
+                // phone, or two people quote the same fence at two prices.
+                //
+                // copy() keeps manufacturerId and lastUpdated, which the cloud
+                // shape does not carry. Losing manufacturerId would detach every
+                // item from its supplier.
+                val merged = existing.copy(
+                    name = row.name,
+                    category = category,
+                    role = role,
+                    fenceType = fenceType,
+                    colorOrFinish = row.colorOrFinish,
+                    unit = row.unit,
+                    unitPrice = row.unitPrice,
+                    taxable = row.taxable,
+                    coversFt = row.coversFt,
+                    isActive = row.isActive,
+                    sourceDoc = row.sourceDoc
+                )
+                if (merged != existing) { repository.updateMaterialItem(merged); added++ }
+                return@forEach
+            }
+            // New to this phone by sync id -- but the seeded catalog means the
+            // same item can exist here under a different id, so it is only
+            // inserted when nothing matches by identity either. Updating those
+            // by identity is deliberately not attempted: the two rows are
+            // genuinely separate records, and merging them here would pick a
+            // winner arbitrarily.
+            if (identity(row.name, row.role, row.fenceType, row.colorOrFinish) in knownIdentities) {
+                return@forEach
+            }
             repository.saveMaterialItem(
                 MaterialItem(
                     syncId = row.syncId,
                     name = row.name,
-                    category = runCatching { MaterialCategory.valueOf(row.category) }
-                        .getOrDefault(MaterialCategory.MISC),
-                    role = runCatching { MaterialRole.valueOf(row.role) }
-                        .getOrDefault(MaterialRole.NONE),
-                    fenceType = runCatching { FenceType.valueOf(row.fenceType) }
-                        .getOrDefault(FenceType.UNIVERSAL),
+                    category = category,
+                    role = role,
+                    fenceType = fenceType,
                     colorOrFinish = row.colorOrFinish,
                     unit = row.unit,
                     unitPrice = row.unitPrice,
@@ -524,35 +577,60 @@ object EntitySync {
         val expenses = SupabaseModule.client.postgrest.from("expenses")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudExpense>()
-        val knownExpenses = jobIdBySyncId.values
-            .flatMap { repository.getExpenses(it) }.map { it.syncId }.toSet()
-        expenses.filter { it.syncId !in knownExpenses }.forEach { row ->
+        val localExpensesBySyncId = jobIdBySyncId.values
+            .flatMap { repository.getExpenses(it) }.associateBy { it.syncId }
+        expenses.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            repository.saveExpense(
-                Expense(
-                    syncId = row.syncId, jobId = jobId,
-                    category = runCatching { ExpenseCategory.valueOf(row.category) }
-                        .getOrDefault(ExpenseCategory.OTHER),
-                    description = row.description, amount = row.amount
+            val category = runCatching { ExpenseCategory.valueOf(row.category) }
+                .getOrDefault(ExpenseCategory.OTHER)
+            val existing = localExpensesBySyncId[row.syncId]
+            if (existing == null) {
+                repository.saveExpense(
+                    Expense(
+                        syncId = row.syncId, jobId = jobId,
+                        category = category,
+                        description = row.description, amount = row.amount
+                    )
                 )
-            )
-            added++
+                added++
+            } else {
+                // copy() keeps date, which the cloud shape does not carry.
+                // Overwriting wholesale would move every expense to today and
+                // quietly rewrite which tax year it falls in.
+                val merged = existing.copy(
+                    category = category,
+                    description = row.description,
+                    amount = row.amount
+                )
+                if (merged != existing) { repository.updateExpense(merged); added++ }
+            }
         }
 
         val punch = SupabaseModule.client.postgrest.from("punch_list_items")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudPunchItem>()
-        val knownPunch = jobIdBySyncId.values
-            .flatMap { repository.getPunchList(it) }.map { it.syncId }.toSet()
-        punch.filter { it.syncId !in knownPunch }.forEach { row ->
+        val localPunchBySyncId = jobIdBySyncId.values
+            .flatMap { repository.getPunchList(it) }.associateBy { it.syncId }
+        punch.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            repository.addPunchListItem(
-                PunchListItem(
-                    syncId = row.syncId, jobId = jobId,
-                    description = row.description, resolved = row.resolved
+            val existing = localPunchBySyncId[row.syncId]
+            if (existing == null) {
+                repository.addPunchListItem(
+                    PunchListItem(
+                        syncId = row.syncId, jobId = jobId,
+                        description = row.description, resolved = row.resolved
+                    )
                 )
-            )
-            added++
+                added++
+            } else {
+                // Ticking a callback off on site has to reach the office.
+                // copy() keeps createdAt, resolvedAt and the local photo path.
+                val merged = existing.copy(
+                    description = row.description,
+                    resolved = row.resolved
+                )
+                if (merged != existing) { repository.updatePunchListItem(merged); added++ }
+            }
         }
 
         // These four were pushed but never pulled back, so switching phones lost
@@ -657,39 +735,64 @@ object EntitySync {
         val steps = SupabaseModule.client.postgrest.from("job_steps")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudJobStep>()
-        val knownSteps = jobIdBySyncId.values
-            .flatMap { repository.getJobSteps(it) }.map { it.syncId }.toSet()
-        steps.filter { it.syncId !in knownSteps }.forEach { row ->
+        val localStepsBySyncId = jobIdBySyncId.values
+            .flatMap { repository.getJobSteps(it) }.associateBy { it.syncId }
+        steps.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            repository.insertJobStep(
-                JobStep(
-                    syncId = row.syncId, jobId = jobId,
-                    kind = runCatching { JobStepKind.valueOf(row.kind) }
-                        .getOrDefault(JobStepKind.INSTALL),
-                    description = row.description, checked = row.checked,
+            val kind = runCatching { JobStepKind.valueOf(row.kind) }
+                .getOrDefault(JobStepKind.INSTALL)
+            val existing = localStepsBySyncId[row.syncId]
+            if (existing == null) {
+                repository.insertJobStep(
+                    JobStep(
+                        syncId = row.syncId, jobId = jobId,
+                        kind = kind,
+                        description = row.description, checked = row.checked,
+                        verifiedWithCustomer = row.verifiedWithCustomer,
+                        sortOrder = row.sortOrder
+                    )
+                )
+                added++
+            } else {
+                // The install checklist is what the crew works from, so a step
+                // ticked on one phone has to read as ticked on the other.
+                // copy() keeps completedAt.
+                val merged = existing.copy(
+                    kind = kind,
+                    description = row.description,
+                    checked = row.checked,
                     verifiedWithCustomer = row.verifiedWithCustomer,
                     sortOrder = row.sortOrder
                 )
-            )
-            added++
+                if (merged != existing) { repository.updateJobStep(merged); added++ }
+            }
         }
 
         val markers = SupabaseModule.client.postgrest.from("site_markers")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudSiteMarker>()
-        val knownMarkers = jobIdBySyncId.values
-            .flatMap { repository.getSiteMarkers(it) }.map { it.syncId }.toSet()
-        markers.filter { it.syncId !in knownMarkers }.forEach { row ->
+        val localMarkersBySyncId = jobIdBySyncId.values
+            .flatMap { repository.getSiteMarkers(it) }.associateBy { it.syncId }
+        markers.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            repository.addSiteMarker(
-                SiteMarker(
-                    syncId = row.syncId, jobId = jobId,
-                    kind = runCatching { SiteMarkerKind.valueOf(row.kind) }
-                        .getOrDefault(SiteMarkerKind.OBSTACLE),
-                    x = row.x, y = row.y, label = row.label
+            val kind = runCatching { SiteMarkerKind.valueOf(row.kind) }
+                .getOrDefault(SiteMarkerKind.OBSTACLE)
+            val existing = localMarkersBySyncId[row.syncId]
+            if (existing == null) {
+                repository.addSiteMarker(
+                    SiteMarker(
+                        syncId = row.syncId, jobId = jobId,
+                        kind = kind, x = row.x, y = row.y, label = row.label
+                    )
                 )
-            )
-            added++
+                added++
+            } else {
+                // A marked obstacle that moved has to reach whoever is digging.
+                val merged = existing.copy(
+                    kind = kind, x = row.x, y = row.y, label = row.label
+                )
+                if (merged != existing) { repository.updateSiteMarker(merged); added++ }
+            }
         }
 
         return added
@@ -699,17 +802,31 @@ object EntitySync {
         val cloud = SupabaseModule.client.postgrest.from("employees")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudEmployee>()
-        val known = repository.getAllEmployees().map { it.syncId }.toSet()
+        val localBySyncId = repository.getAllEmployees().associateBy { it.syncId }
         var added = 0
-        cloud.filter { it.syncId !in known }.forEach { row ->
-            repository.saveEmployee(
-                Employee(
-                    syncId = row.syncId, name = row.name, role = row.role,
+        cloud.forEach { row ->
+            val existing = localBySyncId[row.syncId]
+            if (existing == null) {
+                repository.saveEmployee(
+                    Employee(
+                        syncId = row.syncId, name = row.name, role = row.role,
+                        phone = row.phone, email = row.email, notes = row.notes,
+                        hourlyRate = row.hourlyRate
+                    )
+                )
+                added++
+            } else {
+                // A pay rate corrected in the office has to reach the phone that
+                // costs the job. copy() keeps payType and perFootRate, which the
+                // cloud shape does not carry at all -- naming them here would
+                // reset every crew member to the default pay arrangement.
+                val merged = existing.copy(
+                    name = row.name, role = row.role,
                     phone = row.phone, email = row.email, notes = row.notes,
                     hourlyRate = row.hourlyRate
                 )
-            )
-            added++
+                if (merged != existing) { repository.saveEmployee(merged); added++ }
+            }
         }
         return added
     }
@@ -718,16 +835,26 @@ object EntitySync {
         val cloud = SupabaseModule.client.postgrest.from("manufacturers")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudManufacturer>()
-        val known = repository.getAllManufacturers().map { it.syncId }.toSet()
+        val localBySyncId = repository.getAllManufacturers().associateBy { it.syncId }
         var added = 0
-        cloud.filter { it.syncId !in known }.forEach { row ->
-            repository.saveManufacturer(
-                Manufacturer(
-                    syncId = row.syncId, name = row.name, email = row.email,
+        cloud.forEach { row ->
+            val existing = localBySyncId[row.syncId]
+            if (existing == null) {
+                repository.saveManufacturer(
+                    Manufacturer(
+                        syncId = row.syncId, name = row.name, email = row.email,
+                        phone = row.phone, address = row.address, hours = row.hours, notes = row.notes
+                    )
+                )
+                added++
+            } else {
+                // A supplier changing their number is the whole point of holding it.
+                val merged = existing.copy(
+                    name = row.name, email = row.email,
                     phone = row.phone, address = row.address, hours = row.hours, notes = row.notes
                 )
-            )
-            added++
+                if (merged != existing) { repository.saveManufacturer(merged); added++ }
+            }
         }
         return added
     }
@@ -740,17 +867,53 @@ object EntitySync {
         // Runs belong to a job, so a run whose job hasn't synced down yet is
         // skipped rather than orphaned; the next pass picks it up.
         val jobIdBySyncId = repository.getAllJobs().associateBy({ it.syncId }, { it.id })
-        val known = jobIdBySyncId.values.flatMap { repository.getFenceRuns(it) }.map { it.syncId }.toSet()
+        val localBySyncId = jobIdBySyncId.values
+            .flatMap { repository.getFenceRuns(it) }.associateBy { it.syncId }
 
         var added = 0
-        cloud.filter { it.syncId !in known }.forEach { row ->
+        cloud.forEach { row ->
             val localJobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            repository.createFenceRun(
-                FenceRun(
-                    syncId = row.syncId,
-                    jobId = localJobId,
+            val fenceType = runCatching { FenceType.valueOf(row.fenceType) }
+                .getOrDefault(FenceType.VINYL)
+            val existing = localBySyncId[row.syncId]
+            if (existing == null) {
+                repository.createFenceRun(
+                    FenceRun(
+                        syncId = row.syncId,
+                        jobId = localJobId,
+                        label = row.label,
+                        fenceType = fenceType,
+                        colorOrFinish = row.colorOrFinish,
+                        pointsEncoded = row.pointsEncoded,
+                        gatesEncoded = row.gatesEncoded,
+                        closedLoop = row.closedLoop,
+                        panelWidthFt = row.panelWidthFt,
+                        panelHeightFt = row.panelHeightFt,
+                        postSpacingFt = row.postSpacingFt,
+                        concreteBagsPerPost = row.concreteBagsPerPost,
+                        manualLinearFeet = row.manualLinearFeet,
+                        manualCornerCount = row.manualCornerCount,
+                        suppressedRolesCsv = row.suppressedRolesCsv
+                    )
+                )
+                added++
+            } else {
+                // Redrawing a fence line, or correcting its footage, has to
+                // reach the crew -- otherwise they build to an older drawing
+                // than the one the customer was quoted from.
+                //
+                // copy() names only what the cloud carries. It does NOT carry
+                // thirteen of the fields on this entity, including every style and
+                // spec option -- aluminumStyle, woodStyle, picketWidthIn,
+                // fabricHeightFt, includeTopRail and the rest. Those keep their
+                // local values here, which is the safe behaviour but not the
+                // right one: they never sync at all, so two phones can compute
+                // different takeoffs from the same run. Fixing that needs the
+                // columns adding to the table and the wire shape, tracked
+                // separately.
+                val merged = existing.copy(
                     label = row.label,
-                    fenceType = runCatching { FenceType.valueOf(row.fenceType) }.getOrDefault(FenceType.VINYL),
+                    fenceType = fenceType,
                     colorOrFinish = row.colorOrFinish,
                     pointsEncoded = row.pointsEncoded,
                     gatesEncoded = row.gatesEncoded,
@@ -763,8 +926,8 @@ object EntitySync {
                     manualCornerCount = row.manualCornerCount,
                     suppressedRolesCsv = row.suppressedRolesCsv
                 )
-            )
-            added++
+                if (merged != existing) { repository.updateFenceRun(merged); added++ }
+            }
         }
         return added
     }
