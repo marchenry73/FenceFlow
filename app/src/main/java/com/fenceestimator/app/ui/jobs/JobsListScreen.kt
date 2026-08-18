@@ -104,6 +104,35 @@ fun JobsListScreen(
     var showTour by remember(profile.hasSeenTour, jobs.isEmpty()) {
         mutableStateOf(!profile.hasSeenTour && jobs.isEmpty() && profile.updatedAt == 0L)
     }
+    // Checked once per launch. Silence when this build is current, or when the
+    // check simply could not run -- interrupting somebody mid-job to say the
+    // update server was unreachable helps nobody.
+    var pendingUpdate by remember {
+        mutableStateOf<com.fenceestimator.app.cloud.AppRelease?>(null)
+    }
+    var updateDismissed by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        pendingUpdate = com.fenceestimator.app.cloud.UpdateChecker.check()
+    }
+    pendingUpdate?.takeIf { !updateDismissed }?.let { release ->
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        com.fenceestimator.app.ui.onboarding.UpdateAvailableDialog(
+            release = release,
+            onDownload = {
+                runCatching {
+                    ctx.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(release.downloadUrl)
+                        )
+                    )
+                }
+                updateDismissed = true
+            },
+            onLater = { updateDismissed = true }
+        )
+    }
+
     if (showTour) {
         com.fenceestimator.app.ui.onboarding.FirstRunTour(
             onFinished = {
