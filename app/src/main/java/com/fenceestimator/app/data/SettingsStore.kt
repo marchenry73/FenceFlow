@@ -38,8 +38,8 @@ private const val DEFAULT_ORDER_TEMPLATE =
         "Please confirm availability and lead time.\n\nThanks,\n{businessName}"
 
 private const val DEFAULT_ORDER_TEMPLATE_ES =
-    "Hola,\n\nPor favor suministren los materiales a continuacion para el siguiente trabajo, aceptado y listo para programar:\n\n" +
-        "Cliente: {customerName}\nDireccion: {address}\n\n{lineItems}\n\nTotal: {total}\n\n" +
+    "Hola,\n\nPor favor suministren los materiales a continuación para el siguiente trabajo, aceptado y listo para programar:\n\n" +
+        "Cliente: {customerName}\nDirección: {address}\n\n{lineItems}\n\nTotal: {total}\n\n" +
         "Por favor confirmen disponibilidad y tiempo de entrega.\n\nGracias,\n{businessName}"
 
 private const val DEFAULT_HOA_TEMPLATE =
@@ -49,9 +49,9 @@ private const val DEFAULT_HOA_TEMPLATE =
         "Thank you,\n{businessName}\n{phone}"
 
 private const val DEFAULT_HOA_TEMPLATE_ES =
-    "Estimada Junta de la HOA,\n\nSolicitamos autorizacion para instalar una cerca nueva en la siguiente propiedad.\n\n" +
+    "Estimada Junta de la HOA,\n\nSolicitamos autorización para instalar una cerca nueva en la siguiente propiedad.\n\n" +
         "Propiedad: {address}\nTipo de cerca: {fenceType}\nAltura: {height} pies\nMaterial/Color: {material}\n\n" +
-        "Haganos saber si necesitan informacion o documentacion adicional para aprobar esta solicitud.\n\n" +
+        "Háganos saber si necesitan información o documentación adicional para aprobar esta solicitud.\n\n" +
         "Gracias,\n{businessName}\n{phone}"
 
 private const val DEFAULT_REVIEW_TEMPLATE =
@@ -59,8 +59,8 @@ private const val DEFAULT_REVIEW_TEMPLATE =
         "If you have a minute, a quick review would mean a lot to us and helps other folks find us. Thank you!"
 
 private const val DEFAULT_REVIEW_TEMPLATE_ES =
-    "Hola {customerName}, gracias por elegir a {businessName} para su cerca! " +
-        "Si tiene un momento, una breve resena significaria mucho para nosotros y ayuda a que otros nos encuentren. Gracias!"
+    "Hola {customerName}, ¡gracias por elegir a {businessName} para su cerca! " +
+        "Si tiene un momento, una breve reseña significaría mucho para nosotros y ayuda a que otros nos encuentren. ¡Gracias!"
 
 data class BusinessProfile(
     val businessName: String = "",

@@ -17,7 +17,7 @@ package com.fenceestimator.app.data
  */
 const val DEFAULT_CONTRACT_TERMS: String = """
 SCOPE OF WORK
-{COMPANY} will supply all labour, materials and equipment to install the
+{COMPANY} will supply all labor, materials and equipment to install the
 fencing described in this agreement at {ADDRESS}. Work not described here is
 not included and will be quoted separately as a written change order.
 
@@ -58,7 +58,7 @@ WARRANTY
 Workmanship is warranted for {WARRANTY_PERIOD} from completion. Materials carry
 their manufacturer's warranty only. This warranty does not cover storm damage,
 impact, ground movement, neglect, alterations by others, or the normal
-weathering, movement and colour change of wood.
+weathering, movement and color change of wood.
 
 COMPLETION
 Fence lines are built to follow the ground. Minor variation in height and gaps
@@ -69,7 +69,17 @@ You may cancel in writing before materials are ordered for a full refund of the
 deposit. After materials are ordered, the deposit covers materials already
 bought and restocking charges.
 
+YOUR RIGHT TO CANCEL -- [REPLACE THIS BLOCK BEFORE USING THIS CONTRACT]
+Most states require a home-improvement contract to state, in specific wording
+and often in a specific type size, that the customer may cancel within three
+business days of signing. The federal Cooling-Off Rule adds its own
+requirements for contracts signed somewhere other than the seller's usual
+place of business -- which is most fence jobs, since they are signed at the
+customer's home. Leaving this out can make the contract unenforceable and can
+carry a penalty on its own. Ask your attorney for the exact wording your state
+requires and replace this paragraph with it.
+
 By signing, you confirm you have read this agreement, that you own the property
-or are authorised to have this work done, and that the fence line has been
+or are authorized to have this work done, and that the fence line has been
 walked and agreed.
 """
