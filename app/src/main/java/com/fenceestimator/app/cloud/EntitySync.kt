@@ -26,6 +26,23 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
 
+/**
+ * Excludes rows that were deleted somewhere else.
+ *
+ * Every pull needs this and none of them had it. Deleting anything other than a
+ * job wrote a tombstone to the cloud and removed the local row, DeletionReaper
+ * dutifully removed it on the other devices -- and then the very next pull, in
+ * the same sync pass, read the tombstoned row back and re-inserted it because
+ * it was no longer present locally. Delete, reap, resurrect, on a loop, which
+ * is why deleted change orders kept reappearing on opening a job.
+ *
+ * Not used by the payments ledger, which needs to see tombstones: it works out
+ * what to push by comparing against the cloud list, so hiding deleted rows
+ * would make it re-upload deleted payments. It filters them in Kotlin instead.
+ */
+private fun io.github.jan.supabase.postgrest.query.filter.PostgrestFilterBuilder.notDeleted() =
+    filter("deleted_at", io.github.jan.supabase.postgrest.query.filter.FilterOperator.IS, "null")
+
 /* ---------------- wire shapes ---------------- */
 
 @Serializable
@@ -347,7 +364,7 @@ object EntitySync {
 
     private suspend fun pullPricingTiers(repository: Repository, companyId: String): Int {
         val cloud = SupabaseModule.client.postgrest.from("pricing_tiers")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudPricingTier>()
         // Match on NAME as well as sync id.
         //
@@ -377,7 +394,7 @@ object EntitySync {
 
     private suspend fun pullCatalog(repository: Repository, companyId: String): Int {
         val cloud = SupabaseModule.client.postgrest.from("material_items")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudMaterialItem>()
         // Same seeded-identity problem as pricing tiers: a catalog item is the
         // same item if its name, role, fence type and colour match, whatever
@@ -435,7 +452,7 @@ object EntitySync {
         repository.deleteOrphanedGeneratedLineItems()
 
         val lineItems = SupabaseModule.client.postgrest.from("estimate_line_items")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudLineItem>()
         val runIdBySyncId = jobIdBySyncId.values
             .flatMap { repository.getFenceRuns(it) }.associate { it.syncId to it.id }
@@ -471,7 +488,7 @@ object EntitySync {
         }
 
         val expenses = SupabaseModule.client.postgrest.from("expenses")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudExpense>()
         val knownExpenses = jobIdBySyncId.values
             .flatMap { repository.getExpenses(it) }.map { it.syncId }.toSet()
@@ -489,7 +506,7 @@ object EntitySync {
         }
 
         val punch = SupabaseModule.client.postgrest.from("punch_list_items")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudPunchItem>()
         val knownPunch = jobIdBySyncId.values
             .flatMap { repository.getPunchList(it) }.map { it.syncId }.toSet()
@@ -509,7 +526,7 @@ object EntitySync {
         // along with job checklists and site markers.
 
         val orders = SupabaseModule.client.postgrest.from("change_orders")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudChangeOrder>()
         val knownOrders = jobIdBySyncId.values
             .flatMap { repository.getChangeOrders(it) }.map { it.syncId }.toSet()
@@ -533,7 +550,7 @@ object EntitySync {
         }
 
         val times = SupabaseModule.client.postgrest.from("time_entries")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudTimeEntry>()
         val knownTimes = jobIdBySyncId.values
             .flatMap { repository.getTimeEntries(it) }.map { it.syncId }.toSet()
@@ -559,7 +576,7 @@ object EntitySync {
         }
 
         val steps = SupabaseModule.client.postgrest.from("job_steps")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudJobStep>()
         val knownSteps = jobIdBySyncId.values
             .flatMap { repository.getJobSteps(it) }.map { it.syncId }.toSet()
@@ -579,7 +596,7 @@ object EntitySync {
         }
 
         val markers = SupabaseModule.client.postgrest.from("site_markers")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudSiteMarker>()
         val knownMarkers = jobIdBySyncId.values
             .flatMap { repository.getSiteMarkers(it) }.map { it.syncId }.toSet()
@@ -601,7 +618,7 @@ object EntitySync {
 
     private suspend fun pullEmployees(repository: Repository, companyId: String): Int {
         val cloud = SupabaseModule.client.postgrest.from("employees")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudEmployee>()
         val known = repository.getAllEmployees().map { it.syncId }.toSet()
         var added = 0
@@ -620,7 +637,7 @@ object EntitySync {
 
     private suspend fun pullManufacturers(repository: Repository, companyId: String): Int {
         val cloud = SupabaseModule.client.postgrest.from("manufacturers")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudManufacturer>()
         val known = repository.getAllManufacturers().map { it.syncId }.toSet()
         var added = 0
@@ -638,7 +655,7 @@ object EntitySync {
 
     private suspend fun pullFenceRuns(repository: Repository, companyId: String): Int {
         val cloud = SupabaseModule.client.postgrest.from("fence_runs")
-            .select { filter { eq("company_id", companyId) } }
+            .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudFenceRun>()
 
         // Runs belong to a job, so a run whose job hasn't synced down yet is
