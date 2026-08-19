@@ -97,18 +97,51 @@ object TrashBin {
      * which means it lands on every device, not just this one, and it lands
      * through the path that has already been made to behave correctly.
      */
+    /**
+     * Tables whose rows hang off a job, keyed by the column naming their job.
+     *
+     * Restoring a job has to bring these back with it. Deleting a job removes
+     * its children locally by cascade but only tombstones the job itself, so a
+     * restored job arrived alone and its fence runs did not follow until the
+     * next sync pass. A job with no fence runs has no linear feet, and with no
+     * linear feet there is no labour charge -- so the job came back looking
+     * like it was only worth its materials. It corrected itself a minute later,
+     * which is arguably worse: the wrong figure is the one somebody reads.
+     */
+    private val JOB_CHILDREN = listOf(
+        "fence_runs", "estimate_line_items", "change_orders",
+        "job_steps", "site_markers", "expenses", "punch_list_items", "time_entries"
+    )
+
     suspend fun restore(companyId: String, record: TrashedRecord): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                SupabaseModule.client.postgrest.from(record.table).update(
-                    buildJsonObject {
-                        put("deleted_at", null as String?)
-                        put("deleted_by", "")
-                    }
-                ) {
+                val clear = buildJsonObject {
+                    put("deleted_at", null as String?)
+                    put("deleted_by", "")
+                }
+
+                SupabaseModule.client.postgrest.from(record.table).update(clear) {
                     filter {
                         eq("company_id", companyId)
                         eq("sync_id", record.syncId)
+                    }
+                }
+
+                // Bring the job's children back in the same breath. Most will
+                // carry no tombstone at all -- clearing one that is already
+                // clear costs a round trip and changes nothing, which is a fair
+                // price for the job returning whole.
+                if (record.table == "jobs") {
+                    JOB_CHILDREN.forEach { child ->
+                        runCatching {
+                            SupabaseModule.client.postgrest.from(child).update(clear) {
+                                filter {
+                                    eq("company_id", companyId)
+                                    eq("job_sync_id", record.syncId)
+                                }
+                            }
+                        }
                     }
                 }
                 Unit

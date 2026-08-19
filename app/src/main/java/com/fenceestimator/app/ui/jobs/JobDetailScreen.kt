@@ -1121,7 +1121,11 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // Waiting for someone to notice the button is how the default becomes
     // "no deposit at all".
     LaunchedEffect(materialCost) { viewModel.autoFillDepositFromMaterials() }
+    // suggestedDeposit() is already net of what has been paid, and returns zero
+    // once payments cover materials -- so this disappears rather than asking for
+    // money that has already changed hands.
     val suggested = viewModel.suggestedDeposit()
+    val paidSoFar = JobMoney.netPaid(job)
     if (suggested > 0.0 && job.depositAmount < materialCost) {
         OutlinedButton(
             onClick = { viewModel.applySuggestedDeposit() },
@@ -1130,8 +1134,14 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             Text("Set deposit to $${"%.0f".format(suggested)} (covers materials)")
         }
         Text(
-            "Materials on this estimate come to $${"%.2f".format(materialCost)}. " +
-                "Rounded up to the next \$10.",
+            if (paidSoFar > 0.005)
+                "Materials come to $${"%.2f".format(materialCost)} and " +
+                    "$${"%.2f".format(paidSoFar)} has been paid, so " +
+                    "$${"%.2f".format(materialCost - paidSoFar)} is still needed to " +
+                    "cover them. Rounded up to the next \$10."
+            else
+                "Materials on this estimate come to $${"%.2f".format(materialCost)}. " +
+                    "Rounded up to the next \$10.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

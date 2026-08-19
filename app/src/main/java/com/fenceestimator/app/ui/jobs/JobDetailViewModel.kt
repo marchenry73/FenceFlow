@@ -66,11 +66,25 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 
-    /** Rounds a deposit up to the next $10 so it reads like a real figure, not a calculation. */
+    /**
+     * What still needs collecting to cover materials, rounded up to the next
+     * $10 so it reads like a real figure rather than a calculation.
+     *
+     * Net of what the customer has already paid. Without that subtraction,
+     * adding materials to a job that was already part paid produced a
+     * suggestion to collect the whole new material total again -- so a customer
+     * who had handed over $1,000 was asked for the full $2,450 rather than the
+     * $1,450 outstanding. Returns zero once payments already cover materials,
+     * which is also what stops the suggestion appearing at all.
+     */
     fun suggestedDeposit(): Double {
         val cost = materialCost.value
         if (cost <= 0.0) return 0.0
-        return kotlin.math.ceil(cost / 10.0) * 10.0
+        val current = job.value
+        val alreadyPaid = current?.let { com.fenceestimator.app.estimate.JobMoney.netPaid(it) } ?: 0.0
+        val outstanding = cost - alreadyPaid
+        if (outstanding <= 0.0) return 0.0
+        return kotlin.math.ceil(outstanding / 10.0) * 10.0
     }
 
     fun applySuggestedDeposit() {
