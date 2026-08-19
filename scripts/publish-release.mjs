@@ -32,7 +32,16 @@ const REPO_ROOT = resolve(import.meta.dirname, "..");
 
 const args = process.argv.slice(2);
 const urgent = args.includes("--urgent");
-const notes = args.filter((a) => a !== "--urgent").join(" ").trim();
+
+// Where people actually get the APK. Without it the prompt appears with a
+// button that does nothing, which reads as the app being broken -- so this is
+// remembered from the last release and reused when omitted. Set it once.
+const urlFlag = args.findIndex((a) => a === "--url");
+const downloadUrl = urlFlag >= 0 ? (args[urlFlag + 1] || "") : null;
+
+const notes = args
+  .filter((a, i) => a !== "--urgent" && a !== "--url" && !(urlFlag >= 0 && i === urlFlag + 1))
+  .join(" ").trim();
 
 if (!notes) {
   console.error("Say what changed, so the prompt is worth reading.\n");
@@ -58,17 +67,25 @@ if (!existsSync(apk)) {
   console.warn("Note: no built APK found locally. Did you run assembleDebug first?\n");
 }
 
-const esc = (s) => s.replace(/'/g, "''");
-const sql = `
-insert into public.app_releases (version_code, version_name, notes, is_mandatory)
-values (${code}, '${esc(name)}', '${esc(notes)}', ${urgent})
-on conflict (version_code) do update
-  set version_name = excluded.version_name,
-      notes        = excluded.notes,
-      is_mandatory = excluded.is_mandatory;
+const esc = (s) => String(s).replace(/'/g, "''");
 
-select version_code, version_name, is_mandatory from public.app_releases
-order by version_code desc limit 3;
+// An omitted --url inherits the previous release's link rather than blanking
+// it, so the URL only has to be typed once ever.
+const urlExpr = downloadUrl === null
+  ? "coalesce((select download_url from public.app_releases order by version_code desc limit 1), '')"
+  : "'" + esc(downloadUrl) + "'";
+
+const sql = `
+insert into public.app_releases (version_code, version_name, notes, is_mandatory, download_url)
+values (${code}, '${esc(name)}', '${esc(notes)}', ${urgent}, ${urlExpr})
+on conflict (version_code) do update
+  set version_name  = excluded.version_name,
+      notes         = excluded.notes,
+      is_mandatory  = excluded.is_mandatory,
+      download_url  = excluded.download_url;
+
+select version_code, version_name, is_mandatory, download_url from public.app_releases
+order by version_code desc limit 1;
 `;
 
 const file = join(tmpdir(), `ff-release-${process.pid}.sql`);
@@ -86,8 +103,17 @@ try {
   }
   console.log(`Published version ${name}${urgent ? "  (mandatory)" : ""}`);
   console.log(`  "${notes}"`);
+
+  // Say so loudly. A release with no link shows a prompt people cannot act on.
+  if (/"download_url":\s*""/.test(out)) {
+    console.warn("\nWARNING: this release has no download link, so the prompt");
+    console.warn("will tell people to look in the shared folder instead of");
+    console.warn("opening it for them. Set one once and it is reused after that:");
+    console.warn('  node scripts/publish-release.mjs "notes" --url "https://..."');
+  }
+
   console.log("\nEvery phone will prompt next time the app is opened.");
-  console.log("Make sure the APK on Google Drive is this build.");
+  console.log("Make sure the APK in that folder is this build.");
 } finally {
   rmSync(file, { force: true });
 }

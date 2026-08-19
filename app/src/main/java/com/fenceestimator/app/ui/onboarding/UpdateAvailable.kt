@@ -61,6 +61,14 @@ fun UpdateAvailableDialog(
                 }
                 // Said plainly because it is the part people worry about, and
                 // the worry is what stops them updating.
+                if (release.downloadUrl.isBlank()) {
+                    Text(
+                        "This version is in your usual shared folder -- no download " +
+                            "link was published with it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
                     "Installing an update keeps everything -- your jobs, drawings, " +
                         "photos and payments all stay exactly as they are.",
@@ -70,10 +78,14 @@ fun UpdateAvailableDialog(
             }
         },
         confirmButton = {
-            Button(
-                enabled = release.downloadUrl.isNotBlank(),
-                onClick = onDownload
-            ) { Text("Get it") }
+            // A greyed-out button with no explanation reads as the app being
+            // broken. If a release was published without a download link, say
+            // where to get it instead of offering a control that does nothing.
+            if (release.downloadUrl.isNotBlank()) {
+                Button(onClick = onDownload) { Text("Get it") }
+            } else {
+                TextButton(onClick = onLater) { Text("OK") }
+            }
         },
         dismissButton = {
             if (!release.isMandatory) {

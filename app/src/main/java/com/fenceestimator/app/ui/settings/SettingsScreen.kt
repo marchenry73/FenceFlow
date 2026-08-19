@@ -680,6 +680,22 @@ fun SettingsScreen(
                     Text("Save Settings")
                 }
             }
+            item {
+                // Quiet, at the very bottom, but findable. Worth having when
+                // somebody reports a problem: the first useful question is
+                // always which build they are on.
+                //
+                // The build number is shown as well as the name because the
+                // number is what the update check actually compares.
+                Text(
+                    "FenceFlow " + com.fenceestimator.app.BuildConfig.VERSION_NAME +
+                        "  (build " + com.fenceestimator.app.BuildConfig.VERSION_CODE + ")",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
         }
     }
 

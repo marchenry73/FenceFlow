@@ -112,7 +112,7 @@ fun JobsListScreen(
     }
     var updateDismissed by remember { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        pendingUpdate = com.fenceestimator.app.cloud.UpdateChecker.check()
+        pendingUpdate = com.fenceestimator.app.cloud.UpdateChecker.checkOnce()
     }
     pendingUpdate?.takeIf { !updateDismissed }?.let { release ->
         val ctx = androidx.compose.ui.platform.LocalContext.current

@@ -36,6 +36,34 @@ data class AppRelease(
 object UpdateChecker {
 
     /**
+     * Whether this launch has already asked.
+     *
+     * The check used to sit in a LaunchedEffect on the jobs screen, so it ran
+     * again every time that screen was returned to -- which is constantly. An
+     * update prompt that reappears on the way back from every job is one people
+     * learn to dismiss without reading, including the time it matters.
+     *
+     * Process-scoped on purpose: "once per launch" means until the app is
+     * actually restarted, which is also when installing an update happens.
+     */
+    @Volatile
+    private var askedThisLaunch = false
+
+    /** Resets the once-per-launch guard. For tests. */
+    fun resetForTest() { askedThisLaunch = false }
+
+    /**
+     * The same as [check], but only ever answers once per launch.
+     *
+     * Returns null on every later call, whatever the server says.
+     */
+    suspend fun checkOnce(): AppRelease? {
+        if (askedThisLaunch) return null
+        askedThisLaunch = true
+        return check()
+    }
+
+    /**
      * @return the release worth telling the user about, or null when this build
      *   is current -- or when we simply could not tell. A failed check is
      *   silence, never a prompt: interrupting somebody mid-job to say the
