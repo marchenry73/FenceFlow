@@ -17,19 +17,29 @@ private val Context.dataStore by preferencesDataStore(name = "business_settings"
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /**
- * [tag] is the BCP-47 code that selects the matching res/values-xx folder.
- * [rtl] drives layout direction -- Arabic has to mirror the whole UI, not
- * just swap the words.
+ * The languages this app actually speaks.
+ *
+ * [tag] is the BCP-47 code selecting the matching res/values-xx folder.
+ * [rtl] is kept for the day a right-to-left language is added properly; none
+ * of the three below needs it.
+ *
+ * Cut from eight to three. The other five were offered in the settings list
+ * but had no translated documents behind them, so choosing one changed a
+ * little of the interface and none of the estimate, contract or invoice the
+ * customer receives. A language that half-works is worse than one that is not
+ * offered: it makes the app look broken at exactly the moment somebody is
+ * showing it to a customer.
+ *
+ * Arabic also needs the whole interface mirrored, which is a piece of work in
+ * its own right rather than a translation.
+ *
+ * Written in each language's own spelling, accents included -- a language list
+ * that cannot spell its own languages does not inspire confidence in the rest.
  */
 enum class AppLanguage(val tag: String, val displayName: String, val rtl: Boolean = false) {
     ENGLISH("en", "English"),
-    SPANISH("es", "Espanol"),
-    FRENCH("fr", "Francais"),
-    PORTUGUESE("pt", "Portugues"),
-    CHINESE("zh", "中文"),
-    HINDI("hi", "हिन्दी"),
-    ARABIC("ar", "العربية", rtl = true),
-    RUSSIAN("ru", "Русский")
+    SPANISH("es", "Español"),
+    FRENCH("fr", "Français")
 }
 
 private const val DEFAULT_ORDER_TEMPLATE =

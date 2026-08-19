@@ -19,43 +19,75 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private class PdfLabels(spanish: Boolean) {
-    val docTitleEstimate = if (spanish) "PRESUPUESTO" else "ESTIMATE"
-    val docTitleInvoice = if (spanish) "FACTURA" else "INVOICE"
-    val docTitleContract = if (spanish) "CONTRATO" else "CONTRACT"
-    val docTitleMaterials = if (spanish) "LISTA DE MATERIALES" else "MATERIAL REQUEST"
-    val scopeOfWork = if (spanish) "TRABAJO A REALIZAR" else "WORK TO BE DONE"
-    val thePlan = if (spanish) "EL PLANO" else "THE PLAN"
-    val unit = if (spanish) "UNIDAD" else "UNIT"
-    val approvedExtraWork = if (spanish) "Trabajo adicional aprobado" else "Approved extra work"
-    val quoteRequest = if (spanish)
-        "Por favor coticen los materiales listados arriba. Las cantidades son nuestras; los precios son suyos."
-    else
-        "Please quote the materials listed above. The quantities are ours -- the prices are yours."
-    val preparedFor = if (spanish) "PREPARADO PARA" else "PREPARED FOR"
-    val description = if (spanish) "DESCRIPCIÓN" else "DESCRIPTION"
-    val qty = if (spanish) "CANT" else "QTY"
-    val rate = if (spanish) "PRECIO" else "RATE"
-    val amount = if (spanish) "MONTO" else "AMOUNT"
-    val sectionSubtotal = if (spanish) "Subtotal de sección" else "Section subtotal"
-    val otherItems = if (spanish) "Otros Artículos" else "Other Items"
-    val materialsSubtotal = if (spanish) "Subtotal de Materiales" else "Materials Subtotal"
-    val tax = if (spanish) "Impuesto" else "Tax"
-    val onTaxable = if (spanish) "sobre artículos gravables" else "on taxable items"
-    val labor = if (spanish) "Mano de Obra / Instalación" else "Labor / Installation"
-    val teardown = if (spanish) "Demolición de Cerca Existente" else "Teardown of Existing Fence"
-    val markup = if (spanish) "Margen" else "Markup"
-    val discount = if (spanish) "Descuento" else "Discount"
-    val total = if (spanish) "TOTAL" else "TOTAL"
-    val deposit = if (spanish) "Depósito" else "Deposit"
-    val amountPaid = if (spanish) "Monto Pagado" else "Amount Paid"
-    val balanceDue = if (spanish) "Saldo Pendiente" else "Balance Due"
-    val totalLinearFeet = if (spanish) "Pies lineales totales de cerca" else "Total linear feet of fence"
-    val signedOn = if (spanish) "Firmado el" else "Signed on"
-    val note = if (spanish)
-        "Los precios se basan en los costos actuales de materiales y están sujetos a cambio. Este presupuesto es válido por 30 días."
-    else
-        "Prices based on current material costs and are subject to change. This estimate is valid for 30 days."
+/**
+ * Every word printed on a document, in the language its reader speaks.
+ *
+ * Was a single `spanish: Boolean`, so the estimate a customer received could
+ * only ever be English or Spanish however the setting was set. French chose a
+ * French interface and produced an English contract, which is worse than not
+ * offering it -- the moment it matters is the moment somebody is handing the
+ * document to a customer.
+ *
+ * Written out per language rather than pulled from string resources because
+ * these are produced on a background thread with no Context, and because the
+ * document has to be in the COMPANY'S chosen language regardless of what the
+ * phone rendering it is set to.
+ */
+private class PdfLabels(language: AppLanguage) {
+
+    private val es = language == AppLanguage.SPANISH
+    private val fr = language == AppLanguage.FRENCH
+
+    /** Picks by language, defaulting to English. */
+    private fun pick(english: String, spanish: String, french: String) =
+        when { es -> spanish; fr -> french; else -> english }
+
+    val docTitleEstimate = pick("ESTIMATE", "PRESUPUESTO", "DEVIS")
+    val docTitleInvoice = pick("INVOICE", "FACTURA", "FACTURE")
+    val docTitleContract = pick("CONTRACT", "CONTRATO", "CONTRAT")
+    val docTitleMaterials = pick("MATERIAL REQUEST", "LISTA DE MATERIALES", "DEMANDE DE MATÉRIAUX")
+    val preparedFor = pick("PREPARED FOR", "PREPARADO PARA", "PRÉPARÉ POUR")
+    val description = pick("DESCRIPTION", "DESCRIPCIÓN", "DESCRIPTION")
+    val qty = pick("QTY", "CANT", "QTÉ")
+    val rate = pick("RATE", "PRECIO", "PRIX")
+    val amount = pick("AMOUNT", "MONTO", "MONTANT")
+    val unit = pick("UNIT", "UNIDAD", "UNITÉ")
+    val sectionSubtotal = pick("Section subtotal", "Subtotal de sección", "Sous-total de section")
+    val otherItems = pick("Other Items", "Otros Artículos", "Autres Articles")
+    val materialsSubtotal = pick("Materials Subtotal", "Subtotal de Materiales", "Sous-total Matériaux")
+    val tax = pick("Tax", "Impuesto", "Taxe")
+    val onTaxable = pick("on taxable items", "sobre artículos gravables", "sur articles taxables")
+    val labor = pick("Labor / Installation", "Mano de Obra / Instalación", "Main-d'œuvre / Installation")
+    val teardown = pick("Teardown of Existing Fence", "Demolición de Cerca Existente", "Démolition de la Clôture Existante")
+    val markup = pick("Markup", "Margen", "Marge")
+    val discount = pick("Discount", "Descuento", "Remise")
+    val total = pick("TOTAL", "TOTAL", "TOTAL")
+    val deposit = pick("Deposit", "Depósito", "Acompte")
+    val amountPaid = pick("Amount Paid", "Monto Pagado", "Montant Payé")
+    val balanceDue = pick("Balance Due", "Saldo Pendiente", "Solde Dû")
+    val totalLinearFeet = pick(
+        "Total linear feet of fence",
+        "Pies lineales totales de cerca",
+        "Pieds linéaires totaux de clôture"
+    )
+    val signedOn = pick("Signed on", "Firmado el", "Signé le")
+    val scopeOfWork = pick("WORK TO BE DONE", "TRABAJO A REALIZAR", "TRAVAUX À RÉALISER")
+    val thePlan = pick("THE PLAN", "EL PLANO", "LE PLAN")
+    val approvedExtraWork = pick(
+        "Approved extra work",
+        "Trabajo adicional aprobado",
+        "Travaux supplémentaires approuvés"
+    )
+    val quoteRequest = pick(
+        "Please quote the materials listed above. The quantities are ours -- the prices are yours.",
+        "Por favor coticen los materiales listados arriba. Las cantidades son nuestras; los precios son suyos.",
+        "Merci de chiffrer les matériaux ci-dessus. Les quantités sont les nôtres, les prix sont les vôtres."
+    )
+    val note = pick(
+        "Prices based on current material costs and are subject to change. This estimate is valid for 30 days.",
+        "Los precios se basan en los costos actuales de materiales y están sujetos a cambio. Este presupuesto es válido por 30 días.",
+        "Les prix sont basés sur les coûts actuels des matériaux et peuvent changer. Ce devis est valable 30 jours."
+    )
 }
 
 object PdfExporter {
@@ -84,7 +116,7 @@ object PdfExporter {
         document_: JobDocument = if (isInvoice) JobDocument.CUSTOMER_INVOICE else JobDocument.WORKING_ESTIMATE
     ): File {
         val docKind = document_
-        val labels = PdfLabels(business.language == AppLanguage.SPANISH)
+        val labels = PdfLabels(business.language)
         val document = PdfDocument()
         var pageNumber = 1
         var pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
