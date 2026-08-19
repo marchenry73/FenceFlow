@@ -78,4 +78,5 @@ enum class JobDocument(
 
     /** True when this document leaves the building. */
     val isExternal: Boolean get() = this != WORKING_ESTIMATE
+
 }

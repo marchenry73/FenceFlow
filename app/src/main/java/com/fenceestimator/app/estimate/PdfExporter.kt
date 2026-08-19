@@ -11,6 +11,7 @@ import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
+import com.fenceestimator.app.ui.components.label
 import java.io.File
 import java.io.FileOutputStream
 import java.text.NumberFormat
@@ -21,6 +22,16 @@ import java.util.Locale
 private class PdfLabels(spanish: Boolean) {
     val docTitleEstimate = if (spanish) "PRESUPUESTO" else "ESTIMATE"
     val docTitleInvoice = if (spanish) "FACTURA" else "INVOICE"
+    val docTitleContract = if (spanish) "CONTRATO" else "CONTRACT"
+    val docTitleMaterials = if (spanish) "LISTA DE MATERIALES" else "MATERIAL REQUEST"
+    val scopeOfWork = if (spanish) "TRABAJO A REALIZAR" else "WORK TO BE DONE"
+    val thePlan = if (spanish) "EL PLANO" else "THE PLAN"
+    val unit = if (spanish) "UNIDAD" else "UNIT"
+    val approvedExtraWork = if (spanish) "Trabajo adicional aprobado" else "Approved extra work"
+    val quoteRequest = if (spanish)
+        "Por favor coticen los materiales listados arriba. Las cantidades son nuestras; los precios son suyos."
+    else
+        "Please quote the materials listed above. The quantities are ours -- the prices are yours."
     val preparedFor = if (spanish) "PREPARADO PARA" else "PREPARED FOR"
     val description = if (spanish) "DESCRIPCIÓN" else "DESCRIPTION"
     val qty = if (spanish) "CANT" else "QTY"
@@ -108,9 +119,17 @@ object PdfExporter {
 
         fun drawTableHeader() {
             canvas.drawText(labels.description, colDesc, y, labelPaint)
-            canvas.drawText(labels.qty, colQty, y, labelPaint)
-            canvas.drawText(labels.rate, colRate, y, labelPaint)
-            canvas.drawText(labels.amount, colAmount, y, labelPaint)
+            // The supplier is the one who sends prices back, so their copy has
+            // no money columns at all -- not even empty ones, which only invite
+            // the question of what belongs there.
+            if (docKind.showsQuantitiesOnly) {
+                canvas.drawText(labels.qty, colRate, y, labelPaint)
+                canvas.drawText(labels.unit, colAmount, y, labelPaint)
+            } else {
+                canvas.drawText(labels.qty, colQty, y, labelPaint)
+                canvas.drawText(labels.rate, colRate, y, labelPaint)
+                canvas.drawText(labels.amount, colAmount, y, labelPaint)
+            }
             y += 10f
             canvas.drawLine(MARGIN, y, rightX, y, linePaint)
             y += 16f
@@ -119,13 +138,22 @@ object PdfExporter {
         fun drawItems(items: List<EstimateLineItem>) {
             items.forEach { item ->
                 newPageIfNeeded(18f)
-                val amount = item.quantity * item.unitPrice
-                val qtyStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else String.format(Locale.US, "%.2f", item.quantity)
-                canvas.drawText(truncate(item.description, 46), colDesc, y, bodyPaint)
-                canvas.drawText(qtyStr, colQty, y, bodyPaint)
-                canvas.drawText(currency.format(item.unitPrice), colRate, y, bodyPaint)
-                val amountStr = currency.format(amount) + if (item.taxable) "T" else ""
-                canvas.drawText(amountStr, colAmount, y, bodyPaint)
+                val qtyStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString()
+                    else String.format(Locale.US, "%.2f", item.quantity)
+                if (docKind.showsQuantitiesOnly) {
+                    // More room for the description without the price columns,
+                    // which matters -- a supplier quoting from a truncated part
+                    // name quotes the wrong part.
+                    canvas.drawText(truncate(item.description, 62), colDesc, y, bodyPaint)
+                    canvas.drawText(qtyStr, colRate, y, bodyPaint)
+                    canvas.drawText(item.unit, colAmount, y, bodyPaint)
+                } else {
+                    canvas.drawText(truncate(item.description, 46), colDesc, y, bodyPaint)
+                    canvas.drawText(qtyStr, colQty, y, bodyPaint)
+                    canvas.drawText(currency.format(item.unitPrice), colRate, y, bodyPaint)
+                    val amountStr = currency.format(item.lineTotal) + if (item.taxable) "T" else ""
+                    canvas.drawText(amountStr, colAmount, y, bodyPaint)
+                }
                 y += 18f
             }
         }
@@ -139,20 +167,54 @@ object PdfExporter {
             y += 18f
         }
 
-        // Header
-        canvas.drawText(business.businessName.ifBlank { "FenceFlow" }, MARGIN, y + 20f, titlePaint)
-        y += 30f
+        // ---- Header ----
+        //
+        // The business name is set in 22pt but only had 10pt of clearance
+        // before the phone number, so its descenders sat on top of it. The
+        // name also has to share the line with the document title on the
+        // right, and a long trading name plus a long title collided.
+        // Every document used to be headed ESTIMATE or INVOICE, so a contract
+        // and a supplier request arrived looking like two more copies of the
+        // quote. The heading is the first thing telling somebody which of the
+        // four they are holding.
+        val docTitle = when (docKind) {
+            JobDocument.WORKING_ESTIMATE -> labels.docTitleEstimate
+            JobDocument.CUSTOMER_CONTRACT -> labels.docTitleContract
+            JobDocument.SUPPLIER_REQUEST -> labels.docTitleMaterials
+            JobDocument.CUSTOMER_INVOICE -> labels.docTitleInvoice
+        }
+        val titleWidth = titlePaint.measureText(docTitle)
+
+        // Measured with the paint that DRAWS it. This used to measure with
+        // boldPaint at 11pt and draw with titlePaint at 22pt, so the title was
+        // about twice as wide as the space reserved and ran off the page edge.
+        val titleX = rightX - titleWidth
+        val topRightY = MARGIN + 20f
+        canvas.drawText(docTitle, titleX, topRightY, titlePaint)
+        canvas.drawText("# $estimateNumber", rightX - headerPaint.measureText("# $estimateNumber"), topRightY + 20f, headerPaint)
+        val dateText = dateFormat.format(Date())
+        canvas.drawText(dateText, rightX - headerPaint.measureText(dateText), topRightY + 36f, headerPaint)
+
+        // The name gets whatever is left, and shrinks rather than running into
+        // the title. A company called "Legacy Solutions Fencing & Landscaping"
+        // should still fit on its own document.
+        val name = business.businessName.ifBlank { "FenceFlow" }
+        val nameRoom = titleX - MARGIN - 24f
+        val namePaint = Paint(titlePaint)
+        while (namePaint.measureText(name) > nameRoom && namePaint.textSize > 12f) {
+            namePaint.textSize -= 1f
+        }
+        canvas.drawText(name, MARGIN, y + 20f, namePaint)
+
+        // Clear the name descenders before anything else is drawn.
+        y += 20f + namePaint.textSize * 0.45f
         if (business.phone.isNotBlank()) { canvas.drawText(business.phone, MARGIN, y, headerPaint); y += 14f }
         if (business.email.isNotBlank()) { canvas.drawText(business.email, MARGIN, y, headerPaint); y += 14f }
         if (business.licenseNumber.isNotBlank()) { canvas.drawText("License #${business.licenseNumber}", MARGIN, y, headerPaint); y += 14f }
 
-        val docTitle = if (isInvoice) labels.docTitleInvoice else labels.docTitleEstimate
-        val topRightY = MARGIN + 20f
-        canvas.drawText(docTitle, rightX - boldPaint.measureText(docTitle), topRightY, titlePaint)
-        canvas.drawText("# $estimateNumber", rightX - headerPaint.measureText("# $estimateNumber"), topRightY + 22f, headerPaint)
-        canvas.drawText(dateFormat.format(Date()), rightX - headerPaint.measureText(dateFormat.format(Date())), topRightY + 38f, headerPaint)
-
-        y += 20f
+        // Never start the body above the date block on the right.
+        y = maxOf(y, topRightY + 48f)
+        y += 14f
         canvas.drawLine(MARGIN, y, rightX, y, linePaint)
         y += 20f
 
@@ -169,29 +231,75 @@ object PdfExporter {
 
         val byRun = lineItems.groupBy { it.fenceRunId }
 
-        runs.forEach { run ->
-            val items = byRun[run.id].orEmpty()
-            if (items.isEmpty()) return@forEach
-            newPageIfNeeded(60f)
-            canvas.drawText("${run.label.ifBlank { "Fence Run" }} — ${run.fenceType.name.replace("_", " ")}", MARGIN, y, sectionPaint)
-            y += 18f
-            drawTableHeader()
-            drawItems(items)
-            val subtotal = items.sumOf { it.lineTotal }
-            y += 4f
-            val subtotalText = "${labels.sectionSubtotal}: ${currency.format(subtotal)}"
-            canvas.drawText(subtotalText, rightX - boldPaint.measureText(subtotalText), y, boldPaint)
-            y += 22f
-        }
+        // Who sees a materials table at all.
+        //
+        // The customer does not. They agreed a price for a finished fence, and
+        // a shopping list with buying prices on it invites an argument about
+        // margin instead of about the work. Their documents describe the work
+        // and show the drawing instead -- which is what they actually check.
+        if (docKind.showsMaterialPricing || docKind.showsQuantitiesOnly) {
+            runs.forEach { run ->
+                val items = byRun[run.id].orEmpty()
+                if (items.isEmpty()) return@forEach
+                newPageIfNeeded(60f)
+                canvas.drawText(
+                    "${run.label.ifBlank { "Fence Run" }} — ${run.fenceType.label}",
+                    MARGIN, y, sectionPaint
+                )
+                y += 18f
+                drawTableHeader()
+                drawItems(items)
+                // A subtotal is a price, so the supplier copy has none.
+                if (docKind.showsMaterialPricing) {
+                    val subtotal = items.sumOf { it.lineTotal }
+                    y += 4f
+                    val subtotalText = "${labels.sectionSubtotal}: ${currency.format(subtotal)}"
+                    canvas.drawText(subtotalText, rightX - boldPaint.measureText(subtotalText), y, boldPaint)
+                }
+                y += 22f
+            }
 
-        val unassigned = byRun[null].orEmpty()
-        if (unassigned.isNotEmpty()) {
+            val unassigned = byRun[null].orEmpty()
+            if (unassigned.isNotEmpty()) {
+                newPageIfNeeded(60f)
+                canvas.drawText(labels.otherItems, MARGIN, y, sectionPaint)
+                y += 18f
+                drawTableHeader()
+                drawItems(unassigned)
+                y += 12f
+            }
+        } else {
+            // What the customer is buying, in plain language: one line per run,
+            // saying what is being built and how much of it.
             newPageIfNeeded(60f)
-            canvas.drawText(labels.otherItems, MARGIN, y, sectionPaint)
-            y += 18f
-            drawTableHeader()
-            drawItems(unassigned)
-            y += 12f
+            canvas.drawText(labels.scopeOfWork, MARGIN, y, sectionPaint)
+            y += 20f
+            runs.forEach { run ->
+                newPageIfNeeded(30f)
+                val feet = EstimateEngine.linearFeet(job, listOf(run))
+                val heading = run.label.ifBlank { run.fenceType.label }
+                canvas.drawText(heading, MARGIN, y, boldPaint)
+                y += 14f
+                val spec = buildList {
+                    add(run.fenceType.label)
+                    if (run.colorOrFinish.isNotBlank()) add(run.colorOrFinish)
+                    if (run.panelHeightFt > 0f) add("${"%.0f".format(run.panelHeightFt)} ft high")
+                    if (feet > 0f) add("${"%.0f".format(feet)} linear ft")
+                }.joinToString(" · ")
+                canvas.drawText(spec, MARGIN + 12f, y, bodyPaint)
+                y += 20f
+            }
+            if (totals.teardownCost > 0.0) {
+                newPageIfNeeded(20f)
+                canvas.drawText(labels.teardown, MARGIN, y, bodyPaint)
+                y += 18f
+            }
+            if (totals.changeOrderCost > 0.0) {
+                newPageIfNeeded(20f)
+                canvas.drawText(labels.approvedExtraWork, MARGIN, y, bodyPaint)
+                y += 18f
+            }
+            y += 6f
         }
 
         y += 6f
@@ -253,6 +361,31 @@ object PdfExporter {
         canvas.drawText("${labels.totalLinearFeet}: ${String.format(Locale.US, "%.1f", linearFeet)} ft", MARGIN, y, headerPaint)
         y += 24f
 
+        // The drawing, on the documents the customer reads.
+        //
+        // It is the part they actually check -- where the line runs, which side
+        // the gate is on -- and a contract describing a fence without showing
+        // it is a contract about a fence nobody has agreed the shape of.
+        val planPath = job.surveyImagePath
+        if (docKind.isExternal && !docKind.showsQuantitiesOnly && planPath != null) {
+            val plan = runCatching { BitmapFactory.decodeFile(planPath) }.getOrNull()
+            if (plan != null && plan.width > 0 && plan.height > 0) {
+                val maxW = rightX - MARGIN
+                val maxH = 260f
+                val scale = minOf(maxW / plan.width, maxH / plan.height)
+                val w = plan.width * scale
+                val h = plan.height * scale
+                newPageIfNeeded(h + 40f)
+                canvas.drawText(labels.thePlan, MARGIN, y, sectionPaint)
+                y += 14f
+                canvas.drawBitmap(
+                    plan, null,
+                    android.graphics.RectF(MARGIN, y, MARGIN + w, y + h), null
+                )
+                y += h + 18f
+            }
+        }
+
         // The terms the customer is signing, in the company own words. Printed
         // ON the contract rather than referenced, because terms nobody can
         // produce afterwards are terms that were never agreed.
@@ -310,7 +443,12 @@ object PdfExporter {
         }
 
         newPageIfNeeded(30f)
-        canvas.drawText(labels.note, MARGIN, y, labelPaint)
+        // The closing line differs by reader: a supplier is being asked for a
+        // quote, a customer is being told prices can move.
+        canvas.drawText(
+            if (docKind.showsQuantitiesOnly) labels.quoteRequest else labels.note,
+            MARGIN, y, labelPaint
+        )
 
         document.finishPage(page)
 

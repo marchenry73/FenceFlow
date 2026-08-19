@@ -48,20 +48,40 @@ class PullFiltersDeletedTest {
      */
     private val allowedWithoutFilter = setOf("payment_records")
 
+    /**
+     * The marker a read carries when it genuinely needs to see tombstones.
+     *
+     * Some reads are not pulls at all. The push-side dedupe for pricing tiers
+     * and catalog items compares what this phone holds against everything in
+     * the cloud INCLUDING deleted rows -- because a name freed by a deletion
+     * must stay taken, or the next push re-creates the row and emptying the
+     * trash never sticks.
+     *
+     * Marked at the call site with a reason rather than listed here by table,
+     * because those same two tables also have real pulls that do need the
+     * filter. An allowlist by name would have switched off the check for both.
+     */
+    private val deliberateMarker = "sees-tombstones:"
+
     @Test
     fun `every pull excludes deleted rows`() {
         val source = syncSource()
 
         // Matches: from("table") ... .select { ... } ... .decodeList
+        // Captures any comment lines between from(...) and .select, so a read
+        // marked as deliberately seeing tombstones can be told apart from one
+        // that simply forgot the filter.
         val pull = Regex(
-            """from\("([a-z_]+)"\)\s*\n\s*\.select\s*\{([\s\S]{0,300}?)\}\s*\n?\s*\.decodeList"""
+            """from\("([a-z_]+)"\)\s*\n([\s\S]{0,300}?)\.select\s*\{([\s\S]{0,300}?)\}\s*\n?\s*\.decodeList"""
         )
 
         val offenders = pull.findAll(source).mapNotNull { match ->
             val table = match.groupValues[1]
-            val selectBody = match.groupValues[2]
+            val preamble = match.groupValues[2]
+            val selectBody = match.groupValues[3]
             when {
                 table in allowedWithoutFilter -> null
+                preamble.contains(deliberateMarker) -> null
                 selectBody.contains("notDeleted()") -> null
                 selectBody.contains("deleted_at") -> null
                 else -> table

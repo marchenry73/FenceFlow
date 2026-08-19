@@ -336,8 +336,34 @@ object EntitySync {
         return pushed
     }
 
+    /**
+     * Uploads catalog items, without adding another copy of one already there.
+     *
+     * Same fault as the pricing tiers and much larger: the seeded catalog is
+     * around ninety items, so five installs left 460 rows in the cloud for 92
+     * real products. Identity is name, role, fence type and colour -- the same
+     * rule the pull uses to decide a downloaded item is one it already holds.
+     */
     private suspend fun pushCatalog(repository: Repository, companyId: String): Int {
-        val rows = repository.getAllMaterialItems().map {
+        val local = repository.getAllMaterialItems()
+        if (local.isEmpty()) return 0
+
+        fun identity(name: String, role: String, fenceType: String, colour: String) =
+            listOf(name, role, fenceType, colour).joinToString("|") { it.trim().lowercase() }
+
+        val cloudByIdentity = SupabaseModule.client.postgrest.from("material_items")
+            // sees-tombstones: as above -- a deleted catalog item keeps its
+            // identity reserved so this phone does not push a fresh copy.
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudMaterialItem>()
+            .associateBy { identity(it.name, it.role, it.fenceType, it.colorOrFinish) }
+
+        val rows = local.filter { item ->
+            val claimed = cloudByIdentity[
+                identity(item.name, item.role.name, item.fenceType.name, item.colorOrFinish)
+            ]
+            claimed == null || claimed.syncId == item.syncId
+        }.map {
             CloudMaterialItem(
                 companyId, it.syncId, it.name, it.category.name, it.role.name,
                 it.fenceType.name, it.colorOrFinish, it.unit, it.unitPrice,
@@ -347,8 +373,41 @@ object EntitySync {
         return upsert("material_items", rows)
     }
 
+    /**
+     * Uploads pricing tiers, without adding another copy of one that is
+     * already up there under a different id.
+     *
+     * Every install seeds its own copy of the standard tiers with its own
+     * random sync ids and pushed all of them. The app hid it, because the pull
+     * matches these by name and so each phone still showed one of each -- but
+     * the cloud accumulated a full set per install, and the office website,
+     * which reads the cloud directly, showed every tier five times over.
+     *
+     * Matching on name here is the same rule the pull already uses. A tier is
+     * the tier called "Residential", not whichever random id the phone that
+     * happened to seed it invented.
+     */
     private suspend fun pushPricingTiers(repository: Repository, companyId: String): Int {
-        val rows = repository.getAllPricingTiers().map {
+        val local = repository.getAllPricingTiers()
+        if (local.isEmpty()) return 0
+
+        // Tombstoned rows are included deliberately: a name already taken by a
+        // deleted row must not be re-created by this phone pushing its own
+        // copy, or emptying the trash would never stick.
+        val cloudByName = SupabaseModule.client.postgrest.from("pricing_tiers")
+            // sees-tombstones: a name held by a deleted row must stay taken, or
+            // this phone re-creates it and emptying the trash never sticks.
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudPricingTier>()
+            .associateBy { it.name.trim().lowercase() }
+
+        val rows = local.filter { tier ->
+            val claimed = cloudByName[tier.name.trim().lowercase()]
+            // Push it when the cloud has no tier by that name, or when the one
+            // it has IS this row. Anything else is a duplicate of somebody
+            // else's copy.
+            claimed == null || claimed.syncId == tier.syncId
+        }.map {
             CloudPricingTier(
                 companyId, it.syncId, it.name, it.laborRatePerFt,
                 it.laborFlatFee, it.markupPercent, it.discountPercent, it.sortOrder
