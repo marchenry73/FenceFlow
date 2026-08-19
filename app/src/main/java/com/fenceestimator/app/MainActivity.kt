@@ -138,6 +138,13 @@ class MainActivity : FragmentActivity() {
 fun FenceEstimatorNavHost() {
     val navController: NavHostController = rememberNavController()
 
+    // Watched for the whole graph, so a screen closes the moment the person
+    // loses the right to be on it rather than when they next navigate. Access
+    // used to be checked only on the way in, which meant taking somebody's
+    // access away did not take away what they were already looking at.
+    val session by com.fenceestimator.app.ui.components.currentApp()
+        .session.state.collectAsState()
+
     NavHost(navController = navController, startDestination = Routes.JOBS) {
         composable(Routes.JOBS) {
             JobsListScreen(
@@ -152,13 +159,25 @@ fun FenceEstimatorNavHost() {
             )
         }
         composable(Routes.REPORTS) {
-            ReportsScreen(onBack = { navController.popBackStack() })
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canSeeMoney,
+                permissionName = "See money",
+                onLeave = { navController.popBackStack() }
+            ) {
+                ReportsScreen(onBack = { navController.popBackStack() })
+            }
         }
         composable(Routes.PIPELINE) {
+          com.fenceestimator.app.ui.components.AccessGuard(
+              allowed = session.canSeeMoney,
+              permissionName = "See money",
+              onLeave = { navController.popBackStack() }
+          ) {
             com.fenceestimator.app.ui.pipeline.PipelineScreen(
                 onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },
                 onBack = { navController.popBackStack() }
             )
+          }
         }
         composable(Routes.HELP) {
             com.fenceestimator.app.ui.help.HelpScreen(onBack = { navController.popBackStack() })
@@ -248,9 +267,20 @@ fun FenceEstimatorNavHost() {
             InventoryScreen(jobId = jobId, onBack = { navController.popBackStack() })
         }
         composable(Routes.CATALOG) {
-            CatalogScreen(onBack = { navController.popBackStack() })
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canEditCatalogAndSettings,
+                permissionName = "Edit catalog and settings",
+                onLeave = { navController.popBackStack() }
+            ) {
+                CatalogScreen(onBack = { navController.popBackStack() })
+            }
         }
         composable(Routes.SETTINGS) {
+          com.fenceestimator.app.ui.components.AccessGuard(
+              allowed = session.canEditCatalogAndSettings,
+              permissionName = "Edit catalog and settings",
+              onLeave = { navController.popBackStack() }
+          ) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onOpenManufacturers = { navController.navigate(Routes.MANUFACTURERS) },
@@ -259,6 +289,7 @@ fun FenceEstimatorNavHost() {
                 onOpenHelp = { navController.navigate(Routes.HELP) },
                 onOpenFeedback = { navController.navigate(Routes.FEEDBACK) }
             )
+          }
         }
         composable(Routes.ACCOUNT) {
             AccountScreen(

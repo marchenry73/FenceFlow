@@ -1,5 +1,9 @@
 package com.fenceestimator.app.ui.jobs
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -146,9 +150,24 @@ fun JobsListScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    // A trading name is often longer than one word, and six
+                    // action icons left almost no room for it. Two of those
+                    // moved into the overflow menu below; the rest of the fix
+                    // is letting a long name step down in size rather than
+                    // being cut off mid-word.
+                    val shownName =
+                        if (profile.businessName.isBlank()) "FenceFlow" else profile.businessName
                     Text(
-                        if (profile.businessName.isBlank()) "FenceFlow" else profile.businessName,
-                        fontWeight = FontWeight.Bold
+                        shownName,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        fontSize = when {
+                            shownName.length <= 16 -> 22.sp
+                            shownName.length <= 24 -> 19.sp
+                            shownName.length <= 32 -> 17.sp
+                            else -> 15.sp
+                        }
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -171,12 +190,25 @@ fun JobsListScreen(
                             Icon(Icons.Filled.BarChart, contentDescription = "Reports")
                         }
                     }
+                    // Catalog and settings live in the overflow rather than on
+                    // the bar: they are opened occasionally, and each icon on
+                    // the bar is width taken from the business name.
                     if (session.canEditCatalogAndSettings) {
-                        IconButton(onClick = onOpenCatalog) {
-                            Icon(Icons.Filled.Handyman, contentDescription = "Materials catalog")
+                        var moreOpen by remember { mutableStateOf(false) }
+                        IconButton(onClick = { moreOpen = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
                         }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Materials catalog") },
+                                leadingIcon = { Icon(Icons.Filled.Handyman, contentDescription = null) },
+                                onClick = { moreOpen = false; onOpenCatalog() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Settings") },
+                                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                                onClick = { moreOpen = false; onOpenSettings() }
+                            )
                         }
                     }
                 }
