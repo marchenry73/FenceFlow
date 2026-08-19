@@ -68,6 +68,16 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
     val employees by viewModel.employees.collectAsState()
     val jobs by viewModel.jobs.collectAsState()
 
+    // Nobody signs off the shift that pays them, whatever their role. A crew
+    // lead approves their team; that is what makes them a lead. This is not
+    // about trust -- it is what lets the timesheet be shown to an accountant,
+    // or to the person being paid, without an argument about who approved it.
+    val ownShift: (TimeEntry) -> Boolean = { entry ->
+        com.fenceestimator.app.cloud.OwnWork.isOwnShift(
+            entry, employees, session.email, null
+        )
+    }
+
     var reviewing by remember { mutableStateOf<TimeEntry?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -121,6 +131,7 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
                     entry = entry,
                     who = employees.firstOrNull { it.id == entry.employeeId }?.name ?: "Unassigned",
                     jobName = jobs.firstOrNull { it.id == entry.jobId }?.customerName.orEmpty(),
+                    isOwn = ownShift(entry),
                     onReview = { reviewing = entry }
                 )
             }
@@ -148,6 +159,8 @@ private fun PendingShiftCard(
     entry: TimeEntry,
     who: String,
     jobName: String,
+    /** The signed-in person's own shift, which they may not sign off. */
+    isOwn: Boolean,
     onReview: () -> Unit
 ) {
     val dayFormat = remember { SimpleDateFormat("EEE d MMM", Locale.US) }
@@ -157,7 +170,9 @@ private fun PendingShiftCard(
     val suspiciouslyLong = entry.hours > LONG_SHIFT_HOURS
 
     Card(
-        onClick = onReview,
+        // Not tappable when it is your own: the reason is stated below rather
+        // than leaving a card that silently does nothing when pressed.
+        onClick = { if (!isOwn) onReview() },
         modifier = Modifier.fillMaxWidth(),
         colors = if (suspiciouslyLong) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
@@ -165,6 +180,13 @@ private fun PendingShiftCard(
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(who, style = MaterialTheme.typography.titleMedium)
+            if (isOwn) {
+                Text(
+                    "Your own shift. Someone else has to sign this one off.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             if (jobName.isNotBlank()) {
                 Text(
                     jobName,

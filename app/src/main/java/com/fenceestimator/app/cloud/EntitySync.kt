@@ -179,7 +179,16 @@ data class CloudJobStep(
     val description: String = "",
     val checked: Boolean = false,
     @SerialName("verified_with_customer") val verifiedWithCustomer: Boolean = false,
-    @SerialName("sort_order") val sortOrder: Int = 0
+    @SerialName("sort_order") val sortOrder: Int = 0,
+    /**
+     * When the step was ticked.
+     *
+     * Without it the two sides carried a bare true/false and nothing could say
+     * which was more recent -- so a tick saved on the phone was overwritten by
+     * the cloud false on the next pull, and the push after that uploaded the
+     * false. The tick could never reach the cloud and always reverted.
+     */
+    @SerialName("completed_at") val completedAt: String? = null
 )
 
 @Serializable
@@ -318,7 +327,8 @@ object EntitySync {
             repository.getJobSteps(job.id).forEach {
                 steps += CloudJobStep(
                     companyId, it.syncId, js, it.kind.name, it.description,
-                    it.checked, it.verifiedWithCustomer, it.sortOrder
+                    it.checked, it.verifiedWithCustomer, it.sortOrder,
+                    it.completedAt?.let { at -> CloudTime.format(at) }
                 )
             }
             repository.getSiteMarkers(job.id).forEach {
@@ -855,19 +865,39 @@ object EntitySync {
                         kind = kind,
                         description = row.description, checked = row.checked,
                         verifiedWithCustomer = row.verifiedWithCustomer,
-                        sortOrder = row.sortOrder
+                        sortOrder = row.sortOrder,
+                        completedAt = CloudTime.parseMillis(row.completedAt)
                     )
                 )
                 added++
             } else {
                 // The install checklist is what the crew works from, so a step
-                // ticked on one phone has to read as ticked on the other.
-                // copy() keeps completedAt.
+                // ticked on one phone has to read as ticked on the other --
+                // and a tick made here must not be undone by a cloud row that
+                // predates it.
+                //
+                // Whichever side ticked more recently wins. A local tick with
+                // no cloud tick is newer by definition: it has not been pushed
+                // yet, which is the whole reason the cloud does not know. That
+                // exact case is what made the walkthrough impossible to save --
+                // the pull cleared the tick, then the next push uploaded the
+                // cleared value, so it could never take.
+                val cloudCompleted = CloudTime.parseMillis(row.completedAt)
+                val localCompleted = existing.completedAt
+                val takeCloudTick = when {
+                    cloudCompleted == null && localCompleted == null -> true
+                    localCompleted == null -> true
+                    cloudCompleted == null -> false
+                    else -> cloudCompleted >= localCompleted
+                }
                 val merged = existing.copy(
                     kind = kind,
                     description = row.description,
-                    checked = row.checked,
-                    verifiedWithCustomer = row.verifiedWithCustomer,
+                    checked = if (takeCloudTick) row.checked else existing.checked,
+                    completedAt = if (takeCloudTick) cloudCompleted else localCompleted,
+                    verifiedWithCustomer =
+                        if (takeCloudTick) row.verifiedWithCustomer
+                        else existing.verifiedWithCustomer,
                     sortOrder = row.sortOrder
                 )
                 if (merged != existing) { repository.updateJobStep(merged); added++ }

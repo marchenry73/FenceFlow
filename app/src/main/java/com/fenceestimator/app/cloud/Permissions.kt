@@ -128,9 +128,15 @@ val UserRole.defaultPermissions: Set<Permission>
             Permission.SEE_CUSTOMER_CONTACT, Permission.SEE_REPORTS
         )
 
+        // A crew lead signs off their team's hours -- that is what makes them
+        // a lead rather than another pair of hands. Never their own, though:
+        // that rule lives in OwnWork and applies whatever the role, so a lead
+        // holding this permission still cannot approve the shift that pays
+        // them.
         UserRole.FOREMAN -> setOf(
             Permission.SCHEDULE_AND_ASSIGN, Permission.RECORD_FIELD_WORK,
-            Permission.SEE_CUSTOMER_CONTACT
+            Permission.SEE_CUSTOMER_CONTACT, Permission.APPROVE_TIME,
+            Permission.APPROVE_PLAN_CHANGES
         )
 
         UserRole.CREW -> setOf(Permission.RECORD_FIELD_WORK)
