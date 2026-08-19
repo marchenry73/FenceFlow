@@ -96,6 +96,16 @@ data class SessionState(
 
 /** App-wide view of who is signed in and what they're allowed to see. */
 class SessionManager(private val scope: CoroutineScope) {
+
+    /**
+     * Set by the app on startup so identity can be remembered between launches.
+     *
+     * Without it the app asked the server who it was at every start and could
+     * not work until the answer came back -- which offline it never did. See
+     * [CachedIdentity] for why remembering a role is not the hole it sounds
+     * like, and why shortening its life would not close anything.
+     */
+    var appContext: android.content.Context? = null
     private val _state = MutableStateFlow(SessionState())
     val state: StateFlow<SessionState> = _state
 
@@ -148,6 +158,10 @@ class SessionManager(private val scope: CoroutineScope) {
         scope.launch {
             val email = runCatching { SupabaseModule.currentUserEmail() }.getOrNull()
             if (email == null) {
+                // Signed out. Forget who this phone belonged to, or the
+                // remembered company and role outlive the account that earned
+                // them and the next person to sign in here inherits them.
+                appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
                 _state.value = SessionState(resolved = true)
                 return@launch
             }
@@ -165,19 +179,75 @@ class SessionManager(private val scope: CoroutineScope) {
             // deliberately: the first is temporary and retries, the second is a
             // real person who has not joined a company yet. Neither gets
             // permissions, but only one of them is a problem.
+            // Load what this phone already knows FIRST, and publish it, so the
+            // app is usable from the moment it opens rather than after a round
+            // trip. Offline that round trip never completes, which is what left
+            // a crew staring at a blank screen in a yard with no signal.
+            val cached = appContext?.let { ctx ->
+                runCatching { CachedIdentity.load(ctx, email) }.getOrNull()
+            }
+            if (cached != null) {
+                _state.value = SessionState(
+                    signedIn = true,
+                    email = email,
+                    companyId = cached.companyId,
+                    role = cached.role,
+                    permissionOverrides = cached.permissionOverrides,
+                    // Known, but from memory rather than from the server. The
+                    // refresh below corrects it within seconds of any signal.
+                    accessKnown = true,
+                    accessUnavailable = false,
+                    resolved = true
+                )
+            }
+
             val fetched = runCatching { SupabaseModule.fetchProfile() }
             val profile = fetched.getOrNull()
 
-            _state.value = SessionState(
-                signedIn = true,
-                email = email,
-                companyId = profile?.companyId,
-                role = profile?.userRole ?: UserRole.CREW,
-                permissionOverrides = profile?.permissionOverrides.orEmpty(),
-                accessKnown = fetched.isSuccess && profile != null,
-                accessUnavailable = fetched.isFailure,
-                resolved = true
-            )
+            if (fetched.isSuccess && profile?.companyId != null) {
+                // Only a real answer is written down. A failed fetch must leave
+                // the previous one alone -- recording "no company" because the
+                // network dropped is exactly how the app used to forget itself.
+                appContext?.let { ctx ->
+                    runCatching {
+                        CachedIdentity.save(
+                            ctx, email, profile.companyId!!,
+                            profile.userRole, profile.permissionOverrides
+                        )
+                    }
+                }
+                _state.value = SessionState(
+                    signedIn = true,
+                    email = email,
+                    companyId = profile.companyId,
+                    role = profile.userRole,
+                    permissionOverrides = profile.permissionOverrides,
+                    accessKnown = true,
+                    accessUnavailable = false,
+                    resolved = true
+                )
+            } else if (fetched.isSuccess && profile == null) {
+                // A real answer, and the answer is that this account belongs to
+                // no company. Distinct from a failed read: nothing to remember,
+                // and anything remembered before is now wrong.
+                appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
+                _state.value = SessionState(
+                    signedIn = true, email = email,
+                    role = UserRole.CREW,
+                    accessKnown = true, resolved = true
+                )
+            } else if (cached == null) {
+                // The read failed and this phone has never known who it is, so
+                // there is genuinely nothing to go on. Fail closed and retry.
+                _state.value = SessionState(
+                    signedIn = true, email = email,
+                    role = UserRole.CREW,
+                    accessKnown = false, accessUnavailable = true,
+                    resolved = true
+                )
+            }
+            // The remaining case -- read failed but a cache exists -- keeps the
+            // cached state already published above, and retries below.
 
             // Keep trying. Somebody stuck with no access because their phone
             // dipped out of signal for a second must not have to restart the

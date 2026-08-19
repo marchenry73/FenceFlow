@@ -60,6 +60,8 @@ class FenceEstimatorApp : Application() {
         session.pushTokenProvider = { PushTokenStore.cached(this) }
         session.settingsStore = settingsStore
         session.dataOwnership = dataOwnership
+        // So the app knows who it belongs to before it can reach the network.
+        session.appContext = applicationContext
 
         // Tombstones record who deleted the record, so the trash can say who to
         // ask before restoring it.
