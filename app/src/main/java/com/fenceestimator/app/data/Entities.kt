@@ -716,7 +716,28 @@ data class Employee(
     val perFootRate: Double = 0.0,
     val phone: String = "",
     val email: String = "",
-    val notes: String = ""
+    val notes: String = "",
+    /**
+     * Still on the crew.
+     *
+     * Somebody who leaves is marked inactive rather than deleted: they vanish
+     * from crew lists and assignment pickers and can no longer sign in, but
+     * every hour they worked and every job they cost stays intact and still
+     * counts in reports. Deleting them would take the payroll record with them,
+     * which is the one thing you cannot afford to lose about a former employee.
+     */
+    val isActive: Boolean = true,
+    val deactivatedAt: Long? = null,
+    /**
+     * The account that signs in as this person, when there is one.
+     *
+     * Without it the app cannot tell whose shift it is looking at: clocking in
+     * records against the job's ASSIGNED employee rather than whoever is
+     * holding the phone. That is why "nobody approves their own hours" has to
+     * fall back to matching email addresses, and why it cannot be enforced in
+     * the database. With this filled in, it is a fact instead of a guess.
+     */
+    val profileId: String = ""
 )
 
 @Entity(

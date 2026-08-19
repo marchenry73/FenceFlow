@@ -20,4 +20,21 @@ class EmployeesViewModel(private val repository: Repository) : ViewModel() {
     fun delete(employee: Employee) {
         viewModelScope.launch { repository.deleteEmployee(employee) }
     }
+
+    /** Their unfinished jobs, so the screen can say what is about to move. */
+    suspend fun openJobsFor(employee: Employee) = repository.openJobsFor(employee.id)
+
+    /**
+     * Takes somebody off the crew, keeping everything they did.
+     *
+     * @param reassignTo who picks up their unfinished jobs. Finished ones keep
+     *   their name -- they did that work and the record should say so.
+     */
+    fun deactivate(employee: Employee, reassignTo: Long?) {
+        viewModelScope.launch { repository.deactivateEmployee(employee, reassignTo) }
+    }
+
+    fun reactivate(employee: Employee) {
+        viewModelScope.launch { repository.reactivateEmployee(employee) }
+    }
 }

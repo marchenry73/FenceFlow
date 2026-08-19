@@ -2,6 +2,7 @@ package com.fenceestimator.app.data
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 
 class Repository(private val db: AppDatabase) {
 
@@ -300,8 +301,60 @@ class Repository(private val db: AppDatabase) {
     suspend fun deleteInventoryItem(item: InventoryChecklistItem) = inventoryItemDao.delete(item)
     suspend fun clearInventoryMaterials(jobId: Long) = inventoryItemDao.deleteByKind(jobId, InventoryKind.MATERIAL)
 
+    /**
+     * Everyone, including people who have left.
+     *
+     * Reports and timesheets use this: a former crew member's hours still
+     * happened and still cost what they cost, and a report that quietly drops
+     * them stops reconciling with the payroll it is meant to explain.
+     */
     fun observeEmployees(): Flow<List<Employee>> = employeeDao.observeAll()
     suspend fun getAllEmployees(): List<Employee> = employeeDao.getAll()
+
+    /** Just the people still on the crew, for anywhere you pick somebody. */
+    fun observeActiveEmployees(): Flow<List<Employee>> =
+        employeeDao.observeAll().map { list -> list.filter { it.isActive } }
+
+    suspend fun getActiveEmployees(): List<Employee> =
+        employeeDao.getAll().filter { it.isActive }
+
+    /**
+     * Takes somebody off the crew without taking their history with them.
+     *
+     * They disappear from crew lists and assignment pickers and can no longer
+     * sign in, while every hour they worked and every job they costed stays
+     * exactly where it was. Deleting them would destroy the payroll record,
+     * which is the one thing you cannot afford to lose about a former employee
+     * -- it is what answers a wage dispute or a tax question a year later.
+     *
+     * @param reassignTo who picks up their unfinished jobs. Finished jobs keep
+     *   their name, because they did that work and the record should say so.
+     *   Unfinished ones need a live person against them or they quietly become
+     *   nobody's responsibility, which is how a job gets missed.
+     */
+    suspend fun deactivateEmployee(employee: Employee, reassignTo: Long?) {
+        val openJobs = jobDao.getAll().filter {
+            it.assignedEmployeeId == employee.id && it.status != JobStatus.COMPLETED
+        }
+        openJobs.forEach { job ->
+            jobDao.update(
+                job.copy(assignedEmployeeId = reassignTo, updatedAt = System.currentTimeMillis())
+            )
+        }
+        employeeDao.update(
+            employee.copy(isActive = false, deactivatedAt = System.currentTimeMillis())
+        )
+    }
+
+    /** Puts somebody back on the crew. */
+    suspend fun reactivateEmployee(employee: Employee) =
+        employeeDao.update(employee.copy(isActive = true, deactivatedAt = null))
+
+    /** Their unfinished jobs, so you can be told what is about to move. */
+    suspend fun openJobsFor(employeeId: Long): List<Job> =
+        jobDao.getAll().filter {
+            it.assignedEmployeeId == employeeId && it.status != JobStatus.COMPLETED
+        }
     suspend fun saveEmployee(e: Employee): Long =
         if (e.id == 0L) employeeDao.insert(e) else { employeeDao.update(e); e.id }
     /**

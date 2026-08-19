@@ -1,5 +1,10 @@
 package com.fenceestimator.app.ui.employees
 
+import com.fenceestimator.app.data.Job
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,6 +55,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
     val employees by viewModel.employees.collectAsState()
     val session by app.session.state.collectAsState()
     val canDelete = session.canDelete
+    var removing by remember { mutableStateOf<Employee?>(null) }
 
     var editing by remember { mutableStateOf<Employee?>(null) }
     var showNew by remember { mutableStateOf(false) }
@@ -81,10 +87,29 @@ fun EmployeesScreen(onBack: () -> Unit) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(employees, key = { it.id }) { e ->
+                // People still here first, then people who have left. Former
+                // crew stay visible rather than vanishing: you need to find
+                // them to check an old timesheet, or to put somebody back on.
+                items(
+                    employees.sortedWith(compareByDescending<Employee> { it.isActive }
+                        .thenBy { it.name.lowercase() }),
+                    key = { it.id }
+                ) { e ->
                     Card(onClick = { editing = e }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                            Text(e.name.ifBlank { "Unnamed" }, fontWeight = FontWeight.Medium)
+                            Text(
+                                e.name.ifBlank { "Unnamed" },
+                                fontWeight = FontWeight.Medium,
+                                color = if (e.isActive) MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (!e.isActive) {
+                                Text(
+                                    "No longer on the crew. Their hours and jobs are kept.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             if (e.role.isNotBlank()) Text(e.role, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (e.phone.isNotBlank()) Text(e.phone, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (e.email.isNotBlank()) Text(e.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -101,7 +126,75 @@ fun EmployeesScreen(onBack: () -> Unit) {
             onSave = { viewModel.save(it); editing = null },
             onDelete = { viewModel.delete(e); editing = null },
             canDelete = canDelete,
+            onRemoveFromCrew = { editing = null; removing = e },
+            onPutBackOnCrew = { viewModel.reactivate(e); editing = null },
             onDismiss = { editing = null }
+        )
+    }
+
+    // Taking somebody off the crew, and deciding who picks up their work.
+    removing?.let { leaver ->
+        var openJobs by remember(leaver.id) { mutableStateOf<List<Job>>(emptyList()) }
+        LaunchedEffect(leaver.id) { openJobs = viewModel.openJobsFor(leaver) }
+        var reassignTo by remember(leaver.id) { mutableStateOf<Long?>(null) }
+        val candidates = employees.filter { it.isActive && it.id != leaver.id }
+
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text("Take ${leaver.name.ifBlank { "this person" }} off the crew?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "They stop appearing when you assign work and can no longer " +
+                            "sign in. Everything they did stays: their hours, the jobs " +
+                            "they worked, and what those jobs cost.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    if (openJobs.isEmpty()) {
+                        Text(
+                            "They have no unfinished jobs.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "${openJobs.size} unfinished job(s) are theirs. Who takes them on?",
+                            fontWeight = FontWeight.Medium
+                        )
+                        // Finished jobs deliberately keep their name -- they did
+                        // that work and the record should say so.
+                        candidates.forEach { candidate ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable { reassignTo = candidate.id }
+                            ) {
+                                RadioButton(
+                                    selected = reassignTo == candidate.id,
+                                    onClick = { reassignTo = candidate.id }
+                                )
+                                Text(candidate.name.ifBlank { "Unnamed" })
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { reassignTo = null }
+                        ) {
+                            RadioButton(selected = reassignTo == null, onClick = { reassignTo = null })
+                            Text("Leave them unassigned for now")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.deactivate(leaver, reassignTo)
+                    removing = null
+                }) { Text("Take them off") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { removing = null }) { Text("Cancel") }
+            }
         )
     }
     if (showNew) {
@@ -121,6 +214,8 @@ private fun EditEmployeeDialog(
     onSave: (Employee) -> Unit,
     onDelete: () -> Unit,
     canDelete: Boolean,
+    onRemoveFromCrew: () -> Unit = {},
+    onPutBackOnCrew: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(employee.name) }
@@ -201,8 +296,17 @@ private fun EditEmployeeDialog(
         },
         dismissButton = {
             Row {
-                if (employee.id != 0L && canDelete) {
-                    OutlinedButton(onClick = onDelete) { Text("Delete") }
+                // Taking somebody off the crew is the normal way to remove a
+                // person: it keeps their hours, their jobs and what those jobs
+                // cost, which is the record payroll and tax actually need.
+                // Deleting is kept for a record entered by mistake, and stays
+                // behind the delete permission.
+                if (employee.id != 0L) {
+                    if (employee.isActive) {
+                        OutlinedButton(onClick = onRemoveFromCrew) { Text("Take off crew") }
+                    } else {
+                        OutlinedButton(onClick = onPutBackOnCrew) { Text("Put back on") }
+                    }
                     Spacer(Modifier.width(8.dp))
                 }
                 OutlinedButton(onClick = onDismiss) { Text("Cancel") }

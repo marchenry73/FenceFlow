@@ -61,7 +61,11 @@ data class CloudEmployee(
     // Pay arrangement. Without these a crew member paid by the foot arrived
     // elsewhere as hourly, at whatever their hourly field happened to hold.
     @SerialName("pay_type") val payType: String = "HOURLY",
-    @SerialName("per_foot_rate") val perFootRate: Double = 0.0
+    @SerialName("per_foot_rate") val perFootRate: Double = 0.0,
+    // Whether they are still on the crew, and which account is theirs.
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("deactivated_at") val deactivatedAt: String? = null,
+    @SerialName("profile_id") val profileId: String? = null
 )
 
 @Serializable
@@ -950,7 +954,10 @@ object EntitySync {
                         hourlyRate = row.hourlyRate,
                         payType = runCatching { PayType.valueOf(row.payType) }
                             .getOrDefault(PayType.HOURLY),
-                        perFootRate = row.perFootRate
+                        perFootRate = row.perFootRate,
+                        isActive = row.isActive,
+                        deactivatedAt = CloudTime.parseMillis(row.deactivatedAt),
+                        profileId = row.profileId.orEmpty()
                     )
                 )
                 added++
@@ -964,7 +971,13 @@ object EntitySync {
                     hourlyRate = row.hourlyRate,
                     payType = runCatching { PayType.valueOf(row.payType) }
                         .getOrDefault(existing.payType),
-                    perFootRate = row.perFootRate
+                    perFootRate = row.perFootRate,
+                    // Someone let go on one phone has to be let go on all of
+                    // them, and promptly -- that is half the point of the
+                    // feature.
+                    isActive = row.isActive,
+                    deactivatedAt = CloudTime.parseMillis(row.deactivatedAt),
+                    profileId = row.profileId.orEmpty()
                 )
                 if (merged != existing) { repository.saveEmployee(merged); added++ }
             }
@@ -1147,7 +1160,10 @@ object EntitySync {
 private fun Employee.toCloud(companyId: String) = CloudEmployee(
     companyId = companyId, syncId = syncId, name = name, role = role,
     phone = phone, email = email, notes = notes, hourlyRate = hourlyRate,
-    payType = payType.name, perFootRate = perFootRate
+    payType = payType.name, perFootRate = perFootRate,
+    isActive = isActive,
+    deactivatedAt = deactivatedAt?.let { CloudTime.format(it) },
+    profileId = profileId.takeIf { it.isNotBlank() }
 )
 
 private fun Manufacturer.toCloud(companyId: String) = CloudManufacturer(

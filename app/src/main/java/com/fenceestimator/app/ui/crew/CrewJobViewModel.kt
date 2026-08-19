@@ -31,6 +31,9 @@ class CrewJobViewModel(private val repository: Repository, private val jobId: Lo
         repository.observeTimeEntries(jobId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Everyone, including people who have left: this list resolves the name on
+    // a job as well as offering a choice, and a finished job should not start
+    // reading "Unassigned" because somebody moved on.
     val employees: StateFlow<List<com.fenceestimator.app.data.Employee>> = repository.observeEmployees()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

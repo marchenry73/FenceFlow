@@ -117,7 +117,12 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     val photos: StateFlow<List<JobPhoto>> = repository.observePhotos(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val employees: StateFlow<List<Employee>> = repository.observeEmployees()
+    /**
+     * Only people still on the crew: this list is for choosing who does the
+     * work, and somebody who has left cannot. Their name stays on the jobs they
+     * already did.
+     */
+    val employees: StateFlow<List<Employee>> = repository.observeActiveEmployees()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val expenses: StateFlow<List<Expense>> = repository.observeExpenses(jobId)
