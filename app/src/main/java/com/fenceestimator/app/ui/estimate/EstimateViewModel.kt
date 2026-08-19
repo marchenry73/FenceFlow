@@ -14,6 +14,7 @@ import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.TakeoffLine
 import com.fenceestimator.app.geometry.FenceCodec
+import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.ui.survey.SurveyViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -198,6 +199,63 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     fun setManualFeet(run: FenceRun, feet: Float?, corners: Int) {
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(manualLinearFeet = feet, manualCornerCount = corners))
+        }
+    }
+
+    /**
+     * Whether this run was drawn, and so could be used to fix the scale.
+     *
+     * A typed-in length with no drawing behind it has nothing to measure
+     * against.
+     */
+    fun canRecalibrateFrom(run: FenceRun): Boolean =
+        FenceCodec.decodePoints(run.pointsEncoded).size >= 2
+
+    /**
+     * Makes the drawing agree with a length you actually measured.
+     *
+     * Typing a length used to override the drawing for that one run and leave
+     * the drawing itself wrong -- so the fence was quoted at the right length
+     * while the plan the crew works from, the gate positions on it, and every
+     * other run sharing that drawing all stayed at the wrong scale.
+     *
+     * This goes the other way. It takes the line as drawn, divides its length
+     * on screen by the real length, and stores the result as the drawing's
+     * scale. One measured run therefore corrects the whole plan: every other
+     * run, every gate, every distance measured off it afterwards.
+     *
+     * The typed length is then cleared, because the drawing now says the same
+     * thing and two sources of truth for one number is how they drift apart.
+     *
+     * @return true when the scale was set.
+     */
+    fun recalibrateFromRun(run: FenceRun, actualFeet: Float) {
+        val points = FenceCodec.decodePoints(run.pointsEncoded)
+        val pixels = FenceGeometryEngine.pixelLength(points, run.closedLoop)
+        val currentJob = job.value
+
+        if (actualFeet <= 0f || pixels <= 0f || currentJob == null) {
+            _message.tryEmit(
+                "Draw this run on the Survey screen first, then the length you type " +
+                    "here can set the scale."
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            repository.updateJob(
+                currentJob.copy(
+                    calibrationPixelsPerFoot = pixels / actualFeet,
+                    calibrationKnownFeet = actualFeet
+                )
+            )
+            // The drawing now says the same thing, so the typed override goes.
+            // Two sources of truth for one number is how they drift apart.
+            repository.updateFenceRun(run.copy(manualLinearFeet = null))
+            _message.tryEmit(
+                "Scale set from ${"%.0f".format(actualFeet)} ft. Every run and gate on " +
+                    "this plan measures from it now."
+            )
         }
     }
 

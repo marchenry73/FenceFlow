@@ -123,6 +123,27 @@ object FenceGeometryEngine {
     /** Interior turn angles beyond this are treated as a corner post, not a line post. */
     const val CORNER_ANGLE_THRESHOLD_DEGREES = 15f
 
+    /**
+     * How long the drawn line is on screen, before any scale is applied.
+     *
+     * The raw measurement, which is what lets a known real-world length be
+     * turned back into a scale: if this line is 480 pixels and the fence is
+     * really 120 feet, then the drawing is at 4 pixels per foot, and every
+     * other run and gate on the same drawing is now correct too.
+     */
+    fun pixelLength(points: List<FencePoint>, closedLoop: Boolean = false): Float {
+        if (points.size < 2) return 0f
+        var total = 0f
+        val n = points.size
+        val segmentCount = if (closedLoop) n else n - 1
+        for (i in 0 until segmentCount) {
+            val a = points[i]
+            val b = points[(i + 1) % n]
+            total += hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
+        }
+        return total
+    }
+
     fun analyze(points: List<FencePoint>, pixelsPerFoot: Float, closedLoop: Boolean = false): FenceGeometryResult {
         if (points.size < 2 || pixelsPerFoot <= 0f) {
             return FenceGeometryResult(0f, emptyList(), emptyList(), 0, 0, 0)

@@ -119,6 +119,8 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                     currency = currency,
                     onRegenerate = { viewModel.regenerateSuggested(run) },
                     onManualFeet = { feet, corners -> viewModel.setManualFeet(run, feet, corners) },
+                    wasDrawn = viewModel.canRecalibrateFrom(run),
+                    onFixScaleFromFeet = { feet -> viewModel.recalibrateFromRun(run, feet) },
                     onRestoreRemoved = { viewModel.restoreRemovedItems(run) },
                     onItemClick = { editingItem = it }
                 )
@@ -169,6 +171,10 @@ private fun RunSection(
     currency: NumberFormat,
     onRegenerate: () -> Unit,
     onManualFeet: (Float?, Int) -> Unit,
+    /** True when this run has a drawn line the scale can be worked out from. */
+    wasDrawn: Boolean,
+    /** Sets the drawing scale so this run measures the length typed above. */
+    onFixScaleFromFeet: (Float) -> Unit,
     onRestoreRemoved: () -> Unit,
     onItemClick: (EstimateLineItem) -> Unit
 ) {
@@ -231,6 +237,29 @@ private fun RunSection(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // Typing a length fixes the quote for this run and leaves the
+            // drawing at whatever scale it was -- so the plan the crew works
+            // from, the gates marked on it and every other run stay wrong.
+            // This goes the other way: it works the scale out from the line as
+            // drawn, which corrects the whole plan at once.
+            val typedFeet = feetText.toFloatOrNull()
+            if (wasDrawn && typedFeet != null && typedFeet > 0f) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { onFixScaleFromFeet(typedFeet) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Make the drawing match ${"%.0f".format(typedFeet)} ft")
+                }
+                Text(
+                    "Measured it on site? This sets the drawing scale from this run, " +
+                        "so every other run, gate and distance on the same plan comes " +
+                        "out right too.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Spacer(Modifier.height(10.dp))
             Button(onClick = onRegenerate, modifier = Modifier.fillMaxWidth()) {
