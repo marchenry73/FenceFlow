@@ -743,15 +743,34 @@ object EntitySync {
                 // actually carries. employeeId is NOT one of them -- overwriting
                 // wholesale would erase which crew member the shift belongs to,
                 // which is payroll.
+                // Signing off is a one-way ratchet: a decision already made
+                // here is never un-made by a cloud row that has not heard about
+                // it yet.
+                //
+                // Without this, approving a shift while a sync was already in
+                // flight lost the approval -- the push had gone before the tap,
+                // so the pull moments later brought back the un-approved copy
+                // and wrote it over the top. The shift reappeared in the queue
+                // and it looked like the approval had never saved. Which is
+                // exactly what was reported, twice.
+                //
+                // Cloud still wins when it actually carries a decision, so a
+                // sign-off or rejection made on another phone lands normally.
+                val cloudApprovedAt = CloudTime.parseMillis(row.approvedAt)
+                val cloudRejectedAt = CloudTime.parseMillis(row.rejectedAt)
+                val cloudHasDecision = cloudApprovedAt != null || cloudRejectedAt != null
+                val localHasDecision = existing.approvedAt != null || existing.rejectedAt != null
+
                 val merged = existing.copy(
                     startedAt = startedAt,
                     endedAt = row.endedAt?.let { at -> CloudTime.parseMillis(at) },
                     hourlyRate = row.hourlyRate,
                     notes = row.notes,
-                    approvedAt = CloudTime.parseMillis(row.approvedAt),
-                    approvedBy = row.approvedBy,
-                    rejectedAt = CloudTime.parseMillis(row.rejectedAt),
-                    reviewNote = row.reviewNote
+                    approvedAt = if (cloudHasDecision) cloudApprovedAt else existing.approvedAt,
+                    approvedBy = if (cloudHasDecision) row.approvedBy else existing.approvedBy,
+                    rejectedAt = if (cloudHasDecision) cloudRejectedAt else existing.rejectedAt,
+                    reviewNote = if (cloudHasDecision || !localHasDecision) row.reviewNote
+                                 else existing.reviewNote
                 )
                 if (merged != existing) {
                     repository.updateTimeEntry(merged)
