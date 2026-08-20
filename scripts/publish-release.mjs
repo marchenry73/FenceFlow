@@ -61,19 +61,80 @@ function versionCode() {
 const code = versionCode();
 const name = `1.${code}`;
 
-// Warn rather than refuse: the APK may legitimately live elsewhere.
 const apk = join(REPO_ROOT, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
-if (!existsSync(apk)) {
-  console.warn("Note: no built APK found locally. Did you run assembleDebug first?\n");
+
+/**
+ * Puts the APK somewhere the app can actually download it, and returns that URL.
+ *
+ * Google Drive cannot do this job. A restricted file redirects an anonymous
+ * download to a sign-in page, and Drive interstitials APKs it cannot
+ * virus-scan even when they are shared -- either way the app downloads HTML
+ * and Android refuses to install a web page. That is not a setting to get
+ * right; it is the wrong host for the file.
+ *
+ * The releases bucket is public on purpose, and it is the only public one. An
+ * APK is not a secret: it is the app, and anybody with it installed already
+ * has a copy. No company's jobs, customers or money live in that bucket.
+ */
+function uploadApk(code) {
+  if (!existsSync(apk)) {
+    console.warn("No built APK found. Run assembleDebug first, or pass --url.\n");
+    return null;
+  }
+  // A new name every publish.
+  //
+  // Storage refuses to overwrite an existing object, so reusing one name means
+  // a republish silently keeps the OLD apk and hands people a build that is
+  // not the one just made -- the worst possible failure for an update
+  // mechanism, because everything reports success.
+  //
+  // The commit hash makes each upload distinct without needing a delete first,
+  // and it also makes the URL say exactly which build it is. Old files can be
+  // cleared out of the bucket whenever; nothing points at them once a newer
+  // release row exists.
+  const stamp = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+    cwd: REPO_ROOT, encoding: "utf8",
+  }).trim();
+  const remote = `fenceflow-${code}-${stamp}.apk`;
+
+  try {
+    // A RELATIVE path, run from the repo root.
+    //
+    // shell:true is needed to launch npx.cmd on Windows, and the shell eats the
+    // backslashes in an absolute Windows path -- the CLI received
+    // "C:UsersmarchAndroidProjects..." and could not parse it. Going relative
+    // sidesteps the quoting problem instead of fighting it.
+    execFileSync(
+      "npx.cmd",
+      [
+        "-y", "supabase", "storage", "cp", "--experimental",
+        "app/build/outputs/apk/debug/app-debug.apk",
+        `"ss:///releases/${remote}"`,
+        "--linked", "--project-ref", PROJECT_REF
+      ],
+      { encoding: "utf8", shell: true, cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] }
+    );
+    return `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/releases/${remote}`;
+  } catch (e) {
+    // The CLI's own message, not just "command failed" -- which says nothing
+    // about why and sent me chasing the wrong cause twice.
+    const detail = String(e.stderr || e.stdout || e.message || "").trim();
+    console.warn("Could not upload the APK.\n  " + detail.slice(0, 400));
+    return null;
+  }
 }
 
 const esc = (s) => String(s).replace(/'/g, "''");
 
-// An omitted --url inherits the previous release's link rather than blanking
-// it, so the URL only has to be typed once ever.
-const urlExpr = downloadUrl === null
+// An explicit --url wins. Otherwise the APK is uploaded and that URL is used,
+// so publishing is one command and the link can never point at a build that
+// is not the one just made.
+const hostedUrl = downloadUrl === null ? uploadApk(code) : null;
+const effectiveUrl = downloadUrl !== null ? downloadUrl : hostedUrl;
+
+const urlExpr = effectiveUrl === null
   ? "coalesce((select download_url from public.app_releases order by version_code desc limit 1), '')"
-  : "'" + esc(downloadUrl) + "'";
+  : "'" + esc(effectiveUrl) + "'";
 
 const sql = `
 insert into public.app_releases (version_code, version_name, notes, is_mandatory, download_url)
@@ -103,6 +164,8 @@ try {
   }
   console.log(`Published version ${name}${urgent ? "  (mandatory)" : ""}`);
   console.log(`  "${notes}"`);
+
+  if (hostedUrl) console.log(`  hosted at ${hostedUrl}`);
 
   // Say so loudly. A release with no link shows a prompt people cannot act on.
   if (/"download_url":\s*""/.test(out)) {
