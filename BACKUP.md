@@ -67,9 +67,11 @@ Does **not** capture:
 - **The schema.** Tables, RLS policies, functions and triggers are not in the
   dump. Restoring into an empty project means recreating those first from the
   `supabase_*.sql` patch files in this repo, then loading the JSON.
-- **Storage files** — signatures, survey photos, job photos. Those live in
-  Supabase Storage, not the database. They are still on the phones that took
-  them, and in the app's own local backup.
+- **Storage files** — signatures, survey photos, job photos. These *are* in the
+  cloud, in Supabase Storage, so they survive a phone being lost or replaced.
+  They are simply not in *this* dump, which reads database tables. Backing them
+  up separately means downloading the `job-files` bucket from the Supabase
+  dashboard.
 - **Auth users.** Accounts live in Supabase's auth schema. A restore would need
   people to sign up again, and `profiles` rows rematched to the new user ids.
 
@@ -93,10 +95,32 @@ relationship sours.
 2. Load the JSON files, parents before children: `profiles`, then `jobs`, then
    everything that references a job.
 3. Have people sign up again, then repoint `profiles.id` at the new auth ids.
-4. Storage files: re-upload from the phones, or accept their loss.
+4. Storage files: copy the `job-files` bucket across, or let the phones
+   re-upload anything they still hold locally.
 
 Step 3 is the awkward one and is the strongest argument for being on a plan
 where Supabase's own point-in-time restore exists, since that keeps auth intact.
+
+## What is covered where
+
+| | In the cloud | In `backup-cloud.mjs` | On the phone |
+|---|---|---|---|
+| Jobs, payments, crew, hours | yes | yes | yes |
+| Settings and catalog | yes | yes | yes |
+| Signatures | yes | no — bucket | yes |
+| Survey images | yes | no — bucket | yes |
+| Job photos | yes, compressed | no — bucket | yes, full quality |
+| User accounts | yes | **no** | — |
+
+Job photos are shrunk to about 1600px on the long edge before upload, so the
+cloud copy is good enough to show a customer and small enough not to eat a
+crew's mobile data. **The full-quality original stays on the phone that took
+it** — nothing is degraded, there is simply a lighter copy in the cloud as well.
+
+Survey images and signatures are uploaded untouched, on purpose. A survey
+carries the pixel space its fence line and scale are measured in, so resizing
+one would silently reprice every job drawn on it; a signature is line art that
+JPEG smears, and it is evidence.
 
 ## The honest summary
 

@@ -58,8 +58,26 @@ class JobFileUploader(
             //    the order these go up in is a real cost.
             repository.getPhotos(job.id).forEach { photo ->
                 if (photo.storagePath == null) {
-                    FileSync.upload(companyId, job.syncId, "photo", photo.filePath)?.let { remote ->
+                    // Shrunk before it goes up. A phone photo is four to eight
+                    // megabytes and a crew takes a dozen a job -- untouched,
+                    // they fill storage and spend the crew's data in a yard
+                    // where the signal is already poor.
+                    //
+                    // The compressed copy is a temporary file, uploaded and
+                    // then deleted. The original on the phone is never touched:
+                    // it is the user's own photo, and the full-quality version
+                    // is the one they zoom into on the device that took it.
+                    //
+                    // Deliberately photos only. Survey images carry the pixel
+                    // space the fence line and its scale are measured in, and
+                    // signatures are line art that JPEG smears -- see the note
+                    // in ImageCompressor.
+                    val toUpload = ImageCompressor.compressForUpload(photo.filePath, context.cacheDir)
+                    FileSync.upload(companyId, job.syncId, "photo", toUpload)?.let { remote ->
                         repository.updatePhoto(photo.copy(storagePath = remote))
+                    }
+                    if (toUpload != photo.filePath) {
+                        runCatching { java.io.File(toUpload).delete() }
                     }
                 }
             }

@@ -166,6 +166,11 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.6.0")
 
+    // Reading a photo's rotation. A portrait photo stores its orientation in
+    // EXIF rather than in the pixels, and re-encoding drops that -- so without
+    // this a compressed photo arrives on the other phone lying on its side.
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
