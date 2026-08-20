@@ -25,9 +25,29 @@ object JobMoney {
      */
     fun netPaid(job: Job): Double = (job.amountPaid - job.refundedAmount).coerceAtLeast(0.0)
 
-    /** What the customer still owes on the whole job. Never negative. */
+    /**
+     * What the customer still owes on the whole job. Never negative.
+     *
+     * Floored deliberately, because this is what gets ASKED for -- a payment
+     * request for a negative amount is meaningless, and a payment link for one
+     * would be worse.
+     *
+     * For showing a figure on screen, use [balance], which can go negative and
+     * say so.
+     */
     fun stillOwed(job: Job, contractTotal: Double): Double =
         (contractTotal - netPaid(job)).coerceAtLeast(0.0)
+
+    /**
+     * The balance as it really stands, negative when the money is owed the
+     * other way.
+     *
+     * The screen used to floor this at zero, so a customer who had overpaid by
+     * $400 read as "Still owed $0.00" -- which is not what a contractor needs
+     * to see. Owing somebody $400 is a fact about the job, and one worth acting
+     * on before they ask.
+     */
+    fun balance(job: Job, contractTotal: Double): Double = contractTotal - netPaid(job)
 
     /** True when they have paid more than the job is worth -- worth saying out loud. */
     fun overpaid(job: Job, contractTotal: Double): Boolean =

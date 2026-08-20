@@ -249,8 +249,14 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
      * a bank transfer -- had a reason, and having the app quietly undo it would
      * make the status untrustworthy.
      */
-    fun reconcilePaymentStatus() {
-        val current = job.value ?: return
+    /**
+     * @param known the job as it is right now, when the caller has just
+     *   changed it. job.value is a Flow and lags a write made moments earlier
+     *   in the same coroutine, so a caller that has just moved money must pass
+     *   what it read back rather than let this read a stale copy.
+     */
+    fun reconcilePaymentStatus(known: Job? = null) {
+        val current = known ?: job.value ?: return
         val total = contractTotal.value.grandTotal
         if (total <= 0.0) return
         // Net of refunds. Giving money back has to be able to move a job out of
@@ -338,17 +344,28 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
                     note = reason
                 )
             )
-            update {
-                it.copy(
+            // Re-read rather than using job.value.
+            //
+            // recordPayment has just rewritten amountPaid and refundedAmount
+            // from the ledger, but job.value is a Flow and has not caught up in
+            // this same coroutine. Copying from it here wrote the PRE-refund
+            // totals straight back over the top, so the ledger row survived and
+            // the figures on screen did not move -- the refund only appeared
+            // later, when a sync recomputed the totals again. Which is exactly
+            // "recording a refund is not working immediately".
+            val fresh = repository.getJob(jobId) ?: return@launch
+            repository.updateJob(
+                fresh.copy(
                     refundedAt = System.currentTimeMillis(),
-                    refundReason = listOf(it.refundReason, reason)
+                    refundReason = listOf(fresh.refundReason, reason)
                         .filter { line -> line.isNotBlank() }
                         .joinToString("; ")
                 )
-            }
+            )
             // The status has to follow the money straight away, or the job sits
-            // at "paid in full" while the customer is holding a refund.
-            reconcilePaymentStatus()
+            // at "paid in full" while the customer is holding a refund. Given
+            // the freshly read job for the same reason as above.
+            reconcilePaymentStatus(repository.getJob(jobId))
         }
     }
 

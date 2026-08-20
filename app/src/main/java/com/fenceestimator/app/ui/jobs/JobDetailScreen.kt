@@ -1215,11 +1215,25 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 if (job.refundedAmount > 0.0) {
                     MoneyLine("Refunded", -job.refundedAmount)
                 }
-                MoneyLine("Still owed", stillOwed, bold = true)
+                // Signed, not floored. An overpaid customer used to read as
+                // "Still owed $0.00", which hides the fact that money is owed
+                // the other way -- and that is a thing to act on before they
+                // ask for it.
+                val balance = JobMoney.balance(job, contractTotal)
+                if (balance < -0.005) {
+                    MoneyLine("You owe the customer", -balance, bold = true)
+                } else {
+                    MoneyLine("Still owed", balance.coerceAtLeast(0.0), bold = true)
+                }
                 if (job.amountPaid > 0.0) {
                     Text(
-                        if (stillOwed <= 0.005) "Paid in full."
-                        else "Card payments post here automatically once they clear.",
+                        when {
+                            balance < -0.005 ->
+                                "They have paid ${"%.2f".format(-balance)} more than the job " +
+                                    "comes to. Record a refund below once you have sent it back."
+                            balance <= 0.005 -> "Paid in full."
+                            else -> "Card payments post here automatically once they clear."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )

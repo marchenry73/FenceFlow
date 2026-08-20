@@ -1,5 +1,6 @@
 package com.fenceestimator.app.ui.jobs
 
+import com.fenceestimator.app.ui.components.DraftTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,7 +51,6 @@ fun OverrunSection(
     val days = JobSchedule.daysOverrun(job, workdayHours)
     val next = JobSchedule.nextAffected(job, allJobs, workdayHours)
 
-    var reason by remember(job.id) { mutableStateOf(job.blockedReason) }
 
     Card(
         Modifier.fillMaxWidth(),
@@ -67,17 +67,18 @@ fun OverrunSection(
             // Recorded now, while somebody remembers. A month later in a dispute
             // "it rained" and "the customer never cleared the line" are the
             // difference between eating the cost and charging for it.
-            OutlinedTextField(
-                value = reason,
-                onValueChange = { reason = it },
-                label = { Text("Why did it run over?") },
-                placeholder = { Text("Rain Tuesday; customer hadn't moved the shed") },
+            // Saves itself shortly after you stop typing, like every other
+            // field in the app. It used to need the button below pressed, and
+            // a reason typed on site and then walked away from was simply
+            // lost -- which is the reason you most want a month later, when
+            // the customer is asking why the job ran late.
+            DraftTextField(
+                stableKey = job.id,
+                initialValue = job.blockedReason,
+                label = "Why did it run over?",
+                minLines = 2,
                 modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedButton(
-                onClick = { viewModel.update { it.copy(blockedReason = reason.trim()) } },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Save the reason") }
+            ) { text -> viewModel.update { it.copy(blockedReason = text.trim()) } }
 
             if (next != null) {
                 Text(
