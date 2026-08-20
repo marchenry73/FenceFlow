@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Installing an update from inside the app. Android still shows its own
+         confirmation before anything is installed; this only allows us to ask. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- So the app can sync the moment signal comes back, instead of waiting
          out the heartbeat while a crew stands in a yard with no bars. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

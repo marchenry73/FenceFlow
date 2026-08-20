@@ -120,9 +120,35 @@ fun JobsListScreen(
     }
     pendingUpdate?.takeIf { !updateDismissed }?.let { release ->
         val ctx = androidx.compose.ui.platform.LocalContext.current
+        val updateScope = androidx.compose.runtime.rememberCoroutineScope()
+        var progress by remember {
+            mutableStateOf<com.fenceestimator.app.cloud.ApkUpdater.Progress?>(null)
+        }
+
         com.fenceestimator.app.ui.onboarding.UpdateAvailableDialog(
             release = release,
+            progress = progress,
             onDownload = {
+                // Downloaded here and handed to Android, rather than opening a
+                // browser and leaving somebody to find the file, download it,
+                // find it again and open it. Four steps, each of which people
+                // give up at -- which matters most for the update that fixes
+                // something about their money.
+                updateScope.launch {
+                    progress = com.fenceestimator.app.cloud.ApkUpdater.Progress.Downloading(0)
+                    val apk = com.fenceestimator.app.cloud.ApkUpdater.download(
+                        ctx, release.downloadUrl
+                    ) { p -> progress = p }
+                    if (apk != null) {
+                        progress = com.fenceestimator.app.cloud.ApkUpdater.Progress.Installing
+                        com.fenceestimator.app.cloud.ApkUpdater.install(ctx, apk)
+                        // Left open on purpose. Android shows its own install
+                        // prompt on top, and closing this underneath it would
+                        // leave nothing to return to if they decline.
+                    }
+                }
+            },
+            onOpenInBrowser = {
                 runCatching {
                     ctx.startActivity(
                         android.content.Intent(
