@@ -115,8 +115,14 @@ fun JobsListScreen(
         mutableStateOf<com.fenceestimator.app.cloud.AppRelease?>(null)
     }
     var updateDismissed by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        pendingUpdate = com.fenceestimator.app.cloud.UpdateChecker.checkOnce()
+    // Keyed on being signed in, not on Unit. Reading the release list needs a
+    // session, and this screen composes before Supabase has restored one -- so
+    // keying on Unit asked exactly once, too early, and got an empty answer
+    // that looked identical to being up to date.
+    androidx.compose.runtime.LaunchedEffect(session.signedIn, session.resolved) {
+        if (session.signedIn) {
+            pendingUpdate = com.fenceestimator.app.cloud.UpdateChecker.checkOnce()
+        }
     }
     pendingUpdate?.takeIf { !updateDismissed }?.let { release ->
         val ctx = androidx.compose.ui.platform.LocalContext.current
