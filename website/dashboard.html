@@ -567,18 +567,51 @@ async function boot(){
   await loadAll();
 }
 
+/* ---------- money ----------
+   These mirror JobMoney in the app deliberately. Two places working the same
+   figure out differently is how the website and the phone came to disagree,
+   and a contractor cannot tell which of the two to believe. */
+
+/** What the customer has actually paid, net of anything refunded. */
+function netPaid(j){
+  return Math.max(0, (j.amount_paid||0) - (j.refunded_amount||0));
+}
+
+/** The balance as it really stands. Negative means the money is owed back. */
+function balanceOf(j, contractTotal){
+  return (contractTotal||0) - netPaid(j);
+}
+
+/** What may be ASKED for. Never negative -- a request for minus $400 is meaningless. */
+function stillOwed(j, contractTotal){
+  return Math.max(0, balanceOf(j, contractTotal));
+}
+
+let payments=[];
+
 /* ---------- data ---------- */
 async function loadAll(){
   // One round trip per table; RLS scopes every result to this company.
-  const q = t => db.from(t).select('*');
-  const [j,e,r,i,x,p,o,tm,c,ti] = await Promise.all([
+  //
+  // is('deleted_at', null) on every one of them. Deleting anything in the app
+  // marks it deleted rather than removing it, so that it can be undone and so
+  // other phones learn about it -- and this page read the rows straight back,
+  // tombstones and all. Deleted jobs stayed listed, and the duplicate pricing
+  // tiers that were cleaned up in the app were still showing here.
+  const q = t => db.from(t).select('*').is('deleted_at', null);
+  const [j,e,r,i,x,p,o,tm,c,ti,pay] = await Promise.all([
     q('jobs'), q('employees'), q('fence_runs'), q('estimate_line_items'),
     q('expenses'), q('punch_list_items'), q('change_orders'), q('time_entries'),
-    q('material_items'), q('pricing_tiers')
+    q('material_items'), q('pricing_tiers'),
+    // The money ledger. This page used to read job_payments, which is the
+    // Stripe payment-LINK table -- amounts in cents, with a URL and a Stripe
+    // id. It is not what the app counts money from, which is why the figures
+    // here never matched the app's.
+    q('payment_records')
   ]);
   jobs=j.data||[]; employees=e.data||[]; runs=r.data||[]; items=i.data||[];
   expenses=x.data||[]; punch=p.data||[]; orders=o.data||[]; times=tm.data||[];
-  catalog=c.data||[]; tiers=ti.data||[];
+  catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
   jobs.sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0));
 
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
@@ -675,7 +708,15 @@ async function loadJobPayments(){
 function renderDash(){
   const m=new Date(); m.setDate(1); m.setHours(0,0,0,0);
   const won=jobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED').length;
-  const collected=jobs.filter(j=>d(j.updated_at)>=m).reduce((s,j)=>s+(j.amount_paid||0),0);
+  // From the ledger, bucketed by when the money actually moved.
+  //
+  // This used to sum every job whose updated_at fell in the month, which is a
+  // SYNC timestamp -- so a job touched by a sync had its entire lifetime of
+  // payments counted as this month's, and the same job counted differently on
+  // different devices. It also used the gross figure, so refunds never came
+  // off. Ledger rows carry the refund as a negative, so summing them is both
+  // the right period and already net.
+  const collected=payments.filter(p=>d(p.received_at)>=m).reduce((s,p)=>s+(p.amount||0),0);
   const unpaid=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&j.payment_status!=='PAID_IN_FULL');
   const week=new Date(); const weekEnd=new Date(Date.now()+7*864e5);
   const soon=jobs.filter(j=>j.scheduled_date&&d(j.scheduled_date)>=week&&d(j.scheduled_date)<=weekEnd);
@@ -708,7 +749,7 @@ function renderJobs(){
       <td>${esc(j.address)||'—'}</td>
       <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span></td>
       <td>${j.scheduled_date?d(j.scheduled_date).toLocaleDateString():'—'}</td>
-      <td>${money(j.amount_paid)}</td></tr>`).join('');
+      <td>${money(netPaid(j))}</td></tr>`).join('');
   document.querySelectorAll('#jobRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showJob(tr.dataset.id)));
 }
@@ -745,7 +786,9 @@ function stageOf(j){
   if(j.payment_status==='PAID_IN_FULL') return 'Paid in Full';
   if(j.status==='COMPLETED') return 'Installed';
   if(j.scheduled_date&&j.status==='ACCEPTED') return 'Scheduled';
-  if((j.amount_paid||0)>0||j.payment_status==='DEPOSIT_PAID') return 'Deposit Paid';
+  // netPaid, not the gross figure: a job paid and then fully refunded has not
+  // had a deposit received, however much passed through it.
+  if(netPaid(j)>0||j.payment_status==='DEPOSIT_PAID') return 'Deposit Paid';
   if(j.status==='ACCEPTED') return 'Approved';
   if(j.status==='SENT') return 'Quote Sent';
   return 'New Lead';
@@ -916,6 +959,10 @@ function renderReports(){
 
   const jobsIn=jobs.filter(j=>inPeriod(j.updated_at||j.created_at));
   const syncIds=new Set(jobsIn.map(j=>j.sync_id));
+  // Payments are selected by WHEN THE MONEY MOVED, not by which jobs happen to
+  // have been touched in the window. A job synced today does not make a payment
+  // from March belong to today.
+  const paymentsIn=payments.filter(p=>inPeriod(p.received_at));
   const won=jobsIn.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED');
   const timesIn=times.filter(t=>t.ended_at&&inPeriod(t.started_at)&&hourFilterOk(d(t.started_at)));
 
@@ -923,7 +970,9 @@ function renderReports(){
     .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
   const other=expenses.filter(e=>syncIds.has(e.job_sync_id)).reduce((s,e)=>s+(e.amount||0),0);
   const labor=timesIn.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
-  const collected=jobsIn.reduce((s,j)=>s+(j.amount_paid||0),0);
+  // Ledger again, over the report's own window, so this agrees with the app
+  // and with the tile above it.
+  const collected=paymentsIn.reduce((s,p)=>s+(p.amount||0),0);
   const profit=collected-material-labor-other;
   const margin=collected>0?(profit/collected*100):0;
   const hours=timesIn.reduce((s,t)=>s+hoursOf(t),0);
@@ -941,11 +990,13 @@ function renderReports(){
 
   // Revenue by month
   const byMonth={};
-  jobsIn.forEach(j=>{
-    if(!(j.amount_paid>0)) return;
-    const t=d(j.updated_at||j.created_at);
+  // Each payment in the month it was received, refunds included as negatives.
+  // Bucketing by a job's sync timestamp put a whole job's history into
+  // whichever month it was last touched.
+  paymentsIn.forEach(p=>{
+    const t=d(p.received_at);
     const k=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
-    byMonth[k]=(byMonth[k]||0)+j.amount_paid;
+    byMonth[k]=(byMonth[k]||0)+(p.amount||0);
   });
   colsV('chartRevenue',
     Object.keys(byMonth).sort().slice(-12).map(k=>({
@@ -1036,12 +1087,12 @@ function renderReports(){
   const owed=jobsIn.map(j=>{
     const mat=items.filter(i=>i.job_sync_id===j.sync_id)
       .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
-    return {j,mat,out:Math.max(0,mat-(j.amount_paid||0))};
+    return {j,mat,out:Math.max(0,mat-netPaid(j))};
   }).filter(r=>r.out>0.01).sort((a,b)=>b.out-a.out);
   $('repOwed').innerHTML = owed.length
     ? owed.map(r=>`<tr><td>${esc(r.j.customer_name)||'Untitled'}</td>
         <td><span class="pill ${esc(r.j.status)}">${esc(r.j.status)}</span></td>
-        <td>${money(r.mat)}</td><td>${money(r.j.amount_paid)}</td>
+        <td>${money(r.mat)}</td><td>${money(netPaid(r.j))}</td>
         <td><strong>${money(r.out)}</strong></td></tr>`).join('')
     : '<tr><td colspan="5" style="color:var(--muted)">Nothing outstanding.</td></tr>';
 
@@ -1147,7 +1198,7 @@ function showJob(id){
   const st=[
     ['Quote sent', openJob.status!=='DRAFT'],
     ['Quote approved', openJob.status==='ACCEPTED'||openJob.status==='COMPLETED'],
-    ['Deposit received', (openJob.amount_paid||0)>0||openJob.payment_status!=='UNPAID'],
+    ['Deposit received', netPaid(openJob)>0||openJob.payment_status!=='UNPAID'],
     ['HOA / permit cleared', ['NOT_REQUIRED','APPROVED'].includes(openJob.hoa_approval_status)],
     ['Installation scheduled', !!openJob.scheduled_date],
     ['Installation complete', openJob.status==='COMPLETED'],
@@ -1190,7 +1241,12 @@ async function createJob(){
 async function deleteJob(){
   if(!openJob||!canEdit()) return;
   if(!confirm(`Delete "${openJob.customer_name||'this job'}"? This cannot be undone.`)) return;
-  const {error}=await db.from('jobs').delete().eq('id',openJob.id);
+  // Marked deleted rather than removed, exactly as the app does it. A hard
+  // delete here left no tombstone, so it could not be restored from the trash
+  // and the phones had no way to learn the job was gone.
+  const {error}=await db.from('jobs')
+    .update({deleted_at:new Date().toISOString(), deleted_by:'office dashboard'})
+    .eq('id',openJob.id);
   if(error) return msg('jobMsg',error.message,'err');
   $('jobOverlay').classList.remove('on'); await loadAll();
 }
@@ -1217,7 +1273,11 @@ async function saveEmp(){
 async function deleteEmp(){
   if(!openEmp||!canEdit()) return;
   if(!confirm(`Remove ${openEmp.name||'this person'}?`)) return;
-  const {error}=await db.from('employees').delete().eq('id',openEmp.id);
+  // As above: marked deleted, so their clocked hours and costed jobs survive
+  // and the phones find out.
+  const {error}=await db.from('employees')
+    .update({deleted_at:new Date().toISOString(), deleted_by:'office dashboard'})
+    .eq('id',openEmp.id);
   if(error) return msg('empMsg',error.message,'err');
   $('empOverlay').classList.remove('on'); await loadAll();
 }
@@ -1303,7 +1363,7 @@ $('exportCrew').addEventListener('click',()=>downloadCsv('crew-report.csv',
 $('exportOwed').addEventListener('click',()=>downloadCsv('outstanding.csv',
   ['Customer','Status','Materials','Paid','Outstanding'],
   (window._repExport?.owed||[]).map(r=>
-    [r.j.customer_name,r.j.status,r.mat.toFixed(2),(r.j.amount_paid||0).toFixed(2),r.out.toFixed(2)])));
+    [r.j.customer_name,r.j.status,r.mat.toFixed(2),netPaid(r.j).toFixed(2),r.out.toFixed(2)])));
 $('exportTime').addEventListener('click',()=>downloadCsv('time-detail.csv',
   ['Date','Job','In','Out','Hours','Cost'],
   (window._repExport?.times||[]).map(t=>{
