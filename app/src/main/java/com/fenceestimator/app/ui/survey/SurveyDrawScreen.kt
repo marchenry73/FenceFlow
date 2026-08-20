@@ -1,5 +1,6 @@
 package com.fenceestimator.app.ui.survey
 
+import androidx.compose.material3.FilterChip
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -192,6 +193,38 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 if (usingGrid) {
                     val job2 = job
                     if (job2 != null) {
+                        // How much ground the grid covers.
+                        //
+                        // A gate and a paddock are not the same drawing
+                        // problem. Fixed at 400ft, one foot was about two and a
+                        // half pixels on a phone, so a 20ft run could not be
+                        // drawn accurately and a small drag measured forty feet.
+                        Text(
+                            "How big is this job?",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            SurveyViewModel.GRID_SIZES_FT.forEach { size ->
+                                val selected = kotlin.math.abs(job2.gridExtentFt - size) < 0.5f
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { viewModel.setGridExtent(size) },
+                                    label = { Text("${size.toInt()} ft") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        Text(
+                            "Anything you have already drawn keeps its length -- it just " +
+                                "fills more or less of the screen.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
                         DraftNumberField(
                             stableKey = job2.id, label = "Feet per grid square",
                             initialValue = job2.gridFeetPerSquare,

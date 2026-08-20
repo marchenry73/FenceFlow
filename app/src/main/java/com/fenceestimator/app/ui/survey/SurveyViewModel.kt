@@ -310,8 +310,70 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         // user set by hand -- so calibrating on the grid never stuck.
         if (current.calibrationPixelsPerFoot == null) {
             viewModelScope.launch {
-                repository.updateJob(current.copy(calibrationPixelsPerFoot = PIXELS_PER_FOOT_GRID, calibrationKnownFeet = null))
+                repository.updateJob(
+                    current.copy(
+                        calibrationPixelsPerFoot = unitsPerFoot(current.gridExtentFt),
+                        calibrationKnownFeet = null
+                    )
+                )
             }
+        }
+    }
+
+    /**
+     * Changes how much ground the grid covers, keeping what is already drawn
+     * exactly the length it is.
+     *
+     * The points are stored in canvas units, so changing the scale without
+     * moving them would silently reprice the job -- a 20ft fence would become
+     * a 320ft one on a tighter grid. Everything drawn is therefore multiplied
+     * by the same ratio the scale changed by, which leaves every measurement
+     * identical and simply makes the drawing fill more of the screen.
+     *
+     * Gate positions ride along the run they sit on, so they move with it.
+     */
+    fun setGridExtent(extentFt: Float) {
+        val current = job.value ?: return
+        if (current.surveyImagePath != null) return
+        if (extentFt <= 0f) return
+
+        val before = current.calibrationPixelsPerFoot ?: unitsPerFoot(current.gridExtentFt)
+        val after = unitsPerFoot(extentFt)
+        if (before <= 0f || kotlin.math.abs(before - after) < 0.0001f) {
+            viewModelScope.launch { repository.updateJob(current.copy(gridExtentFt = extentFt)) }
+            return
+        }
+        val ratio = after / before
+
+        viewModelScope.launch {
+            repository.getFenceRuns(current.id).forEach { run ->
+                val points = FenceCodec.decodePoints(run.pointsEncoded)
+                val gates = FenceCodec.decodeGates(run.gatesEncoded)
+                if (points.isEmpty() && gates.isEmpty()) return@forEach
+                repository.updateFenceRun(
+                    run.copy(
+                        pointsEncoded = FenceCodec.encodePoints(
+                            points.map { FencePoint(it.x * ratio, it.y * ratio) }
+                        ),
+                        gatesEncoded = run.gatesEncoded
+                    )
+                )
+            }
+            // Site markers are in the same canvas space and would otherwise
+            // end up somewhere else in the yard.
+            repository.getSiteMarkers(current.id).forEach { marker ->
+                repository.updateSiteMarker(marker.copy(x = marker.x * ratio, y = marker.y * ratio))
+            }
+            repository.updateJob(
+                current.copy(
+                    gridExtentFt = extentFt,
+                    calibrationPixelsPerFoot = after,
+                    // Squares that read sensibly at this size: about twenty
+                    // across, so a 25ft grid gets roughly 1ft squares and a
+                    // 400ft grid gets 20ft ones.
+                    gridFeetPerSquare = (extentFt / 20f).coerceAtLeast(0.5f)
+                )
+            )
         }
     }
 
@@ -342,9 +404,26 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     }
 
     companion object {
-        /** Fixed virtual-units-per-foot for the no-photo grid canvas. Never changes once set, so
-         *  display/zoom changes can't retroactively alter the real-world size of drawn lines. */
+        /**
+         * Units per foot on the no-photo grid, for a job that has not chosen a
+         * size. Kept as the old fixed value so existing drawings measure
+         * exactly what they always did.
+         */
         const val PIXELS_PER_FOOT_GRID = 20f
+
+        /**
+         * Grid sizes to choose from, in feet across.
+         *
+         * A gate and a paddock are not the same drawing problem. At 400ft one
+         * foot is about two and a half pixels on a phone and a 20ft run cannot
+         * be drawn accurately; at 25ft the same run fills the screen.
+         */
+        val GRID_SIZES_FT = listOf(25f, 50f, 100f, 200f, 400f)
+
+        /** Units per foot for a grid covering [extentFt] across. */
+        fun unitsPerFoot(extentFt: Float): Float =
+            if (extentFt <= 0f) PIXELS_PER_FOOT_GRID
+            else GRID_CANVAS_SIZE / extentFt
 
         /** Long enough that dragging a corner re-prices once, not once per frame. */
         private const val REPRICE_DEBOUNCE_MS = 700L

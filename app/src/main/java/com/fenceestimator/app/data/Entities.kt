@@ -158,6 +158,18 @@ data class Job(
     val calibrationKnownFeet: Float? = null,
     /** Feet represented by one grid square when drawing with no survey photo. */
     val gridFeetPerSquare: Float = 5f,
+    /**
+     * How much ground the no-photo grid covers, corner to corner.
+     *
+     * The grid used to be a fixed 400ft square fitted to the screen, so on a
+     * phone one foot was about two and a half pixels: a 20ft gate section was a
+     * 50-pixel line nobody could draw accurately, and a small drag measured
+     * forty feet. Right for a property boundary, useless for a side gate.
+     *
+     * Changing this rescales anything already drawn, so the fence stays the
+     * length it was and simply fills more or less of the screen.
+     */
+    val gridExtentFt: Float = 400f,
 
     // Pricing
     val taxRatePercent: Double = 7.0,
