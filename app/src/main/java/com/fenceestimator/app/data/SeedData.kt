@@ -1,6 +1,12 @@
 package com.fenceestimator.app.data
 
-private const val REAL = "FloriFence Invoice 36499 / Estimate 17407 (real prices)"
+// Neither string names a supplier or an invoice. The seed ships to every new
+// company, and the old value carried the founding company's supplier and its
+// invoice numbers into strangers' databases -- a real business's paperwork is
+// not part of the product. The distinction that matters survives: quoted
+// prices came off genuine supplier documents, placeholders are typical market
+// rates that must be checked before anyone quotes off them.
+private const val REAL = "From a real supplier quote"
 private const val PLACEHOLDER = "Placeholder — verify with your supplier"
 
 /**

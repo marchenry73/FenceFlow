@@ -39,7 +39,8 @@ data class CloudSettings(
     @SerialName("tools_list") val toolsList: String = "",
     @SerialName("order_template") val orderTemplate: String = "",
     @SerialName("hoa_template") val hoaTemplate: String = "",
-    @SerialName("review_template") val reviewTemplate: String = ""
+    @SerialName("review_template") val reviewTemplate: String = "",
+    @SerialName("prices_reviewed") val pricesReviewed: Boolean = false
 )
 
 @Serializable
@@ -112,7 +113,8 @@ private fun BusinessProfile.toCloud() = CloudSettings(
     toolsList = defaultToolsListCsv,
     orderTemplate = orderEmailTemplate,
     hoaTemplate = hoaEmailTemplate,
-    reviewTemplate = reviewRequestTemplate
+    reviewTemplate = reviewRequestTemplate,
+    pricesReviewed = pricesReviewed
 )
 
 /** Keeps this device's personal and credential fields; takes the rest from the cloud. */
@@ -133,5 +135,8 @@ private fun BusinessProfile.mergedWith(cloud: CloudSettings) = copy(
     defaultToolsListCsv = cloud.toolsList.ifBlank { defaultToolsListCsv },
     orderEmailTemplate = cloud.orderTemplate.ifBlank { orderEmailTemplate },
     hoaEmailTemplate = cloud.hoaTemplate.ifBlank { hoaEmailTemplate },
-    reviewRequestTemplate = cloud.reviewTemplate.ifBlank { reviewRequestTemplate }
+    reviewRequestTemplate = cloud.reviewTemplate.ifBlank { reviewRequestTemplate },
+    // One-way on purpose: once anyone at the company has reviewed the
+    // prices, a phone that has not synced lately must not un-review them.
+    pricesReviewed = pricesReviewed || cloud.pricesReviewed
 )

@@ -137,6 +137,18 @@ data class BusinessProfile(
     /** False until the first-run tour has been seen or skipped. */
     val hasSeenTour: Boolean = false,
     /**
+     * Whether somebody has looked the starting catalog in the eye.
+     *
+     * A new company opens with a seeded catalog and seeded labor rates --
+     * necessary, or Suggest Quantities produces nothing on day one. But
+     * seeded numbers are the founding company's numbers, and the first
+     * quote a new owner sends must not quietly carry someone else's
+     * prices. This stays false until they either open the catalog from the
+     * review card or declare the prices theirs, and the card sits on the
+     * home screen until it flips.
+     */
+    val pricesReviewed: Boolean = false,
+    /**
      * When these settings were last changed on this device.
      *
      * Without it the cloud copy always won a pull, newer or not -- so a save
@@ -180,6 +192,14 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[Keys.SEEN_TOUR] = true }
     }
 
+    /** Same shape as [markTourSeen], and stamped so the answer syncs to the company. */
+    suspend fun markPricesReviewed() {
+        context.dataStore.edit {
+            it[Keys.PRICES_REVIEWED] = true
+            it[Keys.UPDATED_AT] = System.currentTimeMillis()
+        }
+    }
+
     private object Keys {
         val BUSINESS_NAME = stringPreferencesKey("business_name")
         val OWNER_NAME = stringPreferencesKey("owner_name")
@@ -189,6 +209,7 @@ class SettingsStore(private val context: Context) {
         val CONTRACT_TERMS = stringPreferencesKey("contract_terms")
         val HOME_CARDS = stringPreferencesKey("home_cards")
         val SEEN_TOUR = androidx.datastore.preferences.core.booleanPreferencesKey("seen_tour")
+        val PRICES_REVIEWED = androidx.datastore.preferences.core.booleanPreferencesKey("prices_reviewed")
         val UPDATED_AT = androidx.datastore.preferences.core.longPreferencesKey("settings_updated_at")
         val TAX_RATE = doublePreferencesKey("tax_rate")
         val MARKUP = doublePreferencesKey("markup")
@@ -232,6 +253,7 @@ class SettingsStore(private val context: Context) {
             contractTerms = prefs[Keys.CONTRACT_TERMS] ?: DEFAULT_CONTRACT_TERMS,
             homeCardsCsv = prefs[Keys.HOME_CARDS] ?: HomeCard.DEFAULT_CSV,
             hasSeenTour = prefs[Keys.SEEN_TOUR] ?: false,
+            pricesReviewed = prefs[Keys.PRICES_REVIEWED] ?: false,
             updatedAt = prefs[Keys.UPDATED_AT] ?: 0L,
             defaultTaxRatePercent = prefs[Keys.TAX_RATE] ?: 7.0,
             defaultMarkupPercent = prefs[Keys.MARKUP] ?: 0.0,
@@ -295,6 +317,7 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.CONTRACT_TERMS] = profile.contractTerms
             prefs[Keys.HOME_CARDS] = profile.homeCardsCsv
             prefs[Keys.SEEN_TOUR] = profile.hasSeenTour
+            prefs[Keys.PRICES_REVIEWED] = profile.pricesReviewed
             prefs[Keys.UPDATED_AT] = profile.updatedAt
             prefs[Keys.TAX_RATE] = profile.defaultTaxRatePercent
             prefs[Keys.MARKUP] = profile.defaultMarkupPercent

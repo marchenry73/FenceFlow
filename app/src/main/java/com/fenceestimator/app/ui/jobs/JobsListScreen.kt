@@ -36,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
@@ -369,6 +370,70 @@ fun JobsListScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
+                            }
+                        }
+                    }
+                }
+                // The review-your-prices moment. The catalog and labor rates
+                // arrive seeded so day one works, but seeded numbers are the
+                // founding company's numbers -- and the one warning used to be
+                // the last line of a skippable tour dialog. This sits where
+                // the eye lands every morning and does not leave until someone
+                // with the catalog permission answers it.
+                if (!profile.pricesReviewed && session.canEditCatalogAndSettings) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "Make these prices yours",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Text(
+                                    "The catalog and labor rates came pre-filled so you can " +
+                                        "estimate from day one -- but they are starting numbers, " +
+                                        "not your numbers. Check them before your first real quote.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            tourScope.launch {
+                                                app.settingsStore.markPricesReviewed()
+                                                // Pushed now rather than at the next settings save,
+                                                // or every other phone keeps asking a question the
+                                                // company already answered.
+                                                runCatching {
+                                                    com.fenceestimator.app.cloud.SettingsSync.push(
+                                                        app.settingsStore.profile.first()
+                                                    )
+                                                }
+                                            }
+                                            onOpenCatalog()
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("Review catalog") }
+                                    OutlinedButton(
+                                        onClick = { tourScope.launch {
+                                                app.settingsStore.markPricesReviewed()
+                                                // Pushed now rather than at the next settings save,
+                                                // or every other phone keeps asking a question the
+                                                // company already answered.
+                                                runCatching {
+                                                    com.fenceestimator.app.cloud.SettingsSync.push(
+                                                        app.settingsStore.profile.first()
+                                                    )
+                                                }
+                                            } },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("They're right") }
+                                }
                             }
                         }
                     }
