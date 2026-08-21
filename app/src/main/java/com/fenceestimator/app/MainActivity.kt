@@ -1,5 +1,6 @@
 package com.fenceestimator.app
 
+import kotlinx.coroutines.launch
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
@@ -80,6 +81,7 @@ class MainActivity : FragmentActivity() {
             }
             val app = LocalContext.current.applicationContext as FenceEstimatorApp
             val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
+            val appSession by app.session.state.collectAsState()
             val darkTheme = when (profile.themeMode) {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
@@ -124,7 +126,53 @@ class MainActivity : FragmentActivity() {
                                     }
                                 }
                             ) {
-                                FenceEstimatorNavHost()
+                                // Whether this company is entitled to be here.
+                                //
+                                // The database has judged this from the start and
+                                // nothing ever asked, so access control existed on
+                                // paper only. It closes ONLY on a definite answer:
+                                // never being able to ask keeps the app working,
+                                // because a crew locked out in a dead zone is a
+                                // real cost to a paying customer, and RLS refuses
+                                // a suspended company's data server-side anyway.
+                                var service by remember {
+                                    mutableStateOf<com.fenceestimator.app.cloud.ServiceStatus?>(null)
+                                }
+                                var checkedService by remember { mutableStateOf(false) }
+                                var recheck by remember { mutableStateOf(0) }
+
+                                LaunchedEffect(appSession.signedIn, recheck) {
+                                    val ctx = applicationContext
+                                    // The remembered answer first, so a phone
+                                    // already told 'blocked' stays blocked without
+                                    // waiting for the network.
+                                    service = com.fenceestimator.app.cloud.ServiceGate.remembered(ctx)
+                                    if (appSession.signedIn) {
+                                        com.fenceestimator.app.cloud.ServiceGate.refresh(ctx)
+                                            ?.let { service = it }
+                                    }
+                                    checkedService = true
+                                }
+
+                                val blocked = service?.allowed == false
+                                if (checkedService && blocked) {
+                                    com.fenceestimator.app.ui.onboarding.ServiceBlockedScreen(
+                                        status = service!!,
+                                        onRetry = { recheck++ },
+                                        onSignOut = {
+                                            app.applicationScope.launch {
+                                                runCatching {
+                                                    com.fenceestimator.app.cloud.ServiceGate
+                                                        .clear(applicationContext)
+                                                    com.fenceestimator.app.cloud.SupabaseModule.signOut()
+                                                }
+                                                app.session.refresh()
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    FenceEstimatorNavHost()
+                                }
                             }
                         }
                     }
