@@ -1,5 +1,10 @@
 package com.fenceestimator.app.ui.survey
 
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import com.fenceestimator.app.geometry.GateGeometry
 import androidx.compose.material3.FilterChip
 import android.graphics.Bitmap
@@ -347,6 +352,46 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             // gesture detector captures whatever these were when
                             // it was created, so leaving them out meant a gate
                             // added or moved after the fact couldn't be grabbed.
+                            // Pinch to zoom, on its own layer above the drawing
+                            // gestures.
+                            //
+                            // Only acts once a second finger is down, so a
+                            // single finger still draws, drags a point and moves
+                            // a gate exactly as before -- the drawing gestures
+                            // below never see a two-finger event, and this never
+                            // sees a one-finger one.
+                            //
+                            // Zoom is anchored on the point between the fingers
+                            // rather than the middle of the canvas, so the bit of
+                            // fence being pinched stays under them. Anchoring at
+                            // the centre makes the drawing slide away while you
+                            // are trying to look at something.
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        if (event.changes.size >= 2) {
+                                            val zoomChange = event.calculateZoom()
+                                            val panChange = event.calculatePan()
+                                            val centroid = event.calculateCentroid(useCurrent = false)
+                                            if (zoomChange != 0f) {
+                                                val next = (viewZoom * zoomChange).coerceIn(0.25f, 12f)
+                                                val applied = next / viewZoom
+                                                // Keep the centroid fixed: shift
+                                                // the pan by how much that point
+                                                // would otherwise have moved.
+                                                viewPan = Offset(
+                                                    centroid.x + (viewPan.x - centroid.x) * applied + panChange.x,
+                                                    centroid.y + (viewPan.y - centroid.y) * applied + panChange.y
+                                                )
+                                                viewZoom = next
+                                            }
+                                            event.changes.forEach { it.consume() }
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            }
                             .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid, gates, siteMarkers) {
                                 // Only one gesture detector is ever active at a time -- mixing a tap
                                 // detector and a drag detector on the same pointer stream is a real
@@ -555,28 +600,53 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             if (leafLength > 1f) {
                                 val ux = dx / leafLength
                                 val uy = dy / leafLength
-                                // Rotated 45 degrees off the fence line.
-                                val cos45 = 0.7071f
-                                val swingX = (ux * cos45 - uy * cos45)
-                                val swingY = (ux * cos45 + uy * cos45)
-                                val tip = Offset(a.x + swingX * leafLength, a.y + swingY * leafLength)
-                                drawLine(GateMarkerColor, a, tip, strokeWidth = 3f)
-                                drawArc(
-                                    color = GateMarkerColor.copy(alpha = 0.35f),
-                                    startAngle = Math.toDegrees(kotlin.math.atan2(uy.toDouble(), ux.toDouble())).toFloat(),
-                                    sweepAngle = 45f,
-                                    useCenter = false,
-                                    topLeft = Offset(a.x - leafLength, a.y - leafLength),
-                                    size = androidx.compose.ui.geometry.Size(leafLength * 2f, leafLength * 2f),
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
-                                )
+                                val alongDegrees =
+                                    Math.toDegrees(kotlin.math.atan2(uy.toDouble(), ux.toDouble())).toFloat()
+
+                                // Which side of the fence the gate opens to.
+                                //
+                                // A gate swinging the wrong way into a slope, a
+                                // step or a parked car is a return visit, and it
+                                // is the first thing forgotten between quoting
+                                // and installing. Drawn the way a site plan draws
+                                // it: the leaf where it ends up, and the arc it
+                                // sweeps through to get there.
+                                val directions = when (gate.swing) {
+                                    com.fenceestimator.app.geometry.GateSwing.IN -> listOf(1f)
+                                    com.fenceestimator.app.geometry.GateSwing.OUT -> listOf(-1f)
+                                    // Both ways, so both arcs are drawn.
+                                    com.fenceestimator.app.geometry.GateSwing.BOTH -> listOf(1f, -1f)
+                                }
+
+                                directions.forEach { side ->
+                                    val angle = Math.toRadians((alongDegrees + 45f * side).toDouble())
+                                    val tip = Offset(
+                                        a.x + kotlin.math.cos(angle).toFloat() * leafLength,
+                                        a.y + kotlin.math.sin(angle).toFloat() * leafLength
+                                    )
+                                    drawLine(GateMarkerColor, a, tip, strokeWidth = 3f)
+                                    drawArc(
+                                        color = GateMarkerColor.copy(alpha = 0.35f),
+                                        startAngle = if (side > 0f) alongDegrees else alongDegrees - 45f,
+                                        sweepAngle = 45f,
+                                        useCenter = false,
+                                        topLeft = Offset(a.x - leafLength, a.y - leafLength),
+                                        size = androidx.compose.ui.geometry.Size(leafLength * 2f, leafLength * 2f),
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                                    )
+                                }
                             }
 
                             // Its width, so the plan states it rather than
                             // leaving it to be measured off the drawing.
                             val mid = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
+                            val swingLabel = when (gate.swing) {
+                                com.fenceestimator.app.geometry.GateSwing.IN -> " in"
+                                com.fenceestimator.app.geometry.GateSwing.OUT -> " out"
+                                com.fenceestimator.app.geometry.GateSwing.BOTH -> " both"
+                            }
                             drawContext.canvas.nativeCanvas.drawText(
-                                "${if (gate.widthFt % 1f == 0f) gate.widthFt.toInt() else gate.widthFt} ft",
+                                "${if (gate.widthFt % 1f == 0f) gate.widthFt.toInt() else gate.widthFt} ft$swingLabel",
                                 mid.x, mid.y - 10f,
                                 android.graphics.Paint().apply {
                                     color = android.graphics.Color.parseColor("#B23800")
@@ -708,8 +778,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
     gateDialogPoint?.let { point ->
         GateWidthDialog(
-            onConfirm = { widthFt, mounting ->
-                viewModel.addGate(point.x, point.y, widthFt, mounting)
+            onConfirm = { widthFt, mounting, swing ->
+                viewModel.addGate(point.x, point.y, widthFt, mounting, swing)
                 gateDialogPoint = null
             },
             onDismiss = { gateDialogPoint = null }
@@ -870,9 +940,13 @@ private fun CalibrationDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit)
 }
 
 @Composable
-private fun GateWidthDialog(onConfirm: (Float, GateMounting) -> Unit, onDismiss: () -> Unit) {
+private fun GateWidthDialog(
+    onConfirm: (Float, GateMounting, com.fenceestimator.app.geometry.GateSwing) -> Unit,
+    onDismiss: () -> Unit
+) {
     var text by remember { mutableStateOf("5") }
     var mounting by remember { mutableStateOf(GateMounting.LINE) }
+    var swing by remember { mutableStateOf(com.fenceestimator.app.geometry.GateSwing.IN) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Gate") },
@@ -889,13 +963,74 @@ private fun GateWidthDialog(onConfirm: (Float, GateMounting) -> Unit, onDismiss:
                 Text("Where is it hanging?", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 GateMountingChoice(selected = mounting, onSelect = { mounting = it })
+
+                Spacer(Modifier.height(16.dp))
+                // Asked while somebody is standing at the opening looking at it.
+                // A gate that swings into a slope, a step or where a car parks
+                // is a return visit, and this is the detail that gets lost
+                // between quoting and installing.
+                Text("Which way does it open?", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                GateSwingChoice(selected = swing, onSelect = { swing = it })
             }
         },
         confirmButton = {
-            Button(onClick = { text.toFloatOrNull()?.let { onConfirm(it, mounting) } }) { Text("Add Gate") }
+            Button(onClick = { text.toFloatOrNull()?.let { onConfirm(it, mounting, swing) } }) { Text("Add Gate") }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+/**
+ * Which way the gate opens, and why it is worth a question.
+ *
+ * Not cosmetic: it decides which side the hinges go on, and it is what the
+ * customer asks about. Getting it wrong is a gate that fouls a slope, a step
+ * or a parked car, which is a return visit with a post to reset.
+ */
+@Composable
+private fun GateSwingChoice(
+    selected: com.fenceestimator.app.geometry.GateSwing,
+    onSelect: (com.fenceestimator.app.geometry.GateSwing) -> Unit
+) {
+    val options = listOf(
+        Triple(
+            com.fenceestimator.app.geometry.GateSwing.IN,
+            "Opens inward",
+            "Into the property. The usual choice, and the safer one near a road"
+        ),
+        Triple(
+            com.fenceestimator.app.geometry.GateSwing.OUT,
+            "Opens outward",
+            "Away from the property. Check nothing is parked or planted there"
+        ),
+        Triple(
+            com.fenceestimator.app.geometry.GateSwing.BOTH,
+            "Opens both ways",
+            "Common on paddock and double gates"
+        )
+    )
+    Column {
+        options.forEach { (value, label, detail) ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.RadioButton(
+                    selected = selected == value,
+                    onClick = { onSelect(value) }
+                )
+                Column(Modifier.padding(start = 4.dp)) {
+                    Text(label, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
 }
 
 /** The three builds a gate area can be, with what each one costs you in material. */

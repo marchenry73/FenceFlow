@@ -15,6 +15,7 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
+import com.fenceestimator.app.geometry.GateSwing
 import kotlinx.coroutines.Dispatchers
 import com.fenceestimator.app.estimate.TakeoffRefresher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -254,10 +255,16 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     }
 
     /** Places a gate at an exact point -- it does not need to sit on the drawn fence line. */
-    fun addGate(x: Float, y: Float, widthFt: Float, mounting: GateMounting = GateMounting.LINE) {
+    fun addGate(
+        x: Float,
+        y: Float,
+        widthFt: Float,
+        mounting: GateMounting = GateMounting.LINE,
+        swing: GateSwing = GateSwing.IN
+    ) {
         val run = selectedRun() ?: return
         val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
-        gates.add(GateMarker(x, y, widthFt, mounting))
+        gates.add(GateMarker(x, y, widthFt, mounting, swing))
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
         }

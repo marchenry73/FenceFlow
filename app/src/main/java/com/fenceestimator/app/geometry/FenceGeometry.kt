@@ -38,12 +38,31 @@ enum class GateMounting {
     LINE_TO_WALL
 }
 
+/**
+ * Which way a gate opens.
+ *
+ * Worth recording because it decides where the hinges go, and because a gate
+ * that swings the wrong way into a slope, a step or a car is a return visit.
+ * It is also the first thing a customer asks about and the first thing
+ * forgotten between quoting and installing.
+ */
+enum class GateSwing {
+    /** Opens into the property. The usual choice, and the safer one near a road. */
+    IN,
+    /** Opens outward, away from the property. */
+    OUT,
+    /** Opens either way. Common on paddock and double gates. */
+    BOTH
+}
+
 data class GateMarker(
     val x: Float,
     val y: Float,
     val widthFt: Float,
     /** Defaults to the commonest case so older saved gates read sensibly. */
-    val mounting: GateMounting = GateMounting.LINE
+    val mounting: GateMounting = GateMounting.LINE,
+    /** Which way it opens. Older gates were saved without one; IN is the norm. */
+    val swing: GateSwing = GateSwing.IN
 )
 
 /** Encodes/decodes the point list and gate list to compact strings for Room storage. */
@@ -63,7 +82,7 @@ object FenceCodec {
     }
 
     fun encodeGates(gates: List<GateMarker>): String =
-        gates.joinToString(",") { "${it.x}:${it.y}:${it.widthFt}:${it.mounting.name}" }
+        gates.joinToString(",") { "${it.x}:${it.y}:${it.widthFt}:${it.mounting.name}:${it.swing.name}" }
 
     /**
      * Reads both the old three-part form and the four-part form with mounting.
@@ -84,7 +103,12 @@ object FenceCodec {
             val mounting = parts.getOrNull(3)
                 ?.let { name -> runCatching { GateMounting.valueOf(name) }.getOrNull() }
                 ?: GateMounting.LINE
-            GateMarker(x, y, w, mounting)
+            // Same reasoning as mounting above: gates saved before swing was
+            // recorded read as IN rather than being dropped.
+            val swing = parts.getOrNull(4)
+                ?.let { name -> runCatching { GateSwing.valueOf(name) }.getOrNull() }
+                ?: GateSwing.IN
+            GateMarker(x, y, w, mounting, swing)
         }
     }
 }
