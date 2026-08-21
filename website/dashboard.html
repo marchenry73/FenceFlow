@@ -590,7 +590,47 @@ function stillOwed(j, contractTotal){
 let payments=[];
 
 /* ---------- data ---------- */
+/**
+ * Whether this company may use FenceFlow at all.
+ *
+ * Asked before anything is loaded. Without it a suspended company saw an
+ * empty dashboard -- every table blocked by the database, no rows, and no
+ * explanation -- which reads as the software being broken rather than the
+ * account being off.
+ *
+ * The same my_service_status() the phone asks, so the two can never disagree
+ * about who has access.
+ */
+async function checkService(){
+  const { data, error } = await db.rpc('my_service_status');
+  if (error) return null;               // Could not ask. Not a reason to lock anyone out.
+  return Array.isArray(data) ? data[0] : data;
+}
+
+function showBlocked(status){
+  document.querySelector('main').innerHTML = `
+    <div class="panel" style="max-width:34rem;margin:3rem auto">
+      <h2 style="margin-top:0">FenceFlow is paused</h2>
+      <p style="color:var(--muted)">${esc(status.reason || 'This company no longer has access.')}</p>
+      <p style="color:var(--muted)">
+        Nothing has been lost. Every job, payment and record is exactly where it
+        was and comes straight back as soon as this is sorted out.
+      </p>
+      <div style="margin-top:14px">
+        <button id="blockedRetry">Check again</button>
+        <button id="blockedOut">Sign out</button>
+      </div>
+    </div>`;
+  document.getElementById('blockedRetry')
+    .addEventListener('click', () => location.reload());
+  document.getElementById('blockedOut')
+    .addEventListener('click', async () => { await db.auth.signOut(); location.reload(); });
+}
+
 async function loadAll(){
+  const service = await checkService();
+  if (service && service.allowed === false) { showBlocked(service); return; }
+
   // One round trip per table; RLS scopes every result to this company.
   //
   // is('deleted_at', null) on every one of them. Deleting anything in the app

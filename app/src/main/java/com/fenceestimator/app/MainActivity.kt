@@ -141,6 +141,20 @@ class MainActivity : FragmentActivity() {
                                 var checkedService by remember { mutableStateOf(false) }
                                 var recheck by remember { mutableStateOf(0) }
 
+                                // Re-asked whenever the app comes back to the
+                                // foreground, not only when somebody signs in.
+                                // Checking once at sign-in meant an app already
+                                // open never learned it had been switched off --
+                                // which is what was seen when suspending a
+                                // company changed nothing on a running phone.
+                                DisposableEffect(lifecycleOwner) {
+                                    val watcher = LifecycleEventObserver { _, event ->
+                                        if (event == Lifecycle.Event.ON_RESUME) recheck++
+                                    }
+                                    lifecycleOwner.lifecycle.addObserver(watcher)
+                                    onDispose { lifecycleOwner.lifecycle.removeObserver(watcher) }
+                                }
+
                                 LaunchedEffect(appSession.signedIn, recheck) {
                                     val ctx = applicationContext
                                     // The remembered answer first, so a phone
