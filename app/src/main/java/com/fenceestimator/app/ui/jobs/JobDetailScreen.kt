@@ -1323,7 +1323,9 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 }
             }
         },
-        enabled = !creatingLink && requestAmount >= 0.50,
+        // No payment is asked for before the customer has signed. Money
+        // requested against an unsigned estimate is money argued about later.
+        enabled = !creatingLink && requestAmount >= 0.50 && job.signedAt != null,
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
@@ -1332,6 +1334,14 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 requestAmount >= 0.50 -> "Request $${"%.2f".format(requestAmount)} $requestLabel by Card"
                 else -> "Request Payment by Card"
             }
+        )
+    }
+    // A grey button with no reason reads as the app being broken.
+    if (job.signedAt == null) {
+        Text(
+            "Payment can be requested once the customer signs the contract.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
     // This has to sit right under the button, outside the Square block below.
@@ -1410,7 +1420,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                     )
                 }
             },
-            enabled = !creatingLink && requestAmount > 0.005,
+            enabled = !creatingLink && requestAmount > 0.005 && job.signedAt != null,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(

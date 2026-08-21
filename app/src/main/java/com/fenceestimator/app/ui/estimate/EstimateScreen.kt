@@ -648,17 +648,23 @@ private fun ExportSection(
 
         OutlinedButton(
             onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_INVOICE) },
-            enabled = !needsResign,
+            // A bill for a job nobody agreed to is how disputes start. The
+            // invoice waits for the signature; the contract button stays live
+            // above because it is the path TO the signature.
+            enabled = !needsResign && job.signedAt != null,
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
             Text("  Send Invoice")
         }
         Text(
-            if (needsResign) "Locked: the price changed after this was signed."
-            else "What was agreed, what is paid, what is left.",
+            when {
+                needsResign -> "Locked: the price changed after this was signed."
+                job.signedAt == null -> "Locked until the customer signs the contract."
+                else -> "What was agreed, what is paid, what is left."
+            },
             style = MaterialTheme.typography.bodySmall,
-            color = if (needsResign) MaterialTheme.colorScheme.error
+            color = if (needsResign || job.signedAt == null) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(8.dp))
