@@ -395,10 +395,20 @@ fun FenceEstimatorNavHost() {
             EmployeesScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.CUSTOMERS) {
-            CustomersScreen(
-                onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },
-                onBack = { navController.popBackStack() }
-            )
+            // The whole screen is customer contact -- names, addresses,
+            // phones. It was the one list with no guard on it, so a crew
+            // account could read every customer the business has while the
+            // permission built for exactly this sat unused.
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canSeeCustomerContact,
+                permissionName = "See customer contact",
+                onLeave = { navController.popBackStack() }
+            ) {
+                CustomersScreen(
+                    onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
         composable(Routes.SCHEDULE) {
             ScheduleScreen(
