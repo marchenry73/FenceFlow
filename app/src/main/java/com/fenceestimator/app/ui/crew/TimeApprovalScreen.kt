@@ -34,10 +34,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.TimeEntry
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
@@ -84,7 +86,7 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Hours To Approve") },
+                title = { Text(stringResource(R.string.time_hours_to_approve)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 }
@@ -267,7 +269,7 @@ private fun ReviewShiftDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Review shift") },
+        title = { Text(stringResource(R.string.time_review_shift)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -280,7 +282,7 @@ private fun ReviewShiftDialog(
                     OutlinedTextField(
                         value = startText,
                         onValueChange = { startText = it },
-                        label = { Text("Start (HH:mm)") },
+                        label = { Text(stringResource(R.string.time_start_hhmm)) },
                         isError = newStart == null,
                         singleLine = true,
                         modifier = Modifier.weight(1f)
@@ -288,7 +290,7 @@ private fun ReviewShiftDialog(
                     OutlinedTextField(
                         value = endText,
                         onValueChange = { endText = it },
-                        label = { Text("End (HH:mm)") },
+                        label = { Text(stringResource(R.string.time_end_hhmm)) },
                         isError = newEnd == null,
                         singleLine = true,
                         modifier = Modifier.weight(1f)
@@ -309,7 +311,7 @@ private fun ReviewShiftDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text("Note (the crew will see this)") },
+                    label = { Text(stringResource(R.string.time_note_crew_sees)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -318,18 +320,18 @@ private fun ReviewShiftDialog(
             Button(
                 enabled = timesValid,
                 onClick = { onApprove(newStart, newEnd, note.trim()) }
-            ) { Text("Approve") }
+            ) { Text(stringResource(R.string.time_approve)) }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
                 OutlinedButton(
                     // A reason is required. "Rejected" with no explanation is
                     // how a crew member finds out at payday and nobody can say
                     // why.
                     enabled = note.isNotBlank(),
                     onClick = { onReject(note.trim()) }
-                ) { Text("Send back") }
+                ) { Text(stringResource(R.string.time_send_back)) }
             }
         }
     )

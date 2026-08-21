@@ -137,4 +137,29 @@
     <string name="crew_change_why">Pourquoi ?</string>
     <string name="crew_change_why_example">Il y a un regard de fosse là où c\'est dessiné</string>
     <string name="crew_send_request">Envoyer</string>
+
+    <!-- Jobs list extras -->
+    <string name="jobs_materials_catalog">Catalogue de matériaux</string>
+    <string name="jobs_settings">Réglages</string>
+    <string name="jobs_delete_title">Supprimer ce chantier ?</string>
+    <string name="jobs_review_catalog">Revoir le catalogue</string>
+    <string name="jobs_prices_right">Ils sont bons</string>
+
+    <!-- Job-day checklist -->
+    <string name="inv_title">Liste du jour de chantier</string>
+    <string name="inv_materials">Matériaux</string>
+    <string name="inv_sync_from_estimate">Reprendre du devis</string>
+    <string name="inv_add_material">+ Ajouter un matériau</string>
+    <string name="inv_tools">Outils</string>
+    <string name="inv_add_tool">+ Ajouter un outil</string>
+    <string name="inv_description">Description</string>
+
+    <!-- Hours approval -->
+    <string name="time_hours_to_approve">Heures à approuver</string>
+    <string name="time_review_shift">Vérifier le pointage</string>
+    <string name="time_start_hhmm">Début (HH:mm)</string>
+    <string name="time_end_hhmm">Fin (HH:mm)</string>
+    <string name="time_note_crew_sees">Note (l\'équipe la verra)</string>
+    <string name="time_approve">Approuver</string>
+    <string name="time_send_back">Renvoyer</string>
 </resources>

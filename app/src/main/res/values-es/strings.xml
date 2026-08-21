@@ -137,4 +137,29 @@
     <string name="crew_change_why">¿Por qué?</string>
     <string name="crew_change_why_example">Hay una tapa de séptico donde está dibujado</string>
     <string name="crew_send_request">Enviar</string>
+
+    <!-- Jobs list extras -->
+    <string name="jobs_materials_catalog">Catálogo de materiales</string>
+    <string name="jobs_settings">Ajustes</string>
+    <string name="jobs_delete_title">¿Eliminar este trabajo?</string>
+    <string name="jobs_review_catalog">Revisar catálogo</string>
+    <string name="jobs_prices_right">Están bien</string>
+
+    <!-- Job-day checklist -->
+    <string name="inv_title">Lista del día de trabajo</string>
+    <string name="inv_materials">Materiales</string>
+    <string name="inv_sync_from_estimate">Traer del presupuesto</string>
+    <string name="inv_add_material">+ Añadir material</string>
+    <string name="inv_tools">Herramientas</string>
+    <string name="inv_add_tool">+ Añadir herramienta</string>
+    <string name="inv_description">Descripción</string>
+
+    <!-- Hours approval -->
+    <string name="time_hours_to_approve">Horas por aprobar</string>
+    <string name="time_review_shift">Revisar turno</string>
+    <string name="time_start_hhmm">Inicio (HH:mm)</string>
+    <string name="time_end_hhmm">Fin (HH:mm)</string>
+    <string name="time_note_crew_sees">Nota (el equipo la verá)</string>
+    <string name="time_approve">Aprobar</string>
+    <string name="time_send_back">Devolver</string>
 </resources>

@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- No media permissions, deliberately. Photos come in through the system
+         photo picker, which grants access per-image with no permission at
+         all, so asking for READ_MEDIA_IMAGES only made Android 14 show the
+         "allow access to your photos?" dialog for capability nothing used. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Installing an update from inside the app. Android still shows its own
          confirmation before anything is installed; this only allows us to ask. -->
@@ -11,6 +13,17 @@
          out the heartbeat while a crew stands in a yard with no bars. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Android 11+ hides other apps unless asked about them by name. Without
+         this, resolveActivity for a maps intent answers null even with Maps
+         installed, and the Directions button quietly fell back to a browser
+         tab instead of opening navigation for a crew already driving. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
 
     <application
         android:name=".FenceEstimatorApp"

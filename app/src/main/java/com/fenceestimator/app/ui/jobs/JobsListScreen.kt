@@ -1,5 +1,6 @@
 package com.fenceestimator.app.ui.jobs
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -60,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
@@ -233,12 +235,12 @@ fun JobsListScreen(
                         }
                         DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
                             DropdownMenuItem(
-                                text = { Text("Materials catalog") },
+                                text = { Text(stringResource(R.string.jobs_materials_catalog)) },
                                 leadingIcon = { Icon(Icons.Filled.Handyman, contentDescription = null) },
                                 onClick = { moreOpen = false; onOpenCatalog() }
                             )
                             DropdownMenuItem(
-                                text = { Text("Settings") },
+                                text = { Text(stringResource(R.string.jobs_settings)) },
                                 leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                                 onClick = { moreOpen = false; onOpenSettings() }
                             )
@@ -284,9 +286,9 @@ fun JobsListScreen(
         if (jobs.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No jobs yet", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.jobs_no_jobs), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    Text("Tap + to start a new fence estimate", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.jobs_tap_to_start), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -418,7 +420,7 @@ fun JobsListScreen(
                                             onOpenCatalog()
                                         },
                                         modifier = Modifier.weight(1f)
-                                    ) { Text("Review catalog") }
+                                    ) { Text(stringResource(R.string.jobs_review_catalog)) }
                                     OutlinedButton(
                                         onClick = { tourScope.launch {
                                                 app.settingsStore.markPricesReviewed()
@@ -432,7 +434,7 @@ fun JobsListScreen(
                                                 }
                                             } },
                                         modifier = Modifier.weight(1f)
-                                    ) { Text("They're right") }
+                                    ) { Text(stringResource(R.string.jobs_prices_right)) }
                                 }
                             }
                         }
@@ -471,7 +473,7 @@ fun JobsListScreen(
     pendingDelete?.let { job ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete this job?") },
+            title = { Text(stringResource(R.string.jobs_delete_title)) },
             text = {
                 Text(
                     "\"${job.customerName.ifBlank { "Untitled job" }}\" and everything on it -- fence runs, " +
@@ -479,10 +481,10 @@ fun JobsListScreen(
                 )
             },
             confirmButton = {
-                Button(onClick = { viewModel.deleteJob(job); pendingDelete = null }) { Text("Delete") }
+                Button(onClick = { viewModel.deleteJob(job); pendingDelete = null }) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                OutlinedButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }

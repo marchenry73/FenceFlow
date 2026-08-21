@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.InventoryChecklistItem
 import com.fenceestimator.app.data.InventoryKind
@@ -75,7 +77,7 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Job-Day Checklist") },
+                title = { Text(stringResource(R.string.inv_title)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
             )
         }
@@ -87,10 +89,10 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
         ) {
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Materials", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.inv_materials), style = MaterialTheme.typography.titleMedium)
                     OutlinedButton(onClick = { viewModel.syncMaterialsFromEstimate() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Text(" Sync from Estimate")
+                        Text(" " + stringResource(R.string.inv_sync_from_estimate))
                     }
                 }
             }
@@ -106,16 +108,16 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
             materials.forEach { checkItem -> item { ChecklistRow(checkItem, viewModel) } }
             item {
                 OutlinedButton(onClick = { addDialogKind = InventoryKind.MATERIAL }, modifier = Modifier.fillMaxWidth()) {
-                    Text("+ Add Material")
+                    Text(stringResource(R.string.inv_add_material))
                 }
             }
 
-            item { Text("Tools", style = MaterialTheme.typography.titleMedium) }
+            item { Text(stringResource(R.string.inv_tools), style = MaterialTheme.typography.titleMedium) }
             val tools = items.filter { it.kind == InventoryKind.TOOL }
             tools.forEach { checkItem -> item { ChecklistRow(checkItem, viewModel) } }
             item {
                 OutlinedButton(onClick = { addDialogKind = InventoryKind.TOOL }, modifier = Modifier.fillMaxWidth()) {
-                    Text("+ Add Tool")
+                    Text(stringResource(R.string.inv_add_tool))
                 }
             }
         }
@@ -174,8 +176,8 @@ private fun AddItemDialog(kind: InventoryKind, onConfirm: (String) -> Unit, onDi
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (kind == InventoryKind.TOOL) "Add Tool" else "Add Material") },
-        text = { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Description") }) },
-        confirmButton = { Button(onClick = { onConfirm(text) }) { Text("Add") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        text = { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.inv_description)) }) },
+        confirmButton = { Button(onClick = { onConfirm(text) }) { Text(stringResource(R.string.action_add)) } },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
