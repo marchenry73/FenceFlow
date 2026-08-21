@@ -102,6 +102,25 @@
     </div>
 
     <div class="panel">
+      <h2 style="margin-top:0">Crashes</h2>
+      <p style="color:var(--muted);font-size:14px;margin:0 0 10px">
+        Grouped, newest first, last 14 days. Unhandled ones sit at the top.
+        Nobody reports a crash &mdash; they just stop using the app &mdash; so this
+        is the only place you find out.
+      </p>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            <th>What broke</th><th>Screen</th><th>Times</th>
+            <th>Phones</th><th>Companies</th><th>Version</th><th>Last seen</th><th></th>
+          </tr></thead>
+          <tbody id="errRows"></tbody>
+        </table>
+      </div>
+      <div class="msg" id="errNote"></div>
+    </div>
+
+    <div class="panel">
       <h2 style="margin-top:0">How suspension works</h2>
       <p style="color:var(--muted);font-size:14px;margin:0">
         Stripe reports a failed payment and the company moves to <b>past due</b>. They keep
@@ -113,6 +132,16 @@
     </div>
   </div>
 </main>
+
+<dialog id="stackDialog" style="max-width:min(760px,92vw)">
+  <h3 style="margin-top:0;font-size:15px" id="stackTitle"></h3>
+  <pre id="stackBody" style="white-space:pre;overflow:auto;max-height:56vh;
+    font-size:12px;line-height:1.45;background:var(--surface2,#f6f6f7);
+    padding:12px;border-radius:8px;margin:0"></pre>
+  <div style="margin-top:12px;text-align:right">
+    <button onclick="document.getElementById('stackDialog').close()">Close</button>
+  </div>
+</dialog>
 
 <dialog id="setupDialog">
   <h3 style="margin-top:0">Send them this code</h3>
@@ -163,6 +192,7 @@ const d = v => v ? new Date(v) : null;
 const day = v => { const x = d(v); return x ? x.toLocaleDateString() : '—'; };
 
 let clients = [];
+let crashes = [];
 let editing = null;
 
 /* ---------- auth ---------- */
@@ -210,8 +240,15 @@ async function load() {
 
   if (error) { $('msg').textContent = error.message; return; }
   clients = data || [];
+
+  // A failure here must not blank the companies table: crash reporting is a
+  // convenience, and the billing view is the reason this page exists.
+  const errs = await db.rpc('admin_error_summary', { days: 14 });
+  crashes = errs.error ? [] : (errs.data || []);
+
   $('msg').textContent = '';
   render();
+  renderCrashes();
 }
 
 function statusPill(c) {
@@ -345,6 +382,51 @@ function render() {
       `straight back when you reinstate them — they simply cannot open the app.`)));
   document.querySelectorAll('[data-chase]').forEach(b =>
     b.addEventListener('click', () => chase(b.dataset.chase)));
+}
+
+/**
+ * One row per distinct bug, not per crash. Twenty copies of one broken screen
+ * is one thing to fix, and a flat list would bury every other bug under it.
+ */
+function renderCrashes(){
+  if (!crashes.length) {
+    $('errRows').innerHTML = '';
+    $('errNote').textContent = 'No crashes in the last 14 days.';
+    return;
+  }
+  $('errNote').textContent = '';
+
+  $('errRows').innerHTML = crashes.map((c, i) => {
+    const open = c.any_unseen;
+    return `<tr style="${open ? '' : 'opacity:.55'}">
+      <td style="max-width:320px">
+        <b>${esc(c.message || '(no message)')}</b>
+        <br><a href="#" data-stack="${i}" style="font-size:12px">stack trace</a>
+      </td>
+      <td style="color:var(--muted)">${esc(c.where_at || '—')}</td>
+      <td><b>${c.occurrences}</b></td>
+      <td>${c.devices}</td>
+      <td>${c.companies}</td>
+      <td>${esc(c.latest_version || '—')}</td>
+      <td>${day(c.last_seen)}</td>
+      <td>${open ? `<button data-seen="${i}">Handled</button>` : '<span class="pill muted">Handled</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('[data-stack]').forEach(a =>
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const c = crashes[a.dataset.stack];
+      $('stackTitle').textContent = c.message || '(no message)';
+      $('stackBody').textContent = c.sample_stack || '(none recorded)';
+      $('stackDialog').showModal();
+    }));
+
+  document.querySelectorAll('[data-seen]').forEach(b =>
+    b.addEventListener('click', () => {
+      const c = crashes[b.dataset.seen];
+      adminAction('admin_mark_errors_seen', { msg: c.message, wh: c.where_at }, null);
+    }));
 }
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, m =>

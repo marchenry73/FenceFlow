@@ -276,6 +276,14 @@ class AutoSync(
                 // A network failure is not the same as a real error. The crew
                 // being out of signal is normal and self-correcting; saying
                 // "sync failed" for it teaches people to ignore the message.
+                //
+                // Real failures are also worth hearing about at this end. A
+                // sync that keeps failing for one company is invisible
+                // otherwise -- their work simply stops arriving, and the first
+                // anyone knows is a phone call about missing jobs.
+                if (!looksLikeNoSignal(entityError)) {
+                    CrashReporter.report(context, "sync", entityError)
+                }
                 _state.value = SyncState(
                     phase = if (looksLikeNoSignal(entityError)) SyncPhase.WAITING_FOR_SIGNAL
                     else SyncPhase.FAILED,

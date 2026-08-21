@@ -4,6 +4,7 @@ import android.app.Application
 import com.fenceestimator.app.data.AppDatabase
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.cloud.AutoSync
+import com.fenceestimator.app.cloud.CrashReporter
 import com.fenceestimator.app.cloud.SessionManager
 import com.fenceestimator.app.data.SettingsStore
 import com.fenceestimator.app.notify.Notifications
@@ -48,6 +49,11 @@ class FenceEstimatorApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // First line in the process, deliberately. Anything set up above
+        // this point would crash unreported, and startup is where the
+        // nastiest crashes live -- a bad migration takes the app down before
+        // a single screen draws.
+        CrashReporter.install(this)
         PDFBoxResourceLoader.init(applicationContext)
         val db = AppDatabase.getInstance(this, applicationScope)
         repository = Repository(db)
@@ -67,6 +73,17 @@ class FenceEstimatorApp : Application() {
         // ask before restoring it.
         applicationScope.launch {
             session.state.collect { repository.deletingUser = it.email.orEmpty() }
+        }
+        // Anything saved by a previous crash goes up as soon as there is an
+        // identity to attach it to, so a report says which company hit it.
+        applicationScope.launch {
+            session.state.collect { st ->
+                if (st.signedIn && st.companyId != null) {
+                    CrashReporter.uploadPending(
+                        applicationScope, this@FenceEstimatorApp, st.companyId, st.email
+                    )
+                }
+            }
         }
         session.refresh()
         // Self-heals installs whose catalog never got seeded -- without a catalog,

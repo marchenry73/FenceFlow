@@ -36,6 +36,7 @@ import com.fenceestimator.app.data.ThemeMode
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
@@ -206,6 +207,15 @@ fun FenceEstimatorNavHost() {
     // access away did not take away what they were already looking at.
     val session by com.fenceestimator.app.ui.components.currentApp()
         .session.state.collectAsState()
+
+    // Notes which screen is open so a crash report names it. This is the
+    // route pattern ("job/{jobId}"), never the filled-in route, so no job or
+    // customer id rides along into an error record.
+    val backStack by navController.currentBackStackEntryAsState()
+    androidx.compose.runtime.LaunchedEffect(backStack) {
+        com.fenceestimator.app.cloud.CrashReporter.currentScreen =
+            backStack?.destination?.route.orEmpty()
+    }
 
     NavHost(navController = navController, startDestination = Routes.JOBS) {
         composable(Routes.JOBS) {
