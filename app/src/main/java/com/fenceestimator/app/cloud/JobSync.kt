@@ -48,6 +48,16 @@ data class CloudJob(
     @SerialName("teardown_rate_per_ft") val teardownRatePerFt: Double = 0.0,
     @SerialName("deposit_amount") val depositAmount: Double = 0.0,
     @SerialName("amount_paid") val amountPaid: Double = 0.0,
+    /**
+     * What the customer is actually billed, from the estimating engine.
+     *
+     * The website used to add up materials and change orders and call that the
+     * contract price, which left out labour, markup, tax, gates, teardown and
+     * the minimum charge -- so a paid-off job read as massively overpaid. The
+     * engine lives in the app, so the app sends its answer rather than having
+     * a second one written in SQL to drift away from this one.
+     */
+    @SerialName("contract_total") val contractTotal: Double? = null,
     @SerialName("refunded_amount") val refundedAmount: Double = 0.0,
     @SerialName("refunded_at") val refundedAt: String? = null,
     @SerialName("refund_reason") val refundReason: String = "",
@@ -187,6 +197,26 @@ object JobSync {
             }
 
             val localJobs = repository.getAllJobs()
+
+            // Three reads for the whole sync rather than three per job. The
+            // same shape JobsViewModel uses for the home screen, and for the
+            // same reason: per-job fetches turn one sync into 3xN round trips.
+            val itemsByJob = repository.getAllLineItemsByJob()
+            val runsByJob = repository.getAllFenceRunsByJob()
+            val ordersByJob = repository.getAllChangeOrdersByJob()
+
+            /** The engine's answer for one job, computed fresh at push time. */
+            fun totalFor(job: com.fenceestimator.app.data.Job): Double {
+                val runs = runsByJob[job.id].orEmpty()
+                return com.fenceestimator.app.estimate.EstimateEngine.computeTotals(
+                    job,
+                    itemsByJob[job.id].orEmpty(),
+                    com.fenceestimator.app.estimate.EstimateEngine.linearFeet(job, runs),
+                    ordersByJob[job.id].orEmpty(),
+                    runs
+                ).grandTotal
+            }
+
             val cloudJobs = SupabaseModule.client.postgrest.from("jobs")
                 .select { filter { eq("company_id", companyId) } }
                 .decodeList<CloudJob>()
@@ -211,7 +241,7 @@ object JobSync {
                 }
 
                 if (cloudJob == null) {
-                    SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId))
+                    SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job)))
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
                     uploaded++
                 } else if (job.updatedAt > cloudJob.updatedAtMillis()) {
@@ -222,7 +252,7 @@ object JobSync {
                     // a payment the webhook had just recorded -- and the money
                     // disappeared. Payment fields are never pushed downward:
                     // the higher figure survives whichever side is newer.
-                    val payload = job.toCloud(companyId).let { local ->
+                    val payload = job.toCloud(companyId, totalFor(job)).let { local ->
                         if (cloudJob.amountPaid > local.amountPaid) {
                             local.copy(
                                 amountPaid = cloudJob.amountPaid,
@@ -319,7 +349,7 @@ object JobSync {
     }
 }
 
-private fun Job.toCloud(companyId: String) = CloudJob(
+private fun Job.toCloud(companyId: String, contractTotal: Double? = null) = CloudJob(
     syncId = syncId,
     companyId = companyId,
     customerName = customerName,
@@ -349,6 +379,7 @@ private fun Job.toCloud(companyId: String) = CloudJob(
     teardownRatePerFt = teardownRatePerFt,
     depositAmount = depositAmount,
     amountPaid = amountPaid,
+    contractTotal = contractTotal,
     refundedAmount = refundedAmount,
     refundedAt = refundedAt?.let { CloudTime.format(it) },
     locateCalledAt = locateCalledAt?.let { CloudTime.format(it) },

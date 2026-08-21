@@ -374,7 +374,7 @@
           <button class="btn btn-sm btn-grey" id="exportOwed">Export CSV</button>
         </div>
         <div class="scroll"><table>
-          <thead><tr><th>Customer</th><th>Status</th><th>Materials</th><th>Paid</th><th>Outstanding</th></tr></thead>
+          <thead><tr><th>Customer</th><th>Status</th><th>Contract</th><th>Paid</th><th>Outstanding</th></tr></thead>
           <tbody id="repOwed"></tbody></table></div>
       </div>
 
@@ -818,10 +818,35 @@ async function loadJobPayments(){
   }).join('');
 }
 
+/**
+ * What the customer is billed, as the app worked it out.
+ *
+ * This page used to add up materials and change orders and call that the
+ * contract price. That leaves out labour, markup, tax, gates, teardown and the
+ * minimum charge -- so a fully paid $19,204 job read as a $10,568 job that had
+ * overpaid by $8,636, and no money figure here agreed with the phone.
+ *
+ * The estimating engine lives in the app and the app now sends its answer. The
+ * old sum survives only as a fallback for jobs written before that, because a
+ * job reading $0 owed is worse than one reading low.
+ */
+function contractTotalOf(j){
+  if (j.contract_total != null) return Number(j.contract_total);
+  const mat = items.filter(i=>i.job_sync_id===j.sync_id)
+    .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
+  const co = orders.filter(o=>o.job_sync_id===j.sync_id)
+    .reduce((s,o)=>s+(o.additional_cost||0),0);
+  return mat + co;
+}
+
 /* ---------- dashboard ---------- */
 function renderDash(){
   const m=new Date(); m.setDate(1); m.setHours(0,0,0,0);
-  const won=jobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED').length;
+  // This month, matching the app's card. This counted every job ever won, so
+  // the same label showed a lifetime figure here and a monthly one on the
+  // phone -- two true numbers that looked like a bug.
+  const won=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')
+    && d(j.scheduled_date||j.created_at)>=m).length;
   // From the ledger, bucketed by when the money actually moved.
   //
   // This used to sum every job whose updated_at fell in the month, which is a
@@ -832,6 +857,8 @@ function renderDash(){
   // the right period and already net.
   const collected=payments.filter(p=>d(p.received_at)>=m).reduce((s,p)=>s+(p.amount||0),0);
   const unpaid=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&j.payment_status!=='PAID_IN_FULL');
+  const owedTotal=jobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED')
+    .reduce((s,j)=>s+stillOwed(j, contractTotalOf(j)),0);
   const week=new Date(); const weekEnd=new Date(Date.now()+7*864e5);
   const soon=jobs.filter(j=>j.scheduled_date&&d(j.scheduled_date)>=week&&d(j.scheduled_date)<=weekEnd);
 
@@ -839,7 +866,7 @@ function renderDash(){
     <div class="stat click" data-go="cal"><div class="n">${soon.length}</div><div class="l">Scheduled this week</div></div>
     <div class="stat click" data-go="pipe"><div class="n">${won}</div><div class="l">Jobs won</div></div>
     <div class="stat click" data-go="reports"><div class="n">${money(collected)}</div><div class="l">Collected this month</div></div>
-    <div class="stat click" data-go="jobs"><div class="n">${unpaid.length}</div><div class="l">Unpaid jobs</div></div>`;
+    <div class="stat click" data-go="jobs"><div class="n">${money(owedTotal)}</div><div class="l">Still owed</div></div>`;
   document.querySelectorAll('.stat.click').forEach(s=>
     s.addEventListener('click',()=>switchTab(s.dataset.go)));
 
@@ -1362,11 +1389,8 @@ function renderReports(){
         <td>${v.hours>0?money(v.cost/v.hours):'—'}</td></tr>`).join('')
     : '<tr><td colspan="5" style="color:var(--muted)">No clocked time in this period.</td></tr>';
 
-  const owed=jobsIn.map(j=>{
-    const mat=items.filter(i=>i.job_sync_id===j.sync_id)
-      .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
-    return {j,mat,out:Math.max(0,mat-netPaid(j))};
-  }).filter(r=>r.out>0.01).sort((a,b)=>b.out-a.out);
+  const owed=jobsIn.map(j=>({j, mat:contractTotalOf(j), out:stillOwed(j, contractTotalOf(j))}))
+    .filter(r=>r.out>0.01).sort((a,b)=>b.out-a.out);
   $('repOwed').innerHTML = owed.length
     ? owed.map(r=>`<tr><td>${esc(r.j.customer_name)||'Untitled'}</td>
         <td><span class="pill ${esc(r.j.status)}">${esc(r.j.status)}</span></td>
