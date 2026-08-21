@@ -40,7 +40,7 @@ const urlFlag = args.findIndex((a) => a === "--url");
 const downloadUrl = urlFlag >= 0 ? (args[urlFlag + 1] || "") : null;
 
 const notes = args
-  .filter((a, i) => a !== "--urgent" && a !== "--url" && !(urlFlag >= 0 && i === urlFlag + 1))
+  .filter((a, i) => a !== "--urgent" && a !== "--skip-version-check" && a !== "--url" && !(urlFlag >= 0 && i === urlFlag + 1))
   .join(" ").trim();
 
 if (!notes) {
@@ -62,6 +62,31 @@ const code = versionCode();
 const name = `1.${code}`;
 
 const apk = join(REPO_ROOT, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
+
+/**
+ * Reads the version actually stamped inside the APK.
+ *
+ * Returns null when it cannot be read, which is treated as "cannot verify"
+ * rather than "wrong" -- refusing to publish because a toolchain path moved
+ * would be its own kind of broken.
+ */
+function stampedVersion() {
+  const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT ||
+    join(process.env.LOCALAPPDATA || "", "Android", "Sdk");
+  const toolDir = join(sdk, "build-tools");
+  if (!existsSync(toolDir) || !existsSync(apk)) return null;
+  try {
+    const versions = require("node:fs").readdirSync(toolDir).sort();
+    for (const v of versions.reverse()) {
+      const aapt = join(toolDir, v, process.platform === "win32" ? "aapt2.exe" : "aapt2");
+      if (!existsSync(aapt)) continue;
+      const out = execFileSync(aapt, ["dump", "badging", apk], { encoding: "utf8" });
+      const m = out.match(/versionCode=.([0-9]+)./);
+      return m ? parseInt(m[1], 10) : null;
+    }
+  } catch { /* fall through to "cannot verify" */ }
+  return null;
+}
 
 /**
  * Puts the APK somewhere the app can actually download it, and returns that URL.
@@ -129,6 +154,36 @@ const esc = (s) => String(s).replace(/'/g, "''");
 // An explicit --url wins. Otherwise the APK is uploaded and that URL is used,
 // so publishing is one command and the link can never point at a build that
 // is not the one just made.
+// The APK must be the version we are about to announce.
+//
+// Building before committing stamps the APK with the OLD commit count, so the
+// release row says 112 while the file inside says 111. The app then installs
+// it, still reads itself as older than the announcement, and prompts to update
+// forever -- an update loop that reports success at every step. Caught here
+// because by the time a phone shows it, everyone has it.
+if (downloadUrl === null) {
+  const stamped = stampedVersion();
+  if (stamped !== null && stamped !== code) {
+    console.error(`The APK says version ${stamped}, but this would publish ${code}.`);
+    console.error("");
+    console.error("That mismatch causes an endless update prompt. It happens when the");
+    console.error("APK was built before the last commit -- the version comes from the");
+    console.error("commit count, so committing after building leaves the APK behind.");
+    console.error("");
+    console.error("  ./gradlew assembleDebug     # rebuild at the current commit");
+    console.error("  node scripts/publish-release.mjs \"...\"");
+    process.exit(1);
+  }
+  if (stamped === null) {
+    console.error("Could not read the version stamped inside the APK, so it cannot");
+    console.error("be checked against the " + code + " this would announce.");
+    console.error("");
+    console.error("Publishing unverified is how the update loop happens, so this stops");
+    console.error("here. Pass --skip-version-check to publish anyway.");
+    if (!args.includes("--skip-version-check")) process.exit(1);
+  }
+}
+
 const hostedUrl = downloadUrl === null ? uploadApk(code) : null;
 const effectiveUrl = downloadUrl !== null ? downloadUrl : hostedUrl;
 
