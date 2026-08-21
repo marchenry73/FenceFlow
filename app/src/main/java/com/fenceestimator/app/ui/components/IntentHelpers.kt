@@ -37,6 +37,24 @@ object IntentHelpers {
         context.startActivity(android.content.Intent.createChooser(intent, chooserTitle))
     }
 
+    /**
+     * Opens the dialler with a number ready, without placing the call.
+     *
+     * ACTION_DIAL rather than ACTION_CALL on purpose: dialling needs no
+     * permission and leaves the last tap to the person, which is right for a
+     * number an app decided to ring.
+     */
+    fun dial(context: Context, phone: String) {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(
+                    android.content.Intent.ACTION_DIAL,
+                    android.net.Uri.parse("tel:" + phone)
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
     fun openSmsDraft(context: Context, phone: String, body: String) {
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$phone")).apply {
             putExtra("sms_body", body)

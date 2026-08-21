@@ -120,6 +120,48 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             // worked. Knowing at eight in the morning that this is day two of
             // three is the difference between pacing the work and finding out
             // at five that the gates are not going on today.
+            // Before anything else on the crew's screen.
+            //
+            // This is the one thing on this page that can cost more than the
+            // job is worth, and the crew are the people actually putting holes
+            // in the ground -- so it goes above the day plan, not below it.
+            // Silent when the ticket is fine: a warning that shows every day
+            // is one nobody reads on the day it matters.
+            if (com.fenceestimator.app.estimate.LocateTicket.shouldWarnBeforeDigging(currentJob) ||
+                com.fenceestimator.app.estimate.LocateTicket.expiringSoon(currentJob)
+            ) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor =
+                                if (com.fenceestimator.app.estimate.LocateTicket.stateOf(currentJob) ==
+                                    com.fenceestimator.app.estimate.LocateTicket.State.CLEAR
+                                ) MaterialTheme.colorScheme.tertiaryContainer
+                                else MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text(
+                                "Before you dig",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                com.fenceestimator.app.estimate.LocateTicket.message(currentJob),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (currentJob.locateNotes.isNotBlank()) {
+                                Text(
+                                    "Marked: ${currentJob.locateNotes}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
                 Card(
                     Modifier.fillMaxWidth(),

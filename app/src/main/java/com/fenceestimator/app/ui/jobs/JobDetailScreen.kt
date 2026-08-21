@@ -174,6 +174,7 @@ fun JobDetailScreen(
             if (session.canSeeMoney) { add("pricing"); add("tier"); add("teardown") }
             add(SECTION_SCHEDULE)
             if (session.canSeeMoney) add("order")
+            add(SECTION_LOCATE)
             add(SECTION_HOA)
             if (session.canSeeMoney) { add("change-orders"); add(SECTION_PAYMENT) }
         }
@@ -321,6 +322,9 @@ fun JobDetailScreen(
                     }
                 }
             }
+            // Directly above HOA and permits, because they are the same kind of
+            // thing: the paperwork that has to be right before anyone starts.
+            item(key = SECTION_LOCATE) { LocateSection(currentJob, viewModel) }
             item(key = SECTION_HOA) { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
                 item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
@@ -2185,6 +2189,7 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
 private const val SECTION_PROGRESS = "progress"
 private const val SECTION_SCHEDULE = "schedule"
 private const val SECTION_HOA = "hoa"
+private const val SECTION_LOCATE = "locate"
 private const val SECTION_PAYMENT = "payment"
 
 /**
