@@ -74,11 +74,11 @@ fun OverrunSection(
             // the customer is asking why the job ran late.
             DraftTextField(
                 stableKey = job.id,
-                initialValue = job.blockedReason,
+                initialValue = job.overrunReason,
                 label = "Why did it run over?",
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth()
-            ) { text -> viewModel.update { it.copy(blockedReason = text.trim()) } }
+            ) { text -> viewModel.update { it.copy(overrunReason = text.trim()) } }
 
             if (next != null) {
                 Text(

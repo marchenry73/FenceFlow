@@ -73,7 +73,7 @@ enum class ReviewTemplate(val label: String, val describes: String, val body: St
          * because choosing was work.
          */
         fun suggestFor(job: Job, isRepeatCustomer: Boolean): ReviewTemplate = when {
-            job.blockedReason.isNotBlank() -> AFTER_A_PROBLEM
+            job.blockedReason.isNotBlank() || job.overrunReason.isNotBlank() -> AFTER_A_PROBLEM
             isRepeatCustomer -> REPEAT_CUSTOMER
             // Net of refunds: a large job that was mostly refunded is not the
             // one to ask for a glowing review about.

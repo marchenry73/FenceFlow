@@ -221,6 +221,15 @@ data class Job(
      * sprinkler line -- all need the customer told and all get disputed later.
      */
     val blockedReason: String = "",
+    /**
+     * Why the job ran past its finish date -- weather, extra rock, a short
+     * crew. Separate from [blockedReason] on purpose: blocked means the
+     * customer must act and starts the tell-the-customer flow, while an
+     * overrun is the business's own record for the day the customer asks
+     * why it took longer. Sharing one field made typing an overrun reason
+     * announce "customer has NOT been told yet" about nothing.
+     */
+    val overrunReason: String = "",
     /** What the customer must move or clear before the crew can come back. */
     val customerMustClear: String = "",
     val blockedAt: Long? = null,

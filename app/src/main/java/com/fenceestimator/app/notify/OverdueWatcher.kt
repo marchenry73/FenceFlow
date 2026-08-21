@@ -65,9 +65,9 @@ class OverdueWatcher(
                     )
                     append(". ")
                     append(
-                        if (job.blockedReason.isBlank())
+                        if (job.overrunReason.isBlank() && job.blockedReason.isBlank())
                             "Note what held it up so the customer can be told."
-                        else "Held up: ${job.blockedReason.take(60)}"
+                        else "Held up: ${job.overrunReason.ifBlank { job.blockedReason }.take(60)}"
                     )
                 },
                 channelId = Notifications.CHANNEL_CREW
