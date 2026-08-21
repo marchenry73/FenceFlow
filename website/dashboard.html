@@ -265,6 +265,42 @@
             <h2>Expenses by category</h2><p class="sub">Fuel, rentals, permits and other</p>
             <div id="chartExpenses"></div>
           </div>
+        </div>
+
+        <div class="panel" style="margin-top:12px">
+          <h2>Did each job make money?</h2>
+          <p class="sub">
+            What you collected, less materials, less approved labour, less expenses.
+            Worst first &mdash; those are the ones worth understanding.
+          </p>
+          <div class="scroll">
+            <table>
+              <thead><tr>
+                <th>Job</th><th>Collected</th><th>Materials</th><th>Labour</th>
+                <th>Other</th><th>Profit</th><th>Margin</th><th>Hours</th>
+              </tr></thead>
+              <tbody id="costingRows"></tbody>
+            </table>
+          </div>
+          <div class="msg" id="costingNote"></div>
+        </div>
+
+        <div class="panel" style="margin-top:12px">
+          <h2>Changes to money</h2>
+          <p class="sub">
+            Every change to a price, payment, approval or pay rate &mdash; who made it
+            and when. The first time two people disagree about a number, this is
+            what settles it.
+          </p>
+          <div class="scroll">
+            <table>
+              <thead><tr>
+                <th>When</th><th>Who</th><th>What</th><th>Changed</th><th>From</th><th>To</th>
+              </tr></thead>
+              <tbody id="auditRows"></tbody>
+            </table>
+          </div>
+          <div class="msg" id="auditNote"></div>
         </div></div>
       </section>
 
@@ -588,6 +624,8 @@ function stillOwed(j, contractTotal){
 }
 
 let payments=[];
+let jobCosting=[];
+let auditTrail=[];
 
 /* ---------- data ---------- */
 /**
@@ -654,8 +692,21 @@ async function loadAll(){
   catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
   jobs.sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0));
 
+  // Profit per job is computed by the database, not here, so this page and
+  // the app can never disagree about what a job made -- which is exactly how
+  // they came to disagree about everything else.
+  const costing = await db.rpc('job_costing', { from_date: null, to_date: null });
+  jobCosting = costing.error ? [] : (costing.data || []);
+
+  // Only owners, managers and accountants can read this -- a trail a crew
+  // member can see is a list of what everyone earns. An error here is a
+  // permission answer, not a failure, so it is silently empty.
+  const trail = await db.from('audit_log').select('*')
+    .order('at', { ascending: false }).limit(200);
+  auditTrail = trail.error ? [] : (trail.data || []);
+
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
-  renderTime(); renderCatalog(); renderReports(); renderTiers();
+  renderTime(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit();
   await loadSettings();
   await loadBilling();
 }
@@ -989,6 +1040,120 @@ function inPeriod(dateStr){
   if(!dateStr) return false;
   const t=d(dateStr);
   return t>=repFrom && t<=repTo;
+}
+
+/**
+ * Profit per job, worst first.
+ *
+ * Most contractors genuinely do not know which jobs lose money -- every
+ * input existed and nothing put them together. Sorted by profit ascending
+ * because the losers are the useful end of this list; a table sorted by
+ * revenue puts the biggest jobs on top, which is flattering and useless.
+ */
+/**
+ * What changed, in words rather than column names.
+ *
+ * A log that reads 'labor_rate_per_ft: 8 -> 10' is a log nobody uses. The
+ * point of this is somebody being able to answer 'who put the price up' in
+ * one look, months later, without knowing the schema.
+ */
+const AUDIT_FIELDS = {
+  status: 'Job status', payment_status: 'Payment status',
+  deposit_amount: 'Deposit', amount_paid: 'Amount paid',
+  refunded_amount: 'Refunded', labor_rate_per_ft: 'Labour rate per foot',
+  labor_flat_fee: 'Labour flat fee', markup_percent: 'Markup %',
+  discount_percent: 'Discount %', minimum_job_charge: 'Minimum charge',
+  tax_rate_percent: 'Tax rate %', amount: 'Amount', method: 'Method',
+  received_at: 'Received', note: 'Note', approved_at: 'Approved',
+  rejected_at: 'Rejected', hourly_rate: 'Hourly rate',
+  started_at: 'Started', ended_at: 'Ended', per_foot_rate: 'Per-foot rate',
+  pay_type: 'Pay type', is_active: 'On the crew',
+  additional_cost: 'Extra work cost', material_cost: 'Material cost',
+  signed_at: 'Signed', quantity: 'Quantity', unit_price: 'Unit price',
+  supplier_unit_price: 'Supplier price'
+};
+
+const AUDIT_TABLES = {
+  jobs: 'Job', payment_records: 'Payment', time_entries: 'Shift',
+  employees: 'Crew member', change_orders: 'Change order',
+  estimate_line_items: 'Estimate line'
+};
+
+function renderAudit(){
+  if (!auditTrail.length) {
+    $('auditRows').innerHTML = '';
+    $('auditNote').textContent =
+      'Nothing recorded yet. Changes from here and from the app both appear here.';
+    return;
+  }
+  $('auditNote').textContent = '';
+  $('auditRows').innerHTML = auditTrail.map(a => {
+    const what = AUDIT_TABLES[a.table_name] || a.table_name;
+    const label = a.label ? ` &middot; ${esc(a.label)}` : '';
+    const field = a.field ? (AUDIT_FIELDS[a.field] || a.field) : a.action;
+    return `<tr>
+      <td style="white-space:nowrap">${day(a.at)}</td>
+      <td>${esc(a.actor_email || 'system')}</td>
+      <td>${esc(what)}${label}</td>
+      <td>${esc(field)}</td>
+      <td style="color:var(--muted)">${a.old_value == null ? '—' : esc(String(a.old_value))}</td>
+      <td><b>${a.new_value == null ? '—' : esc(String(a.new_value))}</b></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCosting(){
+  // Real losses first; work that simply has not been invoiced goes last,
+  // where it cannot be mistaken for a job that went wrong.
+  jobCosting = jobCosting.slice().sort((a, b) => {
+    const aPending = Number(a.collected||0) === 0 && a.status !== 'COMPLETED';
+    const bPending = Number(b.collected||0) === 0 && b.status !== 'COMPLETED';
+    if (aPending !== bPending) return aPending ? 1 : -1;
+    return Number(a.profit||0) - Number(b.profit||0);
+  });
+  if (!jobCosting.length) {
+    $('costingRows').innerHTML = '';
+    $('costingNote').textContent = 'No jobs to cost yet.';
+    return;
+  }
+
+  const pendingHours = jobCosting.reduce((s,r)=>s+Number(r.unapproved_hours||0),0);
+
+  $('costingRows').innerHTML = jobCosting.map(r=>{
+    const profit = Number(r.profit||0);
+    const collected = Number(r.collected||0);
+
+    // A job with costs and no money in has not lost anything -- it has not
+    // been billed yet. Showing that as a five-figure loss is worse than
+    // showing nothing, because it is the number somebody screenshots.
+    const notBilledYet = collected === 0 && r.status !== 'COMPLETED';
+
+    // Losing money is a fact worth seeing at a glance, not something to hunt
+    // for in a column of similar-looking numbers.
+    const tone = notBilledYet ? 'color:var(--muted)'
+               : profit < 0 ? 'color:var(--bad,#b3261e);font-weight:600'
+               : profit === 0 ? 'color:var(--muted)' : '';
+
+    return `<tr>
+      <td>${esc(r.customer_name || 'Untitled')}
+          <br><span style="color:var(--muted);font-size:12px">${esc(r.status||'')}</span></td>
+      <td>${money(collected)}</td>
+      <td>${money(r.material_cost)}</td>
+      <td>${money(r.labour_cost)}</td>
+      <td>${money(r.other_cost)}</td>
+      <td style="${tone}">${notBilledYet ? 'not billed yet' : money(profit)}</td>
+      <td style="${tone}">${notBilledYet || r.margin_percent == null
+            ? '—' : Number(r.margin_percent).toFixed(0) + '%'}</td>
+      <td>${Number(r.hours_worked||0).toFixed(1)}</td>
+    </tr>`;
+  }).join('');
+
+  // Said out loud, because a job can look cheap purely because nobody has
+  // signed the hours off yet -- and that reads as profit until they do.
+  $('costingNote').textContent = pendingHours > 0
+    ? `Labour counts approved hours only. There are ${pendingHours.toFixed(1)} hours ` +
+      `still waiting for approval, so some of these jobs will look better than they are.`
+    : 'Labour counts approved hours only.';
 }
 
 function renderReports(){
