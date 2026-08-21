@@ -240,6 +240,30 @@ object JobSync {
                     continue
                 }
 
+                // A job nobody has touched still needs its total sent once.
+                //
+                // The push below only fires when this phone's copy is newer,
+                // so contract_total would fill in for new and edited jobs and
+                // stay blank on every existing one -- leaving the website
+                // wrong on exactly the old jobs with money outstanding.
+                //
+                // Only the one column is written. Pushing the whole row to
+                // backfill a single field would send this phone's untouched
+                // copy over a cloud row that may be newer, and quietly undo an
+                // edit made somewhere else.
+                if (cloudJob != null && cloudJob.deletedAt == null && cloudJob.contractTotal == null) {
+                    runCatching {
+                        SupabaseModule.client.postgrest.from("jobs").update(
+                            buildJsonObject { put("contract_total", totalFor(job)) }
+                        ) {
+                            filter {
+                                eq("company_id", companyId)
+                                eq("sync_id", job.syncId)
+                            }
+                        }
+                    }
+                }
+
                 if (cloudJob == null) {
                     SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job)))
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
