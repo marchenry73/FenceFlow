@@ -238,8 +238,14 @@ object PdfExporter {
         }
         canvas.drawText(name, MARGIN, y + 20f, namePaint)
 
-        // Clear the name descenders before anything else is drawn.
-        y += 20f + namePaint.textSize * 0.45f
+        // The next baseline sits below the name's descenders AND above the
+        // phone number's full height -- measured from the fonts themselves.
+        // The old clearance was a guessed fraction of the name size, which
+        // was enough only once a long name had shrunk itself: a short name
+        // stayed at full 22pt and its descenders sat in the phone number on
+        // every document. descent() is how far this font actually drops;
+        // -ascent() is how far the next line actually rises.
+        y += 20f + namePaint.descent() - headerPaint.ascent() + 2f
         if (business.phone.isNotBlank()) { canvas.drawText(business.phone, MARGIN, y, headerPaint); y += 14f }
         if (business.email.isNotBlank()) { canvas.drawText(business.email, MARGIN, y, headerPaint); y += 14f }
         if (business.licenseNumber.isNotBlank()) { canvas.drawText("License #${business.licenseNumber}", MARGIN, y, headerPaint); y += 14f }
