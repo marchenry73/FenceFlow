@@ -710,6 +710,28 @@ async function loadAll(){
   jobs=j.data||[]; employees=e.data||[]; runs=r.data||[]; items=i.data||[];
   expenses=x.data||[]; punch=p.data||[]; orders=o.data||[]; times=tm.data||[];
   catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
+
+  // Drop anything hanging off a job that was deleted.
+  //
+  // Deleting a job soft-deletes the job row, but its payments, line items,
+  // hours and expenses keep their own deleted_at of null -- they are still
+  // live rows belonging to a dead parent. Filtering only on each table's own
+  // deleted_at therefore kept counting them here, while the phone had dropped
+  // them with the job. On real data that put 'Collected this month' at
+  // -$94,168 on this page against $19,204 in the app: one deleted job, with a
+  // refund that had been recorded four times, dragging every figure below it.
+  //
+  // Done once, here, so collected, profit, materials, labour and expenses all
+  // inherit it rather than each panel having to remember.
+  const liveJobs = new Set(jobs.map(x2 => x2.sync_id));
+  const ofLiveJob = arr => arr.filter(x2 => liveJobs.has(x2.job_sync_id));
+  payments = ofLiveJob(payments);
+  items    = ofLiveJob(items);
+  times    = ofLiveJob(times);
+  expenses = ofLiveJob(expenses);
+  orders   = ofLiveJob(orders);
+  punch    = ofLiveJob(punch);
+  runs     = ofLiveJob(runs);
   jobs.sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0));
 
   // Profit per job is computed by the database, not here, so this page and

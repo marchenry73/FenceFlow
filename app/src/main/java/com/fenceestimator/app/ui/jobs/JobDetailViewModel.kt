@@ -17,6 +17,7 @@ import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -327,45 +328,61 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
      * than was ever taken is always a typo, and it would leave the job showing
      * the customer as owed money that never existed.
      */
+    /** Serialises refunds so two quick presses cannot both pass the cap. */
+    private val refundLock = kotlinx.coroutines.sync.Mutex()
+
     fun recordRefund(amount: Double, reason: String) {
-        val current = job.value ?: return
         if (amount <= 0.0) return
-        val capped = minOf(amount, JobMoney.netPaid(current))
-        if (capped <= 0.0) return
         viewModelScope.launch {
-            // A negative ledger row, so the statement reads in one place and a
-            // refund lands in the month it was actually given back rather than
-            // being netted invisibly off an older payment.
-            repository.recordPayment(
-                com.fenceestimator.app.data.PaymentRecord(
-                    jobId = jobId,
-                    amount = -capped,
-                    method = com.fenceestimator.app.data.PaymentMethod.OTHER,
-                    note = reason
-                )
-            )
-            // Re-read rather than using job.value.
+            // One refund at a time, and capped against the job as it is on
+            // disk right now.
             //
-            // recordPayment has just rewritten amountPaid and refundedAmount
-            // from the ledger, but job.value is a Flow and has not caught up in
-            // this same coroutine. Copying from it here wrote the PRE-refund
-            // totals straight back over the top, so the ledger row survived and
-            // the figures on screen did not move -- the refund only appeared
-            // later, when a sync recomputed the totals again. Which is exactly
-            // "recording a refund is not working immediately".
-            val fresh = repository.getJob(jobId) ?: return@launch
-            repository.updateJob(
-                fresh.copy(
-                    refundedAt = System.currentTimeMillis(),
-                    refundReason = listOf(fresh.refundReason, reason)
-                        .filter { line -> line.isNotBlank() }
-                        .joinToString("; ")
+            // Both halves matter. The cap used to be worked out from
+            // job.value, a Flow that has not caught up while a refund is still
+            // being written -- so a second press moments later measured itself
+            // against the balance from BEFORE the first one and recorded the
+            // whole amount again. A real ledger shows this happening four
+            // times in ninety seconds for the same $39,916.85, because nothing
+            // on screen moved and the obvious response is to press it again.
+            refundLock.withLock {
+                val current = repository.getJob(jobId) ?: return@withLock
+                val capped = minOf(amount, JobMoney.netPaid(current))
+                if (capped <= 0.0) return@withLock
+
+                // A negative ledger row, so the statement reads in one place and a
+                // refund lands in the month it was actually given back rather than
+                // being netted invisibly off an older payment.
+                repository.recordPayment(
+                    com.fenceestimator.app.data.PaymentRecord(
+                        jobId = jobId,
+                        amount = -capped,
+                        method = com.fenceestimator.app.data.PaymentMethod.OTHER,
+                        note = reason
+                    )
                 )
-            )
-            // The status has to follow the money straight away, or the job sits
-            // at "paid in full" while the customer is holding a refund. Given
-            // the freshly read job for the same reason as above.
-            reconcilePaymentStatus(repository.getJob(jobId))
+                // Re-read rather than using job.value.
+                //
+                // recordPayment has just rewritten amountPaid and refundedAmount
+                // from the ledger, but job.value is a Flow and has not caught up in
+                // this same coroutine. Copying from it here wrote the PRE-refund
+                // totals straight back over the top, so the ledger row survived and
+                // the figures on screen did not move -- the refund only appeared
+                // later, when a sync recomputed the totals again. Which is exactly
+                // "recording a refund is not working immediately".
+                val fresh = repository.getJob(jobId) ?: return@withLock
+                repository.updateJob(
+                    fresh.copy(
+                        refundedAt = System.currentTimeMillis(),
+                        refundReason = listOf(fresh.refundReason, reason)
+                            .filter { line -> line.isNotBlank() }
+                            .joinToString("; ")
+                    )
+                )
+                // The status has to follow the money straight away, or the job sits
+                // at "paid in full" while the customer is holding a refund. Given
+                // the freshly read job for the same reason as above.
+                reconcilePaymentStatus(repository.getJob(jobId))
+            }
         }
     }
 
