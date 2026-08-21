@@ -368,7 +368,10 @@
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <h2 style="margin:0">Crew detail</h2>
-          <button class="btn btn-sm btn-grey" id="exportCrew">Export CSV</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-grey" id="exportPayroll">Payroll CSV</button>
+            <button class="btn btn-sm btn-grey" id="exportCrew">Export CSV</button>
+          </div>
         </div>
         <div class="scroll"><table>
           <thead><tr><th>Installer</th><th>Jobs</th><th>Hours</th><th>Labor cost</th><th>Avg $/hr</th></tr></thead>
@@ -1372,7 +1375,11 @@ function renderReports(){
   const byEmp={};
   timesIn.forEach(t=>{
     const j=jobBySync(t.job_sync_id);
-    const emp=employees.find(e=>e.id===j?.assigned_employee_id);
+    // The entry's own crew member first. Attributing by the job's assignee
+    // credited a second person's hours to whoever the job belonged to, which
+    // is exactly wrong on the two-man jobs where the report matters most.
+    const emp=employees.find(e=>e.sync_id===t.employee_sync_id)
+      || employees.find(e=>e.id===j?.assigned_employee_id);
     const key=emp?(emp.name||'Unnamed'):'Unassigned';
     byEmp[key]=byEmp[key]||{jobs:new Set(),hours:0,cost:0};
     byEmp[key].jobs.add(t.job_sync_id);
@@ -1702,12 +1709,31 @@ document.querySelectorAll('.cat').forEach(sec=>{
     localStorage.setItem(key, sec.classList.contains('closed')?'closed':'open');
   });
 });
+// Payroll pays approved hours only -- approving is what turns a claim about
+// hours into pay, and this export is the reason that rule exists. Grouped by
+// the person who clocked them, with their own rate on every line.
+$('exportPayroll').addEventListener('click',()=>{
+  const approved=(window._repExport?.times||[]).filter(t=>t.approved_at);
+  const byWho={};
+  approved.forEach(t=>{
+    const emp=employees.find(e=>e.sync_id===t.employee_sync_id);
+    const key=emp?(emp.name||'Unnamed'):'Unassigned';
+    byWho[key]=byWho[key]||{shifts:0,hours:0,pay:0};
+    byWho[key].shifts++;
+    byWho[key].hours+=hoursOf(t);
+    byWho[key].pay+=hoursOf(t)*(t.hourly_rate||0);
+  });
+  downloadCsv('payroll.csv',
+    ['Crew member','Approved shifts','Hours','Pay'],
+    Object.entries(byWho).map(([name,v])=>
+      [name,v.shifts,v.hours.toFixed(2),v.pay.toFixed(2)]));
+});
 $('exportCrew').addEventListener('click',()=>downloadCsv('crew-report.csv',
   ['Installer','Jobs','Hours','Labor cost','Avg per hour'],
   (window._repExport?.crew||[]).map(([n,v])=>
     [n,v.jobs.size,v.hours.toFixed(2),v.cost.toFixed(2),v.hours?(v.cost/v.hours).toFixed(2):''])));
 $('exportOwed').addEventListener('click',()=>downloadCsv('outstanding.csv',
-  ['Customer','Status','Materials','Paid','Outstanding'],
+  ['Customer','Status','Contract','Paid','Outstanding'],
   (window._repExport?.owed||[]).map(r=>
     [r.j.customer_name,r.j.status,r.mat.toFixed(2),netPaid(r.j).toFixed(2),r.out.toFixed(2)])));
 $('exportTime').addEventListener('click',()=>downloadCsv('time-detail.csv',
