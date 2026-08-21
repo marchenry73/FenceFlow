@@ -319,6 +319,26 @@ data class Job(
     val referralSource: String = "",
     val hoaApprovalStatus: HoaApprovalStatus = HoaApprovalStatus.NOT_REQUIRED,
     val permitNumber: String = "",
+
+    // ---- Utility locate ----------------------------------------------------
+    //
+    // A locate has a ticket number, a legally required wait before anyone may
+    // dig, and an expiry after which it is void. Digging outside that window is
+    // the most expensive mistake available in fencing -- a struck gas line is
+    // an evacuation, a struck fibre is a five-figure invoice, and both land on
+    // the contractor.
+    val locateTicketNo: String = "",
+    val locateCalledAt: Long? = null,
+    /**
+     * The earliest anyone may dig.
+     *
+     * Recorded rather than calculated: the wait differs by state and by
+     * utility, and a number this app invented would be worse than none.
+     */
+    val locateDigAfter: Long? = null,
+    /** After this the ticket is void and has to be called again. */
+    val locateExpiresAt: Long? = null,
+    val locateNotes: String = "",
     val permitStatus: PermitStatus = PermitStatus.NOT_REQUIRED,
 
     // Crew
