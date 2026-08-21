@@ -1,5 +1,6 @@
 package com.fenceestimator.app.ui.survey
 
+import com.fenceestimator.app.geometry.GateGeometry
 import androidx.compose.material3.FilterChip
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -478,11 +479,36 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
                         val canvasPoints = points.map { transform.toCanvas(it) }
 
+                        // Where each gate actually sits, and how much fence it
+                        // takes up. Worked out once and used for both the gaps
+                        // in the fence and the gates drawn into them.
+                        val gateSpans = if (pxPerFt != null && pxPerFt > 0f) {
+                            gates.mapNotNull { g ->
+                                GateGeometry.spanFor(g, points, activeRun.closedLoop, pxPerFt)
+                                    ?.let { span -> g to span }
+                            }
+                        } else emptyList()
+
                         val segCount = if (activeRun.closedLoop) points.size else points.size - 1
                         for (i in 0 until max(0, segCount)) {
-                            val a = canvasPoints[i]
-                            val b = canvasPoints[(i + 1) % canvasPoints.size]
-                            drawLine(FenceLineColor, a, b, strokeWidth = 4f)
+                            val a = points[i]
+                            val b = points[(i + 1) % points.size]
+                            // The fence is drawn as the pieces either side of
+                            // each opening rather than one line with a symbol
+                            // on top, so a gate reads as a way through. It also
+                            // makes an opening too wide for its run obvious:
+                            // the fence either side simply is not there.
+                            val onThisSegment = gateSpans
+                                .filter { it.second.segmentIndex == i }
+                                .map { it.second }
+                            GateGeometry.segmentGaps(a, b, onThisSegment).forEach { (from, to) ->
+                                drawLine(
+                                    FenceLineColor,
+                                    transform.toCanvas(from),
+                                    transform.toCanvas(to),
+                                    strokeWidth = 4f
+                                )
+                            }
                         }
 
                         val vertexRadius = if (mode == SurveyMode.ADJUST) 14f else 11f
@@ -497,18 +523,67 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             drawCircle(Color.White, radius = vertexRadius, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
                         }
 
-                        gates.forEach { gate ->
-                            val c = transform.toCanvas(FencePoint(gate.x, gate.y))
-                            drawRect(
-                                GateMarkerColor,
-                                topLeft = Offset(c.x - 10f, c.y - 10f),
-                                size = androidx.compose.ui.geometry.Size(20f, 20f)
-                            )
-                            drawRect(
-                                Color.White,
-                                topLeft = Offset(c.x - 10f, c.y - 10f),
-                                size = androidx.compose.ui.geometry.Size(20f, 20f),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                        // A gate at its real width, hung on real posts.
+                        //
+                        // It used to be a fixed 20-pixel square wherever it was
+                        // dropped, so a 3ft walk gate and a 16ft double gate
+                        // looked identical and neither took up any fence. On a
+                        // plan somebody builds from, that is the difference
+                        // between an opening that fits and one that does not.
+                        gateSpans.forEach { (gate, span) ->
+                            val a = transform.toCanvas(span.start)
+                            val b = transform.toCanvas(span.end)
+
+                            // The two posts the gate hangs between. These are
+                            // the things that get set in concrete, so they are
+                            // what the crew is really looking for.
+                            listOf(a, b).forEach { post ->
+                                drawCircle(GateMarkerColor, radius = 7f, center = post)
+                                drawCircle(
+                                    Color.White, radius = 7f, center = post,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                                )
+                            }
+
+                            // The leaf, swung open at 45 degrees, and the arc it
+                            // sweeps -- the way a gate is drawn on any site plan,
+                            // and the thing that shows which way it opens and
+                            // what has to be kept clear for it.
+                            val dx = b.x - a.x
+                            val dy = b.y - a.y
+                            val leafLength = kotlin.math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+                            if (leafLength > 1f) {
+                                val ux = dx / leafLength
+                                val uy = dy / leafLength
+                                // Rotated 45 degrees off the fence line.
+                                val cos45 = 0.7071f
+                                val swingX = (ux * cos45 - uy * cos45)
+                                val swingY = (ux * cos45 + uy * cos45)
+                                val tip = Offset(a.x + swingX * leafLength, a.y + swingY * leafLength)
+                                drawLine(GateMarkerColor, a, tip, strokeWidth = 3f)
+                                drawArc(
+                                    color = GateMarkerColor.copy(alpha = 0.35f),
+                                    startAngle = Math.toDegrees(kotlin.math.atan2(uy.toDouble(), ux.toDouble())).toFloat(),
+                                    sweepAngle = 45f,
+                                    useCenter = false,
+                                    topLeft = Offset(a.x - leafLength, a.y - leafLength),
+                                    size = androidx.compose.ui.geometry.Size(leafLength * 2f, leafLength * 2f),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                                )
+                            }
+
+                            // Its width, so the plan states it rather than
+                            // leaving it to be measured off the drawing.
+                            val mid = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
+                            drawContext.canvas.nativeCanvas.drawText(
+                                "${if (gate.widthFt % 1f == 0f) gate.widthFt.toInt() else gate.widthFt} ft",
+                                mid.x, mid.y - 10f,
+                                android.graphics.Paint().apply {
+                                    color = android.graphics.Color.parseColor("#B23800")
+                                    textSize = 26f
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                    isFakeBoldText = true
+                                }
                             )
                         }
 
