@@ -166,7 +166,13 @@ private fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel
             // they had just requested -- the self-approval rule covered shifts
             // and never this. The request stays visible to everyone: what is
             // being asked is not a secret, who may answer it is the rule.
-            if (canApprove) {
+            // The shift rule, one level up: holding the permission still does
+            // not let you sign off the change you yourself asked for. The
+            // record only carries a name, so the match is by name -- the same
+            // fallback the shift check uses when there is no email to go on.
+            val isOwnRequest = request.changedBy.isNotBlank() &&
+                request.changedBy.trim().equals(viewModel.decidedByName.trim(), ignoreCase = true)
+            if (canApprove && !isOwnRequest) {
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
@@ -188,7 +194,8 @@ private fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel
                 }
             } else {
                 Text(
-                    "Waiting on the office to answer.",
+                    if (canApprove) "Your own request -- somebody else signs this one off."
+                    else "Waiting on the office to answer.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
