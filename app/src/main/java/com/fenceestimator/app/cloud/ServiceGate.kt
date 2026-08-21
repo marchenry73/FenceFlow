@@ -3,6 +3,7 @@ package com.fenceestimator.app.cloud
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -45,7 +46,9 @@ data class ServiceStatus(
     @SerialName("subscription_status") val subscriptionStatus: String = "",
     /** What to tell the user. Written by the database so it stays consistent. */
     val reason: String = "",
-    @SerialName("grace_ends_at") val graceEndsAt: String? = null
+    @SerialName("grace_ends_at") val graceEndsAt: String? = null,
+    /** Days left on a live trial; null for everyone else. */
+    @SerialName("trial_days_left") val trialDaysLeft: Int? = null
 )
 
 object ServiceGate {
@@ -54,6 +57,7 @@ object ServiceGate {
     private val REASON = stringPreferencesKey("reason")
     private val STATUS = stringPreferencesKey("status")
     private val CHECKED_AT = longPreferencesKey("checked_at")
+    private val TRIAL_DAYS = intPreferencesKey("trial_days")
 
     /**
      * Asks the server, remembers the answer, and returns it.
@@ -79,6 +83,7 @@ object ServiceGate {
                 prefs[REASON] = answer.reason
                 prefs[STATUS] = answer.subscriptionStatus
                 prefs[CHECKED_AT] = System.currentTimeMillis()
+                prefs[TRIAL_DAYS] = answer.trialDaysLeft ?: -1
             }
         }
         answer
@@ -97,7 +102,8 @@ object ServiceGate {
         return ServiceStatus(
             allowed = prefs[ALLOWED] ?: true,
             subscriptionStatus = prefs[STATUS].orEmpty(),
-            reason = prefs[REASON].orEmpty()
+            reason = prefs[REASON].orEmpty(),
+            trialDaysLeft = prefs[TRIAL_DAYS]?.takeIf { it >= 0 }
         )
     }
 

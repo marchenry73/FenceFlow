@@ -10,6 +10,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -186,7 +191,32 @@ class MainActivity : FragmentActivity() {
                                         }
                                     )
                                 } else {
-                                    FenceEstimatorNavHost()
+                                    androidx.compose.foundation.layout.Column {
+                                        // The trial says it is ending instead of just
+                                        // ending. Day 14 used to be a lock with no
+                                        // warning -- the first sign was being unable to
+                                        // open the app in front of a customer. Three
+                                        // days is enough to decide like a customer
+                                        // rather than react like a lockout.
+                                        val daysLeft = service?.trialDaysLeft
+                                        if (service?.subscriptionStatus == "trialing" &&
+                                            daysLeft != null && daysLeft <= 3
+                                        ) {
+                                            androidx.compose.material3.Surface(
+                                                color = MaterialTheme.colorScheme.errorContainer,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    if (daysLeft <= 1) "Your trial ends today. Get in touch to keep your data flowing."
+                                                    else "Your trial ends in $daysLeft days.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                                )
+                                            }
+                                        }
+                                        FenceEstimatorNavHost()
+                                    }
                                 }
                             }
                         }
