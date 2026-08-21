@@ -328,6 +328,11 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
      * than was ever taken is always a typo, and it would leave the job showing
      * the customer as owed money that never existed.
      */
+    /** The job's ledger, for the duplicate warning in the payment dialog. */
+    val payments: StateFlow<List<com.fenceestimator.app.data.PaymentRecord>> =
+        repository.observePaymentsForJob(jobId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     /** Serialises refunds so two quick presses cannot both pass the cap. */
     private val refundLock = kotlinx.coroutines.sync.Mutex()
 

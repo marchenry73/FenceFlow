@@ -24,6 +24,8 @@ import com.fenceestimator.app.data.SiteMarkerKind
 import com.fenceestimator.app.data.TimeEntry
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -452,14 +454,22 @@ object EntitySync {
     suspend fun pullAll(repository: Repository, companyId: String): Result<Int> =
         withContext(Dispatchers.IO) {
             runCatching {
-                var pulled = 0
-                pulled += pullEmployees(repository, companyId)
-                pulled += pullManufacturers(repository, companyId)
-                pulled += pullPricingTiers(repository, companyId)
-                pulled += pullCatalog(repository, companyId)
-                pulled += pullFenceRuns(repository, companyId)
-                pulled += pullJobChildren(repository, companyId)
-                pulled
+                // In flight together rather than one after another. Each pull
+                // reads its own cloud table and writes its own local one, so
+                // nothing here orders them -- but they used to run in a row,
+                // and a sync's cost is round-trips, not rows: forty-odd calls
+                // in single file is most of why pressing Sync felt like the
+                // app had hung.
+                kotlinx.coroutines.coroutineScope {
+                    listOf(
+                        async { pullEmployees(repository, companyId) },
+                        async { pullManufacturers(repository, companyId) },
+                        async { pullPricingTiers(repository, companyId) },
+                        async { pullCatalog(repository, companyId) },
+                        async { pullFenceRuns(repository, companyId) },
+                        async { pullJobChildren(repository, companyId) }
+                    ).awaitAll().sum()
+                }
             }
         }
 
@@ -1221,8 +1231,9 @@ object DeletionReaper {
 
     suspend fun reap(repository: com.fenceestimator.app.data.Repository, companyId: String): Result<Int> =
         runCatching {
-            var removed = 0
-            com.fenceestimator.app.data.SyncTables.ALL.forEach { table ->
+            // All thirteen sweeps at once; each touches only its own table.
+            kotlinx.coroutines.coroutineScope {
+            com.fenceestimator.app.data.SyncTables.ALL.map { table -> async {
                 val deletedIds = SupabaseModule.client.postgrest.from(table)
                     .select(io.github.jan.supabase.postgrest.query.Columns.list("sync_id")) {
                         filter {
@@ -1237,10 +1248,10 @@ object DeletionReaper {
                     .map { it.syncId }
 
                 if (deletedIds.isNotEmpty()) {
-                    removed += repository.deleteLocalRowsBySyncId(table, deletedIds)
-                }
+                    repository.deleteLocalRowsBySyncId(table, deletedIds)
+                } else 0
+            } }.awaitAll().sum()
             }
-            removed
         }
 }
 
@@ -1339,6 +1350,20 @@ object PaymentLedgerSync {
                     )
                 )
                 moved++
+            }
+
+            // A payment deleted on another phone comes off this one too. The
+            // pull below skips tombstones for rows it does not have, but that
+            // never removed a row this phone already held -- so a deleted
+            // payment lived on locally and the two phones showed different
+            // money forever. Totals are rebuilt inside, since they cache these
+            // rows.
+            val deletedElsewhere = cloud
+                .filter { it.deletedAt != null }
+                .mapNotNull { row -> localBySyncId[row.syncId] }
+            if (deletedElsewhere.isNotEmpty()) {
+                repository.removePaymentsTombstonedInCloud(deletedElsewhere)
+                moved += deletedElsewhere.size
             }
 
             // Down: anything the cloud has that this phone does not, skipping

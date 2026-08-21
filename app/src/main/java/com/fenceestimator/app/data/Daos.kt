@@ -513,4 +513,7 @@ interface PaymentRecordDao {
 
     @Query("SELECT * FROM payment_records WHERE syncId = :syncId LIMIT 1")
     suspend fun bySyncId(syncId: String): PaymentRecord?
+
+    @Query("DELETE FROM payment_records WHERE syncId IN (:syncIds)")
+    suspend fun deleteBySyncIds(syncIds: List<String>): Int
 }

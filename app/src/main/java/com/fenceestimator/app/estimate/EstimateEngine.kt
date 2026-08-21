@@ -103,12 +103,18 @@ object EstimateEngine {
             FenceType.UNIVERSAL -> {}
         }
 
-        entries += QtyEntry(MaterialRole.CONCRETE_BAG, postCounts.totalPosts * run.concreteBagsPerPost.toDouble())
+        // Gate posts are left out here and paid for by the gate itself.
+        //
+        // They were counted in both places: totalPosts includes the two posts
+        // per gate, and the gate area then added its own bags for the same two
+        // holes. Every gate on every job carried a double charge for concrete.
+        val nonGatePosts = (postCounts.totalPosts - postCounts.gatePosts).coerceAtLeast(0)
+        entries += QtyEntry(MaterialRole.CONCRETE_BAG, nonGatePosts * run.concreteBagsPerPost.toDouble())
 
         gates.forEach { gate -> entries += gateEntries(run.fenceType, gate) }
 
         val withWaste = applyWaste(entries, wastePercent)
-        val kept = withWaste.filter { it.role !in run.suppressedRoles }
+        val kept = wholeBags(withWaste).filter { it.role !in run.suppressedRoles }
 
         return EstimateSuggestions(
             geometry = geometry,
@@ -159,6 +165,25 @@ object EstimateEngine {
             )
         }
         return FenceGeometryEngine.analyze(FenceCodec.decodePoints(run.pointsEncoded), pixelsPerFoot, run.closedLoop)
+    }
+
+    /**
+     * Concrete, rounded up to bags you can actually buy.
+     *
+     * The yard sells a 60lb bag whole. A takeoff asking for 2.5 bags cannot be
+     * ordered and cannot be priced honestly -- and it happened on every job
+     * with no waste allowance set, because [applyWaste] returns early at 0%
+     * and nothing else rounded.
+     *
+     * Summed BEFORE rounding, deliberately. Rounding each entry on its own
+     * turns a 1.2-bag run and a 1.3-bag gate into four bags instead of three,
+     * and that error repeats on every gate of every job.
+     */
+    private fun wholeBags(entries: List<QtyEntry>): List<QtyEntry> {
+        val total = entries.filter { it.role == MaterialRole.CONCRETE_BAG }.sumOf { it.quantity }
+        if (total <= 0.0) return entries
+        return entries.filterNot { it.role == MaterialRole.CONCRETE_BAG } +
+            QtyEntry(MaterialRole.CONCRETE_BAG, ceil(total))
     }
 
     private fun applyWaste(entries: List<QtyEntry>, wastePercent: Double): List<QtyEntry> {
@@ -347,15 +372,22 @@ object EstimateEngine {
                 entries += QtyEntry(MaterialRole.BLANK_POST, 1.0)
                 entries += QtyEntry(MaterialRole.END_POST, 1.0)
                 entries += QtyEntry(MaterialRole.HOLE_PLUG, WALL_MOUNT_HOLES)
-                // Deliberately no concrete: a wall-hung gate is bolted, not set.
+                // The hinge side is bolted to the wall and set in nothing. The
+                // latch side is still a post in a hole and still takes its bag.
+                entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_LATCH_BAGS)
             }
             GateMounting.LINE -> {
                 entries += QtyEntry(MaterialRole.END_POST, 1.0)
-                entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_CONCRETE_BAGS)
+                entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
             }
             GateMounting.LINE_TO_WALL -> {
+                // Terminates twice, so there is a second end post in the ground
+                // beyond the gate's own two.
                 entries += QtyEntry(MaterialRole.END_POST, 2.0)
-                entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_CONCRETE_BAGS)
+                entries += QtyEntry(
+                    MaterialRole.CONCRETE_BAG,
+                    GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS
+                )
             }
         }
         return entries
@@ -364,8 +396,19 @@ object EstimateEngine {
     /** Holes drilled through the stiffener into the blank post, each needing a plug. */
     private const val WALL_MOUNT_HOLES = 4.0
 
-    /** Concrete for a gate post set in the ground. */
-    private const val GATE_CONCRETE_BAGS = 2.0
+    /**
+     * Concrete for the two posts a gate hangs between.
+     *
+     * Only the hinge post carries the gate's weight and its swing, so only
+     * that one is dug deep and wide enough to want the extra half bag. The
+     * latch side is holding a catch, not a gate, and takes an ordinary post's
+     * bag whether it stands in the fence line or on its own.
+     *
+     * This was a flat two bags for each, which quietly over-ordered half a bag
+     * on every gate. The total is rounded up to whole bags by [wholeBags].
+     */
+    private const val GATE_HINGE_BAGS = 1.5
+    private const val GATE_LATCH_BAGS = 1.0
 
     /**
      * Builds priced, editable line items from suggested quantities and the

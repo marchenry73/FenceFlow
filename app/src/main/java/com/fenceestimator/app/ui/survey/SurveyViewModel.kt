@@ -154,9 +154,31 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         persistPoints(run, points)
     }
 
-    fun undoLastPoint() {
+    /**
+     * Undoes the last thing put on the drawing, gates included.
+     *
+     * It only ever removed points, so placing a gate and pressing Undo did
+     * nothing at all -- and with no way to delete a gate anywhere else, a
+     * mis-tapped gate was permanent and kept being charged for.
+     *
+     * Which one goes is decided by the tool in hand rather than by a history
+     * stack: while placing gates, Undo takes back a gate; while drawing, it
+     * takes back a point. That is what the button means to somebody mid-task,
+     * and it cannot surprise them by removing something off-screen.
+     */
+    fun undoLast(mode: SurveyMode) {
         val run = selectedRun() ?: return
+        val gates = FenceCodec.decodeGates(run.gatesEncoded)
+        if (mode == SurveyMode.GATE && gates.isNotEmpty()) {
+            removeGate(gates.last())
+            return
+        }
         val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
+        if (points.isEmpty() && gates.isNotEmpty()) {
+            // Nothing left to unpick but gates, whatever tool is selected.
+            removeGate(gates.last())
+            return
+        }
         if (points.isNotEmpty()) points.removeAt(points.size - 1)
         persistPoints(run, points)
     }

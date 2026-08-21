@@ -620,10 +620,15 @@ private fun ExportSection(
             Icon(Icons.Filled.Share, contentDescription = null)
             Text("  Send Contract to Customer")
         }
+        // A greyed button with no reason on it reads as the app being broken.
+        // The banner above says why, but it scrolls away on a long estimate and
+        // the button is what the eye lands on.
         Text(
-            "Scope, price and your terms. No material breakdown.",
+            if (needsResign) "Locked: the price changed after this was signed."
+            else "Scope, price and your terms. No material breakdown.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (needsResign) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(8.dp))
 
@@ -650,9 +655,11 @@ private fun ExportSection(
             Text("  Send Invoice")
         }
         Text(
-            "What was agreed, what is paid, what is left.",
+            if (needsResign) "Locked: the price changed after this was signed."
+            else "What was agreed, what is paid, what is left.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (needsResign) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(8.dp))
 

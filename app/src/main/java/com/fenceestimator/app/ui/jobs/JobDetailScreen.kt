@@ -1397,7 +1397,15 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                     )
                     creatingLink = false
                     result.fold(
-                        onSuccess = { link -> viewModel.update { j -> j.copy(paymentLinkUrl = link.url) } },
+                        // The amount is recorded with the link. Without it the
+                        // staleness check below cannot fire, so a Square link
+                        // went on billing the old figure with nothing greyed
+                        // out and no warning shown.
+                        onSuccess = { link ->
+                            viewModel.update { j ->
+                                j.copy(paymentLinkUrl = link.url, paymentLinkAmount = amount)
+                            }
+                        },
                         onFailure = { linkError = it.message }
                     )
                 }
@@ -2351,6 +2359,19 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
             runCatching { dayFormat.parse(dateText)?.time }.getOrNull()
         }
 
+        // The same money, twice. A card payment posts itself through the
+        // webhook, and the natural next move is to also write it down by hand
+        // -- the ledger shows $10,930 arriving twice a minute apart that way.
+        // The job then reads as overpaid by exactly one payment, refunds get
+        // measured against money that never existed, and the books are wrong
+        // in the worst direction. Warned rather than blocked: two genuinely
+        // equal payments can happen, but never silently.
+        val ledger by viewModel.payments.collectAsState()
+        val looksDuplicate = amount > 0.0 && ledger.any { p ->
+            p.amount > 0 && kotlin.math.abs(p.amount - amount) < 0.005 &&
+                kotlin.math.abs(p.receivedAt - (parsedDate ?: 0L)) < 3L * 24 * 60 * 60 * 1000
+        }
+
         AlertDialog(
             onDismissRequest = { showDialog = false },
             title = { Text("Record a payment") },
@@ -2409,6 +2430,15 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (looksDuplicate) {
+                        Text(
+                            "A payment of ${"%.2f".format(amount)} is already on this job " +
+                                "around that date. If the customer paid by card link, it " +
+                                "recorded itself -- adding it again counts the money twice.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     Text(
                         "This is added to what has already been paid, not typed over it. " +
                             "Card payments post here by themselves.",
@@ -2430,7 +2460,7 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                         )
                         showDialog = false
                     }
-                ) { Text("Add ${"%.2f".format(amount)}") }
+                ) { Text(if (looksDuplicate) "Add anyway" else "Add ${"%.2f".format(amount)}") }
             },
             dismissButton = { OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") } }
         )

@@ -130,6 +130,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    /** A gate the user tapped, held until they confirm taking it off. */
+    var pendingGateRemoval by remember(selectedRunId) {
+        mutableStateOf<com.fenceestimator.app.geometry.GateMarker?>(null)
+    }
     var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
@@ -375,18 +379,30 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                             val zoomChange = event.calculateZoom()
                                             val panChange = event.calculatePan()
                                             val centroid = event.calculateCentroid(useCurrent = false)
-                                            if (zoomChange != 0f) {
-                                                val next = (viewZoom * zoomChange).coerceIn(0.25f, 12f)
-                                                val applied = next / viewZoom
-                                                // Keep the centroid fixed: shift
-                                                // the pan by how much that point
-                                                // would otherwise have moved.
-                                                viewPan = Offset(
-                                                    centroid.x + (viewPan.x - centroid.x) * applied + panChange.x,
-                                                    centroid.y + (viewPan.y - centroid.y) * applied + panChange.y
-                                                )
-                                                viewZoom = next
-                                            }
+                                            // Two fingers always pan; they zoom
+                                            // only when the pinch actually
+                                            // changed the distance between them.
+                                            //
+                                            // Pan used to live inside the zoom
+                                            // branch, so sliding two fingers
+                                            // without pinching moved nothing and
+                                            // the only way to shift the view was
+                                            // to leave the drawing tool and
+                                            // switch to Move View -- three taps
+                                            // to nudge a line you are mid-way
+                                            // through drawing.
+                                            val next = if (zoomChange > 0f) {
+                                                (viewZoom * zoomChange).coerceIn(0.25f, 12f)
+                                            } else viewZoom
+                                            val applied = next / viewZoom
+                                            // Keep the centroid fixed: shift
+                                            // the pan by how much that point
+                                            // would otherwise have moved.
+                                            viewPan = Offset(
+                                                centroid.x + (viewPan.x - centroid.x) * applied + panChange.x,
+                                                centroid.y + (viewPan.y - centroid.y) * applied + panChange.y
+                                            )
+                                            viewZoom = next
                                             event.changes.forEach { it.consume() }
                                         }
                                     } while (event.changes.any { it.pressed })
@@ -490,7 +506,20 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                             SurveyMode.CALIBRATE -> viewModel.tapCalibrationPoint(imgPoint) { p1, p2 ->
                                                 calibrationDialogPoints = p1 to p2
                                             }
-                                            SurveyMode.GATE -> gateDialogPoint = imgPoint
+                                            SurveyMode.GATE -> {
+                                                // Tap a gate that is already
+                                                // there to take it off; tap
+                                                // open ground to add one.
+                                                val hit = gates.minByOrNull { g ->
+                                                    val c = transform.toCanvas(FencePoint(g.x, g.y))
+                                                    (c - tapOffset).getDistance()
+                                                }?.takeIf { g ->
+                                                    val c = transform.toCanvas(FencePoint(g.x, g.y))
+                                                    (c - tapOffset).getDistance() <= GATE_TAP_SLOP
+                                                }
+                                                if (hit != null) pendingGateRemoval = hit
+                                                else gateDialogPoint = imgPoint
+                                            }
                                             SurveyMode.MARKER -> markerDialogPoint = imgPoint
                                             else -> {}
                                         }
@@ -748,7 +777,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedButton(onClick = { viewModel.undoLastPoint() }, modifier = Modifier.weight(1f)) {
+                            OutlinedButton(onClick = { viewModel.undoLast(mode) }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Undo, contentDescription = null)
                                 Text(" Undo")
                             }
@@ -783,6 +812,31 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 gateDialogPoint = null
             },
             onDismiss = { gateDialogPoint = null }
+        )
+    }
+
+    // Confirmed rather than instant: a gate carries posts, hardware, concrete
+    // and its own charge, so removing one moves the price. A stray tap must not
+    // quietly re-quote the job.
+    pendingGateRemoval?.let { gate ->
+        AlertDialog(
+            onDismissRequest = { pendingGateRemoval = null },
+            title = { Text("Remove this gate?") },
+            text = {
+                Text(
+                    "The ${"%.0f".format(gate.widthFt)} ft gate comes off the drawing, " +
+                        "along with its posts, hardware and concrete. The price changes."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.removeGate(gate)
+                    pendingGateRemoval = null
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingGateRemoval = null }) { Text("Keep") }
+            }
         )
     }
 
@@ -1076,6 +1130,9 @@ private val GateMarkerColor = Color(0xFFB23800)
 
 /** Screen-space tap tolerance for grabbing a vertex in Adjust mode, independent of zoom level. */
 private const val VERTEX_HIT_RADIUS_PX = 40f
+
+/** How near a tap has to land to count as hitting a gate, in screen pixels. */
+private const val GATE_TAP_SLOP = 48f
 
 private data class FitTransform(val scale: Float, val offsetX: Float, val offsetY: Float) {
     fun toCanvas(p: FencePoint): Offset = Offset(p.x * scale + offsetX, p.y * scale + offsetY)

@@ -155,6 +155,19 @@ class Repository(private val db: AppDatabase) {
     suspend fun updatePaymentFromCloud(record: PaymentRecord) = paymentRecordDao.insert(record)
 
     /** Inserts ledger rows pulled from the cloud, ignoring ones already held. */
+    /**
+     * Removes payments whose cloud copy was deleted on another phone.
+     *
+     * The job totals are a cache of these rows, so they are rebuilt for every
+     * job that lost one -- otherwise the job goes on claiming money its own
+     * ledger no longer shows.
+     */
+    suspend fun removePaymentsTombstonedInCloud(records: List<PaymentRecord>) {
+        if (records.isEmpty()) return
+        paymentRecordDao.deleteBySyncIds(records.map { it.syncId })
+        records.map { it.jobId }.distinct().forEach { syncJobTotalsFromLedger(it) }
+    }
+
     suspend fun insertPaymentsFromCloud(records: List<PaymentRecord>) =
         paymentRecordDao.insertAll(records)
 

@@ -118,6 +118,13 @@
   .cat.closed .caret{transform:rotate(-90deg)}
   .cat.closed .cat-body{display:none}
   @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+  .readout{
+    display:flex; flex-direction:column; gap:1px;
+    padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    background:var(--surface2,rgba(127,127,127,.06)); min-height:38px;
+  }
+  .readout b{font-size:16px; font-variant-numeric:tabular-nums}
+  .readout .sub2{font-size:12px; color:var(--muted)}
 </style>
 </head>
 <body>
@@ -510,7 +517,8 @@
     <div class="panel"><h2>Payment</h2>
       <div class="row3">
         <div><label>Deposit ($)</label><input id="j_deposit_amount" type="number" step="1"></div>
-        <div><label>Amount paid ($)</label><input id="j_amount_paid" type="number" step="1"></div>
+        <div><label>Amount paid</label>
+          <div id="j_paid_readout" class="readout"></div></div>
         <div><label>Payment status</label><select id="j_payment_status">
           <option value="UNPAID">Unpaid</option><option value="DEPOSIT_PAID">Deposit paid</option>
           <option value="PAID_IN_FULL">Paid in full</option></select></div>
@@ -1454,7 +1462,7 @@ function renderTiers(){
 /* ---------- job detail ---------- */
 const J_TEXT=['customer_name','phone','address','email','referral_source','notes','hoa_name','hoa_email','permit_number'];
 const J_NUM=['tax_rate_percent','markup_percent','discount_percent','minimum_job_charge',
-             'labor_rate_per_ft','labor_flat_fee','estimated_duration_hours','deposit_amount','amount_paid'];
+             'labor_rate_per_ft','labor_flat_fee','estimated_duration_hours','deposit_amount'];
 const J_SEL=['status','payment_status','hoa_approval_status','permit_status'];
 
 function showJob(id){
@@ -1464,6 +1472,20 @@ function showJob(id){
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||'';});
   J_NUM.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]??0;});
   J_SEL.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||el.options[0].value;});
+  // Net, and shown as the sum it actually is.
+  //
+  // This box was an editable input holding amount_paid, which is the GROSS of
+  // every positive payment -- refunds are carried separately. So a job that
+  // took $42,301 and gave $31,860 back read '$42,301 paid' here and $10,441 in
+  // the app. Both figures were real; only one is what the customer has paid.
+  const paidGross = Number(openJob.amount_paid||0);
+  const refunded  = Number(openJob.refunded_amount||0);
+  $('j_paid_readout').innerHTML = refunded > 0.005
+    ? `<b>${money(paidGross - refunded)}</b>
+       <span class="sub2">${money(paidGross)} paid, ${money(refunded)} refunded</span>`
+    : `<b>${money(paidGross)}</b>
+       <span class="sub2">Recorded in the app</span>`;
+
   $('j_scheduled_date').value=openJob.scheduled_date
     ? new Date(openJob.scheduled_date).toISOString().slice(0,10) : '';
   $('j_assigned_employee_id').innerHTML='<option value="">Unassigned</option>'+
