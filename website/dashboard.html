@@ -301,6 +301,25 @@
             </table>
           </div>
           <div class="msg" id="auditNote"></div>
+        </div>
+
+        <div class="panel" style="margin-top:12px">
+          <h2>Who owes you</h2>
+          <p class="sub">
+            Outstanding balances by how long they have been out. The oldest money
+            is the hardest to collect &mdash; chase it first.
+          </p>
+          <div class="stats" id="arBuckets"></div>
+          <div class="scroll">
+            <table>
+              <thead><tr>
+                <th>Customer</th><th>Job</th><th>Contract</th><th>Paid</th>
+                <th>Owed</th><th>Days</th><th></th>
+              </tr></thead>
+              <tbody id="arRows"></tbody>
+            </table>
+          </div>
+          <div class="msg" id="arNote"></div>
         </div></div>
       </section>
 
@@ -626,6 +645,7 @@ function stillOwed(j, contractTotal){
 let payments=[];
 let jobCosting=[];
 let auditTrail=[];
+let arAging=[];
 
 /* ---------- data ---------- */
 /**
@@ -705,8 +725,11 @@ async function loadAll(){
     .order('at', { ascending: false }).limit(200);
   auditTrail = trail.error ? [] : (trail.data || []);
 
+  const aging = await db.rpc('ar_aging');
+  arAging = aging.error ? [] : (aging.data || []);
+
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
-  renderTime(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit();
+  renderTime(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();
   await loadSettings();
   await loadBilling();
 }
@@ -1078,6 +1101,56 @@ const AUDIT_TABLES = {
   employees: 'Crew member', change_orders: 'Change order',
   estimate_line_items: 'Estimate line'
 };
+
+/**
+ * Money owed, oldest first in spirit: the buckets lead, and chasing is one
+ * tap, because a report that only reports gets looked at monthly while one
+ * with a Chase button gets acted on.
+ */
+function renderAging(){
+  const buckets = { current: 0, '30': 0, '60': 0, '90': 0 };
+  arAging.forEach(r => { buckets[r.bucket] = (buckets[r.bucket] || 0) + Number(r.owed || 0); });
+
+  $('arBuckets').innerHTML = `
+    <div class="stat"><b>${money(buckets.current)}</b><span>Under 30 days</span></div>
+    <div class="stat"><b>${money(buckets['30'])}</b><span>30–60 days</span></div>
+    <div class="stat"><b>${money(buckets['60'])}</b><span>60–90 days</span></div>
+    <div class="stat"><b style="${buckets['90'] > 0 ? 'color:var(--bad,#b3261e)' : ''}">${money(buckets['90'])}</b><span>Over 90 days</span></div>`;
+
+  if (!arAging.length) {
+    $('arRows').innerHTML = '';
+    $('arNote').textContent = 'Nobody owes you anything. Rare and worth enjoying.';
+    return;
+  }
+  $('arNote').textContent = '';
+
+  $('arRows').innerHTML = arAging.map(r => {
+    const late = Number(r.days_out || 0) >= 60;
+    const chase = r.phone
+      ? `<button data-arsms="${esc(r.phone)}" data-arname="${esc(r.customer_name || '')}" data-arowed="${Number(r.owed).toFixed(2)}">Text them</button>`
+      : (r.email ? `<a href="mailto:${esc(r.email)}"><button>Email</button></a>` : '');
+    return `<tr>
+      <td><b>${esc(r.customer_name || 'Unnamed')}</b></td>
+      <td style="color:var(--muted)">${esc(r.status || '')}</td>
+      <td>${money(r.contract_total)}</td>
+      <td>${money(r.paid)}</td>
+      <td style="${late ? 'color:var(--bad,#b3261e);font-weight:600' : 'font-weight:600'}">${money(r.owed)}</td>
+      <td style="${late ? 'color:var(--bad,#b3261e)' : ''}">${r.days_out}</td>
+      <td>${chase}</td>
+    </tr>`;
+  }).join('');
+
+  // The reminder is a draft in their own messages app, never sent by us:
+  // chasing money is a relationship moment, and the wording should pass
+  // through human hands on the way out.
+  document.querySelectorAll('[data-arsms]').forEach(b =>
+    b.addEventListener('click', () => {
+      const msg = `Hi ${b.dataset.arname || 'there'} -- just a reminder that ` +
+        `${b.dataset.arowed} is still outstanding on your fence. ` +
+        `Happy to take card, check or transfer, whatever suits. Thanks!`;
+      window.open(`sms:${b.dataset.arsms}?body=${encodeURIComponent(msg)}`);
+    }));
+}
 
 function renderAudit(){
   if (!auditTrail.length) {
