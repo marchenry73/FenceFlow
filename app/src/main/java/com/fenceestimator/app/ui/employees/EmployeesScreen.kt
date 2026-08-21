@@ -286,8 +286,8 @@ private fun EditEmployeeDialog(
                     employee.copy(
                         name = name, role = role, phone = phone, email = email, notes = notes,
                         payType = payType,
-                        hourlyRate = hourlyRate.toDoubleOrNull() ?: 0.0,
-                        perFootRate = perFootRate.toDoubleOrNull() ?: 0.0
+                        hourlyRate = hourlyRate.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                        perFootRate = perFootRate.replace(',', '.').toDoubleOrNull() ?: 0.0
                     )
                 )
             }) {

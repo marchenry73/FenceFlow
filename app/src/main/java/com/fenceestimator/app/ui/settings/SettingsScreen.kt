@@ -843,10 +843,10 @@ private fun EditTierDialog(
                 onSave(
                     tier.copy(
                         name = name,
-                        laborRatePerFt = laborRate.toDoubleOrNull() ?: 0.0,
-                        laborFlatFee = laborFlat.toDoubleOrNull() ?: 0.0,
-                        markupPercent = markup.toDoubleOrNull() ?: 0.0,
-                        discountPercent = discount.toDoubleOrNull() ?: 0.0
+                        laborRatePerFt = laborRate.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                        laborFlatFee = laborFlat.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                        markupPercent = markup.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                        discountPercent = discount.replace(',', '.').toDoubleOrNull() ?: 0.0
                     )
                 )
             }) { Text("Save") }

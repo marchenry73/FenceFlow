@@ -77,6 +77,11 @@ object Notifications {
             .setAutoCancel(true)
             .build()
 
+        // Checked here as well as at the call sites: any future caller that
+        // forgets is a silent SecurityException on Android 13+, and a
+        // notification that quietly never fires is the hardest kind of bug to
+        // hear about.
+        if (!hasPermission(context)) return false
         return runCatching {
             NotificationManagerCompat.from(context).notify(id, notification)
             true

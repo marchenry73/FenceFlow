@@ -98,7 +98,11 @@ fun DraftNumberField(
 
     OutlinedTextField(
         value = text,
-        onValueChange = { newText ->
+        onValueChange = { raw ->
+            // A Spanish or French keyboard offers a comma as the decimal mark.
+            // toFloatOrNull only reads a dot, so "8,5" parsed as nothing and
+            // the field looked like it accepted the number but never saved it.
+            val newText = raw.replace(',', '.')
             text = newText
             newText.toFloatOrNull()?.let { parsed ->
                 lastPushed = parsed

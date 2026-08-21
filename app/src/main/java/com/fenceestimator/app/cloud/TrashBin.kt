@@ -133,12 +133,22 @@ object TrashBin {
                 // clear costs a round trip and changes nothing, which is a fair
                 // price for the job returning whole.
                 if (record.table == "jobs") {
+                    // Only tombstones written with the job's own deletion or
+                    // later. Clearing every child tombstone resurrected things
+                    // deliberately deleted weeks earlier -- restore a job and a
+                    // line item you removed on purpose was quietly back on the
+                    // estimate, at its old price. The minute of slack covers
+                    // the delete cascade writing its stamps a moment apart.
+                    val cutoff = record.deletedAt?.minus(60_000L)
                     JOB_CHILDREN.forEach { child ->
                         runCatching {
                             SupabaseModule.client.postgrest.from(child).update(clear) {
                                 filter {
                                     eq("company_id", companyId)
                                     eq("job_sync_id", record.syncId)
+                                    if (cutoff != null) {
+                                        gte("deleted_at", CloudTime.format(cutoff))
+                                    }
                                 }
                             }
                         }

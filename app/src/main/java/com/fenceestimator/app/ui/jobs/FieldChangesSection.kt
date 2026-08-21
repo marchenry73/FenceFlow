@@ -35,7 +35,7 @@ import java.util.Locale
  * changes stay red until someone has actually looked at them.
  */
 @Composable
-fun FieldChangesSection(changes: List<FieldChange>, viewModel: JobDetailViewModel) {
+fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewModel: JobDetailViewModel) {
     val timeFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.US) }
 
     if (changes.isEmpty()) {
@@ -71,7 +71,7 @@ fun FieldChangesSection(changes: List<FieldChange>, viewModel: JobDetailViewMode
                 )
             }
         }
-        waiting.forEach { request -> PlanRequestCard(request, viewModel) }
+        waiting.forEach { request -> PlanRequestCard(request, canApprove, viewModel) }
     }
 
     val unseen = changes.count { !it.isAcknowledged && !it.isAwaitingDecision }
@@ -140,7 +140,7 @@ fun FieldChangesSection(changes: List<FieldChange>, viewModel: JobDetailViewMode
  * than sitting at a desk.
  */
 @Composable
-private fun PlanRequestCard(request: FieldChange, viewModel: JobDetailViewModel) {
+private fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel: JobDetailViewModel) {
     var note by remember { mutableStateOf("") }
 
     Card(
@@ -160,24 +160,38 @@ private fun PlanRequestCard(request: FieldChange, viewModel: JobDetailViewModel)
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text("Answer (the crew will see this)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { viewModel.decidePlanChange(request, approved = true, note = note.trim()) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Approve") }
-                OutlinedButton(
-                    // A reason is required to say no, but not to say yes -- yes
-                    // needs no defending, and requiring one just slows the crew.
-                    enabled = note.isNotBlank(),
-                    onClick = { viewModel.decidePlanChange(request, approved = false, note = note.trim()) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Not this time") }
+            // Only somebody with the approval permission gets the buttons.
+            // This screen is reachable by anyone who can open the job, and an
+            // ungated Approve here let a crew member sign off the very change
+            // they had just requested -- the self-approval rule covered shifts
+            // and never this. The request stays visible to everyone: what is
+            // being asked is not a secret, who may answer it is the rule.
+            if (canApprove) {
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("Answer (the crew will see this)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { viewModel.decidePlanChange(request, approved = true, note = note.trim()) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Approve") }
+                    OutlinedButton(
+                        // A reason is required to say no, but not to say yes -- yes
+                        // needs no defending, and requiring one just slows the crew.
+                        enabled = note.isNotBlank(),
+                        onClick = { viewModel.decidePlanChange(request, approved = false, note = note.trim()) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Not this time") }
+                }
+            } else {
+                Text(
+                    "Waiting on the office to answer.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

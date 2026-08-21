@@ -358,7 +358,7 @@ fun JobDetailScreen(
                     title = "Changes from the Field" +
                         if (changes.any { !it.isAcknowledged }) "  ●" else ""
                 ) {
-                    FieldChangesSection(changes, viewModel)
+                    FieldChangesSection(changes, session.canApprovePlanChanges, viewModel)
                 }
             }
             item {
@@ -2226,7 +2226,10 @@ private fun RefundControl(job: Job, contractTotal: Double, viewModel: JobDetailV
         // Pre-filled with the overpayment when there is one, because that is
         // the figure being given back in the overwhelmingly common case.
         var amountText by remember {
-            mutableStateOf(if (overpaid > 0.005) "%.2f".format(overpaid) else "")
+            // Locale.US, because this string is PARSED back by toDoubleOrNull.
+            // On a Spanish or French phone the default locale writes "39916,85",
+            // the parse fails, and the prefilled refund silently became zero.
+            mutableStateOf(if (overpaid > 0.005) "%.2f".format(java.util.Locale.US, overpaid) else "")
         }
         var reason by remember { mutableStateOf("") }
         val amount = amountText.toDoubleOrNull() ?: 0.0
@@ -2243,7 +2246,7 @@ private fun RefundControl(job: Job, contractTotal: Double, viewModel: JobDetailV
                     )
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                        onValueChange = { amountText = it.replace(',', '.').filter { c -> c.isDigit() || c == '.' } },
                         label = { Text("Refund amount ($)") },
                         isError = tooMuch,
                         supportingText = if (tooMuch) {
@@ -2349,7 +2352,8 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
         // Pre-filled with what is outstanding, since paying off the balance is
         // the common case and retyping a figure the app already knows is how
         // typos get in.
-        var amountText by remember { mutableStateOf(if (owed > 0.005) "%.2f".format(owed) else "") }
+        // Locale.US for the same reason as the refund prefill: it is parsed back.
+        var amountText by remember { mutableStateOf(if (owed > 0.005) "%.2f".format(java.util.Locale.US, owed) else "") }
         var method by remember { mutableStateOf(com.fenceestimator.app.data.PaymentMethod.CASH) }
         var reference by remember { mutableStateOf("") }
         val dayFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US) }
@@ -2384,7 +2388,7 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                     )
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                        onValueChange = { amountText = it.replace(',', '.').filter { c -> c.isDigit() || c == '.' } },
                         label = { Text("Amount received ($)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()

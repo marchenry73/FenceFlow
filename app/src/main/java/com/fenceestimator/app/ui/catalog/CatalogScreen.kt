@@ -386,10 +386,10 @@ private fun EditItemDialog(
     var duplicateTarget by remember { mutableStateOf<Manufacturer?>(null) }
 
     fun currentEdits(): MaterialItem {
-        val price = priceText.toDoubleOrNull() ?: item.unitPrice
+        val price = priceText.replace(',', '.').toDoubleOrNull() ?: item.unitPrice
         return item.copy(
             name = name, unitPrice = price, taxable = taxable, unit = unit,
-            colorOrFinish = colorOrFinish, coversFt = coversFtText.toFloatOrNull(),
+            colorOrFinish = colorOrFinish, coversFt = coversFtText.replace(',', '.').toFloatOrNull(),
             category = category, fenceType = fenceType, role = role, manufacturerId = manufacturerId
         )
     }
@@ -458,7 +458,7 @@ private fun EditItemDialog(
         },
         confirmButton = {
             Button(onClick = {
-                priceText.toDoubleOrNull() ?: return@Button
+                priceText.replace(',', '.').toDoubleOrNull() ?: return@Button
                 onSave(currentEdits())
             }) { Text("Save") }
         },

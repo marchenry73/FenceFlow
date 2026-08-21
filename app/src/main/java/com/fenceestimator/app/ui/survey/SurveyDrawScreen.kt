@@ -987,7 +987,7 @@ private fun CalibrationDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit)
             }
         },
         confirmButton = {
-            Button(onClick = { text.toFloatOrNull()?.let(onConfirm) }) { Text("Set Scale") }
+            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let(onConfirm) }) { Text("Set Scale") }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
     )
@@ -1029,7 +1029,7 @@ private fun GateWidthDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { text.toFloatOrNull()?.let { onConfirm(it, mounting, swing) } }) { Text("Add Gate") }
+            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let { onConfirm(it, mounting, swing) } }) { Text("Add Gate") }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
     )

@@ -76,7 +76,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
 
     val catalogTotal = lineItems.sumOf { it.quantity * it.unitPrice }
     val quotedTotal = lineItems.sumOf { item ->
-        val typed = entered[item.id]?.toDoubleOrNull()
+        val typed = entered[item.id]?.replace(',', '.')?.toDoubleOrNull()
         item.quantity * (typed ?: item.effectiveUnitPrice)
     }
     val difference = quotedTotal - catalogTotal
@@ -148,7 +148,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
             items(lineItems, key = { it.id }) { item ->
                 SupplierPriceRow(
                     item = item,
-                    typed = entered[item.id] ?: item.supplierUnitPrice?.let { "%.2f".format(it) } ?: "",
+                    typed = entered[item.id] ?: item.supplierUnitPrice?.let { "%.2f".format(java.util.Locale.US, it) } ?: "",
                     currency = currency,
                     onChange = { entered[item.id] = it }
                 )
@@ -158,7 +158,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                 Button(
                     onClick = {
                         val prices = lineItems.mapNotNull { item ->
-                            entered[item.id]?.trim()?.toDoubleOrNull()?.let { item.id to it }
+                            entered[item.id]?.trim()?.replace(',', '.')?.toDoubleOrNull()?.let { item.id to it }
                         }.toMap()
                         viewModel.applySupplierPrices(prices, reference.trim())
                         onBack()
