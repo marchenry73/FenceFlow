@@ -302,12 +302,48 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
     var inviteCode by remember { mutableStateOf("") }
     var requestedRole by remember { mutableStateOf(com.fenceestimator.app.cloud.UserRole.CREW) }
     var memberName by remember { mutableStateOf("") }
+    var setupCode by remember { mutableStateOf("") }
+    var setupName by remember { mutableStateOf("") }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Set Up Your Business", style = MaterialTheme.typography.titleMedium)
             Text(
                 "Owners create the business. Crew members join with the invite code the owner shares.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // The path for a company FenceFlow set up in advance.
+            //
+            // First, because it is the one a new customer will be using: they
+            // were sent a code and told to sign up. Their company is already
+            // waiting; this attaches their new account to it as the owner,
+            // without anybody at FenceFlow ever handling their password.
+            Text(
+                "Were you sent a setup code?",
+                style = MaterialTheme.typography.titleSmall
+            )
+            OutlinedTextField(
+                value = setupCode,
+                onValueChange = { setupCode = it.uppercase() },
+                label = { Text("Setup code") },
+                placeholder = { Text("ABCD-EFGH") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = setupName, onValueChange = { setupName = it },
+                label = { Text("Your name") }, modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                onClick = { viewModel.claimCompanySetup(setupCode, setupName) },
+                enabled = setupCode.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Set Up My Company") }
+
+            Text(
+                "— or, if nobody sent you one —",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

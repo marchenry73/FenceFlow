@@ -55,6 +55,11 @@ class AccountViewModel(
         SupabaseModule.createCompany(companyName.trim(), ownerName.trim())
     }
 
+    /** Attaches this account to a company FenceFlow set up in advance. */
+    fun claimCompanySetup(setupCode: String, ownerName: String) = run("You are set up") {
+        SupabaseModule.claimCompanySetup(setupCode, ownerName)
+    }
+
     fun joinCompany(
         companyId: String,
         memberName: String,
