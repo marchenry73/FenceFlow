@@ -23,7 +23,7 @@
  * own login rather than a key stored anywhere.
  */
 import { execFileSync } from "node:child_process";
-import { writeFileSync, rmSync, existsSync } from "node:fs";
+import { writeFileSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -40,7 +40,7 @@ const urlFlag = args.findIndex((a) => a === "--url");
 const downloadUrl = urlFlag >= 0 ? (args[urlFlag + 1] || "") : null;
 
 const notes = args
-  .filter((a, i) => a !== "--urgent" && a !== "--skip-version-check" && a !== "--url" && !(urlFlag >= 0 && i === urlFlag + 1))
+  .filter((a, i) => a !== "--urgent" && a !== "--skip-version-check" && a !== "--dry-run" && a !== "--url" && !(urlFlag >= 0 && i === urlFlag + 1))
   .join(" ").trim();
 
 if (!notes) {
@@ -76,7 +76,7 @@ function stampedVersion() {
   const toolDir = join(sdk, "build-tools");
   if (!existsSync(toolDir) || !existsSync(apk)) return null;
   try {
-    const versions = require("node:fs").readdirSync(toolDir).sort();
+    const versions = readdirSync(toolDir).sort();
     for (const v of versions.reverse()) {
       const aapt = join(toolDir, v, process.platform === "win32" ? "aapt2.exe" : "aapt2");
       if (!existsSync(aapt)) continue;
@@ -182,6 +182,16 @@ if (downloadUrl === null) {
     console.error("here. Pass --skip-version-check to publish anyway.");
     if (!args.includes("--skip-version-check")) process.exit(1);
   }
+}
+
+// Checking the checks. Publishing is not something to test against the live
+// table -- a "test" publish is a real one, and every phone sees it.
+if (args.includes("--dry-run")) {
+  console.log(`Would publish ${name}${urgent ? " (mandatory)" : ""}`);
+  console.log(`  notes: ${notes}`);
+  console.log(`  APK version check: ${stampedVersion() === code ? "matches" : "MISMATCH"}`);
+  console.log("Nothing was uploaded or written.");
+  process.exit(0);
 }
 
 const hostedUrl = downloadUrl === null ? uploadApk(code) : null;
