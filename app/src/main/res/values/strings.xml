@@ -135,4 +135,20 @@
     <string name="help_tab_app">Using the App</string>
     <string name="help_tab_fence">Fence Basics</string>
     <string name="help_tab_codes">Codes &amp; Permits</string>
+
+    <!-- Crew job screen: time clock, pay, sign-off, plan changes -->
+    <string name="crew_job_number">Job #%1$d</string>
+    <string name="crew_text_on_my_way">Text "On My Way"</string>
+    <string name="crew_your_pay">Your Pay — This Job</string>
+    <string name="crew_time_clock">Time Clock</string>
+    <string name="crew_clock_in">Clock In</string>
+    <string name="crew_clock_out">Clock Out</string>
+    <string name="crew_sign_off_title">Customer Sign-Off</string>
+    <string name="crew_sign_off_button">Customer Signs Off</string>
+    <string name="crew_ask_change_plan">Ask to change the plan</string>
+    <string name="crew_what_should_change">What should change?</string>
+    <string name="crew_change_example">Move the gate to the north side</string>
+    <string name="crew_change_why">Why?</string>
+    <string name="crew_change_why_example">There\'s a septic lid where it\'s drawn</string>
+    <string name="crew_send_request">Send it</string>
 </resources>

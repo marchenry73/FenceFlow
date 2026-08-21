@@ -121,4 +121,20 @@
     <string name="help_tab_app">Usar la app</string>
     <string name="help_tab_fence">Básicos de cercas</string>
     <string name="help_tab_codes">Códigos y permisos</string>
+
+    <!-- Crew job screen: time clock, pay, sign-off, plan changes -->
+    <string name="crew_job_number">Trabajo #%1$d</string>
+    <string name="crew_text_on_my_way">Avisar "Voy en camino"</string>
+    <string name="crew_your_pay">Tu pago — este trabajo</string>
+    <string name="crew_time_clock">Reloj de horas</string>
+    <string name="crew_clock_in">Marcar entrada</string>
+    <string name="crew_clock_out">Marcar salida</string>
+    <string name="crew_sign_off_title">Aprobación del cliente</string>
+    <string name="crew_sign_off_button">El cliente aprueba</string>
+    <string name="crew_ask_change_plan">Pedir un cambio al plano</string>
+    <string name="crew_what_should_change">¿Qué debería cambiar?</string>
+    <string name="crew_change_example">Mover el portón al lado norte</string>
+    <string name="crew_change_why">¿Por qué?</string>
+    <string name="crew_change_why_example">Hay una tapa de séptico donde está dibujado</string>
+    <string name="crew_send_request">Enviar</string>
 </resources>

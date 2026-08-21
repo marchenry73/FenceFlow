@@ -36,6 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.SiteMarker
@@ -87,7 +89,7 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Fence Plan") },
+                title = { Text(stringResource(R.string.crew_fence_plan)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 }
@@ -392,7 +394,7 @@ private fun RequestChangeCard(jobId: Long) {
                 OutlinedButton(
                     onClick = { showDialog = true },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Ask to change the plan") }
+                ) { Text(stringResource(R.string.crew_ask_change_plan)) }
             }
         }
     }
@@ -403,21 +405,21 @@ private fun RequestChangeCard(jobId: Long) {
 
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text("Ask to change the plan") },
+            title = { Text(stringResource(R.string.crew_ask_change_plan)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = what,
                         onValueChange = { what = it },
-                        label = { Text("What should change?") },
-                        placeholder = { Text("Move the gate to the north side") },
+                        label = { Text(stringResource(R.string.crew_what_should_change)) },
+                        placeholder = { Text(stringResource(R.string.crew_change_example)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = why,
                         onValueChange = { why = it },
-                        label = { Text("Why?") },
-                        placeholder = { Text("There's a septic lid where it's drawn") },
+                        label = { Text(stringResource(R.string.crew_change_why)) },
+                        placeholder = { Text(stringResource(R.string.crew_change_why_example)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -439,10 +441,10 @@ private fun RequestChangeCard(jobId: Long) {
                         sent = true
                         showDialog = false
                     }
-                ) { Text("Send it") }
+                ) { Text(stringResource(R.string.crew_send_request)) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") }
+                OutlinedButton(onClick = { showDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }

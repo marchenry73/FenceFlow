@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.JobStep
 import com.fenceestimator.app.data.JobStepKind
 import com.fenceestimator.app.data.PhotoKind
@@ -106,7 +108,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Job #${currentJob.id}") },
+                title = { Text(stringResource(R.string.crew_job_number, currentJob.id)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
             )
         }
@@ -207,12 +209,12 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             if (currentJob.address.isNotBlank()) {
                                 OutlinedButton(onClick = { IntentHelpers.searchNearby(context, currentJob.address) }) {
                                     Icon(Icons.Filled.Directions, contentDescription = null)
-                                    Text("  Directions")
+                                    Text("  " + stringResource(R.string.crew_directions))
                                 }
                             }
                             OutlinedButton(onClick = { onOpenSurvey(jobId) }) {
                                 Icon(Icons.Filled.Map, contentDescription = null)
-                                Text("  Fence Plan")
+                                Text("  " + stringResource(R.string.crew_fence_plan))
                             }
                         }
                         if (currentJob.phone.isNotBlank()) {
@@ -228,7 +230,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(Icons.Filled.Send, contentDescription = null)
-                                Text("  Text \"On My Way\"")
+                                Text("  " + stringResource(R.string.crew_text_on_my_way))
                             }
                         }
                     }
@@ -238,7 +240,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("What We're Building", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.crew_what_building), style = MaterialTheme.typography.titleMedium)
                         if (runs.isEmpty()) {
                             Text(
                                 "No fence runs on this job yet.",
@@ -317,7 +319,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             )
                         ) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Your Pay — This Job", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.crew_your_pay), style = MaterialTheme.typography.titleMedium)
                                 Text(
                                     "$${"%.2f".format(pay.amount)}",
                                     style = MaterialTheme.typography.headlineSmall,
@@ -353,7 +355,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 
             item {
                 StepSection(
-                    title = "Walkthrough With Customer (before starting)",
+                    title = stringResource(R.string.crew_walkthrough),
                     subtitle = "Go through each item with the customer and tick it once they agree.",
                     steps = walkthrough,
                     onToggle = { viewModel.toggleStep(it) }
@@ -362,7 +364,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 
             item {
                 StepSection(
-                    title = "Install Steps",
+                    title = stringResource(R.string.crew_install_steps),
                     subtitle = null,
                     steps = install,
                     onToggle = { viewModel.toggleStep(it) }
@@ -389,7 +391,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Photos", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.crew_photos), style = MaterialTheme.typography.titleMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(PhotoKind.BEFORE, PhotoKind.AFTER).forEach { kind ->
                                 OutlinedButton(onClick = {
@@ -428,7 +430,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                     enabled = allDone,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (allDone) "Mark Job Complete" else "Finish all install steps first")
+                    Text(stringResource(if (allDone) R.string.crew_mark_complete else R.string.crew_finish_steps_first))
                 }
             }
         }
@@ -463,7 +465,7 @@ private fun TimeClockCard(
         )
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Time Clock", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.crew_time_clock), style = MaterialTheme.typography.titleMedium)
 
             if (running != null) {
                 val elapsed = ((nowTick - running.startedAt).coerceAtLeast(0L)) / 1000
@@ -480,9 +482,9 @@ private fun TimeClockCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(onClick = onClockOut, modifier = Modifier.fillMaxWidth()) { Text("Clock Out") }
+                Button(onClick = onClockOut, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_out)) }
             } else {
-                Button(onClick = onClockIn, modifier = Modifier.fillMaxWidth()) { Text("Clock In") }
+                Button(onClick = onClockIn, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_in)) }
             }
 
             if (totalHours > 0.0) {
@@ -520,7 +522,7 @@ private fun StepSection(
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (steps.isNotEmpty()) {
-                Text("$done of ${steps.size} done", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.crew_progress, done, steps.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 LinearProgressIndicator(
                     progress = { done.toFloat() / steps.size },
                     modifier = Modifier.fillMaxWidth()
@@ -567,7 +569,7 @@ private fun FinalSignOffCard(
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Customer Sign-Off", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.crew_sign_off_title), style = MaterialTheme.typography.titleMedium)
 
             if (job.finalSignOffImagePath != null) {
                 Text(
@@ -592,7 +594,7 @@ private fun FinalSignOffCard(
                     onClick = { showPad = true },
                     enabled = remaining == 0,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Customer Signs Off") }
+                ) { Text(stringResource(R.string.crew_sign_off_button)) }
             }
         }
     }

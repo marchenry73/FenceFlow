@@ -121,4 +121,20 @@
     <string name="help_tab_app">Utiliser l\'app</string>
     <string name="help_tab_fence">Bases des clôtures</string>
     <string name="help_tab_codes">Codes et permis</string>
+
+    <!-- Crew job screen: time clock, pay, sign-off, plan changes -->
+    <string name="crew_job_number">Chantier n°%1$d</string>
+    <string name="crew_text_on_my_way">Envoyer « En route »</string>
+    <string name="crew_your_pay">Votre paie — ce chantier</string>
+    <string name="crew_time_clock">Pointeuse</string>
+    <string name="crew_clock_in">Pointer l\'arrivée</string>
+    <string name="crew_clock_out">Pointer le départ</string>
+    <string name="crew_sign_off_title">Validation du client</string>
+    <string name="crew_sign_off_button">Le client valide</string>
+    <string name="crew_ask_change_plan">Demander un changement au plan</string>
+    <string name="crew_what_should_change">Que faut-il changer ?</string>
+    <string name="crew_change_example">Déplacer le portail côté nord</string>
+    <string name="crew_change_why">Pourquoi ?</string>
+    <string name="crew_change_why_example">Il y a un regard de fosse là où c\'est dessiné</string>
+    <string name="crew_send_request">Envoyer</string>
 </resources>
