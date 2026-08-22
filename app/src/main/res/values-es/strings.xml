@@ -162,4 +162,55 @@
     <string name="time_note_crew_sees">Nota (el equipo la verá)</string>
     <string name="time_approve">Aprobar</string>
     <string name="time_send_back">Devolver</string>
+
+    <!-- Survey & draw -->
+    <string name="draw_title">Plano y dibujo</string>
+    <string name="draw_add_run_first">Añade primero un tramo de cerca en la pantalla del trabajo, luego vuelve aquí a dibujarlo.</string>
+    <string name="draw_grid_size_ft">%1$d ft</string>
+    <string name="draw_closed_perimeter">Perímetro cerrado (sin extremos abiertos)</string>
+    <string name="draw_undo">Deshacer</string>
+    <string name="draw_clear">Borrar todo</string>
+    <string name="draw_to_estimate">Al presupuesto</string>
+    <string name="draw_remove_gate_title">¿Quitar este portón?</string>
+    <string name="draw_remove">Quitar</string>
+    <string name="draw_keep">Dejar</string>
+    <string name="draw_mark_spot">Marcar este punto</string>
+    <string name="draw_note_optional">Nota (opcional)</string>
+    <string name="draw_already_marked">Ya marcado:</string>
+    <string name="draw_add_marker">Añadir marca</string>
+    <string name="draw_editing_run">Tramo en edición</string>
+    <string name="draw_known_distance">Distancia conocida</string>
+    <string name="draw_distance_question">¿Cuál es la distancia real entre los dos puntos que tocaste, en pies?</string>
+    <string name="draw_feet">Pies</string>
+    <string name="draw_set_scale">Fijar escala</string>
+    <string name="draw_gate">Portón</string>
+    <string name="draw_gate_width_question">¿Qué ancho tiene la abertura del portón, en pies? Se colocará justo donde tocaste.</string>
+    <string name="draw_gate_hanging">¿Dónde va colgado?</string>
+    <string name="draw_gate_swing">¿Hacia dónde abre?</string>
+    <string name="draw_add_gate">Añadir portón</string>
+
+    <!-- Estimate screen -->
+    <string name="est_title">Presupuesto</string>
+    <string name="est_other_items">Otros conceptos</string>
+    <string name="est_add_item">+ Añadir concepto</string>
+    <string name="est_know_length">¿Ya sabes la longitud?</string>
+    <string name="est_total_feet">Pies totales</string>
+    <string name="est_corners">Esquinas</string>
+    <string name="est_match_drawing">Ajustar el dibujo a %1$s ft</string>
+    <string name="est_suggest_quantities">Sugerir cantidades</string>
+    <string name="est_restore">Restaurar</string>
+    <string name="est_what_job_needs">Lo que necesita este trabajo</string>
+    <string name="est_waste_allowance">Margen de desperdicio</string>
+    <string name="est_before_you_send">Antes de enviar esto</string>
+    <string name="est_sign_to_accept">Firmar para aceptar</string>
+    <string name="est_enter_supplier_prices">Poner precios del proveedor</string>
+    <string name="est_send_contract">Enviar contrato al cliente</string>
+    <string name="est_send_material_list">Enviar lista de materiales al proveedor</string>
+    <string name="est_send_invoice">Enviar factura</string>
+    <string name="est_working_copy">Tu copia de trabajo</string>
+    <string name="est_edit_line_item">Editar concepto</string>
+    <string name="est_description">Descripción</string>
+    <string name="est_qty">Cant.</string>
+    <string name="est_unit">Unidad</string>
+    <string name="est_unit_price">Precio unitario ($)</string>
 </resources>

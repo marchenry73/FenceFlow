@@ -162,4 +162,55 @@
     <string name="time_note_crew_sees">Note (l\'équipe la verra)</string>
     <string name="time_approve">Approuver</string>
     <string name="time_send_back">Renvoyer</string>
+
+    <!-- Survey & draw -->
+    <string name="draw_title">Relevé et dessin</string>
+    <string name="draw_add_run_first">Ajoutez d\'abord une section de clôture sur l\'écran du chantier, puis revenez la dessiner ici.</string>
+    <string name="draw_grid_size_ft">%1$d pi</string>
+    <string name="draw_closed_perimeter">Périmètre fermé (sans extrémités ouvertes)</string>
+    <string name="draw_undo">Annuler</string>
+    <string name="draw_clear">Tout effacer</string>
+    <string name="draw_to_estimate">Vers le devis</string>
+    <string name="draw_remove_gate_title">Retirer ce portail ?</string>
+    <string name="draw_remove">Retirer</string>
+    <string name="draw_keep">Garder</string>
+    <string name="draw_mark_spot">Marquer cet endroit</string>
+    <string name="draw_note_optional">Note (facultatif)</string>
+    <string name="draw_already_marked">Déjà marqué :</string>
+    <string name="draw_add_marker">Ajouter un repère</string>
+    <string name="draw_editing_run">Section en cours</string>
+    <string name="draw_known_distance">Distance connue</string>
+    <string name="draw_distance_question">Quelle est la distance réelle entre les deux points touchés, en pieds ?</string>
+    <string name="draw_feet">Pieds</string>
+    <string name="draw_set_scale">Fixer l\'échelle</string>
+    <string name="draw_gate">Portail</string>
+    <string name="draw_gate_width_question">Quelle est la largeur de l\'ouverture du portail, en pieds ? Il sera placé là où vous avez touché.</string>
+    <string name="draw_gate_hanging">Où est-il fixé ?</string>
+    <string name="draw_gate_swing">Dans quel sens ouvre-t-il ?</string>
+    <string name="draw_add_gate">Ajouter le portail</string>
+
+    <!-- Estimate screen -->
+    <string name="est_title">Devis</string>
+    <string name="est_other_items">Autres postes</string>
+    <string name="est_add_item">+ Ajouter un poste</string>
+    <string name="est_know_length">Vous connaissez déjà la longueur ?</string>
+    <string name="est_total_feet">Pieds au total</string>
+    <string name="est_corners">Angles</string>
+    <string name="est_match_drawing">Ajuster le dessin à %1$s pi</string>
+    <string name="est_suggest_quantities">Suggérer les quantités</string>
+    <string name="est_restore">Restaurer</string>
+    <string name="est_what_job_needs">Ce qu\'il faut pour ce chantier</string>
+    <string name="est_waste_allowance">Marge de chute</string>
+    <string name="est_before_you_send">Avant d\'envoyer ceci</string>
+    <string name="est_sign_to_accept">Signer pour accepter</string>
+    <string name="est_enter_supplier_prices">Saisir les prix fournisseur</string>
+    <string name="est_send_contract">Envoyer le contrat au client</string>
+    <string name="est_send_material_list">Envoyer la liste au fournisseur</string>
+    <string name="est_send_invoice">Envoyer la facture</string>
+    <string name="est_working_copy">Votre copie de travail</string>
+    <string name="est_edit_line_item">Modifier le poste</string>
+    <string name="est_description">Description</string>
+    <string name="est_qty">Qté</string>
+    <string name="est_unit">Unité</string>
+    <string name="est_unit_price">Prix unitaire ($)</string>
 </resources>

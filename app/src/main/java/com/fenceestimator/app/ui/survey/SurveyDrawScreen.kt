@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
+import com.fenceestimator.app.R
 import com.fenceestimator.app.geometry.GateGeometry
 import androidx.compose.material3.FilterChip
 import android.graphics.Bitmap
@@ -69,6 +70,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -162,7 +164,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Survey & Draw") },
+                title = { Text(stringResource(R.string.draw_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 }
@@ -172,7 +174,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (runs.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Add a fence run on the job screen first, then come back to draw it here.", modifier = Modifier.padding(24.dp))
+                    Text(stringResource(R.string.draw_add_run_first), modifier = Modifier.padding(24.dp))
                 }
                 return@Column
             }
@@ -223,7 +225,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 FilterChip(
                                     selected = selected,
                                     onClick = { viewModel.setGridExtent(size) },
-                                    label = { Text("${size.toInt()} ft") },
+                                    label = { Text(stringResource(R.string.draw_grid_size_ft, size.toInt())) },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -771,7 +773,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = activeRun.closedLoop, onCheckedChange = { viewModel.toggleClosedLoop(it) })
-                            Text("Closed perimeter (no open ends)")
+                            Text(stringResource(R.string.draw_closed_perimeter))
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -779,14 +781,14 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         ) {
                             OutlinedButton(onClick = { viewModel.undoLast(mode) }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Undo, contentDescription = null)
-                                Text(" Undo")
+                                Text(" " + stringResource(R.string.draw_undo))
                             }
                             OutlinedButton(onClick = { viewModel.clearPoints() }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Clear, contentDescription = null)
-                                Text(" Clear")
+                                Text(" " + stringResource(R.string.draw_clear))
                             }
                             Button(onClick = { onGoToEstimate(jobId) }, modifier = Modifier.weight(1f)) {
-                                Text("To Estimate")
+                                Text(stringResource(R.string.draw_to_estimate))
                             }
                         }
                     }
@@ -821,7 +823,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     pendingGateRemoval?.let { gate ->
         AlertDialog(
             onDismissRequest = { pendingGateRemoval = null },
-            title = { Text("Remove this gate?") },
+            title = { Text(stringResource(R.string.draw_remove_gate_title)) },
             text = {
                 Text(
                     "The ${"%.0f".format(gate.widthFt)} ft gate comes off the drawing, " +
@@ -832,10 +834,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 Button(onClick = {
                     viewModel.removeGate(gate)
                     pendingGateRemoval = null
-                }) { Text("Remove") }
+                }) { Text(stringResource(R.string.draw_remove)) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { pendingGateRemoval = null }) { Text("Keep") }
+                OutlinedButton(onClick = { pendingGateRemoval = null }) { Text(stringResource(R.string.draw_keep)) }
             }
         )
     }
@@ -890,7 +892,7 @@ private fun SiteMarkerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Mark this spot") },
+        title = { Text(stringResource(R.string.draw_mark_spot)) },
         text = {
             Column {
                 Text(
@@ -913,12 +915,12 @@ private fun SiteMarkerDialog(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = label, onValueChange = { label = it },
-                    label = { Text("Note (optional)") },
+                    label = { Text(stringResource(R.string.draw_note_optional)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (existing.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
-                    Text("Already marked:", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.draw_already_marked), style = MaterialTheme.typography.labelLarge)
                     existing.forEach { marker ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(
@@ -934,8 +936,8 @@ private fun SiteMarkerDialog(
                 }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(kind, label) }) { Text("Add Marker") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { Button(onClick = { onConfirm(kind, label) }) { Text(stringResource(R.string.draw_add_marker)) } },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -958,7 +960,7 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
         OutlinedTextField(
             value = selected?.let { "${it.label.ifBlank { "Untitled" }} (${it.fenceType.name.replace("_", " ")})" } ?: "",
             onValueChange = {}, readOnly = true,
-            label = { Text("Editing run") },
+            label = { Text(stringResource(R.string.draw_editing_run)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -978,18 +980,18 @@ private fun CalibrationDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit)
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Known distance") },
+        title = { Text(stringResource(R.string.draw_known_distance)) },
         text = {
             Column {
-                Text("What is the real-world distance between the two points you tapped, in feet?")
+                Text(stringResource(R.string.draw_distance_question))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Feet") })
+                OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.draw_feet)) })
             }
         },
         confirmButton = {
-            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let(onConfirm) }) { Text("Set Scale") }
+            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let(onConfirm) }) { Text(stringResource(R.string.draw_set_scale)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -1003,18 +1005,18 @@ private fun GateWidthDialog(
     var swing by remember { mutableStateOf(com.fenceestimator.app.geometry.GateSwing.IN) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Gate") },
+        title = { Text(stringResource(R.string.draw_gate)) },
         text = {
             Column {
-                Text("How wide is this gate opening, in feet? It'll be placed right where you tapped.")
+                Text(stringResource(R.string.draw_gate_width_question))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Feet") })
+                OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.draw_feet)) })
                 Spacer(Modifier.height(16.dp))
 
                 // Asked here rather than left to the estimate, because it
                 // changes what gets loaded on the truck: a wall-hung gate takes
                 // a blank post and plugs and no concrete at all.
-                Text("Where is it hanging?", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.draw_gate_hanging), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 GateMountingChoice(selected = mounting, onSelect = { mounting = it })
 
@@ -1023,15 +1025,15 @@ private fun GateWidthDialog(
                 // A gate that swings into a slope, a step or where a car parks
                 // is a return visit, and this is the detail that gets lost
                 // between quoting and installing.
-                Text("Which way does it open?", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.draw_gate_swing), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(4.dp))
                 GateSwingChoice(selected = swing, onSelect = { swing = it })
             }
         },
         confirmButton = {
-            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let { onConfirm(it, mounting, swing) } }) { Text("Add Gate") }
+            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let { onConfirm(it, mounting, swing) } }) { Text(stringResource(R.string.draw_add_gate)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 

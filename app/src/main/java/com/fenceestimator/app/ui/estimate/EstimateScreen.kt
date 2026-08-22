@@ -43,12 +43,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
@@ -94,7 +96,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Estimate") },
+                title = { Text(stringResource(R.string.est_title)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
             )
         },
@@ -136,8 +138,8 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
             val unassigned = itemsByRun[null].orEmpty()
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Other Items", style = MaterialTheme.typography.titleMedium)
-                    OutlinedButton(onClick = { viewModel.addManualLineItem() }) { Text("+ Add Item") }
+                    Text(stringResource(R.string.est_other_items), style = MaterialTheme.typography.titleMedium)
+                    OutlinedButton(onClick = { viewModel.addManualLineItem() }) { Text(stringResource(R.string.est_add_item)) }
                 }
             }
             items(unassigned, key = { "item-${it.id}" }) { item ->
@@ -205,7 +207,7 @@ private fun RunSection(
             // Typing the length is the fastest path and needs no drawing, no
             // photo, and no calibration -- most quotes start from a wheel
             // measurement, not a survey.
-            Text("Know the length already?", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.est_know_length), style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -214,7 +216,7 @@ private fun RunSection(
                         feetText = it
                         onManualFeet(it.replace(',', '.').toFloatOrNull(), cornerText.toIntOrNull() ?: 0)
                     },
-                    label = { Text("Total feet") },
+                    label = { Text(stringResource(R.string.est_total_feet)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f)
@@ -225,7 +227,7 @@ private fun RunSection(
                         cornerText = it
                         onManualFeet(feetText.replace(',', '.').toFloatOrNull(), it.toIntOrNull() ?: 0)
                     },
-                    label = { Text("Corners") },
+                    label = { Text(stringResource(R.string.est_corners)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f)
@@ -250,7 +252,7 @@ private fun RunSection(
                     onClick = { onFixScaleFromFeet(typedFeet) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Make the drawing match ${"%.0f".format(typedFeet)} ft")
+                    Text(stringResource(R.string.est_match_drawing, "%.0f".format(typedFeet)))
                 }
                 Text(
                     "Measured it on site? This sets the drawing scale from this run, " +
@@ -264,7 +266,7 @@ private fun RunSection(
             Spacer(Modifier.height(10.dp))
             Button(onClick = onRegenerate, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.Refresh, contentDescription = null)
-                Text("  Suggest Quantities")
+                Text("  " + stringResource(R.string.est_suggest_quantities))
             }
 
             if (takeoff.isNotEmpty()) {
@@ -287,7 +289,7 @@ private fun RunSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
-                    OutlinedButton(onClick = onRestoreRemoved) { Text("Restore") }
+                    OutlinedButton(onClick = onRestoreRemoved) { Text(stringResource(R.string.est_restore)) }
                 }
             }
 
@@ -309,7 +311,7 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text("What this job needs", style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.est_what_job_needs), style = MaterialTheme.typography.labelLarge)
 
         // Grouped under headings, in the order someone works through them.
         //
@@ -355,7 +357,7 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
 private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Waste allowance", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.est_waste_allowance), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
                 "Orders extra material for cuts and breakage. At 10%, a takeoff of 17 panels " +
@@ -482,7 +484,7 @@ private fun WarningsCard(warnings: List<String>) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                Text("  Before you send this", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
+                Text("  " + stringResource(R.string.est_before_you_send), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
             }
             warnings.forEach { warning ->
                 Text("•  $warning", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -567,7 +569,7 @@ private fun ExportSection(
             }
         } else {
             OutlinedButton(onClick = { showSignaturePad = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Sign to Accept")
+                Text(stringResource(R.string.est_sign_to_accept))
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -600,7 +602,7 @@ private fun ExportSection(
                     OutlinedButton(
                         onClick = { onOpenSupplierPrices(job.id) },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Enter supplier prices") }
+                    ) { Text(stringResource(R.string.est_enter_supplier_prices)) }
                 }
             }
         }
@@ -618,7 +620,7 @@ private fun ExportSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
-            Text("  Send Contract to Customer")
+            Text("  " + stringResource(R.string.est_send_contract))
         }
         // A greyed button with no reason on it reads as the app being broken.
         // The banner above says why, but it scrolls away on a long estimate and
@@ -637,7 +639,7 @@ private fun ExportSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
-            Text("  Send Material List to Supplier")
+            Text("  " + stringResource(R.string.est_send_material_list))
         }
         Text(
             "Quantities only, no prices -- they quote it back to you.",
@@ -655,7 +657,7 @@ private fun ExportSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
-            Text("  Send Invoice")
+            Text("  " + stringResource(R.string.est_send_invoice))
         }
         Text(
             when {
@@ -674,7 +676,7 @@ private fun ExportSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
-            Text("  Your Working Copy")
+            Text("  " + stringResource(R.string.est_working_copy))
         }
         Text(
             "Every line and every cost. For you, not the customer.",
@@ -705,17 +707,17 @@ private fun EditLineItemDialog(
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Line Item") },
+        title = { Text(stringResource(R.string.est_edit_line_item)) },
         text = {
             Column {
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text(stringResource(R.string.est_description)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = qtyText, onValueChange = { qtyText = it }, label = { Text("Qty") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text("Unit") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = qtyText, onValueChange = { qtyText = it }, label = { Text(stringResource(R.string.est_qty)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text(stringResource(R.string.est_unit)) }, modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Unit price ($)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text(stringResource(R.string.est_unit_price)) }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
@@ -723,13 +725,13 @@ private fun EditLineItemDialog(
                 val qty = qtyText.replace(',', '.').toDoubleOrNull() ?: return@Button
                 val price = priceText.replace(',', '.').toDoubleOrNull() ?: return@Button
                 onSave(item.copy(description = description, quantity = qty, unitPrice = price, unit = unit, isAutoGenerated = false))
-            }) { Text("Save") }
+            }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
             Row {
-                OutlinedButton(onClick = onDelete) { Text("Delete") }
+                OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )

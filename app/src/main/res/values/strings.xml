@@ -176,4 +176,55 @@
     <string name="time_note_crew_sees">Note (the crew will see this)</string>
     <string name="time_approve">Approve</string>
     <string name="time_send_back">Send back</string>
+
+    <!-- Survey & draw -->
+    <string name="draw_title">Survey &amp; Draw</string>
+    <string name="draw_add_run_first">Add a fence run on the job screen first, then come back to draw it here.</string>
+    <string name="draw_grid_size_ft">%1$d ft</string>
+    <string name="draw_closed_perimeter">Closed perimeter (no open ends)</string>
+    <string name="draw_undo">Undo</string>
+    <string name="draw_clear">Clear</string>
+    <string name="draw_to_estimate">To Estimate</string>
+    <string name="draw_remove_gate_title">Remove this gate?</string>
+    <string name="draw_remove">Remove</string>
+    <string name="draw_keep">Keep</string>
+    <string name="draw_mark_spot">Mark this spot</string>
+    <string name="draw_note_optional">Note (optional)</string>
+    <string name="draw_already_marked">Already marked:</string>
+    <string name="draw_add_marker">Add Marker</string>
+    <string name="draw_editing_run">Editing run</string>
+    <string name="draw_known_distance">Known distance</string>
+    <string name="draw_distance_question">What is the real-world distance between the two points you tapped, in feet?</string>
+    <string name="draw_feet">Feet</string>
+    <string name="draw_set_scale">Set Scale</string>
+    <string name="draw_gate">Gate</string>
+    <string name="draw_gate_width_question">How wide is this gate opening, in feet? It\'ll be placed right where you tapped.</string>
+    <string name="draw_gate_hanging">Where is it hanging?</string>
+    <string name="draw_gate_swing">Which way does it open?</string>
+    <string name="draw_add_gate">Add Gate</string>
+
+    <!-- Estimate screen -->
+    <string name="est_title">Estimate</string>
+    <string name="est_other_items">Other Items</string>
+    <string name="est_add_item">+ Add Item</string>
+    <string name="est_know_length">Know the length already?</string>
+    <string name="est_total_feet">Total feet</string>
+    <string name="est_corners">Corners</string>
+    <string name="est_match_drawing">Make the drawing match %1$s ft</string>
+    <string name="est_suggest_quantities">Suggest Quantities</string>
+    <string name="est_restore">Restore</string>
+    <string name="est_what_job_needs">What this job needs</string>
+    <string name="est_waste_allowance">Waste allowance</string>
+    <string name="est_before_you_send">Before you send this</string>
+    <string name="est_sign_to_accept">Sign to Accept</string>
+    <string name="est_enter_supplier_prices">Enter supplier prices</string>
+    <string name="est_send_contract">Send Contract to Customer</string>
+    <string name="est_send_material_list">Send Material List to Supplier</string>
+    <string name="est_send_invoice">Send Invoice</string>
+    <string name="est_working_copy">Your Working Copy</string>
+    <string name="est_edit_line_item">Edit Line Item</string>
+    <string name="est_description">Description</string>
+    <string name="est_qty">Qty</string>
+    <string name="est_unit">Unit</string>
+    <string name="est_unit_price">Unit price ($)</string>
 </resources>
