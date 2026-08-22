@@ -432,7 +432,8 @@ fun SettingsScreen(
 
                     androidx.compose.foundation.layout.FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         tools.forEach { tool ->
                             androidx.compose.material3.InputChip(
@@ -477,6 +478,10 @@ fun SettingsScreen(
                     )
                 }
 
+            }
+            // Its own item, so the list's spacing applies between the cards --
+            // sharing one item block put these flush against each other.
+            item {
                 // Which figures the home screen shows.
                 //
                 // A dashboard showing everything shows nothing -- the number

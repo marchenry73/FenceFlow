@@ -463,7 +463,11 @@ object PdfExporter {
             y += 10f
         }
 
-        val signaturePath = job.signatureImagePath
+        // The customer's signature stays off the supplier's copy. The
+        // supplier is being asked for prices, not shown who agreed to what --
+        // a signature on a parts list is a private agreement forwarded to a
+        // third party for no reason.
+        val signaturePath = job.signatureImagePath.takeUnless { docKind.showsQuantitiesOnly }
         if (signaturePath != null) {
             val sigBitmap = runCatching { BitmapFactory.decodeFile(signaturePath) }.getOrNull()
             if (sigBitmap != null) {

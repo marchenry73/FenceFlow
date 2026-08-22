@@ -283,8 +283,8 @@
           <div class="scroll">
             <table>
               <thead><tr>
-                <th>Job</th><th>Collected</th><th>Materials</th><th>Labour</th>
-                <th>Other</th><th>Profit</th><th>Margin</th><th>Hours</th>
+                <th>Job</th><th>Quoted</th><th>Collected</th><th>Costs</th>
+                <th>Profit</th><th>Margin</th><th>Cash</th><th>Hours</th>
               </tr></thead>
               <tbody id="costingRows"></tbody>
             </table>
@@ -1238,12 +1238,10 @@ function renderAudit(){
 function renderCosting(){
   // Real losses first; work that simply has not been invoiced goes last,
   // where it cannot be mistaken for a job that went wrong.
-  jobCosting = jobCosting.slice().sort((a, b) => {
-    const aPending = Number(a.collected||0) === 0 && a.status !== 'COMPLETED';
-    const bPending = Number(b.collected||0) === 0 && b.status !== 'COMPLETED';
-    if (aPending !== bPending) return aPending ? 1 : -1;
-    return Number(a.profit||0) - Number(b.profit||0);
-  });
+  // Real losses first -- projected, so a mispriced quote surfaces before
+  // the job is finished rather than after.
+  jobCosting = jobCosting.slice().sort((a, b) =>
+    Number(a.projected_profit||0) - Number(b.projected_profit||0));
   if (!jobCosting.length) {
     $('costingRows').innerHTML = '';
     $('costingNote').textContent = 'No jobs to cost yet.';
@@ -1253,30 +1251,28 @@ function renderCosting(){
   const pendingHours = jobCosting.reduce((s,r)=>s+Number(r.unapproved_hours||0),0);
 
   $('costingRows').innerHTML = jobCosting.map(r=>{
-    const profit = Number(r.profit||0);
-    const collected = Number(r.collected||0);
+    // Profit is against the QUOTE, so teardown, labour and markup move it
+    // the moment they change -- not only once the customer has paid. Cash is
+    // the separate honest answer to "where does the money stand today".
+    const profit = Number(r.projected_profit||0);
+    const cash = Number(r.cash_position||0);
+    const quoted = Number(r.quoted||0);
 
-    // A job with costs and no money in has not lost anything -- it has not
-    // been billed yet. Showing that as a five-figure loss is worse than
-    // showing nothing, because it is the number somebody screenshots.
-    const notBilledYet = collected === 0 && r.status !== 'COMPLETED';
-
-    // Losing money is a fact worth seeing at a glance, not something to hunt
-    // for in a column of similar-looking numbers.
-    const tone = notBilledYet ? 'color:var(--muted)'
-               : profit < 0 ? 'color:var(--bad,#b3261e);font-weight:600'
+    const tone = profit < 0 ? 'color:var(--bad,#b3261e);font-weight:600'
                : profit === 0 ? 'color:var(--muted)' : '';
+    // Costs at sell prices mean the margin is fiction until supplier prices
+    // go in -- say so instead of showing a number that insults the job.
+    const sellCosts = r.costs_are_sell_prices === true;
 
     return `<tr>
       <td>${esc(r.customer_name || 'Untitled')}
           <br><span style="color:var(--muted);font-size:12px">${esc(r.status||'')}</span></td>
-      <td>${money(collected)}</td>
-      <td>${money(r.material_cost)}</td>
-      <td>${money(r.labour_cost)}</td>
-      <td>${money(r.other_cost)}</td>
-      <td style="${tone}">${notBilledYet ? 'not billed yet' : money(profit)}</td>
-      <td style="${tone}">${notBilledYet || r.margin_percent == null
-            ? '—' : Number(r.margin_percent).toFixed(0) + '%'}</td>
+      <td>${money(quoted)}</td>
+      <td>${money(r.collected)}</td>
+      <td title="Materials ${money(r.material_cost)} · Labour ${money(r.labour_cost)} · Other ${money(r.other_cost)}">${money(r.total_cost)}${sellCosts ? ' *' : ''}</td>
+      <td style="${tone}">${money(profit)}</td>
+      <td style="${tone}">${r.margin_percent == null ? '—' : Number(r.margin_percent).toFixed(0) + '%'}</td>
+      <td style="${cash < -0.005 ? 'color:var(--muted)' : ''}">${money(cash)}</td>
       <td>${Number(r.hours_worked||0).toFixed(1)}</td>
     </tr>`;
   }).join('');
@@ -1287,6 +1283,9 @@ function renderCosting(){
     ? `Labour counts approved hours only. There are ${pendingHours.toFixed(1)} hours ` +
       `still waiting for approval, so some of these jobs will look better than they are.`
     : 'Labour counts approved hours only.';
+  if (jobCosting.some(r=>r.costs_are_sell_prices === true)) {
+    $('costingNote').textContent += ' * No supplier prices recorded on this job yet, so its costs are your sell prices and the margin reads low.';
+  }
 }
 
 function renderReports(){

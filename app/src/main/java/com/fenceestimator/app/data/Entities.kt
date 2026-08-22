@@ -383,6 +383,15 @@ data class FenceRun(
     val pointsEncoded: String = "",
     val gatesEncoded: String = "",
     val closedLoop: Boolean = false,
+    /**
+     * This run is the OLD fence coming out, drawn where it stands.
+     *
+     * The teardown used to be priced on the new fence's footage, which is
+     * only right when the new line follows the old one. Drawn separately,
+     * its own length is what gets charged, and it suggests no materials --
+     * nothing is being built along it.
+     */
+    val isTeardown: Boolean = false,
 
     /** Preferred color/finish, matched against the catalog when picking priced items. Blank = no preference. */
     val colorOrFinish: String = "",

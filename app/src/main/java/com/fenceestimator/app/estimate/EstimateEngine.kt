@@ -87,6 +87,19 @@ object EstimateEngine {
      * @param wastePercent extra allowance applied to cut-and-waste roles only.
      */
     fun suggestQuantities(run: FenceRun, pixelsPerFoot: Float, wastePercent: Double = 0.0): EstimateSuggestions {
+        if (run.isTeardown) {
+            // The old fence coming out. Its length is charged as teardown by
+            // computeTotals; suggesting posts and panels along it would order
+            // materials for a fence that is being removed.
+            val geometry = resolveGeometry(run, pixelsPerFoot)
+            val net = run.manualLinearFeet?.takeIf { it > 0f } ?: geometry.totalLinearFeet
+            return EstimateSuggestions(
+                geometry = geometry,
+                netLinearFeet = net,
+                entries = emptyList(),
+                takeoff = emptyList()
+            )
+        }
         val gates = FenceCodec.decodeGates(run.gatesEncoded)
         val geometry = resolveGeometry(run, pixelsPerFoot)
         val gateWidthTotal = gates.sumOf { it.widthFt.toDouble() }.toFloat()
@@ -137,7 +150,23 @@ object EstimateEngine {
      * than guessing, so a half-set-up job reads as incomplete instead of wrong.
      */
     fun linearFeet(job: Job, runs: List<FenceRun>): Float =
-        runs.sumOf { run ->
+        runs.filterNot { it.isTeardown }.sumOf { run ->
+            val manual = run.manualLinearFeet
+            if (manual != null && manual > 0f) manual.toDouble()
+            else job.calibrationPixelsPerFoot
+                ?.let { resolveGeometry(run, it).totalLinearFeet.toDouble() }
+                ?: 0.0
+        }.toFloat()
+
+    /**
+     * Footage of the OLD fence coming out, from runs drawn as teardown.
+     *
+     * Zero when no teardown run is drawn -- the caller falls back to the
+     * new fence's footage, which keeps every existing job pricing exactly
+     * as it did before the option existed.
+     */
+    fun teardownFeet(job: Job, runs: List<FenceRun>): Float =
+        runs.filter { it.isTeardown }.sumOf { run ->
             val manual = run.manualLinearFeet
             if (manual != null && manual > 0f) manual.toDouble()
             else job.calibrationPixelsPerFoot
@@ -582,8 +611,13 @@ object EstimateEngine {
 
         val laborCost = job.laborFlatFee + (job.laborRatePerFt * billableFeet)
         val trashHaul = if (job.teardownEnabled) job.trashHaulFee else 0.0
+        // The old fence's own length when it has been drawn, because the new
+        // line does not always follow the old one. No teardown run drawn
+        // means the old behaviour: priced along the new fence.
+        val drawnTeardownFt = teardownFeet(job, runs)
+        val teardownFt = if (drawnTeardownFt > 0f) drawnTeardownFt.toDouble() else billableFeet.toDouble()
         val teardownCost =
-            if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * billableFeet + trashHaul
+            if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * teardownFt + trashHaul
             else 0.0
 
         val preMarkup = materialsSubtotal + tax + laborCost + teardownCost + changeOrderCost + gateCharge
