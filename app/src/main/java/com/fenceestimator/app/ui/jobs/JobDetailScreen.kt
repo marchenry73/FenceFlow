@@ -1215,9 +1215,17 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         ) {
             Column(Modifier.padding(12.dp)) {
                 MoneyLine("Contract total (from the estimate)", contractTotal)
-                MoneyLine("Paid so far", netPaid)
-                if (job.refundedAmount > 0.0) {
+                // With a refund in play the lines have to SUM: paid gross,
+                // minus refunded, equals kept. The old box put the net figure
+                // on the "Paid so far" line and then listed the refund under
+                // it anyway -- so reading top to bottom subtracted the refund
+                // twice and arrived at a number that matched nothing below.
+                if (job.refundedAmount > 0.005) {
+                    MoneyLine("Paid in total", job.amountPaid)
                     MoneyLine("Refunded", -job.refundedAmount)
+                    MoneyLine("Kept after refunds", netPaid)
+                } else {
+                    MoneyLine("Paid so far", netPaid)
                 }
                 // Signed, not floored. An overpaid customer used to read as
                 // "Still owed $0.00", which hides the fact that money is owed

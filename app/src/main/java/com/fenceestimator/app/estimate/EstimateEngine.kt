@@ -638,7 +638,7 @@ object EstimateEngine {
 
     private val POST_ROLES = setOf(MaterialRole.LINE_POST, MaterialRole.CORNER_POST, MaterialRole.END_POST, MaterialRole.GATE_POST)
     private val GATE_HARDWARE_ROLES = setOf(MaterialRole.HINGE_SET, MaterialRole.LATCH, MaterialRole.GATE_PANEL, MaterialRole.GATE_FRAME_KIT)
-    private const val LOW_MARGIN_THRESHOLD_PERCENT = 20.0
+    private const val LOW_KEPT_THRESHOLD_PERCENT = 35.0
 
     /**
      * Rule-based sanity checks over the current estimate -- no AI needed,
@@ -647,16 +647,25 @@ object EstimateEngine {
     fun estimateWarnings(job: Job, runs: List<FenceRun>, lineItems: List<EstimateLineItem>, totals: Totals): List<String> {
         val warnings = mutableListOf<String>()
 
-        // Only worth saying when a markup was actually set. With markup at 0 the
-        // margin is 0 by definition, so warning about it fires on every single
-        // job and becomes noise -- and then the one job that really is
-        // underpriced reads the same as all the others.
-        if (totals.grandTotal > 0.0 && job.markupPercent > 0.0) {
-            val cost = totals.materialsSubtotal + totals.tax + totals.laborCost + totals.teardownCost
-            val marginPercent = (totals.grandTotal - cost) / totals.grandTotal * 100.0
-            if (marginPercent < LOW_MARGIN_THRESHOLD_PERCENT) {
-                warnings += "Only ${marginPercent.roundToInt()}% profit margin -- that's what's left " +
-                    "after materials, labor and teardown, as a share of the price."
+        // What stays with the business after materials, as a share of the
+        // price (tax excluded on both sides -- it is a passthrough).
+        //
+        // The old version counted the LABOR and TEARDOWN charges as costs, so
+        // "what's left" was literally the markup and nothing else: a job at
+        // 1% markup read "Only 2% profit margin" forever, adding teardown
+        // raised price and "cost" by the same figure so the number never
+        // moved, and the labor charge looked like money out the door. But
+        // labor and teardown are the contractor's own charges -- crew wages
+        // come out of them, and so does the profit. The honest estimate-time
+        // figure is how much of the price is not spent on materials.
+        val priceExTax = totals.grandTotal - totals.tax
+        if (priceExTax > 0.0) {
+            val kept = priceExTax - totals.materialsSubtotal
+            val keptPercent = kept / priceExTax * 100.0
+            if (keptPercent < LOW_KEPT_THRESHOLD_PERCENT) {
+                warnings += "Only ${keptPercent.roundToInt()}% of this price stays with you " +
+                    "after materials (${"%.0f".format(kept)}) -- crew wages and your " +
+                    "profit both have to come out of that."
             }
         }
 
