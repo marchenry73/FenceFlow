@@ -11,8 +11,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.AppRelease
 
 /**
@@ -48,7 +50,7 @@ fun UpdateAvailableDialog(
         onDismissRequest = { if (!release.isMandatory && !busy) onLater() },
         title = {
             Text(
-                if (release.isMandatory) "Update needed" else "New version available",
+                if (release.isMandatory) stringResource(R.string.onb_update_needed) else stringResource(R.string.onb_new_version_available),
                 fontWeight = FontWeight.Bold
             )
         },
@@ -58,13 +60,13 @@ fun UpdateAvailableDialog(
                     Text(release.notes, style = MaterialTheme.typography.bodyMedium)
                 }
                 Text(
-                    "Version " + release.versionName,
+                    stringResource(R.string.onb_version_label, release.versionName),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (release.isMandatory) {
                     Text(
-                        "This one fixes something worth not putting off.",
+                        stringResource(R.string.onb_update_worth_not_putting_off),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -73,8 +75,7 @@ fun UpdateAvailableDialog(
                 // the worry is what stops them updating.
                 if (release.downloadUrl.isBlank()) {
                     Text(
-                        "This version is in your usual shared folder -- no download " +
-                            "link was published with it.",
+                        stringResource(R.string.onb_update_in_shared_folder),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -86,15 +87,14 @@ fun UpdateAvailableDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        "Downloading... $percent%",
+                        stringResource(R.string.onb_downloading_percent, percent),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 if (installing) {
                     Text(
-                        "Ready. Android will ask you to confirm the install -- that " +
-                            "prompt is the phone's, not ours.",
+                        stringResource(R.string.onb_update_ready_to_install),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -107,8 +107,7 @@ fun UpdateAvailableDialog(
                     )
                 }
                 Text(
-                    "Installing an update keeps everything -- your jobs, drawings, " +
-                        "photos and payments all stay exactly as they are.",
+                    stringResource(R.string.onb_update_keeps_everything),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -119,18 +118,18 @@ fun UpdateAvailableDialog(
             // broken. If a release was published without a download link, say
             // where to get it instead of offering a control that does nothing.
             when {
-                release.downloadUrl.isBlank() -> TextButton(onClick = onLater) { Text("OK") }
+                release.downloadUrl.isBlank() -> TextButton(onClick = onLater) { Text(stringResource(R.string.onb_ok)) }
                 // Once the download has failed, the honest offer is the browser
                 // rather than the same button that just did not work.
-                failed != null -> Button(onClick = onOpenInBrowser) { Text("Open in browser") }
+                failed != null -> Button(onClick = onOpenInBrowser) { Text(stringResource(R.string.onb_open_in_browser)) }
                 else -> Button(enabled = !busy, onClick = onDownload) {
-                    Text(if (busy) "Working..." else "Update now")
+                    Text(if (busy) stringResource(R.string.onb_working) else stringResource(R.string.onb_update_now))
                 }
             }
         },
         dismissButton = {
             if (!release.isMandatory && !busy) {
-                TextButton(onClick = onLater) { Text("Later") }
+                TextButton(onClick = onLater) { Text(stringResource(R.string.onb_later)) }
             }
         }
     )

@@ -434,7 +434,14 @@ object PdfExporter {
             y += 16f
 
             val termsPaint = Paint().apply { textSize = 8.5f; color = 0xFF333333.toInt() }
-            val filled = business.contractTerms
+            // Untouched default terms print in the company's language; terms
+            // an owner has edited print exactly as written. The terms used to
+            // come out in English whatever language the rest of the document
+            // was in, which made a Spanish contract half a Spanish contract.
+            val source = if (com.fenceestimator.app.data.isDefaultContractTerms(business.contractTerms))
+                com.fenceestimator.app.data.defaultContractTermsFor(business.language)
+            else business.contractTerms
+            val filled = source
                 .replace("{COMPANY}", business.businessName.ifBlank { "The contractor" })
                 .replace("{ADDRESS}", job.address.ifBlank { "the address above" })
                 .replace("{TOTAL}", currency.format(totals.grandTotal))

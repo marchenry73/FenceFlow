@@ -40,9 +40,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.IntentHelpers
@@ -64,13 +66,13 @@ fun ManufacturersScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Manufacturers & Suppliers") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.mfr_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showNew = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add manufacturer")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.mfr_add_manufacturer))
             }
         }
     ) { padding ->
@@ -80,12 +82,12 @@ fun ManufacturersScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp, 16.dp, 16.dp, 8.dp)
             ) {
                 Icon(Icons.Filled.NearMe, contentDescription = null)
-                Text("  Find Fence Supply Stores Nearby")
+                Text("  " + stringResource(R.string.mfr_find_supply_stores))
             }
             if (manufacturers.isEmpty()) {
                 Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
                     Text(
-                        "No manufacturers yet. Add one to send orders and pick supplier-specific prices for catalog items.",
+                        stringResource(R.string.mfr_empty_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -100,7 +102,7 @@ fun ManufacturersScreen(onBack: () -> Unit) {
                         Card(onClick = { editing = m }, modifier = Modifier.fillMaxWidth()) {
                             Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(m.name.ifBlank { "Unnamed" }, fontWeight = FontWeight.Medium)
+                                    Text(m.name.ifBlank { stringResource(R.string.mfr_unnamed) }, fontWeight = FontWeight.Medium)
                                     if (m.email.isNotBlank()) Text(m.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     if (m.phone.isNotBlank()) Text(m.phone, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     if (m.hours.isNotBlank()) Text(m.hours, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -110,7 +112,7 @@ fun ManufacturersScreen(onBack: () -> Unit) {
                                         onClick = { IntentHelpers.searchNearby(context, m.address) },
                                         modifier = Modifier.size(40.dp)
                                     ) {
-                                        Icon(Icons.Filled.Directions, contentDescription = "Directions", tint = MaterialTheme.colorScheme.primary)
+                                        Icon(Icons.Filled.Directions, contentDescription = stringResource(R.string.crew_directions), tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                             }
@@ -158,37 +160,37 @@ private fun EditManufacturerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (manufacturer.id == 0L) "New Manufacturer" else "Edit Manufacturer") },
+        title = { Text(stringResource(if (manufacturer.id == 0L) R.string.mfr_new_manufacturer else R.string.mfr_edit_manufacturer)) },
         text = {
             Column {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.mfr_name)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Order email") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text(stringResource(R.string.mfr_order_email)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text(stringResource(R.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text(stringResource(R.string.mfr_address)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = hours, onValueChange = { hours = it },
-                    label = { Text("Hours (e.g. Mon-Fri 7am-4pm)") }, modifier = Modifier.fillMaxWidth()
+                    label = { Text(stringResource(R.string.mfr_hours_hint)) }, modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.field_notes)) }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             }
         },
         confirmButton = {
             Button(onClick = { onSave(manufacturer.copy(name = name, email = email, phone = phone, address = address, hours = hours, notes = notes)) }) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
             Row {
                 if (manufacturer.id != 0L && canDelete) {
-                    OutlinedButton(onClick = onDelete) { Text("Delete") }
+                    OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
                     Spacer(Modifier.width(8.dp))
                 }
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )

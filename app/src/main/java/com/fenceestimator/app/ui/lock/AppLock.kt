@@ -21,10 +21,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.fenceestimator.app.R
 
 /**
  * Tracks how long the app has been idle and reports whether it should be locked.
@@ -68,6 +70,10 @@ fun biometricAvailable(context: android.content.Context): Boolean {
 fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
     val context = LocalContext.current
     val activity = context.findFragmentActivity()
+    // Captured in composable scope: prompt() is a plain function, so it cannot
+    // call stringResource itself.
+    val promptTitle = stringResource(R.string.onb_unlock_prompt_title)
+    val promptSubtitle = stringResource(R.string.onb_unlock_prompt_subtitle)
 
     fun prompt() {
         if (activity == null) {
@@ -77,8 +83,8 @@ fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
             return
         }
         val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock FenceFlow")
-            .setSubtitle("Your session timed out")
+            .setTitle(promptTitle)
+            .setSubtitle(promptSubtitle)
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_WEAK or
                     BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -113,14 +119,14 @@ fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
-                Text("FenceFlow is locked", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.onb_locked_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "Your session timed out for security.",
+                    stringResource(R.string.onb_locked_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Button(onClick = { prompt() }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (useBiometric) "Unlock" else "Unlock with screen lock")
+                    Text(if (useBiometric) stringResource(R.string.onb_unlock) else stringResource(R.string.onb_unlock_with_screen_lock))
                 }
             }
         }

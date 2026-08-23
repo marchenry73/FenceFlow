@@ -33,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
@@ -84,9 +86,9 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Supplier Prices") },
+                title = { Text(stringResource(R.string.est2_supplier_prices_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 }
             )
         }
@@ -98,9 +100,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "Type in what the supplier quoted. Anything left blank keeps the " +
-                        "catalog estimate, and the job stays marked provisional until " +
-                        "every line has a real price.",
+                    stringResource(R.string.est2_supplier_intro),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -110,7 +110,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = reference,
                     onValueChange = { reference = it },
-                    label = { Text("Supplier / quote reference") },
+                    label = { Text(stringResource(R.string.est2_supplier_reference)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -129,15 +129,14 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                     )
                 ) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("Estimated from catalog: ${currency.format(catalogTotal)}")
-                        Text("With supplier prices: ${currency.format(quotedTotal)}")
+                        Text(stringResource(R.string.est2_estimated_from_catalog, currency.format(catalogTotal)))
+                        Text(stringResource(R.string.est2_with_supplier_prices, currency.format(quotedTotal)))
                         if (kotlin.math.abs(difference) > 0.005) {
                             Text(
                                 if (difference > 0)
-                                    "That is ${currency.format(difference)} MORE than quoted. " +
-                                        "Check the customer price still works before ordering."
+                                    stringResource(R.string.est2_more_than_quoted, currency.format(difference))
                                 else
-                                    "That is ${currency.format(-difference)} less than estimated.",
+                                    stringResource(R.string.est2_less_than_estimated, currency.format(-difference)),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -164,7 +163,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                         onBack()
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Save supplier prices") }
+                ) { Text(stringResource(R.string.est2_save_supplier_prices)) }
             }
         }
     }
@@ -185,9 +184,8 @@ private fun SupplierPriceRow(
         Column(Modifier.weight(1f)) {
             Text(item.description, style = MaterialTheme.typography.bodyMedium)
             Text(
-                "${"%.1f".format(item.quantity)} ${item.unit} · " +
-                    "catalog ${currency.format(item.unitPrice)}" +
-                    if (item.isSupplierPriced) " · quoted" else "",
+                stringResource(R.string.est2_supplier_row_detail, "%.1f".format(item.quantity), item.unit, currency.format(item.unitPrice)) +
+                    if (item.isSupplierPriced) " · " + stringResource(R.string.est2_quoted) else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (item.isSupplierPriced) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant
@@ -196,7 +194,7 @@ private fun SupplierPriceRow(
         OutlinedTextField(
             value = typed,
             onValueChange = { onChange(it.filter { c -> c.isDigit() || c == '.' }) },
-            label = { Text("Their $") },
+            label = { Text(stringResource(R.string.est2_their_price)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.width(120.dp)

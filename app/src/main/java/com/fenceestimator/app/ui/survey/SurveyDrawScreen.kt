@@ -166,7 +166,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             TopAppBar(
                 title = { Text(stringResource(R.string.draw_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 }
             )
         }
@@ -188,7 +188,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (usingGrid) "Drawing on a scaled grid (no survey photo)" else "Drawing on your uploaded survey",
+                        stringResource(if (usingGrid) R.string.misc_survey_drawing_on_grid else R.string.misc_survey_drawing_on_photo),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(onClick = {
@@ -198,7 +198,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             viewModel.clearSurveyImage()
                         }
                     }) {
-                        Text(if (usingGrid) "Upload Photo" else "Use Grid Instead")
+                        Text(stringResource(if (usingGrid) R.string.survey_upload_photo else R.string.survey_use_grid))
                     }
                 }
 
@@ -212,7 +212,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // half pixels on a phone, so a 20ft run could not be
                         // drawn accurately and a small drag measured forty feet.
                         Text(
-                            "How big is this job?",
+                            stringResource(R.string.misc_survey_how_big),
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -231,14 +231,13 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             }
                         }
                         Text(
-                            "Anything you have already drawn keeps its length -- it just " +
-                                "fills more or less of the screen.",
+                            stringResource(R.string.misc_survey_keeps_length),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
                         DraftNumberField(
-                            stableKey = job2.id, label = "Feet per grid square",
+                            stableKey = job2.id, label = stringResource(R.string.misc_survey_feet_per_square),
                             initialValue = job2.gridFeetPerSquare,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         ) { viewModel.setGridLineSpacingFt(it) }
@@ -248,17 +247,17 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
             val visibleModes = remember(usingGrid) {
                 buildList {
-                    add(SurveyMode.DRAW to "Draw")
+                    add(SurveyMode.DRAW to R.string.mode_draw)
                     // No Calibrate on the grid. The grid already knows its own
                     // scale, so the step asked people to solve a problem they did
                     // not have -- it was the single most confusing thing here.
                     // On a survey photo it is unavoidable: nothing else can tell
                     // the app how big the picture is.
-                    if (!usingGrid) add(SurveyMode.CALIBRATE to "Calibrate")
-                    add(SurveyMode.GATE to "Gate")
-                    add(SurveyMode.MARKER to "Mark Site")
-                    add(SurveyMode.ADJUST to "Adjust")
-                    add(SurveyMode.PAN to "Move View")
+                    if (!usingGrid) add(SurveyMode.CALIBRATE to R.string.mode_calibrate)
+                    add(SurveyMode.GATE to R.string.mode_gate)
+                    add(SurveyMode.MARKER to R.string.mode_mark_site)
+                    add(SurveyMode.ADJUST to R.string.mode_adjust)
+                    add(SurveyMode.PAN to R.string.mode_move_view)
                 }
             }
             // Leaving Calibrate selected while switching to the grid would strand
@@ -272,12 +271,12 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         selected = mode == m,
                         onClick = { viewModel.setMode(m) },
                         shape = SegmentedButtonDefaults.itemShape(index, visibleModes.size)
-                    ) { Text(label) }
+                    ) { Text(stringResource(label)) }
                 }
             }
             if (mode == SurveyMode.ADJUST) {
                 Text(
-                    "Drag a point, a gate or a marker to move it -- works at any zoom.",
+                    stringResource(R.string.misc_survey_adjust_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 8.dp)
@@ -314,13 +313,14 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     ) {
                         Icon(Icons.Filled.Straighten, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text(
-                            if (liveFeet > 0f) "  ${String.format("%.1f", liveFeet)} ft" else "  Tap to start drawing",
+                            if (liveFeet > 0f) "  " + stringResource(R.string.misc_feet_value, String.format("%.1f", liveFeet))
+                            else "  " + stringResource(R.string.misc_survey_tap_to_start),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                         )
                         if (liveFeet > 0f) {
                             Text(
-                                "   ${points.size} points · ${gates.size} gate(s)",
+                                "   " + stringResource(R.string.misc_survey_points_gates, points.size, gates.size),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
@@ -334,7 +334,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         IconButton(onClick = { fullScreenDrawing = !fullScreenDrawing }) {
                             Icon(
                                 if (fullScreenDrawing) Icons.Filled.CloseFullscreen else Icons.Filled.OpenInFull,
-                                contentDescription = if (fullScreenDrawing) "Exit full screen" else "Full screen"
+                                contentDescription = stringResource(if (fullScreenDrawing) R.string.misc_survey_exit_full_screen else R.string.misc_survey_full_screen)
                             )
                         }
                     }
@@ -671,13 +671,16 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             // Its width, so the plan states it rather than
                             // leaving it to be measured off the drawing.
                             val mid = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
-                            val swingLabel = when (gate.swing) {
-                                com.fenceestimator.app.geometry.GateSwing.IN -> " in"
-                                com.fenceestimator.app.geometry.GateSwing.OUT -> " out"
-                                com.fenceestimator.app.geometry.GateSwing.BOTH -> " both"
-                            }
+                            val swingLabel = context.getString(
+                                when (gate.swing) {
+                                    com.fenceestimator.app.geometry.GateSwing.IN -> R.string.misc_survey_swing_in
+                                    com.fenceestimator.app.geometry.GateSwing.OUT -> R.string.misc_survey_swing_out
+                                    com.fenceestimator.app.geometry.GateSwing.BOTH -> R.string.misc_survey_swing_both
+                                }
+                            )
+                            val widthText = if (gate.widthFt % 1f == 0f) gate.widthFt.toInt().toString() else gate.widthFt.toString()
                             drawContext.canvas.nativeCanvas.drawText(
-                                "${if (gate.widthFt % 1f == 0f) gate.widthFt.toInt() else gate.widthFt} ft$swingLabel",
+                                context.getString(R.string.misc_survey_gate_width_swing, widthText, swingLabel),
                                 mid.x, mid.y - 10f,
                                 android.graphics.Paint().apply {
                                     color = android.graphics.Color.parseColor("#B23800")
@@ -694,7 +697,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             drawCircle(color, radius = 13f, center = c)
                             drawCircle(Color.White, radius = 13f, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
                             drawContext.canvas.nativeCanvas.drawText(
-                                marker.label.ifBlank { markerShortLabel(marker.kind) },
+                                marker.label.ifBlank { context.getString(markerShortLabelRes(marker.kind)) },
                                 c.x + 18f,
                                 c.y + 5f,
                                 android.graphics.Paint().apply {
@@ -726,13 +729,13 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     // tap along the bottom of the drawing area. A Box with a
                     // background looks the same and lets taps through.
                     if (mode == SurveyMode.PAN) {
-                        CanvasHint(Modifier.align(Alignment.BottomCenter), "Drag to move the view")
+                        CanvasHint(Modifier.align(Alignment.BottomCenter), stringResource(R.string.survey_drag_to_move))
                     }
                     if (mode == SurveyMode.ADJUST) {
                         if (selectedPoint == null) {
                             CanvasHint(
                                 Modifier.align(Alignment.BottomCenter),
-                                "Drag to move, or tap a point to nudge it with the arrows"
+                                stringResource(R.string.misc_survey_adjust_canvas_hint)
                             )
                         } else {
                             NudgePad(
@@ -764,9 +767,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 // Only a survey photo can be missing a scale.
                                 text = when {
                                     pxPerFt != null ->
-                                        "  ${String.format("%.1f", geometry.totalLinearFeet)} ft total  |  ${geometry.cornerCount} corners  |  ${gates.size} gate(s)"
-                                    usingGrid -> "  Draw the fence line -- the grid is already to scale"
-                                    else -> "  Tap Calibrate, then tap two points a known distance apart"
+                                        "  " + stringResource(R.string.misc_survey_feet_total, String.format("%.1f", geometry.totalLinearFeet)) +
+                                            "  |  " + stringResource(R.string.misc_survey_corners_count, geometry.cornerCount) +
+                                            "  |  " + stringResource(R.string.misc_survey_gates_count, gates.size)
+                                    usingGrid -> "  " + stringResource(R.string.misc_survey_grid_to_scale)
+                                    else -> "  " + stringResource(R.string.misc_survey_tap_calibrate)
                                 },
                                 style = MaterialTheme.typography.bodyMedium
                             )
@@ -825,10 +830,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             onDismissRequest = { pendingGateRemoval = null },
             title = { Text(stringResource(R.string.draw_remove_gate_title)) },
             text = {
-                Text(
-                    "The ${"%.0f".format(gate.widthFt)} ft gate comes off the drawing, " +
-                        "along with its posts, hardware and concrete. The price changes."
-                )
+                Text(stringResource(R.string.misc_survey_remove_gate_text, "%.0f".format(gate.widthFt)))
             },
             confirmButton = {
                 Button(onClick = {
@@ -867,16 +869,16 @@ private fun markerColor(kind: SiteMarkerKind): Color = when (kind) {
     SiteMarkerKind.OBSTACLE -> Color(0xFFB23800)
 }
 
-private fun markerShortLabel(kind: SiteMarkerKind): String = when (kind) {
-    SiteMarkerKind.EXISTING_FENCE -> "Old fence"
-    SiteMarkerKind.HOUSE -> "House"
-    SiteMarkerKind.POOL -> "Pool"
-    SiteMarkerKind.DRIVEWAY -> "Driveway"
-    SiteMarkerKind.EASEMENT -> "Easement"
-    SiteMarkerKind.UTILITY -> "Utility"
-    SiteMarkerKind.TREE -> "Tree"
-    SiteMarkerKind.SLOPE -> "Slope"
-    SiteMarkerKind.OBSTACLE -> "Obstacle"
+private fun markerShortLabelRes(kind: SiteMarkerKind): Int = when (kind) {
+    SiteMarkerKind.EXISTING_FENCE -> R.string.misc_marker_old_fence
+    SiteMarkerKind.HOUSE -> R.string.misc_marker_house
+    SiteMarkerKind.POOL -> R.string.misc_marker_pool
+    SiteMarkerKind.DRIVEWAY -> R.string.misc_marker_driveway
+    SiteMarkerKind.EASEMENT -> R.string.misc_marker_easement
+    SiteMarkerKind.UTILITY -> R.string.misc_marker_utility
+    SiteMarkerKind.TREE -> R.string.misc_marker_tree
+    SiteMarkerKind.SLOPE -> R.string.misc_marker_slope
+    SiteMarkerKind.OBSTACLE -> R.string.misc_marker_obstacle
 }
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -896,7 +898,7 @@ private fun SiteMarkerDialog(
         text = {
             Column {
                 Text(
-                    "What's here? This shows on the plan so the crew knows what to work around.",
+                    stringResource(R.string.misc_survey_whats_here),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -908,7 +910,7 @@ private fun SiteMarkerDialog(
                         androidx.compose.material3.FilterChip(
                             selected = kind == k,
                             onClick = { kind = k },
-                            label = { Text(markerShortLabel(k)) }
+                            label = { Text(stringResource(markerShortLabelRes(k))) }
                         )
                     }
                 }
@@ -924,12 +926,12 @@ private fun SiteMarkerDialog(
                     existing.forEach { marker ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                marker.label.ifBlank { markerShortLabel(marker.kind) },
+                                marker.label.ifBlank { stringResource(markerShortLabelRes(marker.kind)) },
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             IconButton(onClick = { onDelete(marker) }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Remove marker")
+                                Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.misc_survey_remove_marker))
                             }
                         }
                     }
@@ -953,12 +955,13 @@ private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, on
 private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (Long) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val selected = runs.firstOrNull { it.id == selectedRunId }
+    val untitled = stringResource(R.string.misc_survey_untitled)
     ExposedDropdownMenuBox(
         expanded = expanded, onExpandedChange = { expanded = it },
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         OutlinedTextField(
-            value = selected?.let { "${it.label.ifBlank { "Untitled" }} (${it.fenceType.name.replace("_", " ")})" } ?: "",
+            value = selected?.let { "${it.label.ifBlank { untitled }} (${it.fenceType.name.replace("_", " ")})" } ?: "",
             onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.draw_editing_run)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -967,7 +970,7 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             runs.forEach { run ->
                 DropdownMenuItem(
-                    text = { Text("${run.label.ifBlank { "Untitled" }} (${run.fenceType.name.replace("_", " ")})") },
+                    text = { Text("${run.label.ifBlank { untitled }} (${run.fenceType.name.replace("_", " ")})") },
                     onClick = { onSelect(run.id); expanded = false }
                 )
             }
@@ -1052,18 +1055,18 @@ private fun GateSwingChoice(
     val options = listOf(
         Triple(
             com.fenceestimator.app.geometry.GateSwing.IN,
-            "Opens inward",
-            "Into the property. The usual choice, and the safer one near a road"
+            stringResource(R.string.misc_gate_opens_inward),
+            stringResource(R.string.misc_gate_opens_inward_detail)
         ),
         Triple(
             com.fenceestimator.app.geometry.GateSwing.OUT,
-            "Opens outward",
-            "Away from the property. Check nothing is parked or planted there"
+            stringResource(R.string.misc_gate_opens_outward),
+            stringResource(R.string.misc_gate_opens_outward_detail)
         ),
         Triple(
             com.fenceestimator.app.geometry.GateSwing.BOTH,
-            "Opens both ways",
-            "Common on paddock and double gates"
+            stringResource(R.string.misc_gate_opens_both),
+            stringResource(R.string.misc_gate_opens_both_detail)
         )
     )
     Column {
@@ -1093,9 +1096,9 @@ private fun GateSwingChoice(
 @Composable
 private fun GateMountingChoice(selected: GateMounting, onSelect: (GateMounting) -> Unit) {
     val options = listOf(
-        Triple(GateMounting.LINE, "In the fence line", "End post, set in concrete (2 bags)"),
-        Triple(GateMounting.LINE_TO_WALL, "In the line, fence runs on to a wall", "Two end posts, concrete"),
-        Triple(GateMounting.WALL, "Off the wall", "Blank post + end post, 4 hole plugs, no concrete")
+        Triple(GateMounting.LINE, stringResource(R.string.misc_gate_mount_line), stringResource(R.string.misc_gate_mount_line_detail)),
+        Triple(GateMounting.LINE_TO_WALL, stringResource(R.string.misc_gate_mount_line_to_wall), stringResource(R.string.misc_gate_mount_line_to_wall_detail)),
+        Triple(GateMounting.WALL, stringResource(R.string.misc_gate_mount_wall), stringResource(R.string.misc_gate_mount_wall_detail))
     )
     Column {
         options.forEach { (value, label, detail) ->
@@ -1250,26 +1253,26 @@ private fun NudgePad(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                "1 ft per tap",
+                stringResource(R.string.misc_nudge_per_tap),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             IconButton(onClick = { onNudge(0f, -1f) }) {
-                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up one foot")
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.misc_nudge_up))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onNudge(-1f, 0f) }) {
-                    Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "Move left one foot")
+                    Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.misc_nudge_left))
                 }
                 IconButton(onClick = onDone) {
-                    Icon(Icons.Filled.Check, contentDescription = "Done")
+                    Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.action_done))
                 }
                 IconButton(onClick = { onNudge(1f, 0f) }) {
-                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "Move right one foot")
+                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.misc_nudge_right))
                 }
             }
             IconButton(onClick = { onNudge(0f, 1f) }) {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down one foot")
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.misc_nudge_down))
             }
         }
     }

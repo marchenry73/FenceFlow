@@ -29,16 +29,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Row
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.ui.components.IntentHelpers
 import com.fenceestimator.app.ui.components.currentApp
 
-private enum class FeedbackKind(val label: String) {
-    SUGGESTION("Suggestion"),
-    COMPLAINT("Complaint"),
-    SAFETY("Safety concern")
+private enum class FeedbackKind(val labelRes: Int) {
+    SUGGESTION(R.string.misc_feedback_kind_suggestion),
+    COMPLAINT(R.string.misc_feedback_kind_complaint),
+    SAFETY(R.string.misc_feedback_kind_safety)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,8 +58,8 @@ fun FeedbackScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Suggestions & Complaints") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.misc_feedback_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -70,50 +72,52 @@ fun FeedbackScreen(onBack: () -> Unit) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            "Got an idea that would make the work easier, or something that needs to be raised? Send it in. " +
-                                "You can leave your name off if you'd rather.",
+                            stringResource(R.string.misc_feedback_intro),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FeedbackKind.values().forEach { k ->
-                                FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.label) })
+                                FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(stringResource(k.labelRes)) })
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Send anonymously", Modifier.weight(1f))
+                            Text(stringResource(R.string.misc_feedback_send_anonymously), Modifier.weight(1f))
                             Switch(checked = anonymous, onCheckedChange = { anonymous = it })
                         }
                         if (!anonymous) {
                             OutlinedTextField(
                                 value = name, onValueChange = { name = it },
-                                label = { Text("Your name") }, modifier = Modifier.fillMaxWidth()
+                                label = { Text(stringResource(R.string.misc_feedback_your_name)) }, modifier = Modifier.fillMaxWidth()
                             )
                         }
                         OutlinedTextField(
                             value = message, onValueChange = { message = it },
-                            label = { Text("What would you like to say?") },
+                            label = { Text(stringResource(R.string.misc_feedback_message_label)) },
                             minLines = 6, modifier = Modifier.fillMaxWidth()
                         )
                         Button(
                             onClick = {
-                                val from = if (anonymous) "Anonymous" else name.ifBlank { "Unnamed" }
-                                val body = "Type: ${kind.label}\nFrom: $from\n\n$message"
+                                val kindLabel = context.getString(kind.labelRes)
+                                val from = if (anonymous) context.getString(R.string.misc_feedback_anonymous)
+                                else name.ifBlank { context.getString(R.string.misc_feedback_unnamed) }
+                                val body = context.getString(R.string.misc_feedback_type_line, kindLabel) + "\n" +
+                                    context.getString(R.string.misc_feedback_from_line, from) + "\n\n" + message
                                 IntentHelpers.openEmailDraft(
                                     context,
                                     profile.email,
-                                    "${kind.label} from the crew",
+                                    context.getString(R.string.misc_feedback_subject, kindLabel),
                                     body
                                 )
                             },
                             enabled = message.isNotBlank() && profile.email.isNotBlank(),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(if (profile.email.isBlank()) "Set a business email in Settings first" else "Send to the Office")
+                            Text(stringResource(if (profile.email.isBlank()) R.string.misc_feedback_set_email_first else R.string.misc_feedback_send_to_office))
                         }
                         Text(
-                            "This opens your email app with the message ready -- you tap send yourself. " +
-                                if (anonymous) "Heads up: your email address will still be visible to whoever receives it, since it's sent from your own email app." else "",
+                            stringResource(R.string.misc_feedback_opens_email) + " " +
+                                if (anonymous) stringResource(R.string.misc_feedback_anon_heads_up) else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -32,12 +32,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.text.KeyboardOptions
+import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncPhase
 import com.fenceestimator.app.ui.components.currentApp
@@ -77,8 +79,8 @@ fun AccountScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Account & Team") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.account_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -92,7 +94,7 @@ fun AccountScreen(
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Text(
-                            "Cloud accounts aren't configured in this build. The app still works fully offline on this device.",
+                            stringResource(R.string.acct_cloud_not_configured),
                             Modifier.padding(16.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -136,21 +138,24 @@ private fun SignedOutSection(viewModel: AccountViewModel) {
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(if (isSignUp) "Create Account" else "Sign In", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Signing in lets your crew share one set of jobs. Without an account the app keeps working offline on this phone only.",
+                stringResource(if (isSignUp) R.string.acct_create_account else R.string.action_sign_in),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                stringResource(R.string.acct_sign_in_explain),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedTextField(
                 value = email, onValueChange = { email = it },
-                label = { Text("Email") },
+                label = { Text(stringResource(R.string.field_email)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = password, onValueChange = { password = it },
-                label = { Text("Password") },
+                label = { Text(stringResource(R.string.acct_password)) },
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth()
@@ -160,10 +165,10 @@ private fun SignedOutSection(viewModel: AccountViewModel) {
                 enabled = email.isNotBlank() && password.length >= 6,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(if (isSignUp) "Create Account" else "Sign In")
+                Text(stringResource(if (isSignUp) R.string.acct_create_account else R.string.action_sign_in))
             }
             TextButton(onClick = { isSignUp = !isSignUp }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (isSignUp) "I already have an account" else "I need to create an account")
+                Text(stringResource(if (isSignUp) R.string.acct_already_have_account else R.string.acct_need_create_account))
             }
         }
     }
@@ -181,19 +186,22 @@ private fun SignedInSection(
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Signed In", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.acct_signed_in), style = MaterialTheme.typography.titleMedium)
             Text(state.signedInEmail.orEmpty(), fontWeight = FontWeight.Medium)
             state.profile?.let { profile ->
                 Text(
-                    "Access level: ${profile.userRole.name}",
+                    stringResource(R.string.acct_access_level, profile.userRole.name),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 profile.companyId?.takeIf { canShareInviteCode }?.let { id ->
                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
                     val context = androidx.compose.ui.platform.LocalContext.current
+                    val shareSubject = stringResource(R.string.acct_invite_share_subject)
+                    val shareBody = stringResource(R.string.acct_invite_share_body, id)
+                    val shareChooserTitle = stringResource(R.string.acct_invite_share_chooser)
 
-                    Text("Team invite code", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.acct_team_invite_code), style = MaterialTheme.typography.labelLarge)
                     // Selectable as well as copyable: a long UUID is miserable
                     // to retype, and crews will inevitably want to send it on.
                     androidx.compose.foundation.text.selection.SelectionContainer {
@@ -209,7 +217,7 @@ private fun SignedInSection(
                                 clipboard.setText(androidx.compose.ui.text.AnnotatedString(id))
                             },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Copy code") }
+                        ) { Text(stringResource(R.string.acct_copy_code)) }
                         OutlinedButton(
                             onClick = {
                                 // Share sheet, not email. Crew get sent this on
@@ -217,17 +225,16 @@ private fun SignedInSection(
                                 // is how a code ends up read out over the phone.
                                 com.fenceestimator.app.ui.components.IntentHelpers.shareText(
                                     context = context,
-                                    subject = "Join our FenceFlow team",
-                                    body = "Install FenceFlow, create an account, then choose " +
-                                        "\"Join the team\" and enter this invite code:\n\n$id",
-                                    chooserTitle = "Send invite code"
+                                    subject = shareSubject,
+                                    body = shareBody,
+                                    chooserTitle = shareChooserTitle
                                 )
                             },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Share") }
+                        ) { Text(stringResource(R.string.action_share)) }
                     }
                     Text(
-                        "Crew members enter this when joining your business.",
+                        stringResource(R.string.acct_invite_code_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -237,16 +244,16 @@ private fun SignedInSection(
             // that refuses you when you arrive is worse than not offering it.
             if (canManageAccess) {
                 Button(onClick = onOpenAccess, modifier = Modifier.fillMaxWidth()) {
-                    Text("Who Can Do What")
+                    Text(stringResource(R.string.acct_who_can_do_what))
                 }
             }
             if (canRestore) {
                 OutlinedButton(onClick = onOpenTrash, modifier = Modifier.fillMaxWidth()) {
-                    Text("Deleted Items")
+                    Text(stringResource(R.string.acct_deleted_items))
                 }
             }
             OutlinedButton(onClick = { viewModel.signOut() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Sign Out")
+                Text(stringResource(R.string.action_sign_out))
             }
         }
     }
@@ -260,29 +267,28 @@ private fun SyncStatusCard() {
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Cloud Save", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.account_cloud_save), style = MaterialTheme.typography.titleMedium)
             val (label, detail) = when (sync.phase) {
-                SyncPhase.SYNCING -> "Saving to cloud..." to null
-                SyncPhase.OK -> "Everything saved" to
-                    sync.lastSyncedAt?.let { "Last saved ${timeFormat.format(java.util.Date(it))}" }
+                SyncPhase.SYNCING -> stringResource(R.string.sync_saving) to null
+                SyncPhase.OK -> stringResource(R.string.sync_saved) to
+                    sync.lastSyncedAt?.let { stringResource(R.string.acct_sync_last_saved, timeFormat.format(java.util.Date(it))) }
                 // No signal is normal on a job site and fixes itself, so it
                 // reads as a status rather than a failure. Calling it an error
                 // teaches people to ignore the one that isn't.
-                SyncPhase.WAITING_FOR_SIGNAL -> "Waiting for signal" to
-                    "Your work is saved on this phone and uploads the moment you're back online."
-                SyncPhase.FAILED -> "Couldn't reach the cloud" to
-                    (sync.lastError ?: "Your work is safe on this phone and will upload automatically when you're back online.")
-                SyncPhase.OFFLINE_ONLY -> "Saving on this phone only" to
-                    "Join or create a business above to save to the cloud."
-                SyncPhase.IDLE -> "Waiting..." to null
+                SyncPhase.WAITING_FOR_SIGNAL -> stringResource(R.string.acct_sync_waiting_for_signal) to
+                    stringResource(R.string.acct_sync_waiting_for_signal_detail)
+                SyncPhase.FAILED -> stringResource(R.string.sync_failed) to
+                    (sync.lastError ?: stringResource(R.string.acct_sync_failed_detail))
+                SyncPhase.OFFLINE_ONLY -> stringResource(R.string.sync_local_only) to
+                    stringResource(R.string.acct_sync_local_only_detail)
+                SyncPhase.IDLE -> stringResource(R.string.acct_sync_waiting) to null
             }
             Text(label, fontWeight = FontWeight.Medium)
             detail?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                "Your jobs save automatically -- when you make a change, when you open the app, and every so often in the background. " +
-                    "Everything works offline; changes upload once you have signal.",
+                stringResource(R.string.sync_explain),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -290,7 +296,7 @@ private fun SyncStatusCard() {
                 onClick = { app.autoSync.requestSync() },
                 enabled = sync.phase != SyncPhase.SYNCING,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Sync Now") }
+            ) { Text(stringResource(R.string.action_sync_now)) }
         }
     }
 }
@@ -307,9 +313,9 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Set Up Your Business", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.acct_set_up_business), style = MaterialTheme.typography.titleMedium)
             Text(
-                "Owners create the business. Crew members join with the invite code the owner shares.",
+                stringResource(R.string.acct_set_up_business_explain),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -321,55 +327,55 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
             // waiting; this attaches their new account to it as the owner,
             // without anybody at FenceFlow ever handling their password.
             Text(
-                "Were you sent a setup code?",
+                stringResource(R.string.acct_sent_setup_code),
                 style = MaterialTheme.typography.titleSmall
             )
             OutlinedTextField(
                 value = setupCode,
                 onValueChange = { setupCode = it.uppercase() },
-                label = { Text("Setup code") },
-                placeholder = { Text("ABCD-EFGH") },
+                label = { Text(stringResource(R.string.acct_setup_code)) },
+                placeholder = { Text(stringResource(R.string.acct_setup_code_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = setupName, onValueChange = { setupName = it },
-                label = { Text("Your name") }, modifier = Modifier.fillMaxWidth()
+                label = { Text(stringResource(R.string.acct_your_name)) }, modifier = Modifier.fillMaxWidth()
             )
             Button(
                 onClick = { viewModel.claimCompanySetup(setupCode, setupName) },
                 enabled = setupCode.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Set Up My Company") }
+            ) { Text(stringResource(R.string.acct_set_up_my_company)) }
 
             Text(
-                "— or, if nobody sent you one —",
+                stringResource(R.string.acct_or_if_nobody_sent_one),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedTextField(
                 value = companyName, onValueChange = { companyName = it },
-                label = { Text("Business name") }, modifier = Modifier.fillMaxWidth()
+                label = { Text(stringResource(R.string.acct_business_name)) }, modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = ownerName, onValueChange = { ownerName = it },
-                label = { Text("Your name") }, modifier = Modifier.fillMaxWidth()
+                label = { Text(stringResource(R.string.acct_your_name)) }, modifier = Modifier.fillMaxWidth()
             )
             Button(
                 onClick = { viewModel.createCompany(companyName, ownerName) },
                 enabled = companyName.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Create My Business (Owner)") }
+            ) { Text(stringResource(R.string.acct_create_my_business)) }
 
-            Text("— or —", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.acct_or_separator), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             OutlinedTextField(
                 value = inviteCode, onValueChange = { inviteCode = it },
-                label = { Text("Invite code from your owner") }, modifier = Modifier.fillMaxWidth()
+                label = { Text(stringResource(R.string.acct_invite_code_from_owner)) }, modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = memberName, onValueChange = { memberName = it },
-                label = { Text("Your name") }, modifier = Modifier.fillMaxWidth()
+                label = { Text(stringResource(R.string.acct_your_name)) }, modifier = Modifier.fillMaxWidth()
             )
             // What they do, in their words.
             //
@@ -379,7 +385,7 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
             // code could arrive as a manager and read the company's money. But
             // asking is still worth it -- the alternative is the owner facing a
             // list of unnamed crew rows and having to work out who is who.
-            Text("What do you do?", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.acct_what_do_you_do), style = MaterialTheme.typography.labelLarge)
             com.fenceestimator.app.cloud.UserRole.values()
                 .filter { it != com.fenceestimator.app.cloud.UserRole.OWNER }
                 .forEach { option ->
@@ -395,8 +401,7 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
                     }
                 }
             Text(
-                "Your owner confirms this before it takes effect. Until then you " +
-                    "will see today's work only.",
+                stringResource(R.string.acct_owner_confirms_role),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -405,7 +410,7 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
                 onClick = { viewModel.joinCompany(inviteCode, memberName, requestedRole) },
                 enabled = inviteCode.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Join the team") }
+            ) { Text(stringResource(R.string.acct_join_the_team)) }
         }
     }
 }

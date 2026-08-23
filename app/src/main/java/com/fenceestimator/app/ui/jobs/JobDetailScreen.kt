@@ -76,11 +76,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.Employee
@@ -187,9 +189,9 @@ fun JobDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(currentJob.customerName.ifBlank { "New Job" }) },
+                title = { Text(currentJob.customerName.ifBlank { stringResource(R.string.jd_new_job) }) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 }
             )
         }
@@ -201,7 +203,7 @@ fun JobDetailScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item(key = SECTION_PROGRESS) {
-                SectionCard(title = "Project Progress") {
+                SectionCard(title = stringResource(R.string.section_progress)) {
                     ProjectProgressSection(
                         job = currentJob,
                         punchListClear = punchList.isEmpty(),
@@ -223,7 +225,7 @@ fun JobDetailScreen(
                     )
                 }
             }
-            item { SectionCard(title = "Customer") { CustomerFields(currentJob, viewModel) } }
+            item { SectionCard(title = stringResource(R.string.section_customer)) { CustomerFields(currentJob, viewModel) } }
             item {
                 // Everything already saves as you type -- this is here because
                 // an app with no Save button leaves people unsure whether their
@@ -240,12 +242,12 @@ fun JobDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Saved automatically as you type.",
+                            stringResource(R.string.jd_saved_automatically),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                         Button(onClick = { app.autoSync.requestSync(); onBack() }) {
-                            Text("Save & Close")
+                            Text(stringResource(R.string.jd_save_and_close))
                         }
                     }
                 }
@@ -257,7 +259,7 @@ fun JobDetailScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Filled.Map, contentDescription = null)
-                        Text("  Survey & Draw")
+                        Text("  " + stringResource(R.string.survey_title))
                     }
                     if (session.canSeeMoney) {
                         Button(
@@ -265,7 +267,7 @@ fun JobDetailScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Filled.Receipt, contentDescription = null)
-                            Text("  Estimate")
+                            Text("  " + stringResource(R.string.estimate_title))
                         }
                     }
                 }
@@ -273,20 +275,20 @@ fun JobDetailScreen(
             item {
                 Button(onClick = { onOpenCrewView(jobId) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Construction, contentDescription = null)
-                    Text("  Open Job-Day Crew View")
+                    Text("  " + stringResource(R.string.jd_open_crew_view))
                 }
             }
             item {
                 OutlinedButton(onClick = { onOpenInventory(jobId) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Inventory, contentDescription = null)
-                    Text("  Job-Day Inventory & Tools Checklist")
+                    Text("  " + stringResource(R.string.jd_inventory_checklist))
                 }
             }
             item {
-                SectionCard(title = "Fence Runs") {
+                SectionCard(title = stringResource(R.string.section_fence_runs)) {
                     if (runs.isEmpty()) {
                         Text(
-                            "No fence runs yet. Add one for each section of fence (they can be different types).",
+                            stringResource(R.string.jd_no_runs),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -300,24 +302,24 @@ fun JobDetailScreen(
                     }
                     OutlinedButton(onClick = { showAddRunDialog = true }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Filled.Add, contentDescription = null)
-                        Text("  Add Fence Run")
+                        Text("  " + stringResource(R.string.jd_add_fence_run))
                     }
                 }
             }
             if (session.canSeeMoney) {
-                item { SectionCard(title = "Pricing") { PricingFields(currentJob, viewModel) } }
-                item { SectionCard(title = "Pricing Tier & Discount") { TierFields(currentJob, pricingTiers, viewModel) } }
-                item { SectionCard(title = "Teardown of Existing Fence") { TeardownFields(currentJob, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_pricing)) { PricingFields(currentJob, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.jd_section_tier)) { TierFields(currentJob, pricingTiers, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.jd_section_teardown)) { TeardownFields(currentJob, viewModel) } }
             }
             item(key = SECTION_SCHEDULE) {
-                SectionCard(title = "Schedule & Crew") {
+                SectionCard(title = stringResource(R.string.section_schedule_crew)) {
                     ScheduleFields(currentJob, runs, timeEntries, profile, viewModel)
                     CrewFields(currentJob, employees, viewModel)
                 }
             }
             if (session.canSeeMoney) {
                 item {
-                    SectionCard(title = "Order Materials") {
+                    SectionCard(title = stringResource(R.string.section_order_materials)) {
                         OrderFields(currentJob, manufacturers, profile, runs, viewModel)
                     }
                 }
@@ -325,9 +327,9 @@ fun JobDetailScreen(
             // Directly above HOA and permits, because they are the same kind of
             // thing: the paperwork that has to be right before anyone starts.
             item(key = SECTION_LOCATE) { LocateSection(currentJob, viewModel) }
-            item(key = SECTION_HOA) { SectionCard(title = "HOA Approval & Permits") { HoaFields(currentJob, runs, profile, viewModel) } }
+            item(key = SECTION_HOA) { SectionCard(title = stringResource(R.string.section_hoa_permits)) { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
-                item { SectionCard(title = "Change Orders (extra work)") { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_change_orders)) { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
                 // Above the money, because a job running over is the thing
                 // that has to be dealt with today -- the invoice can wait.
                 item(key = "overrun") {
@@ -340,7 +342,7 @@ fun JobDetailScreen(
                     )
                 }
                 item(key = SECTION_PAYMENT) {
-                    SectionCard(title = "Payment & Invoice") {
+                    SectionCard(title = stringResource(R.string.section_payment)) {
                         StaleSignatureBanner(
                             job = currentJob,
                             contractTotal = jobTotals.grandTotal,
@@ -350,29 +352,29 @@ fun JobDetailScreen(
                         PaymentFields(currentJob, profile, viewModel)
                     }
                 }
-                item { SectionCard(title = "Job Expenses") { ExpensesSection(expenses, session.canDelete, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_expenses)) { ExpensesSection(expenses, session.canDelete, viewModel) } }
             }
             item {
                 val changes by viewModel.fieldChanges.collectAsState()
                 SectionCard(
-                    title = "Changes from the Field" +
+                    title = stringResource(R.string.jd_section_field_changes) +
                         if (changes.any { !it.isAcknowledged }) "  ●" else ""
                 ) {
                     FieldChangesSection(changes, session.canApprovePlanChanges, viewModel)
                 }
             }
             item {
-                SectionCard(title = "Held Up / Not Completed") {
+                SectionCard(title = stringResource(R.string.jd_section_held_up)) {
                     JobBlockedSection(currentJob, profile, viewModel)
                 }
             }
-            item { SectionCard(title = "Punch List / Callbacks") { PunchListSection(punchList, session.canDelete, viewModel) } }
+            item { SectionCard(title = stringResource(R.string.section_punch_list)) { PunchListSection(punchList, session.canDelete, viewModel) } }
             item {
-                SectionCard(title = "Before / After Photos") {
+                SectionCard(title = stringResource(R.string.section_photos)) {
                     PhotosSection(photos, session.canDelete, viewModel)
                 }
             }
-            item { SectionCard(title = "Ask for a Review") { ReviewRequestFields(currentJob, profile, viewModel) } }
+            item { SectionCard(title = stringResource(R.string.section_review)) { ReviewRequestFields(currentJob, profile, viewModel) } }
             item { StatusSelector(currentJob, viewModel) }
             // Owner only, and behind a typed confirmation. Deleting a job takes
             // its signed change orders, its payment record and its photos with
@@ -387,14 +389,13 @@ fun JobDetailScreen(
                         )
                     ) {
                         Icon(Icons.Filled.Delete, contentDescription = null)
-                        Text("  Delete Job")
+                        Text("  " + stringResource(R.string.jd_delete_job))
                     }
                 }
             } else {
                 item {
                     Text(
-                        "Only the owner can delete a job. Ask them, or set the status to " +
-                            "Declined to take it out of your way.",
+                        stringResource(R.string.jd_only_owner_deletes),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -447,33 +448,28 @@ private fun MoneyLine(label: String, amount: Double, bold: Boolean = false) {
 
 @Composable
 private fun ConfirmDeleteJobDialog(job: Job, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    val expected = job.customerName.trim().ifBlank { "DELETE" }
+    val expected = job.customerName.trim().ifBlank { stringResource(R.string.jd_delete_word) }
     var typed by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete this job permanently?") },
+        title = { Text(stringResource(R.string.jd_delete_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("This also deletes, with no way to get any of it back:")
+                Text(stringResource(R.string.jd_delete_also_deletes))
                 Text(
-                    "•  The estimate and every line item\n" +
-                        "•  Signed change orders\n" +
-                        "•  The payment record and invoice history\n" +
-                        "•  Before and after photos\n" +
-                        "•  Clocked hours for this job",
+                    stringResource(R.string.jd_delete_bullets),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    "If you only want it out of the way, close this and set the status " +
-                        "to Declined instead.",
+                    stringResource(R.string.jd_delete_decline_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = typed,
                     onValueChange = { typed = it },
-                    label = { Text("Type \"$expected\" to confirm") },
+                    label = { Text(stringResource(R.string.jd_type_to_confirm, expected)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -487,9 +483,9 @@ private fun ConfirmDeleteJobDialog(job: Job, onConfirm: () -> Unit, onDismiss: (
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError
                 )
-            ) { Text("Delete permanently") }
+            ) { Text(stringResource(R.string.jd_delete_permanently)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Keep it") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.jd_keep_it)) } }
     )
 }
 
@@ -502,7 +498,7 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> U
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text(run.label.ifBlank { "Untitled run" }, fontWeight = FontWeight.Medium)
+                Text(run.label.ifBlank { stringResource(R.string.jd_untitled_run) }, fontWeight = FontWeight.Medium)
                 Text(
                     run.fenceType.name.replace("_", " "),
                     style = MaterialTheme.typography.bodyMedium,
@@ -510,7 +506,7 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> U
                 )
             }
             IconButton(onClick = onDuplicate) {
-                Icon(Icons.Filled.ContentCopy, contentDescription = "Duplicate run")
+                Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.jd_duplicate_run))
             }
         }
     }
@@ -525,19 +521,19 @@ private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Fence Run") },
+        title = { Text(stringResource(R.string.jd_add_fence_run)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = label, onValueChange = { label = it },
-                    label = { Text("Label (e.g. \"Back Yard\")") },
+                    label = { Text(stringResource(R.string.jd_run_label_hint)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
                     OutlinedTextField(
                         value = type.name.replace("_", " "), onValueChange = {}, readOnly = true,
-                        label = { Text("Fence type") },
+                        label = { Text(stringResource(R.string.jd_fence_type)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
@@ -553,9 +549,9 @@ private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(label.ifBlank { type.name.replace("_", " ") }, type) }) { Text("Add") }
+            Button(onClick = { onConfirm(label.ifBlank { type.name.replace("_", " ") }, type) }) { Text(stringResource(R.string.action_add)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -572,27 +568,27 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun CustomerFields(job: Job, viewModel: JobDetailViewModel) {
     DraftTextField(
-        stableKey = job.id, initialValue = job.customerName, label = "Customer name",
+        stableKey = job.id, initialValue = job.customerName, label = stringResource(R.string.field_customer_name),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(customerName = it) } }
     AddressAutocompleteField(
-        stableKey = job.id, initialValue = job.address, label = "Property address",
+        stableKey = job.id, initialValue = job.address, label = stringResource(R.string.field_address),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(address = it) } }
     DraftTextField(
-        stableKey = job.id, initialValue = job.phone, label = "Phone",
+        stableKey = job.id, initialValue = job.phone, label = stringResource(R.string.field_phone),
         keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(phone = it) } }
     DraftTextField(
-        stableKey = job.id, initialValue = job.email, label = "Email",
+        stableKey = job.id, initialValue = job.email, label = stringResource(R.string.field_email),
         keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(email = it) } }
     DraftTextField(
-        stableKey = job.id, initialValue = job.notes, label = "Notes",
+        stableKey = job.id, initialValue = job.notes, label = stringResource(R.string.field_notes),
         minLines = 2, modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(notes = it) } }
     DraftTextField(
-        stableKey = job.id, initialValue = job.referralSource, label = "How did they hear about us?",
+        stableKey = job.id, initialValue = job.referralSource, label = stringResource(R.string.field_referral),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(referralSource = it) } }
 }
@@ -604,21 +600,21 @@ private fun PricingFields(job: Job, viewModel: JobDetailViewModel) {
     val tierKey = "${job.id}-${job.pricingTierName}"
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
-            stableKey = job.id, label = "Tax rate (%)", initialValue = job.taxRatePercent.toFloat(),
+            stableKey = job.id, label = stringResource(R.string.jd_tax_rate), initialValue = job.taxRatePercent.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(taxRatePercent = it.toDouble()) } }
         DraftNumberField(
-            stableKey = tierKey, label = "Markup (%)", initialValue = job.markupPercent.toFloat(),
+            stableKey = tierKey, label = stringResource(R.string.jd_markup_pct), initialValue = job.markupPercent.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(markupPercent = it.toDouble()) } }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
-            stableKey = tierKey, label = "Labor $/ft", initialValue = job.laborRatePerFt.toFloat(),
+            stableKey = tierKey, label = stringResource(R.string.jd_labor_per_ft), initialValue = job.laborRatePerFt.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(laborRatePerFt = it.toDouble()) } }
         DraftNumberField(
-            stableKey = tierKey, label = "Labor flat fee ($)", initialValue = job.laborFlatFee.toFloat(),
+            stableKey = tierKey, label = stringResource(R.string.jd_labor_flat_fee), initialValue = job.laborFlatFee.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(laborFlatFee = it.toDouble()) } }
     }
@@ -631,7 +627,7 @@ private fun StatusSelector(job: Job, viewModel: JobDetailViewModel) {
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
             value = job.status.name, onValueChange = {}, readOnly = true,
-            label = { Text("Status") },
+            label = { Text(stringResource(R.string.jd_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -652,8 +648,8 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = job.pricingTierName.ifBlank { "Custom" }, onValueChange = {}, readOnly = true,
-            label = { Text("Apply pricing tier") },
+            value = job.pricingTierName.ifBlank { stringResource(R.string.jd_tier_custom) }, onValueChange = {}, readOnly = true,
+            label = { Text(stringResource(R.string.jd_apply_tier)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -669,19 +665,23 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
     val tierKey = "${job.id}-${job.pricingTierName}"
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
-            stableKey = tierKey, label = "Discount (%)", initialValue = job.discountPercent.toFloat(),
+            stableKey = tierKey, label = stringResource(R.string.jd_discount_pct), initialValue = job.discountPercent.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(discountPercent = it.toDouble()) } }
         DraftNumberField(
-            stableKey = job.id, label = "Minimum job charge ($)", initialValue = job.minimumJobCharge.toFloat(),
+            stableKey = job.id, label = stringResource(R.string.jd_min_job_charge), initialValue = job.minimumJobCharge.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(minimumJobCharge = it.toDouble()) } }
     }
     if (job.pricingTierName.isNotBlank()) {
         Text(
-            "${job.pricingTierName}: labor \$${"%.2f".format(job.laborRatePerFt)}/ft · " +
-                "markup ${"%.0f".format(job.markupPercent)}%" +
-                if (job.discountPercent > 0) " · discount ${"%.0f".format(job.discountPercent)}%" else "",
+            stringResource(
+                R.string.jd_tier_summary,
+                job.pricingTierName,
+                "%.2f".format(job.laborRatePerFt),
+                "%.0f".format(job.markupPercent)
+            ) +
+                if (job.discountPercent > 0) " · " + stringResource(R.string.jd_tier_summary_discount, "%.0f".format(job.discountPercent)) else "",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary
         )
@@ -691,53 +691,52 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
 @Composable
 private fun TeardownFields(job: Job, viewModel: JobDetailViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Include teardown of existing fence", modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.jd_include_teardown), modifier = Modifier.weight(1f))
         Switch(checked = job.teardownEnabled, onCheckedChange = { viewModel.update { j -> j.copy(teardownEnabled = it) } })
     }
     if (job.teardownEnabled) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             DraftNumberField(
-                stableKey = job.id, label = "Teardown flat fee ($)", initialValue = job.teardownFlatFee.toFloat(),
+                stableKey = job.id, label = stringResource(R.string.jd_teardown_flat_fee), initialValue = job.teardownFlatFee.toFloat(),
                 modifier = Modifier.weight(1f)
             ) { viewModel.update { j -> j.copy(teardownFlatFee = it.toDouble()) } }
             DraftNumberField(
-                stableKey = job.id, label = "Teardown \$/ft", initialValue = job.teardownRatePerFt.toFloat(),
+                stableKey = job.id, label = stringResource(R.string.jd_teardown_per_ft), initialValue = job.teardownRatePerFt.toFloat(),
                 modifier = Modifier.weight(1f)
             ) { viewModel.update { j -> j.copy(teardownRatePerFt = it.toDouble()) } }
         }
         DraftNumberField(
-            stableKey = job.id, label = "Haul away / dump fee ($)", initialValue = job.trashHaulFee.toFloat(),
+            stableKey = job.id, label = stringResource(R.string.jd_haul_fee), initialValue = job.trashHaulFee.toFloat(),
             modifier = Modifier.fillMaxWidth()
         ) { viewModel.update { j -> j.copy(trashHaulFee = it.toDouble()) } }
         // The old fence is not always the new fence. Typed rather than drawn:
         // the owner knows it is 80 ft without tracing it, and a separate
         // drawing layer was more ceremony than the answer deserves.
         DraftNumberField(
-            stableKey = job.id, label = "Teardown length (ft) -- 0 = same as the new fence",
+            stableKey = job.id, label = stringResource(R.string.jd_teardown_length),
             initialValue = job.teardownFeet.toFloat(),
             modifier = Modifier.fillMaxWidth()
         ) { viewModel.update { j -> j.copy(teardownFeet = it.toDouble()) } }
         Text(
-            "Teardown is charged on the same footage as the new fence. If the old fence " +
-                "ran a different length, add a separate run for it and type its length in " +
-                "\"Total feet\" -- that keeps it off the new fence's takeoff.",
+            stringResource(R.string.jd_teardown_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 
     Spacer(Modifier.height(12.dp))
-    Text("Gates", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Text(stringResource(R.string.jd_gates), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     DraftNumberField(
-        stableKey = job.id, label = "Gate rate ($ per foot of opening)",
+        stableKey = job.id, label = stringResource(R.string.jd_gate_rate),
         initialValue = job.gateRatePerFt.toFloat(),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(gateRatePerFt = it.toDouble()) } }
     Text(
-        "Charged on the gate opening only, not the whole fence. A 5 ft gate at " +
-            "$${"%.0f".format(job.gateRatePerFt)}/ft is $${"%.0f".format(job.gateRatePerFt * 5)}. " +
-            "Gates are the slowest work on a job per foot, so pricing them at the fence " +
-            "rate loses money on every one.",
+        stringResource(
+            R.string.jd_gate_note,
+            "%.0f".format(job.gateRatePerFt),
+            "%.0f".format(job.gateRatePerFt * 5)
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -754,6 +753,8 @@ private fun ScheduleFields(
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.US) }
 
+    val dateButtonLabel = job.scheduledDate?.let { stringResource(R.string.jd_scheduled_on, dateFormat.format(Date(it))) }
+        ?: stringResource(R.string.jd_set_job_date)
     Button(
         onClick = {
             val cal = Calendar.getInstance()
@@ -771,7 +772,7 @@ private fun ScheduleFields(
         modifier = Modifier.fillMaxWidth()
     ) {
         Icon(Icons.Filled.Event, contentDescription = null)
-        Text("  " + (job.scheduledDate?.let { "Scheduled: ${dateFormat.format(Date(it))}" } ?: "Set Job Date"))
+        Text("  " + dateButtonLabel)
     }
 
     val pxPerFt = job.calibrationPixelsPerFoot
@@ -806,13 +807,13 @@ private fun ScheduleFields(
     }
 
     DraftNumberField(
-        stableKey = job.id, label = "Estimated duration (hours)", initialValue = job.estimatedDurationHours.toFloat(),
+        stableKey = job.id, label = stringResource(R.string.jd_est_duration), initialValue = job.estimatedDurationHours.toFloat(),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(estimatedDurationHours = it.toDouble(), durationManuallySet = true) } }
     if (job.durationManuallySet) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Set by hand -- it won't follow the footage any more.",
+                stringResource(R.string.jd_duration_manual),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
@@ -821,13 +822,13 @@ private fun ScheduleFields(
                 viewModel.update { j ->
                     j.copy(durationManuallySet = false, estimatedDurationHours = estimate.totalHours)
                 }
-            }) { Text("Recalculate") }
+            }) { Text(stringResource(R.string.jd_recalculate)) }
         }
     }
 
     if (estimate.totalHours > 0.0) {
         Text(
-            "Calculated: ${estimate.summary()}",
+            stringResource(R.string.jd_calculated, estimate.summary()),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium
         )
@@ -839,10 +840,11 @@ private fun ScheduleFields(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
                 Text(
-                    "This won't finish in one day — it needs about " +
-                        "${"%.1f".format(estimate.days)} working days at " +
-                        "${"%.1f".format(estimate.installHoursPerDay)} install hours a day. " +
-                        "Book the customer accordingly, or split it across runs.",
+                    stringResource(
+                        R.string.jd_multi_day,
+                        "%.1f".format(estimate.days),
+                        "%.1f".format(estimate.installHoursPerDay)
+                    ),
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer
@@ -850,7 +852,7 @@ private fun ScheduleFields(
             }
         }
         Text(
-            "Based on 125 ft per 8-hour day, adjusted for fence type, corners, gates and teardown.",
+            stringResource(R.string.jd_duration_basis),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -860,11 +862,11 @@ private fun ScheduleFields(
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Use calculated ${"%.1f".format(estimate.totalHours)} hours")
+            Text(stringResource(R.string.jd_use_calculated, "%.1f".format(estimate.totalHours)))
         }
     } else {
         Text(
-            "Draw the fence on the Survey screen and the app will work out how long it should take.",
+            stringResource(R.string.jd_draw_to_estimate_duration),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -877,8 +879,11 @@ private fun ScheduleFields(
         val planned = if (job.estimatedDurationHours > 0) job.estimatedDurationHours else estimate.totalHours
         val diff = loggedHours - planned
         Text(
-            "Actually took ${"%.1f".format(loggedHours)} hrs" +
-                if (planned > 0) " — ${if (diff > 0) "${"%.1f".format(diff)} over" else "${"%.1f".format(-diff)} under"} the estimate" else "",
+            stringResource(R.string.jd_actually_took, "%.1f".format(loggedHours)) +
+                if (planned > 0) " — " + (
+                    if (diff > 0) stringResource(R.string.jd_over_estimate, "%.1f".format(diff))
+                    else stringResource(R.string.jd_under_estimate, "%.1f".format(-diff))
+                ) else "",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = if (diff > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
@@ -887,11 +892,15 @@ private fun ScheduleFields(
 
     val scheduledDate = job.scheduledDate
     if (scheduledDate != null) {
+        val calendarTitle = stringResource(
+            R.string.jd_calendar_title,
+            job.customerName.ifBlank { stringResource(R.string.jd_customer_fallback) }
+        )
         OutlinedButton(
             onClick = {
                 IntentHelpers.addToCalendar(
                     context = context,
-                    title = "Fence Install -- ${job.customerName.ifBlank { "Customer" }}",
+                    title = calendarTitle,
                     description = job.notes,
                     location = job.address,
                     startMillis = scheduledDate,
@@ -901,7 +910,7 @@ private fun ScheduleFields(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.CalendarMonth, contentDescription = null)
-            Text("  Add to Calendar")
+            Text("  " + stringResource(R.string.jd_add_to_calendar))
         }
     }
 }
@@ -914,24 +923,24 @@ private fun CrewFields(job: Job, employees: List<Employee>, viewModel: JobDetail
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = selected?.name ?: "Unassigned", onValueChange = {}, readOnly = true,
-            label = { Text("Assigned crew member") },
+            value = selected?.name ?: stringResource(R.string.jd_unassigned), onValueChange = {}, readOnly = true,
+            label = { Text(stringResource(R.string.jd_assigned_crew)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Unassigned") },
+                text = { Text(stringResource(R.string.jd_unassigned)) },
                 onClick = { viewModel.update { j -> j.copy(assignedEmployeeId = null) }; expanded = false }
             )
             employees.forEach { e ->
                 DropdownMenuItem(
-                    text = { Text(e.name.ifBlank { "Unnamed" } + if (e.role.isNotBlank()) " · ${e.role}" else "") },
+                    text = { Text(e.name.ifBlank { stringResource(R.string.jd_unnamed) } + if (e.role.isNotBlank()) " · ${e.role}" else "") },
                     onClick = { viewModel.update { j -> j.copy(assignedEmployeeId = e.id) }; expanded = false }
                 )
             }
             if (employees.isEmpty()) {
-                DropdownMenuItem(text = { Text("No crew added yet -- see Employees in Settings") }, onClick = { expanded = false })
+                DropdownMenuItem(text = { Text(stringResource(R.string.jd_no_crew_yet)) }, onClick = { expanded = false })
             }
         }
     }
@@ -953,8 +962,8 @@ private fun OrderFields(
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = selected?.name ?: "No manufacturer selected", onValueChange = {}, readOnly = true,
-            label = { Text("Order from") },
+            value = selected?.name ?: stringResource(R.string.jd_no_manufacturer), onValueChange = {}, readOnly = true,
+            label = { Text(stringResource(R.string.jd_order_from)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -971,6 +980,12 @@ private fun OrderFields(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+    val seeAttachedEstimate = stringResource(R.string.jd_see_attached_estimate)
+    val orderSubject = stringResource(
+        R.string.jd_order_subject,
+        job.customerName.ifBlank { stringResource(R.string.jd_customer_fallback) },
+        job.address
+    )
     Button(
         onClick = {
             val to = selected?.email.orEmpty()
@@ -980,15 +995,15 @@ private fun OrderFields(
                 customerName = job.customerName,
                 address = job.address,
                 lineItems = runSummary,
-                total = "See attached estimate",
+                total = seeAttachedEstimate,
                 businessName = profile.businessName
             )
-            IntentHelpers.openEmailDraft(context, to, "New Order -- ${job.customerName.ifBlank { "Customer" }}, ${job.address}", body)
+            IntentHelpers.openEmailDraft(context, to, orderSubject, body)
         },
         enabled = selected != null,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(if (selected == null) "Add a manufacturer first" else "Email Order to ${selected.name}")
+        Text(if (selected == null) stringResource(R.string.jd_add_manufacturer_first) else stringResource(R.string.jd_email_order_to, selected.name))
     }
 }
 
@@ -996,17 +1011,17 @@ private fun OrderFields(
 @Composable
 private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, viewModel: JobDetailViewModel) {
     val context = LocalContext.current
-    DraftTextField(stableKey = job.id, initialValue = job.hoaName, label = "HOA name", modifier = Modifier.fillMaxWidth()) {
+    DraftTextField(stableKey = job.id, initialValue = job.hoaName, label = stringResource(R.string.jd_hoa_name), modifier = Modifier.fillMaxWidth()) {
         viewModel.update { j -> j.copy(hoaName = it) }
     }
-    DraftTextField(stableKey = job.id, initialValue = job.hoaEmail, label = "HOA email", keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) {
+    DraftTextField(stableKey = job.id, initialValue = job.hoaEmail, label = stringResource(R.string.jd_hoa_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) {
         viewModel.update { j -> j.copy(hoaEmail = it) }
     }
     var hoaExpanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = hoaExpanded, onExpandedChange = { hoaExpanded = it }) {
         OutlinedTextField(
             value = job.hoaApprovalStatus.name.replace("_", " "), onValueChange = {}, readOnly = true,
-            label = { Text("HOA approval status") },
+            label = { Text(stringResource(R.string.jd_hoa_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = hoaExpanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -1019,6 +1034,7 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
             }
         }
     }
+    val hoaSubject = stringResource(R.string.jd_hoa_subject, job.address)
     Button(
         onClick = {
             val firstRun = runs.firstOrNull()
@@ -1031,25 +1047,25 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
                 businessName = profile.businessName,
                 phone = profile.phone
             )
-            IntentHelpers.openEmailDraft(context, job.hoaEmail, "Fence Installation Approval Request -- ${job.address}", body)
+            IntentHelpers.openEmailDraft(context, job.hoaEmail, hoaSubject, body)
             viewModel.update { j -> if (j.hoaApprovalStatus == HoaApprovalStatus.NOT_REQUIRED) j.copy(hoaApprovalStatus = HoaApprovalStatus.PENDING) else j }
         },
         enabled = job.hoaEmail.isNotBlank(),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Send HOA Approval Request")
+        Text(stringResource(R.string.jd_send_hoa_request))
     }
 
     androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
-    Text("Permit", style = MaterialTheme.typography.titleSmall)
-    DraftTextField(stableKey = job.id, initialValue = job.permitNumber, label = "Permit number", modifier = Modifier.fillMaxWidth()) {
+    Text(stringResource(R.string.jd_permit), style = MaterialTheme.typography.titleSmall)
+    DraftTextField(stableKey = job.id, initialValue = job.permitNumber, label = stringResource(R.string.jd_permit_number), modifier = Modifier.fillMaxWidth()) {
         viewModel.update { j -> j.copy(permitNumber = it) }
     }
     var permitExpanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = permitExpanded, onExpandedChange = { permitExpanded = it }) {
         OutlinedTextField(
             value = job.permitStatus.name.replace("_", " "), onValueChange = {}, readOnly = true,
-            label = { Text("Permit status") },
+            label = { Text(stringResource(R.string.jd_permit_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = permitExpanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -1071,7 +1087,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
             value = job.paymentStatus.name.replace("_", " "), onValueChange = {}, readOnly = true,
-            label = { Text("Payment status") },
+            label = { Text(stringResource(R.string.jd_payment_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -1087,7 +1103,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
             stableKey = job.id,
-            label = "Deposit amount ($)", initialValue = job.depositAmount.toFloat(),
+            label = stringResource(R.string.jd_deposit_amount), initialValue = job.depositAmount.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(depositAmount = it.toDouble()) } }
 
@@ -1104,11 +1120,10 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             onValueChange = {},
             readOnly = true,
             enabled = false,
-            label = { Text("Total paid so far") },
+            label = { Text(stringResource(R.string.jd_total_paid)) },
             supportingText = {
                 Text(
-                    if (job.paymentsFromProcessor) "Updates by itself as payments clear"
-                    else "Use Record a payment below"
+                    stringResource(if (job.paymentsFromProcessor) R.string.jd_paid_auto_updates else R.string.jd_paid_use_record)
                 )
             },
             modifier = Modifier.weight(1f)
@@ -1117,7 +1132,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
 
     if (job.refundedAmount > 0.0) {
         Text(
-            "Refunded: $${"%.2f".format(job.refundedAmount)}" +
+            stringResource(R.string.jd_refunded_amount, "%.2f".format(job.refundedAmount)) +
                 if (job.refundReason.isNotBlank()) " -- ${job.refundReason}" else "",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
@@ -1143,17 +1158,18 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             onClick = { viewModel.applySuggestedDeposit() },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Set deposit to $${"%.0f".format(suggested)} (covers materials)")
+            Text(stringResource(R.string.jd_set_deposit_covers, "%.0f".format(suggested)))
         }
         Text(
             if (paidSoFar > 0.005)
-                "Materials come to $${"%.2f".format(materialCost)} and " +
-                    "$${"%.2f".format(paidSoFar)} has been paid, so " +
-                    "$${"%.2f".format(materialCost - paidSoFar)} is still needed to " +
-                    "cover them. Rounded up to the next \$10."
+                stringResource(
+                    R.string.jd_materials_partly_paid,
+                    "%.2f".format(materialCost),
+                    "%.2f".format(paidSoFar),
+                    "%.2f".format(materialCost - paidSoFar)
+                )
             else
-                "Materials on this estimate come to $${"%.2f".format(materialCost)}. " +
-                    "Rounded up to the next \$10.",
+                stringResource(R.string.jd_materials_come_to, "%.2f".format(materialCost)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1222,18 +1238,18 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
             Column(Modifier.padding(12.dp)) {
-                MoneyLine("Contract total (from the estimate)", contractTotal)
+                MoneyLine(stringResource(R.string.jd_contract_total), contractTotal)
                 // With a refund in play the lines have to SUM: paid gross,
                 // minus refunded, equals kept. The old box put the net figure
                 // on the "Paid so far" line and then listed the refund under
                 // it anyway -- so reading top to bottom subtracted the refund
                 // twice and arrived at a number that matched nothing below.
                 if (job.refundedAmount > 0.005) {
-                    MoneyLine("Paid in total", job.amountPaid)
-                    MoneyLine("Refunded", -job.refundedAmount)
-                    MoneyLine("Kept after refunds", netPaid)
+                    MoneyLine(stringResource(R.string.jd_paid_in_total), job.amountPaid)
+                    MoneyLine(stringResource(R.string.jd_refunded), -job.refundedAmount)
+                    MoneyLine(stringResource(R.string.jd_kept_after_refunds), netPaid)
                 } else {
-                    MoneyLine("Paid so far", netPaid)
+                    MoneyLine(stringResource(R.string.jd_paid_so_far), netPaid)
                 }
                 // Signed, not floored. An overpaid customer used to read as
                 // "Still owed $0.00", which hides the fact that money is owed
@@ -1241,18 +1257,17 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 // ask for it.
                 val balance = JobMoney.balance(job, contractTotal)
                 if (balance < -0.005) {
-                    MoneyLine("You owe the customer", -balance, bold = true)
+                    MoneyLine(stringResource(R.string.jd_you_owe_customer), -balance, bold = true)
                 } else {
-                    MoneyLine("Still owed", balance.coerceAtLeast(0.0), bold = true)
+                    MoneyLine(stringResource(R.string.jd_still_owed), balance.coerceAtLeast(0.0), bold = true)
                 }
                 if (job.amountPaid > 0.0) {
                     Text(
                         when {
                             balance < -0.005 ->
-                                "They have paid ${"%.2f".format(-balance)} more than the job " +
-                                    "comes to. Record a refund below once you have sent it back."
-                            balance <= 0.005 -> "Paid in full."
-                            else -> "Card payments post here automatically once they clear."
+                                stringResource(R.string.jd_overpaid_by, "%.2f".format(-balance))
+                            balance <= 0.005 -> stringResource(R.string.jd_paid_in_full)
+                            else -> stringResource(R.string.jd_card_payments_auto)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -1260,7 +1275,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 }
                 if (totals.changeOrderCost > 0.0) {
                     Text(
-                        "Includes $${"%.2f".format(totals.changeOrderCost)} of approved extra work.",
+                        stringResource(R.string.jd_includes_extra_work, "%.2f".format(totals.changeOrderCost)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -1275,19 +1290,15 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 Column(Modifier.padding(12.dp)) {
                     Text(
                         if (paidOverContract)
-                            "Paid ($${"%.2f".format(netPaid)}) is more than the contract total " +
-                                "($${"%.2f".format(contractTotal)}). Either the estimate is out of date or " +
-                                "the customer has been overcharged."
+                            stringResource(R.string.jd_paid_over_contract, "%.2f".format(netPaid), "%.2f".format(contractTotal))
                         else
-                            "The deposit ($${"%.2f".format(job.depositAmount)}) is more than the whole " +
-                                "contract ($${"%.2f".format(contractTotal)}).",
+                            stringResource(R.string.jd_deposit_over_contract, "%.2f".format(job.depositAmount), "%.2f".format(contractTotal)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     if (paidOverContract) {
                         Text(
-                            "Give back $${"%.2f".format(JobMoney.refundable(job, contractTotal))} " +
-                                "with Record a refund below.",
+                            stringResource(R.string.jd_give_back, "%.2f".format(JobMoney.refundable(job, contractTotal))),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.padding(top = 6.dp)
@@ -1313,6 +1324,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // offered to charge $5,730 -- the original deposit, for money already
     // collected. There is no case where the right answer is a figure from
     // earlier in the job: it is always what is left.
+    val paymentDescription = stringResource(R.string.jd_payment_description, job.address.ifBlank { job.customerName })
     val requestAmount = JobMoney.nextRequestAmount(job, contractTotal)
     val requestLabel = JobMoney.nextRequestLabel(job, contractTotal)
     Button(
@@ -1325,7 +1337,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                     amountDollars = requestAmount,
                     kind = if (requestLabel == "balance") PaymentsApi.Kind.FINAL
                     else PaymentsApi.Kind.DEPOSIT,
-                    description = "Fence installation - ${job.address.ifBlank { job.customerName }}"
+                    description = paymentDescription
                 )
                 creatingLink = false
                 when (result) {
@@ -1346,16 +1358,16 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     ) {
         Text(
             when {
-                creatingLink -> "Creating link..."
-                requestAmount >= 0.50 -> "Request $${"%.2f".format(requestAmount)} $requestLabel by Card"
-                else -> "Request Payment by Card"
+                creatingLink -> stringResource(R.string.jd_creating_link)
+                requestAmount >= 0.50 -> stringResource(R.string.jd_request_by_card, "%.2f".format(requestAmount), requestLabel)
+                else -> stringResource(R.string.jd_request_payment_by_card)
             }
         )
     }
     // A grey button with no reason reads as the app being broken.
     if (job.signedAt == null) {
         Text(
-            "Payment can be requested once the customer signs the contract.",
+            stringResource(R.string.jd_payment_after_signature),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1379,11 +1391,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             )
         ) {
             Text(
-                if (isLive)
-                    "LIVE MODE -- this link charges a real card and moves real money. " +
-                        "Test cards will be declined."
-                else
-                    "TEST MODE -- no real money moves. Pay it with 4242 4242 4242 4242.",
+                stringResource(if (isLive) R.string.jd_live_mode else R.string.jd_test_mode),
                 modifier = Modifier.padding(12.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
@@ -1394,14 +1402,13 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         Spacer(Modifier.height(8.dp))
     }
     Text(
-        "Creates a Stripe checkout link. The money goes to your Stripe account -- " +
-            "FenceFlow never holds it, and the card details never touch this phone.",
+        stringResource(R.string.jd_stripe_explain),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     if (requestAmount < 0.50) {
         Text(
-            "Set a deposit amount below and the link will bill that exact figure.",
+            stringResource(R.string.jd_set_deposit_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1418,7 +1425,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                         token = profile.squareAccessToken.trim(),
                         locationId = profile.squareLocationId.trim(),
                         amount = amount,
-                        description = "Fence installation - ${job.address.ifBlank { job.customerName }}",
+                        description = paymentDescription,
                         buyerEmail = job.email.takeIf { it.isNotBlank() }
                     )
                     creatingLink = false
@@ -1441,15 +1448,15 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         ) {
             Text(
                 when {
-                    creatingLink -> "Creating link..."
-                    requestAmount > 0.005 -> "Create Square Link for ${"%.2f".format(requestAmount)}"
-                    else -> "Create Square Payment Link"
+                    creatingLink -> stringResource(R.string.jd_creating_link)
+                    requestAmount > 0.005 -> stringResource(R.string.jd_create_square_link_for, "%.2f".format(requestAmount))
+                    else -> stringResource(R.string.jd_create_square_link)
                 }
             )
         }
         if (requestAmount <= 0.005) {
             Text(
-                "Set a deposit amount below and the link will bill that exact figure.",
+                stringResource(R.string.jd_set_deposit_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1461,12 +1468,11 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
 
     DraftTextField(
         stableKey = job.id, initialValue = job.paymentLinkUrl,
-        label = "Payment link",
+        label = stringResource(R.string.jd_payment_link),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(paymentLinkUrl = it) } }
     Text(
-        "Filled in by the button above, or paste any link you already use " +
-            "(PayPal, Venmo, Square). Money goes straight to your own account.",
+        stringResource(R.string.jd_payment_link_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -1483,13 +1489,12 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         ) {
             Column(Modifier.padding(12.dp)) {
                 Text(
-                    "This link still bills $${"%.2f".format(job.paymentLinkAmount)}, " +
-                        "but the amount due is now $${"%.2f".format(requestAmount)}.",
+                    stringResource(R.string.jd_link_stale, "%.2f".format(job.paymentLinkAmount), "%.2f".format(requestAmount)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
                 Text(
-                    "Tap Request by Card again to replace it before you send anything.",
+                    stringResource(R.string.jd_link_stale_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -1499,41 +1504,36 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     }
 
     if (job.paymentLinkUrl.isNotBlank()) {
+        // Naming the amount in the message means the customer can
+        // check it against the estimate before they tap anything.
+        val amountText = if (job.paymentLinkAmount > 0.0) " " + stringResource(R.string.jd_for_amount, "%.2f".format(job.paymentLinkAmount)) else ""
+        val greetingName = job.customerName.ifBlank { stringResource(R.string.jd_there) }
+        val smsBody = stringResource(R.string.jd_payment_sms_body, greetingName, amountText, job.address, job.paymentLinkUrl)
+        val emailBody = stringResource(R.string.jd_payment_email_body, greetingName, amountText, job.address, job.paymentLinkUrl)
+        val emailSubject = stringResource(R.string.jd_payment_email_subject)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton(
-                onClick = {
-                    // Naming the amount in the message means the customer can
-                    // check it against the estimate before they tap anything.
-                    val amountText = if (job.paymentLinkAmount > 0.0) " for $${"%.2f".format(job.paymentLinkAmount)}" else ""
-                    val body = "Hi ${job.customerName.ifBlank { "there" }}, here's the payment link$amountText " +
-                        "for your fence at ${job.address}:\n\n${job.paymentLinkUrl}"
-                    IntentHelpers.openSmsDraft(context, job.phone, body)
-                },
+                onClick = { IntentHelpers.openSmsDraft(context, job.phone, smsBody) },
                 enabled = job.phone.isNotBlank() && !linkIsStale,
                 modifier = Modifier.weight(1f)
-            ) { Text("Text Link") }
+            ) { Text(stringResource(R.string.jd_text_link)) }
             Button(
-                onClick = {
-                    val amountText = if (job.paymentLinkAmount > 0.0) " for $${"%.2f".format(job.paymentLinkAmount)}" else ""
-                    val body = "Hi ${job.customerName.ifBlank { "there" }},\n\nHere's the payment link$amountText " +
-                        "for your fence at ${job.address}:\n\n${job.paymentLinkUrl}\n\nThank you!"
-                    IntentHelpers.openEmailDraft(context, job.email, "Payment link for your fence", body)
-                },
+                onClick = { IntentHelpers.openEmailDraft(context, job.email, emailSubject, emailBody) },
                 enabled = job.email.isNotBlank() && !linkIsStale,
                 modifier = Modifier.weight(1f)
-            ) { Text("Email Link") }
+            ) { Text(stringResource(R.string.jd_email_link)) }
         }
     }
 
     androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
     DraftNumberField(
-        stableKey = job.id, label = "Tip ($) -- goes 100% to the installer",
+        stableKey = job.id, label = stringResource(R.string.jd_tip_label),
         initialValue = job.tipAmount.toFloat(),
         modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(tipAmount = it.toDouble()) } }
     if (job.tipAmount > 0.0) {
         Text(
-            "$${"%.2f".format(job.tipAmount)} tip recorded. This is tracked separately from the contract and is not counted as company revenue in reports.",
+            stringResource(R.string.jd_tip_recorded, "%.2f".format(job.tipAmount)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1541,13 +1541,13 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
 
     if (job.isInvoiced) {
         Text(
-            "Invoice has been generated for this job.",
+            stringResource(R.string.jd_invoice_generated),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     } else {
         Text(
-            "Use \"Generate & Share Invoice\" on the Estimate screen once the job is complete.",
+            stringResource(R.string.jd_invoice_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1561,7 +1561,7 @@ private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewMod
 
     if (expenses.isEmpty()) {
         Text(
-            "No expenses logged for this job yet (fuel, equipment rental, permit fees, etc).",
+            stringResource(R.string.jd_no_expenses),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1583,16 +1583,16 @@ private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewMod
                 Text("$${String.format("%.2f", expense.amount)}")
                 if (canDelete) {
                     IconButton(onClick = { viewModel.deleteExpense(expense) }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Remove expense")
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_expense))
                     }
                 }
             }
         }
-        Text("Total expenses: $${String.format("%.2f", total)}", fontWeight = FontWeight.Medium)
+        Text(stringResource(R.string.jd_total_expenses, String.format("%.2f", total)), fontWeight = FontWeight.Medium)
     }
     OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) {
         Icon(Icons.Filled.Add, contentDescription = null)
-        Text("  Add Expense")
+        Text("  " + stringResource(R.string.jd_add_expense))
     }
 
     if (showAdd) {
@@ -1616,13 +1616,13 @@ private fun AddExpenseDialog(onConfirm: (ExpenseCategory, String, Double) -> Uni
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Expense") },
+        title = { Text(stringResource(R.string.jd_add_expense)) },
         text = {
             Column {
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
                     OutlinedTextField(
                         value = category.name.replace("_", " "), onValueChange = {}, readOnly = true,
-                        label = { Text("Category") },
+                        label = { Text(stringResource(R.string.jd_category)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
@@ -1635,33 +1635,33 @@ private fun AddExpenseDialog(onConfirm: (ExpenseCategory, String, Double) -> Uni
                 androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = description, onValueChange = { description = it },
-                    label = { Text("Description") }, modifier = Modifier.fillMaxWidth()
+                    label = { Text(stringResource(R.string.est_description)) }, modifier = Modifier.fillMaxWidth()
                 )
                 androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = amountText, onValueChange = { amountText = it },
-                    label = { Text("Amount ($)") },
+                    label = { Text(stringResource(R.string.jd_amount)) },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(category, description, amountText.toDoubleOrNull() ?: 0.0) }) { Text("Add") }
+            Button(onClick = { onConfirm(category, description, amountText.toDoubleOrNull() ?: 0.0) }) { Text(stringResource(R.string.action_add)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
 @Composable
 /** Button wording for where a step gets finished, or null if it's finished right here. */
 private fun stageDestination(action: StageAction): String? = when (action) {
-    StageAction.DRAW -> "Go to Draw"
-    StageAction.ESTIMATE -> "Go to Estimate"
-    StageAction.CREW_VIEW -> "Go to Crew View"
-    StageAction.PAYMENT -> "Go to Payment"
-    StageAction.HOA -> "Go to HOA & Permits"
-    StageAction.SCHEDULE -> "Go to Scheduling"
+    StageAction.DRAW -> stringResource(R.string.jd_go_to_draw)
+    StageAction.ESTIMATE -> stringResource(R.string.jd_go_to_estimate)
+    StageAction.CREW_VIEW -> stringResource(R.string.jd_go_to_crew_view)
+    StageAction.PAYMENT -> stringResource(R.string.jd_go_to_payment)
+    StageAction.HOA -> stringResource(R.string.jd_go_to_hoa)
+    StageAction.SCHEDULE -> stringResource(R.string.jd_go_to_scheduling)
     StageAction.NONE -> null
 }
 
@@ -1680,7 +1680,7 @@ private fun ProjectProgressSection(
 
     val doneCount = stages.count { it.done }
     Text(
-        "$doneCount of ${stages.size} steps done",
+        stringResource(R.string.jd_steps_done, doneCount, stages.size),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -1716,7 +1716,7 @@ private fun ProjectProgressSection(
             )
             if (stage.current) {
                 Text(
-                    "NEXT",
+                    stringResource(R.string.jd_next),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.secondary
@@ -1732,7 +1732,7 @@ private fun ProjectProgressSection(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        if (stage.done) "Done." else if (stage.current) "This is your next step." else "Not done yet.",
+                        stringResource(if (stage.done) R.string.jd_stage_done else if (stage.current) R.string.jd_stage_next else R.string.jd_stage_not_done),
                         fontWeight = FontWeight.Medium,
                         color = if (stage.done) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface
@@ -1749,21 +1749,22 @@ private fun ProjectProgressSection(
                         Text(destination)
                     }
                 } else {
-                    Button(onClick = { openStage = null }) { Text("Got it") }
+                    Button(onClick = { openStage = null }) { Text(stringResource(R.string.jd_got_it)) }
                 }
             },
             dismissButton = {
                 if (stageDestination(stage.action) != null && !stage.done) {
-                    OutlinedButton(onClick = { openStage = null }) { Text("Close") }
+                    OutlinedButton(onClick = { openStage = null }) { Text(stringResource(R.string.jd_close)) }
                 }
             }
         )
     }
     Text(
-        "Send the customer a plain-language update of exactly this progress.",
+        stringResource(R.string.jd_send_update_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+    val updateSubject = stringResource(R.string.jd_update_subject)
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedButton(
             onClick = {
@@ -1771,17 +1772,17 @@ private fun ProjectProgressSection(
             },
             enabled = job.phone.isNotBlank(),
             modifier = Modifier.weight(1f)
-        ) { Text("Text Update") }
+        ) { Text(stringResource(R.string.jd_text_update)) }
         OutlinedButton(
             onClick = {
                 IntentHelpers.openEmailDraft(
-                    context, job.email, "Update on your fence project",
+                    context, job.email, updateSubject,
                     ProjectStatus.asMessage(job, jobComplete, profile.businessName)
                 )
             },
             enabled = job.email.isNotBlank(),
             modifier = Modifier.weight(1f)
-        ) { Text("Email Update") }
+        ) { Text(stringResource(R.string.jd_email_update)) }
     }
 }
 
@@ -1802,16 +1803,16 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
         ) {
             Column(Modifier.padding(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Extra work approved", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(stringResource(R.string.jd_extra_work_approved), color = MaterialTheme.colorScheme.onSecondaryContainer)
                     Text(
                         "+$${"%.2f".format(totals.changeOrderCost)}" +
-                            if (totals.changeOrderFeet > 0) "  (+${"%.0f".format(totals.changeOrderFeet)} ft)" else "",
+                            if (totals.changeOrderFeet > 0) "  " + stringResource(R.string.jd_plus_feet_paren, "%.0f".format(totals.changeOrderFeet)) else "",
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("New contract total", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(stringResource(R.string.jd_new_contract_total), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     Text(
                         "$${"%.2f".format(totals.grandTotal)}",
                         fontWeight = FontWeight.Bold,
@@ -1819,7 +1820,7 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                     )
                 }
                 Text(
-                    "Extra feet are billed at your labor rate, so the total can rise by more than the cost you typed.",
+                    stringResource(R.string.jd_extra_feet_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
@@ -1830,8 +1831,7 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
 
     if (orders.isEmpty()) {
         Text(
-            "If the customer adds work after the estimate (another 30 ft, an extra gate), log it here and have them sign. " +
-                "That signed, dated record is what protects you if they dispute the final bill.",
+            stringResource(R.string.jd_no_change_orders),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1841,10 +1841,11 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                 Column(Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(order.description.ifBlank { "Extra work" }, fontWeight = FontWeight.Medium)
+                            Text(order.description.ifBlank { stringResource(R.string.jd_extra_work) }, fontWeight = FontWeight.Medium)
+                            val plusFeet = if (order.additionalFeet > 0) stringResource(R.string.jd_plus_feet, "%.0f".format(order.additionalFeet)) + "  ·  " else ""
                             Text(
                                 buildString {
-                                    if (order.additionalFeet > 0) append("+${"%.0f".format(order.additionalFeet)} ft  ·  ")
+                                    append(plusFeet)
                                     append("$${"%.2f".format(order.additionalCost)}")
                                     append("  ·  ${dateFormat.format(Date(order.createdAt))}")
                                 },
@@ -1853,17 +1854,17 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                             )
                         }
                         IconButton(onClick = { editingOrder = order }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit change order")
+                            Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.jd_edit_change_order))
                         }
                         if (canDelete) {
                             IconButton(onClick = { viewModel.deleteChangeOrder(order) }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Remove change order")
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_change_order))
                             }
                         }
                     }
                     if (order.materialCost > 0) {
                         Text(
-                            "Includes $${"%.2f".format(order.materialCost)} of materials",
+                            stringResource(R.string.jd_includes_materials, "%.2f".format(order.materialCost)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1876,26 +1877,26 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                                 modifier = Modifier.height(36.dp).weight(1f)
                             )
                             Text(
-                                order.signedAt?.let { "Signed ${dateFormat.format(Date(it))}" }.orEmpty(),
+                                order.signedAt?.let { stringResource(R.string.jd_signed_on, dateFormat.format(Date(it))) }.orEmpty(),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else {
                         Button(onClick = { signingOrder = order }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Get Customer Signature")
+                            Text(stringResource(R.string.jd_get_signature))
                         }
                     }
                 }
             }
         }
         val signedTotal = orders.filter { it.isSigned }.sumOf { it.additionalCost }
-        Text("Approved extra work: $${"%.2f".format(signedTotal)}", fontWeight = FontWeight.Medium)
+        Text(stringResource(R.string.jd_approved_extra_work, "%.2f".format(signedTotal)), fontWeight = FontWeight.Medium)
     }
 
     OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) {
         Icon(Icons.Filled.Add, contentDescription = null)
-        Text("  Add Change Order")
+        Text("  " + stringResource(R.string.jd_add_change_order))
     }
 
     editingOrder?.let { order ->
@@ -1944,41 +1945,37 @@ private fun AddChangeOrderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "Additional Work Authorization" else "Edit Change Order") },
+        title = { Text(stringResource(if (existing == null) R.string.jd_additional_work_auth else R.string.jd_edit_change_order_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = description, onValueChange = { description = it },
-                    label = { Text("What's being added?") }, minLines = 2, modifier = Modifier.fillMaxWidth()
+                    label = { Text(stringResource(R.string.jd_whats_added)) }, minLines = 2, modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = feetText, onValueChange = { feetText = it },
-                    label = { Text("Additional feet (optional)") },
+                    label = { Text(stringResource(R.string.jd_additional_feet)) },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = costText, onValueChange = { costText = it },
-                    label = { Text("Total charged to customer ($)") },
+                    label = { Text(stringResource(R.string.jd_total_charged)) },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = materialText, onValueChange = { materialText = it },
-                    label = { Text("Of that, extra materials ($)") },
+                    label = { Text(stringResource(R.string.jd_of_that_materials)) },
                     isError = materialsTooHigh,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    if (materialsTooHigh)
-                        "Materials are more than you're charging -- this change order loses money."
-                    else
-                        "Materials you have to buy for this extra work. Kept separate so the " +
-                            "suggested deposit covers it instead of you fronting it.",
+                    stringResource(if (materialsTooHigh) R.string.jd_materials_too_high else R.string.jd_materials_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (materialsTooHigh) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1986,8 +1983,7 @@ private fun AddChangeOrderDialog(
                 if (existing?.signatureImagePath != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Changing the feet, the cost, or the materials clears the customer's " +
-                            "signature -- they signed for the old figures, so it has to be signed again.",
+                        stringResource(R.string.jd_signature_clears),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -2005,9 +2001,9 @@ private fun AddChangeOrderDialog(
                     )
                 },
                 enabled = description.isNotBlank()
-            ) { Text(if (existing == null) "Add" else "Save") }
+            ) { Text(stringResource(if (existing == null) R.string.action_add else R.string.action_save)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -2017,7 +2013,7 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
 
     if (items.isEmpty()) {
         Text(
-            "No punch-list items. Track anything the customer wants fixed after the install here.",
+            stringResource(R.string.jd_no_punch_items),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -2032,7 +2028,7 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
                 )
                 if (canDelete) {
                     IconButton(onClick = { viewModel.deletePunchListItem(item) }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Remove item")
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_item))
                     }
                 }
             }
@@ -2041,14 +2037,14 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = newItemText, onValueChange = { newItemText = it },
-            label = { Text("New callback item") }, modifier = Modifier.weight(1f)
+            label = { Text(stringResource(R.string.jd_new_callback_item)) }, modifier = Modifier.weight(1f)
         )
         Button(onClick = {
             if (newItemText.isNotBlank()) {
                 viewModel.addPunchListItem(newItemText)
                 newItemText = ""
             }
-        }) { Text("Add") }
+        }) { Text(stringResource(R.string.action_add)) }
     }
 }
 
@@ -2085,12 +2081,12 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
     }
 
     Text(
-        "Send once the job is finished and the customer is happy.",
+        stringResource(R.string.jd_review_send_when),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
-    Text("Which message?", style = MaterialTheme.typography.labelLarge)
+    Text(stringResource(R.string.jd_which_message), style = MaterialTheme.typography.labelLarge)
     com.fenceestimator.app.data.ReviewTemplate.values().forEach { option ->
         Row(
             Modifier.fillMaxWidth().padding(vertical = 2.dp),
@@ -2114,10 +2110,12 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
     OutlinedTextField(
         value = body,
         onValueChange = { body = it },
-        label = { Text("Message") },
+        label = { Text(stringResource(R.string.jd_message)) },
         modifier = Modifier.fillMaxWidth()
     )
 
+    val thanksSubject = stringResource(R.string.jd_thanks_from, profile.businessName.ifBlank { stringResource(R.string.jd_us) })
+    val reviewChooserTitle = stringResource(R.string.jd_send_review_request)
     // The share sheet first, because it is the one that always works. Email and
     // SMS both assume you know how this customer wants to be reached, and half
     // the time the number on file is a landline or they only answer WhatsApp.
@@ -2125,15 +2123,15 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
         onClick = {
             IntentHelpers.shareText(
                 context = context,
-                subject = "Thanks from " + profile.businessName.ifBlank { "us" },
+                subject = thanksSubject,
                 body = body,
-                chooserTitle = "Send review request"
+                chooserTitle = reviewChooserTitle
             )
         },
         modifier = Modifier.fillMaxWidth()
     ) {
         Icon(Icons.Filled.Star, contentDescription = null)
-        Text("  Send it")
+        Text("  " + stringResource(R.string.crew_send_request))
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2141,19 +2139,19 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
             onClick = { IntentHelpers.openSmsDraft(context, job.phone, body) },
             enabled = job.phone.isNotBlank(),
             modifier = Modifier.weight(1f)
-        ) { Text("Text") }
+        ) { Text(stringResource(R.string.jd_text)) }
         OutlinedButton(
             onClick = {
                 IntentHelpers.openEmailDraft(
                     context,
                     job.email,
-                    "Thanks from " + profile.businessName.ifBlank { "us" },
+                    thanksSubject,
                     body
                 )
             },
             enabled = job.email.isNotBlank(),
             modifier = Modifier.weight(1f)
-        ) { Text("Email") }
+        ) { Text(stringResource(R.string.field_email)) }
     }
 }
 
@@ -2181,14 +2179,14 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
                 cameraLauncher.launch(target.uri)
             }) {
                 Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                Text(" Camera")
+                Text(" " + stringResource(R.string.jd_camera))
             }
             OutlinedButton(onClick = {
                 pendingKind = kind
                 galleryLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             }) {
                 Icon(Icons.Filled.PhotoLibrary, contentDescription = null)
-                Text(" Gallery")
+                Text(" " + stringResource(R.string.jd_gallery))
             }
         }
         val kindPhotos = photos.filter { it.kind == kind }
@@ -2204,7 +2202,7 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
                         )
                         if (canDelete) {
                             IconButton(onClick = { viewModel.deletePhoto(photo) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Filled.Close, contentDescription = "Remove photo", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_photo), tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -2246,7 +2244,7 @@ private fun RefundControl(job: Job, contractTotal: Double, viewModel: JobDetailV
     OutlinedButton(
         onClick = { showDialog = true },
         modifier = Modifier.fillMaxWidth()
-    ) { Text("Record a refund") }
+    ) { Text(stringResource(R.string.jd_record_refund)) }
 
     if (showDialog) {
         // Pre-filled with the overpayment when there is one, because that is
@@ -2263,20 +2261,20 @@ private fun RefundControl(job: Job, contractTotal: Double, viewModel: JobDetailV
 
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text("Record a refund") },
+            title = { Text(stringResource(R.string.jd_record_refund)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Collected so far: $${"%.2f".format(netPaid)}",
+                        stringResource(R.string.jd_collected_so_far, "%.2f".format(netPaid)),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     OutlinedTextField(
                         value = amountText,
                         onValueChange = { amountText = it.replace(',', '.').filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Refund amount ($)") },
+                        label = { Text(stringResource(R.string.jd_refund_amount)) },
                         isError = tooMuch,
                         supportingText = if (tooMuch) {
-                            { Text("More than has been collected on this job.") }
+                            { Text(stringResource(R.string.jd_refund_too_much)) }
                         } else null,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -2284,15 +2282,14 @@ private fun RefundControl(job: Job, contractTotal: Double, viewModel: JobDetailV
                     OutlinedTextField(
                         value = reason,
                         onValueChange = { reason = it },
-                        label = { Text("Reason") },
-                        placeholder = { Text("Overpaid, cancelled gate, goodwill...") },
+                        label = { Text(stringResource(R.string.jd_reason)) },
+                        placeholder = { Text(stringResource(R.string.jd_reason_placeholder)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     // Said plainly, because it is the part people get wrong: the
                     // app records the refund, it does not move the money.
                     Text(
-                        "This records the refund on the job. Sending the money back " +
-                            "is done in your Stripe dashboard -- FenceFlow never holds it.",
+                        stringResource(R.string.jd_refund_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2305,10 +2302,10 @@ private fun RefundControl(job: Job, contractTotal: Double, viewModel: JobDetailV
                         viewModel.recordRefund(amount, reason.trim())
                         showDialog = false
                     }
-                ) { Text("Record") }
+                ) { Text(stringResource(R.string.jd_record)) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") }
+                OutlinedButton(onClick = { showDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -2337,19 +2334,21 @@ private fun StaleSignatureBanner(
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "This job changed after it was signed",
+                stringResource(R.string.jd_stale_sig_title),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Text(
-                "Since ${job.customerName.ifBlank { "the customer" }} signed, " +
-                    JobMoney.staleSignatureReason(job, contractTotal, linearFeet) +
-                    ". The signature on file is for the old job -- get a new one before you bill.",
+                stringResource(
+                    R.string.jd_stale_sig_body,
+                    job.customerName.ifBlank { stringResource(R.string.jd_the_customer) },
+                    JobMoney.staleSignatureReason(job, contractTotal, linearFeet)
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Button(onClick = onGetNewSignature, modifier = Modifier.fillMaxWidth()) {
-                Text("Get a new signature")
+                Text(stringResource(R.string.jd_get_new_signature))
             }
         }
     }
@@ -2371,7 +2370,7 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
     val owed = JobMoney.stillOwed(job, contractTotal)
 
     OutlinedButton(onClick = { showDialog = true }, modifier = Modifier.fillMaxWidth()) {
-        Text("Record a payment (cash, check, transfer)")
+        Text(stringResource(R.string.jd_record_payment_button))
     }
 
     if (showDialog) {
@@ -2404,18 +2403,18 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
 
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text("Record a payment") },
+            title = { Text(stringResource(R.string.jd_record_payment)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Already recorded: $${"%.2f".format(JobMoney.netPaid(job))}" +
-                            if (owed > 0.005) "\nStill owed: $${"%.2f".format(owed)}" else "",
+                        stringResource(R.string.jd_already_recorded, "%.2f".format(JobMoney.netPaid(job))) +
+                            if (owed > 0.005) "\n" + stringResource(R.string.jd_still_owed_amount, "%.2f".format(owed)) else "",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     OutlinedTextField(
                         value = amountText,
                         onValueChange = { amountText = it.replace(',', '.').filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Amount received ($)") },
+                        label = { Text(stringResource(R.string.jd_amount_received)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -2426,7 +2425,7 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                     // Defaulting the date to today is right most of the time and
                     // wrong exactly when someone is catching up on paperwork,
                     // which is when it matters.
-                    Text("How did it arrive?", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.jd_how_arrived), style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(
                             com.fenceestimator.app.data.PaymentMethod.CASH,
@@ -2444,7 +2443,7 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                         OutlinedTextField(
                             value = reference,
                             onValueChange = { reference = it },
-                            label = { Text("Check number") },
+                            label = { Text(stringResource(R.string.jd_check_number)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -2452,26 +2451,23 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                     OutlinedTextField(
                         value = dateText,
                         onValueChange = { dateText = it },
-                        label = { Text("Date received (YYYY-MM-DD)") },
+                        label = { Text(stringResource(R.string.jd_date_received)) },
                         isError = parsedDate == null,
                         supportingText = if (parsedDate == null) {
-                            { Text("Use YYYY-MM-DD so it lands in the right month.") }
+                            { Text(stringResource(R.string.jd_date_format_hint)) }
                         } else null,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (looksDuplicate) {
                         Text(
-                            "A payment of ${"%.2f".format(amount)} is already on this job " +
-                                "around that date. If the customer paid by card link, it " +
-                                "recorded itself -- adding it again counts the money twice.",
+                            stringResource(R.string.jd_duplicate_payment, "%.2f".format(amount)),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )
                     }
                     Text(
-                        "This is added to what has already been paid, not typed over it. " +
-                            "Card payments post here by themselves.",
+                        stringResource(R.string.jd_payment_adds_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2490,9 +2486,9 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                         )
                         showDialog = false
                     }
-                ) { Text(if (looksDuplicate) "Add anyway" else "Add ${"%.2f".format(amount)}") }
+                ) { Text(if (looksDuplicate) stringResource(R.string.jd_add_anyway) else stringResource(R.string.jd_add_amount, "%.2f".format(amount))) }
             },
-            dismissButton = { OutlinedButton(onClick = { showDialog = false }) { Text("Cancel") } }
+            dismissButton = { OutlinedButton(onClick = { showDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }

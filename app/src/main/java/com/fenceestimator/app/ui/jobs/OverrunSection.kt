@@ -19,8 +19,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.estimate.JobSchedule
 import com.fenceestimator.app.ui.components.IntentHelpers
@@ -58,7 +60,8 @@ fun OverrunSection(
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "This job is " + (if (days == 1) "a day" else "$days days") + " past its finish date",
+                if (days == 1) stringResource(R.string.jsec_overrun_title_one)
+                else stringResource(R.string.jsec_overrun_title_many, days),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onErrorContainer
@@ -75,16 +78,19 @@ fun OverrunSection(
             DraftTextField(
                 stableKey = job.id,
                 initialValue = job.overrunReason,
-                label = "Why did it run over?",
+                label = stringResource(R.string.jsec_overrun_reason_label),
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth()
             ) { text -> viewModel.update { it.copy(overrunReason = text.trim()) } }
 
             if (next != null) {
+                val greetingThere = stringResource(R.string.jsec_greeting_there)
                 Text(
-                    "Next up is " + next.customerName.ifBlank { "your next job" } +
-                        (next.scheduledDate?.let { ", booked " + dayFormat.format(Date(it)) } ?: "") +
-                        ". They are the one this pushes.",
+                    stringResource(
+                        R.string.jsec_overrun_next_up,
+                        next.customerName.ifBlank { stringResource(R.string.jsec_overrun_your_next_job) },
+                        next.scheduledDate?.let { stringResource(R.string.jsec_overrun_booked, dayFormat.format(Date(it))) } ?: ""
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -98,14 +104,15 @@ fun OverrunSection(
                             IntentHelpers.openSmsDraft(
                                 context,
                                 next.phone,
-                                "Hi " + next.customerName.ifBlank { "there" } + " -- the job before " +
-                                    "yours has run over, so we need to move your fence install. " +
-                                    "I'll call shortly to agree a new day. Sorry for the change."
+                                context.getString(
+                                    R.string.jsec_overrun_sms,
+                                    next.customerName.ifBlank { greetingThere }
+                                )
                             )
                         },
                         enabled = next.phone.isNotBlank(),
                         modifier = Modifier.weight(1f)
-                    ) { Text("Text them") }
+                    ) { Text(stringResource(R.string.jsec_overrun_text_them)) }
 
                     OutlinedButton(
                         onClick = {
@@ -117,7 +124,12 @@ fun OverrunSection(
                         },
                         enabled = next.scheduledDate != null,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Push $days day" + if (days == 1) "" else "s") }
+                    ) {
+                        Text(
+                            if (days == 1) stringResource(R.string.jsec_overrun_push_one, days)
+                            else stringResource(R.string.jsec_overrun_push_many, days)
+                        )
+                    }
                 }
             }
         }

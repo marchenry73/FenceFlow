@@ -12,8 +12,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.ServiceStatus
 
 /**
@@ -40,32 +42,30 @@ fun ServiceBlockedScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "FenceFlow is paused",
+            stringResource(R.string.onb_paused_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            status.reason.ifBlank { "This company's access to FenceFlow has ended." },
+            status.reason.ifBlank { stringResource(R.string.onb_paused_default_reason) },
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "Nothing has been lost. Every job, drawing, photo and payment is exactly " +
-                "where it was, and comes straight back as soon as this is sorted out.",
+            stringResource(R.string.onb_paused_nothing_lost),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "If you are on the crew, this is one for the office -- there is nothing " +
-                "for you to fix here.",
+            stringResource(R.string.onb_paused_crew_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-            Text("Check again")
+            Text(stringResource(R.string.onb_check_again))
         }
         OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
-            Text("Sign out")
+            Text(stringResource(R.string.onb_sign_out))
         }
     }
 }

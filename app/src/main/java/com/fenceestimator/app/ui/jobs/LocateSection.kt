@@ -18,8 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.estimate.LocateTicket
 import com.fenceestimator.app.ui.components.DraftTextField
@@ -62,12 +64,14 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = container)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                when (state) {
-                    LocateTicket.State.NONE -> "No utility locate"
-                    LocateTicket.State.WAITING -> "Locate called -- do not dig yet"
-                    LocateTicket.State.EXPIRED -> "Locate expired"
-                    LocateTicket.State.CLEAR -> "Clear to dig"
-                },
+                stringResource(
+                    when (state) {
+                        LocateTicket.State.NONE -> R.string.jsec_locate_none
+                        LocateTicket.State.WAITING -> R.string.jsec_locate_waiting
+                        LocateTicket.State.EXPIRED -> R.string.jsec_locate_expired
+                        LocateTicket.State.CLEAR -> R.string.jsec_locate_clear
+                    }
+                ),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -84,14 +88,14 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     androidx.compose.material3.Icon(Icons.Filled.Call, contentDescription = null)
-                    Text("  Call 811")
+                    Text("  " + stringResource(R.string.jsec_locate_call_811))
                 }
             }
 
             DraftTextField(
                 stableKey = job.id,
                 initialValue = job.locateTicketNo,
-                label = "Ticket number",
+                label = stringResource(R.string.jsec_locate_ticket_number),
                 modifier = Modifier.fillMaxWidth()
             ) { text -> viewModel.update { it.copy(locateTicketNo = text.trim()) } }
 
@@ -101,14 +105,14 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
             // about something with legal weight.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DateButton(
-                    label = "Dig on or after",
+                    label = stringResource(R.string.jsec_locate_dig_after),
                     value = job.locateDigAfter,
                     dateFormat = dateFormat,
                     modifier = Modifier.weight(1f)
                 ) { chosen -> viewModel.update { it.copy(locateDigAfter = chosen) } }
 
                 DateButton(
-                    label = "Expires",
+                    label = stringResource(R.string.jsec_locate_expires),
                     value = job.locateExpiresAt,
                     dateFormat = dateFormat,
                     modifier = Modifier.weight(1f)
@@ -118,14 +122,13 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
             DraftTextField(
                 stableKey = job.id,
                 initialValue = job.locateNotes,
-                label = "What was marked (gas, water, fibre...)",
+                label = stringResource(R.string.jsec_locate_marked_label),
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth()
             ) { text -> viewModel.update { it.copy(locateNotes = text) } }
 
             Text(
-                "Recorded from what the locate service told you, not worked out here -- " +
-                    "the wait and how long a ticket lasts differ by state.",
+                stringResource(R.string.jsec_locate_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

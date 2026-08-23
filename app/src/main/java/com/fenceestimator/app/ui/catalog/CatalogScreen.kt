@@ -54,8 +54,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.data.MaterialCategory
@@ -124,13 +126,13 @@ fun CatalogScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Materials Catalog") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.cat_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { pdfPicker.launch("application/pdf") }) {
-                Icon(Icons.Filled.Upload, contentDescription = "Import invoice PDF")
+                Icon(Icons.Filled.Upload, contentDescription = stringResource(R.string.cat_import_invoice_pdf))
             }
         }
     ) { padding ->
@@ -139,13 +141,13 @@ fun CatalogScreen(onBack: () -> Unit) {
                 value = search,
                 onValueChange = { search = it },
                 singleLine = true,
-                label = { Text("Search all materials") },
-                placeholder = { Text("cedar, 4x4 post, latch...") },
+                label = { Text(stringResource(R.string.cat_search_all)) },
+                placeholder = { Text(stringResource(R.string.cat_search_hint)) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searching) {
                         IconButton(onClick = { search = "" }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cat_clear_search))
                         }
                     }
                 },
@@ -162,7 +164,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                         Tab(
                             selected = selectedTab == type,
                             onClick = { selectedTab = type },
-                            text = { Text(if (count > 0) "${type.label} ($count)" else type.label) }
+                            text = { Text(if (count > 0) stringResource(R.string.cat_tab_with_count, type.label, count) else type.label) }
                         )
                     }
                 }
@@ -175,7 +177,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                 if (!searching) {
                     item {
                         Text(
-                            "Prices used to price your estimates. Tap an item to edit, or import an invoice/estimate PDF to update prices in bulk.",
+                            stringResource(R.string.cat_intro),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -191,17 +193,16 @@ fun CatalogScreen(onBack: () -> Unit) {
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
-                                        if (unpricedCount == 1) "1 item has no price set"
-                                        else "$unpricedCount items have no price set",
+                                        if (unpricedCount == 1) stringResource(R.string.cat_unpriced_one)
+                                        else stringResource(R.string.cat_unpriced_many, unpricedCount),
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                     Text(
                                         if (showOnlyUnpriced)
-                                            "Showing only those. Tap to show everything again."
+                                            stringResource(R.string.cat_unpriced_showing_only)
                                         else
-                                            "They count as $0.00 in an estimate, so any quote using one " +
-                                                "comes out under cost. Tap to see just those.",
+                                            stringResource(R.string.cat_unpriced_explain),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
@@ -211,7 +212,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                     }
                     item {
                         Button(onClick = { showNewDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Add Custom Item")
+                            Text(stringResource(R.string.cat_add_custom_item))
                         }
                     }
                 }
@@ -219,17 +220,16 @@ fun CatalogScreen(onBack: () -> Unit) {
                     item {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                            Text("  Reading PDF…", modifier = Modifier.padding(start = 8.dp))
+                            Text("  " + stringResource(R.string.cat_reading_pdf), modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                 }
                 if (searching) {
                     item {
                         Text(
-                            if (visibleItems.isEmpty()) "Nothing matches \"${search.trim()}\"."
-                            else "${visibleItems.size} " +
-                                (if (visibleItems.size == 1) "match" else "matches") +
-                                " across all fence types",
+                            if (visibleItems.isEmpty()) stringResource(R.string.cat_nothing_matches, search.trim())
+                            else if (visibleItems.size == 1) stringResource(R.string.cat_match_count_one, visibleItems.size)
+                            else stringResource(R.string.cat_match_count_many, visibleItems.size),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -237,8 +237,8 @@ fun CatalogScreen(onBack: () -> Unit) {
                 } else if (visibleItems.isEmpty()) {
                     item {
                         Text(
-                            if (showOnlyUnpriced) "Every item has a price. Nothing to fix."
-                            else "No items for this fence type yet.",
+                            if (showOnlyUnpriced) stringResource(R.string.cat_all_priced)
+                            else stringResource(R.string.cat_no_items_for_type),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -344,7 +344,7 @@ private fun CatalogRow(
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        manufacturerName ?: "Default price",
+                        manufacturerName ?: stringResource(R.string.cat_default_price),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (manufacturerName != null) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -352,13 +352,13 @@ private fun CatalogRow(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    if (unpriced) "No price" else currency.format(item.unitPrice) + " / " + item.unit,
+                    if (unpriced) stringResource(R.string.cat_no_price) else stringResource(R.string.cat_price_per_unit, currency.format(item.unitPrice), item.unit),
                     fontWeight = FontWeight.SemiBold,
                     // "No price" rather than "$0.00 / ea", because $0.00 reads
                     // as a decision and this is an omission.
                     color = if (unpriced) MaterialTheme.colorScheme.error else Color.Unspecified
                 )
-                Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.cat_edit), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }
@@ -396,53 +396,54 @@ private fun EditItemDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (item.id == 0L) "New Item" else "Edit Item") },
+        title = { Text(if (item.id == 0L) stringResource(R.string.cat_new_item) else stringResource(R.string.cat_edit_item)) },
         text = {
+            val defaultPriceAnyManufacturer = stringResource(R.string.cat_default_price_any_manufacturer)
             Column {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.cat_name)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text("Unit") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Price ($)") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text(stringResource(R.string.est_unit)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text(stringResource(R.string.cat_price_dollars)) }, modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = colorOrFinish, onValueChange = { colorOrFinish = it }, label = { Text("Color / finish (optional)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = colorOrFinish, onValueChange = { colorOrFinish = it }, label = { Text(stringResource(R.string.cat_color_finish_optional)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = coversFtText, onValueChange = { coversFtText = it },
-                    label = { Text("Width/height it covers, ft (panels & fabric only)") },
+                    label = { Text(stringResource(R.string.cat_covers_ft)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown("Category", MaterialCategory.values().toList(), category, { it.name.replace("_", " ") }) { category = it }
+                EnumDropdown(stringResource(R.string.cat_category), MaterialCategory.values().toList(), category, { it.name.replace("_", " ") }) { category = it }
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown("Fence type", FenceType.values().toList(), fenceType, { it.name.replace("_", " ") }) { fenceType = it }
+                EnumDropdown(stringResource(R.string.cat_fence_type), FenceType.values().toList(), fenceType, { it.name.replace("_", " ") }) { fenceType = it }
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown("Role in estimate engine", MaterialRole.values().toList(), role, { it.name.replace("_", " ") }) { role = it }
+                EnumDropdown(stringResource(R.string.cat_role_in_engine), MaterialRole.values().toList(), role, { it.name.replace("_", " ") }) { role = it }
                 Spacer(Modifier.height(8.dp))
                 EnumDropdown(
-                    "Priced from",
+                    stringResource(R.string.cat_priced_from),
                     listOf<Manufacturer?>(null) + manufacturers,
                     manufacturers.firstOrNull { it.id == manufacturerId },
-                    { it?.name ?: "Default price (any manufacturer)" }
+                    { it?.name ?: defaultPriceAnyManufacturer }
                 ) { manufacturerId = it?.id }
                 Text(
-                    "A default price applies when no manufacturer-specific price exists. Tie a price to a specific manufacturer so it's used automatically when that's your preferred supplier.",
+                    stringResource(R.string.cat_default_price_explain),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = taxable, onCheckedChange = { taxable = it })
-                    Text(" Taxable")
+                    Text(" " + stringResource(R.string.cat_taxable))
                 }
 
                 if (manufacturers.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
-                    Text("Also price this for another manufacturer", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.cat_also_price_for_another), style = MaterialTheme.typography.titleMedium)
                     val otherManufacturers = manufacturers.filter { it.id != manufacturerId }
                     if (otherManufacturers.isNotEmpty()) {
                         EnumDropdown(
-                            "Duplicate for", otherManufacturers, duplicateTarget ?: otherManufacturers.first(),
+                            stringResource(R.string.cat_duplicate_for), otherManufacturers, duplicateTarget ?: otherManufacturers.first(),
                             { it.name }
                         ) { duplicateTarget = it }
                         OutlinedButton(
@@ -451,7 +452,7 @@ private fun EditItemDialog(
                                 onDuplicateForManufacturer(currentEdits().copy(id = 0L, manufacturerId = target.id))
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Duplicate as New Price") }
+                        ) { Text(stringResource(R.string.cat_duplicate_as_new_price)) }
                     }
                 }
             }
@@ -460,15 +461,15 @@ private fun EditItemDialog(
             Button(onClick = {
                 priceText.replace(',', '.').toDoubleOrNull() ?: return@Button
                 onSave(currentEdits())
-            }) { Text("Save") }
+            }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
             Row {
                 if (item.id != 0L) {
-                    OutlinedButton(onClick = onDelete) { Text("Delete") }
+                    OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
                     Spacer(Modifier.width(8.dp))
                 }
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )
@@ -505,11 +506,11 @@ private fun ImportReviewDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Import Results") },
+        title = { Text(stringResource(R.string.cat_import_results)) },
         text = {
             Column {
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
-                if (matches.isEmpty() && error == null) Text("No items found.")
+                if (matches.isEmpty() && error == null) Text(stringResource(R.string.cat_no_items_found))
                 LazyColumn(modifier = Modifier.height(360.dp)) {
                     items(matches.size) { index ->
                         val match = matches[index]
@@ -523,10 +524,10 @@ private fun ImportReviewDialog(
                                 Text(match.parsed.rawDescription.take(60), style = MaterialTheme.typography.bodyMedium)
                                 val label = if (match.existingMatch != null) {
                                     if (match.priceChanged)
-                                        "${currency.format(match.existingMatch.unitPrice)} -> ${currency.format(match.parsed.rate)}"
-                                    else "No change (${currency.format(match.parsed.rate)})"
+                                        stringResource(R.string.cat_price_change, currency.format(match.existingMatch.unitPrice), currency.format(match.parsed.rate))
+                                    else stringResource(R.string.cat_no_change, currency.format(match.parsed.rate))
                                 } else {
-                                    "New item: ${currency.format(match.parsed.rate)}"
+                                    stringResource(R.string.cat_new_item_price, currency.format(match.parsed.rate))
                                 }
                                 Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -539,8 +540,8 @@ private fun ImportReviewDialog(
             Button(onClick = {
                 val selected = matches.filterIndexed { i, _ -> selectedFlags[i].value }
                 onApply(selected)
-            }) { Text("Apply Selected") }
+            }) { Text(stringResource(R.string.cat_apply_selected)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Close") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.cat_close)) } }
     )
 }

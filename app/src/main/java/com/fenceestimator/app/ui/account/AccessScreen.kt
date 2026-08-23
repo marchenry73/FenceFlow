@@ -37,8 +37,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.CloudProfile
 import com.fenceestimator.app.cloud.Permission
 import com.fenceestimator.app.cloud.PermissionOverrides
@@ -77,9 +79,9 @@ fun AccessScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Who Can Do What") },
+                title = { Text(stringResource(R.string.acct_who_can_do_what)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 }
             )
         },
@@ -90,7 +92,7 @@ fun AccessScreen(onBack: () -> Unit) {
             // as broken; "you do not have this" reads as a decision.
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
                 Text(
-                    "Only someone with \"Manage who can do what\" can change access.",
+                    stringResource(R.string.acct_access_only_managers),
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
@@ -104,8 +106,7 @@ fun AccessScreen(onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "Each person starts with what their role allows. Tap someone to give " +
-                        "them more, or take something away.",
+                    stringResource(R.string.acct_access_explain),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -120,11 +121,11 @@ fun AccessScreen(onBack: () -> Unit) {
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
-                            member.fullName.ifBlank { "(no name set)" },
+                            member.fullName.ifBlank { stringResource(R.string.acct_access_no_name_set) },
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            member.userRole.label + if (adjusted) " -- adjusted" else "",
+                            member.userRole.label + if (adjusted) " -- " + stringResource(R.string.acct_access_adjusted) else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -137,13 +138,13 @@ fun AccessScreen(onBack: () -> Unit) {
                         }.getOrNull()
                         if (requested != null && requested != member.userRole) {
                             Text(
-                                "Says they are a " + requested.label + " -- tap to confirm",
+                                stringResource(R.string.acct_access_says_they_are, requested.label),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
                         Text(
-                            "${effective.size} of ${Permission.ALL.size} things allowed",
+                            stringResource(R.string.acct_access_things_allowed, effective.size, Permission.ALL.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -157,11 +158,16 @@ fun AccessScreen(onBack: () -> Unit) {
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error
                                 )
+                                val canDelete = Permission.DELETE_RECORDS in effective
+                                val canManage = Permission.MANAGE_ACCESS in effective
                                 Text(
-                                    "  Can " + listOfNotNull(
-                                        "delete records".takeIf { Permission.DELETE_RECORDS in effective },
-                                        "change access".takeIf { Permission.MANAGE_ACCESS in effective }
-                                    ).joinToString(" and "),
+                                    "  " + stringResource(
+                                        when {
+                                            canDelete && canManage -> R.string.acct_access_can_delete_and_change
+                                            canDelete -> R.string.acct_access_can_delete_records
+                                            else -> R.string.acct_access_can_change_access
+                                        }
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.error
                                 )
@@ -174,7 +180,7 @@ fun AccessScreen(onBack: () -> Unit) {
             if (team.isEmpty()) {
                 item {
                     Text(
-                        "Nobody has joined yet. Share your invite code from Account & Team.",
+                        stringResource(R.string.acct_access_nobody_joined),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -182,6 +188,8 @@ fun AccessScreen(onBack: () -> Unit) {
         }
     }
 
+    val confirmTitle = stringResource(R.string.acct_access_confirm_title)
+    val confirmSubtitle = stringResource(R.string.acct_access_confirm_subtitle)
     editing?.let { member ->
         MemberAccessDialog(
             member = member,
@@ -195,8 +203,8 @@ fun AccessScreen(onBack: () -> Unit) {
                 // a truck seat should not be enough on its own.
                 confirmIdentity(
                     context = context,
-                    title = "Confirm access change",
-                    subtitle = "Changing what this person can do",
+                    title = confirmTitle,
+                    subtitle = confirmSubtitle,
                     onConfirmed = {
                         viewModel.save(member, role, permissions)
                         editing = null
@@ -229,7 +237,7 @@ private fun MemberAccessDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(member.fullName.ifBlank { "Team member" }) },
+        title = { Text(member.fullName.ifBlank { stringResource(R.string.acct_access_team_member) }) },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (isSelf) {
@@ -240,9 +248,7 @@ private fun MemberAccessDialog(
                             )
                         ) {
                             Text(
-                                "You cannot change your own access. Ask another owner -- " +
-                                    "otherwise anyone who reaches this screen could give " +
-                                    "themselves everything.",
+                                stringResource(R.string.acct_access_cannot_change_own),
                                 modifier = Modifier.padding(10.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
@@ -252,7 +258,7 @@ private fun MemberAccessDialog(
                 }
 
                 item {
-                    Text("Role", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.acct_access_role), style = MaterialTheme.typography.titleSmall)
                 }
                 items(UserRole.values()) { option ->
                     Row(
@@ -283,7 +289,7 @@ private fun MemberAccessDialog(
                 }
 
                 item { Divider(Modifier.padding(vertical = 8.dp)) }
-                item { Text("Allowed to", style = MaterialTheme.typography.titleSmall) }
+                item { Text(stringResource(R.string.acct_access_allowed_to), style = MaterialTheme.typography.titleSmall) }
 
                 items(Permission.values().filter { !it.sensitive }) { permission ->
                     PermissionRow(permission, permission in permissions, enabled = !isSelf) { on ->
@@ -300,7 +306,7 @@ private fun MemberAccessDialog(
                             tint = MaterialTheme.colorScheme.error
                         )
                         Text(
-                            "  Give these carefully",
+                            "  " + stringResource(R.string.acct_access_give_carefully),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -314,9 +320,9 @@ private fun MemberAccessDialog(
             }
         },
         confirmButton = {
-            Button(enabled = !isSelf, onClick = { onSave(role, permissions) }) { Text("Save") }
+            Button(enabled = !isSelf, onClick = { onSave(role, permissions) }) { Text(stringResource(R.string.action_save)) }
         },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 

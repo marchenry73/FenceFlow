@@ -51,9 +51,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import java.text.NumberFormat
@@ -76,6 +79,7 @@ private val CrewAmber = Color(0xFFEDA100)
 @Composable
 fun ReportsScreen(onBack: () -> Unit) {
     val app = currentApp()
+    val context = LocalContext.current
     val viewModel: ReportsViewModel = viewModel(factory = GenericViewModelFactory { ReportsViewModel(app.repository) })
     val preset by viewModel.preset.collectAsState()
     val from by viewModel.from.collectAsState()
@@ -102,8 +106,8 @@ fun ReportsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Business Reports") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.reports_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -130,7 +134,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { pickingFrom = true }, modifier = Modifier.weight(1f)) {
-                                Text(if (from == 0L) "Start" else dateFmt.format(from), maxLines = 1)
+                                Text(if (from == 0L) stringResource(R.string.rep_start) else dateFmt.format(from), maxLines = 1)
                             }
                             OutlinedButton(onClick = { pickingTo = true }, modifier = Modifier.weight(1f)) {
                                 Text(dateFmt.format(to), maxLines = 1)
@@ -149,7 +153,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                             }
                         }
                         Text(
-                            "Time of day filters the clocked hours and labor cost. Money and job counts always cover the whole date range.",
+                            stringResource(R.string.rep_time_of_day_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -160,86 +164,87 @@ fun ReportsScreen(onBack: () -> Unit) {
             // ---- Headline numbers ----------------------------------------
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat("Collected", currency.format(totals.collected), Modifier.weight(1f)) {
+                    BigStat(stringResource(R.string.reports_collected), currency.format(totals.collected), Modifier.weight(1f)) {
                         showing = StatDetails.collected(
+                            context = context,
                             totals = totals,
                             payments = data.payments,
-                            jobNameFor = { id -> data.jobNamesById[id] ?: "Untitled" },
+                            jobNameFor = { id -> data.jobNamesById[id] ?: context.getString(R.string.rep_untitled) },
                             money = { currency.format(it) },
                             date = { dayFormat.format(java.util.Date(it)) }
                         )
                     }
-                    BigStat("Profit", currency.format(totals.profit), Modifier.weight(1f)) {
-                        showing = StatDetails.profit(totals) { currency.format(it) }
+                    BigStat(stringResource(R.string.rep_stat_profit), currency.format(totals.profit), Modifier.weight(1f)) {
+                        showing = StatDetails.profit(context, totals) { currency.format(it) }
                     }
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat("Margin", "${"%.0f".format(totals.marginPercent)}%", Modifier.weight(1f)) {
-                        showing = StatDetails.margin(totals)
+                    BigStat(stringResource(R.string.reports_margin), "${"%.0f".format(totals.marginPercent)}%", Modifier.weight(1f)) {
+                        showing = StatDetails.margin(context, totals)
                     }
-                    BigStat("Jobs won", totals.jobsWon.toString(), Modifier.weight(1f)) {
-                        showing = StatDetails.jobsWon(totals, data.wonJobNames)
+                    BigStat(stringResource(R.string.rep_stat_jobs_won), totals.jobsWon.toString(), Modifier.weight(1f)) {
+                        showing = StatDetails.jobsWon(context, totals, data.wonJobNames)
                     }
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat("Close rate", "${"%.0f".format(totals.closeRatePercent)}%", Modifier.weight(1f)) {
-                        showing = StatDetails.closeRate(totals)
+                    BigStat(stringResource(R.string.rep_stat_close_rate), "${"%.0f".format(totals.closeRatePercent)}%", Modifier.weight(1f)) {
+                        showing = StatDetails.closeRate(context, totals)
                     }
-                    BigStat("Hours clocked", "%.1f".format(totals.hoursClocked), Modifier.weight(1f)) {
-                        showing = StatDetails.hoursClocked(totals) { currency.format(it) }
+                    BigStat(stringResource(R.string.rep_stat_hours_clocked), "%.1f".format(totals.hoursClocked), Modifier.weight(1f)) {
+                        showing = StatDetails.hoursClocked(context, totals) { currency.format(it) }
                     }
                 }
             }
 
             // ---- Money ---------------------------------------------------
             item {
-                CategoryHeader("Money", moneyOpen) { moneyOpen = !moneyOpen }
+                CategoryHeader(stringResource(R.string.rep_cat_money), moneyOpen) { moneyOpen = !moneyOpen }
             }
             if (moneyOpen) {
                 item {
                     ChartCard(
-                        title = "Money collected by month",
+                        title = stringResource(R.string.rep_chart_money_by_month),
                         rows = data.revenueByMonth,
                         color = MoneyBlue,
                         format = { currency.format(it) },
-                        empty = "Nothing recorded as paid in this range."
+                        empty = stringResource(R.string.rep_empty_nothing_paid)
                     )
                 }
                 item {
                     ChartCard(
-                        title = "Where the money goes",
+                        title = stringResource(R.string.rep_chart_where_money_goes),
                         rows = data.costBreakdown,
                         colors = listOf(MoneyBlue, CostOrange, SalesGreen, CrewAmber),
                         format = { currency.format(it) },
-                        empty = "No money in or out yet for this range."
+                        empty = stringResource(R.string.rep_empty_no_money)
                     )
                 }
                 item {
                     ChartCard(
-                        title = "Expenses by category",
+                        title = stringResource(R.string.rep_chart_expenses_by_category),
                         rows = data.expensesByCategory,
                         color = CostOrange,
                         format = { currency.format(it) },
-                        empty = "No fuel, rental, or permit expenses logged."
+                        empty = stringResource(R.string.rep_empty_no_expenses)
                     )
                 }
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("The numbers", style = MaterialTheme.typography.titleMedium)
-                            ReportRow("Collected", currency.format(totals.collected))
-                            ReportRow("Material cost", currency.format(totals.materialCost))
-                            ReportRow("Labor cost (${"%.1f".format(totals.hoursClocked)} clocked hrs)", currency.format(totals.laborCost))
-                            ReportRow("Other expenses", currency.format(totals.otherExpenses))
+                            Text(stringResource(R.string.rep_the_numbers), style = MaterialTheme.typography.titleMedium)
+                            ReportRow(stringResource(R.string.reports_collected), currency.format(totals.collected))
+                            ReportRow(stringResource(R.string.rep_row_material_cost), currency.format(totals.materialCost))
+                            ReportRow(stringResource(R.string.rep_row_labor_cost, "%.1f".format(totals.hoursClocked)), currency.format(totals.laborCost))
+                            ReportRow(stringResource(R.string.rep_line_other_expenses), currency.format(totals.otherExpenses))
                             Divider(Modifier.padding(vertical = 6.dp))
-                            ReportRow("Profit", currency.format(totals.profit), bold = true)
-                            ReportRow("Average job", currency.format(totals.averageJob))
+                            ReportRow(stringResource(R.string.rep_stat_profit), currency.format(totals.profit), bold = true)
+                            ReportRow(stringResource(R.string.rep_row_average_job), currency.format(totals.averageJob))
                             if (totals.tipsToInstallers > 0.0) {
-                                ReportRow("Tips (100% to installers)", currency.format(totals.tipsToInstallers))
+                                ReportRow(stringResource(R.string.rep_row_tips), currency.format(totals.tipsToInstallers))
                             }
                         }
                     }
@@ -248,82 +253,85 @@ fun ReportsScreen(onBack: () -> Unit) {
 
             // ---- Sales ---------------------------------------------------
             item {
-                CategoryHeader("Sales", salesOpen) { salesOpen = !salesOpen }
+                CategoryHeader(stringResource(R.string.rep_cat_sales), salesOpen) { salesOpen = !salesOpen }
             }
             if (salesOpen) {
                 item {
                     ChartCard(
-                        title = "Jobs by stage",
+                        title = stringResource(R.string.rep_chart_jobs_by_stage),
                         rows = data.jobsByStage,
                         color = SalesGreen,
                         format = { "%.0f".format(it) },
-                        empty = "No jobs in this date range."
+                        empty = stringResource(R.string.rep_empty_no_jobs)
                     )
                 }
                 item {
                     ChartCard(
-                        title = "Quote to paid",
+                        title = stringResource(R.string.rep_chart_quote_to_paid),
                         rows = data.funnel,
                         color = SalesGreen,
                         format = { "%.0f".format(it) },
-                        empty = "No jobs in this date range."
+                        empty = stringResource(R.string.rep_empty_no_jobs)
                     )
                 }
                 item {
                     ChartCard(
-                        title = "Where won jobs came from",
+                        title = stringResource(R.string.rep_chart_lead_sources),
                         rows = data.leadSources,
                         color = SalesGreen,
                         format = { "%.0f".format(it) },
-                        empty = "Set a referral source on jobs to see which ads and referrals pay off."
+                        empty = stringResource(R.string.rep_empty_no_referral)
                     )
                 }
             }
 
             // ---- Work & crew ---------------------------------------------
             item {
-                CategoryHeader("Work & Crew", crewOpen) { crewOpen = !crewOpen }
+                CategoryHeader(stringResource(R.string.rep_cat_work_crew), crewOpen) { crewOpen = !crewOpen }
             }
             if (crewOpen) {
                 item {
                     ChartCard(
-                        title = "Hours by crew member",
+                        title = stringResource(R.string.rep_chart_hours_by_crew),
                         rows = data.hoursByCrew,
                         color = CrewAmber,
-                        format = { "%.1f hrs".format(it) },
-                        empty = "No one has clocked in during this range."
+                        format = { context.getString(R.string.rep_fmt_hrs, "%.1f".format(it)) },
+                        empty = stringResource(R.string.rep_empty_no_clock_in)
                     )
                 }
                 item {
                     ChartCard(
-                        title = "Feet built by fence type",
+                        title = stringResource(R.string.rep_chart_feet_by_type),
                         rows = data.fenceTypes,
                         color = CrewAmber,
-                        format = { "%,.0f ft".format(it) },
-                        empty = "Footage shows up once a job is drawn and calibrated."
+                        format = { context.getString(R.string.rep_fmt_ft, "%,.0f".format(it)) },
+                        empty = stringResource(R.string.rep_empty_no_footage)
                     )
                 }
             }
 
             // ---- Detailed tables -----------------------------------------
             item {
-                CategoryHeader("Detailed tables", tablesOpen) { tablesOpen = !tablesOpen }
+                CategoryHeader(stringResource(R.string.rep_cat_tables), tablesOpen) { tablesOpen = !tablesOpen }
             }
             if (tablesOpen) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Crew pay", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.rep_crew_pay), style = MaterialTheme.typography.titleMedium)
                             if (data.crewDetail.isEmpty()) {
-                                EmptyNote("No clocked time in this range.")
+                                EmptyNote(stringResource(R.string.rep_empty_no_clocked_time))
                             } else {
                                 data.crewDetail.forEach { c ->
                                     ReportRow(
-                                        "${c.name}  (${c.jobs} job${if (c.jobs == 1) "" else "s"}, ${"%.1f".format(c.hours)} hrs)",
+                                        stringResource(
+                                            if (c.jobs == 1) R.string.rep_crew_row_one_job else R.string.rep_crew_row_jobs,
+                                            c.name, c.jobs, "%.1f".format(c.hours)
+                                        ),
                                         currency.format(c.cost)
                                     )
                                     Text(
-                                        "Works out to ${currency.format(c.perHour)}/hr",
+                                        stringResource(R.string.rep_works_out_per_hr, currency.format(c.perHour)),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -335,9 +343,9 @@ fun ReportsScreen(onBack: () -> Unit) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Still owed to you", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.rep_still_owed), style = MaterialTheme.typography.titleMedium)
                             if (data.outstanding.isEmpty()) {
-                                EmptyNote("Everything in this range is paid up.")
+                                EmptyNote(stringResource(R.string.rep_empty_all_paid))
                             } else {
                                 data.outstanding.forEach { o ->
                                     ReportRow("${o.customer}  (${o.status.lowercase()})", currency.format(o.outstanding))
@@ -349,18 +357,18 @@ fun ReportsScreen(onBack: () -> Unit) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Clock in / clock out", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.rep_clock_in_out), style = MaterialTheme.typography.titleMedium)
                             if (data.timeDetail.isEmpty()) {
-                                EmptyNote("No finished shifts in this range.")
+                                EmptyNote(stringResource(R.string.rep_empty_no_shifts))
                             } else {
                                 data.timeDetail.take(40).forEach { t ->
                                     ReportRow(
                                         "${t.job} — ${timeFmt.format(t.start)}",
-                                        "${"%.1f".format(t.hours)} hrs  ${currency.format(t.cost)}"
+                                        stringResource(R.string.rep_shift_hrs_cost, "%.1f".format(t.hours), currency.format(t.cost))
                                     )
                                 }
                                 if (data.timeDetail.size > 40) {
-                                    EmptyNote("Showing the 40 most recent of ${data.timeDetail.size} shifts.")
+                                    EmptyNote(stringResource(R.string.rep_showing_recent_shifts, data.timeDetail.size))
                                 }
                             }
                         }
@@ -370,7 +378,7 @@ fun ReportsScreen(onBack: () -> Unit) {
 
             item {
                 Text(
-                    "Profit here is money actually collected minus catalog material cost, clocked labor, and logged expenses. It doesn't include overhead like insurance, vehicles, or office costs.",
+                    stringResource(R.string.rep_profit_footnote),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -413,9 +421,9 @@ private fun RangeDatePicker(initial: Long, onPicked: (Long) -> Unit, onDismiss: 
             TextButton(onClick = {
                 val utc = state.selectedDateMillis
                 if (utc != null) onPicked(toLocalMidnight(utc)) else onDismiss()
-            }) { Text("OK") }
+            }) { Text(stringResource(R.string.rep_ok)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     ) {
         DatePicker(state = state)
     }
@@ -451,7 +459,7 @@ private fun CategoryHeader(title: String, open: Boolean, onToggle: () -> Unit) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Icon(
             if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-            contentDescription = if (open) "Collapse $title" else "Expand $title"
+            contentDescription = if (open) stringResource(R.string.rep_collapse, title) else stringResource(R.string.rep_expand, title)
         )
     }
 }
@@ -534,7 +542,7 @@ private fun BigStat(
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
             if (onClick != null) {
                 Text(
-                    "Tap for detail",
+                    stringResource(R.string.rep_tap_for_detail),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
@@ -583,7 +591,7 @@ private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
                         fontWeight = FontWeight.Bold
                     )
                 }
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.rep_close)) }
             }
             Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -614,12 +622,12 @@ private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                "What / when",
+                                stringResource(R.string.rep_col_what_when),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                "Amount",
+                                stringResource(R.string.rep_col_amount),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

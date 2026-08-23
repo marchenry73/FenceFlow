@@ -10,8 +10,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 
 /**
  * Shuts a screen the moment the person loses the right to be on it.
@@ -54,21 +56,20 @@ fun AccessGuard(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "Your access changed",
+            stringResource(R.string.onb_access_changed_title),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "You no longer have \"$permissionName\", so this screen has closed. " +
-                "Nothing you did has been lost.",
+            stringResource(R.string.onb_access_changed_body, permissionName),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "If that looks wrong, ask an owner to check your access.",
+            stringResource(R.string.onb_access_changed_ask_owner),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Button(onClick = onLeave) { Text("Go back") }
+        Button(onClick = onLeave) { Text(stringResource(R.string.onb_go_back)) }
     }
 }

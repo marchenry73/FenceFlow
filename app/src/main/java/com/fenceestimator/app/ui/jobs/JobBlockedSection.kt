@@ -13,9 +13,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.ui.components.DraftTextField
@@ -42,7 +45,7 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
     DraftTextField(
         stableKey = job.id,
         initialValue = job.blockedReason,
-        label = "What stopped the job? (leave blank if nothing did)",
+        label = stringResource(R.string.jsec_blocked_reason_label),
         minLines = 2,
         modifier = Modifier.fillMaxWidth()
     ) { text ->
@@ -60,20 +63,20 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
     DraftTextField(
         stableKey = job.id,
         initialValue = job.customerMustClear,
-        label = "What the customer needs to move or clear",
+        label = stringResource(R.string.jsec_blocked_must_clear_label),
         minLines = 2,
         modifier = Modifier.fillMaxWidth()
     ) { text -> viewModel.update { j -> j.copy(customerMustClear = text) } }
 
     Text(
-        "We clear leaves and loose debris. Anything needing a tool -- bushes, planters, " +
-            "sheds, limbs, old posts -- is the customer's to clear, or it becomes a change order.",
+        stringResource(R.string.jsec_blocked_debris_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
     if (job.blockedReason.isNotBlank()) {
-        val message = blockedMessage(job, profile)
+        val message = blockedMessage(context, job, profile)
+        val emailSubject = stringResource(R.string.jsec_blocked_email_subject)
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -85,8 +88,8 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
         ) {
             Column(Modifier.padding(12.dp)) {
                 Text(
-                    if (job.customerNotifiedAt == null) "Customer has NOT been told yet"
-                    else "Customer told ${dateFormat.format(Date(job.customerNotifiedAt))}",
+                    if (job.customerNotifiedAt == null) stringResource(R.string.jsec_blocked_not_told)
+                    else stringResource(R.string.jsec_blocked_told_on, dateFormat.format(Date(job.customerNotifiedAt))),
                     fontWeight = FontWeight.Bold,
                     color = if (job.customerNotifiedAt == null)
                         MaterialTheme.colorScheme.onErrorContainer
@@ -94,7 +97,7 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
                 )
                 job.blockedAt?.let {
                     Text(
-                        "Held up since ${dateFormat.format(Date(it))}",
+                        stringResource(R.string.jsec_blocked_held_since, dateFormat.format(Date(it))),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (job.customerNotifiedAt == null)
                             MaterialTheme.colorScheme.onErrorContainer
@@ -112,18 +115,18 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
                 },
                 enabled = job.phone.isNotBlank(),
                 modifier = Modifier.weight(1f)
-            ) { Text("Text Customer") }
+            ) { Text(stringResource(R.string.jsec_blocked_text_customer)) }
 
             Button(
                 onClick = {
                     IntentHelpers.openEmailDraft(
-                        context, job.email, "Update on your fence installation", message
+                        context, job.email, emailSubject, message
                     )
                     viewModel.markCustomerNotified()
                 },
                 enabled = job.email.isNotBlank(),
                 modifier = Modifier.weight(1f)
-            ) { Text("Email Customer") }
+            ) { Text(stringResource(R.string.jsec_blocked_email_customer)) }
         }
     }
 }
@@ -133,20 +136,25 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
  * so the message says what happened, what they need to do, and that the crew
  * comes back once it's done -- not who is at fault.
  */
-private fun blockedMessage(job: Job, profile: BusinessProfile): String = buildString {
-    append("Hi ${job.customerName.ifBlank { "there" }},\n\n")
-    append("We weren't able to finish the fence at ${job.address.ifBlank { "your property" }} today.\n\n")
-    append("What happened: ${job.blockedReason.trim()}\n")
+private fun blockedMessage(context: Context, job: Job, profile: BusinessProfile): String = buildString {
+    append(context.getString(R.string.jsec_blocked_msg_hi, job.customerName.ifBlank { context.getString(R.string.jsec_greeting_there) }))
+    append("\n\n")
+    append(context.getString(R.string.jsec_blocked_msg_unable, job.address.ifBlank { context.getString(R.string.jsec_blocked_msg_your_property) }))
+    append("\n\n")
+    append(context.getString(R.string.jsec_blocked_msg_what_happened, job.blockedReason.trim()))
+    append("\n")
     if (job.customerMustClear.isNotBlank()) {
-        append("\nBefore we come back, we need this cleared:\n${job.customerMustClear.trim()}\n")
-        append(
-            "\nWe take care of leaves and loose debris ourselves. Anything needing tools " +
-                "to move -- bushes, planters, sheds, limbs, old posts -- has to be cleared " +
-                "by you, or we can quote it as extra work.\n"
-        )
+        append("\n")
+        append(context.getString(R.string.jsec_blocked_msg_need_cleared))
+        append("\n${job.customerMustClear.trim()}\n")
+        append("\n")
+        append(context.getString(R.string.jsec_blocked_msg_debris))
+        append("\n")
     }
-    append("\nAs soon as that's sorted, give us a call and we'll get straight back out.\n\n")
-    append(profile.businessName.ifBlank { "Thank you" })
+    append("\n")
+    append(context.getString(R.string.jsec_blocked_msg_call_us))
+    append("\n\n")
+    append(profile.businessName.ifBlank { context.getString(R.string.jsec_blocked_msg_thank_you) })
     if (profile.phone.isNotBlank()) append("\n${profile.phone}")
 }
 

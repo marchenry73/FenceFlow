@@ -52,10 +52,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.AppLanguage
 import com.fenceestimator.app.data.BackupManager
 import com.fenceestimator.app.data.BusinessProfile
@@ -89,10 +91,11 @@ fun SettingsScreen(
     )
     val profile by viewModel.profile.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val savedMessage = stringResource(R.string.settings_saved)
 
     LaunchedEffect(Unit) {
         viewModel.saved.collect {
-            snackbarHostState.showSnackbar("Settings saved")
+            snackbarHostState.showSnackbar(savedMessage)
         }
     }
     val pricingTiers by viewModel.pricingTiers.collectAsState()
@@ -118,7 +121,10 @@ fun SettingsScreen(
         if (uri != null) {
             coroutineScope.launch {
                 val result = BackupManager.backup(context, app.repository, uri)
-                snackbarHostState.showSnackbar(if (result.isSuccess) "Backup saved" else "Backup failed: ${result.exceptionOrNull()?.message}")
+                snackbarHostState.showSnackbar(
+                    if (result.isSuccess) context.getString(R.string.set_backup_saved)
+                    else context.getString(R.string.set_backup_failed, result.exceptionOrNull()?.message)
+                )
             }
         }
     }
@@ -131,7 +137,10 @@ fun SettingsScreen(
                 val expenses = app.repository.getAllExpenses()
                 val jobs = app.repository.observeJobs().first()
                 val result = CsvExporter.exportExpenses(context, expenses, jobs, uri)
-                snackbarHostState.showSnackbar(if (result.isSuccess) "Expenses exported" else "Export failed: ${result.exceptionOrNull()?.message}")
+                snackbarHostState.showSnackbar(
+                    if (result.isSuccess) context.getString(R.string.set_expenses_exported)
+                    else context.getString(R.string.set_export_failed, result.exceptionOrNull()?.message)
+                )
             }
         }
     }
@@ -153,8 +162,8 @@ fun SettingsScreen(
                 }.mapCatching { DataExporter.export(context, it, uri).getOrThrow() }
                 exporting = false
                 snackbarHostState.showSnackbar(
-                    if (result.isSuccess) "Your data was exported"
-                    else "Export failed: ${result.exceptionOrNull()?.message}"
+                    if (result.isSuccess) context.getString(R.string.set_data_exported)
+                    else context.getString(R.string.set_export_failed, result.exceptionOrNull()?.message)
                 )
             }
         }
@@ -182,8 +191,8 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.settings_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -194,35 +203,43 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                SectionCard("Security") {
+                SectionCard(stringResource(R.string.set_security)) {
                     Text(
-                        "Locks the app after a period of inactivity. Useful on crew phones that get left in trucks.",
+                        stringResource(R.string.set_security_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val autoLockNever = stringResource(R.string.set_auto_lock_never)
+                    val autoLockOneMinute = stringResource(R.string.set_auto_lock_one_minute)
                     SettingsEnumDropdown(
-                        "Auto-lock after",
+                        stringResource(R.string.set_auto_lock_after),
                         listOf(0, 1, 5, 15, 30, 60),
                         local.autoLockMinutes,
-                        { if (it == 0) "Never" else "$it minute${if (it == 1) "" else "s"}" }
+                        {
+                            when (it) {
+                                0 -> autoLockNever
+                                1 -> autoLockOneMinute
+                                else -> context.getString(R.string.set_auto_lock_minutes, it)
+                            }
+                        }
                     ) { local = local.copy(autoLockMinutes = it) }
 
                     val biometricReady = remember { com.fenceestimator.app.ui.lock.biometricAvailable(context) }
                     if (biometricReady) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Unlock with fingerprint or face", modifier = Modifier.weight(1f))
+                            Text(stringResource(R.string.set_biometric_unlock), modifier = Modifier.weight(1f))
                             androidx.compose.material3.Switch(
                                 checked = local.biometricUnlockEnabled,
                                 onCheckedChange = { local = local.copy(biometricUnlockEnabled = it) }
                             )
                         }
                         Text(
-                            "Your device PIN or pattern always works as a fallback, so a fingerprint that stops reading can't lock you out mid-job.",
+                            stringResource(R.string.set_biometric_fallback),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Text(
-                            "This device has no fingerprint or face unlock set up, so biometric unlock isn't available.",
+                            stringResource(R.string.set_biometric_unavailable),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -230,43 +247,48 @@ fun SettingsScreen(
                 }
             }
             item {
-                SectionCard("Help & Feedback") {
+                SectionCard(stringResource(R.string.settings_help_feedback)) {
                     OutlinedButton(onClick = onOpenHelp, modifier = Modifier.fillMaxWidth()) {
-                        Text("How to Use the App + Fence Basics")
+                        Text(stringResource(R.string.set_how_to_use))
                     }
                     OutlinedButton(onClick = onOpenFeedback, modifier = Modifier.fillMaxWidth()) {
-                        Text("Send a Suggestion or Complaint")
+                        Text(stringResource(R.string.set_send_suggestion))
                     }
                 }
             }
             item {
-                SectionCard("Account & Team") {
+                SectionCard(stringResource(R.string.settings_account_team)) {
                     Text(
-                        "Sign in to share jobs with your crew across phones, with separate access levels for field and office. Optional -- the app works offline without it.",
+                        stringResource(R.string.set_account_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(onClick = onOpenAccount, modifier = Modifier.fillMaxWidth()) {
-                        Text("Manage Account & Team")
+                        Text(stringResource(R.string.set_manage_account))
                     }
                 }
             }
             item {
-                SectionCard("Business Profile") {
-                    DraftTextField(stableKey = "biz_name", initialValue = local.businessName, label = "Business name", modifier = Modifier.fillMaxWidth()) { local = local.copy(businessName = it) }
-                    DraftTextField(stableKey = "biz_owner", initialValue = local.ownerName, label = "Owner name", modifier = Modifier.fillMaxWidth()) { local = local.copy(ownerName = it) }
-                    DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = "Phone", keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth()) { local = local.copy(phone = it) }
-                    DraftTextField(stableKey = "biz_email", initialValue = local.email, label = "Email", keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) { local = local.copy(email = it) }
-                    DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = "License number", modifier = Modifier.fillMaxWidth()) { local = local.copy(licenseNumber = it) }
+                SectionCard(stringResource(R.string.settings_business_profile)) {
+                    DraftTextField(stableKey = "biz_name", initialValue = local.businessName, label = stringResource(R.string.set_business_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(businessName = it) }
+                    DraftTextField(stableKey = "biz_owner", initialValue = local.ownerName, label = stringResource(R.string.set_owner_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(ownerName = it) }
+                    DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = stringResource(R.string.field_phone), keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth()) { local = local.copy(phone = it) }
+                    DraftTextField(stableKey = "biz_email", initialValue = local.email, label = stringResource(R.string.field_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) { local = local.copy(email = it) }
+                    DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth()) { local = local.copy(licenseNumber = it) }
                 }
             }
             item {
-                SectionCard("Appearance & Language") {
+                SectionCard(stringResource(R.string.settings_appearance)) {
+                    val themeLabels = mapOf(
+                        ThemeMode.SYSTEM to stringResource(R.string.set_theme_system),
+                        ThemeMode.LIGHT to stringResource(R.string.set_theme_light),
+                        ThemeMode.DARK to stringResource(R.string.set_theme_dark)
+                    )
                     SettingsEnumDropdown(
-                        "Theme", listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK), local.themeMode,
-                        { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+                        stringResource(R.string.settings_theme), listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK), local.themeMode,
+                        { themeLabels[it] ?: it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
                     ) { local = local.copy(themeMode = it) }
                     SettingsEnumDropdown(
-                        "Language", AppLanguage.values().toList(), local.language,
+                        stringResource(R.string.settings_language), AppLanguage.values().toList(), local.language,
                         { it.displayName }
                     ) { newLanguage ->
                         val wasDefault = local.orderEmailTemplate == BusinessProfile.defaultOrderTemplate(local.language) &&
@@ -284,108 +306,106 @@ fun SettingsScreen(
                         }
                     }
                     Text(
-                        "Language currently switches your exported PDF labels and the default email/text templates below -- it does not yet translate every screen in the app.",
+                        stringResource(R.string.set_language_note),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             item {
-                SectionCard("Defaults for New Jobs") {
+                SectionCard(stringResource(R.string.set_defaults_new_jobs)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "tax", label = "Tax rate (%)", initialValue = local.defaultTaxRatePercent.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "tax", label = stringResource(R.string.set_tax_rate), initialValue = local.defaultTaxRatePercent.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(defaultTaxRatePercent = it.toDouble())
                         }
-                        DraftNumberField(stableKey = "markup", label = "Markup (%)", initialValue = local.defaultMarkupPercent.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "markup", label = stringResource(R.string.set_markup_pct), initialValue = local.defaultMarkupPercent.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(defaultMarkupPercent = it.toDouble())
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "panelw", label = "Panel width (ft)", initialValue = local.defaultPanelWidthFt, modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "panelw", label = stringResource(R.string.set_panel_width), initialValue = local.defaultPanelWidthFt, modifier = Modifier.weight(1f)) {
                             local = local.copy(defaultPanelWidthFt = it)
                         }
-                        DraftNumberField(stableKey = "panelh", label = "Panel height (ft)", initialValue = local.defaultPanelHeightFt, modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "panelh", label = stringResource(R.string.set_panel_height), initialValue = local.defaultPanelHeightFt, modifier = Modifier.weight(1f)) {
                             local = local.copy(defaultPanelHeightFt = it)
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "spacing", label = "Post spacing (ft)", initialValue = local.defaultPostSpacingFt, modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "spacing", label = stringResource(R.string.set_post_spacing), initialValue = local.defaultPostSpacingFt, modifier = Modifier.weight(1f)) {
                             local = local.copy(defaultPostSpacingFt = it)
                         }
-                        DraftNumberField(stableKey = "bags", label = "Concrete bags/post", initialValue = local.defaultConcreteBagsPerPost, modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "bags", label = stringResource(R.string.set_concrete_bags), initialValue = local.defaultConcreteBagsPerPost, modifier = Modifier.weight(1f)) {
                             local = local.copy(defaultConcreteBagsPerPost = it)
                         }
                     }
-                    DraftNumberField(stableKey = "labor", label = "Default labor rate ($/ft)", initialValue = local.defaultLaborRatePerFt.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                    DraftNumberField(stableKey = "labor", label = stringResource(R.string.set_default_labor_rate), initialValue = local.defaultLaborRatePerFt.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         local = local.copy(defaultLaborRatePerFt = it.toDouble())
                     }
-                    DraftNumberField(stableKey = "minjob", label = "Minimum job charge ($)", initialValue = local.defaultMinimumJobCharge.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                    DraftNumberField(stableKey = "minjob", label = stringResource(R.string.set_min_job_charge), initialValue = local.defaultMinimumJobCharge.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         local = local.copy(defaultMinimumJobCharge = it.toDouble())
                     }
                 }
             }
             item {
-                SectionCard("How Fast Your Crew Works") {
+                SectionCard(stringResource(R.string.set_crew_speed)) {
                     Text(
-                        "These drive the estimated hours on every job, and whether it warns you " +
-                            "that a date can't be finished. Every crew is different — a schedule " +
-                            "built on someone else's numbers is a schedule that slips.",
+                        stringResource(R.string.set_crew_speed_explain),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "ftday", label = "Feet per day", initialValue = local.feetPerDay.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "ftday", label = stringResource(R.string.set_feet_per_day), initialValue = local.feetPerDay.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(feetPerDay = it.toDouble())
                         }
-                        DraftNumberField(stableKey = "workday", label = "Hours per day", initialValue = local.workdayHours.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "workday", label = stringResource(R.string.set_hours_per_day), initialValue = local.workdayHours.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(workdayHours = it.toDouble())
                         }
                     }
-                    DraftNumberField(stableKey = "breaks", label = "Break hours per day (lunch etc.)", initialValue = local.breakHoursPerDay.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                    DraftNumberField(stableKey = "breaks", label = stringResource(R.string.set_break_hours), initialValue = local.breakHoursPerDay.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         local = local.copy(breakHoursPerDay = it.toDouble())
                     }
                     Text(
-                        "Breaks come off the working day, so ${"%.1f".format(
-                            (local.workdayHours - local.breakHoursPerDay).coerceAtLeast(1.0)
-                        )} hours a day are actual install time.",
+                        stringResource(
+                            R.string.set_break_note,
+                            "%.1f".format((local.workdayHours - local.breakHoursPerDay).coerceAtLeast(1.0))
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "gatehrs", label = "Hours per gate", initialValue = local.hoursPerGate.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "gatehrs", label = stringResource(R.string.set_hours_per_gate), initialValue = local.hoursPerGate.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(hoursPerGate = it.toDouble())
                         }
-                        DraftNumberField(stableKey = "cornerhrs", label = "Hours per corner", initialValue = local.hoursPerCorner.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "cornerhrs", label = stringResource(R.string.set_hours_per_corner), initialValue = local.hoursPerCorner.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(hoursPerCorner = it.toDouble())
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "treehrs", label = "Hours per tree", initialValue = local.hoursPerTree.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "treehrs", label = stringResource(R.string.set_hours_per_tree), initialValue = local.hoursPerTree.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(hoursPerTree = it.toDouble())
                         }
-                        DraftNumberField(stableKey = "obshrs", label = "Hours per obstacle", initialValue = local.hoursPerObstacle.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "obshrs", label = stringResource(R.string.set_hours_per_obstacle), initialValue = local.hoursPerObstacle.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(hoursPerObstacle = it.toDouble())
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "setuphrs", label = "Setup hours per job", initialValue = local.setupHours.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "setuphrs", label = stringResource(R.string.set_setup_hours), initialValue = local.setupHours.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(setupHours = it.toDouble())
                         }
-                        DraftNumberField(stableKey = "teardownhrs", label = "Teardown hrs/ft", initialValue = local.teardownHoursPerFoot.toFloat(), modifier = Modifier.weight(1f)) {
+                        DraftNumberField(stableKey = "teardownhrs", label = stringResource(R.string.set_teardown_hrs_per_ft), initialValue = local.teardownHoursPerFoot.toFloat(), modifier = Modifier.weight(1f)) {
                             local = local.copy(teardownHoursPerFoot = it.toDouble())
                         }
                     }
                     Text(
-                        "Trees and obstacles are counted from the markers placed on the drawing, " +
-                            "so mark them during the walkthrough and the hours follow.",
+                        stringResource(R.string.set_trees_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             item {
-                SectionCard("Pricing Tiers & Discounts") {
+                SectionCard(stringResource(R.string.set_pricing_tiers)) {
                     Text(
-                        "Used per job to set labor rate, markup, and any discount (family, church, military, commercial, etc).",
+                        stringResource(R.string.set_pricing_tiers_explain),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -397,9 +417,14 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text(tier.name.ifBlank { "Unnamed tier" }, fontWeight = FontWeight.Medium)
+                                    Text(tier.name.ifBlank { stringResource(R.string.set_unnamed_tier) }, fontWeight = FontWeight.Medium)
                                     Text(
-                                        "Labor \$${tier.laborRatePerFt}/ft · Markup ${tier.markupPercent}% · Discount ${tier.discountPercent}%",
+                                        stringResource(
+                                            R.string.set_tier_summary,
+                                            tier.laborRatePerFt.toString(),
+                                            tier.markupPercent.toString(),
+                                            tier.discountPercent.toString()
+                                        ),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -408,14 +433,14 @@ fun SettingsScreen(
                         }
                     }
                     OutlinedButton(onClick = { showNewTier = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("+ Add Pricing Tier")
+                        Text(stringResource(R.string.set_add_pricing_tier))
                     }
                 }
             }
             item {
-                SectionCard("Tools & Materials") {
+                SectionCard(stringResource(R.string.set_tools_materials)) {
                     Text(
-                        "Copied onto every job's checklist, so nothing gets left in the yard.",
+                        stringResource(R.string.set_tools_explain),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -457,7 +482,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = newTool,
                             onValueChange = { newTool = it },
-                            label = { Text("Add a tool") },
+                            label = { Text(stringResource(R.string.set_add_a_tool)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -469,10 +494,10 @@ fun SettingsScreen(
                                 )
                                 newTool = ""
                             }
-                        ) { Text("Add") }
+                        ) { Text(stringResource(R.string.action_add)) }
                     }
                     Text(
-                        "${tools.size} on the list. Tap one to remove it.",
+                        stringResource(R.string.set_tools_count, tools.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -487,9 +512,9 @@ fun SettingsScreen(
                 // A dashboard showing everything shows nothing -- the number
                 // somebody checks every morning differs by business, and a fixed
                 // set means most of it becomes scenery they look past.
-                SectionCard("Home Screen") {
+                SectionCard(stringResource(R.string.set_home_screen)) {
                     Text(
-                        "Pick the figures worth seeing every morning.",
+                        stringResource(R.string.set_home_explain),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -521,13 +546,13 @@ fun SettingsScreen(
                 }
             }
             item {
-                SectionCard("Ordering") {
-                    Text("Preferred manufacturer picks its prices first when available, and is who order emails go to.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SectionCard(stringResource(R.string.set_ordering)) {
+                    Text(stringResource(R.string.set_ordering_explain), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val selectedManufacturer = manufacturers.firstOrNull { it.id == local.preferredManufacturerId }
                     ExposedDropdownMenuBox(expanded = manufacturerMenuExpanded, onExpandedChange = { manufacturerMenuExpanded = it }) {
                         OutlinedTextField(
-                            value = selectedManufacturer?.name ?: "None selected", onValueChange = {}, readOnly = true,
-                            label = { Text("Preferred manufacturer") },
+                            value = selectedManufacturer?.name ?: stringResource(R.string.set_none_selected), onValueChange = {}, readOnly = true,
+                            label = { Text(stringResource(R.string.set_preferred_manufacturer)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = manufacturerMenuExpanded) },
                             modifier = Modifier.fillMaxWidth().menuAnchor()
                         )
@@ -538,64 +563,62 @@ fun SettingsScreen(
                         }
                     }
                     OutlinedButton(onClick = onOpenManufacturers, modifier = Modifier.fillMaxWidth()) {
-                        Text("Manage Manufacturers & Suppliers")
+                        Text(stringResource(R.string.set_manage_manufacturers))
                     }
                     OutlinedButton(onClick = onOpenEmployees, modifier = Modifier.fillMaxWidth()) {
-                        Text("Manage Crew & Employees")
+                        Text(stringResource(R.string.set_manage_crew))
                     }
                     DraftTextField(
                         stableKey = "order_tmpl", initialValue = local.orderEmailTemplate,
-                        label = "Order email template", minLines = 5, modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.set_order_template), minLines = 5, modifier = Modifier.fillMaxWidth()
                     ) { local = local.copy(orderEmailTemplate = it) }
                     Text(
-                        "Placeholders: {customerName} {address} {lineItems} {total} {businessName}",
+                        stringResource(R.string.set_order_placeholders),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     DraftTextField(
                         stableKey = "hoa_tmpl", initialValue = local.hoaEmailTemplate,
-                        label = "HOA approval email template", minLines = 5, modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.set_hoa_template), minLines = 5, modifier = Modifier.fillMaxWidth()
                     ) { local = local.copy(hoaEmailTemplate = it) }
                     Text(
-                        "Placeholders: {address} {fenceType} {height} {material} {businessName} {phone}",
+                        stringResource(R.string.set_hoa_placeholders),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             item {
-                SectionCard("Review Requests") {
+                SectionCard(stringResource(R.string.set_review_requests)) {
                     DraftTextField(
                         stableKey = "review_tmpl", initialValue = local.reviewRequestTemplate,
-                        label = "Review request message", minLines = 3, modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.set_review_template), minLines = 3, modifier = Modifier.fillMaxWidth()
                     ) { local = local.copy(reviewRequestTemplate = it) }
                     Text(
-                        "Placeholders: {customerName} {businessName}. Send it from a job once it's complete.",
+                        stringResource(R.string.set_review_placeholders),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             item {
-                SectionCard("Card Payments (Square)") {
+                SectionCard(stringResource(R.string.set_square_title)) {
                     Text(
-                        "Connect your Square account and FenceFlow can create a payment link for the exact balance due, " +
-                            "straight from the job. Money goes from the customer to Square to your bank -- the app never holds it.",
+                        stringResource(R.string.set_square_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Get your token free at developer.squareup.com -- sign in with your normal Square login, create an " +
-                            "application, then copy the Production Access Token. There is no paid plan for this.",
+                        stringResource(R.string.set_square_token_help),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     DraftTextField(
                         stableKey = "square_token", initialValue = local.squareAccessToken,
-                        label = "Square access token", modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.set_square_token), modifier = Modifier.fillMaxWidth()
                     ) { local = local.copy(squareAccessToken = it) }
                     Text(
-                        "Stored on this phone only. It is never uploaded to the FenceFlow cloud or shared with your crew.",
+                        stringResource(R.string.set_square_stored_locally),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (local.squareLocationId.isNotBlank()) {
                         Text(
-                            "Connected. Location: ${local.squareLocationId}",
+                            stringResource(R.string.set_square_connected_location, local.squareLocationId),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -609,27 +632,27 @@ fun SettingsScreen(
                                     onSuccess = { locationId ->
                                         local = local.copy(squareLocationId = locationId)
                                         viewModel.save(local)
-                                        snackbarHostState.showSnackbar("Square connected")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.set_square_connected))
                                     },
                                     onFailure = {
-                                        snackbarHostState.showSnackbar(it.message ?: "Couldn't connect to Square")
+                                        snackbarHostState.showSnackbar(it.message ?: context.getString(R.string.set_square_connect_failed))
                                     }
                                 )
                             }
                         },
                         enabled = local.squareAccessToken.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Test & Connect Square") }
+                    ) { Text(stringResource(R.string.set_test_connect_square)) }
                 }
             }
             item {
-                SectionCard("Export Your Data") {
+                SectionCard(stringResource(R.string.set_export_title)) {
                     Text(
-                        "Everything you have -- jobs, payments, expenses, crew hours, change orders and materials -- as a set of spreadsheets you can open in Excel, Numbers or Google Sheets.",
+                        stringResource(R.string.set_export_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Your records are yours. You never need to ask us for a copy.",
+                        stringResource(R.string.set_records_yours),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Button(
@@ -639,12 +662,12 @@ fun SettingsScreen(
                         },
                         enabled = !exporting,
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (exporting) "Exporting..." else "Export Everything") }
+                    ) { Text(stringResource(if (exporting) R.string.set_exporting else R.string.set_export_everything)) }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                     Text(
-                        "Just the expenses, as a single CSV for a bookkeeper or tax software.",
+                        stringResource(R.string.set_expenses_csv_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(
@@ -653,13 +676,13 @@ fun SettingsScreen(
                             csvLauncher.launch(name)
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Export Expenses Only (CSV)") }
+                    ) { Text(stringResource(R.string.set_export_expenses_csv)) }
                 }
             }
             item {
-                SectionCard("Backup & Restore") {
+                SectionCard(stringResource(R.string.settings_backup)) {
                     Text(
-                        "Local only -- no account, no cloud service. Back up to save all your jobs, customers, and catalog to a file you choose (Google Drive, Dropbox, local storage -- wherever you pick). Restore replaces everything currently on this phone.",
+                        stringResource(R.string.set_backup_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Button(
@@ -668,9 +691,9 @@ fun SettingsScreen(
                             backupLauncher.launch(name)
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Back Up Now") }
+                    ) { Text(stringResource(R.string.settings_backup_now)) }
                     OutlinedButton(onClick = { restoreLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Restore From Backup")
+                        Text(stringResource(R.string.settings_restore))
                     }
                 }
             }
@@ -682,7 +705,7 @@ fun SettingsScreen(
                     onClick = { viewModel.save(local); onBack() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save Settings")
+                    Text(stringResource(R.string.settings_save))
                 }
             }
             item {
@@ -693,8 +716,11 @@ fun SettingsScreen(
                 // The build number is shown as well as the name because the
                 // number is what the update check actually compares.
                 Text(
-                    "FenceFlow " + com.fenceestimator.app.BuildConfig.VERSION_NAME +
-                        "  (build " + com.fenceestimator.app.BuildConfig.VERSION_CODE + ")",
+                    stringResource(
+                        R.string.set_version_line,
+                        com.fenceestimator.app.BuildConfig.VERSION_NAME,
+                        com.fenceestimator.app.BuildConfig.VERSION_CODE
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
@@ -707,28 +733,28 @@ fun SettingsScreen(
     showRestoreWarning?.let { uri ->
         AlertDialog(
             onDismissRequest = { showRestoreWarning = null },
-            title = { Text("Replace all current data?") },
-            text = { Text("Restoring will overwrite every job, customer, and catalog entry currently on this phone with what's in the backup file. This can't be undone. Continue?") },
+            title = { Text(stringResource(R.string.set_restore_title)) },
+            text = { Text(stringResource(R.string.set_restore_text)) },
             confirmButton = {
                 Button(onClick = {
                     showRestoreWarning = null
                     coroutineScope.launch {
                         val result = BackupManager.restore(context, uri)
                         if (result.isSuccess) showRestoreComplete = true
-                        else snackbarHostState.showSnackbar("Restore failed: ${result.exceptionOrNull()?.message}")
+                        else snackbarHostState.showSnackbar(context.getString(R.string.set_restore_failed, result.exceptionOrNull()?.message))
                     }
-                }) { Text("Restore") }
+                }) { Text(stringResource(R.string.set_restore_button)) }
             },
-            dismissButton = { OutlinedButton(onClick = { showRestoreWarning = null }) { Text("Cancel") } }
+            dismissButton = { OutlinedButton(onClick = { showRestoreWarning = null }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 
     if (showRestoreComplete) {
         AlertDialog(
             onDismissRequest = { },
-            title = { Text("Restore complete") },
-            text = { Text("Please fully close this app (swipe it away from Recent Apps) and reopen it for the restored data to load.") },
-            confirmButton = { Button(onClick = { showRestoreComplete = false }) { Text("OK") } }
+            title = { Text(stringResource(R.string.set_restore_complete_title)) },
+            text = { Text(stringResource(R.string.set_restore_complete_text)) },
+            confirmButton = { Button(onClick = { showRestoreComplete = false }) { Text(stringResource(R.string.set_ok)) } }
         )
     }
 
@@ -785,7 +811,7 @@ private fun SectionCard(
                 }
                 Icon(
                     if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = if (expanded) "Collapse $title" else "Expand $title"
+                    contentDescription = if (expanded) stringResource(R.string.set_collapse_section, title) else stringResource(R.string.set_expand_section, title)
                 )
             }
             if (expanded) content()
@@ -827,19 +853,19 @@ private fun EditTierDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (tier.id == 0L) "New Pricing Tier" else "Edit Pricing Tier") },
+        title = { Text(stringResource(if (tier.id == 0L) R.string.set_new_tier else R.string.set_edit_tier)) },
         text = {
             Column {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name (Residential, Commercial, Family...)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.set_tier_name)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = laborRate, onValueChange = { laborRate = it }, label = { Text("Labor \$/ft") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = laborFlat, onValueChange = { laborFlat = it }, label = { Text("Labor flat fee") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = laborRate, onValueChange = { laborRate = it }, label = { Text(stringResource(R.string.set_tier_labor_per_ft)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = laborFlat, onValueChange = { laborFlat = it }, label = { Text(stringResource(R.string.set_tier_labor_flat)) }, modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = markup, onValueChange = { markup = it }, label = { Text("Markup %") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = discount, onValueChange = { discount = it }, label = { Text("Discount %") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = markup, onValueChange = { markup = it }, label = { Text(stringResource(R.string.set_tier_markup)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = discount, onValueChange = { discount = it }, label = { Text(stringResource(R.string.set_tier_discount)) }, modifier = Modifier.weight(1f))
                 }
             }
         },
@@ -854,15 +880,15 @@ private fun EditTierDialog(
                         discountPercent = discount.replace(',', '.').toDoubleOrNull() ?: 0.0
                     )
                 )
-            }) { Text("Save") }
+            }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
             Row {
                 if (tier.id != 0L) {
-                    OutlinedButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = null) }
+                    OutlinedButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete)) }
                     Spacer(Modifier.width(8.dp))
                 }
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )

@@ -28,9 +28,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
@@ -59,8 +61,8 @@ fun PipelineScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Pipeline") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.misc_pipeline_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -112,7 +114,7 @@ private fun StageColumn(
         }
         if (jobs.isEmpty()) {
             Text(
-                "Nothing here",
+                stringResource(R.string.misc_pipeline_nothing_here),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -125,7 +127,7 @@ private fun StageColumn(
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Text(
-                            job.customerName.ifBlank { "Untitled job" },
+                            job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
                             fontWeight = FontWeight.Medium,
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -138,7 +140,7 @@ private fun StageColumn(
                         }
                         if (JobMoney.netPaid(job) > 0.0) {
                             Text(
-                                "Paid ${currency.format(JobMoney.netPaid(job))}",
+                                stringResource(R.string.misc_pipeline_paid, currency.format(JobMoney.netPaid(job))),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

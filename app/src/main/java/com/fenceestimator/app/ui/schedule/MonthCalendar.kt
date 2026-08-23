@@ -25,8 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.estimate.JobSchedule
 import java.text.SimpleDateFormat
@@ -80,7 +82,7 @@ fun MonthCalendar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onPreviousMonth) {
-                Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
+                Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.misc_calendar_previous_month))
             }
             Text(
                 monthFormat.format(Date(monthStart)),
@@ -88,14 +90,22 @@ fun MonthCalendar(
                 fontWeight = FontWeight.Bold
             )
             IconButton(onClick = onNextMonth) {
-                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "Next month")
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.misc_calendar_next_month))
             }
         }
 
         Row(Modifier.fillMaxWidth()) {
-            listOf("S", "M", "T", "W", "T", "F", "S").forEach { day ->
+            listOf(
+                R.string.misc_calendar_day_sun,
+                R.string.misc_calendar_day_mon,
+                R.string.misc_calendar_day_tue,
+                R.string.misc_calendar_day_wed,
+                R.string.misc_calendar_day_thu,
+                R.string.misc_calendar_day_fri,
+                R.string.misc_calendar_day_sat
+            ).forEach { day ->
                 Text(
-                    day,
+                    stringResource(day),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

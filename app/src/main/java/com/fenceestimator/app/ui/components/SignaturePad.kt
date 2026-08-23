@@ -28,8 +28,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -43,10 +45,10 @@ fun SignaturePadDialog(onSave: (String) -> Unit, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Sign to Accept") },
+        title = { Text(stringResource(R.string.estimate_sign)) },
         text = {
             Column {
-                Text("Sign below with your finger.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.misc_signature_sign_below), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -80,12 +82,12 @@ fun SignaturePadDialog(onSave: (String) -> Unit, onDismiss: () -> Unit) {
                     if (path != null) onSave(path)
                 },
                 enabled = strokes.isNotEmpty()
-            ) { Text("Save Signature") }
+            ) { Text(stringResource(R.string.misc_signature_save)) }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { strokes = emptyList(); currentStroke = emptyList() }) { Text("Clear") }
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                OutlinedButton(onClick = { strokes = emptyList(); currentStroke = emptyList() }) { Text(stringResource(R.string.draw_clear)) }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )

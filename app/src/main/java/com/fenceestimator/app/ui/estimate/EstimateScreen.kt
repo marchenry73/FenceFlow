@@ -97,7 +97,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.est_title)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -192,10 +192,10 @@ private fun RunSection(
         Column(Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(run.label.ifBlank { "Untitled run" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(run.label.ifBlank { stringResource(R.string.est2_untitled_run) }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${run.fenceType.name.replace("_", " ")} · ${String.format("%.1f", linearFeet)} ft" +
-                            if (run.usesManualFeet) "  (typed in)" else "",
+                        stringResource(R.string.est2_run_summary, run.fenceType.name.replace("_", " "), String.format("%.1f", linearFeet)) +
+                            if (run.usesManualFeet) "  " + stringResource(R.string.est2_typed_in) else "",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -234,8 +234,8 @@ private fun RunSection(
                 )
             }
             Text(
-                if (run.usesManualFeet) "Using your typed length. Clear it to measure off the drawing instead."
-                else "Leave blank to measure off the drawing on the Survey screen.",
+                if (run.usesManualFeet) stringResource(R.string.est2_using_typed_length)
+                else stringResource(R.string.est2_leave_blank_measure),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -255,9 +255,7 @@ private fun RunSection(
                     Text(stringResource(R.string.est_match_drawing, "%.0f".format(typedFeet)))
                 }
                 Text(
-                    "Measured it on site? This sets the drawing scale from this run, " +
-                        "so every other run, gate and distance on the same plan comes " +
-                        "out right too.",
+                    stringResource(R.string.est2_measured_on_site),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -284,7 +282,8 @@ private fun RunSection(
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "${run.suppressedRoles.size} item type${if (run.suppressedRoles.size == 1) "" else "s"} removed and kept off",
+                        if (run.suppressedRoles.size == 1) stringResource(R.string.est2_item_types_removed_one)
+                        else stringResource(R.string.est2_item_types_removed_many, run.suppressedRoles.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
@@ -360,17 +359,13 @@ private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
             Text(stringResource(R.string.est_waste_allowance), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Orders extra material for cuts and breakage. At 10%, a takeoff of 17 panels " +
-                    "orders 19 — because some get ruined being cut. Only applies to things you " +
-                    "cut or break: panels, pickets, rails, fabric, concrete. Never to posts, " +
-                    "caps or hardware, which you buy by exact count.",
+                stringResource(R.string.est2_waste_explain),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (wastePercent > 0.0) {
                 Text(
-                    "Press Suggest Quantities after changing this — it only affects newly " +
-                        "generated quantities, not lines already on the estimate.",
+                    stringResource(R.string.est2_waste_press_suggest),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -381,7 +376,7 @@ private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
                     androidx.compose.material3.FilterChip(
                         selected = wastePercent == pct,
                         onClick = { onChange(pct) },
-                        label = { Text(if (pct == 0.0) "None" else "${pct.toInt()}%") }
+                        label = { Text(if (pct == 0.0) stringResource(R.string.est2_none) else stringResource(R.string.est2_percent, pct.toInt())) }
                     )
                 }
             }
@@ -390,26 +385,27 @@ private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
 }
 
 private val QUANTITY_SUMMARY_ROLES = listOf(
-    Triple(MaterialRole.PANEL, "panel", "panels"),
-    Triple(MaterialRole.LINE_POST, "line post", "line posts"),
-    Triple(MaterialRole.CORNER_POST, "corner post", "corner posts"),
-    Triple(MaterialRole.END_POST, "end post", "end posts"),
-    Triple(MaterialRole.GATE_POST, "gate post", "gate posts"),
-    Triple(MaterialRole.POST_CAP, "cap", "caps"),
-    Triple(MaterialRole.CONCRETE_BAG, "bag of concrete", "bags of concrete"),
-    Triple(MaterialRole.WOOD_PICKET, "picket", "pickets"),
-    Triple(MaterialRole.WOOD_RAIL, "rail", "rails"),
-    Triple(MaterialRole.CHAIN_FABRIC, "ft of fabric", "ft of fabric")
+    Triple(MaterialRole.PANEL, R.string.est2_qty_panel, R.string.est2_qty_panels),
+    Triple(MaterialRole.LINE_POST, R.string.est2_qty_line_post, R.string.est2_qty_line_posts),
+    Triple(MaterialRole.CORNER_POST, R.string.est2_qty_corner_post, R.string.est2_qty_corner_posts),
+    Triple(MaterialRole.END_POST, R.string.est2_qty_end_post, R.string.est2_qty_end_posts),
+    Triple(MaterialRole.GATE_POST, R.string.est2_qty_gate_post, R.string.est2_qty_gate_posts),
+    Triple(MaterialRole.POST_CAP, R.string.est2_qty_cap, R.string.est2_qty_caps),
+    Triple(MaterialRole.CONCRETE_BAG, R.string.est2_qty_bag_of_concrete, R.string.est2_qty_bags_of_concrete),
+    Triple(MaterialRole.WOOD_PICKET, R.string.est2_qty_picket, R.string.est2_qty_pickets),
+    Triple(MaterialRole.WOOD_RAIL, R.string.est2_qty_rail, R.string.est2_qty_rails),
+    Triple(MaterialRole.CHAIN_FABRIC, R.string.est2_qty_ft_of_fabric, R.string.est2_qty_ft_of_fabric)
 )
 
 /** A quick "6 line posts · 2 corner posts · ..." readout so the counts are visible without reading every line item. */
+@Composable
 private fun quantitySummary(items: List<EstimateLineItem>): String {
     val byRole = items.groupBy { it.role }
     return QUANTITY_SUMMARY_ROLES.mapNotNull { (role, singular, plural) ->
         val qty = byRole[role]?.sumOf { it.quantity } ?: 0.0
         if (qty <= 0.0) return@mapNotNull null
         val qtyStr = if (qty % 1.0 == 0.0) qty.toInt().toString() else String.format("%.1f", qty)
-        "$qtyStr ${if (qty == 1.0) singular else plural}"
+        "$qtyStr ${stringResource(if (qty == 1.0) singular else plural)}"
     }.joinToString("  ·  ")
 }
 
@@ -424,7 +420,7 @@ private fun LineItemRow(item: EstimateLineItem, currency: NumberFormat, onClick:
             Column(Modifier.weight(1f)) {
                 Text(item.description, fontWeight = FontWeight.Medium)
                 val qtyStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else String.format("%.2f", item.quantity)
-                Text("$qtyStr ${item.unit} x ${currency.format(item.unitPrice)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.est2_line_item_detail, qtyStr, item.unit, currency.format(item.unitPrice)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(currency.format(item.quantity * item.unitPrice), fontWeight = FontWeight.SemiBold)
         }
@@ -435,35 +431,37 @@ private fun LineItemRow(item: EstimateLineItem, currency: NumberFormat, onClick:
 private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: NumberFormat) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            TotalRow("Materials Subtotal", currency.format(totals.materialsSubtotal))
-            TotalRow("Tax (${job?.taxRatePercent ?: 0}%)", currency.format(totals.tax))
-            if (totals.laborCost > 0.0) TotalRow("Labor", currency.format(totals.laborCost))
+            TotalRow(stringResource(R.string.estimate_materials_subtotal), currency.format(totals.materialsSubtotal))
+            TotalRow(stringResource(R.string.est2_tax_pct, "${job?.taxRatePercent ?: 0}"), currency.format(totals.tax))
+            if (totals.laborCost > 0.0) TotalRow(stringResource(R.string.estimate_labor), currency.format(totals.laborCost))
             if (totals.gateCharge > 0.0) {
                 TotalRow(
-                    "Gates (${"%.0f".format(totals.gateFeet)} ft @ ${currency.format(job?.gateRatePerFt ?: 0.0)}/ft)",
+                    stringResource(R.string.est2_gates_line, "%.0f".format(totals.gateFeet), currency.format(job?.gateRatePerFt ?: 0.0)),
                     currency.format(totals.gateCharge)
                 )
             }
             if (totals.teardownCost > 0.0) {
-                TotalRow("Teardown of existing fence", currency.format(totals.teardownCost - totals.trashHaulFee))
+                TotalRow(stringResource(R.string.est2_teardown_existing), currency.format(totals.teardownCost - totals.trashHaulFee))
             }
-            if (totals.trashHaulFee > 0.0) TotalRow("Haul away / dump fee", currency.format(totals.trashHaulFee))
-            if (totals.markupAmount > 0.0) TotalRow("Markup (${job?.markupPercent ?: 0}%)", currency.format(totals.markupAmount))
+            if (totals.trashHaulFee > 0.0) TotalRow(stringResource(R.string.est2_haul_away_fee), currency.format(totals.trashHaulFee))
+            if (totals.markupAmount > 0.0) TotalRow(stringResource(R.string.est2_markup_pct, "${job?.markupPercent ?: 0}"), currency.format(totals.markupAmount))
             if (totals.discountAmount > 0.0) {
                 TotalRow(
-                    "Discount${if (job?.pricingTierName?.isNotBlank() == true) " (${job?.pricingTierName})" else ""} (${job?.discountPercent ?: 0}%)",
+                    if (job?.pricingTierName?.isNotBlank() == true)
+                        stringResource(R.string.est2_discount_tier_pct, job?.pricingTierName ?: "", "${job?.discountPercent ?: 0}")
+                    else stringResource(R.string.est2_discount_pct, "${job?.discountPercent ?: 0}"),
                     "-" + currency.format(totals.discountAmount)
                 )
             }
             if (totals.changeOrderCost > 0.0 || totals.changeOrderFeet > 0.0) {
                 TotalRow(
-                    "Approved extra work" +
-                        if (totals.changeOrderFeet > 0.0) " (+${"%.0f".format(totals.changeOrderFeet)} ft)" else "",
+                    stringResource(R.string.est2_approved_extra_work) +
+                        if (totals.changeOrderFeet > 0.0) " " + stringResource(R.string.est2_plus_feet, "%.0f".format(totals.changeOrderFeet)) else "",
                     currency.format(totals.changeOrderCost)
                 )
             }
             Divider(modifier = Modifier.padding(vertical = 8.dp))
-            TotalRow("TOTAL", currency.format(totals.grandTotal), bold = true)
+            TotalRow(stringResource(R.string.estimate_total), currency.format(totals.grandTotal), bold = true)
 
             // What the job keeps, shown every time rather than only when it is
             // bad. The warning below fires under 35%; the owner asked to see
@@ -476,8 +474,7 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: Numbe
                 val kept = priceExTax - totals.materialsSubtotal
                 val keptPct = kept / priceExTax * 100.0
                 Text(
-                    "Stays with you after materials: " + currency.format(kept) +
-                        " (" + "%.0f".format(keptPct) + "%). Crew wages and profit come out of this.",
+                    stringResource(R.string.est2_stays_with_you, currency.format(kept), "%.0f".format(keptPct)),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (keptPct < 35.0) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -486,7 +483,7 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: Numbe
             }
             if (job != null && totals.grandTotal <= job!!.minimumJobCharge && job!!.minimumJobCharge > 0.0) {
                 Text(
-                    "Minimum job charge of ${currency.format(job!!.minimumJobCharge)} applied",
+                    stringResource(R.string.est2_minimum_charge_applied, currency.format(job!!.minimumJobCharge)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -542,7 +539,7 @@ private fun ExportSection(
             }
             // The system share sheet, so it can go by text, WhatsApp or email
             // -- whatever that particular customer or supplier actually uses.
-            context.startActivity(Intent.createChooser(intent, "Send ${document.title}"))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.est2_send_document, document.title)))
         }
     }
 
@@ -561,15 +558,16 @@ private fun ExportSection(
             ) {
                 Column(Modifier.padding(12.dp)) {
                     Text(
-                        "This estimate changed after it was signed",
+                        stringResource(R.string.est2_changed_after_signed_title),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Text(
-                        "Since it was signed, " +
-                            JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet) +
-                            ". Nothing can be sent out until " +
-                            "${job.customerName.ifBlank { "the customer" }} signs the new figures.",
+                        stringResource(
+                            R.string.est2_changed_after_signed_body,
+                            JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet),
+                            job.customerName.ifBlank { stringResource(R.string.est2_the_customer) }
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
@@ -584,7 +582,7 @@ private fun ExportSection(
                     modifier = Modifier.height(40.dp).weight(1f)
                 )
                 Button(onClick = { showSignaturePad = true }) {
-                    Text(if (needsResign) "Get new signature" else "Re-sign")
+                    Text(stringResource(if (needsResign) R.string.est2_get_new_signature else R.string.est2_re_sign))
                 }
             }
         } else {
@@ -608,13 +606,12 @@ private fun ExportSection(
             ) {
                 Column(Modifier.padding(12.dp)) {
                     Text(
-                        "Provisional pricing",
+                        stringResource(R.string.est2_provisional_pricing),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Text(
-                        "Materials are costed from your catalog, not from a supplier quote. " +
-                            "Send the material list, then enter what they come back with.",
+                        stringResource(R.string.est2_provisional_pricing_body),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
@@ -646,8 +643,8 @@ private fun ExportSection(
         // The banner above says why, but it scrolls away on a long estimate and
         // the button is what the eye lands on.
         Text(
-            if (needsResign) "Locked: the price changed after this was signed."
-            else "Scope, price and your terms. No material breakdown.",
+            if (needsResign) stringResource(R.string.est2_locked_price_changed)
+            else stringResource(R.string.est2_contract_hint),
             style = MaterialTheme.typography.bodySmall,
             color = if (needsResign) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
@@ -662,7 +659,7 @@ private fun ExportSection(
             Text("  " + stringResource(R.string.est_send_material_list))
         }
         Text(
-            "Quantities only, no prices -- they quote it back to you.",
+            stringResource(R.string.est2_material_list_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -681,9 +678,9 @@ private fun ExportSection(
         }
         Text(
             when {
-                needsResign -> "Locked: the price changed after this was signed."
-                job.signedAt == null -> "Locked until the customer signs the contract."
-                else -> "What was agreed, what is paid, what is left."
+                needsResign -> stringResource(R.string.est2_locked_price_changed)
+                job.signedAt == null -> stringResource(R.string.est2_locked_until_signed)
+                else -> stringResource(R.string.est2_invoice_hint)
             },
             style = MaterialTheme.typography.bodySmall,
             color = if (needsResign || job.signedAt == null) MaterialTheme.colorScheme.error
@@ -699,7 +696,7 @@ private fun ExportSection(
             Text("  " + stringResource(R.string.est_working_copy))
         }
         Text(
-            "Every line and every cost. For you, not the customer.",
+            stringResource(R.string.est2_working_copy_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

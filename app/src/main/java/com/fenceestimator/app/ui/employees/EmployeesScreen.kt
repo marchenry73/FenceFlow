@@ -40,9 +40,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
@@ -63,20 +65,20 @@ fun EmployeesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Crew & Employees") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.emp_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showNew = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add employee")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.emp_add_employee))
             }
         }
     ) { padding ->
         if (employees.isEmpty()) {
             Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
                 Text(
-                    "No crew members yet. Add your team so you can assign them to jobs.",
+                    stringResource(R.string.emp_no_crew_yet),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -98,14 +100,14 @@ fun EmployeesScreen(onBack: () -> Unit) {
                     Card(onClick = { editing = e }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             Text(
-                                e.name.ifBlank { "Unnamed" },
+                                e.name.ifBlank { stringResource(R.string.emp_unnamed) },
                                 fontWeight = FontWeight.Medium,
                                 color = if (e.isActive) MaterialTheme.colorScheme.onSurface
                                         else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             if (!e.isActive) {
                                 Text(
-                                    "No longer on the crew. Their hours and jobs are kept.",
+                                    stringResource(R.string.emp_no_longer_on_crew),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -141,24 +143,22 @@ fun EmployeesScreen(onBack: () -> Unit) {
 
         AlertDialog(
             onDismissRequest = { removing = null },
-            title = { Text("Take ${leaver.name.ifBlank { "this person" }} off the crew?") },
+            title = { Text(stringResource(R.string.emp_take_off_crew_title, leaver.name.ifBlank { stringResource(R.string.emp_this_person) })) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "They stop appearing when you assign work and can no longer " +
-                            "sign in. Everything they did stays: their hours, the jobs " +
-                            "they worked, and what those jobs cost.",
+                        stringResource(R.string.emp_take_off_crew_body),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     if (openJobs.isEmpty()) {
                         Text(
-                            "They have no unfinished jobs.",
+                            stringResource(R.string.emp_no_unfinished_jobs),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Text(
-                            "${openJobs.size} unfinished job(s) are theirs. Who takes them on?",
+                            stringResource(R.string.emp_unfinished_jobs_who, openJobs.size),
                             fontWeight = FontWeight.Medium
                         )
                         // Finished jobs deliberately keep their name -- they did
@@ -173,7 +173,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
                                     selected = reassignTo == candidate.id,
                                     onClick = { reassignTo = candidate.id }
                                 )
-                                Text(candidate.name.ifBlank { "Unnamed" })
+                                Text(candidate.name.ifBlank { stringResource(R.string.emp_unnamed) })
                             }
                         }
                         Row(
@@ -181,7 +181,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth().clickable { reassignTo = null }
                         ) {
                             RadioButton(selected = reassignTo == null, onClick = { reassignTo = null })
-                            Text("Leave them unassigned for now")
+                            Text(stringResource(R.string.emp_leave_unassigned))
                         }
                     }
                 }
@@ -190,10 +190,10 @@ fun EmployeesScreen(onBack: () -> Unit) {
                 Button(onClick = {
                     viewModel.deactivate(leaver, reassignTo)
                     removing = null
-                }) { Text("Take them off") }
+                }) { Text(stringResource(R.string.emp_take_them_off)) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { removing = null }) { Text("Cancel") }
+                OutlinedButton(onClick = { removing = null }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -229,21 +229,21 @@ private fun EditEmployeeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (employee.id == 0L) "New Crew Member" else "Edit Crew Member") },
+        title = { Text(stringResource(if (employee.id == 0L) R.string.emp_new_crew_member else R.string.emp_edit_crew_member)) },
         text = {
             Column {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.emp_name)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = role, onValueChange = { role = it }, label = { Text("Role (e.g. Foreman, Laborer)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = role, onValueChange = { role = it }, label = { Text(stringResource(R.string.emp_role_hint)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                Text("How they're paid", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.emp_how_paid), style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.fenceestimator.app.data.PayType.values().forEach { type ->
                         androidx.compose.material3.FilterChip(
                             selected = payType == type,
                             onClick = { payType = type },
-                            label = { Text(if (type == com.fenceestimator.app.data.PayType.HOURLY) "Per hour" else "Per foot") }
+                            label = { Text(stringResource(if (type == com.fenceestimator.app.data.PayType.HOURLY) R.string.emp_per_hour else R.string.emp_per_foot)) }
                         )
                     }
                 }
@@ -251,7 +251,7 @@ private fun EditEmployeeDialog(
                 if (payType == com.fenceestimator.app.data.PayType.HOURLY) {
                     OutlinedTextField(
                         value = hourlyRate, onValueChange = { hourlyRate = it },
-                        label = { Text("Hourly rate ($)") },
+                        label = { Text(stringResource(R.string.emp_hourly_rate)) },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                         ),
@@ -260,24 +260,24 @@ private fun EditEmployeeDialog(
                 } else {
                     OutlinedTextField(
                         value = perFootRate, onValueChange = { perFootRate = it },
-                        label = { Text("Rate per linear foot ($)") },
+                        label = { Text(stringResource(R.string.emp_rate_per_foot)) },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        "Hours are still tracked so you can see how the rate is working out.",
+                        stringResource(R.string.emp_hours_still_tracked),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text(stringResource(R.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text(stringResource(R.string.field_email)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.field_notes)) }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             }
         },
         confirmButton = {
@@ -291,7 +291,7 @@ private fun EditEmployeeDialog(
                     )
                 )
             }) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
         },
         dismissButton = {
@@ -303,13 +303,13 @@ private fun EditEmployeeDialog(
                 // behind the delete permission.
                 if (employee.id != 0L) {
                     if (employee.isActive) {
-                        OutlinedButton(onClick = onRemoveFromCrew) { Text("Take off crew") }
+                        OutlinedButton(onClick = onRemoveFromCrew) { Text(stringResource(R.string.emp_take_off_crew)) }
                     } else {
-                        OutlinedButton(onClick = onPutBackOnCrew) { Text("Put back on") }
+                        OutlinedButton(onClick = onPutBackOnCrew) { Text(stringResource(R.string.emp_put_back_on)) }
                     }
                     Spacer(Modifier.width(8.dp))
                 }
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )

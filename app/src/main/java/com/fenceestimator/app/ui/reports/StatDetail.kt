@@ -1,5 +1,7 @@
 package com.fenceestimator.app.ui.reports
 
+import android.content.Context
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.PaymentRecord
 
 /**
@@ -41,22 +43,23 @@ data class DetailLine(
  * Kept apart from the screen so the wording is in one place and can be read as
  * a whole -- these sentences are the difference between a report someone trusts
  * and one they quietly work around with a spreadsheet.
+ *
+ * These are called from click handlers (not composable scope), so the wording
+ * is resolved through [Context.getString].
  */
 object StatDetails {
 
     fun collected(
+        context: Context,
         totals: ReportTotals,
         payments: List<PaymentRecord>,
         jobNameFor: (Long) -> String,
         money: (Double) -> String,
         date: (Long) -> String
     ) = StatDetail(
-        title = "Collected",
+        title = context.getString(R.string.reports_collected),
         value = money(totals.collected),
-        howItWorks =
-            "Every payment received in this date range, added up, less any refunds " +
-                "given back in the same range. A payment counts on the day the money " +
-                "arrived -- not the day the job was booked or finished.",
+        howItWorks = context.getString(R.string.rep_collected_how),
         lines = payments
             .sortedByDescending { it.receivedAt }
             .map { payment ->
@@ -69,61 +72,54 @@ object StatDetails {
                 )
             },
         caveat = if (payments.isEmpty()) {
-            "Nothing was received in this range. Money from jobs booked in this " +
-                "period but paid later will appear in the period it was paid."
+            context.getString(R.string.rep_collected_caveat_empty)
         } else null
     )
 
-    fun profit(totals: ReportTotals, money: (Double) -> String) = StatDetail(
-        title = "Profit",
+    fun profit(context: Context, totals: ReportTotals, money: (Double) -> String) = StatDetail(
+        title = context.getString(R.string.rep_stat_profit),
         value = money(totals.profit),
-        howItWorks = "What you collected, less what the work cost you.",
+        howItWorks = context.getString(R.string.rep_profit_how),
         lines = listOf(
-            DetailLine("Collected", amount = money(totals.collected)),
-            DetailLine("Materials", "From the priced line items", money(totals.materialCost), isNegative = true),
-            DetailLine("Labour", "Approved crew hours only", money(totals.laborCost), isNegative = true),
-            DetailLine("Other expenses", "Fuel, rentals, permits", money(totals.otherExpenses), isNegative = true)
+            DetailLine(context.getString(R.string.reports_collected), amount = money(totals.collected)),
+            DetailLine(context.getString(R.string.rep_line_materials), context.getString(R.string.rep_line_materials_sub), money(totals.materialCost), isNegative = true),
+            DetailLine(context.getString(R.string.rep_line_labour), context.getString(R.string.rep_line_labour_sub), money(totals.laborCost), isNegative = true),
+            DetailLine(context.getString(R.string.rep_line_other_expenses), context.getString(R.string.rep_line_other_expenses_sub), money(totals.otherExpenses), isNegative = true)
         ),
         // Said plainly, because a contractor reading a profit figure that
         // excludes their van and their insurance and treating it as take-home
         // is how a business looks healthy while running out of money.
-        caveat = "This does not include overheads -- insurance, vehicles, tools, " +
-            "phone, office. It is profit on the work, not what the business made."
+        caveat = context.getString(R.string.rep_profit_caveat)
     )
 
-    fun margin(totals: ReportTotals) = StatDetail(
-        title = "Margin",
+    fun margin(context: Context, totals: ReportTotals) = StatDetail(
+        title = context.getString(R.string.reports_margin),
         value = "%.0f".format(totals.marginPercent) + "%",
-        howItWorks = "Profit as a share of what you collected. Ten percent means " +
-            "ten cents of every dollar collected was left after the work was paid for.",
-        caveat = "Same exclusions as profit: no overheads."
+        howItWorks = context.getString(R.string.rep_margin_how),
+        caveat = context.getString(R.string.rep_margin_caveat)
     )
 
-    fun jobsWon(totals: ReportTotals, wonJobNames: List<String>) = StatDetail(
-        title = "Jobs won",
+    fun jobsWon(context: Context, totals: ReportTotals, wonJobNames: List<String>) = StatDetail(
+        title = context.getString(R.string.rep_stat_jobs_won),
         value = totals.jobsWon.toString(),
-        howItWorks = "Jobs in this range that the customer accepted or that are finished.",
+        howItWorks = context.getString(R.string.rep_jobs_won_how),
         lines = wonJobNames.map { DetailLine(it) }
     )
 
-    fun closeRate(totals: ReportTotals) = StatDetail(
-        title = "Close rate",
+    fun closeRate(context: Context, totals: ReportTotals) = StatDetail(
+        title = context.getString(R.string.rep_stat_close_rate),
         value = "%.0f".format(totals.closeRatePercent) + "%",
-        howItWorks = "Of the ${totals.quotesSent} quote(s) that went out in this range, " +
-            "${totals.jobsWon} became work.",
-        caveat = if (totals.quotesSent == 0) "No quotes went out in this range." else null
+        howItWorks = context.getString(R.string.rep_close_rate_how, totals.quotesSent, totals.jobsWon),
+        caveat = if (totals.quotesSent == 0) context.getString(R.string.rep_close_rate_caveat_none) else null
     )
 
-    fun hoursClocked(totals: ReportTotals, money: (Double) -> String) = StatDetail(
-        title = "Hours clocked",
+    fun hoursClocked(context: Context, totals: ReportTotals, money: (Double) -> String) = StatDetail(
+        title = context.getString(R.string.rep_stat_hours_clocked),
         value = "%.1f".format(totals.hoursClocked),
-        howItWorks = "Every finished shift on these jobs, whether or not it has been " +
-            "approved yet.",
+        howItWorks = context.getString(R.string.rep_hours_how),
         // The distinction that stops the two figures looking like a
         // contradiction: hours are what was worked, labour cost is what has
         // been signed off.
-        caveat = "Labour cost above counts APPROVED hours only, so it can be lower " +
-            "than these hours suggest. Approve shifts under Hours To Approve and " +
-            "the two come together."
+        caveat = context.getString(R.string.rep_hours_caveat)
     )
 }

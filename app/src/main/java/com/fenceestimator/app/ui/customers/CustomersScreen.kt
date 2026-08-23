@@ -26,9 +26,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 
@@ -42,14 +44,14 @@ fun CustomersScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Customers") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(stringResource(R.string.misc_customers_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
         if (customers.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No customers yet -- they show up here once you create a job.", modifier = Modifier.padding(24.dp))
+                Text(stringResource(R.string.misc_customers_empty), modifier = Modifier.padding(24.dp))
             }
         } else {
             LazyColumn(
@@ -70,12 +72,16 @@ fun CustomersScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                                     Text(customer.mostRecentAddress, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Text(
-                                    "${customer.jobCount} job${if (customer.jobCount == 1) "" else "s"}",
+                                    stringResource(
+                                        if (customer.jobCount == 1) R.string.misc_customers_job_count_one
+                                        else R.string.misc_customers_job_count_many,
+                                        customer.jobCount
+                                    ),
                                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             IconButton(onClick = { viewModel.createJobForCustomer(customer, onOpenJob) }) {
-                                Icon(Icons.Filled.Add, contentDescription = "New job for this customer")
+                                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.misc_customers_new_job_for_customer))
                             }
                         }
                     }

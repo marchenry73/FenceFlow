@@ -109,7 +109,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.crew_job_number, currentJob.id)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -145,7 +145,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                     ) {
                         Column(Modifier.padding(14.dp)) {
                             Text(
-                                "Before you dig",
+                                stringResource(R.string.misc_crew_before_you_dig),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
@@ -155,7 +155,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             )
                             if (currentJob.locateNotes.isNotBlank()) {
                                 Text(
-                                    "Marked: ${currentJob.locateNotes}",
+                                    stringResource(R.string.misc_crew_marked, currentJob.locateNotes),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -181,7 +181,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         )
                         if (!dayPlan.isFinalDay && dayPlan.totalDays > 1) {
                             Text(
-                                "Leave it safe and tidy tonight -- you're back tomorrow.",
+                                stringResource(R.string.misc_crew_back_tomorrow),
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -196,7 +196,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            currentJob.customerName.ifBlank { "Customer" },
+                            currentJob.customerName.ifBlank { stringResource(R.string.section_customer) },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -223,8 +223,11 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                     IntentHelpers.openSmsDraft(
                                         context,
                                         currentJob.phone,
-                                        "Hi ${currentJob.customerName.ifBlank { "there" }}, we're on our way to " +
-                                            "${currentJob.address.ifBlank { "your property" }} now. See you shortly."
+                                        context.getString(
+                                            R.string.misc_crew_on_my_way_sms,
+                                            currentJob.customerName.ifBlank { context.getString(R.string.misc_crew_fallback_there) },
+                                            currentJob.address.ifBlank { context.getString(R.string.misc_crew_fallback_your_property) }
+                                        )
                                     )
                                 },
                                 modifier = Modifier.fillMaxWidth()
@@ -243,7 +246,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         Text(stringResource(R.string.crew_what_building), style = MaterialTheme.typography.titleMedium)
                         if (runs.isEmpty()) {
                             Text(
-                                "No fence runs on this job yet.",
+                                stringResource(R.string.misc_crew_no_runs),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -267,27 +270,31 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             else geometry.totalLinearFeet.toDouble()
                             val corners = if (usingManual) run.manualCornerCount else geometry.cornerCount
 
-                            Text(run.label.ifBlank { "Untitled run" }, fontWeight = FontWeight.Medium)
+                            Text(run.label.ifBlank { stringResource(R.string.misc_crew_untitled_run) }, fontWeight = FontWeight.Medium)
                             if (feet <= 0.0) {
                                 Text(
-                                    "Nothing measured for this run yet — check with the office.",
+                                    stringResource(R.string.misc_crew_nothing_measured),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.error
                                 )
                             } else {
+                                val feetText = stringResource(R.string.misc_feet_value, "%.0f".format(feet))
+                                val tallText = stringResource(R.string.misc_crew_feet_tall, run.panelHeightFt.toInt())
                                 Text(
                                     buildString {
                                         append(run.fenceType.name.replace("_", " "))
-                                        append(" · ${"%.0f".format(feet)} ft")
-                                        append(" · ${run.panelHeightFt.toInt()} ft tall")
+                                        append(" · $feetText")
+                                        append(" · $tallText")
                                         if (run.colorOrFinish.isNotBlank()) append(" · ${run.colorOrFinish}")
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    "$corners corners · ${gates.size} gate(s) · " +
-                                        "posts ${run.postSpacingFt.toInt()} ft apart",
+                                    stringResource(
+                                        R.string.misc_crew_run_details,
+                                        corners, gates.size, run.postSpacingFt.toInt()
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -331,8 +338,10 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                 // the app having lost the day worked.
                                 if (pay.hoursAwaitingApproval > 0.0) {
                                     Text(
-                                        "%.2f".format(pay.hoursAwaitingApproval) +
-                                            " more hrs waiting to be approved -- not counted yet.",
+                                        stringResource(
+                                            R.string.misc_crew_hours_awaiting,
+                                            "%.2f".format(pay.hoursAwaitingApproval)
+                                        ),
                                         style = MaterialTheme.typography.bodySmall,
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -342,7 +351,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                     pay.effectiveHourly > 0.0
                                 ) {
                                     Text(
-                                        "Works out to $${"%.2f".format(pay.effectiveHourly)}/hr",
+                                        stringResource(R.string.misc_crew_works_out_hourly, "%.2f".format(pay.effectiveHourly)),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
@@ -356,7 +365,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             item {
                 StepSection(
                     title = stringResource(R.string.crew_walkthrough),
-                    subtitle = "Go through each item with the customer and tick it once they agree.",
+                    subtitle = stringResource(R.string.misc_crew_walkthrough_subtitle),
                     steps = walkthrough,
                     onToggle = { viewModel.toggleStep(it) }
                 )
@@ -373,8 +382,8 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 
             item {
                 StepSection(
-                    title = "Final Walkthrough (before you leave)",
-                    subtitle = "Walk the finished fence with the customer, then have them sign below.",
+                    title = stringResource(R.string.misc_crew_final_walkthrough_title),
+                    subtitle = stringResource(R.string.misc_crew_final_walkthrough_subtitle),
                     steps = finalWalkthrough,
                     onToggle = { viewModel.toggleStep(it) }
                 )
@@ -401,7 +410,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                     cameraLauncher.launch(target.uri)
                                 }) {
                                     Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                                    Text("  ${kind.name.lowercase().replaceFirstChar { it.uppercase() }}")
+                                    Text("  " + stringResource(if (kind == PhotoKind.BEFORE) R.string.misc_photo_before else R.string.misc_photo_after))
                                 }
                             }
                         }
@@ -478,7 +487,7 @@ private fun TimeClockCard(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "On the clock since ${timeFormat.format(java.util.Date(running.startedAt))}",
+                    stringResource(R.string.misc_crew_on_clock_since, timeFormat.format(java.util.Date(running.startedAt))),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -489,16 +498,18 @@ private fun TimeClockCard(
 
             if (totalHours > 0.0) {
                 Text(
-                    "Logged on this job: ${"%.2f".format(totalHours)} hours",
+                    stringResource(R.string.misc_crew_logged_hours, "%.2f".format(totalHours)),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
             }
             entries.filter { !it.isRunning }.take(5).forEach { entry ->
                 Text(
-                    "${timeFormat.format(java.util.Date(entry.startedAt))} - " +
-                        "${entry.endedAt?.let { timeFormat.format(java.util.Date(it)) } ?: ""}  " +
-                        "(${"%.2f".format(entry.hours)} h)",
+                    stringResource(
+                        R.string.misc_crew_time_range,
+                        timeFormat.format(java.util.Date(entry.startedAt)),
+                        entry.endedAt?.let { timeFormat.format(java.util.Date(it)) } ?: ""
+                    ) + "  " + stringResource(R.string.misc_crew_hours_paren, "%.2f".format(entry.hours)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -573,20 +584,20 @@ private fun FinalSignOffCard(
 
             if (job.finalSignOffImagePath != null) {
                 Text(
-                    "Signed off -- the customer confirmed the work is complete.",
+                    stringResource(R.string.misc_crew_signed_off),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 coil.compose.AsyncImage(
                     model = job.finalSignOffImagePath,
-                    contentDescription = "Customer sign-off signature",
+                    contentDescription = stringResource(R.string.misc_crew_sign_off_signature_desc),
                     modifier = Modifier.height(60.dp)
                 )
             } else {
                 Text(
                     if (remaining > 0)
-                        "Finish the $remaining remaining item(s) above, then have the customer sign."
+                        stringResource(R.string.misc_crew_finish_remaining, remaining)
                     else
-                        "Walk through is done. Have the customer sign to confirm the work is complete.",
+                        stringResource(R.string.misc_crew_walkthrough_done),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

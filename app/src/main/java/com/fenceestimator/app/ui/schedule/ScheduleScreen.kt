@@ -27,9 +27,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import java.text.SimpleDateFormat
@@ -67,13 +69,13 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Schedule") },
+                title = { Text(stringResource(R.string.misc_schedule_title)) },
                 actions = {
                     androidx.compose.material3.TextButton(onClick = { monthView = !monthView }) {
-                        Text(if (monthView) "List" else "Month")
+                        Text(stringResource(if (monthView) R.string.misc_schedule_view_list else R.string.misc_schedule_view_month))
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -130,7 +132,7 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                     if (onDay.isEmpty()) {
                         item {
                             Text(
-                                "Nothing booked. This day is free.",
+                                stringResource(R.string.misc_schedule_day_free),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -143,7 +145,7 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                         ) {
                             Column(Modifier.padding(12.dp)) {
                                 Text(
-                                    job.customerName.ifBlank { "Untitled job" },
+                                    job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
                                     style = MaterialTheme.typography.titleSmall
                                 )
                                 if (job.address.isNotBlank()) {
@@ -166,7 +168,7 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
             }
         } else if (jobs.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No jobs scheduled yet -- set a date on a job to see it here.", modifier = Modifier.padding(24.dp))
+                Text(stringResource(R.string.misc_schedule_empty), modifier = Modifier.padding(24.dp))
             }
         } else {
             LazyColumn(
@@ -194,8 +196,8 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                if (todaysAddresses.size == 1) "Navigate to Today's Job"
-                                else "Route Today's ${todaysAddresses.size} Stops"
+                                if (todaysAddresses.size == 1) stringResource(R.string.misc_schedule_navigate_today)
+                                else stringResource(R.string.misc_schedule_route_stops, todaysAddresses.size)
                             )
                         }
                     }
@@ -204,7 +206,7 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                     Card(onClick = { onOpenJob(job.id) }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
                             Text(job.scheduledDate?.let { dateFormat.format(Date(it)) } ?: "", fontWeight = FontWeight.SemiBold)
-                            Text(job.customerName.ifBlank { "Untitled job" }, style = MaterialTheme.typography.bodyLarge)
+                            Text(job.customerName.ifBlank { stringResource(R.string.jobs_untitled) }, style = MaterialTheme.typography.bodyLarge)
                             if (job.address.isNotBlank()) {
                                 Text(job.address, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }

@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.FieldChange
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -40,8 +42,7 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
 
     if (changes.isEmpty()) {
         Text(
-            "Nothing changed on site yet. If the crew corrects the plan — a longer run, " +
-                "a gate moved — it shows up here.",
+            stringResource(R.string.jsec_fc_empty),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -60,12 +61,12 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "The crew are waiting on you",
+                    stringResource(R.string.jsec_fc_waiting_title),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onTertiaryContainer
                 )
                 Text(
-                    "They have stopped rather than build it different. Answer and they carry on.",
+                    stringResource(R.string.jsec_fc_waiting_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer
                 )
@@ -86,17 +87,19 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
                 Text(
-                    "$unseen change${if (unseen == 1) "" else "s"} you haven't seen",
+                    if (unseen == 1) stringResource(R.string.jsec_fc_unseen_one, unseen)
+                    else stringResource(R.string.jsec_fc_unseen_many, unseen),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
                 OutlinedButton(onClick = { viewModel.acknowledgeFieldChanges() }) {
-                    Text("Mark seen")
+                    Text(stringResource(R.string.jsec_fc_mark_seen))
                 }
             }
         }
     }
 
+    val someone = stringResource(R.string.jsec_fc_someone)
     changes.filter { !it.isAwaitingDecision }.forEach { change ->
         Card(
             Modifier.fillMaxWidth(),
@@ -112,7 +115,7 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
                 }
                 Text(
                     buildString {
-                        append(change.changedBy.ifBlank { "Someone" })
+                        append(change.changedBy.ifBlank { someone })
                         if (change.changedByRole.isNotBlank()) append(" (${change.changedByRole})")
                         append(" · ${timeFormat.format(Date(change.at))}")
                     },
@@ -124,8 +127,7 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
     }
 
     Text(
-        "If the footage moved, re-run Suggest Quantities on the estimate so the material " +
-            "order matches what's actually being built.",
+        stringResource(R.string.jsec_fc_rerun_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -176,26 +178,26 @@ private fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text("Answer (the crew will see this)") },
+                    label = { Text(stringResource(R.string.jsec_fc_answer_label)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { viewModel.decidePlanChange(request, approved = true, note = note.trim()) },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Approve") }
+                    ) { Text(stringResource(R.string.time_approve)) }
                     OutlinedButton(
                         // A reason is required to say no, but not to say yes -- yes
                         // needs no defending, and requiring one just slows the crew.
                         enabled = note.isNotBlank(),
                         onClick = { viewModel.decidePlanChange(request, approved = false, note = note.trim()) },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Not this time") }
+                    ) { Text(stringResource(R.string.jsec_fc_not_this_time)) }
                 }
             } else {
                 Text(
-                    if (canApprove) "Your own request -- somebody else signs this one off."
-                    else "Waiting on the office to answer.",
+                    if (canApprove) stringResource(R.string.jsec_fc_own_request)
+                    else stringResource(R.string.jsec_fc_waiting_office),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

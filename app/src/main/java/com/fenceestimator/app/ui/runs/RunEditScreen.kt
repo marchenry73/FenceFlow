@@ -34,9 +34,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.AluminumStyle
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
@@ -65,8 +67,8 @@ fun RunEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(currentRun.label.ifBlank { "Fence Run" }) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                title = { Text(currentRun.label.ifBlank { stringResource(R.string.est2_fence_run_title) }) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -85,21 +87,21 @@ fun RunEditScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Filled.Edit, contentDescription = null)
-                    Text(if (hasLine) "  Edit the Drawing" else "  Next: Draw This Fence")
+                    Text("  " + stringResource(if (hasLine) R.string.est2_edit_drawing else R.string.est2_next_draw_fence))
                 }
                 if (!hasLine) {
                     Text(
-                        "Set the type and spec below first if you need to, then draw the line.",
+                        stringResource(R.string.est2_set_type_first),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             item {
-                SectionCard("Run") {
+                SectionCard(stringResource(R.string.est2_section_run)) {
                     DraftTextField(
                         stableKey = currentRun.id, initialValue = currentRun.label,
-                        label = "Label (e.g. \"Back Yard\")", modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.est2_run_label_hint), modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(label = it) } }
                     FenceTypeDropdown(currentRun.fenceType) { newType ->
                         viewModel.update { r ->
@@ -111,43 +113,43 @@ fun RunEditScreen(
                     }
                     DraftTextField(
                         stableKey = currentRun.id, initialValue = currentRun.colorOrFinish,
-                        label = "Color / finish (optional, matches catalog price)", modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.est2_color_finish), modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(colorOrFinish = it) } }
                 }
             }
             item {
                 when (currentRun.fenceType) {
-                    FenceType.VINYL -> SectionCard("Vinyl Spec") { VinylFields(currentRun, viewModel) }
-                    FenceType.ALUMINUM -> SectionCard("Aluminum Spec") { AluminumFields(currentRun, viewModel) }
-                    FenceType.ORNAMENTAL_IRON -> SectionCard("Ornamental Iron Spec") { VinylFields(currentRun, viewModel) }
-                    FenceType.WOOD -> SectionCard("Wood Spec") { WoodFields(currentRun, viewModel) }
-                    FenceType.COMPOSITE -> SectionCard("Composite Spec") { WoodFields(currentRun, viewModel) }
-                    FenceType.SPLIT_RAIL -> SectionCard("Split-Rail Spec") { SplitRailFields(currentRun, viewModel) }
-                    FenceType.CHAIN_LINK -> SectionCard("Chain Link Spec") { ChainLinkFields(currentRun, viewModel) }
+                    FenceType.VINYL -> SectionCard(stringResource(R.string.est2_spec_vinyl)) { VinylFields(currentRun, viewModel) }
+                    FenceType.ALUMINUM -> SectionCard(stringResource(R.string.est2_spec_aluminum)) { AluminumFields(currentRun, viewModel) }
+                    FenceType.ORNAMENTAL_IRON -> SectionCard(stringResource(R.string.est2_spec_ornamental_iron)) { VinylFields(currentRun, viewModel) }
+                    FenceType.WOOD -> SectionCard(stringResource(R.string.est2_spec_wood)) { WoodFields(currentRun, viewModel) }
+                    FenceType.COMPOSITE -> SectionCard(stringResource(R.string.est2_spec_composite)) { WoodFields(currentRun, viewModel) }
+                    FenceType.SPLIT_RAIL -> SectionCard(stringResource(R.string.est2_spec_split_rail)) { SplitRailFields(currentRun, viewModel) }
+                    FenceType.CHAIN_LINK -> SectionCard(stringResource(R.string.est2_spec_chain_link)) { ChainLinkFields(currentRun, viewModel) }
                     FenceType.UNIVERSAL -> {}
                 }
             }
             item {
-                SectionCard("Posts & Concrete") {
+                SectionCard(stringResource(R.string.est2_section_posts_concrete)) {
                     val locked = currentRun.fenceType == FenceType.VINYL || currentRun.fenceType == FenceType.ALUMINUM || currentRun.fenceType == FenceType.ORNAMENTAL_IRON
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         DraftNumberField(
                             stableKey = currentRun.id,
-                            label = "Post spacing (ft)",
+                            label = stringResource(R.string.est2_post_spacing_ft),
                             initialValue = currentRun.postSpacingFt,
                             enabled = !locked,
                             modifier = Modifier.weight(1f)
                         ) { viewModel.update { r -> r.copy(postSpacingFt = it) } }
                         DraftNumberField(
                             stableKey = currentRun.id,
-                            label = "Concrete bags/post",
+                            label = stringResource(R.string.est2_concrete_bags_per_post),
                             initialValue = currentRun.concreteBagsPerPost,
                             modifier = Modifier.weight(1f)
                         ) { viewModel.update { r -> r.copy(concreteBagsPerPost = it) } }
                     }
                     if (locked) {
                         Text(
-                            "Post spacing follows panel width automatically for this fence type.",
+                            stringResource(R.string.est2_post_spacing_follows_panel),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -157,7 +159,7 @@ fun RunEditScreen(
             item {
                 OutlinedButton(onClick = { viewModel.delete(onDeleted) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Delete, contentDescription = null)
-                    Text("  Delete This Run")
+                    Text("  " + stringResource(R.string.est2_delete_this_run))
                 }
             }
         }
@@ -181,7 +183,7 @@ private fun FenceTypeDropdown(current: FenceType, onSelect: (FenceType) -> Unit)
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
             value = current.name.replace("_", " "), onValueChange = {}, readOnly = true,
-            label = { Text("Fence type") },
+            label = { Text(stringResource(R.string.est2_fence_type)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
@@ -199,10 +201,10 @@ private fun FenceTypeDropdown(current: FenceType, onSelect: (FenceType) -> Unit)
 @Composable
 private fun VinylFields(run: FenceRun, viewModel: RunEditViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        DraftNumberField(stableKey = run.id, label = "Panel width (ft)", initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
-        DraftNumberField(stableKey = run.id, label = "Panel height (ft)", initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelHeightFt = it) }
         }
     }
@@ -211,15 +213,15 @@ private fun VinylFields(run: FenceRun, viewModel: RunEditViewModel) {
 @Composable
 private fun AluminumFields(run: FenceRun, viewModel: RunEditViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        DraftNumberField(stableKey = run.id, label = "Panel width (ft)", initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
-        DraftNumberField(stableKey = run.id, label = "Panel height (ft)", initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelHeightFt = it) }
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Rackable (follows slope)", modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.est2_rackable), modifier = Modifier.weight(1f))
         Switch(
             checked = run.aluminumStyle == AluminumStyle.RACKABLE,
             onCheckedChange = { checked ->
@@ -232,7 +234,7 @@ private fun AluminumFields(run: FenceRun, viewModel: RunEditViewModel) {
 @Composable
 private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Spaced picket (vs. privacy)", modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.est2_spaced_picket), modifier = Modifier.weight(1f))
         Switch(
             checked = run.woodStyle == WoodStyle.SPACED_PICKET,
             onCheckedChange = { checked ->
@@ -246,21 +248,21 @@ private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
         )
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        DraftNumberField(stableKey = run.id, label = "Fence height (ft)", initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) { newHeight ->
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fence_height_ft), initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) { newHeight ->
             viewModel.update { r ->
                 r.copy(panelHeightFt = newHeight, woodRailCount = if (newHeight > 4f) 3 else 2)
             }
         }
-        DraftNumberField(stableKey = run.id, label = "Rail count", initialValue = run.woodRailCount.toFloat(), modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rail_count), initialValue = run.woodRailCount.toFloat(), modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(woodRailCount = it.toInt().coerceAtLeast(1)) }
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        DraftNumberField(stableKey = run.id, label = "Picket width (in)", initialValue = run.picketWidthIn, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_width_in), initialValue = run.picketWidthIn, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(picketWidthIn = it) }
         }
         if (run.woodStyle == WoodStyle.SPACED_PICKET) {
-            DraftNumberField(stableKey = run.id, label = "Gap between pickets (in)", initialValue = run.picketGapIn, modifier = Modifier.weight(1f)) {
+            DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_gap_in), initialValue = run.picketGapIn, modifier = Modifier.weight(1f)) {
                 viewModel.update { r -> r.copy(picketGapIn = it) }
             }
         }
@@ -269,18 +271,18 @@ private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
 
 @Composable
 private fun ChainLinkFields(run: FenceRun, viewModel: RunEditViewModel) {
-    DraftNumberField(stableKey = run.id, label = "Fabric height (ft)", initialValue = run.fabricHeightFt, modifier = Modifier.fillMaxWidth()) {
+    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fabric_height_ft), initialValue = run.fabricHeightFt, modifier = Modifier.fillMaxWidth()) {
         viewModel.update { r -> r.copy(fabricHeightFt = it) }
     }
-    ToggleRow("Include top rail", run.includeTopRail) { viewModel.update { r -> r.copy(includeTopRail = it) } }
-    ToggleRow("Include bottom tension wire", run.includeTensionWire) { viewModel.update { r -> r.copy(includeTensionWire = it) } }
-    ToggleRow("Barbed wire arms (commercial)", run.includeBarbedWireArms) { viewModel.update { r -> r.copy(includeBarbedWireArms = it) } }
-    ToggleRow("Privacy slats", run.includePrivacySlats) { viewModel.update { r -> r.copy(includePrivacySlats = it) } }
+    ToggleRow(stringResource(R.string.est2_include_top_rail), run.includeTopRail) { viewModel.update { r -> r.copy(includeTopRail = it) } }
+    ToggleRow(stringResource(R.string.est2_include_tension_wire), run.includeTensionWire) { viewModel.update { r -> r.copy(includeTensionWire = it) } }
+    ToggleRow(stringResource(R.string.est2_barbed_wire_arms), run.includeBarbedWireArms) { viewModel.update { r -> r.copy(includeBarbedWireArms = it) } }
+    ToggleRow(stringResource(R.string.est2_privacy_slats), run.includePrivacySlats) { viewModel.update { r -> r.copy(includePrivacySlats = it) } }
 }
 
 @Composable
 private fun SplitRailFields(run: FenceRun, viewModel: RunEditViewModel) {
-    DraftNumberField(stableKey = run.id, label = "Rails per section (2 or 3)", initialValue = run.splitRailCount.toFloat(), modifier = Modifier.fillMaxWidth()) {
+    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rails_per_section), initialValue = run.splitRailCount.toFloat(), modifier = Modifier.fillMaxWidth()) {
         viewModel.update { r -> r.copy(splitRailCount = it.toInt().coerceAtLeast(1)) }
     }
 }

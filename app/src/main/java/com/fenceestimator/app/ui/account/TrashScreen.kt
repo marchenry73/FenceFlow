@@ -33,8 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 
@@ -69,9 +71,9 @@ fun TrashScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Deleted Items") },
+                title = { Text(stringResource(R.string.acct_deleted_items)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 }
             )
         },
@@ -83,7 +85,7 @@ fun TrashScreen(onBack: () -> Unit) {
         if (!session.canDelete) {
             Column(Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
                 Text(
-                    "Only someone allowed to delete records can restore them.",
+                    stringResource(R.string.acct_trash_only_deleters_restore),
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
@@ -99,7 +101,7 @@ fun TrashScreen(onBack: () -> Unit) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator()
-                        Text("  Loading...", style = MaterialTheme.typography.bodyMedium)
+                        Text("  " + stringResource(R.string.acct_loading), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -107,8 +109,7 @@ fun TrashScreen(onBack: () -> Unit) {
             if (!busy && items.isEmpty()) {
                 item {
                     Text(
-                        "Nothing has been deleted. Anything you delete shows up here and " +
-                            "can be put back.",
+                        stringResource(R.string.acct_trash_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -121,8 +122,8 @@ fun TrashScreen(onBack: () -> Unit) {
                         Text(record.label, style = MaterialTheme.typography.titleMedium)
                         Text(
                             record.kindLabel +
-                                (record.deletedAt?.let { " · deleted " + dayFormat.format(java.util.Date(it)) } ?: "") +
-                                (if (record.deletedBy.isNotBlank()) " · by " + record.deletedBy else ""),
+                                (record.deletedAt?.let { " · " + stringResource(R.string.acct_trash_deleted_on, dayFormat.format(java.util.Date(it))) } ?: "") +
+                                (if (record.deletedBy.isNotBlank()) " · " + stringResource(R.string.acct_trash_deleted_by, record.deletedBy) else ""),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -130,11 +131,11 @@ fun TrashScreen(onBack: () -> Unit) {
                             Button(
                                 onClick = { viewModel.restore(record) },
                                 modifier = Modifier.weight(1f)
-                            ) { Text("Put it back") }
+                            ) { Text(stringResource(R.string.acct_trash_put_it_back)) }
                             OutlinedButton(
                                 onClick = { purging = record },
                                 modifier = Modifier.weight(1f)
-                            ) { Text("Delete for good") }
+                            ) { Text(stringResource(R.string.acct_trash_delete_for_good)) }
                         }
                     }
                 }
@@ -143,7 +144,7 @@ fun TrashScreen(onBack: () -> Unit) {
             if (items.isNotEmpty()) {
                 item {
                     Text(
-                        "Restoring puts the record back for everyone, not just this phone.",
+                        stringResource(R.string.acct_trash_restore_everyone),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -152,7 +153,7 @@ fun TrashScreen(onBack: () -> Unit) {
 
             item {
                 Button(onClick = { viewModel.load() }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Refresh")
+                    Text(stringResource(R.string.acct_refresh))
                 }
             }
         }
@@ -177,15 +178,11 @@ private fun PurgeConfirmDialog(
 ) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete for good?") },
+        title = { Text(stringResource(R.string.acct_trash_delete_for_good_title)) },
         text = {
-            Text(
-                "\"" + record.label + "\" will be gone from every device with no way " +
-                    "to get it back. Everything else in this app can be undone -- this " +
-                    "cannot."
-            )
+            Text(stringResource(R.string.acct_trash_purge_warning, record.label))
         },
-        confirmButton = { Button(onClick = onConfirm) { Text("Delete permanently") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Keep it") } }
+        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.acct_trash_delete_permanently)) } },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.acct_trash_keep_it)) } }
     )
 }

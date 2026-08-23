@@ -78,7 +78,7 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.inv_title)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -100,7 +100,7 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
             if (materials.isEmpty()) {
                 item {
                     Text(
-                        "No materials yet -- tap Sync from Estimate to pull in the current line items.",
+                        stringResource(R.string.misc_inventory_no_materials),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -161,9 +161,9 @@ private fun ChecklistRow(item: InventoryChecklistItem, viewModel: InventoryViewM
                 val target = PhotoFiles.newTarget(context, "inventory")
                 pendingPath = target.absolutePath
                 cameraLauncher.launch(target.uri)
-            }) { Icon(Icons.Filled.CameraAlt, contentDescription = "Verify with photo") }
+            }) { Icon(Icons.Filled.CameraAlt, contentDescription = stringResource(R.string.misc_inventory_verify_with_photo)) }
             IconButton(onClick = { viewModel.delete(item) }) {
-                Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.draw_remove), tint = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -175,7 +175,7 @@ private fun AddItemDialog(kind: InventoryKind, onConfirm: (String) -> Unit, onDi
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (kind == InventoryKind.TOOL) "Add Tool" else "Add Material") },
+        title = { Text(stringResource(if (kind == InventoryKind.TOOL) R.string.misc_inventory_add_tool_title else R.string.misc_inventory_add_material_title)) },
         text = { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.inv_description)) }) },
         confirmButton = { Button(onClick = { onConfirm(text) }) { Text(stringResource(R.string.action_add)) } },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }

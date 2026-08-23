@@ -1,5 +1,6 @@
 package com.fenceestimator.app.ui.onboarding
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,8 +18,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fenceestimator.app.R
 
 /**
  * The first thing a new company sees.
@@ -32,39 +35,14 @@ import androidx.compose.ui.unit.dp
  * one with your prices on it, and that deleting is recoverable. None of those
  * are guessable, and all of them cost money when discovered late.
  */
-private data class Step(val title: String, val body: String)
+private data class Step(@StringRes val title: Int, @StringRes val body: Int)
 
 private val STEPS = listOf(
-    Step(
-        "Draw the fence, get a number",
-        "Draw the line on the grid or on a survey photo, then press Suggest " +
-            "Quantities. You'll have posts, panels, concrete and a price in about " +
-            "a minute -- accurate enough to quote from on the spot."
-    ),
-    Step(
-        "That price is provisional, and the app says so",
-        "Materials are costed from your catalog, which is a good guess and not " +
-            "what you'll pay. Send the material list to your supplier, put their " +
-            "prices back in, and everything downstream re-prices itself."
-    ),
-    Step(
-        "The customer never sees your material costs",
-        "They get a contract: the scope, the agreed price, your terms. Your " +
-            "supplier gets quantities with no prices. Your own working copy has " +
-            "everything. Three documents, three readers."
-    ),
-    Step(
-        "Your crew see the plan, not the money",
-        "Crew get the drawing, the checklists and their own pay -- never the " +
-            "customer's price or your margin. If they think the plan is wrong they " +
-            "ask, and you approve it."
-    ),
-    Step(
-        "Nothing is really deleted",
-        "Deleted jobs go to Account & Team → Deleted Items and can be put back " +
-            "for everyone. Set up your business details and pricing in Settings " +
-            "before your first real quote."
-    )
+    Step(R.string.onb_step1_title, R.string.onb_step1_body),
+    Step(R.string.onb_step2_title, R.string.onb_step2_body),
+    Step(R.string.onb_step3_title, R.string.onb_step3_body),
+    Step(R.string.onb_step4_title, R.string.onb_step4_body),
+    Step(R.string.onb_step5_title, R.string.onb_step5_body)
 )
 
 /**
@@ -79,12 +57,12 @@ fun FirstRunTour(onFinished: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onFinished,
-        title = { Text(step.title, fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(step.title), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(step.body, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(step.body), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "${index + 1} of ${STEPS.size}",
+                    stringResource(R.string.onb_step_counter, index + 1, STEPS.size),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -92,18 +70,18 @@ fun FirstRunTour(onFinished: () -> Unit) {
         },
         confirmButton = {
             Button(onClick = { if (isLast) onFinished() else index++ }) {
-                Text(if (isLast) "Start using it" else "Next")
+                Text(if (isLast) stringResource(R.string.onb_start_using_it) else stringResource(R.string.onb_next))
             }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (index > 0) {
-                    OutlinedButton(onClick = { index-- }) { Text("Back") }
+                    OutlinedButton(onClick = { index-- }) { Text(stringResource(R.string.action_back)) }
                 }
                 // An escape on every step, not only the first. Being trapped in
                 // a tour is what makes people uninstall before they have seen
                 // anything.
-                TextButton(onClick = onFinished) { Text("Skip") }
+                TextButton(onClick = onFinished) { Text(stringResource(R.string.onb_skip)) }
             }
         }
     )
