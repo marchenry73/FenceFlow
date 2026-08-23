@@ -59,6 +59,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -128,7 +129,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                                 FilterChip(
                                     selected = preset == p,
                                     onClick = { viewModel.setPreset(p) },
-                                    label = { Text(p.label) }
+                                    label = { Text(p.label()) }
                                 )
                             }
                         }
@@ -148,7 +149,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                                 FilterChip(
                                     selected = hourFilter == h,
                                     onClick = { viewModel.setHourFilter(h) },
-                                    label = { Text(h.label) }
+                                    label = { Text(h.label()) }
                                 )
                             }
                         }

@@ -48,6 +48,8 @@ import com.fenceestimator.app.cloud.UserRole
 import com.fenceestimator.app.cloud.defaultPermissions
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.description
+import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.lock.confirmIdentity
 
 /**
@@ -125,7 +127,7 @@ fun AccessScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            member.userRole.label + if (adjusted) " -- " + stringResource(R.string.acct_access_adjusted) else "",
+                            member.userRole.label() + if (adjusted) " -- " + stringResource(R.string.acct_access_adjusted) else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -138,7 +140,7 @@ fun AccessScreen(onBack: () -> Unit) {
                         }.getOrNull()
                         if (requested != null && requested != member.userRole) {
                             Text(
-                                stringResource(R.string.acct_access_says_they_are, requested.label),
+                                stringResource(R.string.acct_access_says_they_are, requested.label()),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -278,9 +280,9 @@ private fun MemberAccessDialog(
                             }
                         )
                         Column(Modifier.padding(start = 4.dp)) {
-                            Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                            Text(option.label(), style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                option.description,
+                                option.description(),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -339,13 +341,13 @@ private fun PermissionRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                permission.label,
+                permission.label(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (permission.sensitive) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.onSurface
             )
             Text(
-                permission.description,
+                permission.description(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

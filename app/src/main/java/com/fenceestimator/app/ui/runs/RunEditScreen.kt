@@ -47,6 +47,7 @@ import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.DraftTextField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,7 +183,7 @@ private fun FenceTypeDropdown(current: FenceType, onSelect: (FenceType) -> Unit)
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = current.name.replace("_", " "), onValueChange = {}, readOnly = true,
+            value = current.label(), onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.est2_fence_type)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
@@ -190,7 +191,7 @@ private fun FenceTypeDropdown(current: FenceType, onSelect: (FenceType) -> Unit)
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             FenceType.values().filter { it != FenceType.UNIVERSAL }.forEach { type ->
                 DropdownMenuItem(
-                    text = { Text(type.name.replace("_", " ")) },
+                    text = { Text(type.label()) },
                     onClick = { onSelect(type); expanded = false }
                 )
             }

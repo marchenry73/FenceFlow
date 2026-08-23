@@ -57,6 +57,7 @@ import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.estimate.EstimateEngine
+import com.fenceestimator.app.estimate.EstimateWarning
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.TakeoffLine
@@ -493,7 +494,7 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: Numbe
 }
 
 @Composable
-private fun WarningsCard(warnings: List<String>) {
+private fun WarningsCard(warnings: List<EstimateWarning>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
@@ -504,7 +505,8 @@ private fun WarningsCard(warnings: List<String>) {
                 Text("  " + stringResource(R.string.est_before_you_send), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
             }
             warnings.forEach { warning ->
-                Text("•  $warning", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                val text = stringResource(warning.textRes, *warning.args.toTypedArray())
+                Text("•  $text", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
             }
         }
     }
@@ -539,7 +541,7 @@ private fun ExportSection(
             }
             // The system share sheet, so it can go by text, WhatsApp or email
             // -- whatever that particular customer or supplier actually uses.
-            context.startActivity(Intent.createChooser(intent, context.getString(R.string.est2_send_document, document.title)))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.est2_send_document, context.getString(document.titleRes))))
         }
     }
 

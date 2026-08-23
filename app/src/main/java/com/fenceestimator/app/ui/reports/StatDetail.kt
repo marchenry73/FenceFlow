@@ -3,6 +3,7 @@ package com.fenceestimator.app.ui.reports
 import android.content.Context
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.PaymentRecord
+import com.fenceestimator.app.ui.components.labelRes
 
 /**
  * What a headline figure is made of, and how it was arrived at.
@@ -65,7 +66,7 @@ object StatDetails {
             .map { payment ->
                 DetailLine(
                     label = jobNameFor(payment.jobId),
-                    sublabel = date(payment.receivedAt) + " · " + payment.method.label +
+                    sublabel = date(payment.receivedAt) + " · " + context.getString(payment.method.labelRes()) +
                         if (payment.reference.isNotBlank()) " · " + payment.reference else "",
                     amount = money(payment.amount),
                     isNegative = payment.isRefund

@@ -54,6 +54,7 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.survey.SurveyViewModel
 
 /** Faint enough to read the fence line over, visible enough to count squares against. */
@@ -298,7 +299,7 @@ private fun RunCard(job: Job, run: FenceRun) {
                 return@Column
             }
 
-            SpecRow("Type", run.fenceType.name.replace("_", " "))
+            SpecRow("Type", run.fenceType.label())
             SpecRow("Length", "${"%.0f".format(feet)} ft" + if (usingManual) "  (measured on site)" else "")
             SpecRow("Height", "${run.panelHeightFt.toInt()} ft")
             if (run.colorOrFinish.isNotBlank()) SpecRow("Color", run.colorOrFinish)
@@ -341,8 +342,7 @@ private fun MarkersCard(markers: List<SiteMarker>) {
             )
             markers.forEach { marker ->
                 Text(
-                    "•  ${marker.kind.name.replace("_", " ").lowercase()
-                        .replaceFirstChar { it.uppercase() }}" +
+                    "•  ${marker.kind.label()}" +
                         if (marker.label.isNotBlank()) " — ${marker.label}" else "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer

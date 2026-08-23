@@ -33,6 +33,11 @@ class FenceEstimatorApp : Application() {
         com.fenceestimator.app.cloud.RealtimeWatcher(applicationScope, session, autoSync)
     }
 
+    /** Monday morning: last week in a line, this week in another. */
+    val weeklySummary: com.fenceestimator.app.notify.WeeklySummary by lazy {
+        com.fenceestimator.app.notify.WeeklySummary(applicationScope, repository, session, this)
+    }
+
     val overdueWatcher: com.fenceestimator.app.notify.OverdueWatcher by lazy {
         com.fenceestimator.app.notify.OverdueWatcher(applicationScope, repository, this)
     }
@@ -72,7 +77,13 @@ class FenceEstimatorApp : Application() {
         // Tombstones record who deleted the record, so the trash can say who to
         // ask before restoring it.
         applicationScope.launch {
-            session.state.collect { repository.deletingUser = it.email.orEmpty() }
+            session.state.collect {
+                repository.deletingUser = it.email.orEmpty()
+                // So a crash report names the account that was signed in when
+                // it happened, not whoever is signed in when it uploads.
+                CrashReporter.currentEmail = it.email.orEmpty()
+                CrashReporter.currentCompanyId = it.companyId.orEmpty()
+            }
         }
         // Anything saved by a previous crash goes up as soon as there is an
         // identity to attach it to, so a report says which company hit it.
@@ -122,5 +133,6 @@ class FenceEstimatorApp : Application() {
         // Checks hourly, and once now, so a job that ran long yesterday is
         // flagged on opening the app rather than an hour later.
         overdueWatcher.start()
+        weeklySummary.start()
     }
 }

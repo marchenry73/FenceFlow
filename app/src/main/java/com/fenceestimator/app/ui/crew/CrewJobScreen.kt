@@ -64,6 +64,7 @@ import com.fenceestimator.app.ui.components.IntentHelpers
 import com.fenceestimator.app.ui.components.NewPhotoTarget
 import com.fenceestimator.app.ui.components.PhotoFiles
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -280,9 +281,10 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             } else {
                                 val feetText = stringResource(R.string.misc_feet_value, "%.0f".format(feet))
                                 val tallText = stringResource(R.string.misc_crew_feet_tall, run.panelHeightFt.toInt())
+                                val typeText = run.fenceType.label()
                                 Text(
                                     buildString {
-                                        append(run.fenceType.name.replace("_", " "))
+                                        append(typeText)
                                         append(" · $feetText")
                                         append(" · $tallText")
                                         if (run.colorOrFinish.isNotBlank()) append(" · ${run.colorOrFinish}")

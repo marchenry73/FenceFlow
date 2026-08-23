@@ -112,6 +112,25 @@ object SupabaseModule {
 
     fun currentUserEmail(): String? = client.auth.currentUserOrNull()?.email
 
+    /**
+     * Whether a request made right now would carry the user's token.
+     *
+     * supabase-kt sends the anon key when it has no session -- and after a
+     * failed token refresh, or during startup before the stored session has
+     * loaded, there is a window where the app still remembers who it belongs
+     * to but has no token. A sync in that window goes out anonymous: every
+     * write is refused by RLS and every read comes back empty. The crash
+     * reporter caught exactly this -- an upsert with the publishable key in
+     * the Authorization header.
+     */
+    fun hasLiveSession(): Boolean =
+        runCatching { client.auth.currentAccessTokenOrNull() }.getOrNull()?.isNotBlank() == true
+
+    /** Asks for a fresh token; quiet on failure, the next attempt retries. */
+    suspend fun tryRefreshSession() {
+        runCatching { client.auth.refreshCurrentSession() }
+    }
+
     fun currentUserId(): String? = client.auth.currentUserOrNull()?.id
 
     /** The signed-in user's company + role, or null if they haven't joined a company yet. */

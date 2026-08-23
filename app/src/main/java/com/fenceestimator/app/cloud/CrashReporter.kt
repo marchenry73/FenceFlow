@@ -65,6 +65,17 @@ object CrashReporter {
     @Volatile
     var currentScreen: String = ""
 
+    /**
+     * Who is signed in right now, kept current by the session manager.
+     *
+     * Stamped into each report as it is written. Attribution used to come from
+     * the session at UPLOAD time -- the next launch -- so a failure under a
+     * test account, uploaded after switching back, was filed under the wrong
+     * person and sent the investigation the wrong way.
+     */
+    @Volatile var currentEmail: String = ""
+    @Volatile var currentCompanyId: String = ""
+
     private var installed = false
 
     /** Reports go up once per launch. The session state emits more than once. */
@@ -129,7 +140,10 @@ object CrashReporter {
             append(if (fatal) "FATAL" else "NONFATAL").append(FIELD)
             append(where.replace(FIELD, ' ')).append(FIELD)
             append((error.message ?: error::class.java.simpleName).take(400).replace(FIELD, ' ')).append(FIELD)
-            append(stack.take(8000))
+            append(stack.take(8000)).append(FIELD)
+            // Fields 5 and 6: who it happened to, as of this moment.
+            append(currentEmail.replace(FIELD, ' ')).append(FIELD)
+            append(currentCompanyId.replace(FIELD, ' '))
         }
         file.appendText(record + RECORD_SEPARATOR)
     }
@@ -157,8 +171,10 @@ object CrashReporter {
             val device = "Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}"
             val records = parse(file.readText()).map {
                 it.copy(
-                    companyId = companyId,
-                    email = email.orEmpty(),
+                    // The record's own stamp wins; the upload-time session is
+                    // only a fallback for records written before stamping.
+                    companyId = it.companyId ?: companyId,
+                    email = it.email.ifBlank { email.orEmpty() },
                     versionCode = BuildConfig.VERSION_CODE,
                     versionName = BuildConfig.VERSION_NAME,
                     android = device
@@ -187,7 +203,9 @@ object CrashReporter {
                     fatal = parts[0] == "FATAL",
                     whereAt = parts[1],
                     message = parts[2],
-                    stack = parts[3]
+                    stack = parts[3],
+                    email = parts.getOrNull(4).orEmpty(),
+                    companyId = parts.getOrNull(5)?.takeIf { it.isNotBlank() }
                 )
             }
 }

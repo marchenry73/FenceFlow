@@ -43,6 +43,7 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncPhase
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -190,7 +191,7 @@ private fun SignedInSection(
             Text(state.signedInEmail.orEmpty(), fontWeight = FontWeight.Medium)
             state.profile?.let { profile ->
                 Text(
-                    stringResource(R.string.acct_access_level, profile.userRole.name),
+                    stringResource(R.string.acct_access_level, profile.userRole.label()),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -397,7 +398,7 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
                             selected = requestedRole == option,
                             onClick = { requestedRole = option }
                         )
-                        Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                        Text(option.label(), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             Text(

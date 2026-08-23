@@ -1,6 +1,8 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,6 +16,10 @@ import org.junit.Test
  * warning that is wrong on a job you have already been paid for is worse than
  * no warning at all: it teaches people to scroll past the whole section,
  * including the times it is right.
+ *
+ * Warnings are structured (a string resource plus its arguments), so these
+ * tests check which warning fired and what figures it carries rather than
+ * matching English wording.
  */
 class EstimateWarningsTest {
 
@@ -28,8 +34,10 @@ class EstimateWarningsTest {
         grandTotal = grand
     )
 
-    private fun warnings(job: Job, materials: Double, grand: Double): List<String> =
+    private fun warnings(job: Job, materials: Double, grand: Double): List<EstimateWarning> =
         EstimateEngine.estimateWarnings(job, emptyList(), emptyList(), totals(materials, grand))
+
+    private fun List<EstimateWarning>.has(textRes: Int): Boolean = any { it.textRes == textRes }
 
     @Test
     fun `an unpaid job with a thin deposit is flagged`() {
@@ -37,7 +45,7 @@ class EstimateWarningsTest {
         val found = warnings(job, materials = 1000.0, grand = 2000.0)
         assertTrue(
             "an unpaid job that would front the customer's material must say so",
-            found.any { it.contains("material", ignoreCase = true) }
+            found.has(R.string.warn_deposit_short)
         )
     }
 
@@ -48,9 +56,9 @@ class EstimateWarningsTest {
         val found = warnings(job, materials = 1000.0, grand = 2000.0)
         assertFalse(
             "a job that is paid in full must not warn about covering materials",
-            found.any { it.contains("doesn't cover", ignoreCase = true) }
+            found.has(R.string.warn_deposit_short)
         )
-        assertFalse(found.any { it.contains("fronting", ignoreCase = true) })
+        assertFalse(found.has(R.string.warn_fronting_material))
     }
 
     @Test
@@ -59,15 +67,17 @@ class EstimateWarningsTest {
         val found = warnings(job, materials = 1000.0, grand = 2000.0)
         // Not "your deposit is short" -- the deposit stopped being the relevant
         // figure the moment money arrived. What matters is the gap.
-        assertTrue(found.any { it.contains("600", ignoreCase = true) })
+        assertFalse(found.has(R.string.warn_deposit_short))
+        val fronting = found.first { it.textRes == R.string.warn_fronting_material }
+        assertEquals(listOf("400.00", "1000.00", "600.00"), fronting.args)
     }
 
     @Test
     fun `a part-paid job is told what is left to collect`() {
         val job = Job(customerName = "Test", amountPaid = 1500.0)
         val found = warnings(job, materials = 500.0, grand = 2000.0)
-        assertTrue(found.any { it.contains("Still to collect", ignoreCase = true) })
-        assertTrue(found.any { it.contains("500") })
+        val toCollect = found.first { it.textRes == R.string.warn_still_to_collect }
+        assertEquals(listOf("500.00", "2000.00"), toCollect.args)
     }
 
     @Test
@@ -76,7 +86,7 @@ class EstimateWarningsTest {
         val found = warnings(job, materials = 1000.0, grand = 2000.0)
         assertTrue(
             "money given back is money not collected",
-            found.any { it.contains("doesn't cover", ignoreCase = true) }
+            found.has(R.string.warn_deposit_short)
         )
     }
 
@@ -84,7 +94,7 @@ class EstimateWarningsTest {
     fun `provisional pricing is called out`() {
         val job = Job(customerName = "Test", amountPaid = 5000.0)
         val found = warnings(job, materials = 1000.0, grand = 2000.0)
-        assertTrue(found.any { it.contains("catalog", ignoreCase = true) })
+        assertTrue(found.has(R.string.warn_provisional_pricing))
     }
 
     @Test
@@ -95,7 +105,7 @@ class EstimateWarningsTest {
             materialPricesConfirmedAt = 1L
         )
         val found = warnings(job, materials = 1000.0, grand = 2000.0)
-        assertFalse(found.any { it.contains("catalog", ignoreCase = true) })
+        assertFalse(found.has(R.string.warn_provisional_pricing))
     }
 
     @Test
@@ -109,6 +119,6 @@ class EstimateWarningsTest {
             signedLinearFeet = 100f
         )
         val found = warnings(job, materials = 500.0, grand = 2000.0)
-        assertTrue(found.any { it.contains("signed", ignoreCase = true) })
+        assertTrue(found.has(R.string.warn_changed_after_signed))
     }
 }

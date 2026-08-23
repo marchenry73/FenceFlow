@@ -115,6 +115,9 @@ import com.fenceestimator.app.ui.components.PhotoFiles
 import com.fenceestimator.app.ui.components.ProjectStatus
 import com.fenceestimator.app.ui.components.TemplateFiller
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.describes
+import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.components.labelRes
 import com.fenceestimator.app.ui.runs.FenceRunListViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -500,7 +503,7 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> U
             Column(Modifier.weight(1f)) {
                 Text(run.label.ifBlank { stringResource(R.string.jd_untitled_run) }, fontWeight = FontWeight.Medium)
                 Text(
-                    run.fenceType.name.replace("_", " "),
+                    run.fenceType.label(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -515,6 +518,7 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> U
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -> Unit) {
+    val context = LocalContext.current
     var label by remember { mutableStateOf("") }
     var type by remember { mutableStateOf(FenceType.VINYL) }
     var expanded by remember { mutableStateOf(false) }
@@ -532,7 +536,7 @@ private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -
                 androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
                     OutlinedTextField(
-                        value = type.name.replace("_", " "), onValueChange = {}, readOnly = true,
+                        value = type.label(), onValueChange = {}, readOnly = true,
                         label = { Text(stringResource(R.string.jd_fence_type)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor()
@@ -540,7 +544,7 @@ private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         FenceType.values().filter { it != FenceType.UNIVERSAL }.forEach { t ->
                             DropdownMenuItem(
-                                text = { Text(t.name.replace("_", " ")) },
+                                text = { Text(t.label()) },
                                 onClick = { type = t; expanded = false }
                             )
                         }
@@ -549,7 +553,7 @@ private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(label.ifBlank { type.name.replace("_", " ") }, type) }) { Text(stringResource(R.string.action_add)) }
+            Button(onClick = { onConfirm(label.ifBlank { context.getString(type.labelRes()) }, type) }) { Text(stringResource(R.string.action_add)) }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
@@ -626,7 +630,7 @@ private fun StatusSelector(job: Job, viewModel: JobDetailViewModel) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = job.status.name, onValueChange = {}, readOnly = true,
+            value = statusLabel(job.status), onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.jd_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
@@ -634,7 +638,7 @@ private fun StatusSelector(job: Job, viewModel: JobDetailViewModel) {
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             JobStatus.values().forEach { status ->
                 DropdownMenuItem(
-                    text = { Text(status.name) },
+                    text = { Text(statusLabel(status)) },
                     onClick = { viewModel.setStatus(status); expanded = false }
                 )
             }
@@ -989,7 +993,10 @@ private fun OrderFields(
     Button(
         onClick = {
             val to = selected?.email.orEmpty()
-            val runSummary = runs.joinToString("\n") { "- ${it.label.ifBlank { it.fenceType.name }}: ${it.fenceType.name.replace("_", " ")}" }
+            val runSummary = runs.joinToString("\n") {
+                val typeName = context.getString(it.fenceType.labelRes())
+                "- ${it.label.ifBlank { typeName }}: $typeName"
+            }
             val body = TemplateFiller.fillOrderTemplate(
                 template = profile.orderEmailTemplate,
                 customerName = job.customerName,
@@ -1020,7 +1027,7 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
     var hoaExpanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = hoaExpanded, onExpandedChange = { hoaExpanded = it }) {
         OutlinedTextField(
-            value = job.hoaApprovalStatus.name.replace("_", " "), onValueChange = {}, readOnly = true,
+            value = job.hoaApprovalStatus.label(), onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.jd_hoa_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = hoaExpanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
@@ -1028,7 +1035,7 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
         DropdownMenu(expanded = hoaExpanded, onDismissRequest = { hoaExpanded = false }) {
             HoaApprovalStatus.values().forEach { status ->
                 DropdownMenuItem(
-                    text = { Text(status.name.replace("_", " ")) },
+                    text = { Text(status.label()) },
                     onClick = { viewModel.update { j -> j.copy(hoaApprovalStatus = status) }; hoaExpanded = false }
                 )
             }
@@ -1041,7 +1048,7 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
             val body = TemplateFiller.fillHoaTemplate(
                 template = profile.hoaEmailTemplate,
                 address = job.address,
-                fenceType = firstRun?.fenceType?.name?.replace("_", " ") ?: "",
+                fenceType = firstRun?.fenceType?.let { context.getString(it.labelRes()) } ?: "",
                 height = firstRun?.panelHeightFt?.toString() ?: "",
                 material = firstRun?.colorOrFinish ?: "",
                 businessName = profile.businessName,
@@ -1064,7 +1071,7 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
     var permitExpanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = permitExpanded, onExpandedChange = { permitExpanded = it }) {
         OutlinedTextField(
-            value = job.permitStatus.name.replace("_", " "), onValueChange = {}, readOnly = true,
+            value = job.permitStatus.label(), onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.jd_permit_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = permitExpanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
@@ -1072,7 +1079,7 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
         DropdownMenu(expanded = permitExpanded, onDismissRequest = { permitExpanded = false }) {
             PermitStatus.values().forEach { status ->
                 DropdownMenuItem(
-                    text = { Text(status.name.replace("_", " ")) },
+                    text = { Text(status.label()) },
                     onClick = { viewModel.update { j -> j.copy(permitStatus = status) }; permitExpanded = false }
                 )
             }
@@ -1086,7 +1093,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = job.paymentStatus.name.replace("_", " "), onValueChange = {}, readOnly = true,
+            value = job.paymentStatus.label(), onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.jd_payment_status)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
@@ -1094,7 +1101,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             PaymentStatus.values().forEach { status ->
                 DropdownMenuItem(
-                    text = { Text(status.name.replace("_", " ")) },
+                    text = { Text(status.label()) },
                     onClick = { viewModel.update { j -> j.copy(paymentStatus = status) }; expanded = false }
                 )
             }
@@ -1573,9 +1580,9 @@ private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewMod
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(expense.description.ifBlank { expense.category.name.replace("_", " ") }, fontWeight = FontWeight.Medium)
+                    Text(expense.description.ifBlank { expense.category.label() }, fontWeight = FontWeight.Medium)
                     Text(
-                        expense.category.name.replace("_", " "),
+                        expense.category.label(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1621,14 +1628,14 @@ private fun AddExpenseDialog(onConfirm: (ExpenseCategory, String, Double) -> Uni
             Column {
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
                     OutlinedTextField(
-                        value = category.name.replace("_", " "), onValueChange = {}, readOnly = true,
+                        value = category.label(), onValueChange = {}, readOnly = true,
                         label = { Text(stringResource(R.string.jd_category)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         ExpenseCategory.values().forEach { c ->
-                            DropdownMenuItem(text = { Text(c.name.replace("_", " ")) }, onClick = { category = c; expanded = false })
+                            DropdownMenuItem(text = { Text(c.label()) }, onClick = { category = c; expanded = false })
                         }
                     }
                 }
@@ -2097,9 +2104,9 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
                 onClick = { template = option }
             )
             Column(Modifier.padding(start = 4.dp)) {
-                Text(option.label, style = MaterialTheme.typography.bodyMedium)
+                Text(option.label(), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    option.describes,
+                    option.describes(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2170,7 +2177,7 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
     }
 
     PhotoKind.values().forEach { kind ->
-        Text(kind.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleMedium)
+        Text(kind.label(), style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 pendingKind = kind
@@ -2435,7 +2442,7 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
                             FilterChip(
                                 selected = method == option,
                                 onClick = { method = option },
-                                label = { Text(option.label) }
+                                label = { Text(option.label()) }
                             )
                         }
                     }

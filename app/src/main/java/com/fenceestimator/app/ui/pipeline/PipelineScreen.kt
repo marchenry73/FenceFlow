@@ -37,6 +37,7 @@ import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.jobs.JobsViewModel
 import java.text.NumberFormat
 import java.util.Locale
@@ -105,7 +106,7 @@ private fun StageColumn(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(stage.label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Text(stage.label(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Text(
                 jobs.size.toString(),
                 fontWeight = FontWeight.Bold,

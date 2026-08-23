@@ -43,6 +43,7 @@ import com.fenceestimator.app.data.HomeCard
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentRecord
+import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.isWon
 import com.fenceestimator.app.estimate.JobSchedule
@@ -539,7 +540,7 @@ private fun StatTiles(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 pair.forEach { card ->
                     StatTile(
-                        label = card.label,
+                        label = card.label(),
                         value = valueFor(card),
                         caption = captionFor(card),
                         modifier = Modifier.weight(1f),

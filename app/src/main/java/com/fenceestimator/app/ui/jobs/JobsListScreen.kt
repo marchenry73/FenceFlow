@@ -72,6 +72,7 @@ import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.isWon
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -626,16 +627,9 @@ private fun statusColor(status: JobStatus): Color = when (status) {
     JobStatus.DECLINED -> Color(0xFFE5484D)
 }
 
+/** One wording for a job's status everywhere it is shown; see [JobStatus.label]. */
 @Composable
-internal fun statusLabel(status: JobStatus): String = stringResource(
-    when (status) {
-        JobStatus.DRAFT -> R.string.home_status_draft
-        JobStatus.SENT -> R.string.home_status_sent
-        JobStatus.ACCEPTED -> R.string.home_status_accepted
-        JobStatus.COMPLETED -> R.string.home_status_completed
-        JobStatus.DECLINED -> R.string.home_status_declined
-    }
-)
+internal fun statusLabel(status: JobStatus): String = status.label()
 
 @Composable
 private fun StatusPill(status: JobStatus) {

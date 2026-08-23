@@ -67,6 +67,8 @@ import com.fenceestimator.app.estimate.ImportMatch
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.components.labelRes
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.NumberFormat
 import java.util.Locale
@@ -94,6 +96,7 @@ fun CatalogScreen(onBack: () -> Unit) {
     // hundreds of items, someone typing "cedar" wants the cedar, and having to
     // guess which tab it was filed under is the whole problem with tabs.
     val searching = search.isNotBlank()
+    val context = LocalContext.current
     val visibleItems = remember(catalog, selectedTab, search, showOnlyUnpriced) {
         val base = when {
             searching -> {
@@ -101,8 +104,8 @@ fun CatalogScreen(onBack: () -> Unit) {
                 catalog.filter {
                     it.name.lowercase().contains(needle) ||
                         it.colorOrFinish.lowercase().contains(needle) ||
-                        it.category.label.lowercase().contains(needle) ||
-                        it.fenceType.label.lowercase().contains(needle)
+                        context.getString(it.category.labelRes()).lowercase().contains(needle) ||
+                        context.getString(it.fenceType.labelRes()).lowercase().contains(needle)
                 }
             }
             // Unpriced items are a whole-catalog problem, so this filter
@@ -164,7 +167,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                         Tab(
                             selected = selectedTab == type,
                             onClick = { selectedTab = type },
-                            text = { Text(if (count > 0) stringResource(R.string.cat_tab_with_count, type.label, count) else type.label) }
+                            text = { Text(if (count > 0) stringResource(R.string.cat_tab_with_count, type.label(), count) else type.label()) }
                         )
                     }
                 }
@@ -247,7 +250,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                 items(visibleItems.groupBy { it.category }.toList(), key = { it.first }) { (category, itemsInCategory) ->
                     Column {
                         Text(
-                            category.label,
+                            category.label(),
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                         )
@@ -329,7 +332,7 @@ private fun CatalogRow(
                 }
                 if (showFenceType) {
                     Text(
-                        item.fenceType.label,
+                        item.fenceType.label(),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -384,6 +387,8 @@ private fun EditItemDialog(
     var role by remember { mutableStateOf(item.role) }
     var manufacturerId by remember { mutableStateOf(item.manufacturerId) }
     var duplicateTarget by remember { mutableStateOf<Manufacturer?>(null) }
+    // The dropdowns build their text outside composition, so resolve through Context.
+    val context = LocalContext.current
 
     fun currentEdits(): MaterialItem {
         val price = priceText.replace(',', '.').toDoubleOrNull() ?: item.unitPrice
@@ -415,11 +420,11 @@ private fun EditItemDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown(stringResource(R.string.cat_category), MaterialCategory.values().toList(), category, { it.name.replace("_", " ") }) { category = it }
+                EnumDropdown(stringResource(R.string.cat_category), MaterialCategory.values().toList(), category, { context.getString(it.labelRes()) }) { category = it }
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown(stringResource(R.string.cat_fence_type), FenceType.values().toList(), fenceType, { it.name.replace("_", " ") }) { fenceType = it }
+                EnumDropdown(stringResource(R.string.cat_fence_type), FenceType.values().toList(), fenceType, { context.getString(it.labelRes()) }) { fenceType = it }
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown(stringResource(R.string.cat_role_in_engine), MaterialRole.values().toList(), role, { it.name.replace("_", " ") }) { role = it }
+                EnumDropdown(stringResource(R.string.cat_role_in_engine), MaterialRole.values().toList(), role, { context.getString(it.labelRes()) }) { role = it }
                 Spacer(Modifier.height(8.dp))
                 EnumDropdown(
                     stringResource(R.string.cat_priced_from),

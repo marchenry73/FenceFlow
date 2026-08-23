@@ -25,6 +25,7 @@ import com.fenceestimator.app.data.TimeEntry
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -45,6 +46,9 @@ import java.time.Instant
  * what to push by comparing against the cloud list, so hiding deleted rows
  * would make it re-upload deleted payments. It filters them in Kotlin instead.
  */
+/** At most this many sync requests in flight at once; see the reap and pullAll. */
+private val netGate = kotlinx.coroutines.sync.Semaphore(4)
+
 private fun io.github.jan.supabase.postgrest.query.filter.PostgrestFilterBuilder.notDeleted() =
     filter("deleted_at", io.github.jan.supabase.postgrest.query.filter.FilterOperator.IS, "null")
 
@@ -463,12 +467,12 @@ object EntitySync {
                 // app had hung.
                 kotlinx.coroutines.coroutineScope {
                     listOf(
-                        async { pullEmployees(repository, companyId) },
-                        async { pullManufacturers(repository, companyId) },
-                        async { pullPricingTiers(repository, companyId) },
-                        async { pullCatalog(repository, companyId) },
-                        async { pullFenceRuns(repository, companyId) },
-                        async { pullJobChildren(repository, companyId) }
+                        async { netGate.withPermit { pullEmployees(repository, companyId) } },
+                        async { netGate.withPermit { pullManufacturers(repository, companyId) } },
+                        async { netGate.withPermit { pullPricingTiers(repository, companyId) } },
+                        async { netGate.withPermit { pullCatalog(repository, companyId) } },
+                        async { netGate.withPermit { pullFenceRuns(repository, companyId) } },
+                        async { netGate.withPermit { pullJobChildren(repository, companyId) } }
                     ).awaitAll().sum()
                 }
             }
@@ -1236,7 +1240,7 @@ object DeletionReaper {
         runCatching {
             // All thirteen sweeps at once; each touches only its own table.
             kotlinx.coroutines.coroutineScope {
-            com.fenceestimator.app.data.SyncTables.ALL.map { table -> async {
+            com.fenceestimator.app.data.SyncTables.ALL.map { table -> async { netGate.withPermit {
                 val deletedIds = SupabaseModule.client.postgrest.from(table)
                     .select(io.github.jan.supabase.postgrest.query.Columns.list("sync_id")) {
                         filter {
@@ -1253,7 +1257,7 @@ object DeletionReaper {
                 if (deletedIds.isNotEmpty()) {
                     repository.deleteLocalRowsBySyncId(table, deletedIds)
                 } else 0
-            } }.awaitAll().sum()
+            } } }.awaitAll().sum()
             }
         }
 }

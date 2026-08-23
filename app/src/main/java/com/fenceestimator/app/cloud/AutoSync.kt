@@ -144,6 +144,13 @@ class AutoSync(
             manualTrigger.collect { runSync() }
         }
 
+        // The moment the login token is (re)established, push what waited.
+        scope.launch {
+            SupabaseModule.sessionStatus.collect { status ->
+                if (status is io.github.jan.supabase.auth.status.SessionStatus.Authenticated) requestSync()
+            }
+        }
+
         // The moment this phone learns which company it belongs to, pull.
         //
         // Signing in used to fire a sync straight away, while the profile fetch
@@ -225,6 +232,24 @@ class AutoSync(
         if (mutex.isLocked) {
             pendingSync.set(true)
             return
+        }
+
+        // No token, no sync. The session state says who this phone belongs to
+        // from memory; the token is what the server checks. Without one the
+        // whole pass runs anonymous -- pushes refused, pulls empty -- and the
+        // empty pulls are the dangerous half: they make every local row look
+        // new. So ask for a fresh token and try again on the next trigger.
+        if (!SupabaseModule.hasLiveSession()) {
+            SupabaseModule.tryRefreshSession()
+            if (!SupabaseModule.hasLiveSession()) {
+                _state.value = _state.value.copy(
+                    phase = SyncPhase.WAITING_FOR_SIGNAL,
+                    lastError = "Waiting to sign back in",
+                    hasUnsyncedWork = true
+                )
+                session.refresh()
+                return
+            }
         }
 
         mutex.withLock {

@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
@@ -613,9 +614,14 @@ object EstimateEngine {
     /**
      * Rule-based sanity checks over the current estimate -- no AI needed,
      * just flags the mistakes that are easy to miss when quoting fast.
+     *
+     * Returns structured warnings (a string resource plus its positional
+     * arguments) so the screen can render them in the device language; money
+     * is pre-formatted here so the figures read exactly as they always did.
      */
-    fun estimateWarnings(job: Job, runs: List<FenceRun>, lineItems: List<EstimateLineItem>, totals: Totals): List<String> {
-        val warnings = mutableListOf<String>()
+    fun estimateWarnings(job: Job, runs: List<FenceRun>, lineItems: List<EstimateLineItem>, totals: Totals): List<EstimateWarning> {
+        val warnings = mutableListOf<EstimateWarning>()
+        fun money(x: Double): String = "%.2f".format(java.util.Locale.US, x)
 
         // What stays with the business after materials, as a share of the
         // price (tax excluded on both sides -- it is a passthrough).
@@ -633,9 +639,10 @@ object EstimateEngine {
             val kept = priceExTax - totals.materialsSubtotal
             val keptPercent = kept / priceExTax * 100.0
             if (keptPercent < LOW_KEPT_THRESHOLD_PERCENT) {
-                warnings += "Only ${keptPercent.roundToInt()}% of this price stays with you " +
-                    "after materials (${"%.0f".format(kept)}) -- crew wages and your " +
-                    "profit both have to come out of that."
+                warnings += EstimateWarning(
+                    R.string.warn_low_kept,
+                    listOf(keptPercent.roundToInt().toString(), "%.0f".format(java.util.Locale.US, kept))
+                )
             }
         }
 
@@ -653,48 +660,59 @@ object EstimateEngine {
         if (totals.materialsSubtotal > 0.0 && collected < totals.materialsSubtotal) {
             val shortfall = totals.materialsSubtotal - collected
             warnings += if (collected > 0.005) {
-                "You have collected \$${"%.2f".format(collected)} but the materials cost " +
-                    "\$${"%.2f".format(totals.materialsSubtotal)} -- you are fronting " +
-                    "\$${"%.2f".format(shortfall)} of the customer's material."
+                EstimateWarning(
+                    R.string.warn_fronting_material,
+                    listOf(money(collected), money(totals.materialsSubtotal), money(shortfall))
+                )
             } else {
-                "Deposit (\$${"%.2f".format(job.depositAmount)}) doesn't cover the estimated " +
-                    "material cost (\$${"%.2f".format(totals.materialsSubtotal)}). You would be " +
-                    "buying their fence with your own money."
+                EstimateWarning(
+                    R.string.warn_deposit_short,
+                    listOf(money(job.depositAmount), money(totals.materialsSubtotal))
+                )
             }
         }
 
         // Said as a fact rather than a warning, because it is what someone most
         // often opens this screen to find out.
         if (collected > 0.005 && owed > 0.005) {
-            warnings += "Still to collect: \$${"%.2f".format(owed)} of " +
-                "\$${"%.2f".format(totals.grandTotal)}."
+            warnings += EstimateWarning(
+                R.string.warn_still_to_collect,
+                listOf(money(owed), money(totals.grandTotal))
+            )
         }
 
         // The price is still a guess until the supplier comes back.
         if (job.materialPricesConfirmedAt == null && totals.materialsSubtotal > 0.0) {
-            warnings += "Materials are priced from your catalog, not a supplier quote. " +
-                "The total can still move."
+            warnings += EstimateWarning(R.string.warn_provisional_pricing)
         }
 
         // A signature that no longer covers the job is not a small problem.
         if (JobMoney.signatureIsStale(job, totals.grandTotal, totals.billableLinearFeet)) {
-            warnings += "This changed after it was signed -- " +
-                JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet) +
-                ". Get a new signature before sending anything."
+            warnings += EstimateWarning(
+                R.string.warn_changed_after_signed,
+                listOf(JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet))
+            )
         }
 
         val hasPosts = lineItems.any { it.role in POST_ROLES && it.quantity > 0.0 }
         val hasConcrete = lineItems.any { it.role == MaterialRole.CONCRETE_BAG && it.quantity > 0.0 }
         if (hasPosts && !hasConcrete) {
-            warnings += "Posts are on the estimate but concrete hasn't been added."
+            warnings += EstimateWarning(R.string.warn_posts_no_concrete)
         }
 
         val anyGates = runs.any { FenceCodec.decodeGates(it.gatesEncoded).isNotEmpty() }
         val hasGateHardware = lineItems.any { it.role in GATE_HARDWARE_ROLES && it.quantity > 0.0 }
         if (anyGates && !hasGateHardware) {
-            warnings += "A gate is drawn but gate hardware (hinges, latch) hasn't been added yet."
+            warnings += EstimateWarning(R.string.warn_gate_no_hardware)
         }
 
         return warnings
     }
 }
+
+/**
+ * One pre-send warning: a string resource and the positional arguments it
+ * takes (money already formatted as text). Rendered by the screen with
+ * `stringResource(textRes, *args.toTypedArray())`.
+ */
+data class EstimateWarning(val textRes: Int, val args: List<Any> = emptyList())

@@ -69,6 +69,8 @@ import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.DraftTextField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.explains
+import com.fenceestimator.app.ui.components.label
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -525,9 +527,9 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(card.label, style = MaterialTheme.typography.bodyMedium)
+                                Text(card.label(), style = MaterialTheme.typography.bodyMedium)
                                 Text(
-                                    card.explains,
+                                    card.explains(),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

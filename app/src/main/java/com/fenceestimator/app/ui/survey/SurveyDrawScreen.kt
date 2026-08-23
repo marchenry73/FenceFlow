@@ -95,6 +95,7 @@ import com.fenceestimator.app.geometry.VertexKind
 import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.label
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
@@ -961,7 +962,7 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         OutlinedTextField(
-            value = selected?.let { "${it.label.ifBlank { untitled }} (${it.fenceType.name.replace("_", " ")})" } ?: "",
+            value = selected?.let { "${it.label.ifBlank { untitled }} (${it.fenceType.label()})" } ?: "",
             onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.draw_editing_run)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -970,7 +971,7 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             runs.forEach { run ->
                 DropdownMenuItem(
-                    text = { Text("${run.label.ifBlank { untitled }} (${run.fenceType.name.replace("_", " ")})") },
+                    text = { Text("${run.label.ifBlank { untitled }} (${run.fenceType.label()})") },
                     onClick = { onSelect(run.id); expanded = false }
                 )
             }
