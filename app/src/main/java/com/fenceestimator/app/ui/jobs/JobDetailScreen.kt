@@ -709,6 +709,14 @@ private fun TeardownFields(job: Job, viewModel: JobDetailViewModel) {
             stableKey = job.id, label = "Haul away / dump fee ($)", initialValue = job.trashHaulFee.toFloat(),
             modifier = Modifier.fillMaxWidth()
         ) { viewModel.update { j -> j.copy(trashHaulFee = it.toDouble()) } }
+        // The old fence is not always the new fence. Typed rather than drawn:
+        // the owner knows it is 80 ft without tracing it, and a separate
+        // drawing layer was more ceremony than the answer deserves.
+        DraftNumberField(
+            stableKey = job.id, label = "Teardown length (ft) -- 0 = same as the new fence",
+            initialValue = job.teardownFeet.toFloat(),
+            modifier = Modifier.fillMaxWidth()
+        ) { viewModel.update { j -> j.copy(teardownFeet = it.toDouble()) } }
         Text(
             "Teardown is charged on the same footage as the new fence. If the old fence " +
                 "ran a different length, add a separate run for it and type its length in " +

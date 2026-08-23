@@ -131,10 +131,10 @@ class AutoSync(
     fun start() {
         if (!SupabaseModule.isConfigured) return
 
-        // Local data changed -> push it up once the dust settles.
+        // Local data changed -> push it up once the dust settles. Any synced
+        // table, not just jobs: see Repository.observeAnyChange.
         scope.launch {
-            repository.observeJobs()
-                .drop(1) // the first emission is just the initial load, not a change
+            repository.observeAnyChange()
                 .debounce(DEBOUNCE_MS)
                 .collect { runSync() }
         }
@@ -382,7 +382,7 @@ class AutoSync(
     }
 
     private companion object {
-        const val DEBOUNCE_MS = 4_000L
+        const val DEBOUNCE_MS = 1_500L
         const val HEARTBEAT_MS = 15 * 60 * 1000L
 
         /** While someone is looking at the app, a figure should never be more than a minute old. */

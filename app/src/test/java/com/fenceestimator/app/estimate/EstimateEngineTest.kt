@@ -89,7 +89,10 @@ class EstimateEngineTest {
             vinylRun(feet = 24f, gates = listOf(GateMarker(0f, 0f, 4f))), pixelsPerFoot = 0f
         )
 
-        assertEquals(2.0, qtyOf(s, MaterialRole.GATE_POST), 0.001)
+        // A gate hangs between two END posts (hinge side wears the stiffener);
+        // there is no separate gate-post part. 24 ft open run = 2 ends + 2 for the gate.
+        assertEquals(4.0, qtyOf(s, MaterialRole.END_POST), 0.001)
+        assertEquals(0.0, qtyOf(s, MaterialRole.GATE_POST), 0.001)
         assertTrue("line posts should not be wiped out", qtyOf(s, MaterialRole.LINE_POST) > 0.0)
     }
 

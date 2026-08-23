@@ -89,6 +89,21 @@ class RealtimeWatcher(
                 scope.launch { paymentChanges.collect { autoSync.requestSync() } }
                 scope.launch { accessChanges.collect { session.refresh() } }
 
+                // Everything else that syncs. The channel used to carry jobs,
+                // the Stripe-link table and profiles and nothing more, so a
+                // payment recorded by hand, a redrawn fence, a ticked
+                // walkthrough step or a clocked shift on one phone reached the
+                // other only on the next heartbeat. Each table is its own
+                // flow; all of them just ask for a sync, and the sync path
+                // applies its own merge rules as before.
+                LIVE_TABLES.forEach { tableName ->
+                    val flow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                        table = tableName
+                        filter("company_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, companyId)
+                    }
+                    scope.launch { flow.collect { autoSync.requestSync() } }
+                }
+
                 SupabaseModule.client.realtime.connect()
                 channel.subscribe(blockUntilSubscribed = true)
                 backoffMs = INITIAL_BACKOFF_MS
@@ -107,6 +122,14 @@ class RealtimeWatcher(
     }
 
     private companion object {
+        /** Tables whose changes on another phone should land here within seconds. */
+        private val LIVE_TABLES = listOf(
+            "payment_records", "fence_runs", "estimate_line_items", "job_steps",
+            "time_entries", "field_changes", "change_orders", "site_markers",
+            "punch_list_items", "expenses", "employees", "material_items",
+            "pricing_tiers"
+        )
+
         const val INITIAL_BACKOFF_MS = 2_000L
         const val MAX_BACKOFF_MS = 60_000L
     }

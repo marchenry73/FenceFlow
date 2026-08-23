@@ -198,6 +198,14 @@ data class Job(
     val teardownEnabled: Boolean = false,
     val teardownFlatFee: Double = 0.0,
     val teardownRatePerFt: Double = 0.0,
+    /**
+     * How many feet of old fence come out. Zero means "the same as the new
+     * fence", which is the common case and what every existing job assumed.
+     * Typed, not drawn: an owner knows the old fence is 80 ft without
+     * tracing it, and a second drawing layer was more ceremony than the
+     * answer deserves.
+     */
+    val teardownFeet: Double = 0.0,
 
     // Ordering & approvals
     val preferredManufacturerId: Long? = null,
@@ -384,12 +392,9 @@ data class FenceRun(
     val gatesEncoded: String = "",
     val closedLoop: Boolean = false,
     /**
-     * This run is the OLD fence coming out, drawn where it stands.
-     *
-     * The teardown used to be priced on the new fence's footage, which is
-     * only right when the new line follows the old one. Drawn separately,
-     * its own length is what gets charged, and it suggests no materials --
-     * nothing is being built along it.
+     * Unused. Briefly marked a run as the old fence coming out; the teardown
+     * length is typed on the job instead (Job.teardownFeet). The column stays
+     * because a migration cannot be un-run, and it is simply never set.
      */
     val isTeardown: Boolean = false,
 

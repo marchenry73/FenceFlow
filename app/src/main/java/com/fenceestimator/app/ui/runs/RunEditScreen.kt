@@ -113,21 +113,6 @@ fun RunEditScreen(
                         stableKey = currentRun.id, initialValue = currentRun.colorOrFinish,
                         label = "Color / finish (optional, matches catalog price)", modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(colorOrFinish = it) } }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("This is the old fence coming out")
-                            Text(
-                                "Draw it where the old fence stands. Its own length is " +
-                                    "what tear-down charges, and it suggests no materials.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = currentRun.isTeardown,
-                            onCheckedChange = { on -> viewModel.update { r -> r.copy(isTeardown = on) } }
-                        )
-                    }
                 }
             }
             item {

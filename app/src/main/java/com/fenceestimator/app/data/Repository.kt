@@ -1,10 +1,28 @@
 package com.fenceestimator.app.data
 
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 
 class Repository(private val db: AppDatabase) {
+
+    /**
+     * Fires whenever any synced table changes on this phone.
+     *
+     * The pusher used to watch jobs alone, so a payment, a drawing, a line
+     * item, a walkthrough tick or a clocked shift sat on the phone until the
+     * next heartbeat -- up to a minute in the foreground -- and the other
+     * phone did not hear about it until then. This is the "needs a refresh"
+     * feeling, and it was real.
+     */
+    fun observeAnyChange(): kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.callbackFlow {
+        val observer = object : androidx.room.InvalidationTracker.Observer(SyncTables.ALL.toTypedArray() + "payment_records") {
+            override fun onInvalidated(tables: Set<String>) { trySend(Unit) }
+        }
+        db.invalidationTracker.addObserver(observer)
+        awaitClose { db.invalidationTracker.removeObserver(observer) }
+    }
 
     /**
      * Who is deleting things on this device, recorded on the tombstone so the

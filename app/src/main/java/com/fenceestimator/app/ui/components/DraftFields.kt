@@ -104,9 +104,13 @@ fun DraftNumberField(
             // the field looked like it accepted the number but never saved it.
             val newText = raw.replace(',', '.')
             text = newText
-            newText.toFloatOrNull()?.let { parsed ->
-                lastPushed = parsed
-                onValueChange(parsed)
+            // Clearing the field means zero. It used to mean "keep whatever
+            // was there" -- a markup wiped out to leave it at nothing quietly
+            // stayed at 15%, and the blank box said otherwise.
+            val parsed = if (newText.isBlank()) 0f else newText.toFloatOrNull()
+            parsed?.let {
+                lastPushed = it
+                onValueChange(it)
             }
         },
         label = { Text(label) },

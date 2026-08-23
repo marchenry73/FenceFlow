@@ -464,6 +464,26 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: Numbe
             }
             Divider(modifier = Modifier.padding(vertical = 8.dp))
             TotalRow("TOTAL", currency.format(totals.grandTotal), bold = true)
+
+            // What the job keeps, shown every time rather than only when it is
+            // bad. The warning below fires under 35%; the owner asked to see
+            // the figure itself, not just be told when it is low. Tax is a
+            // passthrough and is out on both sides; labor and teardown are the
+            // contractor's own charges, so they stay in.
+            val keptSession by com.fenceestimator.app.ui.components.currentApp().session.state.collectAsState()
+            val priceExTax = totals.grandTotal - totals.tax
+            if (keptSession.canSeeMoney && priceExTax > 0.005) {
+                val kept = priceExTax - totals.materialsSubtotal
+                val keptPct = kept / priceExTax * 100.0
+                Text(
+                    "Stays with you after materials: " + currency.format(kept) +
+                        " (" + "%.0f".format(keptPct) + "%). Crew wages and profit come out of this.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (keptPct < 35.0) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
             if (job != null && totals.grandTotal <= job!!.minimumJobCharge && job!!.minimumJobCharge > 0.0) {
                 Text(
                     "Minimum job charge of ${currency.format(job!!.minimumJobCharge)} applied",

@@ -47,6 +47,7 @@ data class CloudJob(
     @SerialName("teardown_enabled") val teardownEnabled: Boolean = false,
     @SerialName("teardown_flat_fee") val teardownFlatFee: Double = 0.0,
     @SerialName("teardown_rate_per_ft") val teardownRatePerFt: Double = 0.0,
+    @SerialName("teardown_feet") val teardownFeet: Double = 0.0,
     @SerialName("deposit_amount") val depositAmount: Double = 0.0,
     @SerialName("amount_paid") val amountPaid: Double = 0.0,
     /**
@@ -403,6 +404,7 @@ private fun Job.toCloud(companyId: String, contractTotal: Double? = null) = Clou
     teardownEnabled = teardownEnabled,
     teardownFlatFee = teardownFlatFee,
     teardownRatePerFt = teardownRatePerFt,
+    teardownFeet = teardownFeet,
     depositAmount = depositAmount,
     amountPaid = amountPaid,
     contractTotal = contractTotal,
@@ -463,6 +465,7 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
     teardownEnabled = teardownEnabled,
     teardownFlatFee = teardownFlatFee,
     teardownRatePerFt = teardownRatePerFt,
+    teardownFeet = teardownFeet,
     depositAmount = depositAmount,
     // Money that cleared is still never allowed to go backwards, even on a
     // branch where the cloud row is unambiguously newer.
@@ -519,6 +522,7 @@ private fun CloudJob.toLocalJob() = Job(
     teardownEnabled = teardownEnabled,
     teardownFlatFee = teardownFlatFee,
     teardownRatePerFt = teardownRatePerFt,
+    teardownFeet = teardownFeet,
     depositAmount = depositAmount,
     amountPaid = amountPaid,
     refundedAmount = refundedAmount,

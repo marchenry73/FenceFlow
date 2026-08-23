@@ -87,19 +87,6 @@ object EstimateEngine {
      * @param wastePercent extra allowance applied to cut-and-waste roles only.
      */
     fun suggestQuantities(run: FenceRun, pixelsPerFoot: Float, wastePercent: Double = 0.0): EstimateSuggestions {
-        if (run.isTeardown) {
-            // The old fence coming out. Its length is charged as teardown by
-            // computeTotals; suggesting posts and panels along it would order
-            // materials for a fence that is being removed.
-            val geometry = resolveGeometry(run, pixelsPerFoot)
-            val net = run.manualLinearFeet?.takeIf { it > 0f } ?: geometry.totalLinearFeet
-            return EstimateSuggestions(
-                geometry = geometry,
-                netLinearFeet = net,
-                entries = emptyList(),
-                takeoff = emptyList()
-            )
-        }
         val gates = FenceCodec.decodeGates(run.gatesEncoded)
         val geometry = resolveGeometry(run, pixelsPerFoot)
         val gateWidthTotal = gates.sumOf { it.widthFt.toDouble() }.toFloat()
@@ -150,23 +137,7 @@ object EstimateEngine {
      * than guessing, so a half-set-up job reads as incomplete instead of wrong.
      */
     fun linearFeet(job: Job, runs: List<FenceRun>): Float =
-        runs.filterNot { it.isTeardown }.sumOf { run ->
-            val manual = run.manualLinearFeet
-            if (manual != null && manual > 0f) manual.toDouble()
-            else job.calibrationPixelsPerFoot
-                ?.let { resolveGeometry(run, it).totalLinearFeet.toDouble() }
-                ?: 0.0
-        }.toFloat()
-
-    /**
-     * Footage of the OLD fence coming out, from runs drawn as teardown.
-     *
-     * Zero when no teardown run is drawn -- the caller falls back to the
-     * new fence's footage, which keeps every existing job pricing exactly
-     * as it did before the option existed.
-     */
-    fun teardownFeet(job: Job, runs: List<FenceRun>): Float =
-        runs.filter { it.isTeardown }.sumOf { run ->
+        runs.sumOf { run ->
             val manual = run.manualLinearFeet
             if (manual != null && manual > 0f) manual.toDouble()
             else job.calibrationPixelsPerFoot
@@ -238,7 +209,7 @@ object EstimateEngine {
             TakeoffLine("Line posts", posts.linePosts.toDouble(), "", TakeoffGroup.POSTS),
             TakeoffLine("Corner posts", posts.cornerPosts.toDouble(), "", TakeoffGroup.POSTS),
             TakeoffLine("End posts", posts.endPosts.toDouble(), "", TakeoffGroup.POSTS),
-            TakeoffLine("Gate posts", posts.gatePosts.toDouble(), "", TakeoffGroup.POSTS),
+            TakeoffLine("Gate posts (end posts + stiffener)", posts.gatePosts.toDouble(), "", TakeoffGroup.POSTS),
             TakeoffLine("Blank posts (wall-hung gates)", qty(MaterialRole.BLANK_POST), "", TakeoffGroup.POSTS),
             TakeoffLine("Total posts", posts.totalPosts.toDouble(), "", TakeoffGroup.POSTS),
             TakeoffLine("Post caps", qty(MaterialRole.POST_CAP), "", TakeoffGroup.POSTS),
@@ -292,7 +263,6 @@ object EstimateEngine {
             QtyEntry(MaterialRole.LINE_POST, posts.linePosts.toDouble()),
             QtyEntry(MaterialRole.CORNER_POST, posts.cornerPosts.toDouble()),
             QtyEntry(MaterialRole.END_POST, posts.endPosts.toDouble()),
-            QtyEntry(MaterialRole.GATE_POST, posts.gatePosts.toDouble()),
             QtyEntry(MaterialRole.POST_CAP, posts.totalPosts.toDouble())
         )
     }
@@ -309,7 +279,6 @@ object EstimateEngine {
             QtyEntry(MaterialRole.LINE_POST, posts.linePosts.toDouble()),
             QtyEntry(MaterialRole.CORNER_POST, posts.cornerPosts.toDouble()),
             QtyEntry(MaterialRole.END_POST, posts.endPosts.toDouble()),
-            QtyEntry(MaterialRole.GATE_POST, posts.gatePosts.toDouble()),
             QtyEntry(MaterialRole.POST_CAP, posts.totalPosts.toDouble())
         )
     }
@@ -323,7 +292,6 @@ object EstimateEngine {
             QtyEntry(MaterialRole.LINE_POST, posts.linePosts.toDouble()),
             QtyEntry(MaterialRole.CORNER_POST, posts.cornerPosts.toDouble()),
             QtyEntry(MaterialRole.END_POST, posts.endPosts.toDouble()),
-            QtyEntry(MaterialRole.GATE_POST, posts.gatePosts.toDouble())
         )
     }
 
@@ -334,7 +302,6 @@ object EstimateEngine {
             QtyEntry(MaterialRole.LINE_POST, posts.linePosts.toDouble()),
             QtyEntry(MaterialRole.CORNER_POST, posts.cornerPosts.toDouble()),
             QtyEntry(MaterialRole.END_POST, posts.endPosts.toDouble()),
-            QtyEntry(MaterialRole.GATE_POST, posts.gatePosts.toDouble()),
             QtyEntry(MaterialRole.POST_CAP, posts.totalPosts.toDouble()),
             QtyEntry(MaterialRole.TENSION_BAND, (posts.terminalPosts * bandsPerTerminalPost).toDouble()),
             QtyEntry(MaterialRole.BRACE_BAND, posts.terminalPosts.toDouble())
@@ -406,13 +373,17 @@ object EstimateEngine {
                 entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_LATCH_BAGS)
             }
             GateMounting.LINE -> {
-                entries += QtyEntry(MaterialRole.END_POST, 1.0)
+                // Two end posts: the hinge side wears the stiffener and
+                // becomes the post the gate hangs from, the other is where it
+                // latches. There is no separate "gate post" part -- the yard
+                // sells end posts, and that is what gets set.
+                entries += QtyEntry(MaterialRole.END_POST, 2.0)
                 entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
             }
             GateMounting.LINE_TO_WALL -> {
-                // Terminates twice, so there is a second end post in the ground
-                // beyond the gate's own two.
-                entries += QtyEntry(MaterialRole.END_POST, 2.0)
+                // The gate's own two end posts, plus the one where the rest of
+                // the run terminates at the wall.
+                entries += QtyEntry(MaterialRole.END_POST, 3.0)
                 entries += QtyEntry(
                     MaterialRole.CONCRETE_BAG,
                     GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS
@@ -611,11 +582,10 @@ object EstimateEngine {
 
         val laborCost = job.laborFlatFee + (job.laborRatePerFt * billableFeet)
         val trashHaul = if (job.teardownEnabled) job.trashHaulFee else 0.0
-        // The old fence's own length when it has been drawn, because the new
-        // line does not always follow the old one. No teardown run drawn
-        // means the old behaviour: priced along the new fence.
-        val drawnTeardownFt = teardownFeet(job, runs)
-        val teardownFt = if (drawnTeardownFt > 0f) drawnTeardownFt.toDouble() else billableFeet.toDouble()
+        // The typed teardown length when there is one, because the old fence
+        // does not always match the new one. Zero means what every job meant
+        // before the field existed: priced along the new fence.
+        val teardownFt = if (job.teardownFeet > 0.0) job.teardownFeet else billableFeet.toDouble()
         val teardownCost =
             if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * teardownFt + trashHaul
             else 0.0
