@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -131,10 +132,23 @@ class JobMoneyTest {
     @Test
     fun `the reason names what actually moved`() {
         val j = job(signedAt = 1L, signedTotal = 10000.0, signedFeet = 200f)
-        val reason = JobMoney.staleSignatureReason(j, 14000.0, 200f)
-        assertTrue(reason.contains("10000.00"))
-        assertTrue(reason.contains("14000.00"))
-        assertFalse("footage did not move, so it should not be mentioned", reason.contains("ft"))
+        val parts = JobMoney.staleSignatureReasonParts(j, 14000.0, 200f)
+        assertEquals(1, parts.size)
+        assertEquals(R.string.eng2_reason_price_moved, parts[0].first)
+        assertEquals(listOf("10000.00", "14000.00"), parts[0].second)
+        assertFalse(
+            "footage did not move, so it should not be mentioned",
+            parts.any { it.first == R.string.eng2_reason_fence_moved }
+        )
+    }
+
+    @Test
+    fun `a redrawn fence is named in the reason`() {
+        val j = job(signedAt = 1L, signedTotal = 10000.0, signedFeet = 200f)
+        val parts = JobMoney.staleSignatureReasonParts(j, 10000.0, 300f)
+        assertEquals(1, parts.size)
+        assertEquals(R.string.eng2_reason_fence_moved, parts[0].first)
+        assertEquals(listOf("200", "300"), parts[0].second)
     }
 
     // ---- processor lock ----

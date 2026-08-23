@@ -13,16 +13,18 @@ import com.fenceestimator.app.data.PaymentStatus
  * reality -- someone records a deposit but forgets to move the card, and the
  * board starts lying.
  */
-enum class PipelineStage(val label: String) {
-    LEAD("New Lead"),
-    ESTIMATING("Estimating"),
-    QUOTE_SENT("Quote Sent"),
-    APPROVED("Approved"),
-    DEPOSIT_PAID("Deposit Paid"),
-    SCHEDULED("Scheduled"),
-    INSTALLED("Installed"),
-    COMPLETE("Paid in Full"),
-    LOST("Lost");
+enum class PipelineStage {
+    // The on-screen name for each stage is a string resource -- see
+    // PipelineStage.label() / labelRes() in EnumLabels.
+    LEAD,
+    ESTIMATING,
+    QUOTE_SENT,
+    APPROVED,
+    DEPOSIT_PAID,
+    SCHEDULED,
+    INSTALLED,
+    COMPLETE,
+    LOST;
 
     companion object {
         fun of(job: Job, hasDrawnWork: Boolean): PipelineStage = when {

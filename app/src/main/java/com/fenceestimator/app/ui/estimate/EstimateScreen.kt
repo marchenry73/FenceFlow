@@ -90,8 +90,11 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
-        viewModel.message.collect { snackbarHostState.showSnackbar(it) }
+        viewModel.message.collect {
+            snackbarHostState.showSnackbar(context.getString(it.textRes, *it.args.toTypedArray()))
+        }
     }
 
     Scaffold(
@@ -505,7 +508,11 @@ private fun WarningsCard(warnings: List<EstimateWarning>) {
                 Text("  " + stringResource(R.string.est_before_you_send), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
             }
             warnings.forEach { warning ->
-                val text = stringResource(warning.textRes, *warning.args.toTypedArray())
+                val text = if (warning.reasonParts != null) {
+                    val joiner = stringResource(R.string.eng2_reason_joiner)
+                    val resolved = warning.reasonParts.map { (res, a) -> stringResource(res, *a.toTypedArray()) }
+                    stringResource(warning.textRes, resolved.joinToString(" " + joiner + " "))
+                } else stringResource(warning.textRes, *warning.args.toTypedArray())
                 Text("•  $text", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
             }
         }
@@ -564,10 +571,14 @@ private fun ExportSection(
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
+                    val reason = JobMoney
+                        .staleSignatureReasonParts(job, totals.grandTotal, totals.billableLinearFeet)
+                        .map { (res, args) -> stringResource(res, *args.toTypedArray()) }
+                        .joinToString(" " + stringResource(R.string.eng2_reason_joiner) + " ")
                     Text(
                         stringResource(
                             R.string.est2_changed_after_signed_body,
-                            JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet),
+                            reason,
                             job.customerName.ifBlank { stringResource(R.string.est2_the_customer) }
                         ),
                         style = MaterialTheme.typography.bodyMedium,

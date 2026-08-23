@@ -1720,7 +1720,7 @@ private fun ProjectProgressSection(
                 }
             )
             Text(
-                "  ${stage.label}",
+                "  " + stringResource(stage.labelRes),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (stage.current) FontWeight.SemiBold else FontWeight.Normal,
@@ -1741,7 +1741,7 @@ private fun ProjectProgressSection(
     openStage?.let { stage ->
         AlertDialog(
             onDismissRequest = { openStage = null },
-            title = { Text(stage.label) },
+            title = { Text(stringResource(stage.labelRes)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -1750,7 +1750,7 @@ private fun ProjectProgressSection(
                         color = if (stage.done) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface
                     )
-                    Text(stage.guidance, style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(stage.guidanceRes), style = MaterialTheme.typography.bodyMedium)
                 }
             },
             // Every step knows where it gets done; taking you there beats
@@ -1778,10 +1778,14 @@ private fun ProjectProgressSection(
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     val updateSubject = stringResource(R.string.jd_update_subject)
+    // The update goes out as plain SMS/email text, so the resources are
+    // resolved right here, through the context, at the moment it is built.
+    val resolve: (Int, List<Any>) -> String =
+        { res, args -> context.getString(res, *args.toTypedArray()) }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedButton(
             onClick = {
-                IntentHelpers.openSmsDraft(context, job.phone, ProjectStatus.asMessage(job, jobComplete, profile.businessName))
+                IntentHelpers.openSmsDraft(context, job.phone, ProjectStatus.asMessage(job, jobComplete, profile.businessName, resolve))
             },
             enabled = job.phone.isNotBlank(),
             modifier = Modifier.weight(1f)
@@ -1790,7 +1794,7 @@ private fun ProjectProgressSection(
             onClick = {
                 IntentHelpers.openEmailDraft(
                     context, job.email, updateSubject,
-                    ProjectStatus.asMessage(job, jobComplete, profile.businessName)
+                    ProjectStatus.asMessage(job, jobComplete, profile.businessName, resolve)
                 )
             },
             enabled = job.email.isNotBlank(),
@@ -2351,11 +2355,14 @@ private fun StaleSignatureBanner(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
+            val reason = JobMoney.staleSignatureReasonParts(job, contractTotal, linearFeet)
+                .map { (res, args) -> stringResource(res, *args.toTypedArray()) }
+                .joinToString(" " + stringResource(R.string.eng2_reason_joiner) + " ")
             Text(
                 stringResource(
                     R.string.jd_stale_sig_body,
                     job.customerName.ifBlank { stringResource(R.string.jd_the_customer) },
-                    JobMoney.staleSignatureReason(job, contractTotal, linearFeet)
+                    reason
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer

@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
@@ -68,15 +69,17 @@ class RefundConsistencyTest {
     @Test
     fun `the deposit step un-ticks when the money goes back`() {
         val stages = ProjectStatus.stages(job(paid = 1000.0, refunded = 1000.0), jobComplete = false)
-        val deposit = stages.first { it.label == "Deposit received" }
+        val deposit = stages.first { it.labelRes == R.string.eng2_stage_deposit_received }
         assertFalse(deposit.done)
     }
 
     @Test
     fun `the customer is told what we actually kept`() {
+        // A stand-in for context.getString: the res id plus its arguments,
+        // which is exactly what carries the money figure into the message.
         val message = ProjectStatus.asMessage(
             job(paid = 1000.0, refunded = 400.0), jobComplete = false, businessName = "Acme"
-        )
+        ) { res, args -> "$res " + args.joinToString(" ") }
         assertTrue("should quote the net figure", message.contains("600.00"))
         assertFalse("must not quote the gross figure", message.contains("1000.00"))
     }

@@ -150,8 +150,9 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
+                            val locate = com.fenceestimator.app.estimate.LocateTicket.messageRes(currentJob)
                             Text(
-                                com.fenceestimator.app.estimate.LocateTicket.message(currentJob),
+                                stringResource(locate.textRes, *locate.args.toTypedArray()),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             if (currentJob.locateNotes.isNotBlank()) {

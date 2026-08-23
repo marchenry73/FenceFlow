@@ -1,5 +1,6 @@
 package com.fenceestimator.app.cloud
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.notify.Notifications
 import kotlinx.coroutines.CoroutineScope
@@ -258,7 +259,7 @@ class AutoSync(
             if (!SupabaseModule.hasLiveSession()) {
                 _state.value = _state.value.copy(
                     phase = SyncPhase.WAITING_FOR_SIGNAL,
-                    lastError = "Waiting to sign back in",
+                    lastError = context.getString(R.string.vm_waiting_sign_back_in),
                     hasUnsyncedWork = true
                 )
                 session.refresh()
@@ -327,7 +328,8 @@ class AutoSync(
                     phase = if (looksLikeNoSignal(entityError)) SyncPhase.WAITING_FOR_SIGNAL
                     else SyncPhase.FAILED,
                     lastSyncedAt = _state.value.lastSyncedAt,
-                    lastError = entityError.message ?: "Couldn't sync crew and settings",
+                    lastError = entityError.message
+                        ?: context.getString(R.string.vm_couldnt_sync_crew_settings),
                     hasUnsyncedWork = true
                 )
                 return@withLock
@@ -348,7 +350,7 @@ class AutoSync(
                     _state.value.copy(
                         phase = if (looksLikeNoSignal(it)) SyncPhase.WAITING_FOR_SIGNAL
                         else SyncPhase.FAILED,
-                        lastError = it.message ?: "Couldn't reach the cloud",
+                        lastError = it.message ?: context.getString(R.string.sync_failed),
                         hasUnsyncedWork = true
                     )
                 }
@@ -393,19 +395,25 @@ class AutoSync(
             Notifications.show(
                 context = context,
                 id = SUMMARY_NOTIFICATION_ID,
-                title = "FenceFlow updated",
-                body = "${worthTelling.size} jobs came in from your team.",
+                title = context.getString(R.string.ntf_fenceflow_updated),
+                body = context.getString(R.string.ntf_jobs_came_in, worthTelling.size),
                 channelId = Notifications.CHANNEL_JOBS
             )
             return
         }
 
         worthTelling.forEach { change ->
-            val customer = change.customerName.ifBlank { "a job" }
+            val customer = change.customerName.ifBlank { context.getString(R.string.ntf_a_job) }
             val (title, body) = when (change.kind) {
-                ChangeKind.NEW_JOB -> "New job on your list" to "$customer was added by your team."
-                ChangeKind.MARKED_COMPLETE -> "Job marked complete" to "$customer was finished by the crew."
-                ChangeKind.ASSIGNED_TO_ME -> "You've been assigned a job" to "You're on $customer."
+                ChangeKind.NEW_JOB ->
+                    context.getString(R.string.ntf_new_job_title) to
+                        context.getString(R.string.ntf_new_job_body, customer)
+                ChangeKind.MARKED_COMPLETE ->
+                    context.getString(R.string.ntf_job_complete_title) to
+                        context.getString(R.string.ntf_job_complete_body, customer)
+                ChangeKind.ASSIGNED_TO_ME ->
+                    context.getString(R.string.ntf_assigned_title) to
+                        context.getString(R.string.ntf_assigned_body, customer)
                 // Both are filtered out above; listed rather than folded into an
                 // else so that adding a new kind is a compile error here and
                 // has to be decided on, instead of silently never notifying.

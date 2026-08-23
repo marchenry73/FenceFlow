@@ -1559,8 +1559,8 @@ function showJob(id){
   $('j_scheduled_date').value=openJob.scheduled_date
     ? new Date(openJob.scheduled_date).toISOString().slice(0,10) : '';
   $('j_assigned_employee_id').innerHTML='<option value="">Unassigned</option>'+
-    employees.map(e=>`<option value="${e.id}">${esc(e.name)||'Unnamed'}</option>`).join('');
-  $('j_assigned_employee_id').value=openJob.assigned_employee_id||'';
+    employees.map(e=>`<option value="${e.sync_id}">${esc(e.name)||'Unnamed'}</option>`).join('');
+  $('j_assigned_employee_id').value=openJob.assigned_employee_sync_id||'';
 
   const sid=openJob.sync_id;
   const jr=runs.filter(r=>r.job_sync_id===sid);
@@ -1636,7 +1636,9 @@ async function saveJob(){
   J_SEL.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=el.value;});
   const dt=$('j_scheduled_date').value;
   patch.scheduled_date = dt ? new Date(dt+'T08:00:00').toISOString() : null;
-  patch.assigned_employee_id = $('j_assigned_employee_id').value || null;
+  // By sync id: the old column held the app's local row id, which means
+  // nothing on any other device -- dashboard assignments never reached a phone.
+  patch.assigned_employee_sync_id = $('j_assigned_employee_id').value || null;
   const {error}=await db.from('jobs').update(patch).eq('id',openJob.id);
   if(error) return msg('jobMsg',error.message,'err');
   msg('jobMsg','Saved. Phones pick this up on their next sync.','ok');

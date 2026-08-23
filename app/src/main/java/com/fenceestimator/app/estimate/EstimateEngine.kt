@@ -693,9 +693,12 @@ object EstimateEngine {
 
         // A signature that no longer covers the job is not a small problem.
         if (JobMoney.signatureIsStale(job, totals.grandTotal, totals.billableLinearFeet)) {
+            // The reason travels as resource parts, not a pre-built English
+            // sentence, so the renderer can join it in the reader's language.
             warnings += EstimateWarning(
                 R.string.warn_changed_after_signed,
-                listOf(JobMoney.staleSignatureReason(job, totals.grandTotal, totals.billableLinearFeet))
+                emptyList(),
+                reasonParts = JobMoney.staleSignatureReasonParts(job, totals.grandTotal, totals.billableLinearFeet)
             )
         }
 
@@ -720,4 +723,9 @@ object EstimateEngine {
  * takes (money already formatted as text). Rendered by the screen with
  * `stringResource(textRes, *args.toTypedArray())`.
  */
-data class EstimateWarning(val textRes: Int, val args: List<Any> = emptyList())
+data class EstimateWarning(
+    val textRes: Int,
+    val args: List<Any> = emptyList(),
+    /** When set, resolved per-part and joined in the reader's language, then formatted into textRes. */
+    val reasonParts: List<Pair<Int, List<Any>>>? = null
+)

@@ -2,10 +2,12 @@ package com.fenceestimator.app.ui.account
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.AutoSync
 import com.fenceestimator.app.cloud.SessionManager
 import com.fenceestimator.app.cloud.TrashBin
 import com.fenceestimator.app.cloud.TrashedRecord
+import com.fenceestimator.app.ui.components.UiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -21,19 +23,19 @@ class TrashViewModel(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
 
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message
+    private val _message = MutableStateFlow<UiMessage?>(null)
+    val message: StateFlow<UiMessage?> = _message
 
     fun load() {
         val companyId = session.state.value.companyId ?: run {
-            _message.value = "Sign in to your company to see deleted items."
+            _message.value = UiMessage(R.string.vm_sign_in_deleted_items)
             return
         }
         viewModelScope.launch {
             _busy.value = true
             TrashBin.list(companyId)
                 .onSuccess { _items.value = it }
-                .onFailure { _message.value = "Couldn't load deleted items: ${it.message}" }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_load_deleted, listOf(it.message.orEmpty())) }
             _busy.value = false
         }
     }
@@ -57,10 +59,10 @@ class TrashViewModel(
             _busy.value = true
             TrashBin.purge(companyId, record)
                 .onSuccess {
-                    _message.value = "Permanently deleted."
+                    _message.value = UiMessage(R.string.vm_permanently_deleted)
                     load()
                 }
-                .onFailure { _message.value = "Couldn't delete it: ${it.message}" }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_delete, listOf(it.message.orEmpty())) }
             _busy.value = false
         }
     }
@@ -81,8 +83,8 @@ class TrashViewModel(
                     .onSuccess { ok++ }
                     .onFailure { failed++ }
             }
-            _message.value = if (failed == 0) "Permanently deleted $ok item(s)."
-                else "Deleted $ok; $failed couldn't be deleted."
+            _message.value = if (failed == 0) UiMessage(R.string.vm_deleted_count, listOf(ok))
+                else UiMessage(R.string.vm_deleted_some_failed, listOf(ok, failed))
             load()
             _busy.value = false
         }
@@ -94,11 +96,11 @@ class TrashViewModel(
             _busy.value = true
             TrashBin.restore(companyId, record)
                 .onSuccess {
-                    _message.value = "\"${record.label}\" is back."
+                    _message.value = UiMessage(R.string.vm_restored_back, listOf(record.label))
                     autoSync.requestSync()
                     load()
                 }
-                .onFailure { _message.value = "Couldn't restore it: ${it.message}" }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_restore, listOf(it.message.orEmpty())) }
             _busy.value = false
         }
     }

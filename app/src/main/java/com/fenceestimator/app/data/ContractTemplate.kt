@@ -157,6 +157,10 @@ firmados fuera del lugar habitual de negocios del vendedor -- que es la mayoría
 de los trabajos de cerca, ya que se firman en casa del cliente. Omitirlo puede
 hacer el contrato inexigible y acarrear una sanción por sí mismo. Pida a su
 abogado la redacción exacta que exige su estado y reemplace este párrafo.
+
+Al firmar, usted confirma que ha leído este acuerdo, que es propietario del
+inmueble o está autorizado a encargar este trabajo, y que la línea de la cerca
+se ha recorrido y acordado.
 """
 
 /** The same default terms in French. See [DEFAULT_CONTRACT_TERMS_ES]. */
@@ -229,6 +233,10 @@ contrats signés ailleurs qu'au lieu d'affaires habituel du vendeur -- soit la
 plupart des chantiers de clôture, signés chez le client. L'omettre peut rendre
 le contrat inopposable et entraîner une pénalité en soi. Demandez à votre
 avocat la formulation exacte exigée par votre État et remplacez ce paragraphe.
+
+En signant, vous confirmez avoir lu le présent accord, être propriétaire du
+bien ou autorisé à faire exécuter ces travaux, et que le tracé de la clôture a
+été parcouru et convenu.
 """
 
 /**

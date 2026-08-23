@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 
 /**
@@ -58,32 +59,59 @@ object LocateTicket {
         return days <= EXPIRY_WARNING_DAYS
     }
 
+    /** One localizable message: a string resource and its positional arguments. */
+    data class Message(val textRes: Int, val args: List<Any> = emptyList())
+
     /**
      * What to tell somebody, in the words that matter to them.
      *
      * Written for whoever is about to dig, not for whoever filed the ticket.
+     * Render with `stringResource(textRes, *args.toTypedArray())` in a
+     * composable, or `context.getString(...)` elsewhere.
      */
-    fun message(job: Job, now: Long = System.currentTimeMillis()): String =
+    fun messageRes(job: Job, now: Long = System.currentTimeMillis()): Message =
         when (stateOf(job, now)) {
-            State.NONE -> "No utility locate on this job. Call 811 before anyone digs."
-            State.WAITING ->
-                "Locate called in, but the wait is not up yet. Nobody digs before the " +
-                    "date below -- that wait is the law, not a guideline."
-            State.EXPIRED ->
-                "This locate has expired. It has to be called in again before any " +
-                    "digging. Marks on the ground may no longer be accurate."
+            State.NONE -> Message(R.string.eng2_locate_msg_none)
+            State.WAITING -> Message(R.string.eng2_locate_msg_waiting)
+            State.EXPIRED -> Message(R.string.eng2_locate_msg_expired)
             State.CLEAR -> {
                 val days = daysUntilExpiry(job, now)
                 when {
-                    days == null -> "Clear to dig."
-                    days <= 0 -> "Clear to dig -- but this ticket expires today."
+                    days == null -> Message(R.string.eng2_locate_msg_clear)
+                    days <= 0 -> Message(R.string.eng2_locate_msg_expires_today)
+                    days == 1 -> Message(R.string.eng2_locate_msg_expires_in_one)
                     days <= EXPIRY_WARNING_DAYS ->
-                        "Clear to dig. Expires in $days day${if (days == 1) "" else "s"} -- " +
-                            "call it in again if the job runs past that."
-                    else -> "Clear to dig."
+                        Message(R.string.eng2_locate_msg_expires_in_many, listOf(days))
+                    else -> Message(R.string.eng2_locate_msg_clear)
                 }
             }
         }
+
+    /**
+     * English-only join of [messageRes], kept because the crew job screen still
+     * renders this as a plain string. New code should render [messageRes] with
+     * resources instead.
+     */
+    fun message(job: Job, now: Long = System.currentTimeMillis()): String {
+        val m = messageRes(job, now)
+        return when (m.textRes) {
+            R.string.eng2_locate_msg_none ->
+                "No utility locate on this job. Call 811 before anyone digs."
+            R.string.eng2_locate_msg_waiting ->
+                "Locate called in, but the wait is not up yet. Nobody digs before the " +
+                    "date below -- that wait is the law, not a guideline."
+            R.string.eng2_locate_msg_expired ->
+                "This locate has expired. It has to be called in again before any " +
+                    "digging. Marks on the ground may no longer be accurate."
+            R.string.eng2_locate_msg_expires_today ->
+                "Clear to dig -- but this ticket expires today."
+            R.string.eng2_locate_msg_expires_in_one ->
+                "Clear to dig. Expires in 1 day -- call it in again if the job runs past that."
+            R.string.eng2_locate_msg_expires_in_many ->
+                "Clear to dig. Expires in ${m.args[0]} days -- call it in again if the job runs past that."
+            else -> "Clear to dig."
+        }
+    }
 
     /**
      * Whether a job should be held back from being scheduled or started.

@@ -3,6 +3,7 @@ package com.fenceestimator.app.ui.estimate
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.EstimateLineItem
@@ -42,9 +43,9 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     val catalog: StateFlow<List<MaterialItem>> = repository.observeCatalog()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _message = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val _message = MutableSharedFlow<com.fenceestimator.app.ui.components.UiMessage>(extraBufferCapacity = 1)
     /** Surfaces why a generate attempt produced nothing, instead of failing silently. */
-    val message: SharedFlow<String> = _message
+    val message: SharedFlow<com.fenceestimator.app.ui.components.UiMessage> = _message
 
     /** Last computed takeoff per run, so the counts stay on screen after generating. */
     private val _takeoff = MutableStateFlow<Map<Long, List<TakeoffLine>>>(emptyMap())
@@ -101,18 +102,16 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
                     pxPerFt = SurveyViewModel.PIXELS_PER_FOOT_GRID
                     repository.updateJob(current.copy(calibrationPixelsPerFoot = pxPerFt))
                 } else {
-                    _message.tryEmit(
-                        "Set the scale on the Survey screen, or just type the length into " +
-                            "\"Total feet\" on this run and press Suggest again."
-                    )
+                    _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(R.string.evm_set_scale_or_type))
                     return
                 }
             }
             val points = FenceCodec.decodePoints(run.pointsEncoded)
             if (points.size < 2) {
                 _message.tryEmit(
-                    "Draw \"${run.label.ifBlank { "this run" }}\" on the Survey screen, " +
-                        "or type its length into \"Total feet\" here."
+                    if (run.label.isBlank())
+                        com.fenceestimator.app.ui.components.UiMessage(R.string.evm_draw_or_type_unnamed)
+                    else com.fenceestimator.app.ui.components.UiMessage(R.string.evm_draw_or_type_named, listOf(run.label))
                 )
                 return
             }
@@ -125,7 +124,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
             availableCatalog = repository.observeCatalog().first()
         }
         if (availableCatalog.isEmpty()) {
-            _message.tryEmit("Your materials catalog is empty. Add items under Catalog, then try again.")
+            _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(R.string.evm_catalog_empty))
             return
         }
 
@@ -179,11 +178,19 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
 
         _message.tryEmit(
             when {
-                built.items.isEmpty() -> "Nothing priced -- your catalog has no ${
-                    run.fenceType.name.replace("_", " ").lowercase()
-                } items. Add them under Catalog."
-                problems.isEmpty() -> "Replaced with ${built.items.size} line items."
-                else -> "Replaced with ${built.items.size} line items. Check: ${problems.joinToString("; ")}"
+                // The fence-type word rides along as data; it is a product
+                // term and the catalog lists it under the same word.
+                built.items.isEmpty() -> com.fenceestimator.app.ui.components.UiMessage(
+                    R.string.evm_nothing_priced,
+                    listOf(run.fenceType.name.replace("_", " ").lowercase())
+                )
+                problems.isEmpty() -> com.fenceestimator.app.ui.components.UiMessage(
+                    R.string.evm_replaced_lines, listOf(built.items.size)
+                )
+                else -> com.fenceestimator.app.ui.components.UiMessage(
+                    R.string.evm_replaced_lines_check,
+                    listOf(built.items.size, problems.joinToString("; "))
+                )
             }
         )
     }
@@ -192,7 +199,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     fun restoreRemovedItems(run: FenceRun) {
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(suppressedRolesCsv = ""))
-            _message.tryEmit("Removed items restored. Press Suggest Quantities to add them back.")
+            _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(R.string.evm_removed_restored))
         }
     }
 
@@ -235,10 +242,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
         val currentJob = job.value
 
         if (actualFeet <= 0f || pixels <= 0f || currentJob == null) {
-            _message.tryEmit(
-                "Draw this run on the Survey screen first, then the length you type " +
-                    "here can set the scale."
-            )
+            _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(R.string.evm_draw_first_scale))
             return
         }
 
@@ -252,10 +256,9 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
             // The drawing now says the same thing, so the typed override goes.
             // Two sources of truth for one number is how they drift apart.
             repository.updateFenceRun(run.copy(manualLinearFeet = null))
-            _message.tryEmit(
-                "Scale set from ${"%.0f".format(actualFeet)} ft. Every run and gate on " +
-                    "this plan measures from it now."
-            )
+            _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(
+                R.string.evm_scale_set, listOf("%.0f".format(java.util.Locale.US, actualFeet))
+            ))
         }
     }
 
@@ -350,8 +353,8 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
             )
             _message.tryEmit(
                 if (allPriced && items.isNotEmpty())
-                    "Supplier prices saved. This job is now priced on real numbers."
-                else "Saved. Some lines still use the catalog estimate."
+                    com.fenceestimator.app.ui.components.UiMessage(R.string.evm_supplier_saved_real)
+                else com.fenceestimator.app.ui.components.UiMessage(R.string.evm_saved_some_catalog)
             )
         }
     }

@@ -50,6 +50,7 @@ import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.description
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.components.resolve
 import com.fenceestimator.app.ui.lock.confirmIdentity
 
 /**
@@ -76,7 +77,8 @@ fun AccessScreen(onBack: () -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { viewModel.load() }
-    LaunchedEffect(message) { message?.let { snackbarHostState.showSnackbar(it) } }
+    val messageText = message?.resolve()
+    LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
 
     Scaffold(
         topBar = {

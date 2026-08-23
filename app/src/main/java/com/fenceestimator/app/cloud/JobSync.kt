@@ -60,6 +60,12 @@ data class CloudJob(
      * a second one written in SQL to drift away from this one.
      */
     @SerialName("contract_total") val contractTotal: Double? = null,
+    /**
+     * Who the job is assigned to, by the employee's SYNC id. The website used
+     * to write the app's local row id here, which means nothing on any other
+     * device -- assignments made on the dashboard never reached a phone.
+     */
+    @SerialName("assigned_employee_sync_id") val assignedEmployeeSyncId: String? = null,
     @SerialName("refunded_amount") val refundedAmount: Double = 0.0,
     @SerialName("refunded_at") val refundedAt: String? = null,
     @SerialName("refund_reason") val refundReason: String = "",
@@ -203,6 +209,8 @@ object JobSync {
             // Three reads for the whole sync rather than three per job. The
             // same shape JobsViewModel uses for the home screen, and for the
             // same reason: per-job fetches turn one sync into 3xN round trips.
+            val employeeSyncById = repository.getAllEmployees().associateBy({ it.id }, { it.syncId })
+            val employeeIdBySync = repository.getAllEmployees().associateBy({ it.syncId }, { it.id })
             val itemsByJob = repository.getAllLineItemsByJob()
             val runsByJob = repository.getAllFenceRunsByJob()
             val ordersByJob = repository.getAllChangeOrdersByJob()
@@ -274,7 +282,7 @@ object JobSync {
                 }
 
                 if (cloudJob == null) {
-                    SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job)))
+                    SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }))
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
                     uploaded++
                 } else if (job.updatedAt > cloudJob.updatedAtMillis()) {
@@ -285,7 +293,7 @@ object JobSync {
                     // a payment the webhook had just recorded -- and the money
                     // disappeared. Payment fields are never pushed downward:
                     // the higher figure survives whichever side is newer.
-                    val payload = job.toCloud(companyId, totalFor(job)).let { local ->
+                    val payload = job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }).let { local ->
                         if (cloudJob.amountPaid > local.amountPaid) {
                             local.copy(
                                 amountPaid = cloudJob.amountPaid,
@@ -337,7 +345,12 @@ object JobSync {
                 }
 
                 if (local == null) {
-                    val newId = repository.createJob(cloudJob.toLocalJob())
+                    val newId = repository.createJob(
+                        cloudJob.toLocalJob().let { fresh ->
+                            cloudJob.assignedEmployeeSyncId?.let { es -> employeeIdBySync[es] }
+                                ?.let { fresh.copy(assignedEmployeeId = it) } ?: fresh
+                        }
+                    )
                     downloaded++
                     incoming += IncomingChange(newId, cloudJob.customerName, ChangeKind.NEW_JOB)
                 } else if (cloudJob.amountPaid > local.amountPaid + 0.005) {
@@ -367,7 +380,12 @@ object JobSync {
                     // ran while cloud timestamps were misparsed as epoch 0, so
                     // the damage was latent rather than absent; fixing the
                     // parsing without fixing this would have armed it.
-                    repository.updateJobFromCloud(cloudJob.mergeOnto(local))
+                    repository.updateJobFromCloud(
+                        cloudJob.mergeOnto(local).let { merged ->
+                            cloudJob.assignedEmployeeSyncId?.let { es -> employeeIdBySync[es] }
+                                ?.let { merged.copy(assignedEmployeeId = it) } ?: merged
+                        }
+                    )
                     downloaded++
                     incoming += IncomingChange(
                         jobId = local.id,
@@ -382,7 +400,7 @@ object JobSync {
     }
 }
 
-private fun Job.toCloud(companyId: String, contractTotal: Double? = null) = CloudJob(
+private fun Job.toCloud(companyId: String, contractTotal: Double? = null, assignedEmployeeSyncId: String? = null) = CloudJob(
     syncId = syncId,
     companyId = companyId,
     customerName = customerName,
@@ -415,6 +433,7 @@ private fun Job.toCloud(companyId: String, contractTotal: Double? = null) = Clou
     depositAmount = depositAmount,
     amountPaid = amountPaid,
     contractTotal = contractTotal,
+    assignedEmployeeSyncId = assignedEmployeeSyncId,
     refundedAmount = refundedAmount,
     refundedAt = refundedAt?.let { CloudTime.format(it) },
     locateCalledAt = locateCalledAt?.let { CloudTime.format(it) },

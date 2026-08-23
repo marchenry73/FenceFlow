@@ -57,9 +57,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
+import com.fenceestimator.app.data.ExpenseCategory
+import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.components.labelRes
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -227,7 +230,13 @@ fun ReportsScreen(onBack: () -> Unit) {
                 item {
                     ChartCard(
                         title = stringResource(R.string.rep_chart_expenses_by_category),
-                        rows = data.expensesByCategory,
+                        // Rows arrive keyed by enum name; show them in the
+                        // user's language.
+                        rows = data.expensesByCategory.map { row ->
+                            runCatching { ExpenseCategory.valueOf(row.label) }.getOrNull()
+                                ?.let { row.copy(label = context.getString(it.labelRes())) }
+                                ?: row
+                        },
                         color = CostOrange,
                         format = { currency.format(it) },
                         empty = stringResource(R.string.rep_empty_no_expenses)
@@ -303,7 +312,13 @@ fun ReportsScreen(onBack: () -> Unit) {
                 item {
                     ChartCard(
                         title = stringResource(R.string.rep_chart_feet_by_type),
-                        rows = data.fenceTypes,
+                        // Rows arrive keyed by enum name; show them in the
+                        // user's language.
+                        rows = data.fenceTypes.map { row ->
+                            runCatching { FenceType.valueOf(row.label) }.getOrNull()
+                                ?.let { row.copy(label = context.getString(it.labelRes())) }
+                                ?: row
+                        },
                         color = CrewAmber,
                         format = { context.getString(R.string.rep_fmt_ft, "%,.0f".format(it)) },
                         empty = stringResource(R.string.rep_empty_no_footage)

@@ -36,6 +36,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,7 +73,12 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
     val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
     var addDialogKind by remember { mutableStateOf<InventoryKind?>(null) }
 
-    LaunchedEffect(jobId) { viewModel.ensureToolsSeeded(profile.defaultToolsListCsv) }
+    LaunchedEffect(jobId) {
+        // The collected profile starts as a placeholder holding the built-in
+        // tools; seeding from it raced DataStore and stamped the defaults on
+        // every checklist. first() waits for the stored profile.
+        viewModel.ensureToolsSeeded(app.settingsStore.profile.first().defaultToolsListCsv)
+    }
 
     Scaffold(
         topBar = {

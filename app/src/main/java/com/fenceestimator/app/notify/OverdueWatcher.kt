@@ -1,6 +1,7 @@
 package com.fenceestimator.app.notify
 
 import android.content.Context
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.Repository
@@ -53,23 +54,24 @@ class OverdueWatcher(
             warnedOn[job.id] = today
 
             val hoursOver = ((now - due) / 3_600_000.0)
+            val jobName = job.customerName.ifBlank {
+                context.getString(R.string.ntf_job_number_fallback, job.id)
+            }
+            val ago =
+                if (hoursOver < 24) context.getString(R.string.ntf_hours_ago, "%.0f".format(hoursOver))
+                else context.getString(R.string.ntf_days_ago, "%.0f".format(hoursOver / 24))
+            val tail =
+                if (job.overrunReason.isBlank() && job.blockedReason.isBlank())
+                    context.getString(R.string.ntf_note_what_held)
+                else context.getString(
+                    R.string.ntf_held_up,
+                    job.overrunReason.ifBlank { job.blockedReason }.take(60)
+                )
             Notifications.show(
                 context = context,
                 id = OVERDUE_NOTIFICATION_BASE + job.id.toInt(),
-                title = "Running late: ${job.customerName.ifBlank { "job #${job.id}" }}",
-                body = buildString {
-                    append("Should have finished ")
-                    append(
-                        if (hoursOver < 24) "${"%.0f".format(hoursOver)} hours ago"
-                        else "${"%.0f".format(hoursOver / 24)} day(s) ago"
-                    )
-                    append(". ")
-                    append(
-                        if (job.overrunReason.isBlank() && job.blockedReason.isBlank())
-                            "Note what held it up so the customer can be told."
-                        else "Held up: ${job.overrunReason.ifBlank { job.blockedReason }.take(60)}"
-                    )
-                },
+                title = context.getString(R.string.home_running_late, jobName),
+                body = context.getString(R.string.ntf_overdue_body, ago, tail),
                 channelId = Notifications.CHANNEL_CREW
             )
         }

@@ -75,8 +75,9 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
+            val message = LocateTicket.messageRes(job)
             Text(
-                LocateTicket.message(job),
+                stringResource(message.textRes, *message.args.toTypedArray()),
                 style = MaterialTheme.typography.bodyMedium
             )
 

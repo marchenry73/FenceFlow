@@ -1,5 +1,6 @@
 package com.fenceestimator.app.notify
 
+import com.fenceestimator.app.R
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -17,7 +18,7 @@ class FenceFlowMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
-        val title = data["title"] ?: message.notification?.title ?: "FenceFlow"
+        val title = data["title"] ?: message.notification?.title ?: getString(R.string.app_name)
         val body = data["body"] ?: message.notification?.body ?: return
 
         // A job id lets tapping the notification reuse that job's slot instead

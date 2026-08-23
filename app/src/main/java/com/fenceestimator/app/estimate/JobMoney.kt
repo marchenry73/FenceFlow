@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 
 /**
@@ -110,21 +111,50 @@ object JobMoney {
     }
 
     /**
-     * Plain wording for why a new signature is needed. Written for the person
-     * who has to make the phone call, not for a log.
+     * Why a new signature is needed, as string resources plus their positional
+     * arguments (figures pre-formatted here so they read exactly as before).
+     *
+     * Each entry is one clause -- "the price moved from $X to $Y" -- and the
+     * screen joins them with [R.string.eng2_reason_joiner] ("and") so the whole
+     * sentence comes out in the device language. Written for the person who has
+     * to make the phone call, not for a log.
      */
-    fun staleSignatureReason(job: Job, contractTotal: Double, linearFeet: Float): String {
-        val parts = mutableListOf<String>()
+    fun staleSignatureReasonParts(
+        job: Job,
+        contractTotal: Double,
+        linearFeet: Float
+    ): List<Pair<Int, List<Any>>> {
+        val parts = mutableListOf<Pair<Int, List<Any>>>()
         if (kotlin.math.abs(contractTotal - job.signedContractTotal) > MONEY_TOLERANCE) {
-            parts += "the price moved from $${"%.2f".format(job.signedContractTotal)} " +
-                "to $${"%.2f".format(contractTotal)}"
+            parts += R.string.eng2_reason_price_moved to listOf(
+                "%.2f".format(job.signedContractTotal),
+                "%.2f".format(contractTotal)
+            )
         }
         if (kotlin.math.abs(linearFeet - job.signedLinearFeet) > FOOTAGE_TOLERANCE) {
-            parts += "the fence went from ${"%.0f".format(job.signedLinearFeet)} ft " +
-                "to ${"%.0f".format(linearFeet)} ft"
+            parts += R.string.eng2_reason_fence_moved to listOf(
+                "%.0f".format(job.signedLinearFeet),
+                "%.0f".format(linearFeet)
+            )
         }
-        return parts.joinToString(" and ")
+        return parts
     }
+
+    /**
+     * English-only join of [staleSignatureReasonParts], kept for callers with
+     * no resources in reach (EstimateEngine.estimateWarnings embeds it in a
+     * warning's arguments). Screens should render the parts with
+     * `stringResource` instead.
+     */
+    fun staleSignatureReason(job: Job, contractTotal: Double, linearFeet: Float): String =
+        staleSignatureReasonParts(job, contractTotal, linearFeet).joinToString(" and ") { (res, args) ->
+            when (res) {
+                R.string.eng2_reason_price_moved ->
+                    "the price moved from $${args[0]} to $${args[1]}"
+                else ->
+                    "the fence went from ${args[0]} ft to ${args[1]} ft"
+            }
+        }
 
     /** A dollar of rounding is not a renegotiation. */
     private const val MONEY_TOLERANCE = 1.0

@@ -73,6 +73,9 @@ private class PdfLabels(language: AppLanguage) {
     val signedOn = pick("Signed on", "Firmado el", "Signé le")
     val scopeOfWork = pick("WORK TO BE DONE", "TRABAJO A REALIZAR", "TRAVAUX À RÉALISER")
     val thePlan = pick("THE PLAN", "EL PLANO", "LE PLAN")
+    val jobReference = pick("JOB REFERENCE", "REFERENCIA DEL TRABAJO", "RÉFÉRENCE DU CHANTIER")
+    val minimumCharge = pick("Minimum job charge", "Cargo mínimo del trabajo", "Forfait minimum de chantier")
+    val warrantyPeriod = pick("one year", "un año", "un an")
     val approvedExtraWork = pick(
         "Approved extra work",
         "Trabajo adicional aprobado",
@@ -96,7 +99,16 @@ object PdfExporter {
     private const val MARGIN = 48f
 
     private val currency: NumberFormat = NumberFormat.getCurrencyInstance(Locale.US)
-    private val dateFormat = SimpleDateFormat("MM/dd/yyyy", Locale.US)
+    /**
+     * Dates in the document's own convention. A Spanish or French contract
+     * dated 08/03/2026 is ambiguous to its reader; day-first is what they
+     * write. The language decides, not the phone's locale, because the
+     * document belongs to the company.
+     */
+    private fun dateFormatFor(language: com.fenceestimator.app.data.AppLanguage): SimpleDateFormat =
+        if (language == com.fenceestimator.app.data.AppLanguage.ENGLISH)
+            SimpleDateFormat("MM/dd/yyyy", Locale.US)
+        else SimpleDateFormat("dd/MM/yyyy", Locale.US)
 
     fun export(
         context: Context,
@@ -117,6 +129,7 @@ object PdfExporter {
     ): File {
         val docKind = document_
         val labels = PdfLabels(business.language)
+        val dateFormat = dateFormatFor(business.language)
         val document = PdfDocument()
         var pageNumber = 1
         var pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
@@ -256,12 +269,23 @@ object PdfExporter {
         canvas.drawLine(MARGIN, y, rightX, y, linePaint)
         y += 20f
 
-        canvas.drawText(labels.preparedFor, MARGIN, y, labelPaint)
-        y += 14f
-        canvas.drawText(job.customerName.ifBlank { "Customer" }, MARGIN, y, boldPaint)
-        y += 14f
-        if (job.address.isNotBlank()) { canvas.drawText(job.address, MARGIN, y, bodyPaint); y += 14f }
-        if (job.phone.isNotBlank()) { canvas.drawText(job.phone, MARGIN, y, bodyPaint); y += 14f }
+        if (docKind.showsQuantitiesOnly) {
+            // The supplier is being asked for prices on parts. The customer's
+            // name, street and phone were riding along on every request --
+            // a third party has no business with any of it. A job reference
+            // is enough to talk about the order.
+            canvas.drawText(labels.jobReference, MARGIN, y, labelPaint)
+            y += 14f
+            canvas.drawText("#$estimateNumber", MARGIN, y, boldPaint)
+            y += 14f
+        } else {
+            canvas.drawText(labels.preparedFor, MARGIN, y, labelPaint)
+            y += 14f
+            canvas.drawText(job.customerName.ifBlank { "Customer" }, MARGIN, y, boldPaint)
+            y += 14f
+            if (job.address.isNotBlank()) { canvas.drawText(job.address, MARGIN, y, bodyPaint); y += 14f }
+            if (job.phone.isNotBlank()) { canvas.drawText(job.phone, MARGIN, y, bodyPaint); y += 14f }
+        }
         y += 10f
 
         canvas.drawLine(MARGIN, y, rightX, y, linePaint)
@@ -348,6 +372,9 @@ object PdfExporter {
         // A customer agreed a price for a finished fence, not a shopping list
         // with your buying prices on it. Showing the breakdown invites an
         // argument about your margin rather than about the work.
+        // The block is tall; without a check it could start at the bottom
+        // edge and run off the page, taking the TOTAL with it.
+        newPageIfNeeded(170f)
         if (docKind.showsMaterialPricing) {
         totalRow(labels.materialsSubtotal, currency.format(totals.materialsSubtotal))
         totalRow("${labels.tax} (${job.taxRatePercent}% ${labels.onTaxable})", currency.format(totals.tax))
@@ -370,11 +397,21 @@ object PdfExporter {
             val label = if (job.pricingTierName.isNotBlank()) "${labels.discount} (${job.pricingTierName}, ${job.discountPercent}%)" else "${labels.discount} (${job.discountPercent}%)"
             totalRow(label, "-" + currency.format(totals.discountAmount))
         }
+        // When the minimum job charge lifts the total above the sum of the
+        // rows, say so. A customer adding up the lines and getting less than
+        // the TOTAL is a customer who thinks the bill is wrong.
+        val rowsSum = totals.materialsSubtotal + totals.tax + totals.laborCost +
+            totals.gateCharge + totals.teardownCost + totals.changeOrderCost +
+            totals.markupAmount - totals.discountAmount
+        if (totals.grandTotal > rowsSum + 0.005) {
+            totalRow(labels.minimumCharge, currency.format(totals.grandTotal - rowsSum))
+        }
         }
 
         // The supplier is the one who sends prices back, so their copy carries
         // no money at all -- only what to quote.
         if (!docKind.showsQuantitiesOnly) {
+            newPageIfNeeded(60f)
             y += 4f
             canvas.drawLine(colRate, y, rightX, y, linePaint)
             y += 18f
@@ -404,11 +441,20 @@ object PdfExporter {
         // It is the part they actually check -- where the line runs, which side
         // the gate is on -- and a contract describing a fence without showing
         // it is a contract about a fence nobody has agreed the shape of.
-        val planPath = job.surveyImagePath
-        if (docKind.isExternal && !docKind.showsQuantitiesOnly && planPath != null) {
-            val plan = runCatching { BitmapFactory.decodeFile(planPath) }.getOrNull()
+        // THE PLAN with the plan actually on it. The photo alone showed the
+        // yard and none of the fence -- the one thing the customer checks is
+        // where the line runs and which side the gate hangs, and that lives in
+        // the drawn runs, not the photograph. With no photo at all (grid-drawn
+        // jobs), the geometry is drawn on its own, so those contracts stop
+        // shipping with no plan whatsoever.
+        if (docKind.isExternal && !docKind.showsQuantitiesOnly) {
+            val maxW = rightX - MARGIN
+            val plan = job.surveyImagePath?.let { p -> runCatching { BitmapFactory.decodeFile(p) }.getOrNull() }
+            val drawableRuns = runs.filter {
+                com.fenceestimator.app.geometry.FenceCodec.decodePoints(it.pointsEncoded).size >= 2 ||
+                    com.fenceestimator.app.geometry.FenceCodec.decodeGates(it.gatesEncoded).isNotEmpty()
+            }
             if (plan != null && plan.width > 0 && plan.height > 0) {
-                val maxW = rightX - MARGIN
                 val maxH = 260f
                 val scale = minOf(maxW / plan.width, maxH / plan.height)
                 val w = plan.width * scale
@@ -416,11 +462,42 @@ object PdfExporter {
                 newPageIfNeeded(h + 40f)
                 canvas.drawText(labels.thePlan, MARGIN, y, sectionPaint)
                 y += 14f
-                canvas.drawBitmap(
-                    plan, null,
-                    android.graphics.RectF(MARGIN, y, MARGIN + w, y + h), null
-                )
+                canvas.drawBitmap(plan, null, android.graphics.RectF(MARGIN, y, MARGIN + w, y + h), null)
+                // Points are stored in the image's own pixel space, so the
+                // same scale that placed the photo places the fence on it.
+                drawRunGeometry(canvas, drawableRuns, { MARGIN + it * scale }, { y + it * scale })
                 y += h + 18f
+            } else if (drawableRuns.isNotEmpty()) {
+                var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE
+                var maxX = -Float.MAX_VALUE; var maxYv = -Float.MAX_VALUE
+                drawableRuns.forEach { run ->
+                    com.fenceestimator.app.geometry.FenceCodec.decodePoints(run.pointsEncoded).forEach {
+                        minX = minOf(minX, it.x); minY = minOf(minY, it.y)
+                        maxX = maxOf(maxX, it.x); maxYv = maxOf(maxYv, it.y)
+                    }
+                    com.fenceestimator.app.geometry.FenceCodec.decodeGates(run.gatesEncoded).forEach {
+                        minX = minOf(minX, it.x); minY = minOf(minY, it.y)
+                        maxX = maxOf(maxX, it.x); maxYv = maxOf(maxYv, it.y)
+                    }
+                }
+                if (maxX > minX || maxYv > minY) {
+                    val pad = 0.06f * maxOf(maxX - minX, maxYv - minY, 1f)
+                    minX -= pad; minY -= pad; maxX += pad; maxYv += pad
+                    val h = 220f
+                    val scale = minOf(maxW / (maxX - minX), h / (maxYv - minY))
+                    val w = (maxX - minX) * scale
+                    newPageIfNeeded(h + 40f)
+                    canvas.drawText(labels.thePlan, MARGIN, y, sectionPaint)
+                    y += 14f
+                    val bg = Paint().apply { color = 0xFFF7F8FA.toInt() }
+                    val border = Paint().apply { color = 0xFFD7DEE8.toInt(); style = Paint.Style.STROKE; strokeWidth = 1.5f }
+                    canvas.drawRect(MARGIN, y, MARGIN + w, y + (maxYv - minY) * scale, bg)
+                    canvas.drawRect(MARGIN, y, MARGIN + w, y + (maxYv - minY) * scale, border)
+                    val yTop = y
+                    drawRunGeometry(canvas, drawableRuns,
+                        { MARGIN + (it - minX) * scale }, { yTop + (it - minY) * scale })
+                    y += (maxYv - minY) * scale + 18f
+                }
             }
         }
 
@@ -446,7 +523,7 @@ object PdfExporter {
                 .replace("{ADDRESS}", job.address.ifBlank { "the address above" })
                 .replace("{TOTAL}", currency.format(totals.grandTotal))
                 .replace("{DEPOSIT}", currency.format(job.depositAmount))
-                .replace("{WARRANTY_PERIOD}", "one year")
+                .replace("{WARRANTY_PERIOD}", labels.warrantyPeriod)
 
             val maxWidth = rightX - MARGIN
             filled.trim().lines().forEach { rawLine ->
@@ -492,12 +569,17 @@ object PdfExporter {
         }
 
         newPageIfNeeded(30f)
-        // The closing line differs by reader: a supplier is being asked for a
-        // quote, a customer is being told prices can move.
-        canvas.drawText(
-            if (docKind.showsQuantitiesOnly) labels.quoteRequest else labels.note,
-            MARGIN, y, labelPaint
-        )
+        // The closing line belongs to the reader: the supplier is asked for a
+        // quote, the estimate says prices can move and expires -- and the
+        // contract and invoice say NEITHER, because "valid for 30 days" on a
+        // signed agreement or a bill reads as the price still being open.
+        when {
+            docKind.showsQuantitiesOnly ->
+                canvas.drawText(labels.quoteRequest, MARGIN, y, labelPaint)
+            docKind == JobDocument.WORKING_ESTIMATE ->
+                canvas.drawText(labels.note, MARGIN, y, labelPaint)
+            else -> Unit
+        }
 
         document.finishPage(page)
 
@@ -506,7 +588,11 @@ object PdfExporter {
         // arrive in someone inbox as two files called Estimate.
         val fileLabel = docKind.name.lowercase().split("_")
             .joinToString("") { part -> part.replaceFirstChar { it.uppercase() } }
-        val outFile = File(pdfDir, "${fileLabel}_${estimateNumber}_${job.customerName.ifBlank { "customer" }.replace(" ", "_")}.pdf")
+        // Only filename-safe characters. A customer entered as "Smith / Jones"
+        // turned the path into a sub-directory and crashed the export.
+        val safeName = job.customerName.ifBlank { "customer" }
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val outFile = File(pdfDir, "${fileLabel}_${estimateNumber}_${safeName}.pdf")
         FileOutputStream(outFile).use { document.writeTo(it) }
         document.close()
         return outFile
@@ -516,4 +602,34 @@ object PdfExporter {
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
     private fun truncate(s: String, max: Int): String = if (s.length <= max) s else s.take(max - 1) + "…"
+
+    /** The fence line and its gates, mapped into page space. */
+    private fun drawRunGeometry(
+        canvas: android.graphics.Canvas,
+        runs: List<FenceRun>,
+        mapX: (Float) -> Float,
+        mapY: (Float) -> Float
+    ) {
+        val line = Paint().apply {
+            color = 0xFF1E2A3D.toInt(); strokeWidth = 3f
+            style = Paint.Style.STROKE; isAntiAlias = true
+        }
+        val gate = Paint().apply {
+            color = 0xFFFF5A1F.toInt(); strokeWidth = 3f
+            style = Paint.Style.STROKE; isAntiAlias = true
+        }
+        runs.forEach { run ->
+            val pts = com.fenceestimator.app.geometry.FenceCodec.decodePoints(run.pointsEncoded)
+            if (pts.size >= 2) {
+                val path = android.graphics.Path()
+                path.moveTo(mapX(pts[0].x), mapY(pts[0].y))
+                for (i in 1 until pts.size) path.lineTo(mapX(pts[i].x), mapY(pts[i].y))
+                if (run.closedLoop) path.close()
+                canvas.drawPath(path, line)
+            }
+            com.fenceestimator.app.geometry.FenceCodec.decodeGates(run.gatesEncoded).forEach { g ->
+                canvas.drawCircle(mapX(g.x), mapY(g.y), 5f, gate)
+            }
+        }
+    }
 }

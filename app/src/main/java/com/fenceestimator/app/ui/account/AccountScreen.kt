@@ -44,6 +44,7 @@ import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncPhase
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.components.resolve
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,8 +63,11 @@ fun AccountScreen(
     val session by app.session.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Resolved here because the snackbar coroutine is not a composition --
+    // the resource lookup has to happen while we still are.
+    val messageText = state.message?.resolve()
     LaunchedEffect(state.message) {
-        state.message?.let {
+        messageText?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearMessage()
         }

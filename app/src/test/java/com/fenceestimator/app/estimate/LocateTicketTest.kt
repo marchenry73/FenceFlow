@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -64,21 +65,23 @@ class LocateTicketTest {
     fun `expiring today still counts as clear, and says so`() {
         val j = job("A1234", digAfter = now - 5 * day, expires = now + 1000L)
         assertEquals(LocateTicket.State.CLEAR, LocateTicket.stateOf(j, now))
-        assertTrue(LocateTicket.message(j, now).contains("expires today"))
+        assertEquals(R.string.eng2_locate_msg_expires_today, LocateTicket.messageRes(j, now).textRes)
     }
 
     @Test
     fun `a ticket close to expiry warns before somebody is on site`() {
         val j = job("A1234", digAfter = now - 5 * day, expires = now + 2 * day)
         assertTrue(LocateTicket.expiringSoon(j, now))
-        assertTrue(LocateTicket.message(j, now).contains("Expires in 2 days"))
+        val message = LocateTicket.messageRes(j, now)
+        assertEquals(R.string.eng2_locate_msg_expires_in_many, message.textRes)
+        assertEquals(listOf<Any>(2), message.args)
     }
 
     @Test
     fun `a ticket with plenty of time does not nag`() {
         val j = job("A1234", digAfter = now - day, expires = now + 20 * day)
         assertFalse(LocateTicket.expiringSoon(j, now))
-        assertEquals("Clear to dig.", LocateTicket.message(j, now))
+        assertEquals(R.string.eng2_locate_msg_clear, LocateTicket.messageRes(j, now).textRes)
     }
 
     @Test

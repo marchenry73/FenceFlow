@@ -21,22 +21,25 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-/** Quick ranges. CUSTOM means the user picked explicit dates. */
-enum class ReportPreset(val label: String, val days: Int) {
-    WEEK("7 days", 7),
-    MONTH("30 days", 30),
-    QUARTER("90 days", 90),
-    YEAR("12 months", 365),
-    ALL("All time", 0),
-    CUSTOM("Custom", -1)
+/**
+ * Quick ranges. CUSTOM means the user picked explicit dates.
+ * Wording lives in EnumLabels ([labelRes]/[label]), not here.
+ */
+enum class ReportPreset(val days: Int) {
+    WEEK(7),
+    MONTH(30),
+    QUARTER(90),
+    YEAR(365),
+    ALL(0),
+    CUSTOM(-1)
 }
 
-/** Restricts time entries by when the shift started. */
-enum class HourFilter(val label: String) {
-    ALL("All hours"),
-    EARLY("Before 8am"),
-    WORK("8am - 5pm"),
-    LATE("After 5pm");
+/** Restricts time entries by when the shift started. Wording lives in EnumLabels. */
+enum class HourFilter {
+    ALL,
+    EARLY,
+    WORK,
+    LATE;
 
     fun matches(startedAt: Long): Boolean {
         if (this == ALL) return true
@@ -208,7 +211,9 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
                 totals = buildTotals(jobs, expenses, times, materialsByJob, paymentsInPeriod),
                 revenueByMonth = revenueByMonth(paymentsInPeriod),
                 costBreakdown = costBreakdown(jobs, expenses, times, materialsByJob),
-                expensesByCategory = expenses.groupBy { it.category.name.replace("_", " ") }
+                // Keyed by the enum name; the screen translates it for display,
+                // because this class has no Context to resolve resources with.
+                expensesByCategory = expenses.groupBy { it.category.name }
                     .map { (k, v) -> ChartRow(k, v.sumOf { it.amount }) }
                     .sortedByDescending { it.value },
                 jobsByStage = jobsByStage(jobs),
@@ -323,7 +328,8 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
                 if (points.size < 2) return@forEach
                 val feet = com.fenceestimator.app.geometry.FenceGeometryEngine
                     .analyze(points, pxPerFt, run.closedLoop).totalLinearFeet.toDouble()
-                val key = run.fenceType.name.replace("_", " ")
+                // Enum name as the key; the screen translates it for display.
+                val key = run.fenceType.name
                 byType[key] = (byType[key] ?: 0.0) + feet
             }
         }

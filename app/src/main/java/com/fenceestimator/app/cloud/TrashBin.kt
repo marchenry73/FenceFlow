@@ -1,5 +1,7 @@
 package com.fenceestimator.app.cloud
 
+import androidx.annotation.StringRes
+import com.fenceestimator.app.R
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
@@ -18,7 +20,9 @@ data class TrashedRecord(
     val syncId: String,
     /** What it was, in the words the person who deleted it would recognise. */
     val label: String,
+    /** English fallback for code with no Context; screens use [kindLabelRes]. */
     val kindLabel: String,
+    @StringRes val kindLabelRes: Int,
     val deletedAt: Long?,
     val deletedBy: String
 )
@@ -45,16 +49,21 @@ object TrashBin {
      * job, a change order, an expense or a person.
      */
     private val RECOVERABLE = listOf(
-        TrashTable("jobs", "customer_name", "Job"),
-        TrashTable("change_orders", "description", "Change order"),
-        TrashTable("expenses", "description", "Expense"),
-        TrashTable("employees", "name", "Crew member"),
-        TrashTable("material_items", "name", "Catalog item"),
-        TrashTable("fence_runs", "label", "Fence run"),
-        TrashTable("punch_list_items", "description", "Punch list item")
+        TrashTable("jobs", "customer_name", "Job", R.string.vm_kind_job),
+        TrashTable("change_orders", "description", "Change order", R.string.vm_kind_change_order),
+        TrashTable("expenses", "description", "Expense", R.string.vm_kind_expense),
+        TrashTable("employees", "name", "Crew member", R.string.vm_kind_crew_member),
+        TrashTable("material_items", "name", "Catalog item", R.string.vm_kind_catalog_item),
+        TrashTable("fence_runs", "label", "Fence run", R.string.vm_kind_fence_run),
+        TrashTable("punch_list_items", "description", "Punch list item", R.string.vm_kind_punch_item)
     )
 
-    private data class TrashTable(val table: String, val labelColumn: String, val kind: String)
+    private data class TrashTable(
+        val table: String,
+        val labelColumn: String,
+        val kind: String,
+        @StringRes val kindRes: Int
+    )
 
     suspend fun list(companyId: String): Result<List<TrashedRecord>> =
         withContext(Dispatchers.IO) {
@@ -80,6 +89,7 @@ object TrashBin {
                                     syncId = row.text("sync_id"),
                                     label = row.text(spec.labelColumn).ifBlank { "(unnamed)" },
                                     kindLabel = spec.kind,
+                                    kindLabelRes = spec.kindRes,
                                     deletedAt = CloudTime.parseMillis(row.text("deleted_at")),
                                     deletedBy = row.text("deleted_by")
                                 )

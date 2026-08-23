@@ -39,6 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.resolve
 
 /**
  * Everything that was deleted, and putting it back.
@@ -63,7 +64,8 @@ fun TrashScreen(onBack: () -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { viewModel.load() }
-    LaunchedEffect(message) { message?.let { snackbarHostState.showSnackbar(it) } }
+    val messageText = message?.resolve()
+    LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
 
     val dayFormat = remember { java.text.SimpleDateFormat("d MMM yyyy, h:mm a", java.util.Locale.US) }
     var purging by remember { mutableStateOf<com.fenceestimator.app.cloud.TrashedRecord?>(null) }
@@ -161,7 +163,7 @@ fun TrashScreen(onBack: () -> Unit) {
                             Text(record.label, style = MaterialTheme.typography.titleMedium)
                         }
                         Text(
-                            record.kindLabel +
+                            stringResource(record.kindLabelRes) +
                                 (record.deletedAt?.let { " · " + stringResource(R.string.acct_trash_deleted_on, dayFormat.format(java.util.Date(it))) } ?: "") +
                                 (if (record.deletedBy.isNotBlank()) " · " + stringResource(R.string.acct_trash_deleted_by, record.deletedBy) else ""),
                             style = MaterialTheme.typography.bodySmall,
