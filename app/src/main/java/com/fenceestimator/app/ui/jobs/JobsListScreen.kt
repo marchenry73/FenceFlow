@@ -19,6 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -94,6 +98,10 @@ fun JobsListScreen(
     val session by app.session.state.collectAsState()
     val pendingHours by viewModel.pendingHours.collectAsState()
     val allPayments by viewModel.allPayments.collectAsState()
+    val pendingPlanChanges by viewModel.pendingPlanChanges.collectAsState()
+    // Search and status filter for the job list below the dashboard.
+    var query by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf<JobStatus?>(null) }
     val outstanding by viewModel.outstandingTotal.collectAsState()
     var pendingDelete by remember { mutableStateOf<Job?>(null) }
 
@@ -205,10 +213,13 @@ fun JobsListScreen(
                         }
                     )
                 },
+                // Quiet on purpose: the dashboard's hero card is the one block
+                // of colour on this screen, and a coloured bar above it made
+                // two competing slabs. The name stays bold; the colour moved.
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
                 ),
                 actions = {
                     IconButton(onClick = onOpenSchedule) {
@@ -441,22 +452,85 @@ fun JobsListScreen(
                     }
                 }
                 item {
-                    DashboardHeader(
+                    HomeDashboard(
+                        ownerName = profile.ownerName,
                         jobs = jobs,
                         payments = allPayments,
                         pendingHours = pendingHours.size,
+                        pendingPlanChanges = pendingPlanChanges,
                         outstanding = outstanding,
                         cards = com.fenceestimator.app.data.HomeCard.parse(profile.homeCardsCsv),
                         showMoney = session.canSeeMoney,
                         workdayHours = (profile.workdayHours - profile.breakHoursPerDay)
                             .coerceAtLeast(1.0),
+                        onOpenJob = onOpenJob,
                         onOpenSchedule = onOpenSchedule,
                         onOpenPipeline = onOpenPipeline,
                         onOpenReports = onOpenReports,
                         onOpenTimeApproval = onOpenTimeApproval
                     )
                 }
-                items(jobs, key = { it.id }) { job ->
+
+                // The job list, searchable. A contractor with forty jobs was
+                // scrolling for the one they wanted; a name, a street or a
+                // status narrows it in a keystroke.
+                val filteredJobs = jobs.filter { j ->
+                    (statusFilter == null || j.status == statusFilter) &&
+                        (query.isBlank() ||
+                            j.customerName.contains(query, ignoreCase = true) ||
+                            j.address.contains(query, ignoreCase = true))
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                        Text(
+                            stringResource(R.string.home_jobs),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        androidx.compose.material3.OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            singleLine = true,
+                            placeholder = { Text(stringResource(R.string.home_search_jobs)) },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            trailingIcon = {
+                                if (query.isNotBlank()) {
+                                    IconButton(onClick = { query = "" }) {
+                                        Icon(Icons.Filled.Close, contentDescription = null)
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                        ) {
+                            androidx.compose.material3.FilterChip(
+                                selected = statusFilter == null,
+                                onClick = { statusFilter = null },
+                                label = { Text(stringResource(R.string.home_filter_all)) }
+                            )
+                            JobStatus.values().forEach { st ->
+                                androidx.compose.material3.FilterChip(
+                                    selected = statusFilter == st,
+                                    onClick = { statusFilter = if (statusFilter == st) null else st },
+                                    label = { Text(statusLabel(st)) }
+                                )
+                            }
+                        }
+                        if (filteredJobs.isEmpty()) {
+                            Text(
+                                stringResource(R.string.home_no_matches),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+                items(filteredJobs, key = { it.id }) { job ->
                     JobCard(
                         job = job,
                         onClick = { onOpenJob(job.id) },
@@ -491,107 +565,6 @@ fun JobsListScreen(
 }
 
 @Composable
-private fun DashboardHeader(
-    jobs: List<Job>,
-    payments: List<com.fenceestimator.app.data.PaymentRecord>,
-    pendingHours: Int,
-    outstanding: Double,
-    cards: List<com.fenceestimator.app.data.HomeCard>,
-    showMoney: Boolean,
-    workdayHours: Double,
-    onOpenSchedule: () -> Unit,
-    onOpenPipeline: () -> Unit,
-    onOpenReports: () -> Unit,
-    onOpenTimeApproval: () -> Unit
-) {
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
-
-    val monthStart = remember {
-        Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-    }
-
-    // Money comes from the ledger, by the date it actually arrived.
-    //
-    // This screen had the same bug the reports screen did: it attributed a
-    // job's whole lifetime amountPaid to a single job timestamp, and for an
-    // unscheduled job that timestamp was updatedAt -- a sync artifact. Editing
-    // an old job dragged its payments into this month, and two devices
-    // disagreed. Same fix, because it is the same mistake.
-    val collectedThisMonth = remember(payments, monthStart) {
-        payments.filter { it.receivedAt >= monthStart }.sumOf { it.amount }
-    }
-
-    fun valueFor(card: com.fenceestimator.app.data.HomeCard): String {
-        val now = System.currentTimeMillis()
-        val weekEnd = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 7) }.timeInMillis
-        return when (card) {
-            com.fenceestimator.app.data.HomeCard.SCHEDULED_THIS_WEEK ->
-                jobs.count { it.scheduledDate != null && it.scheduledDate in now..weekEnd }.toString()
-            com.fenceestimator.app.data.HomeCard.WON_THIS_MONTH ->
-                jobs.count { it.status.isWon && (it.scheduledDate ?: it.createdAt) >= monthStart }.toString()
-            com.fenceestimator.app.data.HomeCard.COLLECTED_THIS_MONTH ->
-                currency.format(collectedThisMonth)
-            com.fenceestimator.app.data.HomeCard.OUTSTANDING -> currency.format(outstanding)
-            com.fenceestimator.app.data.HomeCard.UNPAID_JOBS ->
-                jobs.count { it.status.isWon && it.paymentStatus != PaymentStatus.PAID_IN_FULL }.toString()
-            com.fenceestimator.app.data.HomeCard.HOURS_TO_APPROVE -> pendingHours.toString()
-            com.fenceestimator.app.data.HomeCard.DRAFT_ESTIMATES ->
-                jobs.count { it.status == JobStatus.DRAFT }.toString()
-            com.fenceestimator.app.data.HomeCard.OVERRUNNING ->
-                jobs.count {
-                    com.fenceestimator.app.estimate.JobSchedule.hasOverrun(it, workdayHours)
-                }.toString()
-        }
-    }
-
-    fun destinationFor(card: com.fenceestimator.app.data.HomeCard): () -> Unit = when (card) {
-        com.fenceestimator.app.data.HomeCard.SCHEDULED_THIS_WEEK,
-        com.fenceestimator.app.data.HomeCard.OVERRUNNING -> onOpenSchedule
-        com.fenceestimator.app.data.HomeCard.COLLECTED_THIS_MONTH,
-        com.fenceestimator.app.data.HomeCard.OUTSTANDING -> onOpenReports
-        com.fenceestimator.app.data.HomeCard.HOURS_TO_APPROVE -> onOpenTimeApproval
-        else -> onOpenPipeline
-    }
-
-    // Money cards are dropped rather than blanked for anyone without permission
-    // to see money -- an empty card labelled "Collected" still tells them there
-    // is money to know about.
-    val visible = cards.filter { showMoney || !it.needsMoney }
-
-    visible.chunked(2).forEach { pair ->
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
-        ) {
-            pair.forEach { card ->
-                StatCard(card.label, valueFor(card), Modifier.weight(1f), destinationFor(card))
-            }
-            if (pair.size == 1) Box(Modifier.weight(1f))
-        }
-    }
-    Spacer(Modifier.height(4.dp))
-}
-
-
-@Composable
-private fun StatCard(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
-) {
-    Card(modifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
-        }
-    }
-}
-
-@Composable
 private fun JobCard(job: Job, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -611,7 +584,7 @@ private fun JobCard(job: Job, onClick: () -> Unit, onDelete: (() -> Unit)? = nul
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = job.customerName.ifBlank { "Untitled job" },
+                        text = job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -620,11 +593,12 @@ private fun JobCard(job: Job, onClick: () -> Unit, onDelete: (() -> Unit)? = nul
                     }
                     Spacer(Modifier.height(4.dp))
                     val scheduled = job.scheduledDate
+                    val dayFmt = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
                     Text(
                         if (scheduled != null)
-                            "Scheduled ${SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(scheduled))}"
+                            stringResource(R.string.home_scheduled_on, dayFmt.format(Date(scheduled)))
                         else
-                            "Updated ${SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(job.updatedAt))}",
+                            stringResource(R.string.home_updated_on, dayFmt.format(Date(job.updatedAt))),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -653,13 +627,25 @@ private fun statusColor(status: JobStatus): Color = when (status) {
 }
 
 @Composable
+internal fun statusLabel(status: JobStatus): String = stringResource(
+    when (status) {
+        JobStatus.DRAFT -> R.string.home_status_draft
+        JobStatus.SENT -> R.string.home_status_sent
+        JobStatus.ACCEPTED -> R.string.home_status_accepted
+        JobStatus.COMPLETED -> R.string.home_status_completed
+        JobStatus.DECLINED -> R.string.home_status_declined
+    }
+)
+
+@Composable
 private fun StatusPill(status: JobStatus) {
-    val (bg, fg, label) = when (status) {
-        JobStatus.DRAFT -> Triple(Color(0xFFE3E7ED), Color(0xFF3A4048), "Draft")
-        JobStatus.SENT -> Triple(Color(0xFFFFC49A), Color(0xFFB23800), "Sent")
-        JobStatus.ACCEPTED -> Triple(Color(0xFFA9EEE1), Color(0xFF07473D), "Accepted")
-        JobStatus.COMPLETED -> Triple(Color(0xFFD7DEE8), Color(0xFF1E2A3D), "Complete")
-        JobStatus.DECLINED -> Triple(Color(0xFFFBD3D4), Color(0xFF8C1114), "Declined")
+    val label = statusLabel(status)
+    val (bg, fg) = when (status) {
+        JobStatus.DRAFT -> Pair(Color(0xFFE3E7ED), Color(0xFF3A4048))
+        JobStatus.SENT -> Pair(Color(0xFFFFC49A), Color(0xFFB23800))
+        JobStatus.ACCEPTED -> Pair(Color(0xFFA9EEE1), Color(0xFF07473D))
+        JobStatus.COMPLETED -> Pair(Color(0xFFD7DEE8), Color(0xFF1E2A3D))
+        JobStatus.DECLINED -> Pair(Color(0xFFFBD3D4), Color(0xFF8C1114))
     }
     Box(
         modifier = Modifier

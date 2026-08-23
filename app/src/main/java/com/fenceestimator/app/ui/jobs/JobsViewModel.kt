@@ -51,6 +51,11 @@ class JobsViewModel(private val repository: Repository) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    /** Plan-change requests nobody has answered, so the home screen can say so. */
+    val pendingPlanChanges: StateFlow<List<com.fenceestimator.app.data.FieldChange>> =
+        repository.observeUnacknowledgedFieldChanges()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val allPayments: StateFlow<List<com.fenceestimator.app.data.PaymentRecord>> =
         repository.observeAllPayments()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

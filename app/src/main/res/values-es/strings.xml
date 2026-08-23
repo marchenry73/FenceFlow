@@ -1114,4 +1114,41 @@
     <string name="misc_nudge_left">Mover un pie a la izquierda</string>
     <string name="misc_nudge_right">Mover un pie a la derecha</string>
     <string name="misc_nudge_down">Bajar un pie</string>
+
+    <!-- Home dashboard -->
+    <string name="home_good_morning">Buenos días</string>
+    <string name="home_good_morning_named">Buenos días, %1$s</string>
+    <string name="home_good_afternoon">Buenas tardes</string>
+    <string name="home_good_afternoon_named">Buenas tardes, %1$s</string>
+    <string name="home_good_evening">Buenas noches</string>
+    <string name="home_good_evening_named">Buenas noches, %1$s</string>
+    <string name="home_still_owed">Te deben</string>
+    <string name="home_collected_this_month">Cobrado este mes</string>
+    <string name="home_vs_last_month">%1$s frente al mes pasado</string>
+    <string name="home_booked_this_week">Agendados esta semana</string>
+    <string name="home_next_up">Siguiente: %1$s</string>
+    <string name="home_needs_attention">Requiere atención</string>
+    <string name="home_all_clear">Todo en orden — nada pendiente por ahora.</string>
+    <string name="home_running_late">Atrasado: %1$s</string>
+    <string name="home_shifts_to_approve">%1$d turnos esperan aprobación</string>
+    <string name="home_plan_change">Cambio de plano pendiente: %1$s</string>
+    <string name="home_locate_expired">Localización 811 vencida: %1$s</string>
+    <string name="home_finished_unpaid">Terminado, sin pagar: %1$s</string>
+    <string name="home_stale_draft">Borrador sin enviar: %1$s</string>
+    <string name="home_and_more">y %1$d más</string>
+    <string name="home_this_week">Esta semana</string>
+    <string name="home_see_schedule">Ver agenda</string>
+    <string name="home_last_month">mes pasado %1$s</string>
+    <string name="home_jobs">Trabajos</string>
+    <string name="home_search_jobs">Buscar por cliente o dirección</string>
+    <string name="home_filter_all">Todos</string>
+    <string name="home_no_matches">Ningún trabajo coincide.</string>
+    <string name="home_untitled_job">Trabajo sin nombre</string>
+    <string name="home_scheduled_on">Programado %1$s</string>
+    <string name="home_updated_on">Actualizado %1$s</string>
+    <string name="home_status_draft">Borrador</string>
+    <string name="home_status_sent">Enviado</string>
+    <string name="home_status_accepted">Aceptado</string>
+    <string name="home_status_completed">Terminado</string>
+    <string name="home_status_declined">Rechazado</string>
 </resources>

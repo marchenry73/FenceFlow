@@ -531,6 +531,8 @@ class Repository(private val db: AppDatabase) {
 
     // ---- Changes the crew made on site ----
     fun observeFieldChanges(jobId: Long): Flow<List<FieldChange>> = fieldChangeDao.observeForJob(jobId)
+    /** Every field change nobody has looked at yet, across all jobs -- for the home screen. */
+    fun observeUnacknowledgedFieldChanges(): Flow<List<FieldChange>> = fieldChangeDao.observeUnacknowledged()
     fun observeUnacknowledgedChanges(): Flow<List<FieldChange>> = fieldChangeDao.observeUnacknowledged()
     suspend fun getFieldChanges(jobId: Long): List<FieldChange> = fieldChangeDao.getForJob(jobId)
     suspend fun recordFieldChange(change: FieldChange): Long = fieldChangeDao.insert(change)

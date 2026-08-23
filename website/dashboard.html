@@ -166,6 +166,10 @@
     <div id="tab-dash">
       <div class="stats" id="stats"></div>
       <div class="panel"><h2>Needs attention</h2><div id="attention"></div></div>
+      <div class="panel"><h2>This week</h2>
+        <p class="sub">The next seven days. Click a job to open it.</p>
+        <div id="thisWeek"></div>
+      </div>
     </div>
 
     <div id="tab-jobs" style="display:none">
@@ -654,6 +658,7 @@ function stillOwed(j, contractTotal){
 }
 
 let payments=[];
+let fieldChanges=[];
 let jobCosting=[];
 let auditTrail=[];
 let arAging=[];
@@ -708,7 +713,7 @@ async function loadAll(){
   // tombstones and all. Deleted jobs stayed listed, and the duplicate pricing
   // tiers that were cleaned up in the app were still showing here.
   const q = t => db.from(t).select('*').is('deleted_at', null);
-  const [j,e,r,i,x,p,o,tm,c,ti,pay] = await Promise.all([
+  const [j,e,r,i,x,p,o,tm,c,ti,pay,fc] = await Promise.all([
     q('jobs'), q('employees'), q('fence_runs'), q('estimate_line_items'),
     q('expenses'), q('punch_list_items'), q('change_orders'), q('time_entries'),
     q('material_items'), q('pricing_tiers'),
@@ -716,8 +721,12 @@ async function loadAll(){
     // Stripe payment-LINK table -- amounts in cents, with a URL and a Stripe
     // id. It is not what the app counts money from, which is why the figures
     // here never matched the app's.
-    q('payment_records')
+    q('payment_records'),
+    // Plan-change requests from the field, so the home tab can say who is
+    // waiting on an answer.
+    q('field_changes')
   ]);
+  fieldChanges = fc && !fc.error ? (fc.data || []) : [];
   jobs=j.data||[]; employees=e.data||[]; runs=r.data||[]; items=i.data||[];
   expenses=x.data||[]; punch=p.data||[]; orders=o.data||[]; times=tm.data||[];
   catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
@@ -903,15 +912,66 @@ function renderDash(){
   document.querySelectorAll('.stat.click').forEach(s=>
     s.addEventListener('click',()=>switchTab(s.dataset.go)));
 
-  const open = punch.filter(p=>!p.resolved);
-  const rows=[];
-  if(unpaid.length) rows.push(`${unpaid.length} job(s) finished but not paid in full`);
-  if(open.length) rows.push(`${open.length} open punch-list item(s)`);
-  const noQuote = jobs.filter(j=>j.status==='DRAFT').length;
-  if(noQuote) rows.push(`${noQuote} job(s) still in draft — quote not sent`);
-  $('attention').innerHTML = rows.length
-    ? rows.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--line)">${esc(r)}</div>`).join('')
-    : '<div class="empty">Nothing needs attention.</div>';
+  // Per job and clickable, in the order it costs money -- the same list the
+  // phone's home screen shows, so the owner sees one story on both. The old
+  // version was three generic counts that opened nothing.
+  const nowMs = Date.now();
+  const weekAgo = nowMs - 7*864e5;
+  const live = new Set(jobs.map(x=>x.sync_id));
+  const items = [];
+  const name = j => j.customer_name || j.address || 'Untitled job';
+  // Plan changes waiting on an answer.
+  const waiting = fieldChanges.filter(fcr => fcr.is_request && !fcr.approved_at && !fcr.rejected_at && !fcr.acknowledged_at && live.has(fcr.job_sync_id));
+  new Set(waiting.map(w=>w.job_sync_id)).forEach(sid => {
+    const j = jobBySync(sid); if (j) items.push({ urgent:true, text:'Plan change waiting: '+name(j), id:j.id });
+  });
+  // 811 locate expired on a job that is not finished.
+  jobs.filter(j=>j.locate_expires_at && d(j.locate_expires_at) < new Date() && j.status!=='COMPLETED')
+    .forEach(j=>items.push({ urgent:true, text:'811 locate expired: '+name(j), id:j.id }));
+  // Hours waiting for approval.
+  const pendingShifts = times.filter(t=>t.ended_at && !t.approved_at && !t.rejected_at).length;
+  if (pendingShifts) items.push({ urgent:false, text:pendingShifts+' shift'+(pendingShifts===1?'':'s')+' waiting for approval', id:null, go:'crew' });
+  // Finished but not paid in full.
+  jobs.filter(j=>j.status==='COMPLETED' && j.payment_status!=='PAID_IN_FULL')
+    .forEach(j=>items.push({ urgent:false, text:'Finished, not paid: '+name(j), id:j.id }));
+  // Drafts that never went out.
+  jobs.filter(j=>j.status==='DRAFT' && d(j.updated_at||j.created_at) < new Date(weekAgo))
+    .forEach(j=>items.push({ urgent:false, text:'Draft never sent: '+name(j), id:j.id }));
+  // Open punch-list items, by job.
+  const openBy = {};
+  punch.filter(p=>!p.resolved).forEach(p=>{ openBy[p.job_sync_id]=(openBy[p.job_sync_id]||0)+1; });
+  Object.entries(openBy).forEach(([sid,cnt])=>{ const j=jobBySync(sid); if(j) items.push({ urgent:false, text:cnt+' open punch-list item'+(cnt===1?'':'s')+': '+name(j), id:j.id }); });
+
+  $('attention').innerHTML = items.length
+    ? items.map(it=>`<div class="att-row" data-att-id="${it.id??''}" data-att-go="${it.go||''}"
+         style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer">
+         <span style="width:9px;height:9px;border-radius:50%;flex:none;background:${it.urgent?'var(--bad,#b3261e)':'var(--accent,#d9480f)'}"></span>
+         <span style="flex:1">${esc(it.text)}</span><span style="color:var(--muted)">›</span></div>`).join('')
+    : '<div class="empty">All clear — nothing is waiting on you.</div>';
+  document.querySelectorAll('.att-row').forEach(el=>el.addEventListener('click',()=>{
+    if (el.dataset.attId) showJob(el.dataset.attId);
+    else if (el.dataset.attGo) switchTab(el.dataset.attGo);
+  }));
+
+  // This week: the next seven days, grouped by day, each job one click away.
+  const dayStart = new Date(); dayStart.setHours(0,0,0,0);
+  const in7 = new Date(dayStart.getTime()+7*864e5);
+  const weekJobs = jobs.filter(j=>j.scheduled_date && d(j.scheduled_date)>=dayStart && d(j.scheduled_date)<in7)
+    .sort((a,b)=>d(a.scheduled_date)-d(b.scheduled_date));
+  if (!weekJobs.length) {
+    $('thisWeek').innerHTML = '<div class="empty">Nothing scheduled in the next seven days.</div>';
+  } else {
+    const byDay = {};
+    weekJobs.forEach(j=>{ const k=d(j.scheduled_date).toDateString(); (byDay[k]=byDay[k]||[]).push(j); });
+    $('thisWeek').innerHTML = Object.entries(byDay).map(([k,list])=>`
+      <div style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <div style="font-weight:700;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${esc(new Date(k).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))}</div>
+        ${list.map(j=>`<div class="wk-row" data-wk-id="${j.id}" style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;cursor:pointer">
+            <span><b>${esc(name(j))}</b>${j.address?' <span style="color:var(--muted)">· '+esc(j.address)+'</span>':''}</span>
+            <span class="pill ${esc(j.status)}">${esc(j.status)}</span></div>`).join('')}
+      </div>`).join('');
+    document.querySelectorAll('.wk-row').forEach(el=>el.addEventListener('click',()=>showJob(el.dataset.wkId)));
+  }
 }
 
 /* ---------- jobs ---------- */

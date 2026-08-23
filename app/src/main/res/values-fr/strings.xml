@@ -1114,4 +1114,41 @@
     <string name="misc_nudge_left">Déplacer d\'un pied vers la gauche</string>
     <string name="misc_nudge_right">Déplacer d\'un pied vers la droite</string>
     <string name="misc_nudge_down">Descendre d\'un pied</string>
+
+    <!-- Home dashboard -->
+    <string name="home_good_morning">Bonjour</string>
+    <string name="home_good_morning_named">Bonjour, %1$s</string>
+    <string name="home_good_afternoon">Bon après-midi</string>
+    <string name="home_good_afternoon_named">Bon après-midi, %1$s</string>
+    <string name="home_good_evening">Bonsoir</string>
+    <string name="home_good_evening_named">Bonsoir, %1$s</string>
+    <string name="home_still_owed">On vous doit</string>
+    <string name="home_collected_this_month">Encaissé ce mois-ci</string>
+    <string name="home_vs_last_month">%1$s par rapport au mois dernier</string>
+    <string name="home_booked_this_week">Prévus cette semaine</string>
+    <string name="home_next_up">À suivre : %1$s</string>
+    <string name="home_needs_attention">À traiter</string>
+    <string name="home_all_clear">Tout est en ordre — rien ne vous attend pour l\'instant.</string>
+    <string name="home_running_late">En retard : %1$s</string>
+    <string name="home_shifts_to_approve">%1$d pointages à approuver</string>
+    <string name="home_plan_change">Changement de plan en attente : %1$s</string>
+    <string name="home_locate_expired">Repérage 811 expiré : %1$s</string>
+    <string name="home_finished_unpaid">Terminé, non payé : %1$s</string>
+    <string name="home_stale_draft">Brouillon jamais envoyé : %1$s</string>
+    <string name="home_and_more">et %1$d de plus</string>
+    <string name="home_this_week">Cette semaine</string>
+    <string name="home_see_schedule">Voir le planning</string>
+    <string name="home_last_month">mois dernier %1$s</string>
+    <string name="home_jobs">Chantiers</string>
+    <string name="home_search_jobs">Rechercher par client ou adresse</string>
+    <string name="home_filter_all">Tous</string>
+    <string name="home_no_matches">Aucun chantier ne correspond.</string>
+    <string name="home_untitled_job">Chantier sans nom</string>
+    <string name="home_scheduled_on">Prévu le %1$s</string>
+    <string name="home_updated_on">Mis à jour le %1$s</string>
+    <string name="home_status_draft">Brouillon</string>
+    <string name="home_status_sent">Envoyé</string>
+    <string name="home_status_accepted">Accepté</string>
+    <string name="home_status_completed">Terminé</string>
+    <string name="home_status_declined">Refusé</string>
 </resources>

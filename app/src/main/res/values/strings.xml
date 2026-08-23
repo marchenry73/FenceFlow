@@ -1128,4 +1128,41 @@
     <string name="misc_nudge_left">Move left one foot</string>
     <string name="misc_nudge_right">Move right one foot</string>
     <string name="misc_nudge_down">Move down one foot</string>
+
+    <!-- Home dashboard -->
+    <string name="home_good_morning">Good morning</string>
+    <string name="home_good_morning_named">Good morning, %1$s</string>
+    <string name="home_good_afternoon">Good afternoon</string>
+    <string name="home_good_afternoon_named">Good afternoon, %1$s</string>
+    <string name="home_good_evening">Good evening</string>
+    <string name="home_good_evening_named">Good evening, %1$s</string>
+    <string name="home_still_owed">Still owed to you</string>
+    <string name="home_collected_this_month">Collected this month</string>
+    <string name="home_vs_last_month">%1$s vs last month</string>
+    <string name="home_booked_this_week">Booked this week</string>
+    <string name="home_next_up">Next up: %1$s</string>
+    <string name="home_needs_attention">Needs attention</string>
+    <string name="home_all_clear">All clear — nothing is waiting on you right now.</string>
+    <string name="home_running_late">Running late: %1$s</string>
+    <string name="home_shifts_to_approve">%1$d shifts waiting for approval</string>
+    <string name="home_plan_change">Plan change waiting: %1$s</string>
+    <string name="home_locate_expired">811 locate expired: %1$s</string>
+    <string name="home_finished_unpaid">Finished, not paid: %1$s</string>
+    <string name="home_stale_draft">Draft never sent: %1$s</string>
+    <string name="home_and_more">and %1$d more</string>
+    <string name="home_this_week">This week</string>
+    <string name="home_see_schedule">See schedule</string>
+    <string name="home_last_month">last month %1$s</string>
+    <string name="home_jobs">Jobs</string>
+    <string name="home_search_jobs">Search by customer or address</string>
+    <string name="home_filter_all">All</string>
+    <string name="home_no_matches">No jobs match.</string>
+    <string name="home_untitled_job">Untitled job</string>
+    <string name="home_scheduled_on">Scheduled %1$s</string>
+    <string name="home_updated_on">Updated %1$s</string>
+    <string name="home_status_draft">Draft</string>
+    <string name="home_status_sent">Sent</string>
+    <string name="home_status_accepted">Accepted</string>
+    <string name="home_status_completed">Complete</string>
+    <string name="home_status_declined">Declined</string>
 </resources>
