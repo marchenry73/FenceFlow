@@ -296,7 +296,7 @@ fun JobsListScreen(
             modifier = Modifier.fillMaxSize().padding(padding)
         ) {
         if (jobs.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(stringResource(R.string.jobs_no_jobs), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
@@ -305,7 +305,7 @@ fun JobsListScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {

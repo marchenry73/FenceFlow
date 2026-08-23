@@ -350,16 +350,25 @@ fun FenceEstimatorNavHost() {
                 onGoToEstimate = { id -> navController.navigate(Routes.estimate(id)) }
             )
         }
+        // Guarded: the survey is for everyone (crew draw), but its "To
+        // Estimate" button led straight into the full pricing screen, which
+        // nothing checked. Same for supplier prices.
         composable(
             Routes.ESTIMATE,
             arguments = listOf(navArgument("jobId") { type = NavType.LongType })
         ) { backStackEntry ->
             val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
-            EstimateScreen(
-                jobId = jobId,
-                onBack = { navController.popBackStack() },
-                onOpenSupplierPrices = { id -> navController.navigate(Routes.supplierPrices(id)) }
-            )
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canSeeMoney,
+                permissionName = "See money",
+                onLeave = { navController.popBackStack() }
+            ) {
+                EstimateScreen(
+                    jobId = jobId,
+                    onBack = { navController.popBackStack() },
+                    onOpenSupplierPrices = { id -> navController.navigate(Routes.supplierPrices(id)) }
+                )
+            }
         }
         composable(
             Routes.INVENTORY,
@@ -407,10 +416,16 @@ fun FenceEstimatorNavHost() {
             Routes.SUPPLIER_PRICES,
             arguments = listOf(navArgument("jobId") { type = NavType.LongType })
         ) { entry ->
-            com.fenceestimator.app.ui.estimate.SupplierPricesScreen(
-                jobId = entry.arguments?.getLong("jobId") ?: 0L,
-                onBack = { navController.popBackStack() }
-            )
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canSeeMoney,
+                permissionName = "See money",
+                onLeave = { navController.popBackStack() }
+            ) {
+                com.fenceestimator.app.ui.estimate.SupplierPricesScreen(
+                    jobId = entry.arguments?.getLong("jobId") ?: 0L,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
         composable(Routes.TRASH) {
             com.fenceestimator.app.ui.account.TrashScreen(onBack = { navController.popBackStack() })

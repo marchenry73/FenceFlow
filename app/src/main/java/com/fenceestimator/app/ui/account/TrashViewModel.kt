@@ -65,6 +65,29 @@ class TrashViewModel(
         }
     }
 
+    /**
+     * Deletes several for good in one go. Each row is its own request -- a
+     * failure on one must not stop the rest -- and the list reloads once at
+     * the end rather than flickering per item.
+     */
+    fun purgeMany(records: List<TrashedRecord>) {
+        val companyId = session.state.value.companyId ?: return
+        viewModelScope.launch {
+            _busy.value = true
+            var ok = 0
+            var failed = 0
+            records.forEach { record ->
+                TrashBin.purge(companyId, record)
+                    .onSuccess { ok++ }
+                    .onFailure { failed++ }
+            }
+            _message.value = if (failed == 0) "Permanently deleted $ok item(s)."
+                else "Deleted $ok; $failed couldn't be deleted."
+            load()
+            _busy.value = false
+        }
+    }
+
     fun restore(record: TrashedRecord) {
         val companyId = session.state.value.companyId ?: return
         viewModelScope.launch {

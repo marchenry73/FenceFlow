@@ -276,7 +276,11 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         // status untrustworthy.
         val goingBackwards = target.ordinal < current.paymentStatus.ordinal
         if (goingBackwards && current.refundedAmount <= 0.005) return
-        update { it.copy(paymentStatus = target) }
+        // Written through the job we were handed (the freshly re-read one),
+        // not through update(), which copies job.value -- the Flow this file
+        // documents as lagging inside the same coroutine. Going through it put
+        // the pre-refund totals straight back over the refund just recorded.
+        viewModelScope.launch { repository.updateJob(current.copy(paymentStatus = target)) }
     }
 
     /**

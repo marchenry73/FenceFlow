@@ -265,7 +265,7 @@
     <string name="set_pricing_tiers">Niveles de precio y descuentos</string>
     <string name="set_pricing_tiers_explain">Se usan en cada trabajo para fijar la tarifa de mano de obra, el margen y cualquier descuento (familia, iglesia, militares, comercial, etc.).</string>
     <string name="set_unnamed_tier">Nivel sin nombre</string>
-    <string name="set_tier_summary">Mano de obra $%1$s/pie · Margen %2$s%%% · Descuento %3$s%%%</string>
+    <string name="set_tier_summary">Mano de obra $%1$s/pie · Margen %2$s%% · Descuento %3$s%%</string>
     <string name="set_add_pricing_tier">+ Agregar nivel de precio</string>
     <string name="set_tools_materials">Herramientas y materiales</string>
     <string name="set_tools_explain">Se copian a la lista de cada trabajo para que nada se quede en el taller.</string>
@@ -421,8 +421,8 @@
     <string name="jd_apply_tier">Aplicar nivel de precios</string>
     <string name="jd_discount_pct">Descuento (%)</string>
     <string name="jd_min_job_charge">Cargo mínimo por trabajo ($)</string>
-    <string name="jd_tier_summary">%1$s: mano de obra $%2$s/pie · margen %3$s%%%</string>
-    <string name="jd_tier_summary_discount">descuento %1$s%%%</string>
+    <string name="jd_tier_summary">%1$s: mano de obra $%2$s/pie · margen %3$s%%</string>
+    <string name="jd_tier_summary_discount">descuento %1$s%%</string>
     <string name="jd_include_teardown">Incluir retiro de la cerca vieja</string>
     <string name="jd_teardown_flat_fee">Tarifa fija de retiro ($)</string>
     <string name="jd_teardown_per_ft">Retiro $/pie</string>
@@ -690,7 +690,7 @@
     <string name="est2_waste_explain">Pide material extra para cortes y roturas. Al 10%%, un cálculo de 17 paneles pide 19, porque algunos se arruinan al cortarlos. Solo aplica a lo que cortas o rompes: paneles, tablas, rieles, malla, concreto. Nunca a postes, tapas o herrajes, que se compran por cantidad exacta.</string>
     <string name="est2_waste_press_suggest">Pulsa Sugerir Cantidades después de cambiar esto: solo afecta a las cantidades nuevas, no a las líneas que ya están en el presupuesto.</string>
     <string name="est2_none">Ninguno</string>
-    <string name="est2_percent">%1$d%%%</string>
+    <string name="est2_percent">%1$d%%</string>
     <string name="est2_qty_panel">panel</string>
     <string name="est2_qty_panels">paneles</string>
     <string name="est2_qty_line_post">poste de línea</string>
@@ -711,16 +711,16 @@
     <string name="est2_qty_rails">rieles</string>
     <string name="est2_qty_ft_of_fabric">pies de malla</string>
     <string name="est2_line_item_detail">%1$s %2$s x %3$s</string>
-    <string name="est2_tax_pct">Impuesto (%1$s%%%)</string>
+    <string name="est2_tax_pct">Impuesto (%1$s%%)</string>
     <string name="est2_gates_line">Portones (%1$s pies a %2$s/pie)</string>
     <string name="est2_teardown_existing">Retiro de la cerca vieja</string>
     <string name="est2_haul_away_fee">Acarreo / tarifa de basurero</string>
-    <string name="est2_markup_pct">Margen (%1$s%%%)</string>
-    <string name="est2_discount_pct">Descuento (%1$s%%%)</string>
-    <string name="est2_discount_tier_pct">Descuento (%1$s) (%2$s%%%)</string>
+    <string name="est2_markup_pct">Margen (%1$s%%)</string>
+    <string name="est2_discount_pct">Descuento (%1$s%%)</string>
+    <string name="est2_discount_tier_pct">Descuento (%1$s) (%2$s%%)</string>
     <string name="est2_approved_extra_work">Trabajo extra aprobado</string>
     <string name="est2_plus_feet">(+%1$s pies)</string>
-    <string name="est2_stays_with_you">Te queda después de materiales: %1$s (%2$s%%%). De aquí salen los sueldos de la cuadrilla y la ganancia.</string>
+    <string name="est2_stays_with_you">Te queda después de materiales: %1$s (%2$s%%). De aquí salen los sueldos de la cuadrilla y la ganancia.</string>
     <string name="est2_minimum_charge_applied">Se aplicó el cargo mínimo por trabajo de %1$s</string>
     <string name="est2_send_document">Enviar %1$s</string>
     <string name="est2_changed_after_signed_title">Este presupuesto cambió después de firmarse</string>
@@ -972,7 +972,7 @@
     <string name="onb_version_label">Versión %1$s</string>
     <string name="onb_update_worth_not_putting_off">Esta corrige algo que no conviene posponer.</string>
     <string name="onb_update_in_shared_folder">Esta versión está en tu carpeta compartida de siempre; no se publicó ningún enlace de descarga con ella.</string>
-    <string name="onb_downloading_percent">Descargando... %1$d%%%</string>
+    <string name="onb_downloading_percent">Descargando... %1$d%%</string>
     <string name="onb_update_ready_to_install">Listo. Android te pedirá confirmar la instalación; ese aviso es del teléfono, no nuestro.</string>
     <string name="onb_update_keeps_everything">Instalar una actualización conserva todo: tus trabajos, dibujos, fotos y pagos quedan exactamente como están.</string>
     <string name="onb_ok">Aceptar</string>
@@ -1310,4 +1310,10 @@
     <string name="enum_hours_early">Antes de las 8 a.m.</string>
     <string name="enum_hours_work">8 a.m. - 5 p.m.</string>
     <string name="enum_hours_late">Después de las 5 p.m.</string>
+
+    <!-- Bulk delete in the trash -->
+    <string name="acct_trash_select_all">Seleccionar todo</string>
+    <string name="acct_trash_select_none">Quitar selección</string>
+    <string name="acct_trash_delete_selected">Eliminar para siempre (%1$d)</string>
+    <string name="acct_trash_bulk_warning">%1$d elemento(s) y todo lo que contienen se eliminarán de forma permanente, en todos los teléfonos. Esto no se puede deshacer.</string>
 </resources>

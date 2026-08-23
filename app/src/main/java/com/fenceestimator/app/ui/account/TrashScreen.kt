@@ -67,6 +67,11 @@ fun TrashScreen(onBack: () -> Unit) {
 
     val dayFormat = remember { java.text.SimpleDateFormat("d MMM yyyy, h:mm a", java.util.Locale.US) }
     var purging by remember { mutableStateOf<com.fenceestimator.app.cloud.TrashedRecord?>(null) }
+    // Bulk selection for delete-forever. Keys, not records, so a reload does
+    // not strand stale objects in the set.
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    var purgingMany by remember { mutableStateOf(false) }
+    fun keyOf(r: com.fenceestimator.app.cloud.TrashedRecord) = r.table + r.syncId
 
     Scaffold(
         topBar = {
@@ -116,10 +121,45 @@ fun TrashScreen(onBack: () -> Unit) {
                 }
             }
 
+            if (items.size > 1) {
+                item {
+                    // The bar appears once there is something to bulk-delete.
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedButton(onClick = {
+                            selected = if (selected.size == items.size) emptySet()
+                                       else items.map { keyOf(it) }.toSet()
+                        }) {
+                            Text(stringResource(
+                                if (selected.size == items.size) R.string.acct_trash_select_none
+                                else R.string.acct_trash_select_all
+                            ))
+                        }
+                        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                        Button(
+                            enabled = selected.isNotEmpty(),
+                            onClick = { purgingMany = true }
+                        ) { Text(stringResource(R.string.acct_trash_delete_selected, selected.size)) }
+                    }
+                }
+            }
             items(items, key = { it.table + it.syncId }) { record ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(record.label, style = MaterialTheme.typography.titleMedium)
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.Checkbox(
+                                checked = keyOf(record) in selected,
+                                onCheckedChange = { on ->
+                                    selected = if (on) selected + keyOf(record) else selected - keyOf(record)
+                                }
+                            )
+                            Text(record.label, style = MaterialTheme.typography.titleMedium)
+                        }
                         Text(
                             record.kindLabel +
                                 (record.deletedAt?.let { " · " + stringResource(R.string.acct_trash_deleted_on, dayFormat.format(java.util.Date(it))) } ?: "") +
@@ -164,6 +204,26 @@ fun TrashScreen(onBack: () -> Unit) {
             record = record,
             onConfirm = { viewModel.purge(record); purging = null },
             onDismiss = { purging = null }
+        )
+    }
+
+    if (purgingMany) {
+        val count = selected.size
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { purgingMany = false },
+            title = { Text(stringResource(R.string.acct_trash_delete_selected, count)) },
+            text = { Text(stringResource(R.string.acct_trash_bulk_warning, count)) },
+            confirmButton = {
+                Button(onClick = {
+                    val chosen = items.filter { (it.table + it.syncId) in selected }
+                    viewModel.purgeMany(chosen)
+                    selected = emptySet()
+                    purgingMany = false
+                }) { Text(stringResource(R.string.acct_trash_delete_permanently)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { purgingMany = false }) { Text(stringResource(R.string.acct_trash_keep_it)) }
+            }
         )
     }
 }

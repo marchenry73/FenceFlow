@@ -18,6 +18,7 @@ import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.data.PayType
 import com.fenceestimator.app.data.PricingTier
 import com.fenceestimator.app.data.PunchListItem
+import com.fenceestimator.app.data.FieldChange
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.data.SiteMarker
 import com.fenceestimator.app.data.SiteMarkerKind
@@ -161,6 +162,26 @@ data class CloudExpense(
 )
 
 @Serializable
+/** A plan change or note from the field, with the office's answer. */
+data class CloudFieldChange(
+    @SerialName("company_id") val companyId: String,
+    @SerialName("sync_id") val syncId: String,
+    @SerialName("job_sync_id") val jobSyncId: String,
+    val summary: String = "",
+    val detail: String = "",
+    @SerialName("changed_by") val changedBy: String = "",
+    @SerialName("changed_by_role") val changedByRole: String = "",
+    val at: String,
+    @SerialName("acknowledged_at") val acknowledgedAt: String? = null,
+    @SerialName("is_request") val isRequest: Boolean = false,
+    @SerialName("approved_at") val approvedAt: String? = null,
+    @SerialName("rejected_at") val rejectedAt: String? = null,
+    @SerialName("decided_by") val decidedBy: String = "",
+    @SerialName("decision_note") val decisionNote: String = "",
+    @SerialName("deleted_at") val deletedAt: String? = null
+)
+
+@Serializable
 data class CloudPunchItem(
     @SerialName("company_id") val companyId: String,
     @SerialName("sync_id") val syncId: String,
@@ -250,6 +271,8 @@ data class CloudTimeEntry(
     @SerialName("started_at") val startedAt: String,
     @SerialName("ended_at") val endedAt: String? = null,
     @SerialName("hourly_rate") val hourlyRate: Double = 0.0,
+    /** Whose shift. Was never sent, so payroll on the website could not group by person. */
+    @SerialName("employee_sync_id") val employeeSyncId: String? = null,
     val notes: String = "",
     /**
      * Approval has to travel with the shift.
@@ -311,6 +334,7 @@ object EntitySync {
         val orders = mutableListOf<CloudChangeOrder>()
         val steps = mutableListOf<CloudJobStep>()
         val markers = mutableListOf<CloudSiteMarker>()
+        val changes = mutableListOf<CloudFieldChange>()
 
         jobs.forEach { job ->
             val js = job.syncId
@@ -345,6 +369,21 @@ object EntitySync {
             repository.getSiteMarkers(job.id).forEach {
                 markers += CloudSiteMarker(companyId, it.syncId, js, it.kind.name, it.x, it.y, it.label)
             }
+            // A crew member's "can we move the gate?" and the office's answer.
+            // This table existed in the cloud and on the website and the app
+            // never sent it, so a request made on one phone was invisible on
+            // every other -- the approval flow only worked on a single device.
+            repository.getFieldChanges(job.id).forEach {
+                changes += CloudFieldChange(
+                    companyId, it.syncId, js, it.summary, it.detail, it.changedBy, it.changedByRole,
+                    CloudTime.format(it.at),
+                    it.acknowledgedAt?.let { at -> CloudTime.format(at) },
+                    it.isRequest,
+                    it.approvedAt?.let { at -> CloudTime.format(at) },
+                    it.rejectedAt?.let { at -> CloudTime.format(at) },
+                    it.decidedBy, it.decisionNote
+                )
+            }
         }
 
         var pushed = 0
@@ -354,6 +393,7 @@ object EntitySync {
         pushed += upsert("change_orders", orders)
         pushed += upsert("job_steps", steps)
         pushed += upsert("site_markers", markers)
+        pushed += upsert("field_changes", changes)
         return pushed
     }
 
@@ -749,6 +789,47 @@ object EntitySync {
             }
         }
 
+        val cloudChanges = SupabaseModule.client.postgrest.from("field_changes")
+            .select { filter { eq("company_id", companyId); notDeleted() } }
+            .decodeList<CloudFieldChange>()
+        val localChangesBySyncId = jobIdBySyncId.values
+            .flatMap { repository.getFieldChanges(it) }.associateBy { it.syncId }
+        cloudChanges.forEach { row ->
+            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            val existing = localChangesBySyncId[row.syncId]
+            val at = CloudTime.parseMillis(row.at) ?: System.currentTimeMillis()
+            if (existing == null) {
+                repository.recordFieldChange(
+                    FieldChange(
+                        syncId = row.syncId, jobId = jobId, summary = row.summary, detail = row.detail,
+                        changedBy = row.changedBy, changedByRole = row.changedByRole, at = at,
+                        acknowledgedAt = CloudTime.parseMillis(row.acknowledgedAt),
+                        isRequest = row.isRequest,
+                        approvedAt = CloudTime.parseMillis(row.approvedAt),
+                        rejectedAt = CloudTime.parseMillis(row.rejectedAt),
+                        decidedBy = row.decidedBy, decisionNote = row.decisionNote
+                    )
+                )
+                added++
+            } else {
+                // A decision already made here is never un-made by a cloud row
+                // that has not heard about it yet; the cloud wins when it
+                // actually carries one. Same ratchet as shift approvals.
+                val cloudApproved = CloudTime.parseMillis(row.approvedAt)
+                val cloudRejected = CloudTime.parseMillis(row.rejectedAt)
+                val cloudDecided = cloudApproved != null || cloudRejected != null
+                val merged = existing.copy(
+                    summary = row.summary, detail = row.detail,
+                    acknowledgedAt = existing.acknowledgedAt ?: CloudTime.parseMillis(row.acknowledgedAt),
+                    approvedAt = if (cloudDecided) cloudApproved else existing.approvedAt,
+                    rejectedAt = if (cloudDecided) cloudRejected else existing.rejectedAt,
+                    decidedBy = if (cloudDecided) row.decidedBy else existing.decidedBy,
+                    decisionNote = if (cloudDecided) row.decisionNote else existing.decisionNote
+                )
+                if (merged != existing) { repository.updateFieldChangeFromCloud(merged); added++ }
+            }
+        }
+
         // These four were pushed but never pulled back, so switching phones lost
         // signed change orders and clocked hours -- money and payroll records --
         // along with job checklists and site markers.
@@ -805,6 +886,7 @@ object EntitySync {
         // that already held the row ignored it on the way back down.
         val localTimesBySyncId = jobIdBySyncId.values
             .flatMap { repository.getTimeEntries(it) }.associateBy { it.syncId }
+        val employeeIdBySyncId = repository.getAllEmployees().associateBy({ it.syncId }, { it.id })
         times.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
             val startedAt = CloudTime.parseMillis(row.startedAt)
@@ -814,6 +896,7 @@ object EntitySync {
                 repository.insertTimeEntry(
                     TimeEntry(
                         syncId = row.syncId, jobId = jobId,
+                        employeeId = row.employeeSyncId?.let { employeeIdBySyncId[it] },
                         startedAt = startedAt,
                         endedAt = row.endedAt?.let { at ->
                             CloudTime.parseMillis(at)
@@ -1157,12 +1240,13 @@ object EntitySync {
 
     private suspend fun pushTimeEntries(repository: Repository, companyId: String): Int {
         val jobsBySyncId = repository.getAllJobs().associateBy({ it.id }, { it.syncId })
+        val employeeSyncById = repository.getAllEmployees().associateBy({ it.id }, { it.syncId })
         // Only completed shifts: a running timer has no end yet and would land
         // in the cloud looking like a zero-length entry.
         val rows = repository.getAllTimeEntries()
             .filter { !it.isRunning }
             .mapNotNull { entry ->
-                jobsBySyncId[entry.jobId]?.let { entry.toCloud(companyId, it) }
+                jobsBySyncId[entry.jobId]?.let { entry.toCloud(companyId, it, entry.employeeId?.let { e -> employeeSyncById[e] }) }
             }
         if (rows.isEmpty()) return 0
         SupabaseModule.client.postgrest.from("time_entries")
@@ -1207,8 +1291,9 @@ private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceR
     splitRailCount = splitRailCount
 )
 
-private fun TimeEntry.toCloud(companyId: String, jobSyncId: String) = CloudTimeEntry(
+private fun TimeEntry.toCloud(companyId: String, jobSyncId: String, employeeSyncId: String? = null) = CloudTimeEntry(
     companyId = companyId, syncId = syncId, jobSyncId = jobSyncId,
+    employeeSyncId = employeeSyncId,
     startedAt = Instant.ofEpochMilli(startedAt).toString(),
     endedAt = endedAt?.let { Instant.ofEpochMilli(it).toString() },
     hourlyRate = hourlyRate, notes = notes,

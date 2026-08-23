@@ -63,7 +63,15 @@ import java.util.Locale
 fun TimeApprovalScreen(onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: TimeApprovalViewModel = viewModel(
-        factory = GenericViewModelFactory { TimeApprovalViewModel(app.repository) }
+        // With who is signed in, or the own-shift guard has nothing to
+        // compare against and fails open.
+        factory = GenericViewModelFactory {
+            TimeApprovalViewModel(
+                app.repository,
+                app.session.state.value.email,
+                null
+            )
+        }
     )
     val session by app.session.state.collectAsState()
     val pending by viewModel.pending.collectAsState()

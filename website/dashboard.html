@@ -643,6 +643,9 @@ async function boot(){
    and a contractor cannot tell which of the two to believe. */
 
 /** What the customer has actually paid, net of anything refunded. */
+/** A date cell, or an em dash. The audit panel called this and it did not exist, which aborted every render after it. */
+const day = v => { const x = d(v); return x ? x.toLocaleDateString() : "—"; };
+
 function netPaid(j){
   return Math.max(0, (j.amount_paid||0) - (j.refunded_amount||0));
 }
@@ -682,7 +685,7 @@ async function checkService(){
 }
 
 function showBlocked(status){
-  document.querySelector('main').innerHTML = `
+  (document.querySelector('main') || document.body).innerHTML = `
     <div class="panel" style="max-width:34rem;margin:3rem auto">
       <h2 style="margin-top:0">FenceFlow is paused</h2>
       <p style="color:var(--muted)">${esc(status.reason || 'This company no longer has access.')}</p>
@@ -1485,7 +1488,8 @@ function renderReports(){
         <td>${v.hours>0?money(v.cost/v.hours):'—'}</td></tr>`).join('')
     : '<tr><td colspan="5" style="color:var(--muted)">No clocked time in this period.</td></tr>';
 
-  const owed=jobsIn.map(j=>({j, mat:contractTotalOf(j), out:stillOwed(j, contractTotalOf(j))}))
+  const owed=jobsIn.filter(j=>j.status==="ACCEPTED"||j.status==="COMPLETED")
+    .map(j=>({j, mat:contractTotalOf(j), out:stillOwed(j, contractTotalOf(j))}))
     .filter(r=>r.out>0.01).sort((a,b)=>b.out-a.out);
   $('repOwed').innerHTML = owed.length
     ? owed.map(r=>`<tr><td>${esc(r.j.customer_name)||'Untitled'}</td>

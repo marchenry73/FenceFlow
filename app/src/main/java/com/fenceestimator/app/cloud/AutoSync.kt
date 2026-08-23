@@ -186,6 +186,20 @@ class AutoSync(
         }
     }
 
+    /** When our own last push finished, so the change feed's echo of it can be ignored. */
+    @Volatile private var lastPushCompletedAt = 0L
+
+    /**
+     * A sync asked for by the change feed. Our own pushes come straight back
+     * down the feed as events; with every synced table on the channel that
+     * was a full extra pass after each edit. Events inside a short window
+     * after our own push are ours, and are ignored.
+     */
+    fun requestSyncFromRemote() {
+        if (System.currentTimeMillis() - lastPushCompletedAt < REMOTE_ECHO_WINDOW_MS) return
+        requestSync()
+    }
+
     fun requestSync() {
         manualTrigger.tryEmit(Unit)
     }
@@ -319,6 +333,7 @@ class AutoSync(
                 return@withLock
             }
 
+            lastPushCompletedAt = System.currentTimeMillis()
             _state.value = result.fold(
                 onSuccess = { syncResult ->
                     notifyIncoming(syncResult)
@@ -408,6 +423,7 @@ class AutoSync(
 
     private companion object {
         const val DEBOUNCE_MS = 1_500L
+        const val REMOTE_ECHO_WINDOW_MS = 4_000L
         const val HEARTBEAT_MS = 15 * 60 * 1000L
 
         /** While someone is looking at the app, a figure should never be more than a minute old. */

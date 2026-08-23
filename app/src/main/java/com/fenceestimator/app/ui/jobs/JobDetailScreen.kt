@@ -162,6 +162,12 @@ fun JobDetailScreen(
     val timeEntries by viewModel.timeEntries.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
     val session by app.session.state.collectAsState()
+    // Who answers plan-change requests. It was never set, so decisions were
+    // recorded with a blank name and the cannot-approve-your-own check had
+    // nothing to compare against.
+    androidx.compose.runtime.LaunchedEffect(profile.ownerName, session.email) {
+        viewModel.decidedByName = profile.ownerName.ifBlank { session.email.orEmpty() }
+    }
     val currentJob = job ?: return
 
     var showAddRunDialog by remember { mutableStateOf(false) }

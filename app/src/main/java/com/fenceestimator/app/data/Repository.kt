@@ -17,7 +17,7 @@ class Repository(private val db: AppDatabase) {
      * feeling, and it was real.
      */
     fun observeAnyChange(): kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.callbackFlow {
-        val observer = object : androidx.room.InvalidationTracker.Observer(SyncTables.ALL.toTypedArray() + "payment_records") {
+        val observer = object : androidx.room.InvalidationTracker.Observer(SyncTables.ALL.toTypedArray() + "payment_records" + "jobs") {
             override fun onInvalidated(tables: Set<String>) { trySend(Unit) }
         }
         db.invalidationTracker.addObserver(observer)
@@ -536,6 +536,8 @@ class Repository(private val db: AppDatabase) {
     fun observeUnacknowledgedChanges(): Flow<List<FieldChange>> = fieldChangeDao.observeUnacknowledged()
     suspend fun getFieldChanges(jobId: Long): List<FieldChange> = fieldChangeDao.getForJob(jobId)
     suspend fun recordFieldChange(change: FieldChange): Long = fieldChangeDao.insert(change)
+    /** For the sync: a cloud copy applied over the local row. */
+    suspend fun updateFieldChangeFromCloud(change: FieldChange) = fieldChangeDao.update(change)
     /**
      * Records the crew asking for a change rather than making one.
      *

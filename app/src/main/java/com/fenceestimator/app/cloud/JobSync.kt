@@ -253,10 +253,17 @@ object JobSync {
                 // backfill a single field would send this phone's untouched
                 // copy over a cloud row that may be newer, and quietly undo an
                 // edit made somewhere else.
-                if (cloudJob != null && cloudJob.deletedAt == null && cloudJob.contractTotal == null) {
+                // Sent whenever it differs, not only when missing: change orders,
+                // line-item and run edits and dashboard price edits all move the
+                // price without touching the job row, and the website showed the
+                // old figure until something else happened to save the job.
+                val freshTotal = totalFor(job)
+                if (cloudJob != null && cloudJob.deletedAt == null &&
+                    (cloudJob.contractTotal == null || kotlin.math.abs(cloudJob.contractTotal - freshTotal) > 0.005)
+                ) {
                     runCatching {
                         SupabaseModule.client.postgrest.from("jobs").update(
-                            buildJsonObject { put("contract_total", totalFor(job)) }
+                            buildJsonObject { put("contract_total", freshTotal) }
                         ) {
                             filter {
                                 eq("company_id", companyId)

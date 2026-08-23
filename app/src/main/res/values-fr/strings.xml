@@ -265,7 +265,7 @@
     <string name="set_pricing_tiers">Grilles tarifaires et remises</string>
     <string name="set_pricing_tiers_explain">Utilisées par chantier pour fixer le taux de main-d\'oeuvre, la marge et une éventuelle remise (famille, église, militaires, commercial, etc.).</string>
     <string name="set_unnamed_tier">Grille sans nom</string>
-    <string name="set_tier_summary">Main-d\'oeuvre %1$s $/pi · Marge %2$s%%% · Remise %3$s%%%</string>
+    <string name="set_tier_summary">Main-d\'oeuvre %1$s $/pi · Marge %2$s%% · Remise %3$s%%</string>
     <string name="set_add_pricing_tier">+ Ajouter une grille tarifaire</string>
     <string name="set_tools_materials">Outils et matériaux</string>
     <string name="set_tools_explain">Copiés sur la liste de chaque chantier, pour que rien ne reste au dépôt.</string>
@@ -421,8 +421,8 @@
     <string name="jd_apply_tier">Appliquer une grille tarifaire</string>
     <string name="jd_discount_pct">Remise (%)</string>
     <string name="jd_min_job_charge">Montant minimum par chantier ($)</string>
-    <string name="jd_tier_summary">%1$s : main-d\'œuvre %2$s $/pi · marge %3$s %%%</string>
-    <string name="jd_tier_summary_discount">remise %1$s %%%</string>
+    <string name="jd_tier_summary">%1$s : main-d\'œuvre %2$s $/pi · marge %3$s %%</string>
+    <string name="jd_tier_summary_discount">remise %1$s %%</string>
     <string name="jd_include_teardown">Inclure la démolition de la clôture existante</string>
     <string name="jd_teardown_flat_fee">Forfait démolition ($)</string>
     <string name="jd_teardown_per_ft">Démolition $/pi</string>
@@ -690,7 +690,7 @@
     <string name="est2_waste_explain">Commande du matériel en plus pour les coupes et la casse. À 10%%, un métré de 17 panneaux en commande 19, car certains s\'abîment à la coupe. S\'applique seulement à ce que vous coupez ou cassez : panneaux, lattes, lisses, grillage, béton. Jamais aux poteaux, chapeaux ou quincaillerie, achetés à l\'unité exacte.</string>
     <string name="est2_waste_press_suggest">Appuyez sur Suggérer les quantités après ce changement : il ne s\'applique qu\'aux nouvelles quantités, pas aux lignes déjà sur le devis.</string>
     <string name="est2_none">Aucun</string>
-    <string name="est2_percent">%1$d %%%</string>
+    <string name="est2_percent">%1$d %%</string>
     <string name="est2_qty_panel">panneau</string>
     <string name="est2_qty_panels">panneaux</string>
     <string name="est2_qty_line_post">poteau intermédiaire</string>
@@ -711,16 +711,16 @@
     <string name="est2_qty_rails">lisses</string>
     <string name="est2_qty_ft_of_fabric">pi de grillage</string>
     <string name="est2_line_item_detail">%1$s %2$s x %3$s</string>
-    <string name="est2_tax_pct">Taxe (%1$s %%%)</string>
+    <string name="est2_tax_pct">Taxe (%1$s %%)</string>
     <string name="est2_gates_line">Portails (%1$s pi à %2$s/pi)</string>
     <string name="est2_teardown_existing">Démolition de la clôture existante</string>
     <string name="est2_haul_away_fee">Évacuation / frais de décharge</string>
-    <string name="est2_markup_pct">Marge (%1$s %%%)</string>
-    <string name="est2_discount_pct">Remise (%1$s %%%)</string>
-    <string name="est2_discount_tier_pct">Remise (%1$s) (%2$s %%%)</string>
+    <string name="est2_markup_pct">Marge (%1$s %%)</string>
+    <string name="est2_discount_pct">Remise (%1$s %%)</string>
+    <string name="est2_discount_tier_pct">Remise (%1$s) (%2$s %%)</string>
     <string name="est2_approved_extra_work">Travaux supplémentaires approuvés</string>
     <string name="est2_plus_feet">(+%1$s pi)</string>
-    <string name="est2_stays_with_you">Il vous reste après matériaux : %1$s (%2$s %%%). Les salaires de l\'équipe et le bénéfice en sortent.</string>
+    <string name="est2_stays_with_you">Il vous reste après matériaux : %1$s (%2$s %%). Les salaires de l\'équipe et le bénéfice en sortent.</string>
     <string name="est2_minimum_charge_applied">Montant minimum de chantier de %1$s appliqué</string>
     <string name="est2_send_document">Envoyer %1$s</string>
     <string name="est2_changed_after_signed_title">Ce devis a changé après sa signature</string>
@@ -972,7 +972,7 @@
     <string name="onb_version_label">Version %1$s</string>
     <string name="onb_update_worth_not_putting_off">Celle-ci corrige quelque chose qu\'il vaut mieux ne pas remettre à plus tard.</string>
     <string name="onb_update_in_shared_folder">Cette version se trouve dans votre dossier partagé habituel ; aucun lien de téléchargement n\'a été publié avec elle.</string>
-    <string name="onb_downloading_percent">Téléchargement... %1$d%%%</string>
+    <string name="onb_downloading_percent">Téléchargement... %1$d%%</string>
     <string name="onb_update_ready_to_install">Prêt. Android vous demandera de confirmer l\'installation ; cette invite vient du téléphone, pas de nous.</string>
     <string name="onb_update_keeps_everything">Installer une mise à jour conserve tout : vos chantiers, dessins, photos et paiements restent exactement tels quels.</string>
     <string name="onb_ok">OK</string>
@@ -1310,4 +1310,10 @@
     <string name="enum_hours_early">Avant 8 h</string>
     <string name="enum_hours_work">8 h - 17 h</string>
     <string name="enum_hours_late">Après 17 h</string>
+
+    <!-- Bulk delete in the trash -->
+    <string name="acct_trash_select_all">Tout sélectionner</string>
+    <string name="acct_trash_select_none">Tout désélectionner</string>
+    <string name="acct_trash_delete_selected">Supprimer définitivement (%1$d)</string>
+    <string name="acct_trash_bulk_warning">%1$d élément(s) et tout ce qu\'ils contiennent seront supprimés définitivement, sur tous les téléphones. Impossible d\'annuler.</string>
 </resources>

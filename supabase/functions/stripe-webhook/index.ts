@@ -81,15 +81,38 @@ async function applyPaymentToJob(admin: any, payment: any) {
   // moved. Scoped to the mode of the payment that just cleared.
   const livemode = payment.livemode === true;
 
-  const { data: cleared } = await admin.from("job_payments")
-    .select("amount_cents")
+  // A test payment is a test. It used to stop at the amount_paid scoping and
+  // still write a LEDGER row -- which has no mode column, so every report,
+  // the AR aging and the app itself summed it as real collected cash, and
+  // the app then rebuilt amount_paid from that ledger, undoing the scoping
+  // below. Nothing about a test checkout may touch the books.
+  if (!livemode) return;
+
+
+
+  // The ledger row first, so the paid figure below can be summed from the
+  // ledger itself -- cash, check and card together, the same rule the app
+  // uses. Summing job_payments here counted Stripe alone and stamped a
+  // Stripe-only figure over a job that also had cash on it.
+  await admin.from("payment_records").upsert({
+    sync_id: "stripe-" + payment.id,
+    company_id: payment.company_id,
+    job_sync_id: payment.job_sync_id,
+    amount: Number(payment.amount_cents || 0) / 100,
+    method: "CARD",
+    received_at: new Date().toISOString(),
+    reference: String(payment.stripe_id ?? ""),
+    note: "",
+    recorded_by: "Stripe",
+  }, { onConflict: "company_id,sync_id" });
+
+  const { data: ledger } = await admin.from("payment_records")
+    .select("amount")
     .eq("company_id", payment.company_id)
     .eq("job_sync_id", payment.job_sync_id)
-    .eq("status", "paid")
-    .eq("livemode", livemode);
-
-  const paidDollars =
-    (cleared ?? []).reduce((sum: number, r: any) => sum + Number(r.amount_cents || 0), 0) / 100;
+    .is("deleted_at", null);
+  const paidDollars = (ledger ?? [])
+    .reduce((sum: number, r: any) => sum + Math.max(0, Number(r.amount || 0)), 0);
 
   // Records that money arrived, and no more than that. Whether the job is paid
   // in full depends on the contract total, which is computed in the app from
@@ -106,25 +129,6 @@ async function applyPaymentToJob(admin: any, payment: any) {
     updated_at: new Date().toISOString(),
   }).eq("id", job.id);
 
-  // A ledger row for the money that just arrived, dated to now -- which for a
-  // card payment IS when it moved. Reports count rows in a period, so without
-  // this a cleared card payment would raise the job total while being invisible
-  // to "collected this month".
-  //
-  // sync_id is derived from the Stripe payment row rather than random, so a
-  // replayed webhook writes the same id and the unique constraint collapses it
-  // instead of banking the payment twice.
-  await admin.from("payment_records").upsert({
-    sync_id: `stripe-${payment.id}`,
-    company_id: payment.company_id,
-    job_sync_id: payment.job_sync_id,
-    amount: Number(payment.amount_cents || 0) / 100,
-    method: "CARD",
-    received_at: new Date().toISOString(),
-    reference: String(payment.stripe_id ?? ""),
-    note: "",
-    recorded_by: "Stripe",
-  }, { onConflict: "company_id,sync_id" });
 
   await notifyPaid(admin, job, Number(payment.amount_cents || 0) / 100, paidDollars);
 }

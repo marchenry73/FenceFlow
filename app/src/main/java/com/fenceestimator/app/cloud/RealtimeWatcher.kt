@@ -86,7 +86,7 @@ class RealtimeWatcher(
                     filter("company_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, companyId)
                 }
 
-                scope.launch { paymentChanges.collect { autoSync.requestSync() } }
+                scope.launch { paymentChanges.collect { autoSync.requestSyncFromRemote() } }
                 scope.launch { accessChanges.collect { session.refresh() } }
 
                 // Everything else that syncs. The channel used to carry jobs,
@@ -101,7 +101,7 @@ class RealtimeWatcher(
                         table = tableName
                         filter("company_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, companyId)
                     }
-                    scope.launch { flow.collect { autoSync.requestSync() } }
+                    scope.launch { flow.collect { autoSync.requestSyncFromRemote() } }
                 }
 
                 SupabaseModule.client.realtime.connect()
@@ -112,7 +112,7 @@ class RealtimeWatcher(
                 // sync path knows the rules -- that a cleared payment never
                 // goes backwards, that a pull must not wipe the calibration.
                 // Bypassing it here would be a second, weaker merge.
-                jobChanges.collect { autoSync.requestSync() }
+                jobChanges.collect { autoSync.requestSyncFromRemote() }
             }
             if (result.isSuccess) return
 

@@ -279,7 +279,7 @@
     <string name="set_pricing_tiers">Pricing Tiers &amp; Discounts</string>
     <string name="set_pricing_tiers_explain">Used per job to set labor rate, markup, and any discount (family, church, military, commercial, etc).</string>
     <string name="set_unnamed_tier">Unnamed tier</string>
-    <string name="set_tier_summary">Labor $%1$s/ft · Markup %2$s%%% · Discount %3$s%%%</string>
+    <string name="set_tier_summary">Labor $%1$s/ft · Markup %2$s%% · Discount %3$s%%</string>
     <string name="set_add_pricing_tier">+ Add Pricing Tier</string>
     <string name="set_tools_materials">Tools &amp; Materials</string>
     <string name="set_tools_explain">Copied onto every job\'s checklist, so nothing gets left in the yard.</string>
@@ -435,8 +435,8 @@
     <string name="jd_apply_tier">Apply pricing tier</string>
     <string name="jd_discount_pct">Discount (%)</string>
     <string name="jd_min_job_charge">Minimum job charge ($)</string>
-    <string name="jd_tier_summary">%1$s: labor $%2$s/ft · markup %3$s%%%</string>
-    <string name="jd_tier_summary_discount">discount %1$s%%%</string>
+    <string name="jd_tier_summary">%1$s: labor $%2$s/ft · markup %3$s%%</string>
+    <string name="jd_tier_summary_discount">discount %1$s%%</string>
     <string name="jd_include_teardown">Include teardown of existing fence</string>
     <string name="jd_teardown_flat_fee">Teardown flat fee ($)</string>
     <string name="jd_teardown_per_ft">Teardown $/ft</string>
@@ -704,7 +704,7 @@
     <string name="est2_waste_explain">Orders extra material for cuts and breakage. At 10%%, a takeoff of 17 panels orders 19 — because some get ruined being cut. Only applies to things you cut or break: panels, pickets, rails, fabric, concrete. Never to posts, caps or hardware, which you buy by exact count.</string>
     <string name="est2_waste_press_suggest">Press Suggest Quantities after changing this — it only affects newly generated quantities, not lines already on the estimate.</string>
     <string name="est2_none">None</string>
-    <string name="est2_percent">%1$d%%%</string>
+    <string name="est2_percent">%1$d%%</string>
     <string name="est2_qty_panel">panel</string>
     <string name="est2_qty_panels">panels</string>
     <string name="est2_qty_line_post">line post</string>
@@ -725,16 +725,16 @@
     <string name="est2_qty_rails">rails</string>
     <string name="est2_qty_ft_of_fabric">ft of fabric</string>
     <string name="est2_line_item_detail">%1$s %2$s x %3$s</string>
-    <string name="est2_tax_pct">Tax (%1$s%%%)</string>
+    <string name="est2_tax_pct">Tax (%1$s%%)</string>
     <string name="est2_gates_line">Gates (%1$s ft @ %2$s/ft)</string>
     <string name="est2_teardown_existing">Teardown of existing fence</string>
     <string name="est2_haul_away_fee">Haul away / dump fee</string>
-    <string name="est2_markup_pct">Markup (%1$s%%%)</string>
-    <string name="est2_discount_pct">Discount (%1$s%%%)</string>
-    <string name="est2_discount_tier_pct">Discount (%1$s) (%2$s%%%)</string>
+    <string name="est2_markup_pct">Markup (%1$s%%)</string>
+    <string name="est2_discount_pct">Discount (%1$s%%)</string>
+    <string name="est2_discount_tier_pct">Discount (%1$s) (%2$s%%)</string>
     <string name="est2_approved_extra_work">Approved extra work</string>
     <string name="est2_plus_feet">(+%1$s ft)</string>
-    <string name="est2_stays_with_you">Stays with you after materials: %1$s (%2$s%%%). Crew wages and profit come out of this.</string>
+    <string name="est2_stays_with_you">Stays with you after materials: %1$s (%2$s%%). Crew wages and profit come out of this.</string>
     <string name="est2_minimum_charge_applied">Minimum job charge of %1$s applied</string>
     <string name="est2_send_document">Send %1$s</string>
     <string name="est2_changed_after_signed_title">This estimate changed after it was signed</string>
@@ -986,7 +986,7 @@
     <string name="onb_version_label">Version %1$s</string>
     <string name="onb_update_worth_not_putting_off">This one fixes something worth not putting off.</string>
     <string name="onb_update_in_shared_folder">This version is in your usual shared folder -- no download link was published with it.</string>
-    <string name="onb_downloading_percent">Downloading... %1$d%%%</string>
+    <string name="onb_downloading_percent">Downloading... %1$d%%</string>
     <string name="onb_update_ready_to_install">Ready. Android will ask you to confirm the install -- that prompt is the phone\'s, not ours.</string>
     <string name="onb_update_keeps_everything">Installing an update keeps everything -- your jobs, drawings, photos and payments all stay exactly as they are.</string>
     <string name="onb_ok">OK</string>
@@ -1324,4 +1324,10 @@
     <string name="enum_hours_early">Before 8am</string>
     <string name="enum_hours_work">8am - 5pm</string>
     <string name="enum_hours_late">After 5pm</string>
+
+    <!-- Bulk delete in the trash -->
+    <string name="acct_trash_select_all">Select all</string>
+    <string name="acct_trash_select_none">Select none</string>
+    <string name="acct_trash_delete_selected">Delete forever (%1$d)</string>
+    <string name="acct_trash_bulk_warning">%1$d item(s) and everything on them will be permanently deleted, from every phone. This cannot be undone.</string>
 </resources>

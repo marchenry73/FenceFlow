@@ -264,7 +264,11 @@ class SessionManager(private val scope: CoroutineScope) {
             // account's data stayed on screen -- while the app simultaneously
             // reported "working on this phone only". Somebody who has not
             // joined a company is not entitled to any company's books.
-            runCatching {
+            // Only on a real answer. A failed read leaves profile null, and
+            // treating that as "this account has no company" wiped the phone
+            // on an offline launch -- the one moment the local copy is all
+            // there is.
+            if (fetched.isSuccess) runCatching {
                 val wiped = if (profile?.companyId != null) {
                     dataOwnership?.onSignedIn(profile.companyId!!)
                 } else {

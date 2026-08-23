@@ -502,7 +502,7 @@ function exportCsv() {
   const head = ['Company','Status','Plan','MonthlyPrice','Users','Jobs','LastActive','Suspended','BillingEmail'];
   const rows = clients.map(c => [
     c.name, c.subscription_status, c.subscription_plan, c.monthly_price,
-    c.user_count, c.job_count, day(c.last_activity), c.suspended ? 'yes' : 'no',
+    c.people, c.jobs, day(c.last_active), c.suspended ? 'yes' : 'no',
     c.billing_email || c.email || ''
   ]);
   const csv = [head, ...rows]

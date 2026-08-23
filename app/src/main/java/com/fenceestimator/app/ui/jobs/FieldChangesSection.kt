@@ -143,7 +143,9 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
  */
 @Composable
 private fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel: JobDetailViewModel) {
-    var note by remember { mutableStateOf("") }
+    // Keyed on the request, or a note typed for one card carried over to the
+    // next when the list changed underneath it.
+    var note by remember(request.id) { mutableStateOf("") }
 
     Card(
         Modifier.fillMaxWidth(),

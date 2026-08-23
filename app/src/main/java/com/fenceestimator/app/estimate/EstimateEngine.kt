@@ -581,7 +581,12 @@ object EstimateEngine {
         }
         val gateCharge = gateFeet * job.gateRatePerFt
 
-        val laborCost = job.laborFlatFee + (job.laborRatePerFt * billableFeet)
+        // Labour is charged on the fence that is built. The gate openings are
+        // charged by the gate rate below, so they come out of the labour
+        // footage here -- otherwise a 4 ft gate was billed twice: once as
+        // fence labour, once as a gate.
+        val laborFeet = (billableFeet - gateFeet).coerceAtLeast(0.0)
+        val laborCost = job.laborFlatFee + (job.laborRatePerFt * laborFeet)
         val trashHaul = if (job.teardownEnabled) job.trashHaulFee else 0.0
         // The typed teardown length when there is one, because the old fence
         // does not always match the new one. Zero means what every job meant
