@@ -886,11 +886,14 @@ async function loadBilling(){
   const row = Array.isArray(data) ? data[0] : data;
 
   const state = $('billState');
+  // Declared here, not inside the else: the render below needs them, and a
+  // block-scoped const crashed the whole function the moment it was read
+  // outside its block -- state text painted, no plan cards, ever.
+  const status = row?.subscription_status || 'none';
+  const plan = row?.subscription_plan || '';
   if (error) {
     state.textContent = 'Run supabase_stripe_patch.sql to switch billing on.';
   } else {
-    const status = row?.subscription_status || 'none';
-    const plan = row?.subscription_plan || '';
     const ends = row?.subscription_ends_at ? d(row.subscription_ends_at).toLocaleDateString() : '';
     state.textContent =
       status === 'active'   ? `Active${plan?' — '+plan:''}${ends?', renews '+ends:''}.` :

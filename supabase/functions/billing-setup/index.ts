@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     return new Response("no", { status: 401 });
   }
   try {
-    const { action, plans } = await req.json();
+    const { action, plans, subscriptionId } = await req.json();
 
     if (action === "status") {
       const balance = await stripe("GET", "/balance");
@@ -67,6 +67,11 @@ Deno.serve(async (req) => {
         out.push({ plan: plan.name, productId: product.id, priceId: price.id });
       }
       return Response.json({ created: out });
+    }
+
+    if (action === "cancel_subscription") {
+      const out = await stripe("DELETE", `/subscriptions/${subscriptionId}`);
+      return Response.json({ canceled: out.id, status: out.status });
     }
 
     return Response.json({ error: "unknown action" }, { status: 400 });

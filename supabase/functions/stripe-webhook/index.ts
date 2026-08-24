@@ -264,6 +264,18 @@ Deno.serve(async (req) => {
         const companyId = sub.metadata?.company_id;
         if (!companyId) break;
 
+        // Only the subscription the company currently points at may speak
+        // for it. A canceled OLD subscription's deleted-event once arrived
+        // after an admin repair and stamped a healthy company 'canceled'.
+        const { data: current } = await admin.from("companies")
+          .select("stripe_subscription_id").eq("id", companyId).single();
+        const stored = current?.stripe_subscription_id;
+        if (event.type === "customer.subscription.deleted") {
+          if (stored !== sub.id) break;      // stale subscription; ignore
+        } else if (stored && stored !== sub.id) {
+          break;                              // a different sub owns this company
+        }
+
         const status = event.type === "customer.subscription.deleted"
           ? "canceled"
           : String(sub.status ?? "none");
