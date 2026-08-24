@@ -657,7 +657,10 @@ async function signUp(){
   // The company is created after the session exists. If email confirmation is
   // on, that's after they click the link and sign in -- remember what they
   // typed so they don't type it twice.
-  localStorage.setItem('ff_pending_company', JSON.stringify({name, company}));
+  // Stamped with the email it belongs to. Without that, an abandoned sign-up
+  // sat in this browser and the NEXT person to sign in here silently became
+  // the owner of a company named after someone else.
+  localStorage.setItem('ff_pending_company', JSON.stringify({name, company, email}));
   if(!data.session){
     setAuthMode('signin');
     return msg('authMsg','Almost there — confirm the email we just sent you, then sign in here.','ok');
@@ -684,7 +687,12 @@ async function boot(){
   if(!profile||!profile.company_id){
     // No company yet. If they told us its name at sign-up, create it now;
     // otherwise ask for it -- never bounce them to the phone app.
-    const pending = JSON.parse(localStorage.getItem('ff_pending_company')||'null');
+    let pending = JSON.parse(localStorage.getItem('ff_pending_company')||'null');
+    // Only the person who typed it may use it.
+    if (pending && pending.email && pending.email !== user.email) {
+      localStorage.removeItem('ff_pending_company');
+      pending = null;
+    }
     if (pending?.company) {
       const {error} = await db.rpc('create_company_with_owner',
         {company_name:pending.company, owner_name:pending.name||''});
@@ -748,18 +756,35 @@ let arAging=[];
  * The same my_service_status() the phone asks, so the two can never disagree
  * about who has access.
  */
-async function checkService(){
-  const { data, error } = await db.rpc('my_service_status');
-  if (error) return null;               // Could not ask. Not a reason to lock anyone out.
-  return Array.isArray(data) ? data[0] : data;
+/* Whether this company may be here.
+   An error USED to mean "carry on" and an empty answer slipped through the
+   same way -- and an empty answer is exactly what the server returns when the
+   request arrives without a token, so the check could quietly pass for a
+   company that had been switched off. The phone can afford to shrug at an
+   unanswered question because a crew in a dead zone still has to work; this
+   page cannot, because it has no offline life at all -- if the question can't
+   be answered here, nothing else on the page would load either. So: ask a few
+   times, then say plainly that it couldn't be checked. */
+async function checkService(attempts = 3){
+  for (let i = 0; i < attempts; i++){
+    const { data, error } = await db.rpc('my_service_status');
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!error && row) return row;
+    if (i < attempts - 1) await new Promise(r => setTimeout(r, 600 * (i + 1)));
+  }
+  return { allowed:false, unknown:true,
+           reason:"We couldn't check your subscription just now." };
 }
 
 function showBlocked(status){
   // The owner must always be able to pay from this screen. Without this, a
   // brand-new company's very first sight of FenceFlow was a dead end: no
   // access, and no way to buy access either.
-  const fresh = !status.subscription_status || status.subscription_status === 'none';
-  const ownerPay = (profile && profile.role === 'OWNER') ? `
+  // A connection problem is not a sales opportunity: don't offer plans to
+  // somebody whose subscription we simply failed to read.
+  const fresh = !status.unknown &&
+    (!status.subscription_status || status.subscription_status === 'none');
+  const ownerPay = (!status.unknown && profile && profile.role === 'OWNER') ? `
       <p style="margin-top:20px;font-weight:600">${
         fresh ? 'Pick a plan to start your 14-day free trial:' : 'Restart your subscription:'}</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">
@@ -768,9 +793,14 @@ function showBlocked(status){
       <div class="msg" id="billMsg"></div>` : '';
   (document.querySelector('main') || document.body).innerHTML = `
     <div class="panel" style="max-width:34rem;margin:3rem auto">
-      <h2 style="margin-top:0">${fresh ? 'Almost there' : 'FenceFlow is paused'}</h2>
+      <h2 style="margin-top:0">${
+        status.unknown ? "Couldn't check your subscription"
+        : fresh ? 'Almost there' : 'FenceFlow is paused'}</h2>
       <p style="color:var(--muted)">${esc(status.reason || 'This company no longer has access.')}</p>
-      ${fresh ? '' : `<p style="color:var(--muted)">
+      ${status.unknown ? `<p style="color:var(--muted)">
+        This is almost always the connection rather than your account. Check
+        again in a moment — nothing has changed on your side.
+      </p>` : fresh ? '' : `<p style="color:var(--muted)">
         Nothing has been lost. Every job, payment and record is exactly where it
         was and comes straight back as soon as this is sorted out.
       </p>`}
@@ -939,8 +969,11 @@ async function loadBilling(){
 
   $('planCards').style.cssText =
     'display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;align-items:stretch';
-  if (subscribed && myRank === undefined) {
-    // Granted by hand: full access, nothing to sell.
+  if (subscribed && myRank === undefined && !row?.has_subscription) {
+    // Granted by hand: full access, nothing to sell. A company that HAS a
+    // Stripe customer but no plan label is a different thing entirely --
+    // it falls through to the cards below, because hiding them left a
+    // paying company unable to pick a plan or upgrade.
     $('planCards').innerHTML =
       `<p style="color:var(--muted)">Full access — every feature is included for this company.</p>`;
   } else {
@@ -1513,7 +1546,7 @@ function renderReports(){
   // Headline numbers are stat tiles, not charts — one number is not a bar.
   // Profit and margin tiles are Pro's money intelligence; Crew's hero row
   // shows the operation.
-  const proTiles = planName === 'crew' ? '' : `
+  const proTiles = !hasAdvancedReports() ? '' : `
     <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit</div></div>
     <div class="stat"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>`;
   $('repHero').innerHTML=`
@@ -1864,6 +1897,14 @@ async function saveSettings(){
    before plans existed: nothing is taken away from those.
    The server enforces the parts that matter (seats, card payments); hiding
    the tabs is honesty about what was bought, not the security boundary. */
+/* Profit, margins, cost breakdowns and AR aging are the Pro tier. Asking
+   "is this plan Crew?" got Solo wrong -- it is not Crew, so it was handed the
+   very analytics Crew pays more and still does not get. Named plans opt IN;
+   an unknown or blank label is a hand-granted company and keeps everything. */
+function hasAdvancedReports(){
+  return !['solo','crew'].includes(planName);
+}
+
 function applyPlanGates(){
   const solo = planName === 'solo';
   ['pipe','crew','time','reports'].forEach(t=>{
@@ -1871,15 +1912,19 @@ function applyPlanGates(){
     if(b) b.style.display = solo ? 'none' : '';
   });
   // Money intelligence -- profit tables, cost charts, AR aging -- is Pro's.
-  const basicMoney = planName === 'crew' || solo;
   document.querySelectorAll('.pro-only')
-    .forEach(el => el.style.display = basicMoney ? 'none' : '');
+    .forEach(el => el.style.display = hasAdvancedReports() ? '' : 'none');
   const on = document.querySelector('.tab.on');
   if (solo && on && on.style.display === 'none') switchTab('dash');
 }
 
 /* ---------- nav ---------- */
 function switchTab(name){
+  // Tiles and "Needs attention" rows jump straight to a tab, and they knew
+  // nothing about plans -- so a Solo owner clicking a tile landed on a tab
+  // their plan had removed, with the nav showing nothing selected.
+  const btn = document.querySelector(`.tab[data-tab="${name}"]`);
+  if (btn && btn.style.display === 'none') name = 'dash';
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
   ['dash','jobs','cal','pipe','crew','time','catalog','reports','settings','billing']
     .forEach(n=>$('tab-'+n).style.display=(n===name)?'block':'none');

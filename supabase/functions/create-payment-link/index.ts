@@ -85,6 +85,16 @@ Deno.serve(async (req) => {
       .eq("id", profile.company_id).single();
     const account = company?.stripe_account_id ?? undefined;
 
+    // A company that is switched off may not raise money through us. This
+    // function runs as the service role, so RLS is not watching it -- without
+    // this check a suspended or lapsed company kept billing its customers
+    // through FenceFlow while its own account was shut.
+    const { data: entitled } = await admin
+      .rpc("company_allowed", { cid: profile.company_id });
+    if (entitled === false) {
+      return json({ error: "This FenceFlow account is not active. Check the Billing tab." }, 403);
+    }
+
     // Card payments are sold with the Crew plan. Enforced here rather than in
     // any client, because a client that forgets is not a paywall. A blank plan
     // is a hand-granted company from before plans existed -- no cap applies.

@@ -249,6 +249,23 @@ class AutoSync(
             return
         }
 
+        // A company that has been switched off does not keep the cloud half of
+        // the product. Sync runs on the application scope, outside the screen
+        // that shows the blocked notice, so without this it went right on
+        // syncing jobs, payments and photos for a lapsed subscription -- and
+        // RLS could not catch that, because RLS only refuses a *suspended*
+        // company, not one whose plan simply ran out.
+        //
+        // Only a definite "no" stops it: a phone that was never told stays
+        // working, the same rule the gate screen follows.
+        if (ServiceGate.remembered(context)?.allowed == false) {
+            _state.value = _state.value.copy(
+                phase = SyncPhase.IDLE,
+                lastError = context.getString(R.string.sync_account_not_active)
+            )
+            return
+        }
+
         // No token, no sync. The session state says who this phone belongs to
         // from memory; the token is what the server checks. Without one the
         // whole pass runs anonymous -- pushes refused, pulls empty -- and the

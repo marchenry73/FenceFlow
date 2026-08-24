@@ -52,8 +52,13 @@ class WeeklySummary(
         // The Monday digest is Pro's morning read. Judged from the last
         // remembered plan so an offline Monday still behaves; a phone that
         // has never been told a plan keeps the digest, as always.
-        val plan = com.fenceestimator.app.cloud.ServiceGate.remembered(context)?.plan.orEmpty()
-        if (!com.fenceestimator.app.cloud.Entitlements.of(plan).digest) return
+        // The whole answer, not just the plan off it. Reading only the plan
+        // meant a company that had been switched off kept receiving the paid
+        // Monday digest -- last week's takings, every week, while the app
+        // itself told them their access had ended.
+        val status = com.fenceestimator.app.cloud.ServiceGate.remembered(context) ?: return
+        if (!status.allowed) return
+        if (!com.fenceestimator.app.cloud.Entitlements.of(status.plan).digest) return
         val cal = Calendar.getInstance()
         if (cal.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) return
         if (cal.get(Calendar.HOUR_OF_DAY) < 7) return

@@ -73,8 +73,44 @@ Deno.serve(async (req) => {
       return json({ error: "Only the owner can change the subscription" }, 403);
     }
 
-    const { priceId, plan = "" } = await req.json();
+    const { priceId } = await req.json();
     if (!priceId) return json({ error: "Missing priceId" }, 400);
+
+    // The plan name comes from the PRICE, never from the browser.
+    //
+    // It used to be posted alongside the price id, and the webhook wrote it
+    // straight onto the company -- so anyone could send the $99 price id with
+    // plan "Pro" and buy the top tier at the bottom price. Every limit in the
+    // app and the website reads that label. Stripe is now the only thing that
+    // says what a price is worth.
+    const price = await stripe("GET", `/prices/${priceId}?expand[]=product`);
+    const plan: string = price?.metadata?.plan ??
+      String(price?.product?.name ?? "").replace(/^FenceFlow\s+/i, "").trim();
+    if (!plan) {
+      return json({ error: "That price is not set up as a FenceFlow plan." }, 400);
+    }
+    if (price?.recurring?.interval !== "month") {
+      return json({ error: "That price is not a monthly subscription." }, 400);
+    }
+
+    // A smaller plan must not silently strand people. Seat caps match
+    // join_company's; going down while over the new cap is refused with the
+    // number to remove, because quietly cutting a company's crew list loose
+    // would be destroying something the owner never agreed to lose.
+    const SEATS: Record<string, number> = { solo: 1, crew: 6 };
+    const cap = SEATS[plan.toLowerCase()];
+    if (cap !== undefined) {
+      const { count } = await admin
+        .from("profiles").select("id", { count: "exact", head: true })
+        .eq("company_id", profile.company_id);
+      const inUse = count ?? 0;
+      if (inUse > cap) {
+        return json({
+          error: `${plan} includes ${cap} ${cap === 1 ? "login" : "logins"}, and you have ${inUse}. ` +
+            `Remove ${inUse - cap} from Crew first, then switch plans.`,
+        }, 409);
+      }
+    }
 
     const { data: company } = await admin
       .from("companies")

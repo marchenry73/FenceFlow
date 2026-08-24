@@ -1343,6 +1343,7 @@
     <string name="vm_couldnt_save_with">Impossible d\'enregistrer : %1$s</string>
     <string name="vm_couldnt_save_refused">Impossible d\'enregistrer : le serveur a refusé la modification</string>
     <string name="vm_waiting_sign_back_in">En attente de reconnexion</string>
+    <string name="sync_account_not_active">Compte inactif — vérifiez la facturation</string>
     <string name="vm_couldnt_sync_crew_settings">Impossible de synchroniser l\'équipe et les paramètres</string>
     <string name="vm_kind_job">Chantier</string>
     <string name="vm_kind_change_order">Avenant</string>
