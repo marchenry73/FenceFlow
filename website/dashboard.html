@@ -139,13 +139,22 @@
 </header>
 
 <div class="auth" id="auth">
-  <h1 style="font-size:20px;margin-bottom:6px">Office sign in</h1>
-  <p style="color:var(--muted);font-size:14px">Same account as the FenceFlow app.</p>
+  <h1 style="font-size:20px;margin-bottom:6px" id="authTitle">Office sign in</h1>
+  <p style="color:var(--muted);font-size:14px" id="authSub">Same account as the FenceFlow app.</p>
   <div class="msg" id="authMsg"></div>
-  <label>Email</label><input type="email" id="email" autocomplete="email">
-  <label>Password</label><input type="password" id="password" autocomplete="current-password">
+  <div id="signupFields" style="display:none">
+    <label>Your name</label><input type="text" id="suName" autocomplete="name">
+    <label>Company name</label><input type="text" id="suCompany" autocomplete="organization">
+  </div>
+  <div id="loginFields">
+    <label>Email</label><input type="email" id="email" autocomplete="email">
+    <label>Password</label><input type="password" id="password" autocomplete="current-password">
+  </div>
   <div style="margin-top:14px"><button class="btn" id="signIn" style="width:100%">Sign in</button></div>
-  <p style="margin-top:12px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
+  <p style="margin-top:12px;text-align:center;font-size:13px">
+    <a href="#" id="authToggle">New company? Start your free trial</a>
+  </p>
+  <p style="margin-top:8px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
 </div>
 
 <div id="app">
@@ -605,13 +614,65 @@ const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANA
 function msg(el,text,kind){const e=$(el);e.textContent=text;e.className='msg '+kind;
   if(kind==='ok') setTimeout(()=>{e.className='msg';},2500);}
 
-/* ---------- auth ---------- */
+/* ---------- auth ----------
+   Three shapes of the same panel: signing in, creating a brand-new company
+   account (the pricing page's "Start free trial" lands here), and the
+   one-field finish for an account that exists but has no company yet. */
+let authMode='signin';
+
+function setAuthMode(m){
+  authMode=m;
+  const su = m==='signup', co = m==='company';
+  $('signupFields').style.display = (su||co) ? 'block' : 'none';
+  $('loginFields').style.display  = co ? 'none' : 'block';
+  $('authTitle').textContent = co ? 'One last step' : su ? 'Start your free trial' : 'Office sign in';
+  $('authSub').textContent   = co ? "Name your business and you're in."
+                             : su ? '14 days free. Works with the FenceFlow app too.'
+                             : 'Same account as the FenceFlow app.';
+  $('signIn').textContent    = co ? 'Create my company' : su ? 'Create account' : 'Sign in';
+  $('authToggle').textContent = su ? 'Already have an account? Sign in'
+                              : co ? '' : 'New company? Start your free trial';
+}
+
 async function signIn(){
+  if(authMode==='signup')  return signUp();
+  if(authMode==='company') return finishCompany();
   const email=$('email').value.trim(), password=$('password').value;
   if(!email||!password) return msg('authMsg','Enter your email and password.','err');
   msg('authMsg','Signing in…','ok');
   const {error}=await db.auth.signInWithPassword({email,password});
   if(error) return msg('authMsg',error.message,'err');
+  await boot();
+}
+
+async function signUp(){
+  const email=$('email').value.trim(), password=$('password').value;
+  const name=$('suName').value.trim(), company=$('suCompany').value.trim();
+  if(!company) return msg('authMsg','Enter your company name.','err');
+  if(!email||!password) return msg('authMsg','Enter an email and a password.','err');
+  if(password.length<8) return msg('authMsg','Password needs at least 8 characters.','err');
+  msg('authMsg','Creating your account…','ok');
+  const {data,error}=await db.auth.signUp({email,password});
+  if(error) return msg('authMsg',error.message,'err');
+  // The company is created after the session exists. If email confirmation is
+  // on, that's after they click the link and sign in -- remember what they
+  // typed so they don't type it twice.
+  localStorage.setItem('ff_pending_company', JSON.stringify({name, company}));
+  if(!data.session){
+    setAuthMode('signin');
+    return msg('authMsg','Almost there — confirm the email we just sent you, then sign in here.','ok');
+  }
+  await boot();
+}
+
+async function finishCompany(){
+  const name=$('suName').value.trim(), company=$('suCompany').value.trim();
+  if(!company) return msg('authMsg','Enter your company name.','err');
+  msg('authMsg','Setting up…','ok');
+  const {error}=await db.rpc('create_company_with_owner',
+    {company_name:company, owner_name:name});
+  if(error) return msg('authMsg',error.message,'err');
+  localStorage.removeItem('ff_pending_company');
   await boot();
 }
 
@@ -621,8 +682,17 @@ async function boot(){
   const {data:prof}=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
   profile=prof;
   if(!profile||!profile.company_id){
-    msg('authMsg','This account is not part of a business yet. Create or join one in the phone app first.','err');
-    await db.auth.signOut(); return;
+    // No company yet. If they told us its name at sign-up, create it now;
+    // otherwise ask for it -- never bounce them to the phone app.
+    const pending = JSON.parse(localStorage.getItem('ff_pending_company')||'null');
+    if (pending?.company) {
+      const {error} = await db.rpc('create_company_with_owner',
+        {company_name:pending.company, owner_name:pending.name||''});
+      if(!error){ localStorage.removeItem('ff_pending_company'); return boot(); }
+    }
+    setAuthMode('company');
+    if (pending?.company) { $('suCompany').value=pending.company; $('suName').value=pending.name||''; }
+    return;
   }
   $('auth').style.display='none'; $('app').style.display='block';
   $('signOut').style.display='inline-block'; $('refresh').style.display='inline-block';
@@ -685,19 +755,33 @@ async function checkService(){
 }
 
 function showBlocked(status){
+  // The owner must always be able to pay from this screen. Without this, a
+  // brand-new company's very first sight of FenceFlow was a dead end: no
+  // access, and no way to buy access either.
+  const fresh = !status.subscription_status || status.subscription_status === 'none';
+  const ownerPay = (profile && profile.role === 'OWNER') ? `
+      <p style="margin-top:20px;font-weight:600">${
+        fresh ? 'Pick a plan to start your 14-day free trial:' : 'Restart your subscription:'}</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">
+        ${PLANS.map((p,i)=>`<button class="btn" data-plan="${i}"${p.id?'':' disabled'}>${p.name} — ${p.price}</button>`).join('')}
+      </div>
+      <div class="msg" id="billMsg"></div>` : '';
   (document.querySelector('main') || document.body).innerHTML = `
     <div class="panel" style="max-width:34rem;margin:3rem auto">
-      <h2 style="margin-top:0">FenceFlow is paused</h2>
+      <h2 style="margin-top:0">${fresh ? 'Almost there' : 'FenceFlow is paused'}</h2>
       <p style="color:var(--muted)">${esc(status.reason || 'This company no longer has access.')}</p>
-      <p style="color:var(--muted)">
+      ${fresh ? '' : `<p style="color:var(--muted)">
         Nothing has been lost. Every job, payment and record is exactly where it
         was and comes straight back as soon as this is sorted out.
-      </p>
+      </p>`}
+      ${ownerPay}
       <div style="margin-top:14px">
         <button id="blockedRetry">Check again</button>
         <button id="blockedOut">Sign out</button>
       </div>
     </div>`;
+  document.querySelectorAll('button[data-plan]').forEach(b=>
+    b.addEventListener('click', ()=>startCheckout(PLANS[+b.dataset.plan])));
   document.getElementById('blockedRetry')
     .addEventListener('click', () => location.reload());
   document.getElementById('blockedOut')
@@ -1737,6 +1821,12 @@ document.querySelectorAll('.tab').forEach(t=>
 
 $('signIn').addEventListener('click',signIn);
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter') signIn();});
+$('authToggle').addEventListener('click',e=>{
+  e.preventDefault();
+  setAuthMode(authMode==='signup' ? 'signin' : 'signup');
+});
+// index.html's "Start free trial" buttons land here ready to sign up.
+if (location.hash === '#signup') setAuthMode('signup');
 $('signOut').addEventListener('click',async()=>{await db.auth.signOut();location.reload();});
 $('refresh').addEventListener('click',loadAll);
 $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'));
