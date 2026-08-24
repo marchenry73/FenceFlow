@@ -96,13 +96,23 @@ object ApkUpdater {
                 }
             }
 
-            // An APK is a zip, and every zip starts "PK". An HTML page does not.
+            // When the server said how big the file is, anything short is a
+            // cut connection -- fail here with words rather than letting the
+            // installer reject a half-file after the app has closed.
+            if (total > 0 && target.length() != total) {
+                target.delete()
+                onProgress(Progress.Failed("The download was interrupted. Try again on a better connection."))
+                return@withContext null
+            }
+
+            // An APK is a zip: it must start "PK" AND end like a zip. An HTML
+            // page fails the first; a truncated download fails the second.
             if (!looksLikeApk(target)) {
                 target.delete()
                 onProgress(
                     Progress.Failed(
-                        "That link gave a web page instead of the app. Open it in a " +
-                            "browser and download from there."
+                        "The download didn't come through whole. Try again, or open " +
+                            "the link in a browser and install from there."
                     )
                 )
                 return@withContext null
@@ -122,9 +132,34 @@ object ApkUpdater {
             file.inputStream().use { stream ->
                 val header = ByteArray(2)
                 stream.read(header) == 2 && header[0] == 'P'.code.toByte() && header[1] == 'K'.code.toByte()
-            }
+            } && hasZipEnd(file)
         }.getOrDefault(false)
     }
+
+    /**
+     * Whether the file ENDS like a zip, not just starts like one.
+     *
+     * A download cut mid-stream still opens with 'PK' and passes the header
+     * check, and Android's installer then rejects it after the app has already
+     * closed for the install -- which a person can only read as "I tapped
+     * update and it crashed", with nothing in any log. A zip's end-of-central-
+     * directory marker sits in the last kilobytes; a truncated file has lost
+     * it, so this catches the cut before the installer is ever bothered.
+     */
+    private fun hasZipEnd(file: File): Boolean = runCatching {
+        val tail = ByteArray(minOf(file.length(), 66_000L).toInt())
+        java.io.RandomAccessFile(file, "r").use { raf ->
+            raf.seek(file.length() - tail.size)
+            raf.readFully(tail)
+        }
+        // 0x06054b50, little-endian on disk: PK
+        for (i in tail.size - 22 downTo 0) {
+            if (tail[i] == 0x50.toByte() && tail[i + 1] == 0x4B.toByte() &&
+                tail[i + 2] == 0x05.toByte() && tail[i + 3] == 0x06.toByte()
+            ) return@runCatching true
+        }
+        false
+    }.getOrDefault(false)
 
     /**
      * Hands the file to Android's installer.

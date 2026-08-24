@@ -27,13 +27,21 @@ Deno.serve(async (req: Request) => {
   if (!upstream.ok || !upstream.body) {
     return new Response("release not found", { status: 404 });
   }
-  // A fresh header set on purpose: copying upstream's would carry its
-  // Content-Length and defeat the whole point.
+  // Content-Length is forwarded again. Hiding it was the escape hatch for
+  // 1.134-1.136's progress-string crash, but a length-less download can't be
+  // checked for completeness either -- a stream cut at 20MB still begins with
+  // 'PK', passes the updater's magic check, and dies silently in Android's
+  // installer, which reads exactly like 'I tapped update and it crashed'.
+  // Every phone is past 1.137 now; a stuck 1.13x phone can still append
+  // &nolen=1 by hand for the chunked behavior.
+  const len = upstream.headers.get("content-length");
+  const hideLen = new URL(req.url).searchParams.get("nolen") === "1";
   return new Response(upstream.body, {
     status: 200,
     headers: {
       "Content-Type": "application/vnd.android.package-archive",
       "Cache-Control": "no-store",
+      ...(len && !hideLen ? { "Content-Length": len } : {}),
     },
   });
 });
