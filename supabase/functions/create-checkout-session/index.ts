@@ -36,6 +36,15 @@ async function stripe(path: string, form: Record<string, string>) {
   return body;
 }
 
+// deno-lint-ignore no-explicit-any
+async function hadSubscriptionBefore(admin: any, companyId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("companies").select("stripe_subscription_id, subscription_status")
+    .eq("id", companyId).single();
+  return Boolean(data?.stripe_subscription_id) &&
+    data?.subscription_status !== "trialing";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -91,6 +100,13 @@ Deno.serve(async (req) => {
       customer: customerId!,
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
+      // Card up front, first charge when the trial ends -- what the pricing
+      // page promises. Companies that already had a subscription (canceled,
+      // past_due) do not get a second trial: the trial sells the product,
+      // not repeated free months.
+      ...(await hadSubscriptionBefore(admin, profile.company_id)
+        ? {}
+        : { "subscription_data[trial_period_days]": "14" }),
       success_url: `${site}/dashboard.html?billing=success`,
       cancel_url: `${site}/dashboard.html?billing=canceled`,
       "subscription_data[metadata][company_id]": profile.company_id,
