@@ -252,6 +252,9 @@ Deno.serve(async (req) => {
             subscription_status: "active",
             subscription_plan: session.metadata?.plan ?? "",
           }).eq("id", companyId);
+          // Subscribing again is paying. A company that was switched off for
+          // non-payment comes straight back rather than waiting on a human.
+          await admin.rpc("release_for_payment", { cid: companyId });
         }
         break;
       }
@@ -299,6 +302,28 @@ Deno.serve(async (req) => {
             ? new Date(sub.trial_end * 1000).toISOString()
             : null,
         }).eq("id", companyId);
+        if (status === "active" || status === "trialing") {
+          await admin.rpc("release_for_payment", { cid: companyId });
+        }
+        break;
+      }
+
+      // ---- The money arrived. Turn the lights back on. ----
+      //
+      // This is the event that was missing. A company suspended for not
+      // paying stayed suspended after paying, until somebody noticed and
+      // un-ticked it by hand -- the worst possible moment to be slow, because
+      // they have just paid and still cannot work. A suspension placed as a
+      // deliberate hold is left alone; release_for_payment decides.
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object;
+        if (!invoice.subscription) break;
+        const { data: co } = await admin.from("companies")
+          .select("id").eq("stripe_subscription_id", invoice.subscription).maybeSingle();
+        if (!co?.id) break;
+        await admin.from("companies")
+          .update({ subscription_status: "active" }).eq("id", co.id);
+        await admin.rpc("release_for_payment", { cid: co.id });
         break;
       }
 

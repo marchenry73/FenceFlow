@@ -217,6 +217,23 @@
           <tbody id="empRows"></tbody></table></div>
         <div class="empty" id="empEmpty" style="display:none">No crew members yet.</div>
       </div>
+
+      <!-- Employees are people you pay; logins are seats you pay for. They are
+           not the same list, and the plan is priced on this one. -->
+      <div class="panel" style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <h2 style="margin:0">App logins</h2><span id="seatCount" class="range-label"></span>
+        </div>
+        <p class="sub">
+          Everyone who can sign in to FenceFlow for this company. Removing
+          someone frees their seat and keeps every record they made &mdash;
+          their jobs, hours and notes all stay exactly where they are.
+        </p>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
+          <tbody id="seatRows"></tbody></table></div>
+        <div class="msg" id="seatMsg"></div>
+      </div>
     </div>
 
     <div id="tab-time" style="display:none">
@@ -949,11 +966,13 @@ async function loadBilling(){
   const card = (p,i)=>{
     const mine = subscribed && myRank === i;
     const below = subscribed && myRank !== undefined && i < myRank;
+    // A smaller plan has to be reachable. Showing "Included in yours" and
+    // nothing else meant the only way down was to cancel outright -- so a
+    // company whose season ended had to leave rather than spend less.
     const btn =
-      mine   ? `<div style="text-align:center;font-weight:700;color:var(--teal);padding:9px 0">✓ Your plan</div>` :
-      below  ? `<div style="text-align:center;font-size:13px;color:var(--muted);padding:9px 0">Included in yours</div>` :
+      mine ? `<div style="text-align:center;font-weight:700;color:var(--teal);padding:9px 0">✓ Your plan</div>` :
       `<button class="btn" style="width:100%" data-plan="${i}"${p.id?'':' disabled'}>
-         ${subscribed ? 'Upgrade to '+p.name : 'Choose '+p.name}
+         ${!subscribed ? 'Choose '+p.name : below ? 'Switch down to '+p.name : 'Upgrade to '+p.name}
        </button>`;
     return `
     <div class="panel" style="margin:0;display:flex;flex-direction:column${mine?';border:2px solid var(--teal)':''}">
@@ -984,6 +1003,48 @@ async function loadBilling(){
     b.addEventListener('click',()=>startCheckout(PLANS[+b.dataset.plan])));
 
   await loadJobPayments();
+  await loadSeats();
+}
+
+/* Who holds a login, and the one control that gives a seat back.
+   Nothing ever released a seat: a company that took on help for a season hit
+   its cap with two people working, and could not drop to a smaller plan
+   either, because the plan change is refused while over the new cap. */
+async function loadSeats(){
+  const caps = { solo:1, crew:6 };
+  const cap = caps[planName];
+  const { data, error } = await db.from('profiles')
+    .select('id, full_name, role').order('role');
+  const rows = error ? [] : (data || []);
+
+  $('seatCount').textContent = cap
+    ? `${rows.length} of ${cap} used`
+    : `${rows.length} in use — no limit on this plan`;
+
+  const me = profile?.id;
+  const owner = profile?.role === 'OWNER';
+  $('seatRows').innerHTML = rows.map(r => {
+    const isMe = r.id === me;
+    const action = (owner && !isMe)
+      ? `<button class="btn btn-sm" data-seat="${r.id}">Remove</button>`
+      : `<span style="color:var(--muted);font-size:13px">${isMe ? 'You' : ''}</span>`;
+    return `<tr>
+      <td>${esc(r.full_name || 'Unnamed')}</td>
+      <td>${esc(r.role || '')}</td>
+      <td style="text-align:right">${action}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('#seatRows button[data-seat]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const row = rows.find(r => r.id === b.dataset.seat);
+      const who = row?.full_name || 'this person';
+      if (!confirm(`Remove ${who} from the company?\n\nThey lose access on their phone. Everything they recorded stays.`)) return;
+      const { error } = await db.rpc('release_seat', { member_id: b.dataset.seat });
+      if (error) return msg('seatMsg', error.message, 'err');
+      msg('seatMsg', `${who} removed. That seat is free.`, 'ok');
+      await loadSeats();
+    }));
 }
 
 async function startCheckout(plan){
@@ -999,7 +1060,9 @@ async function startCheckout(plan){
     const body = await res.json();
     if (body.upgraded) {
       // Changed in place on the existing subscription -- no checkout needed.
-      msg.textContent = `Upgraded to ${body.plan}.`;
+      // Stripe prorates either direction: paying up is charged for the rest of
+      // the month, dropping down leaves a credit against the next invoice.
+      msg.textContent = `You're on ${body.plan} now.`;
       setTimeout(()=>location.reload(), 900);
     }
     else if (body.url) location.href = body.url;
