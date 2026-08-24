@@ -81,8 +81,16 @@ Deno.serve(async (req) => {
     }
 
     const { data: company } = await admin
-      .from("companies").select("name, stripe_account_id").eq("id", profile.company_id).single();
+      .from("companies").select("name, stripe_account_id, subscription_plan")
+      .eq("id", profile.company_id).single();
     const account = company?.stripe_account_id ?? undefined;
+
+    // Card payments are sold with the Crew plan. Enforced here rather than in
+    // any client, because a client that forgets is not a paywall. A blank plan
+    // is a hand-granted company from before plans existed -- no cap applies.
+    if ((company?.subscription_plan ?? "").toLowerCase() === "solo") {
+      return json({ error: "Card payments are part of the Crew plan. Upgrade in the dashboard's Billing tab." }, 403);
+    }
 
     // Create the product inline with the price. This used to be a separate
     // /products call first: three sequential Stripe round trips on top of a

@@ -22,14 +22,14 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
-async function stripe(path: string, form: Record<string, string>) {
+async function stripe(method: string, path: string, form?: Record<string, string>) {
   const res = await fetch(`${STRIPE}${path}`, {
-    method: "POST",
+    method,
     headers: {
       Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY")}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+      ...(form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
     },
-    body: new URLSearchParams(form),
+    body: form ? new URLSearchParams(form) : undefined,
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error?.message ?? "Stripe rejected the request");
@@ -77,13 +77,37 @@ Deno.serve(async (req) => {
     if (!priceId) return json({ error: "Missing priceId" }, 400);
 
     const { data: company } = await admin
-      .from("companies").select("name, stripe_customer_id").eq("id", profile.company_id).single();
+      .from("companies")
+      .select("name, stripe_customer_id, stripe_subscription_id, subscription_status")
+      .eq("id", profile.company_id).single();
+
+    // A live subscription is CHANGED, never duplicated. Sending an active
+    // subscriber through checkout again would quietly stack a second monthly
+    // charge next to the first.
+    if (company?.stripe_subscription_id &&
+        ["active", "trialing"].includes(company?.subscription_status ?? "")) {
+      const sub = await stripe("GET", `/subscriptions/${company.stripe_subscription_id}`);
+      const itemId = sub.items?.data?.[0]?.id;
+      if (!itemId) return json({ error: "Subscription has no item to change" }, 400);
+      await stripe("POST", `/subscriptions/${company.stripe_subscription_id}`, {
+        "items[0][id]": itemId,
+        "items[0][price]": priceId,
+        // The metadata is what the webhook writes back as the plan name;
+        // without this an upgrade kept billing the new price under the old
+        // plan's label and the old plan's limits.
+        "metadata[plan]": plan,
+        proration_behavior: "create_prorations",
+      });
+      await admin.from("companies")
+        .update({ subscription_plan: plan }).eq("id", profile.company_id);
+      return json({ upgraded: true, plan });
+    }
 
     // Reuse the Stripe customer so a company that resubscribes keeps one
     // billing history instead of scattering across duplicate customers.
     let customerId = company?.stripe_customer_id;
     if (!customerId) {
-      const customer = await stripe("/customers", {
+      const customer = await stripe("POST", "/customers", {
         email: user.email ?? "",
         name: company?.name ?? "",
         "metadata[company_id]": profile.company_id,
@@ -95,7 +119,7 @@ Deno.serve(async (req) => {
 
     const site = Deno.env.get("SITE_URL") ?? "https://marchenry73.github.io/FenceFlow";
 
-    const session = await stripe("/checkout/sessions", {
+    const session = await stripe("POST", "/checkout/sessions", {
       mode: "subscription",
       customer: customerId!,
       "line_items[0][price]": priceId,

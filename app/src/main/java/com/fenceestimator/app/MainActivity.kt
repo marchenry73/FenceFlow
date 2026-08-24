@@ -215,7 +215,14 @@ class MainActivity : FragmentActivity() {
                                                 )
                                             }
                                         }
-                                        FenceEstimatorNavHost()
+                                        androidx.compose.runtime.CompositionLocalProvider(
+                                            com.fenceestimator.app.ui.components.LocalEntitlements provides
+                                                com.fenceestimator.app.cloud.Entitlements.of(
+                                                    service?.plan.orEmpty()
+                                                )
+                                        ) {
+                                            FenceEstimatorNavHost()
+                                        }
                                     }
                                 }
                             }

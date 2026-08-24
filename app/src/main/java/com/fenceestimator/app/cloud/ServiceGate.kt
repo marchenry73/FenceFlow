@@ -44,6 +44,9 @@ private val Context.serviceStore by preferencesDataStore(name = "service_status"
 data class ServiceStatus(
     val allowed: Boolean = true,
     @SerialName("subscription_status") val subscriptionStatus: String = "",
+    /** Which plan was bought -- shapes what the app shows. Blank means a
+     *  hand-granted company from before plans existed: full access. */
+    @SerialName("subscription_plan") val plan: String = "",
     /** What to tell the user. Written by the database so it stays consistent. */
     val reason: String = "",
     @SerialName("grace_ends_at") val graceEndsAt: String? = null,
@@ -51,11 +54,30 @@ data class ServiceStatus(
     @SerialName("trial_days_left") val trialDaysLeft: Int? = null
 )
 
+/**
+ * What a plan includes. The server enforces the parts that matter -- seats in
+ * join_company, card payments in create-payment-link -- this shapes the UI so
+ * a Solo owner is never shown a door the server will slam.
+ */
+data class Entitlements(
+    val pipeline: Boolean,
+    val reports: Boolean,
+    val timeAndCrew: Boolean,
+    val cardPayments: Boolean,
+) {
+    companion object {
+        val FULL = Entitlements(pipeline = true, reports = true, timeAndCrew = true, cardPayments = true)
+        val SOLO = Entitlements(pipeline = false, reports = false, timeAndCrew = false, cardPayments = false)
+        fun of(plan: String): Entitlements = if (plan.equals("solo", ignoreCase = true)) SOLO else FULL
+    }
+}
+
 object ServiceGate {
 
     private val ALLOWED = booleanPreferencesKey("allowed")
     private val REASON = stringPreferencesKey("reason")
     private val STATUS = stringPreferencesKey("status")
+    private val PLAN = stringPreferencesKey("plan")
     private val CHECKED_AT = longPreferencesKey("checked_at")
     private val TRIAL_DAYS = intPreferencesKey("trial_days")
 
@@ -82,6 +104,7 @@ object ServiceGate {
                 prefs[ALLOWED] = answer.allowed
                 prefs[REASON] = answer.reason
                 prefs[STATUS] = answer.subscriptionStatus
+                prefs[PLAN] = answer.plan
                 prefs[CHECKED_AT] = System.currentTimeMillis()
                 prefs[TRIAL_DAYS] = answer.trialDaysLeft ?: -1
             }
@@ -102,6 +125,7 @@ object ServiceGate {
         return ServiceStatus(
             allowed = prefs[ALLOWED] ?: true,
             subscriptionStatus = prefs[STATUS].orEmpty(),
+            plan = prefs[PLAN].orEmpty(),
             reason = prefs[REASON].orEmpty(),
             trialDaysLeft = prefs[TRIAL_DAYS]?.takeIf { it >= 0 }
         )

@@ -607,7 +607,7 @@ const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
 const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
-    orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null;
+    orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null, planName='';
 let calMonth = new Date();
 
 const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANAGER');
@@ -791,6 +791,8 @@ function showBlocked(status){
 async function loadAll(){
   const service = await checkService();
   if (service && service.allowed === false) { showBlocked(service); return; }
+  planName = (service?.subscription_plan || '').toLowerCase();
+  applyPlanGates();
 
   // One round trip per table; RLS scopes every result to this company.
   //
@@ -898,15 +900,40 @@ async function loadBilling(){
                               'No plan yet. Pick one below.';
   }
 
-  $('planCards').innerHTML = PLANS.map((p,i)=>`
+  // Subscribed companies see their plan and the road up -- never the full
+  // storefront again. The storefront is for companies with nothing yet.
+  const subscribed = status === 'active' || status === 'trialing';
+  const rank = { solo:0, crew:1, pro:2 };
+  const myRank = rank[plan.toLowerCase()];
+
+  const card = (p,i,label)=>`
     <div class="panel" style="margin:0">
       <h3 style="margin:0 0 4px">${p.name}</h3>
       <div style="font-size:22px;font-weight:700;margin-bottom:6px">${p.price}</div>
       <p style="font-size:13px;color:var(--muted);min-height:38px">${p.blurb}</p>
       <button class="btn" data-plan="${i}"${p.id?'':' disabled title="Add this plan\'s Stripe price id in dashboard.html"'}>
-        ${p.id?'Choose '+p.name:'Not set up yet'}
+        ${p.id?label:'Not set up yet'}
       </button>
-    </div>`).join('');
+    </div>`;
+
+  if (subscribed && myRank !== undefined) {
+    const current = PLANS[myRank];
+    const upgrades = PLANS.map((p,i)=>({p,i})).filter(x=>rank[x.p.name.toLowerCase()]>myRank);
+    $('planCards').innerHTML = `
+      <div class="panel" style="margin:0;border-color:var(--teal)">
+        <h3 style="margin:0 0 4px">${current.name} — your plan</h3>
+        <div style="font-size:22px;font-weight:700;margin-bottom:6px">${current.price}</div>
+        <p style="font-size:13px;color:var(--muted)">${current.blurb}</p>
+      </div>` +
+      (upgrades.length
+        ? upgrades.map(x=>card(x.p,x.i,'Upgrade to '+x.p.name)).join('')
+        : '');
+  } else if (subscribed) {
+    // Subscribed with no plan label: granted by hand, full access, nothing to sell.
+    $('planCards').innerHTML = '';
+  } else {
+    $('planCards').innerHTML = PLANS.map((p,i)=>card(p,i,'Choose '+p.name)).join('');
+  }
 
   document.querySelectorAll('#planCards button[data-plan]').forEach(b=>
     b.addEventListener('click',()=>startCheckout(PLANS[+b.dataset.plan])));
@@ -925,7 +952,12 @@ async function startCheckout(plan){
       body: JSON.stringify({ priceId: plan.id, plan: plan.name })
     });
     const body = await res.json();
-    if (body.url) location.href = body.url;
+    if (body.upgraded) {
+      // Changed in place on the existing subscription -- no checkout needed.
+      msg.textContent = `Upgraded to ${body.plan}.`;
+      setTimeout(()=>location.reload(), 900);
+    }
+    else if (body.url) location.href = body.url;
     else msg.textContent = body.error || 'Could not start checkout.';
   } catch (e) {
     msg.textContent = String(e.message || e);
@@ -1808,6 +1840,23 @@ async function saveSettings(){
   const {error}=await db.rpc('save_company_settings',{new_settings:payload});
   if(error) return msg('setMsg',error.message,'err');
   msg('setMsg','Saved. Phones pick these up on next sign-in or sync.','ok');
+}
+
+/* ---------- plan shape ----------
+   The page matches what was bought. Solo is one person estimating and
+   invoicing -- pipeline, crew, time and reports are Crew-plan features, so
+   Solo simply doesn't see them. A blank plan is a hand-granted company from
+   before plans existed: nothing is taken away from those.
+   The server enforces the parts that matter (seats, card payments); hiding
+   the tabs is honesty about what was bought, not the security boundary. */
+function applyPlanGates(){
+  const solo = planName === 'solo';
+  ['pipe','crew','time','reports'].forEach(t=>{
+    const b=document.querySelector(`.tab[data-tab="${t}"]`);
+    if(b) b.style.display = solo ? 'none' : '';
+  });
+  const on = document.querySelector('.tab.on');
+  if (solo && on && on.style.display === 'none') switchTab('dash');
 }
 
 /* ---------- nav ---------- */

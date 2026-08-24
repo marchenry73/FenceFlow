@@ -1337,6 +1337,10 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // offered to charge $5,730 -- the original deposit, for money already
     // collected. There is no case where the right answer is a figure from
     // earlier in the job: it is always what is left.
+    // Card payments are sold with the Crew plan. The server refuses the link
+    // call for Solo companies, so showing these controls would only ever show
+    // an error message. Cash and check recording above is every plan's.
+    if (com.fenceestimator.app.ui.components.LocalEntitlements.current.cardPayments) {
     val paymentDescription = stringResource(R.string.jd_payment_description, job.address.ifBlank { job.customerName })
     val requestAmount = JobMoney.nextRequestAmount(job, contractTotal)
     val requestLabel = JobMoney.nextRequestLabel(job, contractTotal)
@@ -1536,6 +1540,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 modifier = Modifier.weight(1f)
             ) { Text(stringResource(R.string.jd_email_link)) }
         }
+    }
     }
 
     androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))

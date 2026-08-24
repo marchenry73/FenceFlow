@@ -567,8 +567,12 @@ fun SettingsScreen(
                     OutlinedButton(onClick = onOpenManufacturers, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.set_manage_manufacturers))
                     }
-                    OutlinedButton(onClick = onOpenEmployees, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.set_manage_crew))
+                    // Crew management is a Crew-plan feature; a Solo company
+                    // has no seats to manage (the server refuses joins too).
+                    if (com.fenceestimator.app.ui.components.LocalEntitlements.current.timeAndCrew) {
+                        OutlinedButton(onClick = onOpenEmployees, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.set_manage_crew))
+                        }
                     }
                     DraftTextField(
                         stableKey = "order_tmpl", initialValue = local.orderEmailTemplate,

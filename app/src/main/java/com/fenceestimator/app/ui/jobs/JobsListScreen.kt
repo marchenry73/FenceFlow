@@ -97,6 +97,7 @@ fun JobsListScreen(
     val jobs by viewModel.jobs.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = com.fenceestimator.app.data.BusinessProfile())
     val session by app.session.state.collectAsState()
+    val ent = com.fenceestimator.app.ui.components.LocalEntitlements.current
     val pendingHours by viewModel.pendingHours.collectAsState()
     val allPayments by viewModel.allPayments.collectAsState()
     val pendingPlanChanges by viewModel.pendingPlanChanges.collectAsState()
@@ -229,7 +230,7 @@ fun JobsListScreen(
                     IconButton(onClick = onOpenCustomers) {
                         Icon(Icons.Filled.People, contentDescription = "Customers")
                     }
-                    if (session.canSeeMoney) {
+                    if (session.canSeeMoney && ent.pipeline) {
                         IconButton(onClick = onOpenPipeline) {
                             Icon(Icons.Filled.ViewKanban, contentDescription = "Pipeline")
                         }
@@ -364,7 +365,7 @@ fun JobsListScreen(
                 // standing still -- the crew are not paid and the job cost is
                 // understated -- and a buried menu item is how a queue goes
                 // unread for a fortnight.
-                if (session.canApproveTime && pendingHours.isNotEmpty()) {
+                if (session.canApproveTime && ent.timeAndCrew && pendingHours.isNotEmpty()) {
                     item {
                         Card(
                             onClick = onOpenTimeApproval,
@@ -466,9 +467,12 @@ fun JobsListScreen(
                             .coerceAtLeast(1.0),
                         onOpenJob = onOpenJob,
                         onOpenSchedule = onOpenSchedule,
-                        onOpenPipeline = onOpenPipeline,
-                        onOpenReports = onOpenReports,
-                        onOpenTimeApproval = onOpenTimeApproval
+                        // Solo's cards still show the numbers -- they are Solo
+                        // features -- but stop navigating into screens the
+                        // plan does not include.
+                        onOpenPipeline = if (ent.pipeline) onOpenPipeline else ({}),
+                        onOpenReports = if (ent.reports) onOpenReports else ({}),
+                        onOpenTimeApproval = if (ent.timeAndCrew) onOpenTimeApproval else ({})
                     )
                 }
 
