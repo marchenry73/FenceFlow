@@ -3,6 +3,7 @@ package com.fenceestimator.app.cloud
 import com.fenceestimator.app.BuildConfig
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -65,15 +66,21 @@ object UpdateChecker {
      * waiting. It failed exactly like having no updates, which is why it looked
      * like nothing was wrong.
      */
-    suspend fun checkOnce(): AppRelease? {
+    suspend fun checkOnce(attempts: Int = 4): AppRelease? {
         if (askedThisLaunch) return null
-        val outcome = checkOutcome()
-        if (outcome is Outcome.Answered) {
-            askedThisLaunch = true
-            return outcome.release
+        // Keeps asking rather than relying on the caller to fire again. The
+        // caller fires on signing in, and signing in is precisely the moment
+        // the token has not arrived yet -- so the one attempt landed in the
+        // gap and the prompt was gone for the whole run.
+        repeat(attempts) { i ->
+            val outcome = checkOutcome()
+            if (outcome is Outcome.Answered) {
+                askedThisLaunch = true
+                return outcome.release
+            }
+            if (i < attempts - 1) delay(1500L * (i + 1))
         }
-        // Could not ask. Leave the attempt unspent so the caller can try again
-        // once there is a session.
+        // Never asked at all. The attempt stays unspent.
         return null
     }
 
@@ -86,12 +93,10 @@ object UpdateChecker {
 
     private suspend fun checkOutcome(): Outcome = withContext(Dispatchers.IO) {
         if (!SupabaseModule.isConfigured) return@withContext Outcome.CouldNotAsk
-        // Reading releases needs an authenticated role, so asking before the
-        // session exists gets an empty answer that is indistinguishable from
-        // being up to date.
-        val signedIn = runCatching { SupabaseModule.currentUserEmail() }.getOrNull()
-        if (signedIn == null) return@withContext Outcome.CouldNotAsk
-
+        // No session required any more: the release list is readable without
+        // one, because a phone that cannot authenticate is exactly the phone
+        // that may need the update most. Version numbers and a link to a
+        // public file are not worth guarding.
         runCatching {
             SupabaseModule.client.postgrest.from("app_releases")
                 .select {
