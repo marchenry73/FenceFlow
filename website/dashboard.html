@@ -786,10 +786,13 @@ async function loadAll(){
 
 /* Fill these in after creating the products in Stripe -> Product catalog.
    A price id looks like price_1ABC...; it is public, not a secret. */
+/* TEST-MODE price ids for the pre-launch dry run -- checkout accepts only
+   Stripe's test cards (4242 4242 4242 4242) and moves no real money.
+   Swapped for the live ids at go-live. */
 const PLANS = [
-  { id:'', name:'Solo',  price:'$99/mo',  blurb:'One crew. Estimating, jobs, scheduling, invoicing.' },
-  { id:'', name:'Crew',  price:'$199/mo', blurb:'Up to 5 crew, time tracking, crew pay, full reports.' },
-  { id:'', name:'Pro',   price:'$349/mo', blurb:'Unlimited crew, multi-location, priority support.' }
+  { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99/mo',  blurb:'One crew. Estimating, jobs, scheduling, invoicing.' },
+  { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199/mo', blurb:'Up to 5 crew, time tracking, crew pay, full reports.' },
+  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349/mo', blurb:'Unlimited crew, multi-location, priority support.' }
 ];
 
 async function loadBilling(){
