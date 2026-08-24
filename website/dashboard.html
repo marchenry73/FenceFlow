@@ -277,17 +277,17 @@
             <h2>Revenue collected</h2><p class="sub">Money received, by month</p>
             <div id="chartRevenue"></div>
           </div>
-          <div class="panel">
+          <div class="panel pro-only">
             <h2>Where the money goes</h2><p class="sub">Costs against what you collected</p>
             <div id="chartCosts"></div>
           </div>
-          <div class="panel">
+          <div class="panel pro-only">
             <h2>Expenses by category</h2><p class="sub">Fuel, rentals, permits and other</p>
             <div id="chartExpenses"></div>
           </div>
         </div>
 
-        <div class="panel" style="margin-top:12px">
+        <div class="panel pro-only" style="margin-top:12px">
           <h2>Did each job make money?</h2>
           <p class="sub">
             What you collected, less materials, less approved labour, less expenses.
@@ -323,7 +323,7 @@
           <div class="msg" id="auditNote"></div>
         </div>
 
-        <div class="panel" style="margin-top:12px">
+        <div class="panel pro-only" style="margin-top:12px">
           <h2>Who owes you</h2>
           <p class="sub">
             Outstanding balances by how long they have been out. The oldest money
@@ -879,9 +879,9 @@ const PLANS = [
   { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99',  blurb:'One person running their whole business.',
     features:['1 login — just you','Unlimited jobs & estimates','Drawing takeoff & materials','Scheduling & calendar','Invoices & branded PDF quotes','Cash & check payments','Works offline'] },
   { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199', blurb:'You and your crew, all on the same page.',
-    features:['Everything in Solo','6 logins — you + 5 crew','Time clock & crew pay','Crew roles & permissions','Pipeline board','Full reports','Card payments by link'] },
-  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349', blurb:'No limits, first in line.',
-    features:['Everything in Crew','Unlimited logins','Multi-location','Priority support'] }
+    features:['Everything in Solo','6 logins — you + 5 crew','Time clock & crew pay','Crew roles & permissions','Pipeline board','Money basics: collected & owed','Card payments by link'] },
+  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349', blurb:'Run the crew AND read the business.',
+    features:['Everything in Crew','Unlimited logins','Profit & margin analytics','Cost breakdowns: where money goes','AR aging — who owes, how long','Monday morning business digest','Cloud photo & document backup','Priority support'] }
 ];
 
 async function loadBilling(){
@@ -1511,10 +1511,13 @@ function renderReports(){
   const closing=quotes?(won.length/quotes*100):0;
 
   // Headline numbers are stat tiles, not charts — one number is not a bar.
-  $('repHero').innerHTML=`
-    <div class="stat"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>
+  // Profit and margin tiles are Pro's money intelligence; Crew's hero row
+  // shows the operation.
+  const proTiles = planName === 'crew' ? '' : `
     <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit</div></div>
-    <div class="stat"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>
+    <div class="stat"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>`;
+  $('repHero').innerHTML=`
+    <div class="stat"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>${proTiles}
     <div class="stat"><div class="n">${won.length}</div><div class="l">Jobs won</div></div>
     <div class="stat"><div class="n">${closing.toFixed(0)}%</div><div class="l">Close rate</div></div>
     <div class="stat"><div class="n">${hours.toFixed(0)}</div><div class="l">Hours clocked</div></div>`;
@@ -1867,6 +1870,10 @@ function applyPlanGates(){
     const b=document.querySelector(`.tab[data-tab="${t}"]`);
     if(b) b.style.display = solo ? 'none' : '';
   });
+  // Money intelligence -- profit tables, cost charts, AR aging -- is Pro's.
+  const basicMoney = planName === 'crew' || solo;
+  document.querySelectorAll('.pro-only')
+    .forEach(el => el.style.display = basicMoney ? 'none' : '');
   const on = document.querySelector('.tab.on');
   if (solo && on && on.style.display === 'none') switchTab('dash');
 }

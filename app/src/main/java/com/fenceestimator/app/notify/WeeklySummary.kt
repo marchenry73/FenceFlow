@@ -49,6 +49,11 @@ class WeeklySummary(
 
     suspend fun checkOnce() {
         if (!Notifications.hasPermission(context)) return
+        // The Monday digest is Pro's morning read. Judged from the last
+        // remembered plan so an offline Monday still behaves; a phone that
+        // has never been told a plan keeps the digest, as always.
+        val plan = com.fenceestimator.app.cloud.ServiceGate.remembered(context)?.plan.orEmpty()
+        if (!com.fenceestimator.app.cloud.Entitlements.of(plan).digest) return
         val cal = Calendar.getInstance()
         if (cal.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) return
         if (cal.get(Calendar.HOUR_OF_DAY) < 7) return

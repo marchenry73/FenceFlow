@@ -64,11 +64,27 @@ data class Entitlements(
     val reports: Boolean,
     val timeAndCrew: Boolean,
     val cardPayments: Boolean,
+    /** Profit, margins, cost breakdowns -- the money intelligence Pro is sold on. */
+    val advancedReports: Boolean,
+    /** The Monday-morning business digest notification. */
+    val digest: Boolean,
 ) {
     companion object {
-        val FULL = Entitlements(pipeline = true, reports = true, timeAndCrew = true, cardPayments = true)
-        val SOLO = Entitlements(pipeline = false, reports = false, timeAndCrew = false, cardPayments = false)
-        fun of(plan: String): Entitlements = if (plan.equals("solo", ignoreCase = true)) SOLO else FULL
+        val FULL = Entitlements(
+            pipeline = true, reports = true, timeAndCrew = true,
+            cardPayments = true, advancedReports = true, digest = true,
+        )
+        /** Crew runs the whole operation; Pro reads the business. */
+        val CREW = FULL.copy(advancedReports = false, digest = false)
+        val SOLO = Entitlements(
+            pipeline = false, reports = false, timeAndCrew = false,
+            cardPayments = false, advancedReports = false, digest = false,
+        )
+        fun of(plan: String): Entitlements = when (plan.lowercase()) {
+            "solo" -> SOLO
+            "crew" -> CREW
+            else -> FULL   // Pro, and hand-granted companies with no plan label
+        }
     }
 }
 

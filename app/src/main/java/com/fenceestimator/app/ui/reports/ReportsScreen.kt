@@ -84,6 +84,9 @@ private val CrewAmber = Color(0xFFEDA100)
 fun ReportsScreen(onBack: () -> Unit) {
     val app = currentApp()
     val context = LocalContext.current
+    // Crew sees the operation (collected, sales, hours, crew pay); profit,
+    // margin and cost breakdowns are the money intelligence Pro is sold on.
+    val ent = com.fenceestimator.app.ui.components.LocalEntitlements.current
     val viewModel: ReportsViewModel = viewModel(factory = GenericViewModelFactory { ReportsViewModel(app.repository) })
     val preset by viewModel.preset.collectAsState()
     val from by viewModel.from.collectAsState()
@@ -178,12 +181,18 @@ fun ReportsScreen(onBack: () -> Unit) {
                             date = { dayFormat.format(java.util.Date(it)) }
                         )
                     }
-                    BigStat(stringResource(R.string.rep_stat_profit), currency.format(totals.profit), Modifier.weight(1f)) {
-                        showing = StatDetails.profit(context, totals) { currency.format(it) }
+                    if (ent.advancedReports) {
+                        BigStat(stringResource(R.string.rep_stat_profit), currency.format(totals.profit), Modifier.weight(1f)) {
+                            showing = StatDetails.profit(context, totals) { currency.format(it) }
+                        }
+                    } else {
+                        BigStat(stringResource(R.string.rep_stat_jobs_won), totals.jobsWon.toString(), Modifier.weight(1f)) {
+                            showing = StatDetails.jobsWon(context, totals, data.wonJobNames)
+                        }
                     }
                 }
             }
-            item {
+            if (ent.advancedReports) item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     BigStat(stringResource(R.string.reports_margin), "${"%.0f".format(totals.marginPercent)}%", Modifier.weight(1f)) {
                         showing = StatDetails.margin(context, totals)
@@ -218,7 +227,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         empty = stringResource(R.string.rep_empty_nothing_paid)
                     )
                 }
-                item {
+                if (ent.advancedReports) item {
                     ChartCard(
                         title = stringResource(R.string.rep_chart_where_money_goes),
                         rows = data.costBreakdown,
@@ -227,7 +236,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         empty = stringResource(R.string.rep_empty_no_money)
                     )
                 }
-                item {
+                if (ent.advancedReports) item {
                     ChartCard(
                         title = stringResource(R.string.rep_chart_expenses_by_category),
                         // Rows arrive keyed by enum name; show them in the
@@ -242,7 +251,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         empty = stringResource(R.string.rep_empty_no_expenses)
                     )
                 }
-                item {
+                if (ent.advancedReports) item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(stringResource(R.string.rep_the_numbers), style = MaterialTheme.typography.titleMedium)
