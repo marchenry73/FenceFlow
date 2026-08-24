@@ -275,6 +275,12 @@ Deno.serve(async (req) => {
           subscription_ends_at: sub.current_period_end
             ? new Date(sub.current_period_end * 1000).toISOString()
             : null,
+          // The access gate honors trial_ends_at; without this a checkout
+          // trial set status='trialing' with no trial end recorded and the
+          // brand-new subscriber was locked out on day one.
+          trial_ends_at: sub.trial_end
+            ? new Date(sub.trial_end * 1000).toISOString()
+            : null,
         }).eq("id", companyId);
         break;
       }
