@@ -168,7 +168,8 @@ class MainActivity : FragmentActivity() {
                                     // waiting for the network.
                                     service = com.fenceestimator.app.cloud.ServiceGate.remembered(ctx)
                                     if (appSession.signedIn) {
-                                        com.fenceestimator.app.cloud.ServiceGate.refresh(ctx)
+                                        com.fenceestimator.app.cloud.ServiceGate
+                                            .refreshWhenPossible(ctx)
                                             ?.let { service = it }
                                     }
                                     checkedService = true

@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -108,6 +109,19 @@ object ServiceGate {
         val signedIn = runCatching { SupabaseModule.currentUserEmail() }.getOrNull()
         if (signedIn == null) return@withContext null
 
+        // Knowing who you are is not the same as holding a token.
+        //
+        // Without this the question went out anonymous, and the gate answers an
+        // anonymous caller with no rows at all -- which arrives here as null and
+        // is indistinguishable from "could not ask", so the app opened. That is
+        // exactly what happened when a suspended company was locked out of the
+        // website and walked straight into the phone: same server, same answer,
+        // one client never actually asked.
+        if (!SupabaseModule.hasLiveSession()) {
+            SupabaseModule.tryRefreshSession()
+            if (!SupabaseModule.hasLiveSession()) return@withContext null
+        }
+
         val answer = runCatching {
             SupabaseModule.client.postgrest
                 .rpc("my_service_status")
@@ -126,6 +140,24 @@ object ServiceGate {
             }
         }
         answer
+    }
+
+    /**
+     * Asks until the question can actually be asked.
+     *
+     * At sign-in and at cold start there is a window where the app knows whose
+     * it is but has no token yet. A single attempt inside that window answers
+     * "could not ask" -- which keeps the app open, and then nothing asks again
+     * until the next launch. So a company switched off mid-week went on working
+     * on a phone that never closed. Attempts stop the moment the server gives a
+     * definite answer, so the normal case is still one call.
+     */
+    suspend fun refreshWhenPossible(context: Context, attempts: Int = 4): ServiceStatus? {
+        repeat(attempts) { i ->
+            refresh(context)?.let { return it }
+            if (i < attempts - 1) delay(1500L * (i + 1))
+        }
+        return null
     }
 
     /**
