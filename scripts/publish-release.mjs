@@ -139,7 +139,11 @@ function uploadApk(code) {
       ],
       { encoding: "utf8", shell: true, cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] }
     );
-    return `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/releases/${remote}`;
+    // Through the apk-proxy on purpose: it streams chunked (no Content-Length),
+    // and phones on 1.134-1.136 crash the moment the updater can render a
+    // progress percentage. The proxy serves the same bucket file byte-for-byte;
+    // newer builds lose only the progress number.
+    return `https://${PROJECT_REF}.supabase.co/functions/v1/apk-proxy?f=${remote}`;
   } catch (e) {
     // The CLI's own message, not just "command failed" -- which says nothing
     // about why and sent me chasing the wrong cause twice.
