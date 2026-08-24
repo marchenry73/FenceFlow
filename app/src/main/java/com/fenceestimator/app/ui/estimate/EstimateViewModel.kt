@@ -107,7 +107,12 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
                 }
             }
             val points = FenceCodec.decodePoints(run.pointsEncoded)
-            if (points.size < 2) {
+            // A run that is only a gate has nothing to draw and nothing to
+            // type, but it still carries posts, hardware and concrete -- a
+            // standalone gate sale is a real job. Refusing until fence was
+            // drawn meant a gate-only job showed no materials at all.
+            val hasGates = FenceCodec.decodeGates(run.gatesEncoded).isNotEmpty()
+            if (points.size < 2 && !hasGates) {
                 _message.tryEmit(
                     if (run.label.isBlank())
                         com.fenceestimator.app.ui.components.UiMessage(R.string.evm_draw_or_type_unnamed)

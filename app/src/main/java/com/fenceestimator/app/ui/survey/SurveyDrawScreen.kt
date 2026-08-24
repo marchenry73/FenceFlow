@@ -126,6 +126,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     val runs by viewModel.runs.collectAsState()
     val selectedRunId by viewModel.selectedRunId.collectAsState()
     val mode by viewModel.mode.collectAsState()
+    // For the run a gate creates for itself when the job has no fence drawn --
+    // it should carry the same defaults a hand-added run would.
+    val runDefaults by app.settingsStore.profile.collectAsState(
+        initial = com.fenceestimator.app.data.BusinessProfile()
+    )
     val pendingCalibration by viewModel.pendingCalibrationPoints.collectAsState()
     val context = LocalContext.current
 
@@ -816,7 +821,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     gateDialogPoint?.let { point ->
         GateWidthDialog(
             onConfirm = { widthFt, mounting, swing ->
-                viewModel.addGate(point.x, point.y, widthFt, mounting, swing)
+                viewModel.addGate(point.x, point.y, widthFt, mounting, swing, runDefaults)
                 gateDialogPoint = null
             },
             onDismiss = { gateDialogPoint = null }

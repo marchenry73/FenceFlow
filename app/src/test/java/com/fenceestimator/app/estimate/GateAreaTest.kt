@@ -62,6 +62,24 @@ class GateAreaTest {
     }
 
     @Test
+    fun `a gate with no fence drawn still gets its hardware`() {
+        // A standalone gate sale is a real job. The run it lives on has no
+        // fence points at all -- the takeoff must still carry the gate's
+        // posts, stiffener and concrete rather than refusing until fence
+        // exists.
+        val run = FenceRun(
+            jobId = 1,
+            fenceType = FenceType.VINYL,
+            gatesEncoded = FenceCodec.encodeGates(
+                listOf(GateMarker(500f, 0f, 4f, GateMounting.LINE))
+            )
+        )
+        assertEquals(2.0, qty(run, MaterialRole.END_POST), 0.001)
+        assertTrue(qty(run, MaterialRole.STIFFENER) >= 1.0)
+        assertTrue(qty(run, MaterialRole.CONCRETE_BAG) >= 1.0)
+    }
+
+    @Test
     fun `a wall-hung gate needs four hole plugs`() {
         // Four 5/8" holes drilled through the stiffener into the blank post.
         assertEquals(4.0, qty(runWithGate(GateMounting.WALL), MaterialRole.HOLE_PLUG), 0.001)

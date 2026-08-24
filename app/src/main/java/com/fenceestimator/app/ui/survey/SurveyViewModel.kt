@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FieldChange
 import com.fenceestimator.app.data.Job
@@ -276,20 +277,44 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         viewModelScope.launch { repository.deleteSiteMarker(marker) }
     }
 
-    /** Places a gate at an exact point -- it does not need to sit on the drawn fence line. */
+    /**
+     * Places a gate at an exact point -- it does not need to sit on the drawn
+     * fence line, and it does not need a fence at all.
+     *
+     * A standalone gate sale is a real job. This used to bail out when no run
+     * existed, which silently threw the gate away: nothing on the grid, no
+     * materials, no charge -- indistinguishable from a missed tap. Now a gate
+     * placed on an empty job gets a run of its own to live on, built from the
+     * same defaults a hand-added run would get, and that run becomes the
+     * selection so the gate is drawn and the next action lands on it.
+     */
     fun addGate(
         x: Float,
         y: Float,
         widthFt: Float,
         mounting: GateMounting = GateMounting.LINE,
-        swing: GateSwing = GateSwing.IN
+        swing: GateSwing = GateSwing.IN,
+        runDefaults: BusinessProfile? = null
     ) {
-        val run = selectedRun() ?: return
-        val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
-        gates.add(GateMarker(x, y, widthFt, mounting, swing))
         viewModelScope.launch {
+            val run = selectedRun() ?: runs.value.firstOrNull() ?: createGateOnlyRun(runDefaults) ?: return@launch
+            val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
+            gates.add(GateMarker(x, y, widthFt, mounting, swing))
             repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
         }
+    }
+
+    private suspend fun createGateOnlyRun(defaults: BusinessProfile?): FenceRun? {
+        val base = FenceRun(jobId = jobId)
+        val created = if (defaults == null) base else base.copy(
+            panelWidthFt = defaults.defaultPanelWidthFt,
+            panelHeightFt = defaults.defaultPanelHeightFt,
+            postSpacingFt = defaults.defaultPostSpacingFt,
+            concreteBagsPerPost = defaults.defaultConcreteBagsPerPost
+        )
+        val id = repository.createFenceRun(created)
+        _selectedRunId.value = id
+        return repository.getFenceRun(id)
     }
 
     /**
