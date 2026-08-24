@@ -274,6 +274,11 @@ Deno.serve(async (req) => {
           if (stored !== sub.id) break;      // stale subscription; ignore
         } else if (stored && stored !== sub.id) {
           break;                              // a different sub owns this company
+        } else if (!stored && sub.status === "canceled") {
+          // A retried event from a subscription this company no longer points
+          // at. There is nothing to cancel on a company with no subscription;
+          // applying it is how a repaired company kept getting re-canceled.
+          break;
         }
 
         const status = event.type === "customer.subscription.deleted"

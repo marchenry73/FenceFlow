@@ -876,9 +876,12 @@ async function loadAll(){
    Stripe's test cards (4242 4242 4242 4242) and moves no real money.
    Swapped for the live ids at go-live. */
 const PLANS = [
-  { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99/mo',  blurb:'One crew. Estimating, jobs, scheduling, invoicing.' },
-  { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199/mo', blurb:'Up to 5 crew, time tracking, crew pay, full reports.' },
-  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349/mo', blurb:'Unlimited crew, multi-location, priority support.' }
+  { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99',  blurb:'One person running their whole business.',
+    features:['1 login — just you','Unlimited jobs & estimates','Drawing takeoff & materials','Scheduling & calendar','Invoices & branded PDF quotes','Cash & check payments','Works offline'] },
+  { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199', blurb:'You and your crew, all on the same page.',
+    features:['Everything in Solo','6 logins — you + 5 crew','Time clock & crew pay','Crew roles & permissions','Pipeline board','Full reports','Card payments by link'] },
+  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349', blurb:'No limits, first in line.',
+    features:['Everything in Crew','Unlimited logins','Multi-location','Priority support'] }
 ];
 
 async function loadBilling(){
@@ -909,33 +912,39 @@ async function loadBilling(){
   const rank = { solo:0, crew:1, pro:2 };
   const myRank = rank[plan.toLowerCase()];
 
-  const card = (p,i,label)=>`
-    <div class="panel" style="margin:0">
-      <h3 style="margin:0 0 4px">${p.name}</h3>
-      <div style="font-size:22px;font-weight:700;margin-bottom:6px">${p.price}</div>
-      <p style="font-size:13px;color:var(--muted);min-height:38px">${p.blurb}</p>
-      <button class="btn" data-plan="${i}"${p.id?'':' disabled title="Add this plan\'s Stripe price id in dashboard.html"'}>
-        ${p.id?label:'Not set up yet'}
-      </button>
+  // Every plan is always on the page with its full feature list -- that IS
+  // the answer to "what do I get". What changes with your state is the
+  // button: choose when you have nothing, upgrade for the plans above yours,
+  // a quiet badge on the one you're on.
+  const card = (p,i)=>{
+    const mine = subscribed && myRank === i;
+    const below = subscribed && myRank !== undefined && i < myRank;
+    const btn =
+      mine   ? `<div style="text-align:center;font-weight:700;color:var(--teal);padding:9px 0">✓ Your plan</div>` :
+      below  ? `<div style="text-align:center;font-size:13px;color:var(--muted);padding:9px 0">Included in yours</div>` :
+      `<button class="btn" style="width:100%" data-plan="${i}"${p.id?'':' disabled'}>
+         ${subscribed ? 'Upgrade to '+p.name : 'Choose '+p.name}
+       </button>`;
+    return `
+    <div class="panel" style="margin:0;display:flex;flex-direction:column${mine?';border:2px solid var(--teal)':''}">
+      <h3 style="margin:0 0 2px">${p.name}</h3>
+      <div style="font-size:26px;font-weight:800">${p.price}<span style="font-size:14px;font-weight:400;color:var(--muted)">/month</span></div>
+      <p style="font-size:13px;color:var(--muted);margin:4px 0 10px">${p.blurb}</p>
+      <ul style="list-style:none;padding:0;margin:0 0 14px;flex:1">
+        ${p.features.map(f=>`<li style="padding:3px 0;font-size:13.5px"><span style="color:var(--teal);font-weight:700">✓</span> ${f}</li>`).join('')}
+      </ul>
+      ${btn}
     </div>`;
+  };
 
-  if (subscribed && myRank !== undefined) {
-    const current = PLANS[myRank];
-    const upgrades = PLANS.map((p,i)=>({p,i})).filter(x=>rank[x.p.name.toLowerCase()]>myRank);
-    $('planCards').innerHTML = `
-      <div class="panel" style="margin:0;border-color:var(--teal)">
-        <h3 style="margin:0 0 4px">${current.name} — your plan</h3>
-        <div style="font-size:22px;font-weight:700;margin-bottom:6px">${current.price}</div>
-        <p style="font-size:13px;color:var(--muted)">${current.blurb}</p>
-      </div>` +
-      (upgrades.length
-        ? upgrades.map(x=>card(x.p,x.i,'Upgrade to '+x.p.name)).join('')
-        : '');
-  } else if (subscribed) {
-    // Subscribed with no plan label: granted by hand, full access, nothing to sell.
-    $('planCards').innerHTML = '';
+  $('planCards').style.cssText =
+    'display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;align-items:stretch';
+  if (subscribed && myRank === undefined) {
+    // Granted by hand: full access, nothing to sell.
+    $('planCards').innerHTML =
+      `<p style="color:var(--muted)">Full access — every feature is included for this company.</p>`;
   } else {
-    $('planCards').innerHTML = PLANS.map((p,i)=>card(p,i,'Choose '+p.name)).join('');
+    $('planCards').innerHTML = PLANS.map((p,i)=>card(p,i)).join('');
   }
 
   document.querySelectorAll('#planCards button[data-plan]').forEach(b=>
