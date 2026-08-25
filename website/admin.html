@@ -92,7 +92,7 @@
       <div class="scroll">
         <table>
           <thead><tr>
-            <th>Company</th><th>Status</th><th>Plan</th><th>$/mo</th>
+            <th>Company</th><th>Status</th><th>Onboarding</th><th>Plan</th><th>$/mo</th>
             <th>Users</th><th>Jobs</th><th>Last active</th><th>Renews / ends</th><th></th>
           </tr></thead>
           <tbody id="rows"></tbody>
@@ -140,6 +140,30 @@
     padding:12px;border-radius:8px;margin:0"></pre>
   <div style="margin-top:12px;text-align:right">
     <button onclick="document.getElementById('stackDialog').close()">Close</button>
+  </div>
+</dialog>
+
+<dialog id="newDialog" style="max-width:min(430px,92vw)">
+  <h3 style="margin-top:0">Bring a company on</h3>
+  <p style="color:var(--muted);font-size:14px;margin:0 0 4px">
+    They get an email with a link that signs them in and walks them through
+    their details, the agreement and choosing a plan. You can follow how far
+    they get from this list.
+  </p>
+  <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);
+         text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Company name</label>
+  <input id="newName" style="width:100%" placeholder="Coastal Fence &amp; Gate">
+  <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);
+         text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px">Owner's email</label>
+  <input id="newEmail" type="email" style="width:100%" placeholder="name@theircompany.com">
+  <p style="color:var(--muted);font-size:12.5px;margin:8px 0 0">
+    Leave the email blank to create the company without inviting anyone — you
+    can send the invitation later.
+  </p>
+  <div class="msg" id="newMsg" style="font-size:13.5px;min-height:1.2em;margin-top:8px"></div>
+  <div style="margin-top:12px;text-align:right;display:flex;gap:8px;justify-content:flex-end">
+    <button id="newCancel">Cancel</button>
+    <button class="primary" id="newCreate">Create &amp; invite</button>
   </div>
 </dialog>
 
@@ -251,6 +275,34 @@ async function load() {
   renderCrashes();
 }
 
+/**
+ * How far a company has got, as four beads you can read at a glance.
+ *
+ * A list where every new company looks identical from the first minute to the
+ * last tells you nothing about who needs chasing. These are the four things
+ * that actually have to happen -- invited, signed in, agreement signed, plan
+ * chosen -- and the label underneath names the first one still outstanding,
+ * because that is the thing you would pick up the phone about.
+ */
+function onboardingTrack(c) {
+  const steps = [
+    { on: !!c.invited_at,            label: 'Invited' },
+    { on: !!c.joined_at,             label: 'Signed in' },
+    { on: !!c.agreement_signed_at,   label: 'Agreement signed' },
+    { on: ['active', 'trialing'].includes(c.subscription_status), label: 'Plan chosen' },
+  ];
+  const beads = steps.map(s =>
+    `<span title="${esc(s.label)}" style="width:9px;height:9px;border-radius:50%;display:inline-block;
+      background:${s.on ? 'var(--good,#0E8C7B)' : 'var(--line,#d6dbe3)'}"></span>`).join('');
+  const next = steps.find(s => !s.on);
+  const done = steps.every(s => s.on);
+  const caption = done
+    ? 'Up and running'
+    : (steps[0].on ? 'Waiting: ' : 'Not started — ') + (next ? next.label.toLowerCase() : '');
+  return `<div style="display:flex;gap:4px;align-items:center">${beads}</div>
+    <span style="font-size:11.5px;color:${done ? 'var(--good,#0E8C7B)' : 'var(--muted)'}">${esc(caption)}</span>`;
+}
+
 function statusPill(c) {
   if (c.suspended) return '<span class="pill bad">Suspended</span>';
   switch (c.subscription_status) {
@@ -301,30 +353,95 @@ async function adminAction(fn, args, confirmText) {
  * else's password. They sign up themselves and claim the company with this
  * code, which works exactly once.
  */
-async function createCompany() {
-  const name = prompt('Company name');
-  if (!name || !name.trim()) return;
-  const email = prompt('Contact email (optional)') || null;
+function createCompany() {
+  // A real form rather than two browser prompts. Prompts cannot be corrected
+  // once you have moved past them, cannot say what a field is for, and look
+  // like something has gone wrong rather than like a product.
+  $('newName').value = '';
+  $('newEmail').value = '';
+  $('newMsg').textContent = '';
+  $('newDialog').showModal();
+  $('newName').focus();
+}
 
-  $('msg').textContent = 'Creating…';
+async function submitNewCompany() {
+  const name = $('newName').value.trim();
+  const email = $('newEmail').value.trim();
+  if (!name) { $('newMsg').textContent = 'Give the company a name.'; return; }
+
+  $('newCreate').disabled = true;
+  $('newMsg').textContent = email ? 'Creating and sending the invitation…' : 'Creating…';
+
   const { data, error } = await db.rpc('admin_create_company', {
-    company_name: name.trim(), contact_email: email
+    company_name: name, contact_email: email || null
   });
-  if (error) { $('msg').textContent = error.message; return; }
+  if (error) { $('newMsg').textContent = error.message; $('newCreate').disabled = false; return; }
 
   const row = Array.isArray(data) ? data[0] : data;
+  const companyId = row && row.company_id;
   const code = row && row.setup_code;
-  $('msg').textContent = '';
+
+  // The invitation is what makes this a process the client can finish on
+  // their own. The setup code stays as the fallback for somebody who cannot
+  // receive the email.
+  let invited = false;
+  if (email && companyId) {
+    const { data: sess } = await db.auth.getSession();
+    try {
+      const res = await fetch(`${SUPA_URL}/functions/v1/invite-company`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
+        body: JSON.stringify({ companyId, email, companyName: name })
+      });
+      const body = await res.json();
+      if (body.sent) invited = true;
+      else $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (body.error || 'unknown');
+    } catch (e) {
+      $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (e.message || e);
+    }
+  }
+
+  $('newCreate').disabled = false;
   await load();
 
-  if (code) {
-    // Shown once, plainly, with what to do with it. The code is not
-    // retrievable afterwards by design -- if it goes astray, delete the
-    // company and make another.
+  if (invited) {
+    $('newDialog').close();
+    $('msg').textContent = `Invitation sent to ${email}.`;
+    setTimeout(() => { $('msg').textContent = ''; }, 4000);
+    return;
+  }
+  if (!email && code) {
+    // No email given, so the code is the only way in. Shown once, by design.
+    $('newDialog').close();
     $('setupCode').textContent = code;
-    $('setupFor').textContent = name.trim();
+    $('setupFor').textContent = name;
     $('setupDialog').showModal();
   }
+}
+
+/** Sends (or re-sends) the invitation for a company already on the list. */
+async function inviteCompany(id, name, existingEmail) {
+  const email = (existingEmail || '').trim();
+  if (!email) {
+    $('msg').textContent = 'Add a contact email in Manage first, then invite.';
+    setTimeout(() => { $('msg').textContent = ''; }, 4000);
+    return;
+  }
+  $('msg').textContent = `Sending to ${email}…`;
+  const { data: sess } = await db.auth.getSession();
+  try {
+    const res = await fetch(`${SUPA_URL}/functions/v1/invite-company`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
+      body: JSON.stringify({ companyId: id, email, companyName: name })
+    });
+    const body = await res.json();
+    $('msg').textContent = body.sent ? `Invitation sent to ${email}.` : (body.error || 'Could not send.');
+  } catch (e) {
+    $('msg').textContent = String(e.message || e);
+  }
+  await load();
+  setTimeout(() => { $('msg').textContent = ''; }, 4000);
 }
 
 function render() {
@@ -356,6 +473,7 @@ function render() {
       <td><b>${esc(c.name || 'Unnamed')}</b><br>
           <span style="color:var(--muted);font-size:12px">${esc(c.email || '')}</span></td>
       <td>${statusPill(c)}</td>
+      <td>${onboardingTrack(c)}</td>
       <td>${esc(c.subscription_plan || '—')}</td>
       <td>${money(c.monthly_price)}</td>
       <td>${c.people}${appVersion(c)}</td>
@@ -364,9 +482,16 @@ function render() {
       <td>${c.days_left != null ? c.days_left + ' days' : day(c.trial_ends_at)}</td>
       <td style="white-space:nowrap">
         ${accessButton(c)}
+        ${c.joined_at ? '' :
+          `<button data-invite="${c.id}" data-email="${esc(c.invited_email || c.email || '')}"
+             data-name="${esc(c.name || '')}">${c.invited_at ? 'Re-invite' : 'Invite'}</button>`}
         <button data-edit="${c.id}">Manage</button>
       </td>
     </tr>`).join('');
+
+  document.querySelectorAll('[data-invite]').forEach(b =>
+    b.addEventListener('click', () =>
+      inviteCompany(b.dataset.invite, b.dataset.name, b.dataset.email)));
 
   document.querySelectorAll('[data-edit]').forEach(b =>
     b.addEventListener('click', () => openEdit(b.dataset.edit)));
@@ -531,6 +656,10 @@ $('signIn').addEventListener('click', signIn);
 $('password').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
 $('refresh').addEventListener('click', load);
 $('addCompany').addEventListener('click', createCompany);
+$('newCancel').addEventListener('click', () => $('newDialog').close());
+$('newCreate').addEventListener('click', submitNewCompany);
+$('newEmail').addEventListener('keydown', e => { if (e.key === 'Enter') submitNewCompany(); });
+$('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newEmail').focus(); });
 $('setupDone').addEventListener('click', () => $('setupDialog').close());
 $('exportCsv').addEventListener('click', exportCsv);
 $('signOut').addEventListener('click', async () => { await db.auth.signOut(); location.reload(); });

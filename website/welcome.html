@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome to FenceFlow</title>
+<style>
+  :root{--graphite:#0F1826;--graphite2:#1E2A3D;--orange:#FF5A1F;--orange-dk:#B23800;
+        --teal:#0E8C7B;--paper:#F7F8FA;--line:#E3E7ED;--text:#12151A;--muted:#5A6472;--red:#E5484D}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--text);line-height:1.55}
+  header{background:var(--graphite);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:10px}
+  .logo{font-weight:800;font-size:19px;letter-spacing:-.4px}
+  .logo span{color:var(--orange)}
+  .wrap{max-width:47rem;margin:0 auto;padding:28px 18px 70px}
+
+  .steps{display:flex;gap:6px;margin:0 0 22px;flex-wrap:wrap}
+  .step{flex:1;min-width:120px;padding:9px 11px;border-radius:9px;background:#fff;border:1px solid var(--line);font-size:13px}
+  .step b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+  .step.on{border-color:var(--orange);box-shadow:0 0 0 2px rgba(255,90,31,.12)}
+  .step.done{border-color:var(--teal);background:#F2FAF8}
+  .step.done b{color:var(--teal)}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:16px}
+  h1{font-size:26px;letter-spacing:-.5px;margin-bottom:6px}
+  h2{font-size:18px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:14.5px;margin-bottom:16px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+  input,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;background:#fff;color:var(--text)}
+  input:focus,textarea:focus{outline:2px solid var(--orange);outline-offset:1px;border-color:transparent}
+  .btn{background:var(--orange);color:#fff;border:0;padding:11px 20px;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer}
+  .btn:hover{background:var(--orange-dk)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn.ghost{background:#fff;color:var(--text);border:1px solid var(--line)}
+  .msg{font-size:14px;margin-top:12px;min-height:1.2em}
+  .msg.err{color:var(--red)} .msg.ok{color:var(--teal)}
+
+  .terms{max-height:15rem;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:14px;background:#FCFCFD;font-size:14px}
+  .terms h3{font-size:14px;margin:12px 0 4px} .terms h3:first-child{margin-top:0}
+  .terms p{margin-bottom:8px;color:#333}
+
+  .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:12px;margin-top:6px}
+  .plan{border:1px solid var(--line);border-radius:10px;padding:16px;background:#fff;display:flex;flex-direction:column}
+  .plan h3{font-size:17px;margin-bottom:2px}
+  .plan .amt{font-size:27px;font-weight:800;letter-spacing:-.5px}
+  .plan .amt small{font-size:13px;font-weight:400;color:var(--muted)}
+  .plan ul{list-style:none;margin:10px 0 14px;flex:1}
+  .plan li{font-size:13.5px;padding:2px 0;color:#3a4250}
+  .plan li::before{content:"✓";color:var(--teal);font-weight:700;margin-right:7px}
+  .done-note{background:#F2FAF8;border:1px solid #BFE5DE;color:#0b6a5d;border-radius:9px;padding:12px 14px;font-size:14.5px}
+</style>
+</head>
+<body>
+
+<header><div class="logo">Fence<span>Flow</span></div></header>
+
+<div class="wrap">
+  <div id="loading" class="card"><h1>One moment…</h1><p class="sub">Checking your invitation.</p></div>
+
+  <div id="needLink" class="card" style="display:none">
+    <h1>Open this from your invitation email</h1>
+    <p class="sub">
+      The link in that email signs you in so nothing here has to be typed twice.
+      If it has expired, ask for a new one and it will land in the same inbox.
+    </p>
+    <a class="btn" href="dashboard.html">Sign in instead</a>
+  </div>
+
+  <div id="flow" style="display:none">
+    <div class="steps">
+      <div class="step" id="stepDetails"><b>Step 1</b>Your business</div>
+      <div class="step" id="stepAgreement"><b>Step 2</b>Service agreement</div>
+      <div class="step" id="stepPlan"><b>Step 3</b>Choose a plan</div>
+    </div>
+
+    <!-- 1. details -->
+    <div class="card" id="cardDetails">
+      <h2>Tell us about your business</h2>
+      <p class="sub">This is what appears on the quotes and invoices you send, so use the name your customers know.</p>
+      <label for="bName">Business name</label>
+      <input id="bName" autocomplete="organization">
+      <label for="bPhone">Phone</label>
+      <input id="bPhone" type="tel" autocomplete="tel">
+      <label for="bEmail">Email customers should reply to</label>
+      <input id="bEmail" type="email" autocomplete="email">
+      <label for="bLicense">Contractor licence number <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <input id="bLicense">
+      <div style="margin-top:16px"><button class="btn" id="saveDetails">Save and continue</button></div>
+      <div class="msg" id="detailsMsg"></div>
+    </div>
+
+    <!-- 2. agreement -->
+    <div class="card" id="cardAgreement" style="display:none">
+      <h2>Service agreement</h2>
+      <p class="sub">Short, and worth reading. Typing your name signs it.</p>
+      <div class="terms">
+        <h3>1. What FenceFlow is</h3>
+        <p>FenceFlow is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.</p>
+        <h3>2. Your data is yours</h3>
+        <p>Your jobs, customers, prices and photos belong to you. You can export them at any time, and nothing is deleted because a subscription lapses — if access ends, your records are still there and come back when it resumes.</p>
+        <h3>3. Payment</h3>
+        <p>Plans are billed monthly in advance and can be changed or cancelled at any time. Cancelling stops the next charge; it does not refund the current month.</p>
+        <h3>4. Money you take from your customers</h3>
+        <p>Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlow never holds your money and is not a party to those transactions.</p>
+        <h3>5. What we don't promise</h3>
+        <p>FenceFlow works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.</p>
+        <h3>6. Ending it</h3>
+        <p>You can stop at any time. We may end an account for non-payment or misuse, and will always say which, in writing, before doing so.</p>
+      </div>
+      <label for="signName">Type your full name to sign</label>
+      <input id="signName" autocomplete="name">
+      <div style="margin-top:16px"><button class="btn" id="signBtn">Sign agreement</button></div>
+      <div class="msg" id="signMsg"></div>
+    </div>
+
+    <!-- 3. plan -->
+    <div class="card" id="cardPlan" style="display:none">
+      <h2>Choose your plan</h2>
+      <p class="sub">14 days free. Change or cancel whenever you like — nothing is locked in.</p>
+      <div class="plans" id="planCards"></div>
+      <div class="msg" id="planMsg"></div>
+    </div>
+
+    <!-- done -->
+    <div class="card" id="cardDone" style="display:none">
+      <h2>You're all set</h2>
+      <div class="done-note" id="doneNote"></div>
+      <p class="sub" style="margin-top:14px">
+        Install the FenceFlow app on your phone and sign in with this same email.
+        Everything you set up here is already waiting.
+      </p>
+      <a class="btn" href="dashboard.html">Open my dashboard</a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+
+const SUPA_URL = 'https://newcrgafcptspmapacrx.supabase.co';
+const db = createClient(SUPA_URL, 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b');
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const say = (el, text, kind) => { const e = $(el); e.textContent = text; e.className = 'msg ' + (kind||''); };
+
+const AGREEMENT_VERSION = '2026-08-v1';
+
+/* Same plans and the same test-mode price ids the dashboard uses. */
+const PLANS = [
+  { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99',
+    features:['1 login — just you','Unlimited jobs & estimates','Drawing takeoff & materials','Invoices & branded PDF quotes','Works offline'] },
+  { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199',
+    features:['Everything in Solo','6 logins — you + 5 crew','Time clock & crew pay','Pipeline board','Card payments by link'] },
+  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349',
+    features:['Everything in Crew','Unlimited logins','Profit & margin analytics','AR aging & Monday digest','Priority support'] }
+];
+
+let state = { details:false, agreement:false, plan:false };
+
+/* An invitation link arrives with the session in the URL fragment. Supabase
+   picks it up itself, but it needs a moment, and landing on "please sign in"
+   for that moment is a poor first impression. */
+async function currentUser() {
+  const { data } = await db.auth.getUser();
+  if (data?.user) return data.user;
+  if (location.hash.includes('access_token')) {
+    await new Promise(r => setTimeout(r, 700));
+    const retry = await db.auth.getUser();
+    return retry.data?.user ?? null;
+  }
+  return null;
+}
+
+async function boot() {
+  const user = await currentUser();
+  if (!user) { $('loading').style.display = 'none'; $('needLink').style.display = 'block'; return; }
+
+  // The invite carries the company they were created for, so nobody types a code.
+  const { data: prof } = await db.from('profiles').select('company_id, full_name').eq('id', user.id).maybeSingle();
+  const invitedCompany = user.user_metadata?.company_id;
+  if (!prof?.company_id && invitedCompany) {
+    await db.rpc('join_company', {
+      target_company_id: invitedCompany,
+      member_name: user.user_metadata?.full_name || '',
+      requested_role_in: 'OWNER'
+    });
+  }
+
+  const { data: onboarding } = await db.rpc('my_onboarding');
+  const row = Array.isArray(onboarding) ? onboarding[0] : onboarding;
+  state = {
+    details: !!row?.details_done,
+    agreement: !!row?.agreement_done,
+    plan: !!row?.plan_done
+  };
+
+  // Prefill from whatever the admin already recorded, so the common case is
+  // reading and pressing a button rather than typing.
+  const { data: co } = await db.from('companies').select('name, phone, email, license_no').maybeSingle();
+  if (co) {
+    $('bName').value = co.name || '';
+    $('bPhone').value = co.phone || '';
+    $('bEmail').value = co.email || user.email || '';
+    $('bLicense').value = co.license_no || '';
+  } else {
+    $('bEmail').value = user.email || '';
+  }
+  $('signName').value = prof?.full_name || user.user_metadata?.full_name || '';
+
+  $('loading').style.display = 'none';
+  $('flow').style.display = 'block';
+  render();
+}
+
+function render() {
+  const stage = !state.details ? 'details' : !state.agreement ? 'agreement' : !state.plan ? 'plan' : 'done';
+
+  for (const [key, el] of [['details','stepDetails'],['agreement','stepAgreement'],['plan','stepPlan']]) {
+    $(el).className = 'step' + (state[key] ? ' done' : (stage === key ? ' on' : ''));
+  }
+  $('cardDetails').style.display   = stage === 'details'   ? 'block' : 'none';
+  $('cardAgreement').style.display = stage === 'agreement' ? 'block' : 'none';
+  $('cardPlan').style.display      = stage === 'plan'      ? 'block' : 'none';
+  $('cardDone').style.display      = stage === 'done'      ? 'block' : 'none';
+
+  if (stage === 'plan') renderPlans();
+  if (stage === 'done') {
+    $('doneNote').textContent =
+      'Your business is set up, the agreement is signed, and your plan is running.';
+  }
+}
+
+function renderPlans() {
+  $('planCards').innerHTML = PLANS.map((p, i) => `
+    <div class="plan">
+      <h3>${esc(p.name)}</h3>
+      <div class="amt">${esc(p.price)}<small>/month</small></div>
+      <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+      <button class="btn" data-plan="${i}">Start with ${esc(p.name)}</button>
+    </div>`).join('');
+  document.querySelectorAll('#planCards button[data-plan]').forEach(b =>
+    b.addEventListener('click', () => choosePlan(PLANS[+b.dataset.plan])));
+}
+
+$('saveDetails').addEventListener('click', async () => {
+  const name = $('bName').value.trim();
+  if (!name) return say('detailsMsg', 'Your business needs a name.', 'err');
+  say('detailsMsg', 'Saving…');
+  const { error } = await db.rpc('complete_company_details', {
+    biz_name: name,
+    biz_phone: $('bPhone').value.trim(),
+    biz_email: $('bEmail').value.trim(),
+    license_no: $('bLicense').value.trim()
+  });
+  if (error) return say('detailsMsg', error.message, 'err');
+  state.details = true;
+  say('detailsMsg', '');
+  render();
+});
+
+$('signBtn').addEventListener('click', async () => {
+  const typed = $('signName').value.trim();
+  if (!typed) return say('signMsg', 'Type your name to sign.', 'err');
+  say('signMsg', 'Signing…');
+  const { error } = await db.rpc('sign_service_agreement', {
+    typed_name: typed, version: AGREEMENT_VERSION
+  });
+  if (error) return say('signMsg', error.message, 'err');
+  state.agreement = true;
+  say('signMsg', '');
+  render();
+});
+
+async function choosePlan(plan) {
+  say('planMsg', 'Opening secure checkout…');
+  try {
+    const { data: sess } = await db.auth.getSession();
+    const res = await fetch(`${SUPA_URL}/functions/v1/create-checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
+      body: JSON.stringify({ priceId: plan.id })
+    });
+    const body = await res.json();
+    if (body.url) location.href = body.url;
+    else if (body.upgraded) { state.plan = true; render(); }
+    else say('planMsg', body.error || 'Could not start checkout.', 'err');
+  } catch (e) {
+    say('planMsg', String(e.message || e), 'err');
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
