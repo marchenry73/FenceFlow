@@ -1168,10 +1168,18 @@ async function loadBilling(){
     state.textContent = "We couldn't load your subscription just now. Nothing has changed — "
       + "try Refresh in a moment, and email support if it keeps happening.";
   } else {
-    const ends = row?.subscription_ends_at ? d(row.subscription_ends_at).toLocaleDateString() : '';
+    // Two different dates, and they were both read from the same column.
+    //
+    // subscription_ends_at is when a PAID subscription renews. During a trial
+    // it is null by definition -- nobody has been charged, so there is no
+    // period to be paid through -- so "Free trial until <date>" rendered as a
+    // bare "Free trial." every single time. The date it wanted was
+    // trial_ends_at, which the billing RPC did not even return until now.
+    const ends  = row?.subscription_ends_at ? d(row.subscription_ends_at).toLocaleDateString() : '';
+    const trial = row?.trial_ends_at ? d(row.trial_ends_at).toLocaleDateString() : '';
     state.textContent =
       status === 'active'   ? `Active${plan?' — '+plan:''}${ends?', renews '+ends:''}.` :
-      status === 'trialing' ? `Free trial${ends?' until '+ends:''}.` :
+      status === 'trialing' ? `Free trial${plan?' of '+plan:''}${trial?' until '+trial:''}${trial?' — your card is charged then.':'.'}` :
       status === 'past_due' ? 'Last payment failed — update your card to stay active.' :
       status === 'canceled' ? 'Cancelled. Pick a plan below to start again.' :
                               'No plan yet. Pick one below.';

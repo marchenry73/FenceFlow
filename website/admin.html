@@ -628,7 +628,9 @@ function render() {
       <td>${c.jobs}</td>
       <td>${day(c.last_active)}</td>
       <td>${c.days_left != null ? c.days_left + ' days'
-             : (c.subscription_ends_at ? day(c.subscription_ends_at) : day(c.trial_ends_at))}</td>
+             : c.subscription_ends_at ? day(c.subscription_ends_at)
+             : c.trial_ends_at ? `<span style="color:var(--muted)">trial ended ${day(c.trial_ends_at)}</span>`
+             : '—'}</td>
       <td style="white-space:nowrap">
         ${accessButton(c)}
         ${c.joined_at ? '' :

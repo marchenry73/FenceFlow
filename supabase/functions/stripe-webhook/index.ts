@@ -420,22 +420,35 @@ Deno.serve(async (req) => {
         };
         const monthly = status === "canceled" ? 0 : priceOf(sub);
 
-        await admin.from("companies").update({
+        const patch: Record<string, unknown> = {
           stripe_subscription_id: sub.id,
           subscription_status: status,
           subscription_plan: sub.metadata?.plan ?? "",
           ...(monthly === null ? {} : { monthly_price: monthly }),
-          subscription_ends_at: (() => {
-            const end = periodEnd(sub);
-            return end ? new Date(end * 1000).toISOString() : null;
-          })(),
           // The access gate honors trial_ends_at; without this a checkout
           // trial set status='trialing' with no trial end recorded and the
           // brand-new subscriber was locked out on day one.
+          //
+          // Unlike the renewal date below, this one IS written as null when
+          // absent: a trial that has converted or been cancelled has to stop
+          // granting trial access, so it must be able to clear itself.
           trial_ends_at: sub.trial_end
             ? new Date(sub.trial_end * 1000).toISOString()
             : null,
-        }).eq("id", companyId);
+        };
+
+        // Left OUT rather than written as null when the shape is unreadable.
+        //
+        // Writing null here is pure loss: nothing else in the system can
+        // recompute a paid-through date, and the gap does not show up as a
+        // gap. The admin table falls through to the trial date when this is
+        // null, so a missing renewal date is printed as a stale trial date
+        // under a column headed "Renews / ends" -- the failure arrives looking
+        // like an answer. Omitting the key leaves the last good value alone.
+        const end = periodEnd(sub);
+        if (end) patch.subscription_ends_at = new Date(end * 1000).toISOString();
+
+        await admin.from("companies").update(patch).eq("id", companyId);
         if (status === "active" || status === "trialing") {
           await admin.rpc("release_for_payment", { cid: companyId });
         }
