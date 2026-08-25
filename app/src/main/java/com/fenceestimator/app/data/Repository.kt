@@ -301,7 +301,9 @@ class Repository(private val db: AppDatabase) {
         return orphans.size
     }
 
-    suspend fun saveLineItem(item: EstimateLineItem): Long = lineItemDao.insert(item)
+    /** Insert or update, by id. See [saveChangeOrder] for what a bare insert costs. */
+    suspend fun saveLineItem(item: EstimateLineItem): Long =
+        if (item.id == 0L) lineItemDao.insert(item) else { lineItemDao.update(item); item.id }
     suspend fun updateLineItem(item: EstimateLineItem) = lineItemDao.update(item)
     suspend fun deleteLineItem(item: EstimateLineItem) = deleteSynced(item.syncId, "estimate_line_items") { lineItemDao.delete(item) }
 
@@ -402,7 +404,9 @@ class Repository(private val db: AppDatabase) {
     fun observeExpenses(jobId: Long): Flow<List<Expense>> = expenseDao.observeForJob(jobId)
     suspend fun getExpenses(jobId: Long): List<Expense> = expenseDao.getForJob(jobId)
     suspend fun getAllExpenses(): List<Expense> = expenseDao.getAll()
-    suspend fun saveExpense(expense: Expense): Long = expenseDao.insert(expense)
+    /** Insert or update, by id. See [saveChangeOrder] for what a bare insert costs. */
+    suspend fun saveExpense(expense: Expense): Long =
+        if (expense.id == 0L) expenseDao.insert(expense) else { expenseDao.update(expense); expense.id }
     suspend fun updateExpense(expense: Expense) = expenseDao.update(expense)
     suspend fun deleteExpense(expense: Expense) = deleteSynced(expense.syncId, "expenses") { expenseDao.delete(expense) }
 
@@ -518,7 +522,23 @@ class Repository(private val db: AppDatabase) {
     suspend fun deleteSiteMarker(marker: SiteMarker) = deleteSynced(marker.syncId, "site_markers") { siteMarkerDao.delete(marker) }
 
     fun observeChangeOrders(jobId: Long): Flow<List<ChangeOrder>> = changeOrderDao.observeForJob(jobId)
-    suspend fun saveChangeOrder(order: ChangeOrder): Long = changeOrderDao.insert(order)
+    /**
+     * Saves a change order, new or edited.
+     *
+     * A bare insert of a row that already has an id raises a UNIQUE constraint
+     * inside a viewModelScope launch, which nothing catches -- so repricing
+     * approved extra work killed the app and the new figure never landed. The
+     * job then went on billing the superseded amount: renegotiate $900 down to
+     * $400 and the contract, the invoice and the payment link all stayed $500
+     * too high, with nothing to show anything had gone wrong.
+     */
+    suspend fun saveChangeOrder(order: ChangeOrder): Long =
+        if (order.id == 0L) {
+            changeOrderDao.insert(order)
+        } else {
+            changeOrderDao.update(order)
+            order.id
+        }
     suspend fun updateChangeOrder(order: ChangeOrder) = changeOrderDao.update(order)
     suspend fun deleteChangeOrder(order: ChangeOrder) = deleteSynced(order.syncId, "change_orders") { changeOrderDao.delete(order) }
 
