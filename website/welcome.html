@@ -58,12 +58,21 @@
   <div id="loading" class="card"><h1>One moment…</h1><p class="sub">Checking your invitation.</p></div>
 
   <div id="needLink" class="card" style="display:none">
-    <h1>Open this from your invitation email</h1>
-    <p class="sub">
+    <h1 id="needTitle">Open this from your invitation email</h1>
+    <p class="sub" id="needWhy">
       The link in that email signs you in so nothing here has to be typed twice.
-      If it has expired, ask for a new one and it will land in the same inbox.
     </p>
-    <a class="btn" href="dashboard.html">Sign in instead</a>
+    <!-- A dead end here is a customer who never arrives. An invitation link is
+         single-use and time-limited, and some mail systems open links to scan
+         them, which spends the link before the person ever clicks it. So the
+         answer to a link that did not work is another link, asked for here. -->
+    <label for="againEmail">Send a fresh link to</label>
+    <input id="againEmail" type="email" autocomplete="email" placeholder="you@yourcompany.com">
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="againBtn">Email me a new link</button>
+      <a class="btn ghost" href="dashboard.html">I already have a password</a>
+    </div>
+    <div class="msg" id="againMsg"></div>
   </div>
 
   <div id="flow" style="display:none">
@@ -172,9 +181,41 @@ async function currentUser() {
   return null;
 }
 
+/**
+ * What Supabase says went wrong, said back plainly.
+ *
+ * A failed link comes back with the reason in the URL fragment. Showing
+ * "open this from your email" to somebody who just did exactly that is
+ * infuriating and tells them nothing they can act on.
+ */
+function linkProblem() {
+  const frag = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(location.search);
+  const code = frag.get('error_code') || query.get('error_code');
+  const desc = frag.get('error_description') || query.get('error_description');
+  if (!code && !desc) return null;
+  const plain = {
+    otp_expired: 'That link has expired. They last a short while on purpose.',
+    access_denied: 'That link has already been used, or it expired.',
+  }[code];
+  return plain || (desc ? decodeURIComponent(desc.replace(/\+/g, ' ')) : 'That link did not work.');
+}
+
+function showNeedLink(reason) {
+  $('loading').style.display = 'none';
+  $('needLink').style.display = 'block';
+  if (reason) {
+    $('needTitle').textContent = 'That link has stopped working';
+    $('needWhy').textContent = reason + ' Send yourself another and it will land in the same inbox.';
+  }
+}
+
 async function boot() {
+  const problem = linkProblem();
+  if (problem) { showNeedLink(problem); return; }
+
   const user = await currentUser();
-  if (!user) { $('loading').style.display = 'none'; $('needLink').style.display = 'block'; return; }
+  if (!user) { showNeedLink(null); return; }
 
   // The invite carries the company they were created for, so nobody types a code.
   const { data: prof } = await db.from('profiles').select('company_id, full_name').eq('id', user.id).maybeSingle();
@@ -289,6 +330,18 @@ async function choosePlan(plan) {
     say('planMsg', String(e.message || e), 'err');
   }
 }
+
+$('againBtn').addEventListener('click', async () => {
+  const email = $('againEmail').value.trim();
+  if (!email) return say('againMsg', 'Type the email your invitation went to.', 'err');
+  say('againMsg', 'Sending…');
+  const { error } = await db.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: location.origin + location.pathname }
+  });
+  if (error) return say('againMsg', error.message, 'err');
+  say('againMsg', 'Sent. Open it from the same device if you can — that keeps everything in one place.', 'ok');
+});
 
 boot();
 </script>
