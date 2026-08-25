@@ -1347,6 +1347,7 @@
     <string name="set_update_check">Rechercher des mises à jour</string>
     <string name="set_update_checking">Recherche…</string>
     <string name="set_update_current">Vous avez la dernière version.</string>
+    <string name="set_update_unreachable">Vérification impossible pour le moment — réessayez dans un instant.</string>
     <string name="vm_couldnt_sync_crew_settings">Impossible de synchroniser l\'équipe et les paramètres</string>
     <string name="vm_kind_job">Chantier</string>
     <string name="vm_kind_change_order">Avenant</string>

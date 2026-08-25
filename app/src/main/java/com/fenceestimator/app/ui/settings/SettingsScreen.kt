@@ -943,14 +943,18 @@ private fun UpdateCheckRow(modifier: Modifier = Modifier) {
                 scope.launch {
                     checking = true
                     note = null
-                    val release = runCatching {
-                        com.fenceestimator.app.cloud.UpdateChecker.check()
-                    }.getOrNull()
+                    val result = runCatching {
+                        com.fenceestimator.app.cloud.UpdateChecker.checkNow()
+                    }.getOrElse { com.fenceestimator.app.cloud.UpdateChecker.CheckResult.CouldNotCheck }
                     checking = false
-                    if (release == null) {
-                        note = context.getString(R.string.set_update_current)
-                    } else {
-                        found = release
+                    when (result) {
+                        is com.fenceestimator.app.cloud.UpdateChecker.CheckResult.Available ->
+                            found = result.release
+                        com.fenceestimator.app.cloud.UpdateChecker.CheckResult.UpToDate ->
+                            note = context.getString(R.string.set_update_current)
+                        // Never "you are up to date" -- it did not find out.
+                        com.fenceestimator.app.cloud.UpdateChecker.CheckResult.CouldNotCheck ->
+                            note = context.getString(R.string.set_update_unreachable)
                     }
                 }
             }

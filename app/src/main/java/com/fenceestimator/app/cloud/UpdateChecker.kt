@@ -53,6 +53,29 @@ object UpdateChecker {
     /** Resets the once-per-launch guard. For tests. */
     fun resetForTest() { askedThisLaunch = false }
 
+    /** What came back when somebody asked on purpose. */
+    sealed interface CheckResult {
+        data class Available(val release: AppRelease) : CheckResult
+        data object UpToDate : CheckResult
+        /** Asked, got nothing back. NOT the same as being current. */
+        data object CouldNotCheck : CheckResult
+    }
+
+    /**
+     * Asks now, and distinguishes the three answers.
+     *
+     * [check] returns null both when you are current and when the question
+     * never got through, which is the mistake this whole file keeps making:
+     * a button that says "You are on the latest version" after failing to
+     * reach the server is worse than one that says nothing, because it sends
+     * somebody away satisfied while the fix they need sits on the server.
+     */
+    suspend fun checkNow(): CheckResult = when (val outcome = checkOutcome()) {
+        is Outcome.Answered ->
+            outcome.release?.let { CheckResult.Available(it) } ?: CheckResult.UpToDate
+        Outcome.CouldNotAsk -> CheckResult.CouldNotCheck
+    }
+
     /**
      * The same as [check], but only ever answers once per launch.
      *
