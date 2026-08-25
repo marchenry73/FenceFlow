@@ -6,10 +6,21 @@
 // onboarding -- their details, the agreement, choosing a plan -- behind one tap
 // and gives the admin list something to report progress against.
 //
-// The mail goes out through Supabase Auth's invite, so no separate mail
-// provider or API key is needed. Note that the built-in SMTP is rate-limited
-// and meant for low volume; configuring a real SMTP in the Supabase dashboard
-// (Zoho, when the domain is set up) is what makes this production-grade.
+// Two ways of sending, and it picks whichever is available:
+//
+//   1. MAIL_API_KEY + MAIL_FROM set  ->  the link is generated here and put
+//      inside FenceFlow's own email, sent through a transactional provider
+//      (Resend's API shape; Postmark and others accept the same fields). This
+//      is the one to use once a domain exists: it looks like the product, it
+//      says who it is from, and it is not rate-limited to a handful an hour.
+//
+//   2. Neither set  ->  Supabase's built-in invite, which needs no provider at
+//      all but sends a generic template from a shared address and is throttled
+//      hard. Fine for testing, wrong for customers.
+//
+// Sending from a domain you own is not decoration: mail from an address that
+// cannot be verified goes to spam, and an invitation in a spam folder is a
+// customer who never arrives.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const cors = {
@@ -23,6 +34,71 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
+
+/** FenceFlow's own invitation. Plain enough to survive every mail client. */
+function invitationEmail(companyName: string, link: string, fromName: string) {
+  const safeCompany = escapeHtml(companyName || "your company");
+  const safeLink = escapeHtml(link);
+  const html = `<!doctype html>
+<html><body style="margin:0;background:#F7F8FA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#12151A">
+  <div style="max-width:34rem;margin:0 auto;padding:28px 20px">
+    <div style="font-weight:800;font-size:20px;letter-spacing:-.4px;margin-bottom:22px">
+      Fence<span style="color:#FF5A1F">Flow</span>
+    </div>
+    <div style="background:#fff;border:1px solid #E3E7ED;border-radius:12px;padding:26px">
+      <h1 style="font-size:21px;margin:0 0 10px">${safeCompany} is set up on FenceFlow</h1>
+      <p style="font-size:15px;line-height:1.55;color:#3a4250;margin:0 0 16px">
+        FenceFlow estimates fencing work from a drawing, orders the right
+        materials, and keeps the money straight. Everything below takes a few
+        minutes and you only do it once.
+      </p>
+      <p style="font-size:15px;line-height:1.55;color:#3a4250;margin:0 0 20px">
+        The link signs you in &mdash; there is no password to invent yet.
+      </p>
+      <a href="${safeLink}"
+         style="display:inline-block;background:#FF5A1F;color:#fff;text-decoration:none;
+                font-weight:700;font-size:15px;padding:12px 22px;border-radius:8px">
+        Set up ${safeCompany}
+      </a>
+      <p style="font-size:13px;line-height:1.5;color:#5A6472;margin:22px 0 0">
+        You will confirm your business details, read a short service agreement,
+        and pick a plan. Fourteen days are free and nothing is charged until
+        that ends.
+      </p>
+    </div>
+    <p style="font-size:12px;color:#5A6472;margin:18px 0 0;line-height:1.5">
+      If the button does not work, paste this into your browser:<br>
+      <span style="word-break:break-all">${safeLink}</span>
+    </p>
+    <p style="font-size:12px;color:#8A93A0;margin:14px 0 0">
+      Sent by ${escapeHtml(fromName)}. If you were not expecting this, ignore it &mdash;
+      nothing happens until somebody opens the link.
+    </p>
+  </div>
+</body></html>`;
+
+  const text = [
+    `${companyName || "Your company"} is set up on FenceFlow.`,
+    "",
+    "FenceFlow estimates fencing work from a drawing, orders the right materials,",
+    "and keeps the money straight.",
+    "",
+    "Open this link to set up. It signs you in - there is no password to invent yet:",
+    link,
+    "",
+    "You will confirm your business details, read a short service agreement, and",
+    "pick a plan. Fourteen days are free and nothing is charged until that ends.",
+    "",
+    "If you were not expecting this, ignore it - nothing happens until somebody",
+    "opens the link.",
+  ].join("\n");
+
+  return { html, text };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -55,31 +131,83 @@ Deno.serve(async (req) => {
     const site = Deno.env.get("SITE_URL") ?? "https://marchenry73.github.io/FenceFlow";
     const redirectTo = `${site}/welcome.html`;
 
-    // The company id travels in the invite's metadata, so the welcome page can
-    // attach them to the right company without them typing a code at all.
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { company_id: companyId, company_name: companyName ?? "" },
-    });
+    const mailKey = Deno.env.get("MAIL_API_KEY");
+    const mailFrom = Deno.env.get("MAIL_FROM");
+    const mailUrl = Deno.env.get("MAIL_API_URL") ?? "https://api.resend.com/emails";
+    const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "FenceFlow";
 
-    if (inviteError) {
-      // An account may already exist for that address -- that is not a failure,
-      // it just means they are already on FenceFlow and need a sign-in link
-      // rather than an invitation.
-      const already = String(inviteError.message ?? "").toLowerCase()
-        .includes("already been registered");
-      if (!already) return json({ error: inviteError.message }, 400);
+    let sentVia = "supabase";
 
-      const { error: linkError } = await admin.auth.signInWithOtp({
+    if (mailKey && mailFrom) {
+      // Our own email, our own link. generateLink does not send anything --
+      // it hands back the URL, which is exactly what lets the message look
+      // like FenceFlow rather than like a database.
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: "invite",
         email,
-        options: { emailRedirectTo: redirectTo },
+        options: { redirectTo, data: { company_id: companyId, company_name: companyName ?? "" } },
       });
-      if (linkError) return json({ error: linkError.message }, 400);
+
+      let actionLink = linkData?.properties?.action_link;
+
+      if (linkError || !actionLink) {
+        // Already has an account: a sign-in link is the right thing, not an
+        // invitation. Same destination either way.
+        const { data: magic, error: magicError } = await admin.auth.admin.generateLink({
+          type: "magiclink",
+          email,
+          options: { redirectTo },
+        });
+        if (magicError || !magic?.properties?.action_link) {
+          return json({ error: (linkError ?? magicError)?.message ?? "Could not make a link." }, 400);
+        }
+        actionLink = magic.properties.action_link;
+      }
+
+      const body = invitationEmail(companyName ?? "", actionLink, fromName);
+      const res = await fetch(mailUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${mailKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: mailFrom,
+          to: [email],
+          subject: `${companyName || "Your company"} is set up on FenceFlow`,
+          html: body.html,
+          text: body.text,
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        return json({ error: `Mail provider refused it: ${detail.slice(0, 300)}` }, 400);
+      }
+      sentVia = "provider";
+    } else {
+      // No provider configured. Supabase's own invite still gets somebody in,
+      // which is better than nothing while a domain is being sorted out.
+      const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
+        data: { company_id: companyId, company_name: companyName ?? "" },
+      });
+
+      if (inviteError) {
+        const already = String(inviteError.message ?? "").toLowerCase()
+          .includes("already been registered");
+        if (!already) return json({ error: inviteError.message }, 400);
+
+        const { error: linkError } = await admin.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirectTo },
+        });
+        if (linkError) return json({ error: linkError.message }, 400);
+      }
     }
 
     await admin.rpc("admin_mark_invited", { target: companyId, to_email: email });
 
-    return json({ sent: true, to: email });
+    return json({ sent: true, to: email, via: sentVia });
   } catch (e) {
     return json({ error: String(e instanceof Error ? e.message : e) }, 400);
   }
