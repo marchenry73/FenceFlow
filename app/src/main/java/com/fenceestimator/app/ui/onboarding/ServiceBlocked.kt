@@ -36,32 +36,71 @@ fun ServiceBlockedScreen(
     onRetry: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // A company that has never subscribed is not a company that has been cut
+    // off, and telling somebody who just created their business that FenceFlow
+    // "is paused" is a dead end: no explanation they can act on, and only
+    // Check again and Sign out to choose between. That was the first thing a
+    // new customer saw after signing up on the phone.
+    //
+    // Subscribing stays on the website deliberately -- selling it inside the
+    // app would put it through Play billing and its cut -- so the honest move
+    // is to say so and open the page.
+    val neverSubscribed = status.subscriptionStatus.isBlank() ||
+        status.subscriptionStatus in setOf("pending", "none")
+
     Column(
         modifier = Modifier.fillMaxSize().padding(28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            stringResource(R.string.onb_paused_title),
+            stringResource(
+                if (neverSubscribed) R.string.onb_trial_title else R.string.onb_paused_title
+            ),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            status.reason.ifBlank { stringResource(R.string.onb_paused_default_reason) },
+            if (neverSubscribed) stringResource(R.string.onb_trial_explain)
+            else status.reason.ifBlank { stringResource(R.string.onb_paused_default_reason) },
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (!neverSubscribed) {
+            Text(
+                stringResource(R.string.onb_paused_nothing_lost),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Text(
-            stringResource(R.string.onb_paused_nothing_lost),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            stringResource(R.string.onb_paused_crew_note),
+            stringResource(
+                if (neverSubscribed) R.string.onb_trial_where else R.string.onb_paused_crew_note
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(BILLING_URL)
+                        )
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                stringResource(
+                    if (neverSubscribed) R.string.onb_trial_open else R.string.onb_paused_open_billing
+                )
+            )
+        }
+        OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.onb_check_again))
         }
         OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
@@ -69,3 +108,6 @@ fun ServiceBlockedScreen(
         }
     }
 }
+
+/** Where a plan is chosen. Web only, so Play billing never applies. */
+private const val BILLING_URL = "https://marchenry73.github.io/FenceFlow/dashboard.html"

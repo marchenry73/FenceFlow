@@ -534,6 +534,8 @@ object EntitySync {
         val knownIds = existing.map { it.syncId }.toSet()
         val knownNames = existing.map { it.name.trim().lowercase() }.toSet()
         val localBySyncId = existing.associateBy { it.syncId }
+        val localByName = existing.associateBy { it.name.trim().lowercase() }
+        val adoptedNames = mutableSetOf<String>()
         var added = 0
         cloud.forEach { row ->
             val held = localBySyncId[row.syncId]
@@ -553,7 +555,30 @@ object EntitySync {
             }
             // Unknown id, but the name-matching above still applies: a tier
             // seeded separately on each phone is one tier, not two.
-            if (row.name.trim().lowercase() in knownNames) return@forEach
+            //
+            // Not skipped, though -- adopted. Skipping stopped the list
+            // tripling but left this phone's copy permanently detached, so a
+            // labour rate raised in the office never reached the phone that
+            // had seeded its own Residential tier. Every estimate it wrote
+            // afterwards was priced from last season's rate.
+            val tierName = row.name.trim().lowercase()
+            val sameTier = if (tierName in adoptedNames) null else localByName[tierName]
+            if (sameTier != null) {
+                adoptedNames += tierName
+                repository.savePricingTier(
+                    sameTier.copy(
+                        syncId = row.syncId,
+                        laborRatePerFt = row.laborRatePerFt,
+                        laborFlatFee = row.laborFlatFee,
+                        markupPercent = row.markupPercent,
+                        discountPercent = row.discountPercent,
+                        sortOrder = row.sortOrder
+                    )
+                )
+                added++
+                return@forEach
+            }
+            if (tierName in knownNames) return@forEach
             repository.savePricingTier(
                 PricingTier(
                     syncId = row.syncId, name = row.name,
@@ -582,6 +607,11 @@ object EntitySync {
             .map { identity(it.name, it.role.name, it.fenceType.name, it.colorOrFinish) }
             .toSet()
         val localBySyncId = existingItems.associateBy { it.syncId }
+        val localByIdentity = existingItems
+            .associateBy { identity(it.name, it.role.name, it.fenceType.name, it.colorOrFinish) }
+        // A local copy may only be re-keyed once, however many cloud rows
+        // happen to share its identity.
+        val adoptedIdentities = mutableSetOf<String>()
         var added = 0
         cloud.forEach { row ->
             val category = runCatching { MaterialCategory.valueOf(row.category) }
@@ -614,15 +644,41 @@ object EntitySync {
                 if (merged != existing) { repository.updateMaterialItem(merged); added++ }
                 return@forEach
             }
-            // New to this phone by sync id -- but the seeded catalog means the
-            // same item can exist here under a different id, so it is only
-            // inserted when nothing matches by identity either. Updating those
-            // by identity is deliberately not attempted: the two rows are
-            // genuinely separate records, and merging them here would pick a
-            // winner arbitrarily.
-            if (identity(row.name, row.role, row.fenceType, row.colorOrFinish) in knownIdentities) {
+            // New to this phone by sync id -- but every phone seeds the same
+            // starter catalog locally, generating its own ids, so "6ft Vinyl
+            // Panel" exists here already under a different one.
+            //
+            // Skipping it was safe but left the two copies divorced forever:
+            // the owner corrects a price after a supplier invoice, it reaches
+            // the phones that pulled the item by id, and the phone that had
+            // seeded its own copy quietly keeps quoting the old figure. Two
+            // people then price the same fence differently, which is the exact
+            // thing this sync exists to prevent.
+            //
+            // So the local copy adopts the company's id and values. Line items
+            // reference the catalog by role and carry their own price snapshot,
+            // so nothing is orphaned by the re-key -- and the cloud row is the
+            // company's copy, which is the one that should win.
+            val ident = identity(row.name, row.role, row.fenceType, row.colorOrFinish)
+            val sameThing = if (ident in adoptedIdentities) null else localByIdentity[ident]
+            if (sameThing != null) {
+                adoptedIdentities += ident
+                repository.updateMaterialItem(
+                    sameThing.copy(
+                        syncId = row.syncId,
+                        category = category,
+                        unit = row.unit,
+                        unitPrice = row.unitPrice,
+                        taxable = row.taxable,
+                        coversFt = row.coversFt,
+                        isActive = row.isActive,
+                        sourceDoc = row.sourceDoc
+                    )
+                )
+                added++
                 return@forEach
             }
+            if (ident in knownIdentities) return@forEach
             repository.saveMaterialItem(
                 MaterialItem(
                     syncId = row.syncId,

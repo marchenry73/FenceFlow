@@ -955,6 +955,11 @@
     <string name="onb_paused_nothing_lost">No se ha perdido nada. Cada trabajo, dibujo, foto y pago sigue exactamente donde estaba y volverá en cuanto esto se resuelva.</string>
     <string name="onb_paused_crew_note">Si eres de la cuadrilla, esto es asunto de la oficina; aquí no hay nada que tengas que arreglar.</string>
     <string name="onb_check_again">Volver a comprobar</string>
+    <string name="onb_trial_title">Comienza tu prueba gratis</string>
+    <string name="onb_trial_explain">Tu negocio está listo. Elige un plan para activar FenceFlow: 14 días gratis, y puedes cambiarlo o cancelarlo cuando quieras.</string>
+    <string name="onb_trial_where">Los planes se eligen en el sitio web de FenceFlow, con este mismo correo. Vuelve aquí y toca Comprobar de nuevo cuando termines.</string>
+    <string name="onb_trial_open">Elegir un plan</string>
+    <string name="onb_paused_open_billing">Abrir facturación</string>
     <string name="onb_sign_out">Cerrar sesión</string>
     <string name="onb_update_needed">Actualización necesaria</string>
     <string name="onb_new_version_available">Nueva versión disponible</string>
