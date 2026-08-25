@@ -227,7 +227,7 @@ class ReportsViewModel(
             _data.value = ReportData(
                 totals = buildTotals(jobs, expenses, times, materialsByJob, paymentsInPeriod),
                 revenueByMonth = revenueByMonth(paymentsInPeriod),
-                costBreakdown = costBreakdown(jobs, expenses, times, materialsByJob),
+                costBreakdown = costBreakdown(jobs, expenses, times, materialsByJob, paymentsInPeriod),
                 // Keyed by the enum name; the screen translates it for display,
                 // because this class has no Context to resolve resources with.
                 expensesByCategory = expenses.groupBy { it.category.name }
@@ -310,11 +310,19 @@ class ReportsViewModel(
     }
 
     private fun costBreakdown(
-        jobs: List<Job>, expenses: List<Expense>, times: List<TimeEntry>, materials: Map<Long, Double>
+        jobs: List<Job>, expenses: List<Expense>, times: List<TimeEntry>, materials: Map<Long, Double>,
+        payments: List<PaymentRecord>
     ) = listOf(
-        // Net of refunds. Money handed back was never collected, and this is
-        // the figure a contractor carries into their tax return.
-        ChartRow("Collected", jobs.sumOf { JobMoney.netPaid(it) }),
+        // The payments that landed IN this period -- the same figure the
+        // Collected tile shows.
+        //
+        // This used to be each job's lifetime amount paid, so the screen
+        // carried two different numbers under one word: a job started last
+        // year and finished in this quarter brought all of last year's
+        // deposits into the chart while the tile counted only this quarter's.
+        // The costs beside it are period costs, so a lifetime figure made the
+        // comparison meaningless as well as inconsistent.
+        ChartRow("Collected", payments.sumOf { it.amount }),
         ChartRow("Materials", jobs.sumOf { materials[it.id] ?: 0.0 }),
         ChartRow("Labor", times.sumOf { it.laborCost }),
         ChartRow("Other", expenses.sumOf { it.amount })
