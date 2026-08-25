@@ -535,7 +535,14 @@ object EstimateEngine {
             }
 
             val chosen = if (entry.preferCoversFt != null) {
-                candidates.minByOrNull { kotlin.math.abs((it.coversFt ?: entry.preferCoversFt) - entry.preferCoversFt) }
+                // Nearest width, but among items that have a price if any do.
+                // The other branch has always preferred a priced item; this one
+                // did not, so a $0.00 placeholder that happened to be the
+                // closest width could carry an entire panel line and quietly
+                // zero out the biggest number on the estimate.
+                val priced = candidates.filter { it.unitPrice > 0.0 }
+                val pool = priced.ifEmpty { candidates }
+                pool.minByOrNull { kotlin.math.abs((it.coversFt ?: entry.preferCoversFt) - entry.preferCoversFt) }
             } else {
                 // Prefer something actually priced. Picking the first match blind
                 // is how a $0.00 placeholder ended up representing a whole role
