@@ -68,6 +68,70 @@ async function verify(rawBody: string, header: string | null, secret: string): P
 }
 
 /**
+ * Where Stripe keeps the renewal date now.
+ *
+ * In API version 2025-03-31 ("Basil") current_period_start and
+ * current_period_end were REMOVED from the Subscription object and moved onto
+ * each subscription item, because one subscription can now bill its items on
+ * different intervals.
+ * https://docs.stripe.com/changelog/basil/2025-03-31/deprecate-subscription-current-period-start-and-end
+ *
+ * Nothing here pins a Stripe-Version, so events arrive rendered at whatever
+ * version the webhook endpoint is set to, and this account was created well
+ * after Basil. So sub.current_period_end was simply undefined and the renewal
+ * date was written as null on every single subscription event -- while
+ * trial_end, in the same UPDATE, kept working, because trial_end did not move.
+ * That is exactly what the live data showed: one column populated, the column
+ * beside it null.
+ *
+ * Both shapes are read, newest first, so this is correct whether the endpoint
+ * is on a current version or pinned back to an older one. The latest period
+ * end across the items is the subscription's own period end when items share
+ * an interval, which is the only case this product creates.
+ */
+function periodEnd(sub: any): number | null {
+  const items = sub?.items?.data;
+  if (Array.isArray(items) && items.length) {
+    const ends = items
+      .map((i: any) => Number(i?.current_period_end))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+    if (ends.length) return Math.max(...ends);
+  }
+  // Pre-Basil shape.
+  const legacy = Number(sub?.current_period_end);
+  return Number.isFinite(legacy) && legacy > 0 ? legacy : null;
+}
+
+/**
+ * Which subscription an invoice belongs to.
+ *
+ * Basil also deprecated invoice.subscription, moving it under a new "parent"
+ * field that records what generated the invoice:
+ * invoice.parent.subscription_details.subscription, valid when
+ * invoice.parent.type is "subscription_details".
+ * https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects
+ *
+ * Both invoice handlers opened with a check on the old field, so on a current
+ * API version both of them returned immediately having done nothing -- and the
+ * function still answered 200, so Stripe never retried and the Stripe
+ * dashboard showed no failures. The one that matters is
+ * invoice.payment_succeeded: it is what switches a suspended company back on
+ * the moment their payment clears. A contractor who paid their bill stayed
+ * locked out until somebody noticed by hand.
+ */
+function invoiceSubscription(invoice: any): string | null {
+  const parent = invoice?.parent;
+  if (parent?.type === "subscription_details" && parent?.subscription_details?.subscription) {
+    const v = parent.subscription_details.subscription;
+    return typeof v === "string" ? v : (v?.id ?? null);
+  }
+  // Pre-Basil shape.
+  const legacy = invoice?.subscription;
+  if (legacy) return typeof legacy === "string" ? legacy : (legacy?.id ?? null);
+  return null;
+}
+
+/**
  * Books a paid deposit or invoice against the job itself.
  *
  * Marking the payment row "paid" is only half the job: the money has to land
@@ -328,9 +392,10 @@ Deno.serve(async (req) => {
           stripe_subscription_id: sub.id,
           subscription_status: status,
           subscription_plan: sub.metadata?.plan ?? "",
-          subscription_ends_at: sub.current_period_end
-            ? new Date(sub.current_period_end * 1000).toISOString()
-            : null,
+          subscription_ends_at: (() => {
+            const end = periodEnd(sub);
+            return end ? new Date(end * 1000).toISOString() : null;
+          })(),
           // The access gate honors trial_ends_at; without this a checkout
           // trial set status='trialing' with no trial end recorded and the
           // brand-new subscriber was locked out on day one.
@@ -353,9 +418,10 @@ Deno.serve(async (req) => {
       // deliberate hold is left alone; release_for_payment decides.
       case "invoice.payment_succeeded": {
         const invoice = event.data.object;
-        if (!invoice.subscription) break;
+        const subId = invoiceSubscription(invoice);
+        if (!subId) break;
         const { data: co } = await admin.from("companies")
-          .select("id").eq("stripe_subscription_id", invoice.subscription).maybeSingle();
+          .select("id").eq("stripe_subscription_id", subId).maybeSingle();
         if (!co?.id) break;
         await admin.from("companies")
           .update({ subscription_status: "active" }).eq("id", co.id);
@@ -366,10 +432,11 @@ Deno.serve(async (req) => {
       // ---- A renewal failed. Don't cut them off mid-job; just flag it. ----
       case "invoice.payment_failed": {
         const invoice = event.data.object;
-        if (invoice.subscription) {
+        const subId = invoiceSubscription(invoice);
+        if (subId) {
           await admin.from("companies")
             .update({ subscription_status: "past_due" })
-            .eq("stripe_subscription_id", invoice.subscription);
+            .eq("stripe_subscription_id", subId);
         }
         break;
       }
