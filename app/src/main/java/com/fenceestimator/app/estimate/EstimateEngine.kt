@@ -17,7 +17,21 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /** One suggested catalog role + quantity, optionally preferring an item covering a specific width/height. */
-data class QtyEntry(val role: MaterialRole, val quantity: Double, val preferCoversFt: Float? = null)
+data class QtyEntry(
+    val role: MaterialRole,
+    val quantity: Double,
+    val preferCoversFt: Float? = null,
+    /**
+     * The run of fence this entry has to cover, in feet.
+     *
+     * Carried because [quantity] has already been rounded up to whole units at
+     * one width, and re-deriving feet from it (quantity x width) inherits that
+     * rounding -- which buys an extra panel every time the catalog stocks a
+     * different width than the run was spec'd for. The true footage does not
+     * have that problem.
+     */
+    val coversLinearFt: Float? = null
+)
 
 data class EstimateSuggestions(
     val geometry: FenceGeometryResult,
@@ -260,7 +274,10 @@ object EstimateEngine {
     private fun panelBasedEntries(run: FenceRun, netFt: Float, posts: PostCounts): List<QtyEntry> {
         val panelCount = if (run.panelWidthFt > 0f) ceil(netFt / run.panelWidthFt).roundToInt() else 0
         return listOf(
-            QtyEntry(MaterialRole.PANEL, panelCount.toDouble(), preferCoversFt = run.panelWidthFt),
+            QtyEntry(
+                MaterialRole.PANEL, panelCount.toDouble(),
+                preferCoversFt = run.panelWidthFt, coversLinearFt = netFt
+            ),
             QtyEntry(MaterialRole.LINE_POST, posts.linePosts.toDouble()),
             QtyEntry(MaterialRole.CORNER_POST, posts.cornerPosts.toDouble()),
             QtyEntry(MaterialRole.END_POST, posts.endPosts.toDouble()),
@@ -428,6 +445,23 @@ object EstimateEngine {
     private fun deterministicSyncId(runSyncId: String, role: String): String =
         java.util.UUID.nameUUIDFromBytes("fenceflow-line:$runSyncId:$role".toByteArray()).toString()
 
+    /**
+     * The same, for a role that legitimately appears more than once on a run.
+     *
+     * Entries are merged by role AND width, so a run with a 4 ft gate and a 6 ft
+     * gate keeps two GATE_PANEL lines -- and both were being handed the same
+     * id, because the id was built from the role alone. Two rows with one
+     * primary key do not survive an upsert: the estimate push for that job
+     * failed as a batch, so NONE of its line items reached the cloud.
+     *
+     * Only used when a role really does repeat, so every run that was already
+     * syncing keeps the ids it has.
+     */
+    private fun deterministicSyncId(runSyncId: String, role: String, coversFt: Float?): String =
+        java.util.UUID.nameUUIDFromBytes(
+            "fenceflow-line:$runSyncId:$role:${coversFt ?: 0f}".toByteArray()
+        ).toString()
+
     data class BuiltItems(
         val items: List<EstimateLineItem>,
         /** Roles the takeoff called for that the catalog has nothing priced for. */
@@ -459,7 +493,18 @@ object EstimateEngine {
         val mergedEntries = suggestions.entries
             .filter { it.quantity > 0.0 }
             .groupBy { it.role to it.preferCoversFt }
-            .map { (key, group) -> QtyEntry(key.first, group.sumOf { it.quantity }, key.second) }
+            .map { (key, group) ->
+                QtyEntry(
+                    key.first,
+                    group.sumOf { it.quantity },
+                    key.second,
+                    group.mapNotNull { it.coversLinearFt }.takeIf { it.isNotEmpty() }?.sum()
+                )
+            }
+
+        // How many lines each role ends up with, so the id only needs
+        // qualifying where it would otherwise collide.
+        val entriesPerRole = mergedEntries.groupingBy { it.role }.eachCount()
 
         mergedEntries.forEach { entry ->
             var candidates = candidatesByRole[entry.role].orEmpty()
@@ -491,6 +536,29 @@ object EstimateEngine {
             }
             if (chosen.unitPrice <= 0.0) zeroPriced += chosen.name
 
+            // How many, against what the chosen item actually covers.
+            //
+            // The count came from the width the RUN is spec'd for, and the item
+            // was then picked separately as the nearest available width -- with
+            // nothing reconciling the two. Spec a 100 ft run at 8 ft panels
+            // when the catalog only stocks that colour at 6 ft, and the takeoff
+            // ordered thirteen panels covering 78 ft: 22 ft of fence with
+            // nothing to put in it, found on the day. It goes the other way
+            // too -- a 4 ft spec against a 6 ft item ordered fifty percent more
+            // panel than the run needs.
+            //
+            // Only for PANEL, which is bought by the foot of fence. A gate is
+            // not: a 5 ft opening takes one 4 ft-ish gate, never two.
+            var quantity = entry.quantity
+            val preferred = entry.preferCoversFt
+            val feetToCover = entry.coversLinearFt
+            if (entry.role == MaterialRole.PANEL && preferred != null && feetToCover != null) {
+                val actualCoverage = chosen.coversFt ?: preferred
+                if (actualCoverage > 0f && kotlin.math.abs(actualCoverage - preferred) > 0.01f) {
+                    quantity = ceil(feetToCover.toDouble() / actualCoverage.toDouble())
+                }
+            }
+
             items.add(
                 EstimateLineItem(
                     // Same run + same role always lands on the same sync id, so
@@ -502,12 +570,21 @@ object EstimateEngine {
                     // is typed uuid, and "<uuid>:PANEL" was rejected outright --
                     // which broke syncing estimates entirely. Hashing the same
                     // two inputs into a uuid keeps the determinism and the type.
-                    syncId = deterministicSyncId(run.syncId, entry.role.name),
+                    //
+                    // Roles are NOT always unique per run, whatever the old note
+                    // here claimed: the merge above groups by role and width, so
+                    // two gates of different widths keep two GATE_PANEL lines.
+                    // Those get the width folded in as well.
+                    syncId = if ((entriesPerRole[entry.role] ?: 1) > 1) {
+                        deterministicSyncId(run.syncId, entry.role.name, entry.preferCoversFt)
+                    } else {
+                        deterministicSyncId(run.syncId, entry.role.name)
+                    },
                     jobId = jobId,
                     fenceRunId = fenceRunId,
                     sortOrder = order++,
                     description = chosen.name,
-                    quantity = entry.quantity,
+                    quantity = quantity,
                     unit = chosen.unit,
                     unitPrice = chosen.unitPrice,
                     taxable = chosen.taxable,
