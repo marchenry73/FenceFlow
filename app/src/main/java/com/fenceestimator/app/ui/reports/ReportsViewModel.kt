@@ -3,6 +3,7 @@ package com.fenceestimator.app.ui.reports
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.Employee
+import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.data.Expense
 import com.fenceestimator.app.data.Job
@@ -97,8 +98,18 @@ data class CrewRow(val name: String, val jobs: Int, val hours: Double, val cost:
     val perHour: Double get() = if (hours > 0) cost / hours else 0.0
 }
 
-data class OwedRow(val customer: String, val status: String, val materials: Double, val paid: Double) {
-    val outstanding: Double get() = (materials - paid).coerceAtLeast(0.0)
+/**
+ * One customer who still owes money.
+ *
+ * [contractTotal] is what they were billed -- the estimating engine's grand
+ * total. It used to be the materials subtotal, which leaves out labour, gates,
+ * teardown, tax, markup and every change order: a $12,000 contract with $5,000
+ * of materials and $6,000 paid showed nothing owing, and if it was the only
+ * unpaid job the screen said everything was paid up while $6,000 sat
+ * uncollected.
+ */
+data class OwedRow(val customer: String, val status: String, val contractTotal: Double, val paid: Double) {
+    val outstanding: Double get() = (contractTotal - paid).coerceAtLeast(0.0)
 }
 
 data class TimeRow(val date: Long, val job: String, val start: Long, val end: Long, val hours: Double, val cost: Double)
@@ -231,10 +242,21 @@ class ReportsViewModel(
                 hoursByCrew = hoursByCrew(jobs, times, employees),
                 fenceTypes = fenceTypes(jobs),
                 crewDetail = crewDetail(jobs, times, employees),
-                outstanding = jobs.map {
+                // Only work that was actually won can be owed. A declined quote
+                // with line items on it was being listed as money owed, which
+                // it never was -- nobody agreed to pay it.
+                outstanding = jobs.filter { it.status.isWon }.map { job ->
+                    val runs = repository.getFenceRuns(job.id)
+                    val contract = EstimateEngine.computeTotals(
+                        job,
+                        repository.getLineItems(job.id),
+                        EstimateEngine.linearFeet(job, runs),
+                        repository.getChangeOrders(job.id),
+                        runs
+                    ).grandTotal
                     OwedRow(
-                        it.customerName.ifBlank { untitled }, it.status.name,
-                        materialsByJob[it.id] ?: 0.0, JobMoney.netPaid(it)
+                        job.customerName.ifBlank { untitled }, job.status.name,
+                        contract, JobMoney.netPaid(job)
                     )
                 }.filter { it.outstanding > 0.01 }.sortedByDescending { it.outstanding },
                 payments = paymentsInPeriod,
