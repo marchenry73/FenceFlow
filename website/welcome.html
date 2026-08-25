@@ -55,7 +55,7 @@
 <header><div class="logo">Fence<span>Flow</span></div></header>
 
 <div class="wrap">
-  <div id="loading" class="card"><h1>One moment…</h1><p class="sub">Checking your invitation.</p></div>
+  <div id="loading" class="card"><h1>One moment…</h1><p class="sub" id="loadingNote">Checking your invitation.</p></div>
 
   <div id="needLink" class="card" style="display:none">
     <h1 id="needTitle">Open this from your invitation email</h1>
@@ -125,7 +125,8 @@
     <!-- 3. plan -->
     <div class="card" id="cardPlan" style="display:none">
       <h2>Choose your plan</h2>
-      <p class="sub">14 days free. Change or cancel whenever you like — nothing is locked in.</p>
+      <p class="sub">14 days free. We take card details now so nothing stops on day 15 — the
+        first charge is 14 days from today, and cancelling before then costs nothing.</p>
       <div class="plans" id="planCards"></div>
       <div class="msg" id="planMsg"></div>
     </div>
@@ -240,13 +241,29 @@ async function boot() {
     }
   }
 
-  const { data: onboarding } = await db.rpc('my_onboarding');
-  const row = Array.isArray(onboarding) ? onboarding[0] : onboarding;
-  state = {
-    details: !!row?.details_done,
-    agreement: !!row?.agreement_done,
-    plan: !!row?.plan_done
+  // Back from Stripe, the plan takes a moment to become true.
+  //
+  // Stripe returns the browser the instant the card clears, but the plan is
+  // only recorded when the webhook arrives a second or two later. Reading
+  // my_onboarding once meant a company that had just paid was shown the plan
+  // step again, with the same three buttons -- pressing one opened a second
+  // checkout. It waits, and says what it is waiting for.
+  const returned = new URLSearchParams(location.search).get('billing');
+  const read = async () => {
+    const { data } = await db.rpc('my_onboarding');
+    const r = Array.isArray(data) ? data[0] : data;
+    return { details: !!r?.details_done, agreement: !!r?.agreement_done, plan: !!r?.plan_done };
   };
+  state = await read();
+  if (returned === 'success' && !state.plan) {
+    $('loadingNote').textContent = 'Confirming your payment with Stripe…';
+    for (let i = 0; i < 10 && !state.plan; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      state = await read();
+    }
+  }
+  // Off the address bar, so a refresh does not run this again.
+  if (returned) history.replaceState({}, '', location.pathname);
 
   // Prefill from whatever the admin already recorded, so the common case is
   // reading and pressing a button rather than typing.
@@ -278,6 +295,9 @@ function render() {
   $('cardDone').style.display      = stage === 'done'      ? 'block' : 'none';
 
   if (stage === 'plan') renderPlans();
+  if (stage === 'plan' && new URLSearchParams(location.search).get('billing') === 'canceled') {
+    say('planMsg', 'No payment was taken. Pick a plan whenever you are ready.', 'info');
+  }
   if (stage === 'done') {
     $('doneNote').textContent =
       'Your business is set up, the agreement is signed, and your plan is running.';
@@ -290,7 +310,7 @@ function renderPlans() {
       <h3>${esc(p.name)}</h3>
       <div class="amt">${esc(p.price)}<small>/month</small></div>
       <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
-      <button class="btn" data-plan="${i}">Start with ${esc(p.name)}</button>
+      <button class="btn" data-plan="${i}">Start ${esc(p.name)} — card details next</button>
     </div>`).join('');
   document.querySelectorAll('#planCards button[data-plan]').forEach(b =>
     b.addEventListener('click', () => choosePlan(PLANS[+b.dataset.plan])));
@@ -332,7 +352,7 @@ async function choosePlan(plan) {
     const res = await fetch(`${SUPA_URL}/functions/v1/create-checkout-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
-      body: JSON.stringify({ priceId: plan.id })
+      body: JSON.stringify({ priceId: plan.id, from: 'welcome' })
     });
     const body = await res.json();
     if (body.url) location.href = body.url;

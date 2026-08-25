@@ -55,6 +55,13 @@
   .empty{color:var(--muted);font-size:14px;padding:16px 0}
   .scroll{overflow-x:auto}
   #app{display:none}
+  /* Both start hidden and boot() reveals whichever is right. #auth used to be
+     visible from the first paint, so a returning owner watched their own
+     sign-in form for the length of three round trips and could start typing
+     an email into a page that was about to replace itself. */
+  #auth{display:none}
+  #booting{display:flex;align-items:center;justify-content:center;gap:10px;
+    padding:60px 20px;color:var(--muted);font-size:14px}
   .overlay{position:fixed;inset:0;background:rgba(15,24,38,.6);display:none;z-index:50;overflow-y:auto;padding:16px}
   .overlay.on{display:block}
   .sheet{max-width:900px;margin:0 auto;background:var(--paper);border-radius:12px;overflow:hidden}
@@ -143,6 +150,8 @@
   </div>
 </header>
 
+<div id="booting">Loading your office…</div>
+
 <div class="auth" id="auth">
   <h1 style="font-size:20px;margin-bottom:6px" id="authTitle">Office sign in</h1>
   <p style="color:var(--muted);font-size:14px" id="authSub">Same account as the FenceFlow app.</p>
@@ -161,6 +170,9 @@
   </p>
   <p style="margin-top:4px;text-align:center;font-size:13px">
     <a href="#" id="authToggle">New company? Start your free trial</a>
+  </p>
+  <p id="authSignOut" style="margin-top:4px;text-align:center;font-size:13px;display:none">
+    <a href="#" id="authSignOutLink">Sign in as someone else</a>
   </p>
   <p style="margin-top:8px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
 </div>
@@ -204,6 +216,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <h2 style="margin:0">Jobs</h2><button class="btn btn-sm" id="newJob">+ New Job</button>
         </div>
+        <div class="msg" id="jobsMsg"></div>
         <div class="scroll"><table>
           <thead><tr><th>Customer</th><th>Address</th><th>Status</th><th>Scheduled</th><th>Paid</th></tr></thead>
           <tbody id="jobRows"></tbody></table></div>
@@ -268,6 +281,9 @@
     <div id="tab-catalog" style="display:none">
       <div class="panel">
         <h2>Materials Catalog</h2>
+        <p class="sub">Your supplier's items and prices, as entered on the phone.
+          This is a read-only view — add and edit them in the app under Catalog,
+          and they appear here within a minute of the phone going online.</p>
         <input id="catFilter" placeholder="Filter by name, type or role…" style="margin-bottom:10px">
         <div class="scroll"><table>
           <thead><tr><th>Item</th><th>Fence type</th><th>Role</th><th>Unit</th><th>Price</th></tr></thead>
@@ -313,7 +329,10 @@
             <div id="chartRevenue"></div>
           </div>
           <div class="panel pro-only">
-            <h2>Where the money goes</h2><p class="sub">Costs against what you collected</p>
+            <h2>Where the money goes</h2>
+            <p class="sub">What came in during this period, against the full cost of every job
+              touched in it. A job you have quoted but not yet been paid for shows its costs here
+              with none of its money — that is the gap, not a loss.</p>
             <div id="chartCosts"></div>
           </div>
           <div class="panel pro-only">
@@ -325,7 +344,10 @@
         <div class="panel pro-only" style="margin-top:12px">
           <h2>Did each job make money?</h2>
           <p class="sub">
-            What you collected, less materials, less approved labour, less expenses.
+            <strong>Profit</strong> is the quoted contract less materials, approved labour and
+            expenses &mdash; what the job will make once it is paid in full.
+            <strong>Cash</strong> is what has actually come in, less those same costs, so a job
+            you have not been paid for yet shows a healthy profit and a negative cash figure.
             Worst first &mdash; those are the ones worth understanding.
           </p>
           <div class="scroll">
@@ -337,7 +359,7 @@
               <tbody id="costingRows"></tbody>
             </table>
           </div>
-          <div class="msg" id="costingNote"></div>
+          <div class="sub" id="costingNote" style="margin-top:8px"></div>
         </div>
 
         <div class="panel" style="margin-top:12px">
@@ -355,7 +377,7 @@
               <tbody id="auditRows"></tbody>
             </table>
           </div>
-          <div class="msg" id="auditNote"></div>
+          <div class="sub" id="auditNote" style="margin-top:8px"></div>
         </div>
 
         <div class="panel pro-only" style="margin-top:12px">
@@ -374,7 +396,7 @@
               <tbody id="arRows"></tbody>
             </table>
           </div>
-          <div class="msg" id="arNote"></div>
+          <div class="sub" id="arNote" style="margin-top:8px"></div>
         </div></div>
       </section>
 
@@ -421,9 +443,13 @@
             <button class="btn btn-sm btn-grey" id="exportCrew">Export CSV</button>
           </div>
         </div>
+        <p class="sub">Labor cost below counts <strong>every clocked hour</strong>. Payroll CSV pays
+          <strong>approved shifts only</strong>, so the two figures differ until every shift in this
+          period has been approved.</p>
         <div class="scroll"><table>
           <thead><tr><th>Installer</th><th>Jobs</th><th>Hours</th><th>Labor cost</th><th>Avg $/hr</th></tr></thead>
           <tbody id="repCrew"></tbody></table></div>
+        <div class="sub" id="payrollNote" style="margin-top:8px"></div>
       </div>
 
       <div class="panel">
@@ -431,8 +457,10 @@
           <h2 style="margin:0">Money owed</h2>
           <button class="btn btn-sm btn-grey" id="exportOwed">Export CSV</button>
         </div>
+        <p class="sub">The same rows as "Who owes you" above, listed in full with how long each
+          one has been outstanding. One question, one answer.</p>
         <div class="scroll"><table>
-          <thead><tr><th>Customer</th><th>Status</th><th>Contract</th><th>Paid</th><th>Outstanding</th></tr></thead>
+          <thead><tr><th>Customer</th><th>Status</th><th>Contract</th><th>Paid</th><th>Outstanding</th><th>Days</th></tr></thead>
           <tbody id="repOwed"></tbody></table></div>
       </div>
 
@@ -473,15 +501,19 @@
         <label>Review request message</label><textarea id="s_review"></textarea>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">Save Settings</button></div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px">
-          Saved to your company account — phones pick these up on next sync.
+          <strong>These are the starting values for every new job.</strong> Changing them here does not
+  re-price a job you have already created — open that job and change it there.<br>
+  Saved to your company account — phones pick these up on next sync.
         </p>
       </div>
       <div class="panel">
         <h2>Pricing Tiers</h2>
+        <p class="sub">The labour rate, markup and discount behind each quote.
+          Read-only here — set them in the app under Settings → Pricing Tiers.</p>
         <div class="scroll"><table>
           <thead><tr><th>Name</th><th>Labor $/ft</th><th>Markup %</th><th>Discount %</th></tr></thead>
           <tbody id="tierRows"></tbody></table></div>
-        <div class="empty" id="tierEmpty" style="display:none">Tiers haven't synced from the app yet.</div>
+        <div class="empty" id="tierEmpty" style="display:none">No pricing tiers yet. Add them in the phone app under Settings &rarr; Pricing Tiers.</div>
       </div>
     </div>
 
@@ -682,6 +714,10 @@ const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANA
    staring at a form with no idea what to do next. */
 function msg(el,text,kind){
   const e=$(el);
+  // A missing element used to throw a TypeError here, which killed whatever
+  // was reporting the problem before it could report it -- the caller's error
+  // vanished and took the rest of the handler with it.
+  if(!e){ console.warn('No element #'+el+' for message:', text); return; }
   e.textContent=text;
   e.className='msg '+(kind||'info');
   if(kind==='ok') setTimeout(()=>{e.className='msg';},2500);
@@ -695,6 +731,12 @@ let authMode='signin';
 
 function setAuthMode(m){
   authMode=m;
+  // Showing the panel is part of switching to it. #auth starts hidden so a
+  // returning owner never sees a sign-in form flash past, which means every
+  // route that puts somebody in front of it has to say so.
+  $('booting').style.display='none';
+  $('auth').style.display='block';
+  $('app').style.display='none';
   const su = m==='signup', co = m==='company';
   $('signupFields').style.display = (su||co) ? 'block' : 'none';
   $('loginFields').style.display  = co ? 'none' : 'block';
@@ -705,6 +747,19 @@ function setAuthMode(m){
   $('signIn').textContent    = co ? 'Create my company' : su ? 'Create account' : 'Sign in';
   $('authToggle').textContent = su ? 'Already have an account? Sign in'
                               : co ? '' : 'New company? Start your free trial';
+  // Nothing to toggle to from "One last step" -- the empty text left a live,
+  // focusable, invisible link sitting under the button.
+  $('authToggle').style.display = co ? 'none' : 'inline';
+  $('forgotLink').parentElement.style.display = (su || co) ? 'none' : 'block';
+  // A password manager reads this to decide whether to offer an existing
+  // password or generate a new one. Marked current-password on the create-
+  // account form, it offered an old password and never offered to save the
+  // new one.
+  $('password').autocomplete = su ? 'new-password' : 'current-password';
+
+  // While signed in with no company, the way out is signing out -- the header
+  // button is hidden at this point, so the panel carries its own.
+  $('authSignOut').style.display = co ? 'block' : 'none';
 }
 
 async function signIn(){
@@ -765,7 +820,16 @@ async function finishCompany(){
 
 async function boot(){
   const {data:{user}}=await db.auth.getUser();
-  if(!user) return;
+  // The way out is available the moment there is somebody to sign out.
+  //
+  // Sign out used to be revealed only after the company check passed, so
+  // anyone authenticated but without a company -- the "One last step" panel --
+  // was stuck: could not sign out, could not switch accounts, and refreshing
+  // put them straight back. If create_company_with_owner failed for any reason
+  // there was no way off that screen at all.
+  if (user) $('signOut').style.display='inline-block';
+  $('booting').style.display='none';
+  if(!user){ $('auth').style.display='block'; return; }
   const {data:prof}=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
   profile=prof;
   if(!profile||!profile.company_id){
@@ -899,7 +963,17 @@ function showBlocked(status){
         ${PLANS.map((p,i)=>`<button class="btn" data-plan="${i}"${p.id?'':' disabled'}>${p.name} — ${p.price}</button>`).join('')}
       </div>
       <div class="msg" id="billMsg"></div>` : '';
-  (document.querySelector('main') || document.body).innerHTML = `
+  // Into #app, not over the whole body.
+  //
+  // This page has no <main>, so the querySelector returned null every time and
+  // the fallback replaced document.body -- logo, sign-out button and all. It
+  // is the first screen a brand-new company ever sees, and it arrived looking
+  // like a different site with no way back and nobody signed in.
+  $('booting').style.display='none';
+  $('auth').style.display='none';
+  $('app').style.display='block';
+  if (profile) $('signOut').style.display='inline-block';
+  $('app').innerHTML = `
     <div class="panel" style="max-width:34rem;margin:3rem auto">
       <h2 style="margin-top:0">${
         status.unknown ? "Couldn't check your subscription"
@@ -913,9 +987,9 @@ function showBlocked(status){
         was and comes straight back as soon as this is sorted out.
       </p>`}
       ${ownerPay}
-      <div style="margin-top:14px">
-        <button id="blockedRetry">Check again</button>
-        <button id="blockedOut">Sign out</button>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-grey" id="blockedRetry">Check again</button>
+        <button class="btn btn-grey" id="blockedOut">Sign out</button>
       </div>
     </div>`;
   document.querySelectorAll('button[data-plan]').forEach(b=>
@@ -926,11 +1000,65 @@ function showBlocked(status){
     .addEventListener('click', async () => { await db.auth.signOut(); location.reload(); });
 }
 
+/**
+ * Waits out the gap between Stripe returning the browser and the webhook
+ * landing.
+ *
+ * Stripe redirects the moment the card clears; the subscription is recorded a
+ * second or two later when the webhook arrives. In between, my_service_status
+ * still reads the old value, so a company that had just paid was shown
+ * "Almost there — pick a plan to start your 14-day free trial" and the same
+ * three buttons. Pressing one opened a second checkout session.
+ *
+ * Nothing else on the page read the billing parameter at all, so there was
+ * also no confirmation of any kind that the payment had gone through.
+ */
+async function settleAfterCheckout(){
+  const billing = new URLSearchParams(location.search).get('billing');
+  if (!billing) return null;
+  // Off the address bar first, so a refresh does not replay this.
+  history.replaceState({}, '', location.pathname + location.hash);
+
+  if (billing === 'canceled') {
+    return { note: 'No payment was taken and nothing has changed. '
+                 + 'Pick a plan from Billing whenever you are ready.', kind: 'info' };
+  }
+  if (billing !== 'success') return null;
+
+  $('booting').style.display='flex';
+  $('booting').textContent = 'Confirming your payment with Stripe…';
+  $('app').style.display='none';
+  for (let i = 0; i < 10; i++) {
+    const row = await checkService(1);
+    if (row && row.allowed === true) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  $('booting').style.display='none';
+  return { note: 'Payment received — your subscription is active. '
+               + 'The receipt is on its way to your email.', kind: 'ok' };
+}
+
 async function loadAll(){
+  const checkoutNote = await settleAfterCheckout();
   const service = await checkService();
-  if (service && service.allowed === false) { showBlocked(service); return; }
+  if (service && service.allowed === false) {
+    showBlocked(service);
+    // Still blocked after the wait means the webhook has not landed yet. Say
+    // that, rather than letting the blocked screen imply the payment failed.
+    if (checkoutNote && checkoutNote.kind === 'ok') {
+      msg('billMsg', 'Your payment went through. Stripe has not finished confirming it with us '
+        + 'yet — press Check again in a minute. Nothing needs paying twice.', 'info');
+    } else if (checkoutNote) {
+      msg('billMsg', checkoutNote.note, checkoutNote.kind);
+    }
+    return;
+  }
   planName = (service?.subscription_plan || '').toLowerCase();
   applyPlanGates();
+  if (checkoutNote) {
+    switchTab('billing');
+    msg('billMsg', checkoutNote.note, checkoutNote.kind);
+  }
 
   // One round trip per table; RLS scopes every result to this company.
   //
@@ -1033,7 +1161,12 @@ async function loadBilling(){
   const status = row?.subscription_status || 'none';
   const plan = row?.subscription_plan || '';
   if (error) {
-    state.textContent = 'Run supabase_stripe_patch.sql to switch billing on.';
+    // What the person in front of it can actually do. The old text named a
+    // file in this repository, which is a sentence for whoever wrote the page
+    // and nobody else.
+    console.error('Billing status failed to load:', error);
+    state.textContent = "We couldn't load your subscription just now. Nothing has changed — "
+      + "try Refresh in a moment, and email support if it keeps happening.";
   } else {
     const ends = row?.subscription_ends_at ? d(row.subscription_ends_at).toLocaleDateString() : '';
     state.textContent =
@@ -1177,9 +1310,9 @@ async function loadJobPayments(){
     const j = jobBySync(p.job_sync_id);
     const paid = p.status === 'paid';
     return `<tr>
-      <td>${j?.customer_name || '—'}</td>
-      <td>${p.kind || ''}</td>
-      <td>$${((p.amount_cents||0)/100).toFixed(2)}</td>
+      <td>${esc(j?.customer_name) || '—'}</td>
+      <td>${esc(p.kind || '')}</td>
+      <td>${money((p.amount_cents||0)/100)}</td>
       <td>${paid ? '✅ Paid' : '⏳ Waiting'}</td>
       <td>${d(p.created_at).toLocaleDateString()}</td>
     </tr>`;
@@ -1227,14 +1360,36 @@ function renderDash(){
   const unpaid=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&j.payment_status!=='PAID_IN_FULL');
   const owedTotal=jobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED')
     .reduce((s,j)=>s+stillOwed(j, contractTotalOf(j)),0);
-  const week=new Date(); const weekEnd=new Date(Date.now()+7*864e5);
-  const soon=jobs.filter(j=>j.scheduled_date&&d(j.scheduled_date)>=week&&d(j.scheduled_date)<=weekEnd);
+  // The same seven days the "This week" panel below uses.
+  //
+  // This used to start at the current clock time rather than at midnight, so
+  // from 8am onward the tile stopped counting jobs scheduled for today while
+  // the list directly beneath it still showed them. The owner read "2
+  // Scheduled this week" over a list of three.
+  const dayStart=new Date(); dayStart.setHours(0,0,0,0);
+  const in7=new Date(dayStart.getTime()+7*864e5);
+  const soon=jobs.filter(j=>j.scheduled_date&&d(j.scheduled_date)>=dayStart&&d(j.scheduled_date)<in7);
 
-  $('stats').innerHTML=`
-    <div class="stat click" data-go="cal"><div class="n">${soon.length}</div><div class="l">Scheduled this week</div></div>
-    <div class="stat click" data-go="pipe"><div class="n">${won}</div><div class="l">Jobs won</div></div>
-    <div class="stat click" data-go="reports"><div class="n">${money(collected)}</div><div class="l">Collected this month</div></div>
-    <div class="stat click" data-go="jobs"><div class="n">${money(owedTotal)}</div><div class="l">Still owed</div></div>`;
+  // A tile only offers a click when the tab it opens is actually there.
+  //
+  // Solo hides Pipeline, Crew, Time and Reports, but the tiles kept their
+  // pointer cursor and hover border and switchTab quietly rewrote the
+  // destination to the tab they were already on -- so the page visibly invited
+  // a click and then did nothing.
+  const tileTo = tab => {
+    const b = document.querySelector(`.tab[data-tab="${tab}"]`);
+    return (b && b.style.display === 'none') ? '' : tab;
+  };
+  const tile = (tab, n, label) => {
+    const to = tileTo(tab);
+    return `<div class="stat${to ? ' click' : ''}"${to ? ` data-go="${to}"` : ''}>` +
+           `<div class="n">${n}</div><div class="l">${label}</div></div>`;
+  };
+  $('stats').innerHTML=
+    tile('cal', soon.length, 'Scheduled next 7 days') +
+    tile('pipe', won, 'Jobs won this month') +
+    tile('reports', money(collected), 'Collected this month') +
+    tile('jobs', money(owedTotal), 'Still owed');
   document.querySelectorAll('.stat.click').forEach(s=>
     s.addEventListener('click',()=>switchTab(s.dataset.go)));
 
@@ -1249,14 +1404,19 @@ function renderDash(){
   // Plan changes waiting on an answer.
   const waiting = fieldChanges.filter(fcr => fcr.is_request && !fcr.approved_at && !fcr.rejected_at && !fcr.acknowledged_at && live.has(fcr.job_sync_id));
   new Set(waiting.map(w=>w.job_sync_id)).forEach(sid => {
-    const j = jobBySync(sid); if (j) items.push({ urgent:true, text:'Plan change waiting: '+name(j), id:j.id });
+    // Named as an app job on purpose. Approving a field change needs the run
+    // geometry and the re-estimate, which live in the phone app -- the job
+    // sheet here has no such panel, so an alert that just opened the sheet
+    // sent the contractor looking for a control that was never there.
+    const j = jobBySync(sid);
+    if (j) items.push({ urgent:true, text:'Plan change waiting — answer it in the phone app: '+name(j), id:j.id });
   });
   // 811 locate expired on a job that is not finished.
   jobs.filter(j=>j.locate_expires_at && d(j.locate_expires_at) < new Date() && j.status!=='COMPLETED')
     .forEach(j=>items.push({ urgent:true, text:'811 locate expired: '+name(j), id:j.id }));
   // Hours waiting for approval.
   const pendingShifts = times.filter(t=>t.ended_at && !t.approved_at && !t.rejected_at).length;
-  if (pendingShifts) items.push({ urgent:false, text:pendingShifts+' shift'+(pendingShifts===1?'':'s')+' waiting for approval', id:null, go:'crew' });
+  if (pendingShifts) items.push({ urgent:false, text:pendingShifts+' shift'+(pendingShifts===1?'':'s')+' waiting for approval', id:null, go:'time' });
   // Finished but not paid in full.
   jobs.filter(j=>j.status==='COMPLETED' && j.payment_status!=='PAID_IN_FULL')
     .forEach(j=>items.push({ urgent:false, text:'Finished, not paid: '+name(j), id:j.id }));
@@ -1280,8 +1440,9 @@ function renderDash(){
   }));
 
   // This week: the next seven days, grouped by day, each job one click away.
-  const dayStart = new Date(); dayStart.setHours(0,0,0,0);
-  const in7 = new Date(dayStart.getTime()+7*864e5);
+  // dayStart / in7 are the ones computed at the top of renderDash. They used
+  // to be declared a second time here with the same values, which is exactly
+  // how the tile above and this list drifted apart in the first place.
   const weekJobs = jobs.filter(j=>j.scheduled_date && d(j.scheduled_date)>=dayStart && d(j.scheduled_date)<in7)
     .sort((a,b)=>d(a.scheduled_date)-d(b.scheduled_date));
   if (!weekJobs.length) {
@@ -1370,9 +1531,17 @@ function renderPipe(){
 /* ---------- crew ---------- */
 function renderEmployees(){
   $('empEmpty').style.display=employees.length?'none':'block';
+  // Somebody marked inactive on the phone is off the crew there -- gone from
+  // every list and every assignment picker. Here they were still listed with
+  // no marker at all, so the office assigned next week's install to a person
+  // who left in March. They stay on this list, because their past hours and
+  // payroll have to keep their name, but the list says which is which and the
+  // picker below no longer offers them.
+  const active = e => e.is_active !== false;
   $('empRows').innerHTML=employees.map(e=>`
-    <tr class="click" data-id="${e.id}">
-      <td><strong>${esc(e.name)||'Unnamed'}</strong></td><td>${esc(e.role)||'—'}</td>
+    <tr class="click" data-id="${e.id}"${active(e)?'':' style="opacity:.55"'}>
+      <td><strong>${esc(e.name)||'Unnamed'}</strong>${active(e)?''
+        :' <span class="pill" style="font-size:11px">Off the crew</span>'}</td><td>${esc(e.role)||'—'}</td>
       <td>${esc(e.phone)||'—'}</td><td>${esc(e.email)||'—'}</td>
       <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':'—'}</td></tr>`).join('');
   document.querySelectorAll('#empRows tr').forEach(tr=>
@@ -1408,7 +1577,14 @@ function renderCatalog(){
     (c.name||'').toLowerCase().includes(f)||
     (c.fence_type||'').toLowerCase().includes(f)||
     (c.role||'').toLowerCase().includes(f));
-  $('catEmpty').style.display=catalog.length?'none':'block';
+  // Keyed on what was actually rendered, not on whether the catalog has
+  // anything in it at all -- a filter matching nothing used to leave bare
+  // column headers and no text, which reads as the page having broken.
+  $('catEmpty').textContent = catalog.length
+    ? `Nothing matches "${$('catFilter').value}". Clear the box to see everything.`
+    : "No materials yet. Add your supplier's items and prices in the phone app under "
+      + "Catalog — they appear here within a minute of the phone going online.";
+  $('catEmpty').style.display=list.length?'none':'block';
   $('catRows').innerHTML=list.map(c=>`<tr>
     <td>${esc(c.name)}</td><td>${esc((c.fence_type||'').replace(/_/g,' '))}</td>
     <td>${esc((c.role||'').replace(/_/g,' '))}</td><td>${esc(c.unit)}</td>
@@ -1577,7 +1753,7 @@ function renderAging(){
   $('arRows').innerHTML = arAging.map(r => {
     const late = Number(r.days_out || 0) >= 60;
     const chase = r.phone
-      ? `<button data-arsms="${esc(r.phone)}" data-arname="${esc(r.customer_name || '')}" data-arowed="${Number(r.owed).toFixed(2)}">Text them</button>`
+      ? `<button data-arsms="${esc(r.phone)}" data-arname="${esc(r.customer_name || '')}" data-arowed="${esc(money(r.owed))}">Text them</button>`
       : (r.email ? `<a href="mailto:${esc(r.email)}"><button>Email</button></a>` : '');
     return `<tr>
       <td><b>${esc(r.customer_name || 'Unnamed')}</b></td>
@@ -1703,8 +1879,23 @@ function renderReports(){
   // Ledger again, over the report's own window, so this agrees with the app
   // and with the tile above it.
   const collected=paymentsIn.reduce((s,p)=>s+(p.amount||0),0);
-  const profit=collected-material-labor-other;
-  const margin=collected>0?(profit/collected*100):0;
+
+  // Profit is measured against the contract, not against what has been
+  // collected so far.
+  //
+  // It used to be collected-minus-costs, and the two halves came from
+  // different windows: money IN counted only payments that landed inside the
+  // period, while money OUT counted every line item and expense a job had ever
+  // carried, as long as the job had been touched in the period. So quoting a
+  // $50k job today with $30k of materials on it and no deposit yet read as a
+  // $30,000 loss, and the margin tile beside it read -100%. Both sides now
+  // come from the same set of jobs: contract value less that job's own costs,
+  // which is the same projected_profit the per-job table below shows and the
+  // same figure the database computes for the app.
+  const costingIn = jobCosting.filter(r => syncIds.has(r.job_sync_id));
+  const quotedIn  = costingIn.reduce((s,r)=>s+Number(r.quoted||0),0);
+  const profit    = costingIn.reduce((s,r)=>s+Number(r.projected_profit||0),0);
+  const margin    = quotedIn>0?(profit/quotedIn*100):0;
   const hours=timesIn.reduce((s,t)=>s+hoursOf(t),0);
   const quotes=jobsIn.filter(j=>j.status!=='DRAFT').length;
   const closing=quotes?(won.length/quotes*100):0;
@@ -1713,8 +1904,10 @@ function renderReports(){
   // Profit and margin tiles are Pro's money intelligence; Crew's hero row
   // shows the operation.
   const proTiles = !hasAdvancedReports() ? '' : `
-    <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit</div></div>
+    <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit on these jobs</div></div>
     <div class="stat"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>`;
+  $('repRangeLabel').title = 'Collected and Hours count what happened inside this window. '
+    + 'Est. profit is measured across the whole of every job touched in it.';
   $('repHero').innerHTML=`
     <div class="stat"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>${proTiles}
     <div class="stat"><div class="n">${won.length}</div><div class="l">Jobs won</div></div>
@@ -1831,15 +2024,22 @@ function renderReports(){
         <td>${v.hours>0?money(v.cost/v.hours):'—'}</td></tr>`).join('')
     : '<tr><td colspan="5" style="color:var(--muted)">No clocked time in this period.</td></tr>';
 
-  const owed=jobsIn.filter(j=>j.status==="ACCEPTED"||j.status==="COMPLETED")
-    .map(j=>({j, mat:contractTotalOf(j), out:stillOwed(j, contractTotalOf(j))}))
-    .filter(r=>r.out>0.01).sort((a,b)=>b.out-a.out);
+  // From ar_aging, the same source as "Who owes you" at the top of the tab.
+  //
+  // This table used to be built here in the browser from the jobs cache, while
+  // the panel above it came from the ar_aging RPC, which reads the payment
+  // ledger. Two tables headed Customer / Contract / Paid, showing the same
+  // customers with different numbers -- and this one only listed jobs touched
+  // inside the report window, so on the default Last-90-days an unpaid job
+  // from last spring was missing entirely from the report about unpaid jobs.
+  const owed = arAging.slice().sort((a,b)=>Number(b.owed||0)-Number(a.owed||0));
   $('repOwed').innerHTML = owed.length
-    ? owed.map(r=>`<tr><td>${esc(r.j.customer_name)||'Untitled'}</td>
-        <td><span class="pill ${esc(r.j.status)}">${esc(r.j.status)}</span></td>
-        <td>${money(r.mat)}</td><td>${money(netPaid(r.j))}</td>
-        <td><strong>${money(r.out)}</strong></td></tr>`).join('')
-    : '<tr><td colspan="5" style="color:var(--muted)">Nothing outstanding.</td></tr>';
+    ? owed.map(r=>`<tr><td>${esc(r.customer_name)||'Untitled'}</td>
+        <td style="color:var(--muted)">${esc(r.status||'')}</td>
+        <td>${money(r.contract_total)}</td><td>${money(r.paid)}</td>
+        <td><strong>${money(r.owed)}</strong></td>
+        <td>${Number(r.days_out||0)}</td></tr>`).join('')
+    : '<tr><td colspan="6" style="color:var(--muted)">Nothing outstanding.</td></tr>';
 
   $('repTimeRows').innerHTML = timesIn.length
     ? timesIn.sort((a,b)=>d(b.started_at)-d(a.started_at)).map(t=>{
@@ -1901,9 +2101,24 @@ function showJob(id){
 
   $('j_scheduled_date').value=openJob.scheduled_date
     ? new Date(openJob.scheduled_date).toISOString().slice(0,10) : '';
-  $('j_assigned_employee_id').innerHTML='<option value="">Unassigned</option>'+
-    employees.map(e=>`<option value="${e.sync_id}">${esc(e.name)||'Unnamed'}</option>`).join('');
-  $('j_assigned_employee_id').value=openJob.assigned_employee_sync_id||'';
+  // Only people still on the crew can be given new work.
+  const sel = $('j_assigned_employee_id');
+  sel.innerHTML='<option value="">Unassigned</option>'+
+    employees.filter(e=>e.is_active !== false)
+      .map(e=>`<option value="${e.sync_id}">${esc(e.name)||'Unnamed'}</option>`).join('');
+  sel.value=openJob.assigned_employee_sync_id||'';
+  // An assignee who has since left the crew has no option to match, so the
+  // select fell to selectedIndex -1 and rendered completely blank -- and the
+  // next Save wrote null over an assignment nobody had touched. The person is
+  // named instead, marked as gone, so changing it is a decision rather than a
+  // side effect of opening the job.
+  if (openJob.assigned_employee_sync_id && sel.selectedIndex === -1) {
+    const gone = employees.find(e=>e.sync_id===openJob.assigned_employee_sync_id);
+    sel.insertAdjacentHTML('beforeend',
+      `<option value="${esc(openJob.assigned_employee_sync_id)}">` +
+      `${esc(gone?.name) || 'Someone no longer on the crew'} — off the crew</option>`);
+    sel.value = openJob.assigned_employee_sync_id;
+  }
 
   const sid=openJob.sync_id;
   const jr=runs.filter(r=>r.job_sync_id===sid);
@@ -1985,7 +2200,16 @@ async function saveJob(){
   const {error}=await db.from('jobs').update(patch).eq('id',openJob.id);
   if(error) return msg('jobMsg',error.message,'err');
   msg('jobMsg','Saved. Phones pick this up on their next sync.','ok');
+  // Repainted from the row that was just written.
+  //
+  // loadAll() rebuilds the jobs array, but openJob still pointed at the old
+  // detached object, so the sheet's Progress checklist and Amount paid readout
+  // kept showing pre-save values while the table behind it updated -- it read
+  // as the save having failed.
+  const reopen = openJob.id;
   await loadAll();
+  if ($('jobOverlay').classList.contains('on')) showJob(reopen);
+  return;
 }
 
 async function createJob(){
@@ -2132,7 +2356,11 @@ document.querySelectorAll('.tab').forEach(t=>
   t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 
 $('signIn').addEventListener('click',signIn);
-$('password').addEventListener('keydown',e=>{if(e.key==='Enter') signIn();});
+// Bound to the panel, not to one input. On "One last step" the password field
+// is hidden, so Enter did nothing at all on the last step of signing up.
+$('auth').addEventListener('keydown',e=>{
+  if(e.key==='Enter' && e.target.tagName==='INPUT'){ e.preventDefault(); signIn(); }
+});
 $('forgotLink').addEventListener('click', async e => {
   e.preventDefault();
   const email=$('email').value.trim();
@@ -2152,6 +2380,12 @@ $('authToggle').addEventListener('click',e=>{
 // index.html's "Start free trial" buttons land here ready to sign up.
 if (location.hash === '#signup') setAuthMode('signup');
 $('signOut').addEventListener('click',async()=>{await db.auth.signOut();location.reload();});
+$('authSignOutLink').addEventListener('click',async e=>{
+  e.preventDefault();
+  msg('authMsg','Signing out…','working');
+  await db.auth.signOut();
+  location.reload();
+});
 $('refresh').addEventListener('click',loadAll);
 $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'));
 $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'));
@@ -2196,6 +2430,14 @@ document.querySelectorAll('.cat').forEach(sec=>{
 // the person who clocked them, with their own rate on every line.
 $('exportPayroll').addEventListener('click',()=>{
   const approved=(window._repExport?.times||[]).filter(t=>t.approved_at);
+  // An empty file downloaded silently is worse than no file: it reads as "no
+  // hours were worked" rather than "nothing has been approved yet".
+  if (!approved.length) {
+    $('payrollNote').textContent = 'No approved shifts in this period, so there is nothing to pay '
+      + 'yet. Approve the shifts in the phone app under Time, then export again.';
+    return;
+  }
+  $('payrollNote').textContent = '';
   const byWho={};
   approved.forEach(t=>{
     const emp=employees.find(e=>e.sync_id===t.employee_sync_id);
@@ -2215,9 +2457,10 @@ $('exportCrew').addEventListener('click',()=>downloadCsv('crew-report.csv',
   (window._repExport?.crew||[]).map(([n,v])=>
     [n,v.jobs.size,v.hours.toFixed(2),v.cost.toFixed(2),v.hours?(v.cost/v.hours).toFixed(2):''])));
 $('exportOwed').addEventListener('click',()=>downloadCsv('outstanding.csv',
-  ['Customer','Status','Contract','Paid','Outstanding'],
+  ['Customer','Status','Contract','Paid','Outstanding','Days outstanding'],
   (window._repExport?.owed||[]).map(r=>
-    [r.j.customer_name,r.j.status,r.mat.toFixed(2),netPaid(r.j).toFixed(2),r.out.toFixed(2)])));
+    [r.customer_name, r.status, Number(r.contract_total||0).toFixed(2),
+     Number(r.paid||0).toFixed(2), Number(r.owed||0).toFixed(2), Number(r.days_out||0)])));
 $('exportTime').addEventListener('click',()=>downloadCsv('time-detail.csv',
   ['Date','Job','In','Out','Hours','Cost'],
   (window._repExport?.times||[]).map(t=>{

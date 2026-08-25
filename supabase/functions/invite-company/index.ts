@@ -229,7 +229,31 @@ Deno.serve(async (req) => {
       }
     }
 
-    await admin.rpc("admin_mark_invited", { target: companyId, to_email: email });
+    // Whether the invitation was recorded is reported, not swallowed.
+    //
+    // This call used to be fired and forgotten, and it raised every single
+    // time: the function guarded on is_platform_admin(), which reads
+    // auth.uid(), and this client is the service role, which has no user. So
+    // the mail genuinely went out, admin.html said "Invitation sent", and the
+    // company's onboarding stayed "Not started" forever with its button still
+    // reading Invite -- no way to tell who had already been contacted, and the
+    // same invitation sent again and again. The guard now lets a caller with
+    // no user context through, and if the write still fails the admin is told
+    // rather than shown a success that is only half true.
+    const { error: markError } = await admin.rpc("admin_mark_invited", {
+      target: companyId,
+      to_email: email,
+    });
+    if (markError) {
+      return json({
+        sent: true,
+        to: email,
+        via: sentVia,
+        warning:
+          "The invitation was sent, but recording it failed, so this company will still show as not yet invited: " +
+          markError.message,
+      });
+    }
 
     return json({ sent: true, to: email, via: sentVia });
   } catch (e) {

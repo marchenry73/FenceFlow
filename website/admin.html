@@ -136,7 +136,7 @@
 <dialog id="stackDialog" style="max-width:min(760px,92vw)">
   <h3 style="margin-top:0;font-size:15px" id="stackTitle"></h3>
   <pre id="stackBody" style="white-space:pre;overflow:auto;max-height:56vh;
-    font-size:12px;line-height:1.45;background:var(--surface2,#f6f6f7);
+    font-size:12px;line-height:1.45;background:var(--bg);border:1px solid var(--line);
     padding:12px;border-radius:8px;margin:0"></pre>
   <div style="margin-top:12px;text-align:right">
     <button onclick="document.getElementById('stackDialog').close()">Close</button>
@@ -190,7 +190,7 @@
     then enter this code to become the owner of their company.
   </p>
   <div id="setupCode" style="font:600 26px/1.3 ui-monospace,monospace;letter-spacing:.08em;
-       padding:14px;text-align:center;background:var(--sunk,#eef1f5);border-radius:6px"></div>
+       padding:14px;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:6px"></div>
   <p style="color:var(--muted);font-size:13px;margin:10px 0 0">
     It works once, and it is not shown again. If it goes astray, delete the
     company and make a new one. Their trial does not start until you press
@@ -204,9 +204,18 @@
 <dialog id="editDialog">
   <h3 style="margin-top:0" id="editTitle">Client</h3>
   <div class="row2">
-    <div><label>Plan</label><input id="e_plan"></div>
+    <div><label>Plan</label>
+      <select id="e_plan">
+        <option value="">No plan — nothing unlocked</option>
+        <option value="solo">Solo — 1 login</option>
+        <option value="crew">Crew — 6 logins</option>
+        <option value="pro">Pro — unlimited logins</option>
+      </select>
+      <span id="e_planNote" style="display:none;font-size:11px;color:var(--muted)">Set by Stripe — change it there, not here.</span>
+    </div>
     <div><label>Price per month ($)</label><input id="e_price" type="number" step="1"></div>
-    <div><label>Billing email</label><input id="e_email" type="email"></div>
+    <div><label>Contact email</label><input id="e_contact" type="email" placeholder="where the invitation goes"></div>
+    <div><label>Billing email</label><input id="e_email" type="email" placeholder="where receipts go"></div>
     <div><label>Grace period ends</label><input id="e_grace" type="date"></div>
   </div>
   <label>Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
@@ -358,8 +367,17 @@ function statusPill(c) {
  * is behind Manage.
  */
 function accessButton(c) {
+  // Reinstate lifts the suspension and nothing else.
+  //
+  // It used to share the [data-grant] handler with "Make customer", so the
+  // obvious green button on a company suspended for non-payment opened a
+  // dialog warning against using it for a billing problem -- and pressing
+  // through it set subscription_status to active and access_note to a
+  // permanent grant. A company that owed money came back as a customer paying
+  // nothing, with no trial clock and no plan, and no sign on the row that it
+  // had happened.
   if (c.suspended) {
-    return `<button class="primary" data-grant="${c.id}">Reinstate</button>`;
+    return `<button class="primary" data-unsuspend="${c.id}">Reinstate</button>`;
   }
   if (c.subscription_status === 'pending' || (!c.allowed && !c.trial_ends_at)) {
     return `<button class="primary" data-start="${c.id}">Start trial</button>`;
@@ -367,6 +385,11 @@ function accessButton(c) {
   if (c.subscription_status === 'trialing') {
     return `<button data-extend="${c.id}">+14 days</button>
             <button class="primary" data-grant="${c.id}">Make customer</button>`;
+  }
+  // Past due is the one status with something to say before something to do.
+  if (c.subscription_status === 'past_due') {
+    return `<button data-chase="${c.id}">Chase payment</button>
+            <button class="danger" data-suspend="${c.id}">Suspend</button>`;
   }
   return `<button class="danger" data-suspend="${c.id}">Suspend</button>`;
 }
@@ -408,7 +431,7 @@ function ask({ title, body, confirmLabel = 'Confirm', danger = false, withHold =
 }
 
 /** Runs one admin action and reloads, reporting anything that went wrong. */
-async function adminAction(fn, args, confirmOpts) {
+async function adminAction(fn, args, confirmOpts, btn) {
   let call = args;
   if (confirmOpts) {
     const answer = await ask(confirmOpts);
@@ -416,8 +439,20 @@ async function adminAction(fn, args, confirmOpts) {
     // A choice made in the dialog travels with the action it belongs to.
     if (confirmOpts.withHold) call = { ...args, hold: !!answer.hold };
   }
+  // Held down for the round trip.
+  //
+  // Nothing used to change on the button, and the only feedback was the word
+  // "Working…" in small grey text at the very top of the panel -- off screen
+  // if the row is far down the list. On a slow connection the button looks
+  // dead, so it gets pressed again, and +14 days hands out a month.
+  if (btn) { btn.disabled = true; btn.dataset.was = btn.textContent; btn.textContent = 'Working…'; }
   $('msg').textContent = 'Working…';
-  const { error } = await db.rpc(fn, call);
+  let error;
+  try {
+    ({ error } = await db.rpc(fn, call));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.was || btn.textContent; }
+  }
   if (error) { $('msg').textContent = error.message; return; }
   $('msg').textContent = '';
   await load();
@@ -506,19 +541,30 @@ async function inviteCompany(id, name, existingEmail) {
   }
   $('msg').textContent = `Sending to ${email}…`;
   const { data: sess } = await db.auth.getSession();
+
+  // The outcome is held until after the refresh.
+  //
+  // It used to be written straight into #msg and then load() ran, and load()
+  // opens by writing "Loading…" over it and closes by clearing it. So both
+  // answers looked identical: a blank line. A mail provider refusing the
+  // address read exactly like a successful send.
+  let note;
   try {
     const res = await fetch(`${SUPA_URL}/functions/v1/invite-company`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
       body: JSON.stringify({ companyId: id, email, companyName: name })
     });
-    const body = await res.json();
-    $('msg').textContent = body.sent ? `Invitation sent to ${email}.` : (body.error || 'Could not send.');
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) note = body.error || `The mail server refused it (${res.status}).`;
+    else if (body.warning) note = body.warning;
+    else note = body.sent ? `Invitation sent to ${email}.` : (body.error || 'Could not send it.');
   } catch (e) {
-    $('msg').textContent = String(e.message || e);
+    note = 'Could not reach the mail server: ' + String(e.message || e);
   }
   await load();
-  setTimeout(() => { $('msg').textContent = ''; }, 4000);
+  $('msg').textContent = note;
+  setTimeout(() => { $('msg').textContent = ''; }, 8000);
 }
 
 function render() {
@@ -556,11 +602,12 @@ function render() {
       <td>${c.people}${appVersion(c)}</td>
       <td>${c.jobs}</td>
       <td>${day(c.last_active)}</td>
-      <td>${c.days_left != null ? c.days_left + ' days' : day(c.trial_ends_at)}</td>
+      <td>${c.days_left != null ? c.days_left + ' days'
+             : (c.subscription_ends_at ? day(c.subscription_ends_at) : day(c.trial_ends_at))}</td>
       <td style="white-space:nowrap">
         ${accessButton(c)}
         ${c.joined_at ? '' :
-          `<button data-invite="${c.id}" data-email="${esc(c.invited_email || c.email || '')}"
+          `<button data-invite="${c.id}" data-email="${esc(c.invited_email || c.email || c.billing_email || '')}"
              data-name="${esc(c.name || '')}">${c.invited_at ? 'Re-invite' : 'Invite'}</button>`}
         <button data-edit="${c.id}">Manage</button>
       </td>
@@ -582,11 +629,34 @@ function render() {
         body: `${named(b.dataset.start)} gets fourteen days from now. They are not charged ` +
               `anything, and you can extend it later if they need longer.`,
         confirmLabel: 'Start 14 days'
-      })));
+      }, b)));
 
+  // The new end date is named before it is granted, not after. This was the
+  // one action with no question at all.
   document.querySelectorAll('[data-extend]').forEach(b =>
+    b.addEventListener('click', () => {
+      const c = clients.find(x => x.id === b.dataset.extend) || {};
+      const from = c.trial_ends_at && new Date(c.trial_ends_at) > new Date()
+        ? new Date(c.trial_ends_at) : new Date();
+      const to = new Date(from.getTime() + 14 * 86400000);
+      adminAction('admin_extend_trial', { target: b.dataset.extend, days: 14 }, {
+        title: 'Add another fortnight?',
+        body: `${named(b.dataset.extend)} would run free until ${day(to.toISOString())}. ` +
+              `Nothing is charged, and you can add more time again later.`,
+        confirmLabel: 'Extend to ' + day(to.toISOString())
+      }, b);
+    }));
+
+  // Reinstate: lifts the suspension and leaves plan and billing untouched.
+  document.querySelectorAll('[data-unsuspend]').forEach(b =>
     b.addEventListener('click', () => adminAction(
-      'admin_extend_trial', { target: b.dataset.extend, days: 14 }, null)));
+      'admin_unsuspend', { target: b.dataset.unsuspend }, {
+        title: `Reinstate ${named(b.dataset.unsuspend)}?`,
+        body: 'Their crews get access back straight away. The plan, the price and ' +
+              'the billing state are left exactly as they are — this only lifts ' +
+              'the suspension.',
+        confirmLabel: 'Reinstate'
+      }, b)));
 
   document.querySelectorAll('[data-grant]').forEach(b =>
     b.addEventListener('click', () => adminAction(
@@ -595,7 +665,7 @@ function render() {
         body: `${named(b.dataset.grant)} keeps working with no trial clock and no plan required. ` +
               `Use this for someone you are carrying deliberately, not as a way to fix a billing problem.`,
         confirmLabel: 'Grant access'
-      })));
+      }, b)));
 
   document.querySelectorAll('[data-suspend]').forEach(b =>
     b.addEventListener('click', () => adminAction(
@@ -607,7 +677,7 @@ function render() {
         confirmLabel: 'Suspend',
         danger: true,
         withHold: true
-      })));
+      }, b)));
   document.querySelectorAll('[data-chase]').forEach(b =>
     b.addEventListener('click', () => chase(b.dataset.chase)));
 }
@@ -665,7 +735,25 @@ function openEdit(id) {
   editing = clients.find(c => c.id === id);
   if (!editing) return;
   $('editTitle').textContent = editing.name || 'Unnamed company';
-  $('e_plan').value  = editing.subscription_plan || '';
+  // Only what the server understands. Anything already in the column that is
+  // not one of these -- a company set up before the box became a list -- is
+  // kept as its own option rather than silently rewritten to something else.
+  const plan = (editing.subscription_plan || '').trim();
+  const known = ['', 'solo', 'crew', 'pro'];
+  const legacy = $('e_plan').querySelector('option[data-legacy]');
+  if (legacy) legacy.remove();
+  if (plan && !known.includes(plan.toLowerCase())) {
+    const o = document.createElement('option');
+    o.value = plan; o.textContent = plan + ' — unrecognised, no seat limit';
+    o.dataset.legacy = '1';
+    $('e_plan').appendChild(o);
+  }
+  $('e_plan').value = known.includes(plan.toLowerCase()) ? plan.toLowerCase() : plan;
+  // Stripe owns the plan on a live subscription; the webhook overwrites
+  // anything typed here on the next billing event.
+  $('e_plan').disabled = !!editing.stripe_subscription_id;
+  $('e_planNote').style.display = editing.stripe_subscription_id ? 'inline' : 'none';
+  $('e_contact').value = editing.email || '';
   $('e_price').value = editing.monthly_price || 0;
   $('e_email').value = editing.billing_email || editing.email || '';
   $('e_grace').value = editing.grace_ends_at ? editing.grace_ends_at.slice(0, 10) : '';
@@ -678,13 +766,17 @@ function openEdit(id) {
 async function saveEdit() {
   if (!editing) return;
   $('editMsg').textContent = 'Saving…';
-  const { error } = await db.from('companies').update({
-    subscription_plan: $('e_plan').value.trim(),
+  const patch = {
     monthly_price: Number($('e_price').value || 0),
+    email: $('e_contact').value.trim() || null,
     billing_email: $('e_email').value.trim(),
     grace_ends_at: $('e_grace').value ? new Date($('e_grace').value).toISOString() : null,
     admin_notes: $('e_notes').value
-  }).eq('id', editing.id);
+  };
+  // Left out entirely when Stripe owns it, rather than writing back the
+  // disabled control's value.
+  if (!editing.stripe_subscription_id) patch.subscription_plan = $('e_plan').value.trim();
+  const { error } = await db.from('companies').update(patch).eq('id', editing.id);
 
   if (error) { $('editMsg').textContent = error.message; return; }
   $('editDialog').close();

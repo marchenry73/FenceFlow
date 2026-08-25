@@ -73,7 +73,15 @@ Deno.serve(async (req) => {
       return json({ error: "Only the owner can change the subscription" }, 403);
     }
 
-    const { priceId } = await req.json();
+    // "from" says which page started this, so Stripe returns them to it.
+    //
+    // Both URLs used to point at the dashboard whatever page the checkout
+    // began on. Onboarding therefore never reached its own last screen -- the
+    // one that tells a new contractor to install the app and sign in with the
+    // same email -- and cancelling dropped them into a blocked dashboard
+    // rather than back on the plan step they were reading.
+    const { priceId, from } = await req.json();
+    const back = from === "welcome" ? "welcome.html" : "dashboard.html";
     if (!priceId) return json({ error: "Missing priceId" }, 400);
 
     // The plan name comes from the PRICE, never from the browser.
@@ -167,8 +175,8 @@ Deno.serve(async (req) => {
       ...(await hadSubscriptionBefore(admin, profile.company_id)
         ? {}
         : { "subscription_data[trial_period_days]": "14" }),
-      success_url: `${site}/dashboard.html?billing=success`,
-      cancel_url: `${site}/dashboard.html?billing=canceled`,
+      success_url: `${site}/${back}?billing=success`,
+      cancel_url: `${site}/${back}?billing=canceled`,
       "subscription_data[metadata][company_id]": profile.company_id,
       "subscription_data[metadata][plan]": plan,
       "metadata[company_id]": profile.company_id,

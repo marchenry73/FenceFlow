@@ -17,12 +17,19 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 async function verify(rawBody: string, header: string | null, secret: string): Promise<boolean> {
   if (!header) return false;
 
-  const parts = Object.fromEntries(
-    header.split(",").map((p) => p.split("=", 2) as [string, string]),
-  );
-  const timestamp = parts["t"];
-  const signature = parts["v1"];
-  if (!timestamp || !signature) return false;
+  // Every v1 in the header, not just the last one.
+  //
+  // Rotating the signing secret is the one moment this matters. Stripe signs
+  // the request with every secret that is still active and sends them all in
+  // the one header -- t=...,v1=<old>,v1=<new>. Folding that into an object
+  // collapses the duplicate keys and keeps whichever came last, so for the
+  // whole rotation window half the events fail their signature check and are
+  // dropped: payments stop being marked paid, subscriptions stop activating,
+  // and the only trace is 400s in the Stripe dashboard.
+  const fields = header.split(",").map((p) => p.split("=", 2));
+  const timestamp = fields.find((f) => f[0] === "t")?.[1];
+  const signatures = fields.filter((f) => f[0] === "v1").map((f) => f[1]);
+  if (!timestamp || signatures.length === 0) return false;
 
   // Reject anything older than five minutes so a captured request can't be
   // replayed later.
@@ -44,14 +51,20 @@ async function verify(rawBody: string, header: string | null, secret: string): P
   const expected = Array.from(new Uint8Array(mac))
     .map((b) => b.toString(16).padStart(2, "0")).join("");
 
-  if (expected.length !== signature.length) return false;
   // Compare every byte regardless of where the first mismatch is, so response
-  // timing can't be used to guess the signature one character at a time.
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) {
-    diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  // timing can't be used to guess the signature one character at a time. Every
+  // candidate is compared for the same reason -- stopping early on a length
+  // mismatch would leak which one was the right shape.
+  let matched = false;
+  for (const signature of signatures) {
+    if (expected.length !== signature.length) continue;
+    let diff = 0;
+    for (let i = 0; i < expected.length; i++) {
+      diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+    }
+    if (diff === 0) matched = true;
   }
-  return diff === 0;
+  return matched;
 }
 
 /**
@@ -64,12 +77,22 @@ async function verify(rawBody: string, header: string | null, secret: string): P
  * the total.
  */
 async function applyPaymentToJob(admin: any, payment: any) {
+  // Looked up, but not required.
+  //
+  // A cleared payment used to be thrown away entirely when this came back
+  // null, and it comes back null routinely: the app creates a job locally and
+  // uploads it on its next sync, so a deposit link sent from the dashboard can
+  // easily be paid before the job row exists in the cloud. The Payments table
+  // flipped to Paid, Stripe got its 200 and never retried, and the job on the
+  // phone showed the full balance owing forever. The ledger below needs only
+  // the company and the job's sync id, both of which are on the payment row,
+  // so the money is recorded either way and the app rebuilds the paid figure
+  // from the ledger when the job finally arrives.
   const { data: job } = await admin.from("jobs")
     .select("id, sync_id, company_id, customer_name, deposit_amount")
     .eq("company_id", payment.company_id)
     .eq("sync_id", payment.job_sync_id)
     .maybeSingle();
-  if (!job) return;
 
   // Within one Stripe mode only.
   //
@@ -119,6 +142,9 @@ async function applyPaymentToJob(admin: any, payment: any) {
   // the line items, change orders and gate charges -- the server does not have
   // it and should not guess. The app promotes this to PAID_IN_FULL once the
   // amount actually covers the total.
+  // No job row yet -- the ledger above is the record until it syncs.
+  if (!job) return;
+
   await admin.from("jobs").update({
     amount_paid: paidDollars,
     payment_status: "DEPOSIT_PAID",
@@ -247,9 +273,19 @@ Deno.serve(async (req) => {
             }
           }
         } else if (session.mode === "subscription" && companyId) {
+          // The status is deliberately not written here.
+          //
+          // Every new signup starts on a 14-day trial, so the subscription
+          // Stripe just created is "trialing", not "active". Stamping "active"
+          // here recorded a company that has never been charged as a paying
+          // customer -- the admin dashboard counted it in "Paying" and added
+          // its price to Monthly recurring, inflating the two figures that are
+          // supposed to say how the business is actually doing. The
+          // customer.subscription.created/updated handler below writes the
+          // real status and trial_end; this one only records which
+          // subscription and which plan.
           await admin.from("companies").update({
             stripe_subscription_id: session.subscription,
-            subscription_status: "active",
             subscription_plan: session.metadata?.plan ?? "",
           }).eq("id", companyId);
           // Subscribing again is paying. A company that was switched off for
