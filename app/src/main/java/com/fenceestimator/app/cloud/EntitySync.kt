@@ -325,7 +325,37 @@ object EntitySync {
      * request per table, rather than one per job.
      */
     private suspend fun pushJobChildren(repository: Repository, companyId: String): Int {
-        val jobs = repository.getAllJobs()
+        val allJobs = repository.getAllJobs()
+        if (allJobs.isEmpty()) return 0
+
+        // Don't write this phone's copy of a job whose cloud row is newer.
+        //
+        // Every job's children -- line items, change orders, expenses -- were
+        // pushed unconditionally, so a phone that had been in a pocket for a
+        // week wrote its week-old figures over whatever the office had done
+        // since. The child rows carry no timestamp of their own to compare, but
+        // their JOB does, and a job edited more recently elsewhere means this
+        // phone's copy of its children is the stale one. Those get skipped here
+        // and arrive on the pull instead.
+        //
+        // A job this phone edited most recently is still pushed, so ordinary
+        // work -- including a week of it done offline -- goes up as before.
+        val cloudTouchedAt = runCatching {
+            SupabaseModule.client.postgrest.from("jobs")
+                // sees-tombstones: this reads WHEN each job last changed, not
+                // what it contains. A job deleted elsewhere has a very recent
+                // timestamp, and its children are exactly the ones this phone
+                // must not push back up -- so hiding the tombstone here would
+                // resurrect them through the side door.
+                .select { filter { eq("company_id", companyId) } }
+                .decodeList<CloudJob>()
+                .associate { it.syncId to it.updatedAtMillis() }
+        }.getOrDefault(emptyMap())
+
+        val jobs = allJobs.filter { job ->
+            val cloudAt = cloudTouchedAt[job.syncId] ?: return@filter true
+            cloudAt <= job.updatedAt
+        }
         if (jobs.isEmpty()) return 0
 
         val lineItems = mutableListOf<CloudLineItem>()
