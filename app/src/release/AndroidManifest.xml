@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    What the Play Store build must NOT declare.
+
+    REQUEST_INSTALL_PACKAGES is how the sideloaded build installs its own
+    updates. Google restricts that permission to apps whose core purpose is
+    installing software (stores, file managers, device tooling), and a fencing
+    estimator asking for it is refused at review. Distributing updates outside
+    Play is against policy in any case: once the app is in the Store, Play is
+    the thing that updates it.
+
+    So the permission is removed from this variant only. The build handed out
+    by link keeps it, and keeps its updater, because that build has no other
+    way to reach a phone.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:node="remove" />
+
+</manifest>

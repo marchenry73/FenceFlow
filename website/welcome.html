@@ -219,13 +219,25 @@ async function boot() {
 
   // The invite carries the company they were created for, so nobody types a code.
   const { data: prof } = await db.from('profiles').select('company_id, full_name').eq('id', user.id).maybeSingle();
+  // Claiming, not joining.
+  //
+  // join_company deliberately puts everyone in as CREW -- letting a joiner
+  // name their own role would let anyone with a company id make themselves
+  // its owner. So an invited owner arrived as crew and was told "only the
+  // owner can set up the business" on the very first button, for ever.
+  // Claiming is its own path, and the server checks both things that make it
+  // safe: the company id came from the invitation's own signed token, and a
+  // company that already has an owner cannot be claimed again.
   const invitedCompany = user.user_metadata?.company_id;
   if (!prof?.company_id && invitedCompany) {
-    await db.rpc('join_company', {
-      target_company_id: invitedCompany,
-      member_name: user.user_metadata?.full_name || '',
-      requested_role_in: 'OWNER'
+    const { error: claimError } = await db.rpc('claim_invited_company', {
+      member_name: user.user_metadata?.full_name || ''
     });
+    if (claimError) {
+      // Showing a form that cannot possibly succeed is worse than saying so.
+      showNeedLink(claimError.message);
+      return;
+    }
   }
 
   const { data: onboarding } = await db.rpc('my_onboarding');

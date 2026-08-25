@@ -115,6 +115,10 @@ object UpdateChecker {
     }
 
     private suspend fun checkOutcome(): Outcome = withContext(Dispatchers.IO) {
+        // A Play build never offers its own updates: Play does that, and
+        // distributing them any other way is against its policy. One check
+        // here rather than at every call site, so nothing can route around it.
+        if (!BuildConfig.SELF_UPDATE) return@withContext Outcome.Answered(null)
         if (!SupabaseModule.isConfigured) return@withContext Outcome.CouldNotAsk
         // No session required any more: the release list is readable without
         // one, because a phone that cannot authenticate is exactly the phone

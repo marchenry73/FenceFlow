@@ -25,6 +25,11 @@
   .msg{padding:10px;border-radius:8px;font-size:13px;margin:10px 0;display:none}
   .msg.err{background:#FDECEC;color:#8C1114;display:block}
   .msg.ok{background:#E6F6F3;color:#07473D;display:block}
+  /* Neutral, and it stays put. Anything written into .msg without one of
+     these classes is invisible -- which is how "Opening secure checkout…"
+     and "Confirm the email we just sent you" were being shown to nobody. */
+  .msg.info{background:#EEF2F7;color:#25313F;display:block}
+  .msg.working{background:#EEF2F7;color:#25313F;display:block}
   .tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin-bottom:18px;overflow-x:auto}
   .tab{background:none;border:none;padding:11px 15px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit}
   .tab.on{color:var(--orange);border-bottom-color:var(--orange)}
@@ -152,6 +157,9 @@
   </div>
   <div style="margin-top:14px"><button class="btn" id="signIn" style="width:100%">Sign in</button></div>
   <p style="margin-top:12px;text-align:center;font-size:13px">
+    <a href="#" id="forgotLink">Forgot your password?</a>
+  </p>
+  <p style="margin-top:4px;text-align:center;font-size:13px">
     <a href="#" id="authToggle">New company? Start your free trial</a>
   </p>
   <p style="margin-top:8px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
@@ -660,11 +668,24 @@ const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
     orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null, planName='';
-let calMonth = new Date();
+/* Always the first of the month.
+   Kept on today's date, stepping a month meant asking for the 31st of a
+   30-day month, which JavaScript rolls forward into the month after -- so on
+   the 31st, Next skipped September altogether. The day of the month is not
+   information this variable carries, so it does not keep one. */
+let calMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
 
 const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANAGER');
-function msg(el,text,kind){const e=$(el);e.textContent=text;e.className='msg '+kind;
-  if(kind==='ok') setTimeout(()=>{e.className='msg';},2500);}
+/* Says something, visibly, and only tidies away a success.
+   An instruction that removes itself after two and a half seconds -- which is
+   what happened to "confirm the email we just sent you" -- leaves somebody
+   staring at a form with no idea what to do next. */
+function msg(el,text,kind){
+  const e=$(el);
+  e.textContent=text;
+  e.className='msg '+(kind||'info');
+  if(kind==='ok') setTimeout(()=>{e.className='msg';},2500);
+}
 
 /* ---------- auth ----------
    Three shapes of the same panel: signing in, creating a brand-new company
@@ -691,9 +712,20 @@ async function signIn(){
   if(authMode==='company') return finishCompany();
   const email=$('email').value.trim(), password=$('password').value;
   if(!email||!password) return msg('authMsg','Enter your email and password.','err');
-  msg('authMsg','Signing in…','ok');
+  msg('authMsg','Signing in…','working');
   const {error}=await db.auth.signInWithPassword({email,password});
-  if(error) return msg('authMsg',error.message,'err');
+  if(error){
+    // The API's own words are for developers. "Invalid login credentials"
+    // tells a contractor nothing about what to do next.
+    const raw=String(error.message||'');
+    if(/invalid login credentials/i.test(raw)){
+      return msg('authMsg',"That email and password don't match. Use the “Forgot your password?” link below if you need a new one.",'err');
+    }
+    if(/email not confirmed/i.test(raw)){
+      return msg('authMsg','Confirm the email we sent you first, then sign in here.','info');
+    }
+    return msg('authMsg',raw,'err');
+  }
   await boot();
 }
 
@@ -703,7 +735,7 @@ async function signUp(){
   if(!company) return msg('authMsg','Enter your company name.','err');
   if(!email||!password) return msg('authMsg','Enter an email and a password.','err');
   if(password.length<8) return msg('authMsg','Password needs at least 8 characters.','err');
-  msg('authMsg','Creating your account…','ok');
+  msg('authMsg','Creating your account…','working');
   const {data,error}=await db.auth.signUp({email,password});
   if(error) return msg('authMsg',error.message,'err');
   // The company is created after the session exists. If email confirmation is
@@ -715,7 +747,7 @@ async function signUp(){
   localStorage.setItem('ff_pending_company', JSON.stringify({name, company, email}));
   if(!data.session){
     setAuthMode('signin');
-    return msg('authMsg','Almost there — confirm the email we just sent you, then sign in here.','ok');
+    return msg('authMsg','Almost there — confirm the email we just sent you, then sign in here.','info');
   }
   await boot();
 }
@@ -723,7 +755,7 @@ async function signUp(){
 async function finishCompany(){
   const name=$('suName').value.trim(), company=$('suCompany').value.trim();
   if(!company) return msg('authMsg','Enter your company name.','err');
-  msg('authMsg','Setting up…','ok');
+  msg('authMsg','Setting up…','working');
   const {error}=await db.rpc('create_company_with_owner',
     {company_name:company, owner_name:name});
   if(error) return msg('authMsg',error.message,'err');
@@ -1113,8 +1145,7 @@ async function loadSeats(){
 }
 
 async function startCheckout(plan){
-  const msg = $('billMsg');
-  msg.textContent = 'Opening secure checkout…';
+  msg('billMsg', 'Opening secure checkout…', 'working');
   try {
     const { data: sess } = await db.auth.getSession();
     const res = await fetch(`${SUPA_URL}/functions/v1/create-checkout-session`, {
@@ -1127,13 +1158,13 @@ async function startCheckout(plan){
       // Changed in place on the existing subscription -- no checkout needed.
       // Stripe prorates either direction: paying up is charged for the rest of
       // the month, dropping down leaves a credit against the next invoice.
-      msg.textContent = `You're on ${body.plan} now.`;
+      msg('billMsg', `You're on ${body.plan} now.`, 'ok');
       setTimeout(()=>location.reload(), 900);
     }
     else if (body.url) location.href = body.url;
-    else msg.textContent = body.error || 'Could not start checkout.';
+    else msg('billMsg', body.error || 'Could not start checkout.', 'err');
   } catch (e) {
-    msg.textContent = String(e.message || e);
+    msg('billMsg', String(e.message || e), 'err');
   }
 }
 
@@ -2038,9 +2069,21 @@ async function loadSettings(){
 }
 async function saveSettings(){
   if(!canEdit()) return;
+  // A blank number field is "I did not set this", not "set this to zero".
+  //
+  // num('') is 0, so leaving a box empty used to write a real zero over a real
+  // figure -- a blank minimum charge became no minimum at all. Blank numerics
+  // are simply left out, and the server keeps whatever is already there.
   const payload={};
   Object.entries(SET).forEach(([el,key])=>{
-    const v=$(el)?.value??''; payload[key]=SET_NUM.includes(el)?num(v):v;});
+    const raw=$(el)?.value??'';
+    if(SET_NUM.includes(el)){
+      if(String(raw).trim()==='') return;
+      payload[key]=num(raw);
+    } else {
+      payload[key]=raw;
+    }
+  });
   const {error}=await db.rpc('save_company_settings',{new_settings:payload});
   if(error) return msg('setMsg',error.message,'err');
   msg('setMsg','Saved. Phones pick these up on next sign-in or sync.','ok');
@@ -2090,6 +2133,18 @@ document.querySelectorAll('.tab').forEach(t=>
 
 $('signIn').addEventListener('click',signIn);
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter') signIn();});
+$('forgotLink').addEventListener('click', async e => {
+  e.preventDefault();
+  const email=$('email').value.trim();
+  if(!email) return msg('authMsg','Type your email above first, then press this.','err');
+  msg('authMsg','Sending…','working');
+  const {error}=await db.auth.resetPasswordForEmail(email,{
+    redirectTo: location.origin + location.pathname
+  });
+  if(error) return msg('authMsg',error.message,'err');
+  msg('authMsg','Check your email for a link to set a new password.','info');
+});
+
 $('authToggle').addEventListener('click',e=>{
   e.preventDefault();
   setAuthMode(authMode==='signup' ? 'signin' : 'signup');
@@ -2171,8 +2226,12 @@ $('exportTime').addEventListener('click',()=>downloadCsv('time-detail.csv',
             d(t.started_at).toLocaleTimeString(), d(t.ended_at).toLocaleTimeString(),
             h.toFixed(2), (h*(t.hourly_rate||0)).toFixed(2)];
   })));
-$('calPrev').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()-1);renderCal();});
-$('calNext').addEventListener('click',()=>{calMonth.setMonth(calMonth.getMonth()+1);renderCal();});
+const stepMonth = by => {
+  calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + by, 1);
+  renderCal();
+};
+$('calPrev').addEventListener('click',()=>stepMonth(-1));
+$('calNext').addEventListener('click',()=>stepMonth(1));
 
 boot();
 </script>

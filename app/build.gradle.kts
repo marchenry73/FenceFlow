@@ -55,6 +55,14 @@ android {
         buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("supabase.url", "")}\"")
         buildConfigField("String", "SUPABASE_KEY", "\"${localProperties.getProperty("supabase.key", "")}\"")
 
+        // Whether this build updates itself.
+        //
+        // The build handed out by link has to, because nothing else can reach
+        // those phones. The Play build must not: distributing updates outside
+        // Play is against policy, and the permission it needs gets an app
+        // refused at review. Overridden to false for release below.
+        buildConfigField("boolean", "SELF_UPDATE", "true")
+
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -85,6 +93,7 @@ android {
 
     buildTypes {
         release {
+            buildConfigField("boolean", "SELF_UPDATE", "false")
             // Both matter, for different reasons. isDebuggable=false stops
             // anyone with the APK and a cable reading the app's database off a
             // phone; shrinking removes unused code and the names that make it

@@ -731,9 +731,14 @@ fun SettingsScreen(
                 // prompt never comes. Somebody who has been told there is a
                 // fix waiting needs a way to go and get it that does not
                 // depend on guessing how Android feels about their process.
-                UpdateCheckRow(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
-                )
+                // Only where the app actually updates itself. In a Play build
+                // the Store owns updates, and a button that always answers
+                // "you are up to date" is worse than no button.
+                if (com.fenceestimator.app.BuildConfig.SELF_UPDATE) {
+                    UpdateCheckRow(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                    )
+                }
             }
         }
     }

@@ -256,12 +256,19 @@ async function boot() {
     .select('is_platform_admin').eq('id', session.user.id).maybeSingle();
 
   if (!me?.is_platform_admin) {
+    // Shown the door, not thrown out of the building.
+    //
+    // This used to sign them out — and it is the same session the dashboard
+    // uses, so a contractor who clicked the wrong link lost their sign-in
+    // everywhere and had to log back in with no idea why. Nothing here needs
+    // that: every admin function checks is_platform_admin on the server, and
+    // RLS refuses the data regardless of what this page believes.
     $('gate').style.display = '';
     $('app').style.display = 'none';
-    $('gateMsg').textContent =
-      'That account is not a platform admin. This page is for the owner of FenceFlow, ' +
-      'not for a fencing company — use the normal dashboard instead.';
-    await db.auth.signOut();
+    $('gateMsg').innerHTML =
+      'This page is for the owner of FenceFlow, not for a fencing company. ' +
+      'Your own jobs and customers are on the ' +
+      '<a href="dashboard.html">FenceFlow dashboard</a> — you are still signed in there.';
     return;
   }
 
