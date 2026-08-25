@@ -87,7 +87,7 @@ fun ReportsScreen(onBack: () -> Unit) {
     // Crew sees the operation (collected, sales, hours, crew pay); profit,
     // margin and cost breakdowns are the money intelligence Pro is sold on.
     val ent = com.fenceestimator.app.ui.components.LocalEntitlements.current
-    val viewModel: ReportsViewModel = viewModel(factory = GenericViewModelFactory { ReportsViewModel(app.repository) })
+    val viewModel: ReportsViewModel = viewModel(factory = GenericViewModelFactory { ReportsViewModel(app.repository, app.getString(R.string.rep_untitled)) })
     val preset by viewModel.preset.collectAsState()
     val from by viewModel.from.collectAsState()
     val to by viewModel.to.collectAsState()

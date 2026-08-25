@@ -103,7 +103,13 @@ data class OwedRow(val customer: String, val status: String, val materials: Doub
 
 data class TimeRow(val date: Long, val job: String, val start: Long, val end: Long, val hours: Double, val cost: Double)
 
-class ReportsViewModel(private val repository: Repository) : ViewModel() {
+class ReportsViewModel(
+    private val repository: Repository,
+    /** What an unnamed job is called. Passed in because a ViewModel has no
+     *  business reaching for resources, and "Untitled" hardcoded here was
+     *  the one English word left in a translated report. */
+    private val untitled: String = "Untitled"
+) : ViewModel() {
 
     private val _preset = MutableStateFlow(ReportPreset.QUARTER)
     val preset: StateFlow<ReportPreset> = _preset
@@ -227,20 +233,20 @@ class ReportsViewModel(private val repository: Repository) : ViewModel() {
                 crewDetail = crewDetail(jobs, times, employees),
                 outstanding = jobs.map {
                     OwedRow(
-                        it.customerName.ifBlank { "Untitled" }, it.status.name,
+                        it.customerName.ifBlank { untitled }, it.status.name,
                         materialsByJob[it.id] ?: 0.0, JobMoney.netPaid(it)
                     )
                 }.filter { it.outstanding > 0.01 }.sortedByDescending { it.outstanding },
                 payments = paymentsInPeriod,
                 wonJobNames = jobs.filter { it.status.isWon }
-                    .map { it.customerName.ifBlank { "Untitled" } }
+                    .map { it.customerName.ifBlank { untitled } }
                     .sorted(),
                 jobNamesById = repository.getAllJobs()
-                    .associate { it.id to it.customerName.ifBlank { "Untitled" } },
+                    .associate { it.id to it.customerName.ifBlank { untitled } },
                 timeDetail = times.sortedByDescending { it.startedAt }.map { t ->
                     val job = jobs.firstOrNull { it.id == t.jobId }
                     TimeRow(
-                        t.startedAt, job?.customerName?.ifBlank { "Untitled" } ?: "—",
+                        t.startedAt, job?.customerName?.ifBlank { untitled } ?: "—",
                         t.startedAt, t.endedAt ?: t.startedAt, t.hours, t.laborCost
                     )
                 }

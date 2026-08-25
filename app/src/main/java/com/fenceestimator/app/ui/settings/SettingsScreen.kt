@@ -201,10 +201,26 @@ fun SettingsScreen(
     // relying on it means a setting changed and then backed out of is lost, and
     // it is never obvious that it was. Debounced so a burst of typing is one
     // write rather than one per keystroke.
+    var lastSaved by remember { mutableStateOf(loadedProfile) }
     androidx.compose.runtime.LaunchedEffect(local) {
-        if (local == loadedProfile) return@LaunchedEffect
+        if (local == lastSaved) return@LaunchedEffect
         kotlinx.coroutines.delay(1_200)
         viewModel.save(local)
+        lastSaved = local
+    }
+
+    // The debounce above is a coroutine living in this composition, so leaving
+    // the screen inside that second and a bit cancels it and the change is
+    // gone -- with no sign it ever happened. And that is exactly when people
+    // leave: they came to change one number, changed it, and pressed back.
+    // Flushed on the way out instead. The save itself is uncancellable and
+    // runs on the application scope, so it finishes after this screen is gone.
+    val pending = androidx.compose.runtime.rememberUpdatedState(local)
+    val saved = androidx.compose.runtime.rememberUpdatedState(lastSaved)
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            if (pending.value != saved.value) viewModel.save(pending.value)
+        }
     }
 
     Scaffold(
