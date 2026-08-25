@@ -205,7 +205,16 @@ object EstimateEngine {
         if (wastePercent <= 0.0) return entries
         val factor = 1.0 + wastePercent / 100.0
         return entries.map { entry ->
-            if (entry.role in WASTE_ROLES) entry.copy(quantity = ceil(entry.quantity * factor)) else entry
+            when {
+                entry.role !in WASTE_ROLES -> entry
+                // Concrete is rounded once, after every entry has been summed
+                // -- that is [wholeBags]' whole point. Rounding it here as
+                // well rounded it twice, so a 1.2-bag run and a 1.3-bag gate
+                // came to four bags instead of three, on every gated job.
+                entry.role == MaterialRole.CONCRETE_BAG ->
+                    entry.copy(quantity = entry.quantity * factor)
+                else -> entry.copy(quantity = ceil(entry.quantity * factor))
+            }
         }
     }
 

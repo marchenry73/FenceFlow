@@ -285,7 +285,11 @@ class ReportsViewModel(
     ) = ReportTotals(
         // Net of refunds, because a refunded payment is money you do not have.
         collected = payments.sumOf { it.amount },
-        materialCost = jobs.sumOf { materials[it.id] ?: 0.0 },
+        // Only work you actually won cost you anything. Counting the materials
+        // on every quote in the window meant a busy quoting month subtracted
+        // the cost of fences nobody ever ordered -- profit and margin read low
+        // exactly when the most estimating was being done.
+        materialCost = jobs.filter { it.status.isWon }.sumOf { materials[it.id] ?: 0.0 },
         laborCost = times.sumOf { it.laborCost },
         otherExpenses = expenses.sumOf { it.amount },
         jobsWon = jobs.count { it.status.isWon },
@@ -323,7 +327,7 @@ class ReportsViewModel(
         // The costs beside it are period costs, so a lifetime figure made the
         // comparison meaningless as well as inconsistent.
         ChartRow("Collected", payments.sumOf { it.amount }),
-        ChartRow("Materials", jobs.sumOf { materials[it.id] ?: 0.0 }),
+        ChartRow("Materials", jobs.filter { it.status.isWon }.sumOf { materials[it.id] ?: 0.0 }),
         ChartRow("Labor", times.sumOf { it.laborCost }),
         ChartRow("Other", expenses.sumOf { it.amount })
     ).filter { it.value > 0 }
