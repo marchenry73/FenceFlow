@@ -106,8 +106,20 @@ object SupabaseModule {
         }
     }
 
+    /**
+     * Set when a sign-out has just completed and nothing has said so yet.
+     *
+     * Signing out swaps the screen for the sign-in one, which on its own looks
+     * indistinguishable from the app having dropped you -- particularly from
+     * the paused screen, where somebody is already unsure what is happening.
+     * The sign-in screen reads this once and confirms it.
+     */
+    @Volatile
+    var justSignedOut: Boolean = false
+
     suspend fun signOut() {
         client.auth.signOut()
+        justSignedOut = true
     }
 
     fun currentUserEmail(): String? = client.auth.currentUserOrNull()?.email

@@ -151,6 +151,7 @@ class MainActivity : FragmentActivity() {
                                 // indistinguishable from a button that is broken.
                                 var checkingService by remember { mutableStateOf(false) }
                                 var couldNotCheck by remember { mutableStateOf(false) }
+                                var signingOut by remember { mutableStateOf(false) }
 
                                 // Re-asked whenever the app comes back to the
                                 // foreground, not only when somebody signs in.
@@ -195,15 +196,23 @@ class MainActivity : FragmentActivity() {
                                         status = service!!,
                                         checking = checkingService,
                                         couldNotCheck = couldNotCheck,
+                                        signingOut = signingOut,
                                         onRetry = { recheck++ },
                                         onSignOut = {
+                                            signingOut = true
                                             app.applicationScope.launch {
                                                 runCatching {
                                                     com.fenceestimator.app.cloud.ServiceGate
                                                         .clear(applicationContext)
                                                     com.fenceestimator.app.cloud.SupabaseModule.signOut()
                                                 }
+                                                // Remembered so the sign-in screen
+                                                // can confirm what just happened,
+                                                // rather than simply appearing.
+                                                com.fenceestimator.app.cloud.SupabaseModule
+                                                    .justSignedOut = true
                                                 app.session.refresh()
+                                                signingOut = false
                                             }
                                         }
                                     )

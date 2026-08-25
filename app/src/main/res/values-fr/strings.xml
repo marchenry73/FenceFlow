@@ -968,6 +968,7 @@
     <string name="onb_trial_open">Choisir une formule</string>
     <string name="onb_paused_open_billing">Ouvrir la facturation</string>
     <string name="onb_sign_out">Se déconnecter</string>
+    <string name="onb_signing_out">Déconnexion…</string>
     <string name="onb_update_needed">Mise à jour requise</string>
     <string name="onb_new_version_available">Nouvelle version disponible</string>
     <string name="onb_version_label">Version %1$s</string>

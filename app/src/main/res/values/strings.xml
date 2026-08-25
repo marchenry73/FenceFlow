@@ -982,6 +982,7 @@
     <string name="onb_trial_open">Choose a plan</string>
     <string name="onb_paused_open_billing">Open billing</string>
     <string name="onb_sign_out">Sign out</string>
+    <string name="onb_signing_out">Signing out…</string>
     <string name="onb_update_needed">Update needed</string>
     <string name="onb_new_version_available">New version available</string>
     <string name="onb_version_label">Version %1$s</string>

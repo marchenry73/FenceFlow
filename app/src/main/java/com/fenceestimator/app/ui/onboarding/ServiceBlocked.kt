@@ -1,5 +1,7 @@
 package com.fenceestimator.app.ui.onboarding
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +39,8 @@ fun ServiceBlockedScreen(
     checking: Boolean = false,
     /** True when the last attempt never reached the server. */
     couldNotCheck: Boolean = false,
+    /** True while signing out, which involves the network and is not instant. */
+    signingOut: Boolean = false,
     onRetry: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -53,8 +57,20 @@ fun ServiceBlockedScreen(
     val neverSubscribed = status.subscriptionStatus.isBlank() ||
         status.subscriptionStatus in setOf("pending", "none")
 
+    // Scrollable, and that is not a detail.
+    //
+    // This screen grew: a heading, three paragraphs, a status line and three
+    // buttons. A Column that does not scroll still LAYS OUT everything past
+    // the bottom of the screen -- it is drawn, but it sits outside the
+    // parent's bounds, and anything outside those bounds cannot be touched.
+    // So the buttons at the end looked present and did nothing when pressed,
+    // including Sign out, which is the one way off a screen somebody is stuck
+    // on. Reported as "it won't let me click", which is exactly right.
     Column(
-        modifier = Modifier.fillMaxSize().padding(28.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -130,8 +146,15 @@ fun ServiceBlockedScreen(
         ) {
             Text(stringResource(if (checking) R.string.onb_checking else R.string.onb_check_again))
         }
-        OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.onb_sign_out))
+        // Signing out talks to the server before it takes effect, so it is not
+        // instant -- and with no sign of that, a second or two of nothing reads
+        // as a button that does not work. It says what it is doing.
+        OutlinedButton(
+            onClick = onSignOut,
+            enabled = !signingOut,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(if (signingOut) R.string.onb_signing_out else R.string.onb_sign_out))
         }
     }
 }

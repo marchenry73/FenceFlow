@@ -968,6 +968,7 @@
     <string name="onb_trial_open">Elegir un plan</string>
     <string name="onb_paused_open_billing">Abrir facturación</string>
     <string name="onb_sign_out">Cerrar sesión</string>
+    <string name="onb_signing_out">Cerrando sesión…</string>
     <string name="onb_update_needed">Actualización necesaria</string>
     <string name="onb_new_version_available">Nueva versión disponible</string>
     <string name="onb_version_label">Versión %1$s</string>

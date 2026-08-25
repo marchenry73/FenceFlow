@@ -73,6 +73,20 @@ fun AccountScreen(
         }
     }
 
+    // Confirm a sign-out that happened somewhere else.
+    //
+    // Signing out from the paused screen simply swaps that screen for this one,
+    // which looks identical to the app having dropped you -- and that screen is
+    // already somewhere people are unsure what is going on. Said once, then
+    // forgotten.
+    val signedOutText = stringResource(R.string.vm_signed_out)
+    LaunchedEffect(Unit) {
+        if (com.fenceestimator.app.cloud.SupabaseModule.justSignedOut) {
+            com.fenceestimator.app.cloud.SupabaseModule.justSignedOut = false
+            snackbarHostState.showSnackbar(signedOutText)
+        }
+    }
+
     // Keep the app-wide role in step with sign-in/out so the gated screens
     // update without needing a restart.
     LaunchedEffect(state.signedInEmail, state.profile?.companyId, state.profile?.role) {
