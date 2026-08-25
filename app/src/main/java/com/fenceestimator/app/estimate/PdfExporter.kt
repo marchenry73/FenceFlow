@@ -435,7 +435,15 @@ object PdfExporter {
 
         y += 20f
         newPageIfNeeded(60f)
-        canvas.drawText("${labels.totalLinearFeet}: ${String.format(Locale.US, "%.1f", linearFeet)} ft", MARGIN, y, headerPaint)
+        // The footage being BILLED, which is what the price beside it is for.
+        //
+        // This printed the original takeoff while the total underneath already
+        // included every change order -- so a job that grew by forty feet went
+        // out with the old length against the new price, on the contract and
+        // the invoice both. A customer reading carefully asks about that, and
+        // they are right to.
+        val billedFeet = if (totals.billableLinearFeet > 0f) totals.billableLinearFeet else linearFeet
+        canvas.drawText("${labels.totalLinearFeet}: ${String.format(Locale.US, "%.1f", billedFeet)} ft", MARGIN, y, headerPaint)
         y += 24f
 
         // The drawing, on the documents the customer reads.

@@ -98,12 +98,27 @@ object InvoiceParser {
         }
     }
 
-    private fun normalize(s: String): Set<String> =
-        s.uppercase()
+    private fun normalize(s: String): Set<String> {
+        val upper = s.uppercase()
+        val words = upper
             .replace(Regex("[^A-Z0-9 ]"), " ")
             .split(" ")
             .filter { it.length > 1 }
             .toSet()
+        // Every number in the name, kept as a token of its own.
+        //
+        // The size is the only thing separating two otherwise identical
+        // products, and the one-character filter above threw it away:
+        // "Panel 6'H x 6'W" and "Panel 8'H x 8'W" both reduced to
+        // PANEL, VINYL, PRIVACY, GRAY -- word for word the same. Importing a
+        // supplier invoice then wrote the 8 ft panel's price onto the 6 ft
+        // row, and every estimate after that quoted the wrong figure.
+        //
+        // Numbers rather than the whole dimension string, so a supplier
+        // writing "6FT X 6FT" still meets a catalog entry reading "6'H x 6'W".
+        val numbers = Regex("\\d+(?:\\.\\d+)?").findAll(upper).map { it.value }.toSet()
+        return words + numbers
+    }
 
     private fun jaccard(a: Set<String>, b: Set<String>): Double {
         if (a.isEmpty() || b.isEmpty()) return 0.0
