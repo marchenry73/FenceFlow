@@ -171,6 +171,12 @@ class MainActivity : FragmentActivity() {
                                         com.fenceestimator.app.cloud.ServiceGate
                                             .refreshWhenPossible(ctx)
                                             ?.let { service = it }
+                                        // After the gate, because by then the
+                                        // token is known to be live.
+                                        runCatching {
+                                            com.fenceestimator.app.cloud.SupabaseModule
+                                                .recordAppVersion()
+                                        }
                                     }
                                     checkedService = true
                                 }

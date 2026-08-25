@@ -339,6 +339,18 @@ function render() {
     <div class="stat"><b>${owing.length}</b><span>Behind on payment</span></div>`;
 
   $('empty').style.display = clients.length ? 'none' : 'block';
+  // The build their phones are on. Both ends when they differ, because one
+  // phone left behind on an old version is the thing worth seeing -- it is
+  // usually the reason somebody is describing a bug that was fixed weeks ago.
+  const appVersion = c => {
+    if (!c.newest_app_version) return '';
+    const spread = c.oldest_app_version && c.oldest_app_version !== c.newest_app_version
+      ? `${esc(c.oldest_app_version)}–${esc(c.newest_app_version)}`
+      : esc(c.newest_app_version);
+    const behind = c.oldest_app_version && c.oldest_app_version !== c.newest_app_version;
+    return `<br><span style="font-size:11px;color:${behind ? 'var(--bad,#b3261e)' : 'var(--muted)'}"
+      title="App version on their phones">v${spread}</span>`;
+  };
   $('rows').innerHTML = clients.map(c => `
     <tr>
       <td><b>${esc(c.name || 'Unnamed')}</b><br>
@@ -346,7 +358,7 @@ function render() {
       <td>${statusPill(c)}</td>
       <td>${esc(c.subscription_plan || '—')}</td>
       <td>${money(c.monthly_price)}</td>
-      <td>${c.people}</td>
+      <td>${c.people}${appVersion(c)}</td>
       <td>${c.jobs}</td>
       <td>${day(c.last_active)}</td>
       <td>${c.days_left != null ? c.days_left + ' days' : day(c.trial_ends_at)}</td>

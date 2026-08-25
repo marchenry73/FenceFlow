@@ -178,6 +178,28 @@ object SupabaseModule {
     }
 
     /**
+     * Records which build this phone is running.
+     *
+     * Nothing did, so when an update quietly failed to arrive the only way to
+     * find out what somebody was actually on was to ask them -- and a person
+     * mid-job is a poor place to run diagnostics. Stamped on every launch;
+     * silent when it cannot be sent, because a version stamp is never worth
+     * interrupting anyone over.
+     */
+    suspend fun recordAppVersion() {
+        if (!hasLiveSession()) return
+        runCatching {
+            client.postgrest.rpc(
+                "record_app_version",
+                buildJsonObject {
+                    put("code", BuildConfig.VERSION_CODE)
+                    put("name", BuildConfig.VERSION_NAME)
+                }
+            )
+        }
+    }
+
+    /**
      * Tells the backend which phone this is, so pushes can reach it. Safe to
      * call repeatedly -- the server upserts on the token.
      */
