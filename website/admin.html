@@ -143,6 +143,22 @@
   </div>
 </dialog>
 
+<dialog id="askDialog" style="max-width:min(440px,92vw)">
+  <h3 style="margin-top:0" id="askTitle"></h3>
+  <p style="color:var(--muted);font-size:14px;margin:0 0 6px;line-height:1.5" id="askBody"></p>
+  <div id="askExtra" style="display:none;margin-top:10px">
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="askHold" style="margin-top:3px">
+      <span>Hold this one — <b>do not</b> lift it automatically when they pay.
+        Use for a dispute or misuse, not for an unpaid invoice.</span>
+    </label>
+  </div>
+  <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+    <button id="askNo">Cancel</button>
+    <button id="askYes" class="primary"></button>
+  </div>
+</dialog>
+
 <dialog id="newDialog" style="max-width:min(430px,92vw)">
   <h3 style="margin-top:0">Bring a company on</h3>
   <p style="color:var(--muted);font-size:14px;margin:0 0 4px">
@@ -336,11 +352,53 @@ function accessButton(c) {
   return `<button class="danger" data-suspend="${c.id}">Suspend</button>`;
 }
 
+/**
+ * Asks before doing something that affects a customer.
+ *
+ * A browser confirm() cannot say what the consequence is beyond one line, has
+ * no room for an option, is styled by the operating system rather than by this
+ * product, and looks to most people like the page has malfunctioned. This is
+ * the same question asked properly, and it can carry a choice with it.
+ *
+ * Resolves to false when cancelled, or the (possibly empty) options object.
+ */
+function ask({ title, body, confirmLabel = 'Confirm', danger = false, withHold = false }) {
+  return new Promise(resolve => {
+    $('askTitle').textContent = title;
+    $('askBody').textContent = body;
+    $('askYes').textContent = confirmLabel;
+    $('askYes').className = danger ? 'danger' : 'primary';
+    $('askExtra').style.display = withHold ? 'block' : 'none';
+    $('askHold').checked = false;
+
+    const done = value => {
+      $('askYes').removeEventListener('click', onYes);
+      $('askNo').removeEventListener('click', onNo);
+      $('askDialog').removeEventListener('close', onNo);
+      $('askDialog').close();
+      resolve(value);
+    };
+    const onYes = () => done({ hold: withHold && $('askHold').checked });
+    const onNo = () => done(false);
+
+    $('askYes').addEventListener('click', onYes);
+    $('askNo').addEventListener('click', onNo);
+    $('askDialog').addEventListener('close', onNo);
+    $('askDialog').showModal();
+  });
+}
+
 /** Runs one admin action and reloads, reporting anything that went wrong. */
-async function adminAction(fn, args, confirmText) {
-  if (confirmText && !confirm(confirmText)) return;
+async function adminAction(fn, args, confirmOpts) {
+  let call = args;
+  if (confirmOpts) {
+    const answer = await ask(confirmOpts);
+    if (!answer) return;
+    // A choice made in the dialog travels with the action it belongs to.
+    if (confirmOpts.withHold) call = { ...args, hold: !!answer.hold };
+  }
   $('msg').textContent = 'Working…';
-  const { error } = await db.rpc(fn, args);
+  const { error } = await db.rpc(fn, call);
   if (error) { $('msg').textContent = error.message; return; }
   $('msg').textContent = '';
   await load();
@@ -500,8 +558,12 @@ function render() {
 
   document.querySelectorAll('[data-start]').forEach(b =>
     b.addEventListener('click', () => adminAction(
-      'admin_start_trial', { target: b.dataset.start, days: 14 },
-      `Start the 14-day trial for ${named(b.dataset.start)} now?`)));
+      'admin_start_trial', { target: b.dataset.start, days: 14 }, {
+        title: 'Start the trial?',
+        body: `${named(b.dataset.start)} gets fourteen days from now. They are not charged ` +
+              `anything, and you can extend it later if they need longer.`,
+        confirmLabel: 'Start 14 days'
+      })));
 
   document.querySelectorAll('[data-extend]').forEach(b =>
     b.addEventListener('click', () => adminAction(
@@ -509,14 +571,24 @@ function render() {
 
   document.querySelectorAll('[data-grant]').forEach(b =>
     b.addEventListener('click', () => adminAction(
-      'admin_grant_access', { target: b.dataset.grant, note: null },
-      `Give ${named(b.dataset.grant)} open-ended access?`)));
+      'admin_grant_access', { target: b.dataset.grant, note: null }, {
+        title: 'Give open-ended access?',
+        body: `${named(b.dataset.grant)} keeps working with no trial clock and no plan required. ` +
+              `Use this for someone you are carrying deliberately, not as a way to fix a billing problem.`,
+        confirmLabel: 'Grant access'
+      })));
 
   document.querySelectorAll('[data-suspend]').forEach(b =>
     b.addEventListener('click', () => adminAction(
-      'admin_suspend', { target: b.dataset.suspend, note: null },
-      `Suspend ${named(b.dataset.suspend)}? Their records are kept and come ` +
-      `straight back when you reinstate them — they simply cannot open the app.`)));
+      'admin_suspend', { target: b.dataset.suspend, note: null }, {
+        title: `Suspend ${named(b.dataset.suspend)}?`,
+        body: 'Their crews lose access straight away. Nothing is deleted — every job, payment ' +
+              'and photo stays exactly where it is and comes back the moment access returns. ' +
+              'By default paying lifts this by itself.',
+        confirmLabel: 'Suspend',
+        danger: true,
+        withHold: true
+      })));
   document.querySelectorAll('[data-chase]').forEach(b =>
     b.addEventListener('click', () => chase(b.dataset.chase)));
 }
@@ -603,16 +675,28 @@ async function saveEdit() {
 async function toggleSuspend() {
   if (!editing) return;
   const turningOn = !editing.suspended;
-  // Suspension stops a business working. Worth one deliberate confirmation,
-  // and never something this page does on a timer by itself.
-  if (turningOn && !confirm(
-    `Suspend ${editing.name}?\n\nTheir crews lose access to FenceFlow immediately. ` +
-    `Their data is untouched and comes back the moment you un-suspend.`
-  )) return;
 
-  const { error } = await db.from('companies')
-    .update({ suspended: turningOn }).eq('id', editing.id);
+  // Through the RPCs rather than writing the column directly. A direct update
+  // left suspended_reason still reading UNPAID on a company that was no longer
+  // suspended, and meant the one action that restores somebody's access had no
+  // check of its own on the server.
+  let args = { target: editing.id };
+  if (turningOn) {
+    const answer = await ask({
+      title: `Suspend ${editing.name}?`,
+      body: 'Their crews lose access straight away. Nothing is deleted — every job, payment ' +
+            'and photo stays exactly where it is and comes back the moment access returns. ' +
+            'By default paying lifts this by itself.',
+      confirmLabel: 'Suspend', danger: true, withHold: true
+    });
+    if (!answer) return;
+    args = { target: editing.id, note: null, hold: !!answer.hold };
+  }
+
+  $('editMsg').textContent = 'Working…';
+  const { error } = await db.rpc(turningOn ? 'admin_suspend' : 'admin_unsuspend', args);
   if (error) { $('editMsg').textContent = error.message; return; }
+  $('editMsg').textContent = '';
   $('editDialog').close();
   await load();
 }

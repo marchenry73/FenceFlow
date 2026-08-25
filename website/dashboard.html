@@ -157,6 +157,16 @@
   <p style="margin-top:8px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
 </div>
 
+<dialog id="askDialog" style="border:1px solid var(--line);border-radius:14px;background:#fff;
+  color:var(--text);max-width:min(440px,92vw);width:92%;padding:20px">
+  <h3 style="margin:0 0 6px;font-size:17px" id="askTitle"></h3>
+  <p style="color:var(--muted);font-size:14px;margin:0;line-height:1.5" id="askBody"></p>
+  <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+    <button id="askNo" class="btn" style="background:#fff;color:var(--text);border:1px solid var(--line)">Cancel</button>
+    <button id="askYes" class="btn"></button>
+  </div>
+</dialog>
+
 <div id="app">
   <div class="wrap">
     <div class="tabs">
@@ -617,6 +627,32 @@ const db = createClient(
 );
 
 const $ = id => document.getElementById(id);
+
+/* Asks before something irreversible, in the product's own voice.
+   A browser confirm() is styled by the operating system, cannot say more than
+   a line, and reads to most people like the page has malfunctioned -- which is
+   a poor thing to show somebody a moment before they delete a job. */
+function ask({ title, body, confirmLabel = 'Confirm', danger = false }) {
+  return new Promise(resolve => {
+    $('askTitle').textContent = title;
+    $('askBody').textContent = body;
+    $('askYes').textContent = confirmLabel;
+    $('askYes').style.background = danger ? 'var(--red)' : 'var(--orange)';
+    const done = v => {
+      $('askYes').removeEventListener('click', onYes);
+      $('askNo').removeEventListener('click', onNo);
+      $('askDialog').removeEventListener('close', onNo);
+      $('askDialog').close();
+      resolve(v);
+    };
+    const onYes = () => done(true);
+    const onNo = () => done(false);
+    $('askYes').addEventListener('click', onYes);
+    $('askNo').addEventListener('click', onNo);
+    $('askDialog').addEventListener('close', onNo);
+    $('askDialog').showModal();
+  });
+}
 const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
 const esc = s => (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
@@ -1062,7 +1098,13 @@ async function loadSeats(){
     b.addEventListener('click', async () => {
       const row = rows.find(r => r.id === b.dataset.seat);
       const who = row?.full_name || 'this person';
-      if (!confirm(`Remove ${who} from the company?\n\nThey lose access on their phone. Everything they recorded stays.`)) return;
+      const okRemove = await ask({
+        title: `Remove ${who}?`,
+        body: 'They lose access on their phone straight away. Everything they recorded — jobs, ' +
+              'hours, notes — stays exactly where it is, and their seat is freed.',
+        confirmLabel: 'Remove', danger: true
+      });
+      if (!okRemove) return;
       const { error } = await db.rpc('release_seat', { member_id: b.dataset.seat });
       if (error) return msg('seatMsg', error.message, 'err');
       msg('seatMsg', `${who} removed. That seat is free.`, 'ok');
@@ -1922,13 +1964,19 @@ async function createJob(){
     tax_rate_percent:num($('s_tax').value)||7, markup_percent:num($('s_markup').value)||15,
     labor_rate_per_ft:num($('s_labor').value)||8, minimum_job_charge:num($('s_min').value)||200
   }).select().maybeSingle();
-  if(error) return alert(error.message);
+  if(error) { msg('jobsMsg', error.message, 'err'); return; }
   await loadAll(); if(data) showJob(data.id);
 }
 
 async function deleteJob(){
   if(!openJob||!canEdit()) return;
-  if(!confirm(`Delete "${openJob.customer_name||'this job'}"? This cannot be undone.`)) return;
+  const okDelete = await ask({
+    title: `Delete "${openJob.customer_name||'this job'}"?`,
+    body: 'It moves to the trash rather than being destroyed, and the phones are told so they ' +
+          'stop showing it. You can restore it from the trash in the app.',
+    confirmLabel: 'Delete job', danger: true
+  });
+  if(!okDelete) return;
   // Marked deleted rather than removed, exactly as the app does it. A hard
   // delete here left no tombstone, so it could not be restored from the trash
   // and the phones had no way to learn the job was gone.
@@ -1960,7 +2008,12 @@ async function saveEmp(){
 }
 async function deleteEmp(){
   if(!openEmp||!canEdit()) return;
-  if(!confirm(`Remove ${openEmp.name||'this person'}?`)) return;
+  const okEmp = await ask({
+    title: `Remove ${openEmp.name||'this person'}?`,
+    body: 'Their hours and the jobs they worked on are kept. This removes them from the crew list.',
+    confirmLabel: 'Remove', danger: true
+  });
+  if(!okEmp) return;
   // As above: marked deleted, so their clocked hours and costed jobs survive
   // and the phones find out.
   const {error}=await db.from('employees')
