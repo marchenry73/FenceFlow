@@ -259,7 +259,18 @@ object EstimateEngine {
         // A closed loop needs no closing post -- the last bay lands back on the
         // first one -- so only an open run gets the extra post on the end.
         val bays = if (postSpacingFt > 0f) ceil(netFt / postSpacingFt).roundToInt() else 0
-        val standardPostEstimate = if (bays == 0) 0 else if (endPosts == 0) bays else bays + 1
+        // Each gate splits the fence, and the two posts either side of the
+        // opening ARE posts of that fence line -- they are not extra. Counting
+        // the line as unbroken and then adding two posts per gate on top
+        // bought one surplus post, one cap and a bag of concrete for every
+        // gate on every job, which then rode back to the yard.
+        //
+        // Take one out of the run-length estimate per gate; gatePosts adds the
+        // pair back below.
+        val standardPostEstimate =
+            if (bays == 0) 0
+            else if (endPosts == 0) (bays - gateCount).coerceAtLeast(0)
+            else (bays + 1 - gateCount).coerceAtLeast(0)
 
         // Gate posts are NOT subtracted here: the gate openings were already
         // taken out of netFt, so those posts sit outside this count. Subtracting
