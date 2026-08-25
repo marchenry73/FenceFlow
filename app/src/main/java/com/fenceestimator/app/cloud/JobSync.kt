@@ -66,6 +66,7 @@ data class CloudJob(
      * device -- assignments made on the dashboard never reached a phone.
      */
     @SerialName("assigned_employee_sync_id") val assignedEmployeeSyncId: String? = null,
+    @SerialName("preferred_manufacturer_sync_id") val preferredManufacturerSyncId: String? = null,
     // The fields below never travelled at all. Losing them across devices was
     // not cosmetic: gate_rate_per_ft missing is why a gate-only job priced at
     // zero on a second phone, signed_at missing is why the invoice unlocked on
@@ -235,6 +236,8 @@ object JobSync {
             // same reason: per-job fetches turn one sync into 3xN round trips.
             val employeeSyncById = repository.getAllEmployees().associateBy({ it.id }, { it.syncId })
             val employeeIdBySync = repository.getAllEmployees().associateBy({ it.syncId }, { it.id })
+            val manufacturerSyncById = repository.getAllManufacturers().associateBy({ it.id }, { it.syncId })
+            val manufacturerIdBySync = repository.getAllManufacturers().associateBy({ it.syncId }, { it.id })
             val itemsByJob = repository.getAllLineItemsByJob()
             val runsByJob = repository.getAllFenceRunsByJob()
             val ordersByJob = repository.getAllChangeOrdersByJob()
@@ -306,7 +309,7 @@ object JobSync {
                 }
 
                 if (cloudJob == null) {
-                    SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }))
+                    SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }, job.preferredManufacturerId?.let { manufacturerSyncById[it] }))
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
                     uploaded++
                 } else if (job.updatedAt > cloudJob.updatedAtMillis()) {
@@ -317,7 +320,7 @@ object JobSync {
                     // a payment the webhook had just recorded -- and the money
                     // disappeared. Payment fields are never pushed downward:
                     // the higher figure survives whichever side is newer.
-                    val payload = job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }).let { local ->
+                    val payload = job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }, job.preferredManufacturerId?.let { manufacturerSyncById[it] }).let { local ->
                         if (cloudJob.amountPaid > local.amountPaid) {
                             local.copy(
                                 amountPaid = cloudJob.amountPaid,
@@ -371,8 +374,12 @@ object JobSync {
                 if (local == null) {
                     val newId = repository.createJob(
                         cloudJob.toLocalJob().let { fresh ->
-                            cloudJob.assignedEmployeeSyncId?.let { es -> employeeIdBySync[es] }
+                            val withEmployee = cloudJob.assignedEmployeeSyncId
+                                ?.let { es -> employeeIdBySync[es] }
                                 ?.let { fresh.copy(assignedEmployeeId = it) } ?: fresh
+                            cloudJob.preferredManufacturerSyncId
+                                ?.let { ms -> manufacturerIdBySync[ms] }
+                                ?.let { withEmployee.copy(preferredManufacturerId = it) } ?: withEmployee
                         }
                     )
                     downloaded++
@@ -406,8 +413,12 @@ object JobSync {
                     // parsing without fixing this would have armed it.
                     repository.updateJobFromCloud(
                         cloudJob.mergeOnto(local).let { merged ->
-                            cloudJob.assignedEmployeeSyncId?.let { es -> employeeIdBySync[es] }
+                            val withEmployee = cloudJob.assignedEmployeeSyncId
+                                ?.let { es -> employeeIdBySync[es] }
                                 ?.let { merged.copy(assignedEmployeeId = it) } ?: merged
+                            cloudJob.preferredManufacturerSyncId
+                                ?.let { ms -> manufacturerIdBySync[ms] }
+                                ?.let { withEmployee.copy(preferredManufacturerId = it) } ?: withEmployee
                         }
                     )
                     downloaded++
@@ -424,7 +435,12 @@ object JobSync {
     }
 }
 
-private fun Job.toCloud(companyId: String, contractTotal: Double? = null, assignedEmployeeSyncId: String? = null) = CloudJob(
+private fun Job.toCloud(
+    companyId: String,
+    contractTotal: Double? = null,
+    assignedEmployeeSyncId: String? = null,
+    preferredManufacturerSyncId: String? = null
+) = CloudJob(
     syncId = syncId,
     companyId = companyId,
     customerName = customerName,
@@ -472,6 +488,7 @@ private fun Job.toCloud(companyId: String, contractTotal: Double? = null, assign
     amountPaid = amountPaid,
     contractTotal = contractTotal,
     assignedEmployeeSyncId = assignedEmployeeSyncId,
+    preferredManufacturerSyncId = preferredManufacturerSyncId,
     refundedAmount = refundedAmount,
     refundedAt = refundedAt?.let { CloudTime.format(it) },
     signedAt = signedAt?.let { CloudTime.format(it) },
