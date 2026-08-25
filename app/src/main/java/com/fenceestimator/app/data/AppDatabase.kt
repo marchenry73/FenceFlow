@@ -355,7 +355,16 @@ abstract class AppDatabase : RoomDatabase() {
                         "SELECT 'opening-' || `syncId`, `id`, `amountPaid`, 'OTHER', " +
                         "COALESCE(`scheduledDate`, `createdAt`), '', " +
                         "'Recorded before the payments ledger existed', '' " +
-                        "FROM `jobs` WHERE `amountPaid` > 0"
+                        "FROM `jobs` WHERE `amountPaid` > 0 " +
+                        // Only for jobs with nothing in the ledger yet.
+                        //
+                        // A Stripe payment that arrived before this migration
+                        // already has its own row, and amountPaid was built
+                        // from it -- so writing the whole figure again as an
+                        // opening balance counted that money twice, and the
+                        // job then read as paid double what it had taken.
+                        "AND NOT EXISTS (SELECT 1 FROM `payment_records` `pr` " +
+                        "WHERE `pr`.`jobId` = `jobs`.`id`)"
                 )
                 // Refunds already recorded become their own negative row.
                 db.execSQL(
@@ -364,7 +373,11 @@ abstract class AppDatabase : RoomDatabase() {
                         "SELECT 'opening-refund-' || `syncId`, `id`, -`refundedAmount`, 'OTHER', " +
                         "COALESCE(`refundedAt`, `scheduledDate`, `createdAt`), '', " +
                         "`refundReason`, '' " +
-                        "FROM `jobs` WHERE `refundedAmount` > 0"
+                        "FROM `jobs` WHERE `refundedAmount` > 0 " +
+                        // Same reasoning: a refund already in the ledger must
+                        // not be written a second time as an opening row.
+                        "AND NOT EXISTS (SELECT 1 FROM `payment_records` `pr` " +
+                        "WHERE `pr`.`jobId` = `jobs`.`id` AND `pr`.`amount` < 0)"
                 )
             }
         }
