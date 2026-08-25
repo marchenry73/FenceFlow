@@ -1,0 +1,36 @@
+# Which functions are allowed to be called without a Supabase login.
+#
+# Without this file the CLI defaults verify_jwt to TRUE for every function it
+# deploys. Three of these must be false, and getting that wrong is silent and
+# expensive: deploy stripe-webhook with verification on and the API gateway
+# rejects every Stripe event with a 401 before the function ever runs, so
+# payments quietly stop being marked paid and subscriptions stop activating.
+# Nothing in the product says anything is wrong; the only trace is 401s in the
+# Stripe dashboard. Pinned here so it cannot depend on remembering a flag.
+project_id = "newcrgafcptspmapacrx"
+
+# Stripe signs its own requests and sends no Supabase JWT. The function checks
+# the signature itself.
+[functions.stripe-webhook]
+verify_jwt = false
+
+# Called by a Postgres trigger through pg_net, which carries no user session.
+# Guarded by its own shared secret.
+[functions.notify-job-change]
+verify_jwt = false
+
+# Serves the app download to a phone that has not signed in yet -- that is the
+# whole point of it.
+[functions.apk-proxy]
+verify_jwt = false
+
+# The rest are called by a signed-in person from the website, and the function
+# reads that session to decide what they are allowed to do. Verification on.
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.create-payment-link]
+verify_jwt = true
+
+[functions.invite-company]
+verify_jwt = true
