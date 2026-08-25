@@ -1358,6 +1358,9 @@
     <string name="vm_couldnt_save_refused">Couldn\'t save: the server refused the change</string>
     <string name="vm_waiting_sign_back_in">Waiting to sign back in</string>
     <string name="sync_account_not_active">Account not active — check Billing</string>
+    <string name="set_update_check">Check for updates</string>
+    <string name="set_update_checking">Checking…</string>
+    <string name="set_update_current">You are on the latest version.</string>
     <string name="vm_couldnt_sync_crew_settings">Couldn\'t sync crew and settings</string>
     <string name="vm_kind_job">Job</string>
     <string name="vm_kind_change_order">Change order</string>

@@ -729,8 +729,21 @@ fun SettingsScreen(
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                // Asking for an update by hand, because the automatic ask has
+                // exactly one chance to work.
+                //
+                // It runs when the app's process starts -- and swiping an app
+                // out of the recents list usually does not end its process, so
+                // "close it and open it again" quietly does nothing and the
+                // prompt never comes. Somebody who has been told there is a
+                // fix waiting needs a way to go and get it that does not
+                // depend on guessing how Android feels about their process.
+                UpdateCheckRow(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
                 )
             }
         }
@@ -898,4 +911,94 @@ private fun EditTierDialog(
             }
         }
     )
+}
+
+/**
+ * "Check for updates", and the whole update in one place if there is one.
+ *
+ * The automatic check happens once, when the app's process starts. Swiping an
+ * app off the recents list usually leaves the process running, so being told
+ * to "close it and open it again" can do nothing at all, several times in a
+ * row, while a fix sits on the server. This asks on demand and says plainly
+ * what came back -- including when the answer is that you are already current,
+ * which is worth hearing rather than being left to wonder.
+ */
+@Composable
+private fun UpdateCheckRow(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf<String?>(null) }
+    var found by remember {
+        mutableStateOf<com.fenceestimator.app.cloud.AppRelease?>(null)
+    }
+    var progress by remember {
+        mutableStateOf<com.fenceestimator.app.cloud.ApkUpdater.Progress?>(null)
+    }
+
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        OutlinedButton(
+            enabled = !checking,
+            onClick = {
+                scope.launch {
+                    checking = true
+                    note = null
+                    val release = runCatching {
+                        com.fenceestimator.app.cloud.UpdateChecker.check()
+                    }.getOrNull()
+                    checking = false
+                    if (release == null) {
+                        note = context.getString(R.string.set_update_current)
+                    } else {
+                        found = release
+                    }
+                }
+            }
+        ) {
+            Text(
+                stringResource(
+                    if (checking) R.string.set_update_checking else R.string.set_update_check
+                )
+            )
+        }
+        note?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+    }
+
+    found?.let { release ->
+        com.fenceestimator.app.ui.onboarding.UpdateAvailableDialog(
+            release = release,
+            progress = progress,
+            onDownload = {
+                scope.launch {
+                    progress = com.fenceestimator.app.cloud.ApkUpdater.Progress.Downloading(0)
+                    val apk = com.fenceestimator.app.cloud.ApkUpdater.download(
+                        context, release.downloadUrl
+                    ) { p -> progress = p }
+                    if (apk != null) {
+                        progress = com.fenceestimator.app.cloud.ApkUpdater.Progress.Installing
+                        com.fenceestimator.app.cloud.ApkUpdater.install(context, apk)
+                    }
+                }
+            },
+            onOpenInBrowser = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(release.downloadUrl)
+                        )
+                    )
+                }
+                found = null
+            },
+            onLater = { found = null }
+        )
+    }
 }
