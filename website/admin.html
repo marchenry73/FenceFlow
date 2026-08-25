@@ -320,12 +320,24 @@ function onboardingTrack(c) {
 }
 
 function statusPill(c) {
-  if (c.suspended) return '<span class="pill bad">Suspended</span>';
+  // Why a company is suspended decides what happens next: an unpaid one comes
+  // back by itself the moment they pay, a held one waits for you. A single
+  // word saying only "Suspended" hides the difference that matters.
+  if (c.suspended) {
+    const held = c.suspended_reason === 'HOLD';
+    return `<span class="pill bad">Suspended</span>` +
+      `<br><span style="font-size:11px;color:var(--muted)">${held
+        ? 'held — only you can lift it'
+        : 'unpaid — lifts when they pay'}</span>`;
+  }
   switch (c.subscription_status) {
     case 'active':   return '<span class="pill ok">Active</span>';
     case 'trialing': return '<span class="pill ok">Trial</span>';
-    case 'past_due': return '<span class="pill warn">Past due</span>';
+    case 'past_due': return '<span class="pill warn">Past due</span>' +
+      '<br><span style="font-size:11px;color:var(--muted)">still working, in grace</span>';
     case 'canceled': return '<span class="pill bad">Cancelled</span>';
+    case 'pending':  return '<span class="pill muted">Invited</span>' +
+      '<br><span style="font-size:11px;color:var(--muted)">not started yet</span>';
     default:         return '<span class="pill muted">No plan</span>';
   }
 }
