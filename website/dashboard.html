@@ -718,6 +718,26 @@ async function boot(){
     if (pending?.company) { $('suCompany').value=pending.company; $('suName').value=pending.name||''; }
     return;
   }
+  // An owner who has not started setting up belongs on the welcome page.
+  //
+  // Invitation links have to be sent to an address the auth service allows,
+  // and the dashboard is the one address that is always configured. So a
+  // redirect that lands here rather than on welcome.html is a normal outcome,
+  // not a fault -- and dropping somebody into an empty dashboard when they
+  // have not named their business, agreed to anything or chosen a plan is a
+  // worse first impression than the error they just got past.
+  //
+  // Only while nothing at all has been filled in: after that the dashboard is
+  // theirs, and the rest of setup waits in Billing.
+  if (profile.role === 'OWNER' && !location.pathname.endsWith('welcome.html')) {
+    const { data: ob } = await db.rpc('my_onboarding');
+    const row = Array.isArray(ob) ? ob[0] : ob;
+    if (row && row.details_done === false) {
+      location.replace('welcome.html');
+      return;
+    }
+  }
+
   $('auth').style.display='none'; $('app').style.display='block';
   $('signOut').style.display='inline-block'; $('refresh').style.display='inline-block';
   $('who').textContent=`${user.email} · ${profile.role}`;
