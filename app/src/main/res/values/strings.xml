@@ -974,6 +974,8 @@
     <string name="onb_paused_nothing_lost">Nothing has been lost. Every job, drawing, photo and payment is exactly where it was, and comes straight back as soon as this is sorted out.</string>
     <string name="onb_paused_crew_note">If you are on the crew, this is one for the office -- there is nothing for you to fix here.</string>
     <string name="onb_check_again">Check again</string>
+    <string name="onb_checking">Checking…</string>
+    <string name="onb_check_failed">Could not reach FenceFlow just now. Check your connection, or sign out and back in if this keeps happening.</string>
     <string name="onb_trial_title">Start your free trial</string>
     <string name="onb_trial_explain">Your business is set up. Pick a plan to switch FenceFlow on — 14 days free, and you can change or cancel any time.</string>
     <string name="onb_trial_where">Plans are chosen on the FenceFlow website, signed in with this same email. Come back here and tap Check again when you\'re done.</string>

@@ -146,6 +146,11 @@ class MainActivity : FragmentActivity() {
                                 }
                                 var checkedService by remember { mutableStateOf(false) }
                                 var recheck by remember { mutableStateOf(0) }
+                                // Whether the last attempt actually reached the
+                                // server. A button that reports nothing is
+                                // indistinguishable from a button that is broken.
+                                var checkingService by remember { mutableStateOf(false) }
+                                var couldNotCheck by remember { mutableStateOf(false) }
 
                                 // Re-asked whenever the app comes back to the
                                 // foreground, not only when somebody signs in.
@@ -168,9 +173,12 @@ class MainActivity : FragmentActivity() {
                                     // waiting for the network.
                                     service = com.fenceestimator.app.cloud.ServiceGate.remembered(ctx)
                                     if (appSession.signedIn) {
-                                        com.fenceestimator.app.cloud.ServiceGate
+                                        checkingService = true
+                                        val fresh = com.fenceestimator.app.cloud.ServiceGate
                                             .refreshWhenPossible(ctx)
-                                            ?.let { service = it }
+                                        checkingService = false
+                                        couldNotCheck = fresh == null
+                                        fresh?.let { service = it }
                                         // After the gate, because by then the
                                         // token is known to be live.
                                         runCatching {
@@ -185,6 +193,8 @@ class MainActivity : FragmentActivity() {
                                 if (checkedService && blocked) {
                                     com.fenceestimator.app.ui.onboarding.ServiceBlockedScreen(
                                         status = service!!,
+                                        checking = checkingService,
+                                        couldNotCheck = couldNotCheck,
                                         onRetry = { recheck++ },
                                         onSignOut = {
                                             app.applicationScope.launch {

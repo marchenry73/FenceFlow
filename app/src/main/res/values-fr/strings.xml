@@ -960,6 +960,8 @@
     <string name="onb_paused_nothing_lost">Rien n\'a été perdu. Chaque chantier, dessin, photo et paiement est exactement là où il était et reviendra dès que ce sera réglé.</string>
     <string name="onb_paused_crew_note">Si vous faites partie de l\'équipe, c\'est une affaire pour le bureau ; il n\'y a rien à corriger de votre côté.</string>
     <string name="onb_check_again">Vérifier à nouveau</string>
+    <string name="onb_checking">Vérification…</string>
+    <string name="onb_check_failed">Impossible de joindre FenceFlow. Vérifiez votre connexion, ou déconnectez-vous et reconnectez-vous si cela persiste.</string>
     <string name="onb_trial_title">Commencez votre essai gratuit</string>
     <string name="onb_trial_explain">Votre entreprise est prête. Choisissez une formule pour activer FenceFlow : 14 jours gratuits, modifiable ou annulable à tout moment.</string>
     <string name="onb_trial_where">Les formules se choisissent sur le site FenceFlow, avec cette même adresse e-mail. Revenez ici et appuyez sur Vérifier à nouveau une fois terminé.</string>

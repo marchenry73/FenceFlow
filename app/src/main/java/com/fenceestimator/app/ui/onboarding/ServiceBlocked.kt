@@ -33,6 +33,10 @@ import com.fenceestimator.app.cloud.ServiceStatus
 @Composable
 fun ServiceBlockedScreen(
     status: ServiceStatus,
+    /** True while an answer is being fetched. */
+    checking: Boolean = false,
+    /** True when the last attempt never reached the server. */
+    couldNotCheck: Boolean = false,
     onRetry: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -81,6 +85,25 @@ fun ServiceBlockedScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        // What the last check actually did.
+        //
+        // Check again re-asked, got no answer, and changed nothing on screen --
+        // which is indistinguishable from a button that does not work, and is
+        // what somebody sitting on this screen reports. It says so now.
+        if (checking) {
+            Text(
+                stringResource(R.string.onb_checking),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (couldNotCheck) {
+            Text(
+                stringResource(R.string.onb_check_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+
         Button(
             onClick = {
                 runCatching {
@@ -100,8 +123,12 @@ fun ServiceBlockedScreen(
                 )
             )
         }
-        OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.onb_check_again))
+        OutlinedButton(
+            onClick = onRetry,
+            enabled = !checking,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(if (checking) R.string.onb_checking else R.string.onb_check_again))
         }
         OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.onb_sign_out))
