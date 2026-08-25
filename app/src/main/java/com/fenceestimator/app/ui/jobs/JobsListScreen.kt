@@ -137,6 +137,30 @@ fun JobsListScreen(
             pendingUpdate = com.fenceestimator.app.cloud.UpdateChecker.checkOnce()
         }
     }
+
+    // Asked again whenever the app comes back to the front.
+    //
+    // The check ran once per launch, so the only way to find out about a new
+    // version was to close the app completely and open it again -- which
+    // nobody does, and which is a strange thing to have to explain to somebody
+    // whose fix is sitting on the server. Coming back to the app is enough
+    // now. It stays quiet once you have said Later: the dismissal holds, and
+    // an update already on offer is not re-fetched.
+    val updateLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(updateLifecycle, updateDismissed) {
+        val watcher = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME &&
+                !updateDismissed && pendingUpdate == null
+            ) {
+                app.applicationScope.launch {
+                    runCatching { com.fenceestimator.app.cloud.UpdateChecker.check() }
+                        .getOrNull()?.let { pendingUpdate = it }
+                }
+            }
+        }
+        updateLifecycle.lifecycle.addObserver(watcher)
+        onDispose { updateLifecycle.lifecycle.removeObserver(watcher) }
+    }
     pendingUpdate?.takeIf { !updateDismissed }?.let { release ->
         val ctx = androidx.compose.ui.platform.LocalContext.current
         val updateScope = androidx.compose.runtime.rememberCoroutineScope()
