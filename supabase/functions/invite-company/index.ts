@@ -142,11 +142,20 @@ Deno.serve(async (req) => {
       // Our own email, our own link. generateLink does not send anything --
       // it hands back the URL, which is exactly what lets the message look
       // like FenceFlow rather than like a database.
-      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      const meta = { company_id: companyId, company_name: companyName ?? "" };
+      let { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "invite",
         email,
-        options: { redirectTo, data: { company_id: companyId, company_name: companyName ?? "" } },
+        options: { redirectTo, data: meta },
       });
+
+      // Same fallback as below: a redirect the auth settings do not allow must
+      // not be the reason an invitation never arrives.
+      if (linkError && /redirect/i.test(String(linkError.message ?? ""))) {
+        ({ data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+          type: "invite", email, options: { data: meta },
+        }));
+      }
 
       let actionLink = linkData?.properties?.action_link;
 
@@ -187,20 +196,35 @@ Deno.serve(async (req) => {
     } else {
       // No provider configured. Supabase's own invite still gets somebody in,
       // which is better than nothing while a domain is being sorted out.
-      const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      const meta = { company_id: companyId, company_name: companyName ?? "" };
+
+      let { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
         redirectTo,
-        data: { company_id: companyId, company_name: companyName ?? "" },
+        data: meta,
       });
+
+      // A redirect the auth settings do not allow is refused outright, and the
+      // person clicking gets a bare error page with nowhere to go. Rather than
+      // leave the invitation broken until somebody edits a settings screen,
+      // send it again with no redirect at all: the link then lands on the site's
+      // configured address, and the dashboard forwards an owner who has not
+      // started on to the welcome page.
+      if (inviteError && /redirect/i.test(String(inviteError.message ?? ""))) {
+        ({ error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, { data: meta }));
+      }
 
       if (inviteError) {
         const already = String(inviteError.message ?? "").toLowerCase()
           .includes("already been registered");
         if (!already) return json({ error: inviteError.message }, 400);
 
-        const { error: linkError } = await admin.auth.signInWithOtp({
+        let { error: linkError } = await admin.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: redirectTo },
         });
+        if (linkError && /redirect/i.test(String(linkError.message ?? ""))) {
+          ({ error: linkError } = await admin.auth.signInWithOtp({ email }));
+        }
         if (linkError) return json({ error: linkError.message }, 400);
       }
     }
