@@ -568,14 +568,39 @@ async function inviteCompany(id, name, existingEmail) {
 }
 
 function render() {
-  const paying = clients.filter(c => c.subscription_status === 'active' && !c.suspended);
+  // "Paying" means Stripe is charging them money, today.
+  //
+  // It used to be subscription_status === 'active', which is three different
+  // things wearing the same word. A company inside its free trial can carry
+  // 'active' -- every one that checked out before the webhook hardcode was
+  // fixed does. A company on a hand-granted open-ended free ride is set to
+  // 'active' too, with no plan and no price. Both were counted as customers,
+  // so the one number this page exists to answer was wrong in the flattering
+  // direction, and a trial showed up as revenue that had never been charged.
+  //
+  // A trial is still a real thing worth seeing, so it gets its own tile rather
+  // than being hidden.
+  const onTrial = c => c.subscription_status === 'trialing' ||
+    (c.trial_ends_at && new Date(c.trial_ends_at) > new Date());
+  const paying = clients.filter(c =>
+    c.subscription_status === 'active' && !c.suspended &&
+    !onTrial(c) && Number(c.monthly_price || 0) > 0);
+  const trialing = clients.filter(c => !c.suspended && onTrial(c));
   const owing  = clients.filter(c => c.subscription_status === 'past_due' && !c.suspended);
   const mrr    = paying.reduce((s, c) => s + Number(c.monthly_price || 0), 0);
+  // A company Stripe is charging but whose price we never recorded would
+  // silently drag MRR down, so say so rather than quietly under-count.
+  const priceless = clients.filter(c =>
+    c.subscription_status === 'active' && !c.suspended && !onTrial(c) &&
+    !(Number(c.monthly_price || 0) > 0)).length;
 
   $('stats').innerHTML = `
     <div class="stat"><b>${clients.length}</b><span>Companies</span></div>
     <div class="stat"><b>${paying.length}</b><span>Paying</span></div>
-    <div class="stat"><b>${money(mrr)}</b><span>Monthly recurring</span></div>
+    <div class="stat"><b>${trialing.length}</b><span>On trial</span></div>
+    <div class="stat"><b>${money(mrr)}</b><span>Monthly recurring</span>${
+      priceless ? `<span style="font-size:11px;color:var(--warn,#b26a00)">${priceless} with no price recorded</span>` : ''
+    }</div>
     <div class="stat"><b>${owing.length}</b><span>Behind on payment</span></div>`;
 
   $('empty').style.display = clients.length ? 'none' : 'block';

@@ -388,10 +388,43 @@ Deno.serve(async (req) => {
           ? "canceled"
           : String(sub.status ?? "none");
 
+        // What Stripe is actually charging, per month.
+        //
+        // monthly_price had exactly one writer: March typing a number into the
+        // Manage dialog. Stripe has known the real figure the whole time and
+        // it was never read, so the admin page's "Monthly recurring" was a
+        // hand-kept note that nothing ever checked, and a company that
+        // upgraded or downgraded kept its old price on screen for ever.
+        //
+        // Normalised to a month so the tile can add them up: Stripe quotes an
+        // amount per interval, and a yearly plan is not twelve times a monthly
+        // one. A cancelled subscription contributes nothing.
+        const priceOf = (sub2: any): number | null => {
+          const items = sub2?.items?.data;
+          if (!Array.isArray(items) || !items.length) return null;
+          let cents = 0;
+          for (const it of items) {
+            const p = it?.price;
+            const unit = Number(p?.unit_amount);
+            if (!Number.isFinite(unit)) continue;
+            const qty = Number(it?.quantity ?? 1) || 1;
+            const iv = p?.recurring?.interval;
+            const count = Number(p?.recurring?.interval_count ?? 1) || 1;
+            const perMonth = iv === "year" ? 1 / (12 * count)
+                           : iv === "week" ? 52 / (12 * count)
+                           : iv === "day"  ? 365 / (12 * count)
+                           : 1 / count;                 // month
+            cents += unit * qty * perMonth;
+          }
+          return Math.round(cents) / 100;
+        };
+        const monthly = status === "canceled" ? 0 : priceOf(sub);
+
         await admin.from("companies").update({
           stripe_subscription_id: sub.id,
           subscription_status: status,
           subscription_plan: sub.metadata?.plan ?? "",
+          ...(monthly === null ? {} : { monthly_price: monthly }),
           subscription_ends_at: (() => {
             const end = periodEnd(sub);
             return end ? new Date(end * 1000).toISOString() : null;

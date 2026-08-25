@@ -85,6 +85,34 @@ Deno.serve(async (req) => {
       .eq("id", profile.company_id).single();
     const account = company?.stripe_account_id ?? undefined;
 
+    // A connected account is refused rather than quietly taking money we
+    // cannot record.
+    //
+    // Setting Stripe-Account creates the payment link on the company's OWN
+    // Stripe account, which is the point -- the money lands with them. But
+    // Stripe then raises checkout.session.completed on THAT account, and
+    // stripe-webhook is a platform endpoint that never looks at
+    // event.account. The event does not arrive. So the homeowner pays, the
+    // money reaches the contractor, and nothing on our side ever hears about
+    // it: the job_payments row sits on "Waiting" for ever, the ledger never
+    // gets its row, and the job on the phone keeps showing the full balance
+    // owing. The customer insisting they already paid is the only way anybody
+    // finds out.
+    //
+    // No company has connected an account yet, so nothing has been lost. This
+    // refuses the first one instead of losing their first payment. Making it
+    // work needs a Connect webhook endpoint and an event.account branch in
+    // stripe-webhook that resolves the company by connected account id --
+    // that is a feature, not a line of code, and it should be built
+    // deliberately rather than discovered.
+    if (account) {
+      return json({
+        error: "Card payments through your own Stripe account are not switched on yet. " +
+               "Payments would reach your bank but would not be recorded against the job, " +
+               "so the balance would stay wrong. Contact FenceFlow and we will set it up.",
+      }, 501);
+    }
+
     // A company that is switched off may not raise money through us. This
     // function runs as the service role, so RLS is not watching it -- without
     // this check a suspended or lapsed company kept billing its customers
