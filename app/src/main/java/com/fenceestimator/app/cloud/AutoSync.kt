@@ -312,6 +312,13 @@ class AutoSync(
             // cannot land on a phone that has not pulled the job yet.
             val ledgerResult = PaymentLedgerSync.sync(repository, companyId)
 
+            // The ledger has just been reconciled both ways and every job's
+            // cached total rebuilt from it, so this is the one moment the local
+            // figure is authoritative -- including when it went DOWN, which the
+            // ordinary job push refuses to send. Without this, deleting a
+            // duplicate payment was undone by the next pull, every time.
+            runCatching { JobSync.pushLedgerTotals(repository, companyId) }
+
             val pushResult = EntitySync.pushAll(repository, companyId)
             val pullResult = EntitySync.pullAll(repository, companyId)
 

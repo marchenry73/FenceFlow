@@ -200,6 +200,61 @@ object JobSync {
      */
     fun ledgerBackedAmountPaid(cloudPaid: Double): Double = cloudPaid
 
+    /**
+     * Sends the ledger's answer for what a job has been paid, downward included.
+     *
+     * amountPaid is a cache of the payment rows, and [PaymentLedgerSync] has
+     * just reconciled those rows in both directions and rebuilt every job's
+     * total from them -- so at this moment the local figure is the truth.
+     *
+     * The ordinary job push deliberately refuses to lower amount_paid, because
+     * a job sitting open on screen must never overwrite a payment the webhook
+     * has just recorded. But that also meant a duplicate payment corrected on
+     * this phone was restored from the cloud on the very next pull, and the two
+     * sides then disagreed for ever: the figure could climb but never come back
+     * down, however wrong it was. This is the one place allowed to send it down,
+     * and only immediately after the ledger has been reconciled.
+     *
+     * Nothing is lost if a payment lands in the gap: it writes a payment row
+     * too, which the next ledger pass pulls, and the total rises again.
+     */
+    suspend fun pushLedgerTotals(
+        repository: Repository,
+        companyId: String
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val jobs = repository.getAllJobs()
+            if (jobs.isEmpty()) return@runCatching 0
+            val cloudBySyncId = SupabaseModule.client.postgrest.from("jobs")
+                .select { filter { eq("company_id", companyId) } }
+                .decodeList<CloudJob>()
+                .associateBy { it.syncId }
+
+            var corrected = 0
+            jobs.forEach { job ->
+                val row = cloudBySyncId[job.syncId] ?: return@forEach
+                if (row.deletedAt != null) return@forEach
+                val paidDiffers = kotlin.math.abs(row.amountPaid - job.amountPaid) > 0.005
+                val refundDiffers = kotlin.math.abs(row.refundedAmount - job.refundedAmount) > 0.005
+                if (!paidDiffers && !refundDiffers) return@forEach
+
+                SupabaseModule.client.postgrest.from("jobs").update(
+                    buildJsonObject {
+                        put("amount_paid", job.amountPaid)
+                        put("refunded_amount", job.refundedAmount)
+                    }
+                ) {
+                    filter {
+                        eq("company_id", companyId)
+                        eq("sync_id", job.syncId)
+                    }
+                }
+                corrected++
+            }
+            corrected
+        }
+    }
+
     suspend fun sync(repository: Repository, companyId: String): Result<SyncResult> = withContext(Dispatchers.IO) {
         runCatching {
             // Deletions first, always. If a pull ran before them, the rows we
