@@ -605,53 +605,6 @@ fun SettingsScreen(
                 }
             }
             item {
-                SectionCard(stringResource(R.string.set_square_title)) {
-                    Text(
-                        stringResource(R.string.set_square_explain),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        stringResource(R.string.set_square_token_help),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    DraftTextField(
-                        stableKey = "square_token", initialValue = local.squareAccessToken,
-                        label = stringResource(R.string.set_square_token), modifier = Modifier.fillMaxWidth()
-                    ) { local = local.copy(squareAccessToken = it) }
-                    Text(
-                        stringResource(R.string.set_square_stored_locally),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (local.squareLocationId.isNotBlank()) {
-                        Text(
-                            stringResource(R.string.set_square_connected_location, local.squareLocationId),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                val result = com.fenceestimator.app.payments.SquarePayments
-                                    .firstLocationId(local.squareAccessToken.trim())
-                                result.fold(
-                                    onSuccess = { locationId ->
-                                        local = local.copy(squareLocationId = locationId)
-                                        viewModel.save(local)
-                                        snackbarHostState.showSnackbar(context.getString(R.string.set_square_connected))
-                                    },
-                                    onFailure = {
-                                        snackbarHostState.showSnackbar(it.message ?: context.getString(R.string.set_square_connect_failed))
-                                    }
-                                )
-                            }
-                        },
-                        enabled = local.squareAccessToken.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text(stringResource(R.string.set_test_connect_square)) }
-                }
-            }
-            item {
                 SectionCard(stringResource(R.string.set_export_title)) {
                     Text(
                         stringResource(R.string.set_export_explain),

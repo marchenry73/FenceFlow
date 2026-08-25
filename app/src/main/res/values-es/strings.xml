@@ -286,15 +286,6 @@
     <string name="set_review_requests">Solicitudes de reseña</string>
     <string name="set_review_template">Mensaje de solicitud de reseña</string>
     <string name="set_review_placeholders">Variables: {customerName} {businessName}. Envíalo desde un trabajo cuando esté terminado.</string>
-    <string name="set_square_title">Pagos con tarjeta (Square)</string>
-    <string name="set_square_explain">Conecta tu cuenta de Square y FenceFlow podrá crear un enlace de pago por el saldo exacto, directo desde el trabajo. El dinero va del cliente a Square y a tu banco; la app nunca lo retiene.</string>
-    <string name="set_square_token_help">Obtén tu token gratis en developer.squareup.com: inicia sesión con tu cuenta normal de Square, crea una aplicación y copia el Production Access Token. No hay ningún plan de pago para esto.</string>
-    <string name="set_square_token">Token de acceso de Square</string>
-    <string name="set_square_stored_locally">Se guarda solo en este teléfono. Nunca se sube a la nube de FenceFlow ni se comparte con tu cuadrilla.</string>
-    <string name="set_square_connected_location">Conectado. Ubicación: %1$s</string>
-    <string name="set_square_connected">Square conectado</string>
-    <string name="set_square_connect_failed">No se pudo conectar con Square</string>
-    <string name="set_test_connect_square">Probar y conectar Square</string>
     <string name="set_export_title">Exportar tus datos</string>
     <string name="set_export_explain">Todo lo que tienes (trabajos, pagos, gastos, horas de la cuadrilla, órdenes de cambio y materiales) como un conjunto de hojas de cálculo que puedes abrir en Excel, Numbers o Google Sheets.</string>
     <string name="set_records_yours">Tus registros son tuyos. Nunca tendrás que pedirnos una copia.</string>
@@ -498,10 +489,8 @@
     <string name="jd_test_mode">MODO DE PRUEBA -- no se mueve dinero real. Págalo con 4242 4242 4242 4242.</string>
     <string name="jd_stripe_explain">Crea un enlace de pago de Stripe. El dinero va a tu cuenta de Stripe -- FenceFlow nunca lo retiene, y los datos de la tarjeta nunca pasan por este teléfono.</string>
     <string name="jd_set_deposit_hint">Fija un monto de depósito abajo y el enlace cobrará exactamente esa cifra.</string>
-    <string name="jd_create_square_link_for">Crear enlace de Square por %1$s</string>
-    <string name="jd_create_square_link">Crear enlace de pago de Square</string>
     <string name="jd_payment_link">Enlace de pago</string>
-    <string name="jd_payment_link_hint">Lo llena el botón de arriba, o pega cualquier enlace que ya uses (PayPal, Venmo, Square). El dinero va directo a tu propia cuenta.</string>
+    <string name="jd_payment_link_hint">Lo llena el botón de arriba, o pega cualquier enlace que ya uses (PayPal, Venmo). El dinero va directo a tu propia cuenta.</string>
     <string name="jd_link_stale">Este enlace todavía cobra $%1$s, pero el monto pendiente ahora es $%2$s.</string>
     <string name="jd_link_stale_hint">Toca Solicitar con tarjeta de nuevo para reemplazarlo antes de enviar nada.</string>
     <string name="jd_for_amount">por $%1$s</string>

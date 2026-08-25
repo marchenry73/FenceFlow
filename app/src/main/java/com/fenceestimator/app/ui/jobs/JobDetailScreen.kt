@@ -1197,7 +1197,6 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
 
     // Everything billable is now derived from the estimate net of refunds, in
     // JobMoney, so the screen, the PDF and the payment link cannot disagree.
-    val squareReady = profile.squareAccessToken.isNotBlank() && profile.squareLocationId.isNotBlank()
 
     // ---- One contract figure, derived from the estimate ----
     //
@@ -1429,58 +1428,6 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    }
-
-    if (squareReady) {
-        Button(
-            onClick = {
-                scope.launch {
-                    creatingLink = true
-                    linkError = null
-                    val amount = requestAmount
-                    val result = com.fenceestimator.app.payments.SquarePayments.createPaymentLink(
-                        token = profile.squareAccessToken.trim(),
-                        locationId = profile.squareLocationId.trim(),
-                        amount = amount,
-                        description = paymentDescription,
-                        buyerEmail = job.email.takeIf { it.isNotBlank() }
-                    )
-                    creatingLink = false
-                    result.fold(
-                        // The amount is recorded with the link. Without it the
-                        // staleness check below cannot fire, so a Square link
-                        // went on billing the old figure with nothing greyed
-                        // out and no warning shown.
-                        onSuccess = { link ->
-                            viewModel.update { j ->
-                                j.copy(paymentLinkUrl = link.url, paymentLinkAmount = amount)
-                            }
-                        },
-                        onFailure = { linkError = it.message }
-                    )
-                }
-            },
-            enabled = !creatingLink && requestAmount > 0.005 && job.signedAt != null,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                when {
-                    creatingLink -> stringResource(R.string.jd_creating_link)
-                    requestAmount > 0.005 -> stringResource(R.string.jd_create_square_link_for, "%.2f".format(requestAmount))
-                    else -> stringResource(R.string.jd_create_square_link)
-                }
-            )
-        }
-        if (requestAmount <= 0.005) {
-            Text(
-                stringResource(R.string.jd_set_deposit_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        linkError?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        }
     }
 
     DraftTextField(

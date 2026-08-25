@@ -300,15 +300,6 @@
     <string name="set_review_requests">Review Requests</string>
     <string name="set_review_template">Review request message</string>
     <string name="set_review_placeholders">Placeholders: {customerName} {businessName}. Send it from a job once it\'s complete.</string>
-    <string name="set_square_title">Card Payments (Square)</string>
-    <string name="set_square_explain">Connect your Square account and FenceFlow can create a payment link for the exact balance due, straight from the job. Money goes from the customer to Square to your bank -- the app never holds it.</string>
-    <string name="set_square_token_help">Get your token free at developer.squareup.com -- sign in with your normal Square login, create an application, then copy the Production Access Token. There is no paid plan for this.</string>
-    <string name="set_square_token">Square access token</string>
-    <string name="set_square_stored_locally">Stored on this phone only. It is never uploaded to the FenceFlow cloud or shared with your crew.</string>
-    <string name="set_square_connected_location">Connected. Location: %1$s</string>
-    <string name="set_square_connected">Square connected</string>
-    <string name="set_square_connect_failed">Couldn\'t connect to Square</string>
-    <string name="set_test_connect_square">Test &amp; Connect Square</string>
     <string name="set_export_title">Export Your Data</string>
     <string name="set_export_explain">Everything you have -- jobs, payments, expenses, crew hours, change orders and materials -- as a set of spreadsheets you can open in Excel, Numbers or Google Sheets.</string>
     <string name="set_records_yours">Your records are yours. You never need to ask us for a copy.</string>
@@ -512,10 +503,8 @@
     <string name="jd_test_mode">TEST MODE -- no real money moves. Pay it with 4242 4242 4242 4242.</string>
     <string name="jd_stripe_explain">Creates a Stripe checkout link. The money goes to your Stripe account -- FenceFlow never holds it, and the card details never touch this phone.</string>
     <string name="jd_set_deposit_hint">Set a deposit amount below and the link will bill that exact figure.</string>
-    <string name="jd_create_square_link_for">Create Square Link for %1$s</string>
-    <string name="jd_create_square_link">Create Square Payment Link</string>
     <string name="jd_payment_link">Payment link</string>
-    <string name="jd_payment_link_hint">Filled in by the button above, or paste any link you already use (PayPal, Venmo, Square). Money goes straight to your own account.</string>
+    <string name="jd_payment_link_hint">Filled in by the button above, or paste any link you already use (PayPal, Venmo). Money goes straight to your own account.</string>
     <string name="jd_link_stale">This link still bills $%1$s, but the amount due is now $%2$s.</string>
     <string name="jd_link_stale_hint">Tap Request by Card again to replace it before you send anything.</string>
     <string name="jd_for_amount">for $%1$s</string>

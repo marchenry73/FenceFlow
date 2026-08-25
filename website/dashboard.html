@@ -456,7 +456,6 @@
         <div style="margin-top:14px"><button class="btn" id="saveSettings">Save Settings</button></div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px">
           Saved to your company account — phones pick these up on next sync.
-          Your Square token is not stored here; it stays on each device.
         </p>
       </div>
       <div class="panel">
@@ -1458,6 +1457,10 @@ const AUDIT_TABLES = {
  * with a Chase button gets acted on.
  */
 function renderAging(){
+  // Hiding a panel with CSS still puts the numbers in the page, where anyone
+  // curious enough to open the browser's inspector can read the analytics
+  // their plan does not include. Don't build it at all.
+  if (!hasAdvancedReports()) { $('arBuckets').innerHTML = ''; $('arRows').innerHTML = ''; return; }
   const buckets = { current: 0, '30': 0, '60': 0, '90': 0 };
   arAging.forEach(r => { buckets[r.bucket] = (buckets[r.bucket] || 0) + Number(r.owed || 0); });
 
@@ -1526,6 +1529,9 @@ function renderAudit(){
 }
 
 function renderCosting(){
+  // Per-job profit is Pro's. Same reason as renderAging: not rendered rather
+  // than rendered-then-hidden.
+  if (!hasAdvancedReports()) { $('costingRows').innerHTML = ''; return; }
   // Real losses first; work that simply has not been invoiced goes last,
   // where it cannot be mistaken for a job that went wrong.
   // Real losses first -- projected, so a mispriced quote surfaces before
@@ -1641,10 +1647,16 @@ function renderReports(){
     {label:'Labor',value:labor},
     {label:'Other expenses',value:other}
   ].filter(r=>r.value>0);
-  barsH('chartCosts',costRows,money,(r,i)=>SERIES[i%SERIES.length]);
-  $('chartCosts').insertAdjacentHTML('beforeend',
-    `<div class="legend">${costRows.map((r,i)=>
-      `<span><i style="background:${SERIES[i%SERIES.length]}"></i>${esc(r.label)}</span>`).join('')}</div>`);
+  // The cost breakdown -- what you collected against what it cost -- is the
+  // Pro tier. Left empty rather than drawn and covered over.
+  if (hasAdvancedReports()) {
+    barsH('chartCosts',costRows,money,(r,i)=>SERIES[i%SERIES.length]);
+    $('chartCosts').insertAdjacentHTML('beforeend',
+      `<div class="legend">${costRows.map((r,i)=>
+        `<span><i style="background:${SERIES[i%SERIES.length]}"></i>${esc(r.label)}</span>`).join('')}</div>`);
+  } else {
+    $('chartCosts').innerHTML = '';
+  }
 
   // Pipeline stages
   const stages=['New Lead','Quote Sent','Approved','Deposit Paid','Scheduled','Installed','Paid in Full'];
@@ -1689,8 +1701,12 @@ function renderReports(){
     const k=(e.category||'OTHER').replace(/_/g,' ');
     byCat[k]=(byCat[k]||0)+(e.amount||0);
   });
-  barsH('chartExpenses',
-    Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v})), money);
+  if (hasAdvancedReports()) {
+    barsH('chartExpenses',
+      Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v})), money);
+  } else {
+    $('chartExpenses').innerHTML = '';
+  }
 
   // Lead sources
   const bySrc={};

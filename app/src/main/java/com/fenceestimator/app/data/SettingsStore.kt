@@ -161,6 +161,14 @@ data class BusinessProfile(
      * It is never sent to the FenceFlow cloud -- each business bills into
      * its own Square account, and nobody else should be able to read it.
      */
+    /**
+     * Square is gone -- card payments run through Stripe alone.
+     *
+     * The two fields stay, unread, because they hold something somebody typed
+     * and this app does not quietly throw away what people entered. Anyone who
+     * had connected Square keeps their token where they left it; nothing in
+     * the app looks at it any more.
+     */
     val squareAccessToken: String = "",
     val squareLocationId: String = "",
     /**

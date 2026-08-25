@@ -286,15 +286,6 @@
     <string name="set_review_requests">Demandes d\'avis</string>
     <string name="set_review_template">Message de demande d\'avis</string>
     <string name="set_review_placeholders">Variables : {customerName} {businessName}. Envoyez-le depuis un chantier une fois terminé.</string>
-    <string name="set_square_title">Paiements par carte (Square)</string>
-    <string name="set_square_explain">Connectez votre compte Square et FenceFlow pourra créer un lien de paiement pour le solde exact, directement depuis le chantier. L\'argent va du client à Square puis à votre banque : l\'application ne le détient jamais.</string>
-    <string name="set_square_token_help">Obtenez votre jeton gratuitement sur developer.squareup.com : connectez-vous avec votre identifiant Square habituel, créez une application, puis copiez le Production Access Token. Aucun abonnement payant n\'est requis.</string>
-    <string name="set_square_token">Jeton d\'accès Square</string>
-    <string name="set_square_stored_locally">Stocké uniquement sur ce téléphone. Il n\'est jamais envoyé au cloud FenceFlow ni partagé avec votre équipe.</string>
-    <string name="set_square_connected_location">Connecté. Emplacement : %1$s</string>
-    <string name="set_square_connected">Square connecté</string>
-    <string name="set_square_connect_failed">Connexion à Square impossible</string>
-    <string name="set_test_connect_square">Tester et connecter Square</string>
     <string name="set_export_title">Exporter vos données</string>
     <string name="set_export_explain">Tout ce que vous avez (chantiers, paiements, dépenses, heures de l\'équipe, avenants et matériaux) sous forme de feuilles de calcul à ouvrir dans Excel, Numbers ou Google Sheets.</string>
     <string name="set_records_yours">Vos données vous appartiennent. Vous n\'aurez jamais à nous en demander une copie.</string>
@@ -498,10 +489,8 @@
     <string name="jd_test_mode">MODE TEST -- aucun argent réel ne circule. Payez avec 4242 4242 4242 4242.</string>
     <string name="jd_stripe_explain">Crée un lien de paiement Stripe. L\'argent va sur votre compte Stripe -- FenceFlow ne le détient jamais, et les données de carte ne transitent jamais par ce téléphone.</string>
     <string name="jd_set_deposit_hint">Fixez un montant d\'acompte ci-dessous et le lien facturera exactement ce montant.</string>
-    <string name="jd_create_square_link_for">Créer un lien Square pour %1$s</string>
-    <string name="jd_create_square_link">Créer un lien de paiement Square</string>
     <string name="jd_payment_link">Lien de paiement</string>
-    <string name="jd_payment_link_hint">Rempli par le bouton ci-dessus, ou collez un lien que vous utilisez déjà (PayPal, Venmo, Square). L\'argent va directement sur votre propre compte.</string>
+    <string name="jd_payment_link_hint">Rempli par le bouton ci-dessus, ou collez un lien que vous utilisez déjà (PayPal, Venmo). L\'argent va directement sur votre propre compte.</string>
     <string name="jd_link_stale">Ce lien facture encore %1$s $, mais le montant dû est maintenant de %2$s $.</string>
     <string name="jd_link_stale_hint">Touchez à nouveau Demander par carte pour le remplacer avant d\'envoyer quoi que ce soit.</string>
     <string name="jd_for_amount">de %1$s $</string>
