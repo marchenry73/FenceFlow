@@ -1337,6 +1337,11 @@
     <string name="set_update_checking">Buscando…</string>
     <string name="set_update_current">Tienes la última versión.</string>
     <string name="set_update_unreachable">No se pudo comprobar ahora: inténtalo en un momento.</string>
+    <string name="set_group_business">Tu negocio</string>
+    <string name="set_group_estimating">Presupuestos y trabajos</string>
+    <string name="set_group_app">La aplicación</string>
+    <string name="set_group_data">Tus datos</string>
+    <string name="set_group_help">Ayuda</string>
     <string name="vm_couldnt_sync_crew_settings">No se pudieron sincronizar la cuadrilla y la configuración</string>
     <string name="vm_kind_job">Trabajo</string>
     <string name="vm_kind_change_order">Orden de cambio</string>

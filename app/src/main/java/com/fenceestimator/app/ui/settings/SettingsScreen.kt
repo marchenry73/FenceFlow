@@ -3,6 +3,7 @@ package com.fenceestimator.app.ui.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -20,6 +22,20 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Handyman
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -56,6 +72,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.AppLanguage
@@ -204,62 +221,18 @@ fun SettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item { GroupHeading(stringResource(R.string.set_group_business)) }
             item {
-                SectionCard(stringResource(R.string.set_security)) {
-                    Text(
-                        stringResource(R.string.set_security_explain),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    val autoLockNever = stringResource(R.string.set_auto_lock_never)
-                    val autoLockOneMinute = stringResource(R.string.set_auto_lock_one_minute)
-                    SettingsEnumDropdown(
-                        stringResource(R.string.set_auto_lock_after),
-                        listOf(0, 1, 5, 15, 30, 60),
-                        local.autoLockMinutes,
-                        {
-                            when (it) {
-                                0 -> autoLockNever
-                                1 -> autoLockOneMinute
-                                else -> context.getString(R.string.set_auto_lock_minutes, it)
-                            }
-                        }
-                    ) { local = local.copy(autoLockMinutes = it) }
-
-                    val biometricReady = remember { com.fenceestimator.app.ui.lock.biometricAvailable(context) }
-                    if (biometricReady) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.set_biometric_unlock), modifier = Modifier.weight(1f))
-                            androidx.compose.material3.Switch(
-                                checked = local.biometricUnlockEnabled,
-                                onCheckedChange = { local = local.copy(biometricUnlockEnabled = it) }
-                            )
-                        }
-                        Text(
-                            stringResource(R.string.set_biometric_fallback),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Text(
-                            stringResource(R.string.set_biometric_unavailable),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                SectionCard(stringResource(R.string.settings_business_profile), icon = Icons.Filled.Storefront) {
+                    DraftTextField(stableKey = "biz_name", initialValue = local.businessName, label = stringResource(R.string.set_business_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(businessName = it) }
+                    DraftTextField(stableKey = "biz_owner", initialValue = local.ownerName, label = stringResource(R.string.set_owner_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(ownerName = it) }
+                    DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = stringResource(R.string.field_phone), keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth()) { local = local.copy(phone = it) }
+                    DraftTextField(stableKey = "biz_email", initialValue = local.email, label = stringResource(R.string.field_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) { local = local.copy(email = it) }
+                    DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth()) { local = local.copy(licenseNumber = it) }
                 }
             }
             item {
-                SectionCard(stringResource(R.string.settings_help_feedback)) {
-                    OutlinedButton(onClick = onOpenHelp, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.set_how_to_use))
-                    }
-                    OutlinedButton(onClick = onOpenFeedback, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.set_send_suggestion))
-                    }
-                }
-            }
-            item {
-                SectionCard(stringResource(R.string.settings_account_team)) {
+                SectionCard(stringResource(R.string.settings_account_team), icon = Icons.Filled.Group) {
                     Text(
                         stringResource(R.string.set_account_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -270,142 +243,7 @@ fun SettingsScreen(
                 }
             }
             item {
-                SectionCard(stringResource(R.string.settings_business_profile)) {
-                    DraftTextField(stableKey = "biz_name", initialValue = local.businessName, label = stringResource(R.string.set_business_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(businessName = it) }
-                    DraftTextField(stableKey = "biz_owner", initialValue = local.ownerName, label = stringResource(R.string.set_owner_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(ownerName = it) }
-                    DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = stringResource(R.string.field_phone), keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth()) { local = local.copy(phone = it) }
-                    DraftTextField(stableKey = "biz_email", initialValue = local.email, label = stringResource(R.string.field_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) { local = local.copy(email = it) }
-                    DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth()) { local = local.copy(licenseNumber = it) }
-                }
-            }
-            item {
-                SectionCard(stringResource(R.string.settings_appearance)) {
-                    val themeLabels = mapOf(
-                        ThemeMode.SYSTEM to stringResource(R.string.set_theme_system),
-                        ThemeMode.LIGHT to stringResource(R.string.set_theme_light),
-                        ThemeMode.DARK to stringResource(R.string.set_theme_dark)
-                    )
-                    SettingsEnumDropdown(
-                        stringResource(R.string.settings_theme), listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK), local.themeMode,
-                        { themeLabels[it] ?: it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
-                    ) { local = local.copy(themeMode = it) }
-                    SettingsEnumDropdown(
-                        stringResource(R.string.settings_language), AppLanguage.values().toList(), local.language,
-                        { it.displayName }
-                    ) { newLanguage ->
-                        val wasDefault = local.orderEmailTemplate == BusinessProfile.defaultOrderTemplate(local.language) &&
-                            local.hoaEmailTemplate == BusinessProfile.defaultHoaTemplate(local.language) &&
-                            local.reviewRequestTemplate == BusinessProfile.defaultReviewTemplate(local.language)
-                        local = if (wasDefault) {
-                            local.copy(
-                                language = newLanguage,
-                                orderEmailTemplate = BusinessProfile.defaultOrderTemplate(newLanguage),
-                                hoaEmailTemplate = BusinessProfile.defaultHoaTemplate(newLanguage),
-                                reviewRequestTemplate = BusinessProfile.defaultReviewTemplate(newLanguage)
-                            )
-                        } else {
-                            local.copy(language = newLanguage)
-                        }
-                    }
-                    Text(
-                        stringResource(R.string.set_language_note),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            item {
-                SectionCard(stringResource(R.string.set_defaults_new_jobs)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "tax", label = stringResource(R.string.set_tax_rate), initialValue = local.defaultTaxRatePercent.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultTaxRatePercent = it.toDouble())
-                        }
-                        DraftNumberField(stableKey = "markup", label = stringResource(R.string.set_markup_pct), initialValue = local.defaultMarkupPercent.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultMarkupPercent = it.toDouble())
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "panelw", label = stringResource(R.string.set_panel_width), initialValue = local.defaultPanelWidthFt, modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultPanelWidthFt = it)
-                        }
-                        DraftNumberField(stableKey = "panelh", label = stringResource(R.string.set_panel_height), initialValue = local.defaultPanelHeightFt, modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultPanelHeightFt = it)
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "spacing", label = stringResource(R.string.set_post_spacing), initialValue = local.defaultPostSpacingFt, modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultPostSpacingFt = it)
-                        }
-                        DraftNumberField(stableKey = "bags", label = stringResource(R.string.set_concrete_bags), initialValue = local.defaultConcreteBagsPerPost, modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultConcreteBagsPerPost = it)
-                        }
-                    }
-                    DraftNumberField(stableKey = "labor", label = stringResource(R.string.set_default_labor_rate), initialValue = local.defaultLaborRatePerFt.toFloat(), modifier = Modifier.fillMaxWidth()) {
-                        local = local.copy(defaultLaborRatePerFt = it.toDouble())
-                    }
-                    DraftNumberField(stableKey = "minjob", label = stringResource(R.string.set_min_job_charge), initialValue = local.defaultMinimumJobCharge.toFloat(), modifier = Modifier.fillMaxWidth()) {
-                        local = local.copy(defaultMinimumJobCharge = it.toDouble())
-                    }
-                }
-            }
-            item {
-                SectionCard(stringResource(R.string.set_crew_speed)) {
-                    Text(
-                        stringResource(R.string.set_crew_speed_explain),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "ftday", label = stringResource(R.string.set_feet_per_day), initialValue = local.feetPerDay.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(feetPerDay = it.toDouble())
-                        }
-                        DraftNumberField(stableKey = "workday", label = stringResource(R.string.set_hours_per_day), initialValue = local.workdayHours.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(workdayHours = it.toDouble())
-                        }
-                    }
-                    DraftNumberField(stableKey = "breaks", label = stringResource(R.string.set_break_hours), initialValue = local.breakHoursPerDay.toFloat(), modifier = Modifier.fillMaxWidth()) {
-                        local = local.copy(breakHoursPerDay = it.toDouble())
-                    }
-                    Text(
-                        stringResource(
-                            R.string.set_break_note,
-                            "%.1f".format((local.workdayHours - local.breakHoursPerDay).coerceAtLeast(1.0))
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "gatehrs", label = stringResource(R.string.set_hours_per_gate), initialValue = local.hoursPerGate.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(hoursPerGate = it.toDouble())
-                        }
-                        DraftNumberField(stableKey = "cornerhrs", label = stringResource(R.string.set_hours_per_corner), initialValue = local.hoursPerCorner.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(hoursPerCorner = it.toDouble())
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "treehrs", label = stringResource(R.string.set_hours_per_tree), initialValue = local.hoursPerTree.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(hoursPerTree = it.toDouble())
-                        }
-                        DraftNumberField(stableKey = "obshrs", label = stringResource(R.string.set_hours_per_obstacle), initialValue = local.hoursPerObstacle.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(hoursPerObstacle = it.toDouble())
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "setuphrs", label = stringResource(R.string.set_setup_hours), initialValue = local.setupHours.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(setupHours = it.toDouble())
-                        }
-                        DraftNumberField(stableKey = "teardownhrs", label = stringResource(R.string.set_teardown_hrs_per_ft), initialValue = local.teardownHoursPerFoot.toFloat(), modifier = Modifier.weight(1f)) {
-                            local = local.copy(teardownHoursPerFoot = it.toDouble())
-                        }
-                    }
-                    Text(
-                        stringResource(R.string.set_trees_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            item {
-                SectionCard(stringResource(R.string.set_pricing_tiers)) {
+                SectionCard(stringResource(R.string.set_pricing_tiers), icon = Icons.Filled.Sell) {
                     Text(
                         stringResource(R.string.set_pricing_tiers_explain),
                         style = MaterialTheme.typography.bodyMedium,
@@ -439,8 +277,43 @@ fun SettingsScreen(
                     }
                 }
             }
+            item { GroupHeading(stringResource(R.string.set_group_estimating)) }
             item {
-                SectionCard(stringResource(R.string.set_tools_materials)) {
+                SectionCard(stringResource(R.string.set_defaults_new_jobs), icon = Icons.Filled.Tune) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "tax", label = stringResource(R.string.set_tax_rate), initialValue = local.defaultTaxRatePercent.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(defaultTaxRatePercent = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "markup", label = stringResource(R.string.set_markup_pct), initialValue = local.defaultMarkupPercent.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(defaultMarkupPercent = it.toDouble())
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "panelw", label = stringResource(R.string.set_panel_width), initialValue = local.defaultPanelWidthFt, modifier = Modifier.weight(1f)) {
+                            local = local.copy(defaultPanelWidthFt = it)
+                        }
+                        DraftNumberField(stableKey = "panelh", label = stringResource(R.string.set_panel_height), initialValue = local.defaultPanelHeightFt, modifier = Modifier.weight(1f)) {
+                            local = local.copy(defaultPanelHeightFt = it)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "spacing", label = stringResource(R.string.set_post_spacing), initialValue = local.defaultPostSpacingFt, modifier = Modifier.weight(1f)) {
+                            local = local.copy(defaultPostSpacingFt = it)
+                        }
+                        DraftNumberField(stableKey = "bags", label = stringResource(R.string.set_concrete_bags), initialValue = local.defaultConcreteBagsPerPost, modifier = Modifier.weight(1f)) {
+                            local = local.copy(defaultConcreteBagsPerPost = it)
+                        }
+                    }
+                    DraftNumberField(stableKey = "labor", label = stringResource(R.string.set_default_labor_rate), initialValue = local.defaultLaborRatePerFt.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                        local = local.copy(defaultLaborRatePerFt = it.toDouble())
+                    }
+                    DraftNumberField(stableKey = "minjob", label = stringResource(R.string.set_min_job_charge), initialValue = local.defaultMinimumJobCharge.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                        local = local.copy(defaultMinimumJobCharge = it.toDouble())
+                    }
+                }
+            }
+            item {
+                SectionCard(stringResource(R.string.set_tools_materials), icon = Icons.Filled.Handyman) {
                     Text(
                         stringResource(R.string.set_tools_explain),
                         style = MaterialTheme.typography.bodyMedium,
@@ -506,49 +379,65 @@ fun SettingsScreen(
                 }
 
             }
-            // Its own item, so the list's spacing applies between the cards --
-            // sharing one item block put these flush against each other.
             item {
-                // Which figures the home screen shows.
-                //
-                // A dashboard showing everything shows nothing -- the number
-                // somebody checks every morning differs by business, and a fixed
-                // set means most of it becomes scenery they look past.
-                SectionCard(stringResource(R.string.set_home_screen)) {
+                SectionCard(stringResource(R.string.set_crew_speed), icon = Icons.Filled.Speed) {
                     Text(
-                        stringResource(R.string.set_home_explain),
+                        stringResource(R.string.set_crew_speed_explain),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    val chosen = com.fenceestimator.app.data.HomeCard.parse(local.homeCardsCsv)
-                    com.fenceestimator.app.data.HomeCard.values().forEach { card ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(card.label(), style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    card.explains(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            androidx.compose.material3.Switch(
-                                checked = card in chosen,
-                                onCheckedChange = { on ->
-                                    val next = if (on) chosen + card else chosen - card
-                                    local = local.copy(
-                                        homeCardsCsv = next.joinToString(",") { it.name }
-                                    )
-                                }
-                            )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "ftday", label = stringResource(R.string.set_feet_per_day), initialValue = local.feetPerDay.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(feetPerDay = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "workday", label = stringResource(R.string.set_hours_per_day), initialValue = local.workdayHours.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(workdayHours = it.toDouble())
                         }
                     }
+                    DraftNumberField(stableKey = "breaks", label = stringResource(R.string.set_break_hours), initialValue = local.breakHoursPerDay.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                        local = local.copy(breakHoursPerDay = it.toDouble())
+                    }
+                    Text(
+                        stringResource(
+                            R.string.set_break_note,
+                            "%.1f".format((local.workdayHours - local.breakHoursPerDay).coerceAtLeast(1.0))
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "gatehrs", label = stringResource(R.string.set_hours_per_gate), initialValue = local.hoursPerGate.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerGate = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "cornerhrs", label = stringResource(R.string.set_hours_per_corner), initialValue = local.hoursPerCorner.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerCorner = it.toDouble())
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "treehrs", label = stringResource(R.string.set_hours_per_tree), initialValue = local.hoursPerTree.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerTree = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "obshrs", label = stringResource(R.string.set_hours_per_obstacle), initialValue = local.hoursPerObstacle.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(hoursPerObstacle = it.toDouble())
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DraftNumberField(stableKey = "setuphrs", label = stringResource(R.string.set_setup_hours), initialValue = local.setupHours.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(setupHours = it.toDouble())
+                        }
+                        DraftNumberField(stableKey = "teardownhrs", label = stringResource(R.string.set_teardown_hrs_per_ft), initialValue = local.teardownHoursPerFoot.toFloat(), modifier = Modifier.weight(1f)) {
+                            local = local.copy(teardownHoursPerFoot = it.toDouble())
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.set_trees_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             item {
-                SectionCard(stringResource(R.string.set_ordering)) {
+                SectionCard(stringResource(R.string.set_ordering), icon = Icons.Filled.LocalShipping) {
                     Text(stringResource(R.string.set_ordering_explain), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val selectedManufacturer = manufacturers.firstOrNull { it.id == local.preferredManufacturerId }
                     ExposedDropdownMenuBox(expanded = manufacturerMenuExpanded, onExpandedChange = { manufacturerMenuExpanded = it }) {
@@ -592,8 +481,127 @@ fun SettingsScreen(
                     )
                 }
             }
+            item { GroupHeading(stringResource(R.string.set_group_app)) }
             item {
-                SectionCard(stringResource(R.string.set_review_requests)) {
+                SectionCard(stringResource(R.string.settings_appearance), icon = Icons.Filled.Palette) {
+                    val themeLabels = mapOf(
+                        ThemeMode.SYSTEM to stringResource(R.string.set_theme_system),
+                        ThemeMode.LIGHT to stringResource(R.string.set_theme_light),
+                        ThemeMode.DARK to stringResource(R.string.set_theme_dark)
+                    )
+                    SettingsEnumDropdown(
+                        stringResource(R.string.settings_theme), listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK), local.themeMode,
+                        { themeLabels[it] ?: it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+                    ) { local = local.copy(themeMode = it) }
+                    SettingsEnumDropdown(
+                        stringResource(R.string.settings_language), AppLanguage.values().toList(), local.language,
+                        { it.displayName }
+                    ) { newLanguage ->
+                        val wasDefault = local.orderEmailTemplate == BusinessProfile.defaultOrderTemplate(local.language) &&
+                            local.hoaEmailTemplate == BusinessProfile.defaultHoaTemplate(local.language) &&
+                            local.reviewRequestTemplate == BusinessProfile.defaultReviewTemplate(local.language)
+                        local = if (wasDefault) {
+                            local.copy(
+                                language = newLanguage,
+                                orderEmailTemplate = BusinessProfile.defaultOrderTemplate(newLanguage),
+                                hoaEmailTemplate = BusinessProfile.defaultHoaTemplate(newLanguage),
+                                reviewRequestTemplate = BusinessProfile.defaultReviewTemplate(newLanguage)
+                            )
+                        } else {
+                            local.copy(language = newLanguage)
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.set_language_note),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            item {
+                // Which figures the home screen shows.
+                //
+                // A dashboard showing everything shows nothing -- the number
+                // somebody checks every morning differs by business, and a fixed
+                // set means most of it becomes scenery they look past.
+                SectionCard(stringResource(R.string.set_home_screen), icon = Icons.Filled.Dashboard) {
+                    Text(
+                        stringResource(R.string.set_home_explain),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val chosen = com.fenceestimator.app.data.HomeCard.parse(local.homeCardsCsv)
+                    com.fenceestimator.app.data.HomeCard.values().forEach { card ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(card.label(), style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    card.explains(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = card in chosen,
+                                onCheckedChange = { on ->
+                                    val next = if (on) chosen + card else chosen - card
+                                    local = local.copy(
+                                        homeCardsCsv = next.joinToString(",") { it.name }
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                SectionCard(stringResource(R.string.set_security), icon = Icons.Filled.Lock) {
+                    Text(
+                        stringResource(R.string.set_security_explain),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val autoLockNever = stringResource(R.string.set_auto_lock_never)
+                    val autoLockOneMinute = stringResource(R.string.set_auto_lock_one_minute)
+                    SettingsEnumDropdown(
+                        stringResource(R.string.set_auto_lock_after),
+                        listOf(0, 1, 5, 15, 30, 60),
+                        local.autoLockMinutes,
+                        {
+                            when (it) {
+                                0 -> autoLockNever
+                                1 -> autoLockOneMinute
+                                else -> context.getString(R.string.set_auto_lock_minutes, it)
+                            }
+                        }
+                    ) { local = local.copy(autoLockMinutes = it) }
+
+                    val biometricReady = remember { com.fenceestimator.app.ui.lock.biometricAvailable(context) }
+                    if (biometricReady) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.set_biometric_unlock), modifier = Modifier.weight(1f))
+                            androidx.compose.material3.Switch(
+                                checked = local.biometricUnlockEnabled,
+                                onCheckedChange = { local = local.copy(biometricUnlockEnabled = it) }
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.set_biometric_fallback),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            stringResource(R.string.set_biometric_unavailable),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            item {
+                SectionCard(stringResource(R.string.set_review_requests), icon = Icons.Filled.Star) {
                     DraftTextField(
                         stableKey = "review_tmpl", initialValue = local.reviewRequestTemplate,
                         label = stringResource(R.string.set_review_template), minLines = 3, modifier = Modifier.fillMaxWidth()
@@ -604,8 +612,9 @@ fun SettingsScreen(
                     )
                 }
             }
+            item { GroupHeading(stringResource(R.string.set_group_data)) }
             item {
-                SectionCard(stringResource(R.string.set_export_title)) {
+                SectionCard(stringResource(R.string.set_export_title), icon = Icons.Filled.FileDownload) {
                     Text(
                         stringResource(R.string.set_export_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -639,7 +648,7 @@ fun SettingsScreen(
                 }
             }
             item {
-                SectionCard(stringResource(R.string.settings_backup)) {
+                SectionCard(stringResource(R.string.settings_backup), icon = Icons.Filled.Backup) {
                     Text(
                         stringResource(R.string.set_backup_explain),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -653,6 +662,17 @@ fun SettingsScreen(
                     ) { Text(stringResource(R.string.settings_backup_now)) }
                     OutlinedButton(onClick = { restoreLauncher.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.settings_restore))
+                    }
+                }
+            }
+            item { GroupHeading(stringResource(R.string.set_group_help)) }
+            item {
+                SectionCard(stringResource(R.string.settings_help_feedback), icon = Icons.Filled.HelpOutline) {
+                    OutlinedButton(onClick = onOpenHelp, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.set_how_to_use))
+                    }
+                    OutlinedButton(onClick = onOpenFeedback, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.set_send_suggestion))
                     }
                 }
             }
@@ -761,18 +781,54 @@ private fun SectionCard(
     title: String,
     subtitle: String = "",
     startExpanded: Boolean = false,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     content: @Composable () -> Unit
 ) {
     var expanded by rememberSaveable(title) { mutableStateOf(startExpanded) }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(
+            defaultElevation = if (expanded) 3.dp else 1.dp
+        )
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (icon != null) {
+                    // A tinted square rather than a bare glyph: at a glance the
+                    // eye finds the row it wants by shape and colour instead of
+                    // reading fourteen near-identical headings.
+                    Box(
+                        Modifier
+                            .padding(end = 12.dp)
+                            .size(36.dp)
+                            .background(
+                                MaterialTheme.colorScheme.secondaryContainer,
+                                androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     if (!expanded && subtitle.isNotBlank()) {
                         Text(
                             subtitle,
@@ -783,10 +839,14 @@ private fun SectionCard(
                 }
                 Icon(
                     if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = if (expanded) stringResource(R.string.set_collapse_section, title) else stringResource(R.string.set_expand_section, title)
+                    contentDescription = if (expanded) stringResource(R.string.set_collapse_section, title) else stringResource(R.string.set_expand_section, title),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (expanded) content()
+            if (expanded) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                content()
+            }
         }
     }
 }
@@ -958,4 +1018,24 @@ private fun UpdateCheckRow(modifier: Modifier = Modifier) {
             onLater = { found = null }
         )
     }
+}
+
+/**
+ * The name of a group of settings.
+ *
+ * Fourteen cards in a row all look alike, and a screen you have to read top to
+ * bottom to find one thing is a screen people stop opening. These break the
+ * list into the handful of reasons somebody actually comes here: their
+ * business, how work gets priced, how the app behaves, their data, and help.
+ */
+@Composable
+private fun GroupHeading(text: String) {
+    Text(
+        text.uppercase(Locale.getDefault()),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.8.sp,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 2.dp)
+    )
 }
