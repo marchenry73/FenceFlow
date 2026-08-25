@@ -23,6 +23,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.ChangeCircle
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.StarRate
+import androidx.compose.foundation.background
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CameraAlt
@@ -212,7 +229,7 @@ fun JobDetailScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item(key = SECTION_PROGRESS) {
-                SectionCard(title = stringResource(R.string.section_progress)) {
+                SectionCard(title = stringResource(R.string.section_progress), icon = Icons.Filled.Timeline) {
                     ProjectProgressSection(
                         job = currentJob,
                         punchListClear = punchList.isEmpty(),
@@ -234,7 +251,7 @@ fun JobDetailScreen(
                     )
                 }
             }
-            item { SectionCard(title = stringResource(R.string.section_customer)) { CustomerFields(currentJob, viewModel) } }
+            item { SectionCard(title = stringResource(R.string.section_customer), icon = Icons.Filled.Person) { CustomerFields(currentJob, viewModel) } }
             item {
                 // Everything already saves as you type -- this is here because
                 // an app with no Save button leaves people unsure whether their
@@ -294,7 +311,7 @@ fun JobDetailScreen(
                 }
             }
             item {
-                SectionCard(title = stringResource(R.string.section_fence_runs)) {
+                SectionCard(title = stringResource(R.string.section_fence_runs), icon = Icons.Filled.Straighten) {
                     if (runs.isEmpty()) {
                         Text(
                             stringResource(R.string.jd_no_runs),
@@ -316,19 +333,19 @@ fun JobDetailScreen(
                 }
             }
             if (session.canSeeMoney) {
-                item { SectionCard(title = stringResource(R.string.section_pricing)) { PricingFields(currentJob, viewModel) } }
-                item { SectionCard(title = stringResource(R.string.jd_section_tier)) { TierFields(currentJob, pricingTiers, viewModel) } }
-                item { SectionCard(title = stringResource(R.string.jd_section_teardown)) { TeardownFields(currentJob, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_pricing), icon = Icons.Filled.AttachMoney) { PricingFields(currentJob, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.jd_section_tier), icon = Icons.Filled.Sell) { TierFields(currentJob, pricingTiers, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.jd_section_teardown), icon = Icons.Filled.Construction) { TeardownFields(currentJob, viewModel) } }
             }
             item(key = SECTION_SCHEDULE) {
-                SectionCard(title = stringResource(R.string.section_schedule_crew)) {
+                SectionCard(title = stringResource(R.string.section_schedule_crew), icon = Icons.Filled.Event) {
                     ScheduleFields(currentJob, runs, timeEntries, profile, viewModel)
                     CrewFields(currentJob, employees, viewModel)
                 }
             }
             if (session.canSeeMoney) {
                 item {
-                    SectionCard(title = stringResource(R.string.section_order_materials)) {
+                    SectionCard(title = stringResource(R.string.section_order_materials), icon = Icons.Filled.LocalShipping) {
                         OrderFields(currentJob, manufacturers, profile, runs, viewModel)
                     }
                 }
@@ -336,9 +353,9 @@ fun JobDetailScreen(
             // Directly above HOA and permits, because they are the same kind of
             // thing: the paperwork that has to be right before anyone starts.
             item(key = SECTION_LOCATE) { LocateSection(currentJob, viewModel) }
-            item(key = SECTION_HOA) { SectionCard(title = stringResource(R.string.section_hoa_permits)) { HoaFields(currentJob, runs, profile, viewModel) } }
+            item(key = SECTION_HOA) { SectionCard(title = stringResource(R.string.section_hoa_permits), icon = Icons.Filled.Gavel) { HoaFields(currentJob, runs, profile, viewModel) } }
             if (session.canSeeMoney) {
-                item { SectionCard(title = stringResource(R.string.section_change_orders)) { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_change_orders), icon = Icons.Filled.EditNote) { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
                 // Above the money, because a job running over is the thing
                 // that has to be dealt with today -- the invoice can wait.
                 item(key = "overrun") {
@@ -351,7 +368,7 @@ fun JobDetailScreen(
                     )
                 }
                 item(key = SECTION_PAYMENT) {
-                    SectionCard(title = stringResource(R.string.section_payment)) {
+                    SectionCard(title = stringResource(R.string.section_payment), icon = Icons.Filled.Payments) {
                         StaleSignatureBanner(
                             job = currentJob,
                             contractTotal = jobTotals.grandTotal,
@@ -361,29 +378,30 @@ fun JobDetailScreen(
                         PaymentFields(currentJob, profile, viewModel)
                     }
                 }
-                item { SectionCard(title = stringResource(R.string.section_expenses)) { ExpensesSection(expenses, session.canDelete, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_expenses), icon = Icons.Filled.ReceiptLong) { ExpensesSection(expenses, session.canDelete, viewModel) } }
             }
             item {
                 val changes by viewModel.fieldChanges.collectAsState()
                 SectionCard(
                     title = stringResource(R.string.jd_section_field_changes) +
                         if (changes.any { !it.isAcknowledged }) "  ●" else ""
+                , icon = Icons.Filled.ChangeCircle
                 ) {
                     FieldChangesSection(changes, session.canApprovePlanChanges, viewModel)
                 }
             }
             item {
-                SectionCard(title = stringResource(R.string.jd_section_held_up)) {
+                SectionCard(title = stringResource(R.string.jd_section_held_up), icon = Icons.Filled.Block) {
                     JobBlockedSection(currentJob, profile, viewModel)
                 }
             }
-            item { SectionCard(title = stringResource(R.string.section_punch_list)) { PunchListSection(punchList, session.canDelete, viewModel) } }
+            item { SectionCard(title = stringResource(R.string.section_punch_list), icon = Icons.Filled.Checklist) { PunchListSection(punchList, session.canDelete, viewModel) } }
             item {
-                SectionCard(title = stringResource(R.string.section_photos)) {
+                SectionCard(title = stringResource(R.string.section_photos), icon = Icons.Filled.PhotoCamera) {
                     PhotosSection(photos, session.canDelete, viewModel)
                 }
             }
-            item { SectionCard(title = stringResource(R.string.section_review)) { ReviewRequestFields(currentJob, profile, viewModel) } }
+            item { SectionCard(title = stringResource(R.string.section_review), icon = Icons.Filled.StarRate) { ReviewRequestFields(currentJob, profile, viewModel) } }
             item { StatusSelector(currentJob, viewModel) }
             // Owner only, and behind a typed confirmation. Deleting a job takes
             // its signed change orders, its payment record and its photos with
@@ -566,10 +584,47 @@ private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -
 }
 
 @Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun SectionCard(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            // A job is a long screen. The icon is what lets somebody scrolling
+            // for the payment section find it by shape instead of reading every
+            // heading on the way past.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier
+                            .padding(end = 12.dp)
+                            .size(34.dp)
+                            .background(
+                                MaterialTheme.colorScheme.secondaryContainer,
+                                androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             content()
         }
     }
