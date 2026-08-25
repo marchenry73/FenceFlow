@@ -157,6 +157,11 @@
     <string name="jobs_settings">Settings</string>
     <string name="jobs_delete_title">Delete this job?</string>
     <string name="jobs_review_catalog">Review catalog</string>
+    <string name="jobs_make_prices_yours">Make these prices yours</string>
+    <string name="jobs_make_prices_yours_body">The catalog and labor rates came pre-filled so you can estimate from day one — but they are starting numbers, not your numbers. Check them before your first real quote.</string>
+    <string name="jobs_add_business_name">Put your name on your quotes</string>
+    <string name="jobs_add_business_name_body">Your business name has not been set, so quotes and invoices go out headed "FenceFlow" instead of your company. It takes a moment.</string>
+    <string name="jobs_add_business_name_action">Add my business name</string>
     <string name="jobs_prices_right">They\'re right</string>
 
     <!-- Job-day checklist -->

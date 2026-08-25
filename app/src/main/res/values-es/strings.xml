@@ -143,6 +143,11 @@
     <string name="jobs_settings">Ajustes</string>
     <string name="jobs_delete_title">¿Eliminar este trabajo?</string>
     <string name="jobs_review_catalog">Revisar catálogo</string>
+    <string name="jobs_make_prices_yours">Haz tuyos estos precios</string>
+    <string name="jobs_make_prices_yours_body">El catálogo y las tarifas de mano de obra vienen rellenados para que puedas presupuestar desde el primer día, pero son números de partida, no los tuyos. Revísalos antes de tu primer presupuesto real.</string>
+    <string name="jobs_add_business_name">Pon tu nombre en tus presupuestos</string>
+    <string name="jobs_add_business_name_body">No has puesto el nombre de tu negocio, así que los presupuestos y las facturas salen con el encabezado «FenceFlow» en vez del de tu empresa. Se hace en un momento.</string>
+    <string name="jobs_add_business_name_action">Añadir mi negocio</string>
     <string name="jobs_prices_right">Están bien</string>
 
     <!-- Job-day checklist -->

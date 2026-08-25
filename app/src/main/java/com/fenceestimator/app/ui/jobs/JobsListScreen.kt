@@ -419,6 +419,39 @@ fun JobsListScreen(
                 // the last line of a skippable tour dialog. This sits where
                 // the eye lands every morning and does not leave until someone
                 // with the catalog permission answers it.
+                // A quote with no business name on it goes out headed
+                // "FenceFlow", because that is the PDF's fallback -- so the
+                // first thing a new contractor sends a homeowner is branded
+                // with the software instead of their own company. Asked for
+                // here, where they already are, rather than left to be
+                // discovered by a customer.
+                if (profile.businessName.isBlank() && session.canEditCatalogAndSettings) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    stringResource(R.string.jobs_add_business_name),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Text(
+                                    stringResource(R.string.jobs_add_business_name_body),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Button(onClick = onOpenSettings) {
+                                    Text(stringResource(R.string.jobs_add_business_name_action))
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (!profile.pricesReviewed && session.canEditCatalogAndSettings) {
                     item {
                         Card(
@@ -429,14 +462,12 @@ fun JobsListScreen(
                         ) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
-                                    "Make these prices yours",
+                                    stringResource(R.string.jobs_make_prices_yours),
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
                                 Text(
-                                    "The catalog and labor rates came pre-filled so you can " +
-                                        "estimate from day one -- but they are starting numbers, " +
-                                        "not your numbers. Check them before your first real quote.",
+                                    stringResource(R.string.jobs_make_prices_yours_body),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onTertiaryContainer
                                 )

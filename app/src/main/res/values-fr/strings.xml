@@ -143,6 +143,11 @@
     <string name="jobs_settings">Réglages</string>
     <string name="jobs_delete_title">Supprimer ce chantier ?</string>
     <string name="jobs_review_catalog">Revoir le catalogue</string>
+    <string name="jobs_make_prices_yours">Faites de ces prix les vôtres</string>
+    <string name="jobs_make_prices_yours_body">Le catalogue et les tarifs de main-d\'œuvre sont pré-remplis pour que vous puissiez chiffrer dès le premier jour, mais ce sont des chiffres de départ, pas les vôtres. Vérifiez-les avant votre premier vrai devis.</string>
+    <string name="jobs_add_business_name">Mettez votre nom sur vos devis</string>
+    <string name="jobs_add_business_name_body">Le nom de votre entreprise n\'est pas renseigné : vos devis et factures portent donc l\'en-tête « FenceFlow » au lieu du vôtre. C\'est l\'affaire d\'un instant.</string>
+    <string name="jobs_add_business_name_action">Ajouter mon entreprise</string>
     <string name="jobs_prices_right">Ils sont bons</string>
 
     <!-- Job-day checklist -->

@@ -43,6 +43,8 @@ private class PdfLabels(language: AppLanguage) {
         when { es -> spanish; fr -> french; else -> english }
 
     val docTitleEstimate = pick("ESTIMATE", "PRESUPUESTO", "DEVIS")
+    val licenseNo = pick("License #", "Licencia n.º ", "Licence n° ")
+    val termsHeading = pick("TERMS", "CONDICIONES", "CONDITIONS")
     val docTitleInvoice = pick("INVOICE", "FACTURA", "FACTURE")
     val docTitleContract = pick("CONTRACT", "CONTRATO", "CONTRAT")
     val docTitleMaterials = pick("MATERIAL REQUEST", "LISTA DE MATERIALES", "DEMANDE DE MATÉRIAUX")
@@ -261,7 +263,7 @@ object PdfExporter {
         y += 20f + namePaint.descent() - headerPaint.ascent() + 2f
         if (business.phone.isNotBlank()) { canvas.drawText(business.phone, MARGIN, y, headerPaint); y += 14f }
         if (business.email.isNotBlank()) { canvas.drawText(business.email, MARGIN, y, headerPaint); y += 14f }
-        if (business.licenseNumber.isNotBlank()) { canvas.drawText("License #${business.licenseNumber}", MARGIN, y, headerPaint); y += 14f }
+        if (business.licenseNumber.isNotBlank()) { canvas.drawText("${labels.licenseNo}${business.licenseNumber}", MARGIN, y, headerPaint); y += 14f }
 
         // Never start the body above the date block on the right.
         y = maxOf(y, topRightY + 48f)
@@ -507,7 +509,7 @@ object PdfExporter {
         if (docKind.showsContractTerms && business.contractTerms.isNotBlank()) {
             newPageIfNeeded(80f)
             y += 8f
-            canvas.drawText("TERMS", MARGIN, y, Paint(headerPaint).apply { typeface = Typeface.DEFAULT_BOLD })
+            canvas.drawText(labels.termsHeading, MARGIN, y, Paint(headerPaint).apply { typeface = Typeface.DEFAULT_BOLD })
             y += 16f
 
             val termsPaint = Paint().apply { textSize = 8.5f; color = 0xFF333333.toInt() }
