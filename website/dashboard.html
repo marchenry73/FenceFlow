@@ -798,8 +798,12 @@ function showBlocked(status){
   // access, and no way to buy access either.
   // A connection problem is not a sales opportunity: don't offer plans to
   // somebody whose subscription we simply failed to read.
+  // 'pending' is what a company gets the moment it is created, so it belongs
+  // here with the other never-subscribed states. Without it, somebody who
+  // signed up ten seconds ago was told FenceFlow was paused and that nothing
+  // had been lost -- about records they had not made yet.
   const fresh = !status.unknown &&
-    (!status.subscription_status || status.subscription_status === 'none');
+    ['', 'none', 'pending'].includes(status.subscription_status || '');
   const ownerPay = (!status.unknown && profile && profile.role === 'OWNER') ? `
       <p style="margin-top:20px;font-weight:600">${
         fresh ? 'Pick a plan to start your 14-day free trial:' : 'Restart your subscription:'}</p>
