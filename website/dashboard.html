@@ -956,7 +956,15 @@ function showBlocked(status){
   // had been lost -- about records they had not made yet.
   const fresh = !status.unknown &&
     ['', 'none', 'pending'].includes(status.subscription_status || '');
-  const ownerPay = (!status.unknown && profile && profile.role === 'OWNER') ? `
+  // A hold cannot be paid off, so offering to sell them something is worse
+  // than saying nothing. March puts a company on hold for a dispute or a data
+  // question -- not a bill -- and the screen used to read "FenceFlow is paused
+  // / Restart your subscription:" with live plan buttons above it. They could
+  // press one and pay, we would take the money, and they would still be locked
+  // out reading the same screen. The server now says whether paying can
+  // actually help.
+  const canSelfServe = status.can_self_serve !== false;
+  const ownerPay = (!status.unknown && canSelfServe && profile && profile.role === 'OWNER') ? `
       <p style="margin-top:20px;font-weight:600">${
         fresh ? 'Pick a plan to start your 14-day free trial:' : 'Restart your subscription:'}</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">
@@ -977,6 +985,7 @@ function showBlocked(status){
     <div class="panel" style="max-width:34rem;margin:3rem auto">
       <h2 style="margin-top:0">${
         status.unknown ? "Couldn't check your subscription"
+        : !canSelfServe ? 'Your account is on hold'
         : fresh ? 'Almost there' : 'FenceFlow is paused'}</h2>
       <p style="color:var(--muted)">${esc(status.reason || 'This company no longer has access.')}</p>
       ${status.unknown ? `<p style="color:var(--muted)">

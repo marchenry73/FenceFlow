@@ -480,8 +480,20 @@ Deno.serve(async (req) => {
         const invoice = event.data.object;
         const subId = invoiceSubscription(invoice);
         if (subId) {
+          // A real, bounded grace window, written at the moment the card fails.
+          //
+          // company_allowed's past_due arm used to read
+          // coalesce(grace_ends_at, now() + interval '2 days') > now(), and
+          // nothing ever wrote grace_ends_at -- so the fallback was always in
+          // the future and a failed card bought unlimited free service. The
+          // gate no longer invents a grace period; this writes one, so a
+          // contractor halfway through a job is not cut off the same afternoon
+          // and is not carried for ever either.
           await admin.from("companies")
-            .update({ subscription_status: "past_due" })
+            .update({
+              subscription_status: "past_due",
+              grace_ends_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+            })
             .eq("stripe_subscription_id", subId);
         }
         break;
