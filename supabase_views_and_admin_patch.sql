@@ -79,21 +79,41 @@ create or replace function public.protect_customer_identity()
 returns trigger
 language plpgsql security definer set search_path to 'public'
 as $$
+declare
+    -- A direct database connection -- a migration, a backup, psql -- has no
+    -- request context at all. Only requests arriving through the API are
+    -- judged here. Checking is_service_role() alone was not enough: that
+    -- reads a JWT claim, and a direct connection has no JWT, so maintenance
+    -- ran as an unprivileged caller and had its writes quietly reverted.
+    claims text := nullif(current_setting('request.jwt.claims', true), '');
 begin
-    if (new.customer_name is distinct from old.customer_name
-        or new.address     is distinct from old.address
-        or new.phone       is distinct from old.phone
-        or new.customer_id is distinct from old.customer_id)
-    then
-        -- Asks whether this IS the backend rather than inferring it from the
-        -- absence of a user. "No auth.uid()" is also what an anonymous caller
-        -- looks like, and that assumption is what opened admin_mark_invited
-        -- and release_for_payment earlier tonight. Not reachable by anon here
-        -- either way -- RLS blocks the update first -- but the pattern should
-        -- not be re-introduced one table over.
-        if not public.is_service_role() and not has_permission('EDIT_JOBS') then
-            raise exception 'Changing the customer on a job needs office access.';
-        end if;
+    -- Keeps the office's version rather than refusing the write.
+    --
+    -- Refusing looked right and would have broken crew sync outright. The app
+    -- pushes the WHOLE job row whenever the phone's copy is the newer one
+    -- (JobSync.kt:373-390), so an installer who edits a punch-list item at
+    -- 10:00 pushes the customer name as it was on their phone -- which may be
+    -- yesterday's, if the office corrected it since. Raising there would have
+    -- rejected the entire update and thrown away their field work, and only
+    -- for crew, who are exactly the people working offline all day.
+    --
+    -- So the columns are held at their existing values instead. Their field
+    -- work goes up, the office's correction stays put, and nobody loses
+    -- anything. Who the customer is, where they live and how to reach them is
+    -- office information; changing it needs EDIT_JOBS, which OWNER, MANAGER
+    -- and SALES have.
+    --
+    -- Asks whether the caller IS the backend rather than inferring it from the
+    -- absence of a user: "no auth.uid()" is also what an anonymous caller
+    -- looks like, and that assumption is what opened admin_mark_invited and
+    -- release_for_payment earlier tonight.
+    if claims is not null
+       and not public.is_service_role()
+       and not has_permission('EDIT_JOBS') then
+        new.customer_name := old.customer_name;
+        new.address       := old.address;
+        new.phone         := old.phone;
+        new.customer_id   := old.customer_id;
     end if;
     return new;
 end;
