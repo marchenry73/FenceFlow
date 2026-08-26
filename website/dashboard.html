@@ -983,6 +983,7 @@ let fieldChanges=[];
 let jobCosting=[];
 let auditTrail=[];
 let arAging=[];
+let companyMembers=[];
 
 /* ---------- data ---------- */
 /**
@@ -1241,6 +1242,12 @@ async function loadAll(){
   const trail = await db.from('audit_log').select('*')
     .order('at', { ascending: false }).limit(200);
   auditTrail = trail.error ? [] : (trail.data || []);
+
+  // Who is in the company, so the home screen can say when somebody new turns
+  // up. Nothing told the owner at all before: an installer joined, said he was
+  // a Foreman, and that request sat in a column no screen read.
+  const membersRes = await db.rpc('company_members');
+  companyMembers = membersRes.error ? [] : (membersRes.data || []);
 
   const aging = await db.rpc('ar_aging');
   arAging = aging.error ? [] : (aging.data || []);
@@ -1601,6 +1608,23 @@ function renderDash(){
     .forEach(j=>items.push({ urgent:true, text:'811 locate expired: '+name(j), id:j.id }));
   // Hours waiting for approval.
   const pendingShifts = times.filter(t=>t.ended_at && !t.approved_at && !t.rejected_at).length;
+  // Somebody new has joined and is waiting to be told what they are.
+  //
+  // join_company pins everyone to CREW and records what they asked to be. The
+  // owner was never told, on any screen, by any means -- so the request sat in
+  // a column nothing read, and every company stayed one owner and a pile of
+  // crew.
+  if (profile?.role === 'OWNER') {
+    companyMembers.filter(m => m.requested_role && m.requested_role !== m.role)
+      .forEach(m => items.push({
+        urgent: true,
+        text: (m.full_name || 'Somebody') + ' joined and asked to be '
+              + m.requested_role.charAt(0) + m.requested_role.slice(1).toLowerCase()
+              + ' — say yes or no',
+        id: null, go: 'crew'
+      }));
+  }
+
   if (pendingShifts) items.push({ urgent:false, text:pendingShifts+' shift'+(pendingShifts===1?'':'s')+' waiting for approval', id:null, go:'time' });
   // Finished but not paid in full.
   jobs.filter(j=>j.status==='COMPLETED' && j.payment_status!=='PAID_IN_FULL')

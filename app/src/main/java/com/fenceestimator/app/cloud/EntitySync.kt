@@ -151,6 +151,30 @@ data class CloudLineItem(
     @SerialName("supplier_unit_price") val supplierUnitPrice: Double? = null
 )
 
+/**
+ * The crew list without the pay. What crew_roster() returns.
+ *
+ * Mapped onto CloudEmployee so the rest of the sync does not have to care
+ * which source it came from -- the pay fields simply stay at their defaults,
+ * which is the point.
+ */
+@Serializable
+data class CrewRosterRow(
+    val id: String,
+    @SerialName("sync_id") val syncId: String,
+    val name: String = "",
+    val role: String = "",
+    @SerialName("is_active") val isActive: Boolean = true,
+) {
+    fun asEmployee(companyId: String) = CloudEmployee(
+        companyId = companyId,
+        syncId = syncId,
+        name = name,
+        role = role,
+        isActive = isActive,
+    )
+}
+
 @Serializable
 data class CloudExpense(
     @SerialName("company_id") val companyId: String,
@@ -1129,10 +1153,39 @@ object EntitySync {
         return added
     }
 
+    /**
+     * Everyone gets the crew list. Only the office gets what they are paid.
+     *
+     * The employees table carries hourly_rate, pay_type and per_foot_rate, and
+     * the server no longer hands those rows to anyone without SEE_MONEY. A
+     * crew phone asking for them now gets nothing back, which would empty the
+     * local crew list and take the names off every job assignment.
+     *
+     * crew_roster() returns the same people with no pay attached, so the names
+     * still arrive. The rate is not missed: the server stamps it onto a shift
+     * when the phone clocks in, rather than believing whatever the phone sent.
+     */
     private suspend fun pullEmployees(repository: Repository, companyId: String): Int {
-        val cloud = SupabaseModule.client.postgrest.from("employees")
+        // Asks the server rather than the session.
+        //
+        // Whether this phone may see pay is the server's decision, and it
+        // already makes it: the employees table hands back nothing at all to
+        // anyone without SEE_MONEY. So an empty answer here means "not
+        // allowed", and the roster -- the same people with no pay attached --
+        // is what this phone should use. An office phone gets the full rows on
+        // the first call and never reaches the second.
+        //
+        // Reading it this way rather than from the local session keeps the two
+        // in step: if the rule changes server-side the phone follows, with no
+        // release needed.
+        val withPay = SupabaseModule.client.postgrest.from("employees")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudEmployee>()
+        val cloud = if (withPay.isNotEmpty()) withPay else
+            SupabaseModule.client.postgrest
+                .rpc("crew_roster")
+                .decodeList<CrewRosterRow>()
+                .map { it.asEmployee(companyId) }
         val localBySyncId = repository.getAllEmployees().associateBy { it.syncId }
         var added = 0
         cloud.forEach { row ->

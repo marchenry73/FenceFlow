@@ -1,0 +1,57 @@
+-- Tell the owner when somebody joins.  ---  PART TWO IS A DASHBOARD JOB.
+--
+-- March's decision, 26 August. An installer joins, says he is a Foreman, and
+-- join_company records that and pins him to CREW -- correctly, because letting
+-- a joiner name their own role would let anyone with a company id make
+-- themselves owner. The app tells him "Your owner confirms this before it
+-- takes effect." Nothing told the owner. No email, no push, no badge, nothing
+-- on any screen.
+--
+-- PART ONE IS DONE AND NEEDS NOTHING FROM YOU:
+--   * The dashboard's "Needs attention" list now says, in red, "<name> joined
+--     and asked to be Foreman -- say yes or no", and clicking it opens Crew.
+--   * The App logins panel shows what each person is, a badge saying what they
+--     asked to be, and a dropdown to set it (set_member_role).
+--   * notify-job-change has been extended to handle a "someone joined" event
+--     and to send it to OWNER devices only -- fanning it out the usual way
+--     would tell the person who just joined that they had just joined.
+--
+-- PART TWO -- the push to your phone -- needs a trigger carrying the secret
+-- that guards notify-job-change. I tried three ways to copy that secret across
+-- from the existing job-change webhook without ever handling it, and none came
+-- out clean: the escaping did not survive a format(%L) round trip, hand-
+-- building the statement gave a syntax error, and rewriting the existing
+-- definition did not match. Rather than leave something half-installed on a
+-- live database, here is the two-minute version.
+--
+-- IN THE SUPABASE DASHBOARD:
+--   Database -> Webhooks -> Create a new hook
+--     Name:         crew-joined-push
+--     Table:        public.profiles
+--     Events:       Update
+--     Type:         Supabase Edge Functions
+--     Function:     notify-job-change
+--     HTTP Headers: copy them from the existing "job-change-push" hook on the
+--                   jobs table -- the same Content-type and the same
+--                   x-fenceflow-trigger secret.
+--
+-- The function already ignores anything that is not somebody joining (it
+-- checks that company_id went from empty to set), so firing on every profile
+-- update is harmless: it returns "no notification needed" and stops.
+--
+-- ---------------------------------------------------------------------------
+-- ROTATE THE TRIGGER SECRET.
+--
+-- While hunting for the header to copy, I printed the x-fenceflow-trigger
+-- value into our conversation. It is the shared secret that stops a stranger
+-- POSTing to notify-job-change and pushing notifications to your customers'
+-- phones. It is not your service-role key and it opens no data, but it should
+-- not be treated as private any more.
+--
+-- To rotate: Edge Functions -> notify-job-change -> Secrets, set
+-- NOTIFY_TRIGGER_SECRET to a new random value, then update the
+-- x-fenceflow-trigger header on the job-change-push webhook to match. Both
+-- must change together or job notifications stop.
+-- ---------------------------------------------------------------------------
+
+select 'Nothing to run here -- see the comments above.' as note;

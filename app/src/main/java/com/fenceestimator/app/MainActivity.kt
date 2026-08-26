@@ -470,7 +470,20 @@ fun FenceEstimatorNavHost() {
             ManufacturersScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.EMPLOYEES) {
-            EmployeesScreen(onBack = { navController.popBackStack() })
+            // The whole screen is pay: hourly rate, pay type, per-foot rate.
+            // It was the last list with no guard on it -- Customers next door
+            // had one, this did not -- so a crew account could open it and
+            // read what every colleague earns. The database now refuses to
+            // hand those rows to anyone without SEE_MONEY, and this stops the
+            // screen being reachable in the first place rather than showing an
+            // empty list with no explanation.
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canSeeMoney,
+                permissionName = "See money",
+                onLeave = { navController.popBackStack() }
+            ) {
+                EmployeesScreen(onBack = { navController.popBackStack() })
+            }
         }
         composable(Routes.CUSTOMERS) {
             // The whole screen is customer contact -- names, addresses,

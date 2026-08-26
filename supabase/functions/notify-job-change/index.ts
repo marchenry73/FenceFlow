@@ -84,9 +84,26 @@ Deno.serve(async (req) => {
     const old = p.old_record ?? {};
     if (!rec.company_id) return new Response("ok");
 
+    // Somebody joined the company. A different shape of record entirely --
+    // this arrives from profiles, not jobs -- and it goes only to the owner,
+    // because it is the owner's decision to make and because fanning it out
+    // would notify the person who just joined that they had just joined.
+    let ownersOnly = false;
     const who = rec.customer_name || "a job";
     let title = "", body = "";
-    if (p.type === "INSERT") {
+    if (p.table === "profiles") {
+      const joined = rec.company_id && !old.company_id;
+      if (!joined) return new Response("no notification needed");
+      ownersOnly = true;
+      const name = rec.full_name?.trim() || "Somebody";
+      const asked = rec.requested_role
+        ? `${rec.requested_role.charAt(0)}${rec.requested_role.slice(1).toLowerCase()}`
+        : null;
+      title = "Someone joined your crew";
+      body = asked
+        ? `${name} joined and asked to be ${asked}. Say yes or no in the office.`
+        : `${name} joined your company on FenceFlow.`;
+    } else if (p.type === "INSERT") {
       title = "New job added";
       body = `${who} was added to the schedule.`;
     } else if (rec.status === "ACCEPTED" && old.status !== "ACCEPTED") {
@@ -106,8 +123,18 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const { data: rows } = await db
+    // Everyone's phone, or just the owner's.
+    let deviceQuery = db
       .from("device_tokens").select("token").eq("company_id", rec.company_id);
+    if (ownersOnly) {
+      const { data: owners } = await db
+        .from("profiles").select("id")
+        .eq("company_id", rec.company_id).eq("role", "OWNER");
+      const ids = (owners ?? []).map((o: any) => o.id);
+      if (!ids.length) return new Response("no owner to tell");
+      deviceQuery = deviceQuery.in("user_id", ids);
+    }
+    const { data: rows } = await deviceQuery;
     if (!rows?.length) return new Response("no devices");
 
     const tok = await accessToken(sa);
