@@ -213,7 +213,9 @@
       </select>
       <span id="e_planNote" style="display:none;font-size:11px;color:var(--muted)">Set by Stripe — change it there, not here.</span>
     </div>
-    <div><label>Price per month ($)</label><input id="e_price" type="number" step="1"></div>
+    <div><label>Price per month ($)</label><input id="e_price" type="number" step="1">
+      <span id="e_priceNote" style="display:none;font-size:11px;color:var(--muted)">Set by Stripe — change it there, not here.</span>
+    </div>
     <div><label>Contact email</label><input id="e_contact" type="email" placeholder="where the invitation goes"></div>
     <div><label>Billing email</label><input id="e_email" type="email" placeholder="where receipts go"></div>
     <div><label>Grace period ends</label><input id="e_grace" type="date"></div>
@@ -782,6 +784,16 @@ function openEdit(id) {
   $('e_planNote').style.display = editing.stripe_subscription_id ? 'inline' : 'none';
   $('e_contact').value = editing.email || '';
   $('e_price').value = editing.monthly_price || 0;
+  // Locked for the same reason the plan above it is.
+  //
+  // Since the webhook started writing monthly_price from the real Stripe
+  // price, anything typed here is overwritten on the next billing event. That
+  // is worse than refusing it: the number looks saved, the table shows it, the
+  // MRR tile adds it up, and days later it silently reverts. The note on the
+  // plan field made it read worse still -- saying Stripe owns THAT one implied
+  // nothing owned this one.
+  $('e_price').disabled = !!editing.stripe_subscription_id;
+  $('e_priceNote').style.display = editing.stripe_subscription_id ? 'inline' : 'none';
   $('e_email').value = editing.billing_email || editing.email || '';
   $('e_grace').value = editing.grace_ends_at ? editing.grace_ends_at.slice(0, 10) : '';
   $('e_notes').value = editing.admin_notes || '';
@@ -794,7 +806,6 @@ async function saveEdit() {
   if (!editing) return;
   $('editMsg').textContent = 'Saving…';
   const patch = {
-    monthly_price: Number($('e_price').value || 0),
     email: $('e_contact').value.trim() || null,
     billing_email: $('e_email').value.trim(),
     grace_ends_at: $('e_grace').value ? new Date($('e_grace').value).toISOString() : null,
@@ -802,7 +813,12 @@ async function saveEdit() {
   };
   // Left out entirely when Stripe owns it, rather than writing back the
   // disabled control's value.
-  if (!editing.stripe_subscription_id) patch.subscription_plan = $('e_plan').value.trim();
+  // Left out entirely when Stripe owns them, rather than writing the disabled
+  // controls' values back over what the webhook put there.
+  if (!editing.stripe_subscription_id) {
+    patch.subscription_plan = $('e_plan').value.trim();
+    patch.monthly_price = Number($('e_price').value || 0);
+  }
   const { error } = await db.from('companies').update(patch).eq('id', editing.id);
 
   if (error) { $('editMsg').textContent = error.message; return; }
