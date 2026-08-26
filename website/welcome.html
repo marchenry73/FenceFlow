@@ -58,6 +58,8 @@
   <div id="loading" class="card"><h1>One moment…</h1><p class="sub" id="loadingNote">Checking your invitation.</p></div>
 
   <div id="needLink" class="card" style="display:none">
+    <p style="margin:0 0 10px"><a class="btn" id="goDashboard" href="dashboard.html"
+       style="display:none">Go to FenceFlow and set your business up</a></p>
     <h1 id="needTitle">Open this from your invitation email</h1>
     <p class="sub" id="needWhy">
       The link in that email signs you in so nothing here has to be typed twice.
@@ -230,6 +232,27 @@ async function boot() {
   // safe: the company id came from the invitation's own signed token, and a
   // company that already has an owner cannot be claimed again.
   const invitedCompany = user.user_metadata?.company_id;
+
+  // Signed in, but there is no business here and no invitation to claim one.
+  //
+  // This happens whenever somebody arrives without the invitation's own token:
+  // they signed up on the dashboard instead of following the link, or the
+  // "Email me a new link" box below minted them a fresh account. The page used
+  // to show them the whole "Tell us about your business" form anyway. They
+  // would fill it in, press Save and continue, and get "You are not part of a
+  // business yet." -- a form that could not succeed, answered with a sentence
+  // about a thing they had never heard of.
+  //
+  // The dashboard is where a business gets created or claimed with a setup
+  // code, so that is where they belong.
+  if (!prof?.company_id && !invitedCompany) {
+    showNeedLink('There is no business on this account yet, and this page is only for '
+      + 'finishing one we set up for you.');
+    $('needTitle').textContent = 'Nothing to set up here yet';
+    $('goDashboard').style.display = 'inline-block';
+    return;
+  }
+
   if (!prof?.company_id && invitedCompany) {
     const { error: claimError } = await db.rpc('claim_invited_company', {
       member_name: user.user_metadata?.full_name || ''
