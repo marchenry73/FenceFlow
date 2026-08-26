@@ -159,6 +159,15 @@
   <div id="signupFields" style="display:none">
     <label>Your name</label><input type="text" id="suName" autocomplete="name">
     <label>Company name</label><input type="text" id="suCompany" autocomplete="organization">
+    <div id="setupCodeField" style="display:none">
+      <label>Setup code <span style="color:var(--muted);font-weight:400">— if FenceFlow sent you one</span></label>
+      <input type="text" id="suSetupCode" autocomplete="off" placeholder="Leave blank if you don't have one"
+             style="text-transform:uppercase">
+      <p style="font-size:12px;color:var(--muted);margin:4px 0 0">
+        We may have set your business up for you already. If somebody read you a code,
+        put it here and we'll connect you to it instead of starting a new one.
+      </p>
+    </div>
   </div>
   <div id="loginFields">
     <label>Email</label><input type="email" id="email" autocomplete="email">
@@ -760,6 +769,13 @@ function setAuthMode(m){
   // While signed in with no company, the way out is signing out -- the header
   // button is hidden at this point, so the panel carries its own.
   $('authSignOut').style.display = co ? 'block' : 'none';
+  // The setup code is only relevant at "One last step", where somebody with an
+  // account but no company is deciding what they belong to. It had a home in
+  // the phone app and nowhere at all on the website, so an owner March had
+  // already set up -- name, phone, plan and price filled in -- would sign up
+  // on the web, be asked to name their business, and create a second empty one
+  // beside the real thing, which stayed unclaimed for ever.
+  $('setupCodeField').style.display = co ? 'block' : 'none';
 }
 
 async function signIn(){
@@ -808,6 +824,20 @@ async function signUp(){
 }
 
 async function finishCompany(){
+  // A code wins over a name: they are claiming something that already exists
+  // rather than creating something new.
+  const code = ($('suSetupCode')?.value || '').trim().toUpperCase();
+  if (code) {
+    msg('authMsg','Finding your business…','working');
+    const { error } = await db.rpc('claim_company_setup',
+      { setup_code: code, owner_name: $('suName').value.trim() });
+    if (error) return msg('authMsg', /not valid|already been used/i.test(error.message)
+      ? 'That setup code is not right, or it has already been used. Check it and try again, '
+        + 'or leave it blank and name your business instead.'
+      : error.message, 'err');
+    return boot();
+  }
+
   const name=$('suName').value.trim(), company=$('suCompany').value.trim();
   if(!company) return msg('authMsg','Enter your company name.','err');
   msg('authMsg','Setting up…','working');
@@ -833,6 +863,23 @@ async function boot(){
   const {data:prof}=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
   profile=prof;
   if(!profile||!profile.company_id){
+    // An invited owner belongs on welcome.html, not here.
+    //
+    // The invitation link lands on this page whenever the auth settings reject
+    // the redirect, which invite-company falls back to deliberately. This
+    // branch never looked at the invitation, so it showed "One last step --
+    // name your business and you're in", and naming it called
+    // create_company_with_owner. That made a SECOND, empty company and left
+    // the one March built -- with its name, phone, plan and price already
+    // filled in -- unclaimed for ever, with its onboarding stuck at "invited"
+    // and no way for anybody to reach it. The forwarding to welcome.html sits
+    // further down this function, after this branch returns, so it could never
+    // fire for an invited person.
+    if (user.user_metadata?.company_id) {
+      location.replace('welcome.html');
+      return;
+    }
+
     // No company yet. If they told us its name at sign-up, create it now;
     // otherwise ask for it -- never bounce them to the phone app.
     let pending = JSON.parse(localStorage.getItem('ff_pending_company')||'null');
