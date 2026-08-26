@@ -273,6 +273,13 @@
           <thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
           <tbody id="seatRows"></tbody></table></div>
         <div class="msg" id="seatMsg"></div>
+        <div id="removedPanel" style="display:none;margin-top:14px">
+          <h3 style="font-size:14px;margin:0 0 4px">People you have removed</h3>
+          <p class="sub">They cannot get back in with the old code. Everything they recorded is
+            still here. If you removed somebody by mistake, let them back in and they can use
+            the same code again.</p>
+          <div id="removedRows"></div>
+        </div>
       </div>
     </div>
 
@@ -1311,6 +1318,33 @@ async function loadSeats(){
 
   const me = profile?.id;
   const owner = profile?.role === 'OWNER';
+
+  // Removing the wrong person must not be a one-way door. Before this, Remove
+  // did not actually revoke anything -- the invite code is the company id and
+  // never changes, so the person walked straight back in. Now it is
+  // remembered, which means there has to be somewhere to change your mind.
+  if (owner) {
+    const { data: gone } = await db.rpc('removed_people');
+    const list = gone || [];
+    $('removedPanel').style.display = list.length ? 'block' : 'none';
+    $('removedRows').innerHTML = list.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;
+                  padding:6px 0;border-top:1px solid var(--line)">
+        <span>${esc(r.full_name) || 'Unnamed'}
+          <span style="color:var(--muted);font-size:12px">— removed ${day(r.removed_at)}</span></span>
+        <button class="btn btn-sm btn-grey" data-rejoin="${esc(r.id)}">Let them back in</button>
+      </div>`).join('');
+    document.querySelectorAll('[data-rejoin]').forEach(b =>
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        const { error } = await db.rpc('allow_rejoin', { member_id: b.dataset.rejoin });
+        if (error) { b.disabled = false; return msg('seatMsg', error.message, 'err'); }
+        msg('seatMsg', 'They can join again with the same code. It does not use a seat until they do.', 'ok');
+        await loadSeats();
+      }));
+  } else {
+    $('removedPanel').style.display = 'none';
+  }
   $('seatRows').innerHTML = rows.map(r => {
     const isMe = r.id === me;
     const action = (owner && !isMe)
@@ -1330,7 +1364,9 @@ async function loadSeats(){
       const okRemove = await ask({
         title: `Remove ${who}?`,
         body: 'They lose access on their phone straight away. Everything they recorded — jobs, ' +
-              'hours, notes — stays exactly where it is, and their seat is freed.',
+              'hours, notes — stays exactly where it is, and their seat is freed. ' +
+              'The code they joined with stops working for them, and you can let them ' +
+              'back in later if you change your mind.',
         confirmLabel: 'Remove', danger: true
       });
       if (!okRemove) return;
