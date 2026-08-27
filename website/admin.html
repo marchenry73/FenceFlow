@@ -806,13 +806,17 @@ async function saveEdit() {
   if (!editing) return;
   $('editMsg').textContent = 'Saving…';
   const patch = {
-    email: $('e_contact').value.trim() || null,
+    // An empty box is an empty string, never null. companies.email is NOT NULL
+    // with a '' default, so "|| null" made Save changes fail outright on any
+    // company created without an email -- which is every company made with the
+    // setup-code path, and exactly the ones most likely to be edited next.
+    // Third time this same shape has bitten: the onboarding step, creating a
+    // company, and now saving one.
+    email: $('e_contact').value.trim(),
     billing_email: $('e_email').value.trim(),
     grace_ends_at: $('e_grace').value ? new Date($('e_grace').value).toISOString() : null,
     admin_notes: $('e_notes').value
   };
-  // Left out entirely when Stripe owns it, rather than writing back the
-  // disabled control's value.
   // Left out entirely when Stripe owns them, rather than writing the disabled
   // controls' values back over what the webhook put there.
   if (!editing.stripe_subscription_id) {
