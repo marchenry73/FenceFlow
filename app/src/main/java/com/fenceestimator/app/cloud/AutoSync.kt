@@ -95,6 +95,11 @@ class AutoSync(
      * With a replay slot the late collector still receives it.
      */
     private val manualTrigger = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
+
+    // Remote nudges, kept apart from the ones the person in front of the phone
+    // asked for. A tap on Sync should still be instant; somebody else's typing
+    // should not be.
+    private val remoteTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val mutex = Mutex()
 
     /** Uploads signatures, surveys and photos. Set by the app on startup. */
@@ -143,6 +148,13 @@ class AutoSync(
         // Explicit "sync now" taps.
         scope.launch {
             manualTrigger.collect { runSync() }
+        }
+
+        @OptIn(kotlinx.coroutines.FlowPreview::class)
+        scope.launch {
+            remoteTrigger
+                .debounce(REMOTE_QUIET_MS)
+                .collect { runSync() }
         }
 
         // The moment the login token is (re)established, push what waited.
@@ -196,9 +208,22 @@ class AutoSync(
      * was a full extra pass after each edit. Events inside a short window
      * after our own push are ours, and are ignored.
      */
+    /**
+     * Another phone changed something. Come and look -- in a moment, once.
+     *
+     * Every row change on any of thirteen watched tables used to ask for a
+     * sync immediately. So one person working on a crew phone set the owner's
+     * phone syncing over and over: thirteen tables, many rows, a request each.
+     * The two handsets were wired together far more tightly than anybody
+     * wanted, and the owner saw constant churn for work that was not theirs.
+     *
+     * The information still arrives -- that part is the point of watching at
+     * all. It just arrives as one calm sync after the other phone goes quiet,
+     * instead of a ripple per row.
+     */
     fun requestSyncFromRemote() {
         if (System.currentTimeMillis() - lastPushCompletedAt < REMOTE_ECHO_WINDOW_MS) return
-        requestSync()
+        remoteTrigger.tryEmit(Unit)
     }
 
     fun requestSync() {
@@ -213,6 +238,31 @@ class AutoSync(
      * cost of guessing wrong is only which message the user reads, and the
      * behaviour is identical either way: keep the work, retry later.
      */
+    /**
+     * What went wrong, said to the person holding the phone.
+     *
+     * Postgres and Ktor both write for developers. Anything not recognised
+     * falls back to a sentence that is true of every remaining case: the work
+     * is on the phone and it will go up.
+     */
+    private fun plainWords(error: Throwable): String {
+        val text = generateSequence(error) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return when {
+            looksLikeNoSignal(error) ->
+                context.getString(R.string.sync_plain_no_signal)
+            "jwt" in text || "token" in text || "401" in text || "not authenticated" in text ->
+                context.getString(R.string.sync_plain_signed_out)
+            "duplicate key" in text || "conflict" in text ->
+                context.getString(R.string.sync_plain_conflict)
+            "timeout" in text || "timed out" in text ->
+                context.getString(R.string.sync_plain_slow)
+            else -> context.getString(R.string.sync_plain_unknown)
+        }
+    }
+
     private fun looksLikeNoSignal(error: Throwable): Boolean {
         val text = generateSequence(error) { it.cause }
             .mapNotNull { "${it::class.simpleName} ${it.message}" }
@@ -331,10 +381,20 @@ class AutoSync(
                     uploader.downloadMissing()
                 }
             }
-            val entityError = reaped.exceptionOrNull()
-                ?: ledgerResult.exceptionOrNull()
-                ?: pushResult.exceptionOrNull()
-                ?: pullResult.exceptionOrNull()
+            // A permission refusal is not a failure of the sync.
+            //
+            // The server refusing a table is it telling this phone that the
+            // table is none of its business -- money on a crew handset, for
+            // instance. Reporting that as "could not sync" was wrong twice
+            // over: it said something was broken when nothing was, and it
+            // buried a real failure among noise the person could do nothing
+            // about.
+            val entityError = listOfNotNull(
+                reaped.exceptionOrNull(),
+                ledgerResult.exceptionOrNull(),
+                pushResult.exceptionOrNull(),
+                pullResult.exceptionOrNull(),
+            ).firstOrNull { !isNotOursToSync(it) }
 
             if (entityError != null) {
                 // A network failure is not the same as a real error. The crew
@@ -352,8 +412,15 @@ class AutoSync(
                     phase = if (looksLikeNoSignal(entityError)) SyncPhase.WAITING_FOR_SIGNAL
                     else SyncPhase.FAILED,
                     lastSyncedAt = _state.value.lastSyncedAt,
-                    lastError = entityError.message
-                        ?: context.getString(R.string.vm_couldnt_sync_crew_settings),
+                    // Never the database's own words.
+                    //
+                    // A crew member read "Could not sync: new row violates
+                    // row-level security policy for table payment_records" on
+                    // their phone. That sentence is for whoever wrote the
+                    // policy. What the person holding the phone needs to know
+                    // is whether their work is safe and whether they must do
+                    // something.
+                    lastError = plainWords(entityError),
                     hasUnsyncedWork = true
                 )
                 return@withLock
@@ -456,6 +523,15 @@ class AutoSync(
     private companion object {
         const val DEBOUNCE_MS = 1_500L
         const val REMOTE_ECHO_WINDOW_MS = 4_000L
+
+        /**
+         * How long another phone has to stop working before we go and look.
+         *
+         * Long enough that a person filling in a job on the other handset
+         * produces one sync rather than dozens; short enough that the office
+         * still sees field work within half a minute.
+         */
+        const val REMOTE_QUIET_MS = 20_000L
         const val HEARTBEAT_MS = 15 * 60 * 1000L
 
         /** While someone is looking at the app, a figure should never be more than a minute old. */

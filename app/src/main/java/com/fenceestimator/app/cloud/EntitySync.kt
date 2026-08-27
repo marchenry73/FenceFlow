@@ -326,19 +326,48 @@ data class CloudTimeEntry(
  */
 object EntitySync {
 
+    /**
+     * One table failing must not stop the six behind it.
+     *
+     * These used to run inside a single runCatching, one after another, with
+     * employees first. So the moment the server refused a crew phone's
+     * employee push -- which it does now, correctly, because pay is office
+     * information -- manufacturers, fence runs, time entries, the catalog,
+     * pricing tiers and every job child were skipped too. The phone stopped
+     * syncing altogether and said "Could not sync: new row violates row-level
+     * security policy". A crew member's whole day of field work sat on their
+     * handset because of a table they should never have been sending.
+     *
+     * Each table stands alone now. A refusal is a skip: the server saying this
+     * one is not yours, which is not a failure and is not worth telling anyone
+     * about. Anything else is collected and reported once, after everything
+     * that CAN go up has gone up.
+     */
     suspend fun pushAll(repository: Repository, companyId: String): Result<Int> =
         withContext(Dispatchers.IO) {
-            runCatching {
-                var pushed = 0
-                pushed += pushEmployees(repository, companyId)
-                pushed += pushManufacturers(repository, companyId)
-                pushed += pushFenceRuns(repository, companyId)
-                pushed += pushTimeEntries(repository, companyId)
-                pushed += pushCatalog(repository, companyId)
-                pushed += pushPricingTiers(repository, companyId)
-                pushed += pushJobChildren(repository, companyId)
-                pushed
+            var pushed = 0
+            var firstRealFailure: Throwable? = null
+
+            suspend fun step(what: String, block: suspend () -> Int) {
+                val r = runCatching { block() }
+                r.onSuccess { pushed += it }
+                r.onFailure { e ->
+                    if (!isNotOursToSync(e) && firstRealFailure == null) firstRealFailure = e
+                    if (!isNotOursToSync(e)) {
+                        android.util.Log.w("EntitySync", "push $what failed", e)
+                    }
+                }
             }
+
+            step("employees")      { pushEmployees(repository, companyId) }
+            step("manufacturers")  { pushManufacturers(repository, companyId) }
+            step("fence runs")     { pushFenceRuns(repository, companyId) }
+            step("time entries")   { pushTimeEntries(repository, companyId) }
+            step("catalog")        { pushCatalog(repository, companyId) }
+            step("pricing tiers")  { pushPricingTiers(repository, companyId) }
+            step("job children")   { pushJobChildren(repository, companyId) }
+
+            firstRealFailure?.let { Result.failure(it) } ?: Result.success(pushed)
         }
 
     /**
@@ -559,24 +588,31 @@ object EntitySync {
      */
     suspend fun pullAll(repository: Repository, companyId: String): Result<Int> =
         withContext(Dispatchers.IO) {
-            runCatching {
-                // In flight together rather than one after another. Each pull
-                // reads its own cloud table and writes its own local one, so
-                // nothing here orders them -- but they used to run in a row,
-                // and a sync's cost is round-trips, not rows: forty-odd calls
-                // in single file is most of why pressing Sync felt like the
-                // app had hung.
-                kotlinx.coroutines.coroutineScope {
-                    listOf(
-                        async { netGate.withPermit { pullEmployees(repository, companyId) } },
-                        async { netGate.withPermit { pullManufacturers(repository, companyId) } },
-                        async { netGate.withPermit { pullPricingTiers(repository, companyId) } },
-                        async { netGate.withPermit { pullCatalog(repository, companyId) } },
-                        async { netGate.withPermit { pullFenceRuns(repository, companyId) } },
-                        async { netGate.withPermit { pullJobChildren(repository, companyId) } }
-                    ).awaitAll().sum()
-                }
+            // In flight together rather than one after another. Each pull
+            // reads its own cloud table and writes its own local one, so
+            // nothing here orders them -- but they used to run in a row,
+            // and a sync's cost is round-trips, not rows: forty-odd calls
+            // in single file is most of why pressing Sync felt like the
+            // app had hung.
+            //
+            // And each one now survives its neighbours. awaitAll() cancels the
+            // whole scope the moment any single pull throws, so one refused
+            // table threw away five perfectly good ones -- the same fault the
+            // push side had, arriving from the other direction.
+            val results = kotlinx.coroutines.coroutineScope {
+                listOf(
+                    async { runCatching { netGate.withPermit { pullEmployees(repository, companyId) } } },
+                    async { runCatching { netGate.withPermit { pullManufacturers(repository, companyId) } } },
+                    async { runCatching { netGate.withPermit { pullPricingTiers(repository, companyId) } } },
+                    async { runCatching { netGate.withPermit { pullCatalog(repository, companyId) } } },
+                    async { runCatching { netGate.withPermit { pullFenceRuns(repository, companyId) } } },
+                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId) } } }
+                ).awaitAll()
             }
+            val realFailure = results.mapNotNull { it.exceptionOrNull() }
+                .firstOrNull { !isNotOursToSync(it) }
+            realFailure?.let { Result.failure<Int>(it) }
+                ?: Result.success(results.sumOf { it.getOrDefault(0) })
         }
 
     private suspend fun pullPricingTiers(repository: Repository, companyId: String): Int {
@@ -1533,6 +1569,33 @@ data class CloudPaymentRecord(
  * Rows are never updated once written. A payment is a record of something that
  * happened; correcting one is a second row, not an edit to the first.
  */
+/**
+ * Whether the server refused this because it is not ours to touch.
+ *
+ * A permission refusal is not a failure. It is the server telling a phone that
+ * this table is none of its business -- which is exactly what should happen on
+ * a crew handset now that money is office-only. Treating it as an error meant
+ * a crew phone reported "Could not sync: new row violates row-level security
+ * policy for table payment_records" for ever, and kept retrying the same
+ * forbidden write on every pass.
+ *
+ * Matched on the text because the refusal arrives through several layers with
+ * no common type -- the same reason looksLikeNoSignal is written this way.
+ */
+internal fun isNotOursToSync(error: Throwable): Boolean {
+    val text = generateSequence(error) { it.cause }
+        .mapNotNull { "${it::class.simpleName} ${it.message}" }
+        .joinToString(" ")
+        .lowercase()
+    return listOf(
+        "row-level security",
+        "row level security",
+        "42501",
+        "permission denied",
+        "insufficient_privilege",
+    ).any { it in text }
+}
+
 object PaymentLedgerSync {
 
     suspend fun sync(
@@ -1571,9 +1634,23 @@ object PaymentLedgerSync {
                     )
                 }
             if (toPush.isNotEmpty()) {
-                toPush.chunked(200).forEach { chunk ->
-                    SupabaseModule.client.postgrest.from("payment_records")
-                        .upsert(chunk) { onConflict = "company_id,sync_id" }
+                // A crew phone holds payment rows it cached back when the
+                // table was readable by everyone. It is not allowed to send
+                // them now, and it should not keep trying: the office already
+                // has them, and this phone has no business with them at all.
+                val pushed = runCatching {
+                    toPush.chunked(200).forEach { chunk ->
+                        SupabaseModule.client.postgrest.from("payment_records")
+                            .upsert(chunk) { onConflict = "company_id,sync_id" }
+                    }
+                }
+                if (pushed.isFailure) {
+                    val why = pushed.exceptionOrNull()!!
+                    if (!isNotOursToSync(why)) throw why
+                    // Not ours. Nothing further to do here on this device --
+                    // and nothing is lost, because these rows are the office's
+                    // copy of money that already cleared.
+                    return@runCatching 0
                 }
                 moved += toPush.size
             }

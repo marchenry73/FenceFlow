@@ -114,6 +114,11 @@
     <string name="account_cloud_save">Cloud Save</string>
     <string name="sync_saving">Saving to cloud…</string>
     <string name="sync_saved">Everything saved</string>
+    <string name="sync_plain_no_signal">No signal right now. Your work is saved on this phone and goes up by itself when you\'re back on.</string>
+    <string name="sync_plain_signed_out">You\'ve been signed out. Sign back in and everything on this phone will upload.</string>
+    <string name="sync_plain_conflict">Someone changed the same thing on another phone. Pull down to sync again and the two will settle.</string>
+    <string name="sync_plain_slow">The connection is too slow to finish. Your work is saved here and will try again shortly.</string>
+    <string name="sync_plain_unknown">Couldn\'t finish syncing. Your work is saved on this phone and will try again on its own. If it keeps saying this, tell March.</string>
     <string name="sync_failed">Couldn\'t reach the cloud</string>
     <string name="sync_local_only">Saving on this phone only</string>
     <string name="sync_explain">Your jobs save automatically — when you make a change, when you open the app, and every so often in the background. Everything works offline; changes upload once you have signal.</string>
@@ -971,7 +976,7 @@
     <string name="onb_skip">Skip</string>
     <string name="onb_paused_title">FenceFlow is paused</string>
     <string name="onb_paused_default_reason">This company\'s access to FenceFlow has ended.</string>
-    <string name="onb_paused_nothing_lost">Nothing has been lost. Every job, drawing, photo and payment is exactly where it was, and comes straight back as soon as this is sorted out.</string>
+    <string name="onb_paused_nothing_lost">Your jobs, drawings, photos and payments are all still here on this phone and in your account. Sorting out the subscription switches everything back on.</string>
     <string name="onb_paused_crew_note">If you are on the crew, this is one for the office -- there is nothing for you to fix here.</string>
     <string name="onb_check_again">Check again</string>
     <string name="onb_checking">Checking…</string>
