@@ -250,14 +250,24 @@ class AutoSync(
             .mapNotNull { it.message }
             .joinToString(" ")
             .lowercase()
+        // Matched on the ERROR, never on the request.
+        //
+        // The message from these libraries carries the URL, and every upsert
+        // this app sends has on_conflict= in its query string. So a bare
+        // "conflict" test matched every failure there is, and a crew member
+        // whose sync was refused read "Someone changed the same thing on
+        // another phone" -- confidently wrong, about a thing that had not
+        // happened. Only phrases that appear in the server's own explanation
+        // are tested, and the URL is cut off the front before testing.
+        val body = text.substringAfterLast("supabase.co")
         return when {
             looksLikeNoSignal(error) ->
                 context.getString(R.string.sync_plain_no_signal)
-            "jwt" in text || "token" in text || "401" in text || "not authenticated" in text ->
+            "jwt" in body || "not authenticated" in body || "invalid claim" in body ->
                 context.getString(R.string.sync_plain_signed_out)
-            "duplicate key" in text || "conflict" in text ->
+            "duplicate key" in body || "already exists" in body ->
                 context.getString(R.string.sync_plain_conflict)
-            "timeout" in text || "timed out" in text ->
+            "timeout" in body || "timed out" in body ->
                 context.getString(R.string.sync_plain_slow)
             else -> context.getString(R.string.sync_plain_unknown)
         }

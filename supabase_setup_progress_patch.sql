@@ -37,13 +37,13 @@ num as (
     -- A jsonb value that is not a number must not blow the whole function up,
     -- so anything unparseable reads as unset rather than raising.
     select
-      (select case when (select settings->>'labor_rate' from s) ~ '^-?[0-9.]+$'
+      (select case when (select settings->>'labor_rate' from s) ~ '^-?[0-9]+([.][0-9]+)?$'
                    then ((select settings->>'labor_rate' from s))::numeric end)     as labour,
-      (select case when (select settings->>'markup' from s) ~ '^-?[0-9.]+$'
+      (select case when (select settings->>'markup' from s) ~ '^-?[0-9]+([.][0-9]+)?$'
                    then ((select settings->>'markup' from s))::numeric end)         as markup,
-      (select case when (select settings->>'tax_rate' from s) ~ '^-?[0-9.]+$'
+      (select case when (select settings->>'tax_rate' from s) ~ '^-?[0-9]+([.][0-9]+)?$'
                    then ((select settings->>'tax_rate' from s))::numeric end)       as tax,
-      (select case when (select settings->>'min_job_charge' from s) ~ '^-?[0-9.]+$'
+      (select case when (select settings->>'min_job_charge' from s) ~ '^-?[0-9]+([.][0-9]+)?$'
                    then ((select settings->>'min_job_charge' from s))::numeric end) as min_charge
 ),
 counts as (
@@ -74,9 +74,14 @@ select * from (values
    true, 'settings'),
 
   ('catalog', 'Your supplier prices',
-   'What you actually pay for panels, posts, rails and concrete. Add them in the phone app under Catalog; they appear here within a minute.',
+   'What you actually pay for panels, posts, rails and concrete. Add them in the phone app under Catalog and they appear here within a minute.',
    (select catalog from counts) > 0,
-   true, 'catalog'),
+   -- Strongly wanted, but NOT a blocker, because it cannot be satisfied from
+   -- this website: the catalog is entered on the phone. Blocking on it left an
+   -- owner who works at a desk unable to create a job at all, with a checklist
+   -- item they had no way to tick. The blockers are the four numbers a quote is
+   -- arithmetic on, and those are all on the Settings page in front of them.
+   false, 'catalog'),
 
   ('tiers', 'Your pricing tiers',
    'Different rates for different kinds of work -- a repair, a full install, a commercial job. Not required, but it is how you stop quoting everything the same way.',
