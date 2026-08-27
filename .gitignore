@@ -38,3 +38,7 @@ node_modules/
 # The backup script also refuses to write inside this repo.
 fenceflow-*/
 *Backups/
+
+# Scratch output from database probes -- never belongs in the repo.
+*.probe.txt
+o*.txt
