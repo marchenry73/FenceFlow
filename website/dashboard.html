@@ -159,12 +159,17 @@
   }
   .readout b{font-size:16px; font-variant-numeric:tabular-nums}
   .readout .sub2{font-size:12px; color:var(--muted)}
+  /* The wordmark is a link home now. It still has to read as a wordmark. */
+  a.logo{text-decoration:none;color:inherit;cursor:pointer}
+  a.logo:hover{opacity:.75}
+  a.logo:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></div>
+  <a class="logo" href="index.html" title="Back to the FenceFlow home page"
+     >Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></a>
   <div style="display:flex;align-items:center;gap:10px">
     <span class="who" id="who"></span>
     <button class="btn btn-sm btn-ghost" id="refresh" style="display:none">Refresh</button>

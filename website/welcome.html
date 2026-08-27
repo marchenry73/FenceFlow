@@ -48,11 +48,15 @@
   .plan li{font-size:13.5px;padding:2px 0;color:#3a4250}
   .plan li::before{content:"✓";color:var(--teal);font-weight:700;margin-right:7px}
   .done-note{background:#F2FAF8;border:1px solid #BFE5DE;color:#0b6a5d;border-radius:9px;padding:12px 14px;font-size:14.5px}
+  /* The wordmark is a link home now. It still has to read as a wordmark. */
+  a.logo{text-decoration:none;color:inherit;cursor:pointer}
+  a.logo:hover{opacity:.75}
+  a.logo:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}
 </style>
 </head>
 <body>
 
-<header><div class="logo">Fence<span>Flow</span></div></header>
+<header><a class="logo" href="index.html" title="Back to the FenceFlow home page">Fence<span>Flow</span></a></header>
 
 <div class="wrap">
   <div id="loading" class="card"><h1>One moment…</h1><p class="sub" id="loadingNote">Checking your invitation.</p></div>

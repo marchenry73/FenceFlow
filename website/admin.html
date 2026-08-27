@@ -54,10 +54,14 @@
   dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
            color: var(--ink); max-width: 520px; width: 92%; padding: 20px; }
   dialog::backdrop { background: rgba(0,0,0,.45); }
+  /* The wordmark is a link home now. It still has to read as a wordmark. */
+  header h1 a{text-decoration:none;color:inherit;cursor:pointer}
+  header h1 a:hover{opacity:.75}
+  header h1 a:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}
 </style>
 
 <header>
-  <h1>FenceFlow Admin</h1>
+  <h1><a href="index.html" title="Back to the FenceFlow home page">FenceFlow</a> Admin</h1>
   <span class="sub">Your clients, not theirs — who's paying, who isn't, and what to do about it.</span>
 </header>
 
