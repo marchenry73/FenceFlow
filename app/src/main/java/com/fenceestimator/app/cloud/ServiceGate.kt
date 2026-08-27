@@ -113,6 +113,9 @@ object ServiceGate {
     /** Set when the login was taken over by another phone. */
     private val DISPLACED = booleanPreferencesKey("displaced")
 
+    /** Which account this install last took the login for. */
+    private val CLAIMED_FOR = stringPreferencesKey("claimed_for")
+
     suspend fun deviceId(context: Context): String {
         val existing = runCatching {
             context.serviceStore.data.first()[DEVICE_ID]
@@ -162,6 +165,35 @@ object ServiceGate {
 
     suspend fun wasDisplaced(context: Context): Boolean =
         runCatching { context.serviceStore.data.first()[DISPLACED] }.getOrNull() ?: false
+
+    /**
+     * Does this phone hold the login? Claiming it if this is a fresh sign-in here.
+     *
+     * The ordering matters and I had it backwards. Checking first and claiming
+     * only if the check passed meant the SECOND phone to sign in looked at the
+     * first phone's claim, saw it was not its own, and blocked ITSELF -- so
+     * somebody signing in on a new handset was locked out while the old one
+     * carried on. Exactly the reverse of what was intended, and the reverse of
+     * what anybody replacing a lost phone would expect.
+     *
+     * A sign-in on this device always wins. Only a device that has already
+     * claimed for this account goes on to check whether it still holds it,
+     * which is the case where somebody else has taken over since.
+     */
+    suspend fun holdsLogin(context: Context): Boolean {
+        val userId = SupabaseModule.currentUserId() ?: return true
+        val claimedFor = runCatching {
+            context.serviceStore.data.first()[CLAIMED_FOR]
+        }.getOrNull()
+
+        if (claimedFor != userId) {
+            // First check since signing in on this phone, for this account.
+            claimThisDevice(context)
+            runCatching { context.serviceStore.edit { it[CLAIMED_FOR] = userId } }
+            return true
+        }
+        return stillMine(context)
+    }
 
     /**
      * Asks the server, remembers the answer, and returns it.

@@ -196,16 +196,13 @@ class MainActivity : FragmentActivity() {
                                         // alone: nobody gets thrown out of the
                                         // app on a guess in a dead spot.
                                         if (fresh != null) {
-                                            val mine = com.fenceestimator.app.cloud.ServiceGate
-                                                .stillMine(ctx)
-                                            if (!mine) {
+                                            val holds = com.fenceestimator.app.cloud.ServiceGate
+                                                .holdsLogin(ctx)
+                                            if (!holds) {
                                                 service = fresh.copy(
                                                     allowed = false,
                                                     reason = getString(R.string.svc_signed_in_elsewhere)
                                                 )
-                                            } else {
-                                                com.fenceestimator.app.cloud.ServiceGate
-                                                    .claimThisDevice(ctx)
                                             }
                                         }
                                         // After the gate, because by then the
