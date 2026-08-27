@@ -1181,7 +1181,8 @@ object EntitySync {
         val withPay = SupabaseModule.client.postgrest.from("employees")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudEmployee>()
-        val cloud = if (withPay.isNotEmpty()) withPay else
+        val fromRoster = withPay.isEmpty()
+        val cloud = if (!fromRoster) withPay else
             SupabaseModule.client.postgrest
                 .rpc("crew_roster")
                 .decodeList<CrewRosterRow>()
@@ -1209,9 +1210,23 @@ object EntitySync {
                 // A pay rate corrected in the office has to reach the phone that
                 // costs the job -- including the pay arrangement itself, which
                 // the cloud shape now carries.
+                // The roster knows who somebody is, not how to reach them.
+                //
+                // It returns name, role and whether they are still on the crew,
+                // and nothing else -- so taking its blanks for phone, email and
+                // notes would quietly erase colleagues' contact details from
+                // every crew phone. Those are kept.
+                //
+                // The pay fields are the opposite case: the roster's zeroes are
+                // exactly what should land, because that scrubs whatever rate
+                // this phone cached back when the table was readable. Without
+                // it, hiding pay server-side would leave yesterday's figures
+                // sitting in Room for ever.
                 val merged = existing.copy(
                     name = row.name, role = row.role,
-                    phone = row.phone, email = row.email, notes = row.notes,
+                    phone = if (fromRoster) existing.phone else row.phone,
+                    email = if (fromRoster) existing.email else row.email,
+                    notes = if (fromRoster) existing.notes else row.notes,
                     hourlyRate = row.hourlyRate,
                     payType = runCatching { PayType.valueOf(row.payType) }
                         .getOrDefault(existing.payType),
@@ -1221,7 +1236,7 @@ object EntitySync {
                     // feature.
                     isActive = row.isActive,
                     deactivatedAt = CloudTime.parseMillis(row.deactivatedAt),
-                    profileId = row.profileId.orEmpty()
+                    profileId = if (fromRoster) existing.profileId else row.profileId.orEmpty()
                 )
                 if (merged != existing) { repository.saveEmployee(merged); added++ }
             }
