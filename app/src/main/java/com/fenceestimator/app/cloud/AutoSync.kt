@@ -430,11 +430,17 @@ class AutoSync(
             _state.value = result.fold(
                 onSuccess = { syncResult ->
                     notifyIncoming(syncResult)
+                    // Something the server would not take is still something
+                    // waiting. pushAll signals that with a negative count.
+                    // Saying "everything is backed up" when a table was
+                    // refused is how a crew member's plan-change requests
+                    // disappeared with nothing on screen to notice.
+                    val somethingHeldBack = (pushResult.getOrNull() ?: 0) < 0
                     SyncState(
                         phase = SyncPhase.OK,
                         lastSyncedAt = System.currentTimeMillis(),
                         lastError = null,
-                        hasUnsyncedWork = false
+                        hasUnsyncedWork = somethingHeldBack
                     )
                 },
                 onFailure = {

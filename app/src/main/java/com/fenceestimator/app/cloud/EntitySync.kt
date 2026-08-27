@@ -346,14 +346,25 @@ object EntitySync {
     suspend fun pushAll(repository: Repository, companyId: String): Result<Int> =
         withContext(Dispatchers.IO) {
             var pushed = 0
+            var skipped = 0
             var firstRealFailure: Throwable? = null
 
             suspend fun step(what: String, block: suspend () -> Int) {
                 val r = runCatching { block() }
                 r.onSuccess { pushed += it }
                 r.onFailure { e ->
-                    if (!isNotOursToSync(e) && firstRealFailure == null) firstRealFailure = e
-                    if (!isNotOursToSync(e)) {
+                    if (isNotOursToSync(e)) {
+                        // Skipped, not failed -- but NOT nothing.
+                        //
+                        // Treating a refusal as a clean success is how a crew
+                        // member's plan-change requests vanished while the
+                        // phone said "Everything is backed up". Silence about
+                        // work that did not go up is worse than the error it
+                        // replaced: at least the error made somebody ask.
+                        skipped += 1
+                        android.util.Log.i("EntitySync", "push $what skipped: not this phone's to send")
+                    } else {
+                        if (firstRealFailure == null) firstRealFailure = e
                         android.util.Log.w("EntitySync", "push $what failed", e)
                     }
                 }
@@ -367,7 +378,11 @@ object EntitySync {
             step("pricing tiers")  { pushPricingTiers(repository, companyId) }
             step("job children")   { pushJobChildren(repository, companyId) }
 
-            firstRealFailure?.let { Result.failure(it) } ?: Result.success(pushed)
+            // A negative count carries "some of this did not go up" back to the
+            // caller without inventing a new return type for one fact. The
+            // caller only ever compares it against zero.
+            firstRealFailure?.let { Result.failure(it) }
+                ?: Result.success(if (skipped > 0) -pushed - 1 else pushed)
         }
 
     /**
@@ -483,7 +498,25 @@ object EntitySync {
         pushed += upsert("change_orders", orders)
         pushed += upsert("job_steps", steps)
         pushed += upsert("site_markers", markers)
-        pushed += upsert("field_changes", changes)
+        // Insert-only, for two reasons that point the same way.
+        //
+        // A field change is the crew asking the office a question -- move the
+        // gate, the ground is rock, the neighbour objected. The office answers
+        // it. A phone re-uploading its stale copy would overwrite that answer,
+        // which it should never do.
+        //
+        // And an ordinary upsert is INSERT ... ON CONFLICT DO UPDATE, so it
+        // needs UPDATE permission on the table. field_changes_update is
+        // OWNER, MANAGER and FOREMAN only, so a CREW phone was refused -- and
+        // because the whole batch goes up in one statement, ONE already-
+        // uploaded row took every new request down with it. Proved against
+        // production: sending the batch, 1 of 2 requests arrived; sending the
+        // new request alone, it arrived.
+        //
+        // So the crew member taps "can we move the gate?", nothing reaches the
+        // office, and it never recovers -- every later request from that phone
+        // dies the same way.
+        pushed += upsert("field_changes", changes, insertOnly = true)
         return pushed
     }
 
@@ -568,11 +601,20 @@ object EntitySync {
     }
 
     /** Chunked so a large catalog doesn't become one oversized request. */
-    private suspend inline fun <reified T : Any> upsert(table: String, rows: List<T>): Int {
+    private suspend inline fun <reified T : Any> upsert(
+        table: String,
+        rows: List<T>,
+        // When true the row is inserted if it is new and left alone if it is
+        // not, instead of being overwritten.
+        insertOnly: Boolean = false,
+    ): Int {
         if (rows.isEmpty()) return 0
         rows.chunked(200).forEach { chunk ->
             SupabaseModule.client.postgrest.from(table)
-                .upsert(chunk) { onConflict = "company_id,sync_id" }
+                .upsert(chunk) {
+                    onConflict = "company_id,sync_id"
+                    if (insertOnly) ignoreDuplicates = true
+                }
         }
         return rows.size
     }
