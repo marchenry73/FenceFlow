@@ -34,3 +34,15 @@ verify_jwt = true
 
 [functions.invite-company]
 verify_jwt = true
+
+# Square signs its own requests and sends no Supabase JWT, exactly like Stripe.
+# Leaving this out is what made the first deploy answer 401 at the gateway
+# before the function ran at all.
+[functions.square-webhook]
+verify_jwt = false
+
+# The OAuth callback arrives as a plain browser redirect from Square, with no
+# JWT of any kind. The "start" half checks the caller's token itself, in code,
+# and refuses without one -- so the gateway must not check first.
+[functions.square-oauth]
+verify_jwt = false
