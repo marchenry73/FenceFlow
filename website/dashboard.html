@@ -60,6 +60,19 @@
      sign-in form for the length of three round trips and could start typing
      an email into a page that was about to replace itself. */
   #auth{display:none}
+  .setup-row{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
+  .setup-row:first-child{border-top:none}
+  .setup-mark{flex:none;width:20px;height:20px;border-radius:4px;display:flex;align-items:center;
+    justify-content:center;font-size:12px;font-weight:700;margin-top:1px}
+  .setup-todo{background:#FFF4E5;color:#7A4B00;border:1px solid #E5C08A}
+  .setup-done{background:#E6F6F3;color:#07473D;border:1px solid #A6D9CE}
+  .setup-what{font-weight:600}
+  .setup-why{font-size:13.5px;color:var(--muted);margin-top:2px}
+  .setup-go{margin-left:auto;flex:none}
+  @media (prefers-color-scheme: dark){
+    .setup-todo{background:#3A2A0A;color:#FFD79A;border-color:#5C4415}
+    .setup-done{background:#12312B;color:#8FD9C7;border-color:#1F4A41}
+  }
   #serviceBanner{padding:12px 16px;font-size:14px;border-bottom:1px solid var(--line);
     display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
   #serviceBanner.warn{background:#FFF4E5;color:#7A4B00}
@@ -226,6 +239,13 @@
     </div>
 
     <div id="tab-dash">
+      <div class="panel" id="setupPanel" style="display:none;border-left:3px solid var(--warn,#b26a00)">
+        <h2 style="margin-top:0">Finish setting up before you quote</h2>
+        <p class="sub">A quote is built out of these numbers. Until they are yours, every
+          estimate this company produces is built on blanks &mdash; and you will not find out
+          until the job is done.</p>
+        <div id="setupList"></div>
+      </div>
       <div class="stats" id="stats"></div>
       <div class="panel"><h2>Needs attention</h2><div id="attention"></div></div>
       <div class="panel"><h2>This week</h2>
@@ -984,6 +1004,8 @@ let jobCosting=[];
 let auditTrail=[];
 let arAging=[];
 let companyMembers=[];
+let setupSteps=[];
+let setupBlocks=false;
 
 /* ---------- data ---------- */
 /**
@@ -1091,6 +1113,46 @@ function showBlocked(status){
  * countdown, no banner when a card failed, and no email of any kind. The first
  * they knew was being locked out.
  */
+/**
+ * What is still missing, and the fact that quoting without it is a mistake.
+ *
+ * A brand-new company can quote today with no labour rate, no markup, no
+ * minimum charge and an empty catalog -- two of the three companies on this
+ * database are in exactly that state. The estimate quietly uses zeroes, the
+ * contractor sends the number, wins the work, and finds out at the end.
+ *
+ * So the essentials are a gate, not a suggestion. Everything else in the
+ * product still works; the one thing held back is creating a job, because that
+ * is the act that turns a blank setting into a wrong price.
+ */
+function renderSetup(){
+  const panel = $('setupPanel');
+  if (!panel) return;
+  const steps = setupSteps || [];
+  const missing = steps.filter(s => !s.done);
+  const blocking = missing.filter(s => s.essential);
+
+  if (!steps.length || !missing.length) { panel.style.display = 'none'; setupBlocks = false; return; }
+  setupBlocks = blocking.length > 0;
+  panel.style.display = 'block';
+
+  const TAB = { settings:'settings', catalog:'catalog', crew:'crew' };
+  $('setupList').innerHTML = steps.map(st => `
+    <div class="setup-row">
+      <span class="setup-mark ${st.done ? 'setup-done' : 'setup-todo'}">${st.done ? '✓' : ''}</span>
+      <span>
+        <span class="setup-what">${esc(st.label)}</span>${
+          st.essential ? '' : ' <span style="font-size:12px;color:var(--muted)">— optional</span>'}
+        <div class="setup-why">${esc(st.detail)}</div>
+      </span>
+      ${st.done ? '' : `<span class="setup-go"><button class="btn btn-sm btn-grey"
+          data-setup-go="${esc(TAB[st.where_to_go] || 'settings')}">Set it</button></span>`}
+    </div>`).join('');
+
+  document.querySelectorAll('[data-setup-go]').forEach(b =>
+    b.addEventListener('click', () => switchTab(b.dataset.setupGo)));
+}
+
 function showServiceBanner(s){
   const el = $('serviceBanner');
   if (!el || !s) return;
@@ -1176,6 +1238,7 @@ async function loadAll(){
   planName = (service?.subscription_plan || '').toLowerCase();
   applyPlanGates();
   showServiceBanner(service);
+  renderSetup();
   if (checkoutNote) {
     switchTab('billing');
     msg('billMsg', checkoutNote.note, checkoutNote.kind);
@@ -1248,6 +1311,11 @@ async function loadAll(){
   // a Foreman, and that request sat in a column no screen read.
   const membersRes = await db.rpc('company_members');
   companyMembers = membersRes.error ? [] : (membersRes.data || []);
+
+  // What this company still has to set up. One function answers it, so the
+  // phone and this page can never drift apart about what is missing.
+  const setupRes = await db.rpc('my_setup_progress');
+  setupSteps = setupRes.error ? [] : (setupRes.data || []);
 
   const aging = await db.rpc('ar_aging');
   arAging = aging.error ? [] : (aging.data || []);
@@ -2422,6 +2490,16 @@ async function saveJob(){
 }
 
 async function createJob(){
+  // Held back until the numbers a quote is made of are actually theirs.
+  if (setupBlocks) {
+    switchTab('dash');
+    msg('jobsMsg', 'Finish setting up first — a quote built before your labour rate, '
+      + 'markup, minimum charge, tax and supplier prices are set is built on blanks. '
+      + 'The list is at the top of the home tab.', 'err');
+    $('setupPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+
   if(!canEdit()) return;
   const {data,error}=await db.from('jobs').insert({
     company_id:profile.company_id, customer_name:'New job',
