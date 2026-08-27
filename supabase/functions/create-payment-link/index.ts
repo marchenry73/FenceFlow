@@ -83,7 +83,33 @@ Deno.serve(async (req) => {
     const { data: company } = await admin
       .from("companies").select("name, stripe_account_id, subscription_plan")
       .eq("id", profile.company_id).single();
-    const account = company?.stripe_account_id ?? undefined;
+    // Which processor this company takes card payments through.
+    //
+    // One place decides, so adding a third means adding a branch here and a
+    // webhook, not rethinking the flow. The credential lives in
+    // payment_connections, which no client can read -- only this function,
+    // holding the service role.
+    const { data: conn } = await admin
+      .from("payment_connections")
+      .select("processor, external_id, access_token, display_name")
+      .eq("company_id", profile.company_id)
+      .maybeSingle();
+    const processor = (conn?.processor ?? "none").toLowerCase();
+
+    if (processor === "square") {
+      // Square is chosen but not yet connectable end to end: a payment taken
+      // through it raises its webhook at Square, and nothing here listens for
+      // that yet. Refusing is the only honest answer -- taking money we cannot
+      // record is exactly the failure this whole page exists to avoid.
+      return json({
+        error: "Square is set as your card processor, but the connection is not finished yet, " +
+               "so a payment could be taken without being recorded against the job. " +
+               "Take this one as cash, check or card by phone and record it on the job, " +
+               "and we will tell you the moment Square is ready.",
+      }, 501);
+    }
+
+    const account = conn?.external_id || company?.stripe_account_id || undefined;
 
     // A connected account is refused rather than quietly taking money we
     // cannot record.

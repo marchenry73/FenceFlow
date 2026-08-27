@@ -592,10 +592,23 @@
       <div class="panel">
         <h2>Getting Paid by Customers</h2>
         <p style="font-size:14px;color:var(--muted)">
-          Deposits and invoices your customers pay you are a separate thing from the
-          subscription above, and the money goes straight to your Stripe account.
-          Request one from any job in the app: <strong>Payment &amp; Invoice → Request by Card</strong>.
+          Deposits and invoices your customers pay <em>you</em> are a separate thing from the
+          FenceFlow subscription above &mdash; that money goes straight to your own account,
+          never through us. Request one from any job in the app:
+          <strong>Payment &amp; Invoice → Request by Card</strong>.
         </p>
+
+        <div id="processorBox" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px">
+          <h3 style="margin:0 0 4px;font-size:15px">How you take card payments</h3>
+          <p class="sub" style="margin:0 0 10px">Use whichever you already have. Whatever you
+            pick, the money goes to your account, not ours &mdash; we only record that it
+            arrived so the job stops showing a balance.</p>
+          <div id="processorChoices" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          <div class="msg" id="processorMsg"></div>
+          <p class="sub" style="margin:10px 0 0">Take cash, a check or a card over the phone
+            instead? Record it against the job in the app under Payment &amp; Invoice &mdash;
+            nothing here has to be connected for that.</p>
+        </div>
         <div class="scroll" style="margin-top:12px"><table>
           <thead><tr><th>Job</th><th>Type</th><th>Amount</th><th>Status</th><th>Requested</th></tr></thead>
           <tbody id="payRows"></tbody></table></div>
@@ -1010,6 +1023,7 @@ let auditTrail=[];
 let arAging=[];
 let companyMembers=[];
 let setupSteps=[];
+let paymentConn=null;
 let setupBlocks=false;
 
 /* ---------- data ---------- */
@@ -1130,6 +1144,73 @@ function showBlocked(status){
  * product still works; the one thing held back is creating a job, because that
  * is the act that turns a blank setting into a wrong price.
  */
+/**
+ * Which processor this contractor takes card payments through.
+ *
+ * Deliberately a choice rather than a Stripe button. Fencing contractors
+ * already bank with somebody -- Square is common in the trades, Stripe less so
+ * -- and asking them to open a second account to use this product is a reason
+ * not to buy it. The shape here takes a third processor without being rebuilt.
+ *
+ * "Connected" and "chosen" are different states and the panel says which is
+ * which: picking Square records the intention, and the connection itself is an
+ * OAuth round trip that has to be finished before any money can move.
+ */
+const PROCESSORS = [
+  { id:'stripe', name:'Stripe',
+    blurb:'Cards, Apple Pay and Google Pay. If you already invoice through Stripe, use this.' },
+  { id:'square', name:'Square',
+    blurb:'Common in the trades. If you take cards on a Square reader today, use this.' },
+];
+
+function renderProcessor(){
+  const box = $('processorBox');
+  if (!box) return;
+  const owner = profile?.role === 'OWNER';
+  const chosen = (paymentConn?.processor || 'none').toLowerCase();
+  const connected = !!paymentConn?.connected;
+
+  if (!owner) {
+    $('processorChoices').innerHTML =
+      '<p class="sub" style="margin:0">' + (chosen === 'none'
+        ? 'Your owner has not set up card payments yet.'
+        : 'Card payments go through ' + esc(chosen.charAt(0).toUpperCase() + chosen.slice(1)) + '.')
+      + '</p>';
+    return;
+  }
+
+  $('processorChoices').innerHTML = PROCESSORS.map(p => {
+    const isChosen = chosen === p.id;
+    return `<button class="btn btn-sm ${isChosen ? '' : 'btn-grey'}" data-proc="${p.id}"
+        style="flex:1 1 200px;text-align:left;padding:10px 12px">
+        <strong>${p.name}</strong>${isChosen && connected
+            ? ' — connected' : isChosen ? ' — chosen' : ''}
+        <div style="font-weight:400;font-size:12.5px;opacity:.85;margin-top:2px">${esc(p.blurb)}</div>
+      </button>`;
+  }).join('');
+
+  if (chosen !== 'none' && !connected) {
+    msg('processorMsg',
+      `You have chosen ${chosen.charAt(0).toUpperCase() + chosen.slice(1)}, but the account is not `
+      + 'connected yet, so card requests are still switched off. Connecting is one step and we '
+      + 'are finishing it now — nothing you do here can take a payment we cannot record.', 'info');
+  } else if (connected) {
+    msg('processorMsg', `Connected to ${esc(paymentConn.display_name || chosen)}. `
+      + 'Card requests from the app go to this account.', 'ok');
+  }
+
+  document.querySelectorAll('[data-proc]').forEach(b =>
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      const { error } = await db.rpc('choose_payment_processor', { which: b.dataset.proc });
+      b.disabled = false;
+      if (error) return msg('processorMsg', error.message, 'err');
+      const r = await db.rpc('my_payment_connection');
+      paymentConn = r.error ? paymentConn : ((r.data || [])[0] || null);
+      renderProcessor();
+    }));
+}
+
 function renderSetup(){
   const panel = $('setupPanel');
   if (!panel) return;
@@ -1244,6 +1325,7 @@ async function loadAll(){
   applyPlanGates();
   showServiceBanner(service);
   renderSetup();
+  renderProcessor();
   if (checkoutNote) {
     switchTab('billing');
     msg('billMsg', checkoutNote.note, checkoutNote.kind);
@@ -1319,6 +1401,11 @@ async function loadAll(){
 
   // What this company still has to set up. One function answers it, so the
   // phone and this page can never drift apart about what is missing.
+  // Which processor this company takes card payments through, if any. Never
+  // the credential -- that lives where only the backend can read it.
+  const connRes = await db.rpc('my_payment_connection');
+  paymentConn = connRes.error ? null : ((connRes.data || [])[0] || null);
+
   const setupRes = await db.rpc('my_setup_progress');
   setupSteps = setupRes.error ? [] : (setupRes.data || []);
 
