@@ -119,6 +119,7 @@
     <string name="sync_plain_conflict">Someone changed the same thing on another phone. Pull down to sync again and the two will settle.</string>
     <string name="sync_plain_slow">The connection is too slow to finish. Your work is saved here and will try again shortly.</string>
     <string name="sync_plain_unknown">Couldn\'t finish syncing. Your work is saved on this phone and will try again on its own. If it keeps saying this, tell March.</string>
+    <string name="svc_signed_in_elsewhere">This account was signed in on another phone, so this one has been signed out. Your work is safe. If that wasn\'t you, change your password.</string>
     <string name="sync_failed">Couldn\'t reach the cloud</string>
     <string name="sync_local_only">Saving on this phone only</string>
     <string name="sync_explain">Your jobs save automatically — when you make a change, when you open the app, and every so often in the background. Everything works offline; changes upload once you have signal.</string>

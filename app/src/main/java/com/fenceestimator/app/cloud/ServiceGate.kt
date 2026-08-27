@@ -12,6 +12,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -99,6 +101,69 @@ object ServiceGate {
     private val TRIAL_DAYS = intPreferencesKey("trial_days")
 
     /**
+     * This install's own id, made once and kept.
+     *
+     * Not the FCM token, which changes on its own, and not the Android id,
+     * which is shared across a user's apps. This only has to be stable for as
+     * long as the app is installed and different from every other handset,
+     * which a random uuid written down once satisfies exactly.
+     */
+    private val DEVICE_ID = stringPreferencesKey("device_id")
+
+    /** Set when the login was taken over by another phone. */
+    private val DISPLACED = booleanPreferencesKey("displaced")
+
+    suspend fun deviceId(context: Context): String {
+        val existing = runCatching {
+            context.serviceStore.data.first()[DEVICE_ID]
+        }.getOrNull()
+        if (!existing.isNullOrBlank()) return existing
+        val made = java.util.UUID.randomUUID().toString()
+        runCatching { context.serviceStore.edit { it[DEVICE_ID] = made } }
+        return made
+    }
+
+    /** Called once the person is signed in: this phone takes the login. */
+    suspend fun claimThisDevice(context: Context) {
+        if (!SupabaseModule.hasLiveSession()) return
+        val id = deviceId(context)
+        runCatching {
+            SupabaseModule.client.postgrest.rpc(
+                "claim_device",
+                kotlinx.serialization.json.buildJsonObject {
+                    put("device_id", kotlinx.serialization.json.JsonPrimitive(id))
+                }
+            )
+        }
+        runCatching { context.serviceStore.edit { it[DISPLACED] = false } }
+    }
+
+    /**
+     * Whether this phone still holds the login, or another one took it.
+     *
+     * Only ever false on a definite answer from the server. Offline, or any
+     * failure, leaves it true -- a crew member in a dead spot must not be
+     * thrown out of the app on a guess.
+     */
+    suspend fun stillMine(context: Context): Boolean {
+        if (!SupabaseModule.hasLiveSession()) return true
+        val id = deviceId(context)
+        val answer = runCatching {
+            SupabaseModule.client.postgrest.rpc(
+                "device_still_mine",
+                kotlinx.serialization.json.buildJsonObject {
+                    put("device_id", kotlinx.serialization.json.JsonPrimitive(id))
+                }
+            ).decodeAs<Boolean>()
+        }.getOrNull() ?: return true
+        runCatching { context.serviceStore.edit { it[DISPLACED] = !answer } }
+        return answer
+    }
+
+    suspend fun wasDisplaced(context: Context): Boolean =
+        runCatching { context.serviceStore.data.first()[DISPLACED] }.getOrNull() ?: false
+
+    /**
      * Asks the server, remembers the answer, and returns it.
      *
      * @return null when the question could not be asked at all -- offline, not
@@ -169,7 +234,29 @@ object ServiceGate {
      */
     suspend fun remembered(context: Context): ServiceStatus? {
         val prefs = runCatching { context.serviceStore.data.first() }.getOrNull() ?: return null
-        if (prefs[CHECKED_AT] == null) return null
+        val checkedAt = prefs[CHECKED_AT] ?: return null
+
+        // Working offline is normal. Working offline for a month is not.
+        //
+        // This gate deliberately fails open so a crew in a dead spot keeps
+        // working -- but "open" with no end to it is also how somebody cancels
+        // and then simply stays in aeroplane mode. After this long without a
+        // single successful check, the phone stops assuming and asks for a
+        // connection. Long enough to cover a holiday, a broken handset or a
+        // fortnight on a rural site; short enough that it is not a way to use
+        // the product for nothing.
+        val stale = System.currentTimeMillis() - checkedAt > OFFLINE_TRUST_MS
+        if (stale) {
+            return ServiceStatus(
+                allowed = false,
+                subscriptionStatus = prefs[STATUS].orEmpty(),
+                plan = prefs[PLAN].orEmpty(),
+                reason = "This phone hasn't been able to check your account in a while. " +
+                    "Connect to the internet once and everything comes straight back.",
+                trialDaysLeft = null
+            )
+        }
+
         return ServiceStatus(
             allowed = prefs[ALLOWED] ?: true,
             subscriptionStatus = prefs[STATUS].orEmpty(),
@@ -178,6 +265,9 @@ object ServiceGate {
             trialDaysLeft = prefs[TRIAL_DAYS]?.takeIf { it >= 0 }
         )
     }
+
+    /** Thirty days without one successful check. */
+    private const val OFFLINE_TRUST_MS = 30L * 24 * 60 * 60 * 1000
 
     /** Forgotten on sign-out, so the next account is judged on its own terms. */
     suspend fun clear(context: Context) {

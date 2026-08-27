@@ -180,6 +180,34 @@ class MainActivity : FragmentActivity() {
                                         checkingService = false
                                         couldNotCheck = fresh == null
                                         fresh?.let { service = it }
+
+                                        // One login, one phone at a time.
+                                        //
+                                        // A shared login walks straight past
+                                        // the seat limit: a Crew plan buys six
+                                        // logins, and six shared two ways is
+                                        // twelve people paying for six. The
+                                        // newest sign-in wins, so losing a
+                                        // handset is survivable -- sign in on
+                                        // the new one and the old one lets go.
+                                        //
+                                        // Only ever acted on when the server
+                                        // says so definitely. Offline leaves it
+                                        // alone: nobody gets thrown out of the
+                                        // app on a guess in a dead spot.
+                                        if (fresh != null) {
+                                            val mine = com.fenceestimator.app.cloud.ServiceGate
+                                                .stillMine(ctx)
+                                            if (!mine) {
+                                                service = fresh.copy(
+                                                    allowed = false,
+                                                    reason = getString(R.string.svc_signed_in_elsewhere)
+                                                )
+                                            } else {
+                                                com.fenceestimator.app.cloud.ServiceGate
+                                                    .claimThisDevice(ctx)
+                                            }
+                                        }
                                         // After the gate, because by then the
                                         // token is known to be live.
                                         runCatching {
