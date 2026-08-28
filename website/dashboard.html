@@ -92,15 +92,35 @@
   .sheet-foot{padding:12px 16px;background:#fff;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0}
   .note{background:#FFF4E5;border:1px solid #FFD9A8;color:#7A4A00;padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px}
   /* Calendar */
-  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-  .cal .dow{font-size:11px;font-weight:700;color:var(--muted);text-align:center;padding:5px;text-transform:uppercase}
-  .cal .day{background:#fff;border:1px solid var(--line);border-radius:8px;min-height:88px;padding:6px;font-size:12px}
-  .cal .day.pad{background:transparent;border:none}
-  .cal .day.today{border-color:var(--orange);border-width:2px}
-  .cal .dnum{font-weight:700;color:var(--muted);margin-bottom:4px}
-  .cal .ev{background:var(--teal);color:#fff;border-radius:5px;padding:3px 5px;margin-bottom:3px;cursor:pointer;font-size:11px;line-height:1.3;overflow:hidden}
-  .cal .ev:hover{background:#0a6f62}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}
+  .cal-head .nav{display:flex;gap:6px}
+  /* The month in one line before the grid: how much work is booked, how many
+     hours actually happened, what money landed. */
+  .cal-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+  .cal-sum div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 13px}
+  .cal-sum b{display:block;font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+  .cal-sum span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal .dow{font-size:11px;font-weight:700;color:var(--muted);text-align:center;padding:5px 0 7px;text-transform:uppercase;letter-spacing:.5px}
+  .cal .day{background:#fff;border:1px solid var(--line);border-radius:8px;min-height:96px;padding:5px 6px;font-size:12px;position:relative}
+  /* Weekends recede; the working week is what the calendar is for. */
+  .cal .day.wkend{background:var(--paper)}
+  .cal .day.out{opacity:.45}
+  .cal .day.today{border-color:var(--orange);border-width:2px;box-shadow:0 1px 6px rgba(255,90,31,.18)}
+  .cal .day.today .dnum{color:var(--orange)}
+  .cal .dnum{font-weight:700;color:var(--muted);margin-bottom:3px;display:flex;justify-content:space-between;align-items:baseline}
+  /* Hours the crew actually clocked that day — the schedule is the plan, this
+     is what happened. A calendar showing both is the one worth opening. */
+  .cal .dnum .hrs{font-weight:600;font-size:10.5px;color:var(--teal);font-variant-numeric:tabular-nums}
+  .cal .ev{border-radius:5px;padding:3px 6px;margin-bottom:3px;cursor:pointer;font-size:11px;line-height:1.3;
+           overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;display:flex;gap:5px;align-items:baseline}
+  .cal .ev .who{font-weight:700;font-size:9.5px;opacity:.85;flex:none}
+  .cal .ev:hover{filter:brightness(.92)}
+  /* A continuation of a job that started earlier — same colour, quieter. */
+  .cal .ev.cont{opacity:.62;border-left:3px solid rgba(255,255,255,.75)}
+  .cal .more{font-size:10.5px;color:var(--muted);cursor:pointer;padding:1px 2px}
+  .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+  .cal-legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
   /* Pipeline */
   .pipe{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
   .col{min-width:230px;flex:0 0 230px}
@@ -342,10 +362,14 @@
     <div id="tab-cal" style="display:none">
       <div class="panel">
         <div class="cal-head">
-          <button class="btn btn-sm btn-grey" id="calPrev">‹ Prev</button>
           <h2 id="calTitle" style="margin:0"></h2>
-          <button class="btn btn-sm btn-grey" id="calNext">Next ›</button>
+          <div class="nav">
+            <button class="btn btn-sm btn-grey" id="calPrev">‹</button>
+            <button class="btn btn-sm btn-grey" id="calToday">Today</button>
+            <button class="btn btn-sm btn-grey" id="calNext">›</button>
+          </div>
         </div>
+        <div class="cal-sum" id="calSummary"></div>
         <div class="cal" id="cal"></div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px">Click a job to open it.</p>
       </div>
@@ -2027,29 +2051,124 @@ function renderJobs(){
 }
 
 /* ---------- calendar ---------- */
+/* Colour carries the job's stage, and only its stage — the same palette the
+   pipeline uses, so the two screens speak one language. */
+const CAL_STAGE = {
+  'New Lead':     '#8A93A3',
+  'Quote Sent':   '#2a78d6',
+  'Approved':     '#7A5EC8',
+  'Deposit Paid': '#0E8C7B',
+  'Scheduled':    '#eb6834',
+  'Installed':    '#3F6B4A',
+  'Paid in Full': '#1baf7a',
+  'Lost':         '#B9C0CA',
+};
+
 function renderCal(){
   const y=calMonth.getFullYear(), m=calMonth.getMonth();
   $('calTitle').textContent=calMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-  const first=new Date(y,m,1), start=first.getDay(), days=new Date(y,m+1,0).getDate();
   const today=new Date(); today.setHours(0,0,0,0);
+  const empById = Object.fromEntries(employees.map(e=>[String(e.id), e]));
+  const initials = name => (name||'').split(/\s+/).filter(Boolean).slice(0,2)
+      .map(w=>w[0].toUpperCase()).join('');
 
-  let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="dow">${x}</div>`).join('');
-  for(let i=0;i<start;i++) html+='<div class="day pad"></div>';
-  for(let day=1;day<=days;day++){
-    const cur=new Date(y,m,day);
-    const evs=jobs.filter(j=>{
-      if(!j.scheduled_date) return false;
-      const s=d(j.scheduled_date);
-      return s.getFullYear()===y&&s.getMonth()===m&&s.getDate()===day;
-    });
-    html+=`<div class="day${cur.getTime()===today.getTime()?' today':''}">
-      <div class="dnum">${day}</div>
-      ${evs.map(j=>`<div class="ev" data-id="${j.id}">${esc(j.customer_name)||'Job'}</div>`).join('')}
-    </div>`;
+  // A job occupies every workday its estimate says it needs, not just its
+  // start morning. An estimate of 20 hours is three site days at eight hours
+  // a day — showing only day one is how two jobs get booked onto one crew.
+  const key = dt => dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate();
+  const byDay = new Map();
+  const put = (k, entry) => { (byDay.get(k) || byDay.set(k, []).get(k)).push(entry); };
+  jobs.forEach(j=>{
+    if(!j.scheduled_date) return;
+    const startD = d(j.scheduled_date); startD.setHours(0,0,0,0);
+    const spanDays = Math.max(1, Math.ceil((Number(j.estimated_duration_hours)||0)/8));
+    let placed = 0, cursor = new Date(startD);
+    while (placed < spanDays && placed < 15) {
+      // Sundays are skipped when a job spans, matching how the trade counts
+      // site days. A job scheduled ON a Sunday still shows that day.
+      if (cursor.getDay() !== 0 || placed === 0) {
+        put(key(cursor), { j, cont: placed > 0 });
+        placed++;
+      }
+      cursor.setDate(cursor.getDate()+1);
+    }
+  });
+
+  // What actually happened: clocked hours per day, from the shifts.
+  const hrsByDay = new Map();
+  (typeof times !== 'undefined' ? times : []).forEach(t=>{
+    if(!t.started_at || !t.ended_at) return;
+    const dt = d(t.started_at); dt.setHours(0,0,0,0);
+    hrsByDay.set(key(dt), (hrsByDay.get(key(dt))||0) + hoursOf(t));
+  });
+
+  // The month in one line.
+  const inMonth = dt => dt.getFullYear()===y && dt.getMonth()===m;
+  const booked = jobs.filter(j=>j.scheduled_date && inMonth(d(j.scheduled_date)));
+  const monthHours = (typeof times !== 'undefined' ? times : [])
+    .filter(t=>t.started_at && t.ended_at && inMonth(d(t.started_at)))
+    .reduce((a,t)=>a+hoursOf(t),0);
+  const monthMoney = (typeof payments !== 'undefined' ? payments : [])
+    .filter(p=>p.received_at && inMonth(d(p.received_at)))
+    .reduce((a,p)=>a+(p.amount||0),0);
+  $('calSummary').innerHTML =
+    '<div><b>'+booked.length+'</b><span>job'+(booked.length===1?'':'s')+' scheduled</span></div>'
+   +'<div><b>'+monthHours.toFixed(0)+' h</b><span>clocked</span></div>'
+   +'<div><b>'+money(monthMoney)+'</b><span>collected</span></div>';
+
+  // Six full weeks, Sunday to Saturday, with the neighbouring months' days
+  // shown quietly rather than as holes — a schedule does not stop at midnight
+  // on the 31st.
+  const first=new Date(y,m,1);
+  const gridStart=new Date(first); gridStart.setDate(1-first.getDay());
+  let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>'<div class="dow">'+x+'</div>').join('');
+  const cur=new Date(gridStart);
+  for(let cell=0;cell<42;cell++){
+    const k=key(cur);
+    const evs=byDay.get(k)||[];
+    const hrs=hrsByDay.get(k)||0;
+    const out=cur.getMonth()!==m;
+    const wkend=cur.getDay()===0||cur.getDay()===6;
+    const isToday=cur.getTime()===today.getTime();
+    const hidden=Math.max(0,evs.length-3);
+    html+='<div class="day'+(isToday?' today':'')+(wkend?' wkend':'')+(out?' out':'')+'">'
+      +'<div class="dnum"><span>'+cur.getDate()+'</span>'
+      +(hrs>0.05?'<span class="hrs">'+hrs.toFixed(1)+'h</span>':'')+'</div>'
+      +evs.map(({j,cont},i)=>{
+        const stage=stageOf(j);
+        const emp=empById[String(j.assigned_employee_id)];
+        // Everything past the third is rendered but hidden, so "+N more"
+        // reveals real chips rather than promising ones that were never made.
+        return '<div class="ev'+(cont?' cont':'')+'" data-id="'+j.id+'"'
+          +' style="background:'+(CAL_STAGE[stage]||'#8A93A3')+(i>=3?';display:none':'')+'"'
+          +' title="'+esc(j.customer_name||'Job')+' — '+esc(stage)
+          +(emp?' — '+esc(emp.name):'')+(cont?' (continues)':'')+'">'
+          +(emp?'<span class="who">'+esc(initials(emp.name))+'</span>':'')
+          +esc(j.customer_name||'Job')+'</div>';
+      }).join('')
+      +(hidden>0?'<div class="more" data-day="'+k+'">+'+hidden+' more</div>':'')
+      +'</div>';
+    cur.setDate(cur.getDate()+1);
   }
+  html+='';
   $('cal').innerHTML=html;
+
+  // The legend names only the stages this month actually shows — a legend for
+  // states nothing is in is noise.
+  const usedStages=[...new Set([...byDay.values()].flat().map(({j})=>stageOf(j)))];
+  const legend=Object.keys(CAL_STAGE).filter(st=>usedStages.includes(st))
+    .map(st=>'<span><i style="background:'+CAL_STAGE[st]+'"></i>'+esc(st)+'</span>').join('');
+  const legacy=document.querySelector('.cal-legend'); if(legacy) legacy.remove();
+  if(legend) $('cal').insertAdjacentHTML('afterend','<div class="cal-legend">'+legend+'</div>');
+
   document.querySelectorAll('.cal .ev').forEach(el=>
     el.addEventListener('click',()=>showJob(el.dataset.id)));
+  document.querySelectorAll('.cal .more').forEach(el=>
+    el.addEventListener('click',()=>{
+      const dayEl=el.closest('.day');
+      dayEl.querySelectorAll('.ev').forEach(e=>e.style.display='');
+      el.remove();
+    }));
 }
 
 /* ---------- pipeline ---------- */
@@ -3750,6 +3869,10 @@ const stepMonth = by => {
 };
 $('calPrev').addEventListener('click',()=>stepMonth(-1));
 $('calNext').addEventListener('click',()=>stepMonth(1));
+$('calToday').addEventListener('click',()=>{
+  calMonth = (() => { const t = new Date(); t.setDate(1); t.setHours(0,0,0,0); return t; })();
+  renderCal();
+});
 
 boot();
 </script>
