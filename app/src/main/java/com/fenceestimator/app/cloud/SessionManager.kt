@@ -1,9 +1,13 @@
 package com.fenceestimator.app.cloud
 
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class SessionState(
     val signedIn: Boolean = false,
@@ -156,6 +160,30 @@ class SessionManager(private val scope: CoroutineScope) {
     fun refresh() {
         if (!SupabaseModule.isConfigured) return
         scope.launch {
+            // Wait for the auth plugin to finish loading from storage before
+            // judging anything.
+            //
+            // currentUserEmail() answers null while it is still Initializing,
+            // which is indistinguishable from being signed out -- and the
+            // signed-out branch below CLEARS the cached identity. So a launch
+            // that raced storage threw away this phone's memory of its own
+            // company and showed "Working on this phone only. Sign in to back
+            // up." to somebody who was signed in the whole time. Reported
+            // immediately after logging in, which is exactly when the race is
+            // easiest to lose.
+            val settled = runCatching {
+                withTimeoutOrNull(SESSION_SETTLE_MS) {
+                    SupabaseModule.client.auth.sessionStatus
+                        .first { it !is SessionStatus.Initializing }
+                }
+            }.getOrNull()
+            if (settled == null) {
+                // Still loading, or the wait itself failed. Say nothing: leave
+                // whatever is on screen and let the next refresh decide. An
+                // unanswered question must not be recorded as a "no".
+                return@launch
+            }
+
             val email = runCatching { SupabaseModule.currentUserEmail() }.getOrNull()
             if (email == null) {
                 // Signed out. Forget who this phone belonged to, or the
@@ -295,5 +323,9 @@ class SessionManager(private val scope: CoroutineScope) {
                 }
             }
         }
+    }
+    private companion object {
+        /** How long to let the auth plugin load from storage before deciding. */
+        const val SESSION_SETTLE_MS = 5_000L
     }
 }

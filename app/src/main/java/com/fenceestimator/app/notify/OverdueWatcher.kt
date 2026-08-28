@@ -29,8 +29,22 @@ class OverdueWatcher(
     private val context: Context
 ) {
 
-    /** jobId -> the day (epoch-day) we last warned about it. */
-    private val warnedOn = mutableMapOf<Long, Long>()
+    /**
+     * jobId -> the day (epoch-day) we last warned about it. On disk, not in
+     * memory.
+     *
+     * It was a plain map, so it emptied whenever the process did -- and
+     * checkOnce() deliberately runs at launch rather than waiting out the
+     * hourly timer. So every launch found an empty map and announced every
+     * late job again. "One notification per job per day" was true only for as
+     * long as the app happened to stay alive, which on a phone is not long.
+     * Reported as being told about the same late job over and over.
+     */
+    private val warnedOn by lazy {
+        context.getSharedPreferences("overdue_warned", Context.MODE_PRIVATE)
+    }
+
+    private fun lastWarnedDay(jobId: Long): Long = warnedOn.getLong(jobId.toString(), Long.MIN_VALUE)
 
     fun start() {
         scope.launch {
@@ -48,10 +62,19 @@ class OverdueWatcher(
         val now = System.currentTimeMillis()
         val today = now / DAY_MS
 
+        // Forget jobs warned about long ago, so the file tracks live work
+        // rather than every job this phone has ever seen.
+        runCatching {
+            val stale = warnedOn.all.filterValues { it is Long && today - it > FORGET_AFTER_DAYS }
+            if (stale.isNotEmpty()) {
+                warnedOn.edit().apply { stale.keys.forEach { remove(it) } }.apply()
+            }
+        }
+
         repository.getAllJobs().forEach { job ->
             val due = overdueSince(job, now) ?: return@forEach
-            if (warnedOn[job.id] == today) return@forEach
-            warnedOn[job.id] = today
+            if (lastWarnedDay(job.id) == today) return@forEach
+            warnedOn.edit().putLong(job.id.toString(), today).apply()
 
             val hoursOver = ((now - due) / 3_600_000.0)
             val jobName = job.customerName.ifBlank {
@@ -104,5 +127,7 @@ class OverdueWatcher(
         const val WORKDAY_START_MS = 8 * 60 * 60 * 1000L
         /** Offset so overdue alerts can't collide with other notification ids. */
         const val OVERDUE_NOTIFICATION_BASE = 900_000
+        /** How long a remembered warning is kept before it is pruned. */
+        const val FORGET_AFTER_DAYS = 60L
     }
 }
