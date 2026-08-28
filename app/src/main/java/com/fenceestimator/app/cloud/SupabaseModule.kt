@@ -5,11 +5,14 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.status.RefreshFailureCause
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import io.github.jan.supabase.serializer.KotlinXSerializer
@@ -166,6 +169,15 @@ object SupabaseModule {
         NO_NETWORK,
         /** The server answered, and the answer was no. Trying later will not help. */
         SIGNED_OUT,
+
+        /**
+         * Not yet knowable -- still loading from storage, or asked again too
+         * soon after the last attempt. Callers must treat this as "ask later",
+         * never as signed out: announcing a sign-out at launch, before the
+         * stored session has finished loading, would be a false alarm on every
+         * cold start.
+         */
+        UNKNOWN,
     }
 
     /**
@@ -180,16 +192,53 @@ object SupabaseModule {
      * nothing, for ever, because only signing in again could have fixed it and
      * nothing ever said so.
      */
+    private val refreshLock = Mutex()
+    @Volatile private var lastManualRefreshAt = 0L
+
     suspend fun tryRefreshSession(): RefreshOutcome {
-        val attempt = runCatching { client.auth.refreshCurrentSession() }
-        if (attempt.isSuccess) {
-            // Succeeding without producing a token is still not being signed
-            // in, and must not be reported as if it were.
-            return if (hasLiveSession()) RefreshOutcome.OK else RefreshOutcome.SIGNED_OUT
+        // Ask the Auth plugin before doing anything, because it is already
+        // tracking this and already refreshing on its own schedule.
+        //
+        // This is the part that matters. Supabase rotates refresh tokens: each
+        // refresh mints a new one and retires the old, and presenting a retired
+        // token is treated as theft -- the whole session family is revoked and
+        // the person is signed out with no warning and no way back but signing
+        // in again. A manual refresh racing the plugin's own is precisely how
+        // the same token gets presented twice. So the default path now makes no
+        // network call at all.
+        when (val status = client.auth.sessionStatus.value) {
+            is SessionStatus.Authenticated -> if (hasLiveSession()) return RefreshOutcome.OK
+            is SessionStatus.RefreshFailure ->
+                return if (status.cause is RefreshFailureCause.NetworkError) RefreshOutcome.NO_NETWORK
+                       else RefreshOutcome.SIGNED_OUT
+            is SessionStatus.NotAuthenticated -> return RefreshOutcome.SIGNED_OUT
+            is SessionStatus.Initializing -> return RefreshOutcome.UNKNOWN
         }
-        return if (looksLikeNoNetwork(attempt.exceptionOrNull()!!)) RefreshOutcome.NO_NETWORK
-               else RefreshOutcome.SIGNED_OUT
+
+        // Authenticated, yet no usable token. Ask once -- behind a lock, so the
+        // two callers that can reach here cannot both ask at the same moment,
+        // and no more often than the cooldown, so a failing refresh cannot turn
+        // into a loop that looks like reuse from the server's side.
+        return refreshLock.withLock {
+            if (hasLiveSession()) return@withLock RefreshOutcome.OK
+            val now = System.currentTimeMillis()
+            if (now - lastManualRefreshAt < MANUAL_REFRESH_COOLDOWN_MS) {
+                return@withLock RefreshOutcome.UNKNOWN
+            }
+            lastManualRefreshAt = now
+            val attempt = runCatching { client.auth.refreshCurrentSession() }
+            when {
+                // Succeeding without producing a token is still not being
+                // signed in, and must not be reported as if it were.
+                attempt.isSuccess && hasLiveSession() -> RefreshOutcome.OK
+                attempt.isSuccess -> RefreshOutcome.SIGNED_OUT
+                looksLikeNoNetwork(attempt.exceptionOrNull()!!) -> RefreshOutcome.NO_NETWORK
+                else -> RefreshOutcome.SIGNED_OUT
+            }
+        }
     }
+
+    private const val MANUAL_REFRESH_COOLDOWN_MS = 30_000L
 
     fun currentUserId(): String? = client.auth.currentUserOrNull()?.id
 

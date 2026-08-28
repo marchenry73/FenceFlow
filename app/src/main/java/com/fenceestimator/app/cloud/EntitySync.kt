@@ -295,8 +295,20 @@ data class CloudTimeEntry(
     @SerialName("started_at") val startedAt: String,
     @SerialName("ended_at") val endedAt: String? = null,
     @SerialName("hourly_rate") val hourlyRate: Double = 0.0,
-    /** Whose shift. Was never sent, so payroll on the website could not group by person. */
-    @SerialName("employee_sync_id") val employeeSyncId: String? = null,
+    /**
+     * Whose shift. Was never sent, so payroll on the website could not group by
+     * person.
+     *
+     * Not nullable, and that is the whole point. The column is NOT NULL with a
+     * default of '', but a default only applies to a column the insert leaves
+     * out -- and PostgREST names every column explicitly when it sends a batch,
+     * so a row merely MISSING the key arrives as an explicit null and is
+     * rejected. One shift with nobody attached therefore took the entire
+     * batch down with it, every sync: no shift uploaded, no approval uploaded,
+     * and "could not sync" on screen. Empty string is what a shift with no
+     * employee has always meant here, so say it rather than omit it.
+     */
+    @SerialName("employee_sync_id") val employeeSyncId: String = "",
     val notes: String = "",
     /**
      * Approval has to travel with the shift.
@@ -1131,7 +1143,9 @@ object EntitySync {
                 repository.insertTimeEntry(
                     TimeEntry(
                         syncId = row.syncId, jobId = jobId,
-                        employeeId = row.employeeSyncId?.let { employeeIdBySyncId[it] },
+                        // "" matches no employee, which is exactly right for a
+                        // shift nobody is attached to.
+                        employeeId = employeeIdBySyncId[row.employeeSyncId],
                         startedAt = startedAt,
                         endedAt = row.endedAt?.let { at ->
                             CloudTime.parseMillis(at)
@@ -1602,7 +1616,7 @@ private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceR
 
 private fun TimeEntry.toCloud(companyId: String, jobSyncId: String, employeeSyncId: String? = null) = CloudTimeEntry(
     companyId = companyId, syncId = syncId, jobSyncId = jobSyncId,
-    employeeSyncId = employeeSyncId,
+    employeeSyncId = employeeSyncId ?: "",
     startedAt = Instant.ofEpochMilli(startedAt).toString(),
     endedAt = endedAt?.let { Instant.ofEpochMilli(it).toString() },
     hourlyRate = hourlyRate, notes = notes,
