@@ -140,7 +140,7 @@ fun AccountScreen(
                         onOpenTrash = onOpenTrash
                     )
                 }
-                item { SyncStatusCard() }
+                item { SyncStatusCard(onRecalculate = { viewModel.recalculateTotals() }) }
                 if (state.needsCompany) {
                     item { CompanySetupSection(viewModel) }
                 }
@@ -279,7 +279,7 @@ private fun SignedInSection(
 }
 
 @Composable
-private fun SyncStatusCard() {
+private fun SyncStatusCard(onRecalculate: () -> Unit) {
     val app = currentApp()
     val sync by app.autoSync.state.collectAsState()
     val timeFormat = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.US) }
@@ -321,6 +321,14 @@ private fun SyncStatusCard() {
                 enabled = sync.phase != SyncPhase.SYNCING,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.action_sync_now)) }
+            // The escape hatch for a money figure that looks wrong: rebuild
+            // every cached total from the payment ledger on the server, then
+            // pull the corrected rows. Safe at any time -- it only writes what
+            // the ledger already says.
+            OutlinedButton(
+                onClick = onRecalculate,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.acct_recalculate_totals)) }
         }
     }
 }

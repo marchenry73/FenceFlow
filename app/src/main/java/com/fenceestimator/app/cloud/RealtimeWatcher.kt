@@ -101,7 +101,18 @@ class RealtimeWatcher(
                         table = tableName
                         filter("company_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, companyId)
                     }
-                    scope.launch { flow.collect { autoSync.requestSyncFromRemote() } }
+                    // Decisions jump the queue. A shift approval or a field-
+                    // request answer is something a person is watching the
+                    // screen for; waiting out the bulk-edit quiet period made
+                    // an approval take up to twenty seconds to appear, which
+                    // reads as "it did not work".
+                    val urgent = tableName in URGENT_TABLES
+                    scope.launch {
+                        flow.collect {
+                            if (urgent) autoSync.requestUrgentSyncFromRemote()
+                            else autoSync.requestSyncFromRemote()
+                        }
+                    }
                 }
 
                 SupabaseModule.client.realtime.connect()
@@ -123,6 +134,9 @@ class RealtimeWatcher(
 
     private companion object {
         /** Tables whose changes on another phone should land here within seconds. */
+        /** Changes somebody is actively waiting to see land. */
+        private val URGENT_TABLES = setOf("time_entries", "field_changes")
+
         private val LIVE_TABLES = listOf(
             "payment_records", "fence_runs", "estimate_line_items", "job_steps",
             "time_entries", "field_changes", "change_orders", "site_markers",

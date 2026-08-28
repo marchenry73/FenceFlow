@@ -225,6 +225,10 @@ fun ReportsScreen(onBack: () -> Unit) {
             item {
                 CategoryHeader(stringResource(R.string.rep_cat_money), moneyOpen) { moneyOpen = !moneyOpen }
             }
+            // Costs, expenses and the arithmetic table are the owner’s own
+            // records, entered by their own company — gating them behind Pro
+            // read as the app hiding their money. Pro keeps the intelligence:
+            // profit and margin headline tiles, and the deeper web reports.
             if (moneyOpen) {
                 item {
                     TrendCard(
@@ -252,7 +256,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         }
                     )
                 }
-                if (ent.advancedReports) item {
+                item {
                     // Collected is money IN; the other three are what it cost
                     // to earn it. As four bars on one scale they read as four
                     // slices of one quantity, which is not what any of them is.
@@ -270,7 +274,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         empty = stringResource(R.string.rep_empty_no_money)
                     )
                 }
-                if (ent.advancedReports) item {
+                item {
                     DonutCard(
                         title = stringResource(R.string.rep_chart_expenses_by_category),
                         // Rows arrive keyed by enum name; show them in the
@@ -317,7 +321,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         }
                     )
                 }
-                if (ent.advancedReports) item {
+                item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(stringResource(R.string.rep_the_numbers), style = MaterialTheme.typography.titleMedium)

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.CloudProfile
 import com.fenceestimator.app.cloud.JobSync
+import com.fenceestimator.app.cloud.PaymentLedgerSync
+import io.github.jan.supabase.postgrest.postgrest
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.UserRole
 import com.fenceestimator.app.data.Repository
@@ -47,7 +49,24 @@ class AccountViewModel(
     }
 
     fun signIn(email: String, password: String) = run(UiMessage(R.string.vm_signed_in)) {
-        SupabaseModule.signIn(email.trim(), password)
+        try {
+            SupabaseModule.signIn(email.trim(), password)
+        } catch (e: Exception) {
+            // The raw failure is written for whoever built the auth server.
+            // The person at the door needs to know which of three different
+            // problems they have, because each has a different fix.
+            val text = "${e::class.simpleName} ${e.message}".lowercase()
+            throw when {
+                "invalid login credentials" in text || "invalid_grant" in text ||
+                "invalid_credentials" in text ->
+                    UiMessageException(UiMessage(R.string.vm_wrong_email_or_password))
+                "email not confirmed" in text || "email_not_confirmed" in text ->
+                    UiMessageException(UiMessage(R.string.vm_confirm_email_first))
+                com.fenceestimator.app.cloud.looksLikeNoNetwork(e) ->
+                    UiMessageException(UiMessage(R.string.vm_no_signal_try_again))
+                else -> e
+            }
+        }
     }
 
     fun signUp(email: String, password: String) = run(UiMessage(R.string.vm_account_created)) {
@@ -89,6 +108,22 @@ class AccountViewModel(
             throw UiMessageException(UiMessage(R.string.vm_sign_out_unsynced))
         }
         SupabaseModule.signOut()
+    }
+
+    /**
+     * Rebuilds every job's cached money figures from the payment ledger, on
+     * the server, then pulls the corrected rows down. The server keeps these
+     * in step by itself now; this button exists so that if a number ever looks
+     * wrong again, the fix is in the user's hands instead of a support call.
+     */
+    fun recalculateTotals() = run(UiMessage(R.string.vm_totals_recalculated)) {
+        SupabaseModule.client.postgrest.rpc("recalculate_my_job_totals")
+        val repo = repository ?: throw UiMessageException(UiMessage(R.string.vm_something_went_wrong))
+        val companyId = _state.value.profile?.companyId
+            ?: throw UiMessageException(UiMessage(R.string.vm_something_went_wrong))
+        JobSync.sync(repo, companyId).getOrThrow()
+        PaymentLedgerSync.sync(repo, companyId).getOrThrow()
+        Unit
     }
 
     fun syncJobs() {

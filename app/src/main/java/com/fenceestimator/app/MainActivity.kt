@@ -227,6 +227,16 @@ class MainActivity : FragmentActivity() {
                                             signingOut = true
                                             app.applicationScope.launch {
                                                 runCatching {
+                                                    // This phone has been evicted -- another
+                                                    // handset took the login. The ordinary
+                                                    // sign-out wipes the phone through
+                                                    // DataOwnership; this path called signOut()
+                                                    // directly and left the company's books on
+                                                    // a device that may be exactly the one that
+                                                    // was lost or taken. Forced, because the
+                                                    // gate already blocks syncing from here, so
+                                                    // "wait for signal first" can never succeed.
+                                                    runCatching { app.dataOwnership.onSignedOut(force = true) }
                                                     com.fenceestimator.app.cloud.ServiceGate
                                                         .clear(applicationContext)
                                                     com.fenceestimator.app.cloud.SupabaseModule.signOut()

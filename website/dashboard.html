@@ -454,14 +454,14 @@
             <h2>Revenue collected</h2><p class="sub">Money received, by month</p>
             <div id="chartRevenue"></div>
           </div>
-          <div class="panel pro-only">
+          <div class="panel">
             <h2>Where the money goes</h2>
             <p class="sub">What came in during this period, against the full cost of every job
               touched in it. A job you have quoted but not yet been paid for shows its costs here
               with none of its money — that is the gap, not a loss.</p>
             <div id="chartCosts"></div>
           </div>
-          <div class="panel pro-only">
+          <div class="panel">
             <h2>Expenses by category</h2><p class="sub">Fuel, rentals, permits and other</p>
             <div id="chartExpenses"></div>
           </div>
@@ -3102,7 +3102,7 @@ function renderReports(){
   ].filter(r=>r.value>0);
   // The cost breakdown -- what you collected against what it cost -- is the
   // Pro tier. Left empty rather than drawn and covered over.
-  if (hasAdvancedReports()) {
+  {
     // Two stacks, not one row of bars. Collected is money IN; materials,
     // labour and expenses are what it cost to earn it. The old panel put all
     // four on one bar scale, which reads as four slices of the same pie and
@@ -3114,8 +3114,6 @@ function renderReports(){
         {label:'Labour',         value:labor,    color:SERIES[1]},
         {label:'Other expenses', value:other,    color:SERIES[3]}]},
       money);
-  } else {
-    $('chartCosts').innerHTML = '';
   }
 
   // Pipeline stages
@@ -3176,7 +3174,7 @@ function renderReports(){
     const k=(e.category||'OTHER').replace(/_/g,' ');
     byCat[k]=(byCat[k]||0)+(e.amount||0);
   });
-  if (hasAdvancedReports()) {
+  {
     const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v}));
     donut('chartExpenses', catRows, money);
     pickable('chartExpenses', i => {
@@ -3193,8 +3191,6 @@ function renderReports(){
           sub: jobName(e.job_sync_id), amount: money(e.amount) }))
       });
     });
-  } else {
-    $('chartExpenses').innerHTML = '';
   }
 
   // Lead sources

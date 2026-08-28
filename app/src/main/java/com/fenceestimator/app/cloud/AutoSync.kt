@@ -234,6 +234,19 @@ class AutoSync(
      * all. It just arrives as one calm sync after the other phone goes quiet,
      * instead of a ripple per row.
      */
+    /**
+     * A change someone is actively waiting on -- a shift approval, an answer
+     * to a field request. These go through the short debounce rather than the
+     * remote quiet period: the twenty-second wait exists to keep two phones
+     * from ping-ponging over bulk edits, and a decision is not bulk. The crew
+     * member is standing there watching the screen to see if their hours went
+     * through.
+     */
+    fun requestUrgentSyncFromRemote() {
+        if (System.currentTimeMillis() - lastPushCompletedAt < REMOTE_ECHO_WINDOW_MS) return
+        manualTrigger.tryEmit(Unit)
+    }
+
     fun requestSyncFromRemote() {
         if (System.currentTimeMillis() - lastPushCompletedAt < REMOTE_ECHO_WINDOW_MS) return
         remoteTrigger.tryEmit(Unit)

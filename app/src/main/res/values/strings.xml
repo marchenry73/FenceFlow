@@ -1363,6 +1363,11 @@
     <string name="vm_business_created">Business created</string>
     <string name="vm_you_are_set_up">You are set up</string>
     <string name="vm_joined_business">Joined business -- your owner will confirm your access</string>
+    <string name="vm_wrong_email_or_password">Wrong email or password. Check both and try again.</string>
+    <string name="vm_confirm_email_first">This account’s email has not been confirmed yet — open the confirmation email we sent and tap the link, then sign in.</string>
+    <string name="vm_no_signal_try_again">No signal. Nothing is wrong with the account — try again when you have service.</string>
+    <string name="acct_recalculate_totals">Recalculate money totals</string>
+    <string name="vm_totals_recalculated">Money totals rebuilt from the payment ledger.</string>
     <string name="vm_signed_out">Signed out</string>
     <string name="vm_sign_out_unsynced">You have work that hasn\'t uploaded yet. Get signal and let it sync, or sign out anyway to discard it.</string>
     <string name="vm_synced_up_down">Synced: %1$d sent up, %2$d brought down</string>
