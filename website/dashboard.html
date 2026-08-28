@@ -175,6 +175,41 @@
   .range-label{margin-top:9px;font-size:12px;color:var(--muted)}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
   .panel .sub{font-size:12px;color:var(--muted);margin:-6px 0 12px}
+  /* ---- the hero band ----------------------------------------------------
+     The one figure the owner opens this tab for, said once and said large,
+     in the brand's own steel. Everything else on the page is white cards;
+     this is deliberately the only dark surface, so it reads as the headline
+     rather than one tile among eight. */
+  .hero-band{background:linear-gradient(135deg,var(--graphite2),var(--graphite));color:#fff;
+             border-radius:14px;padding:20px 24px;margin-bottom:14px;display:flex;
+             justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;
+             cursor:pointer;border-top:3px solid var(--orange)}
+  .hero-band .cap{font-size:11px;color:#8A93A3;text-transform:uppercase;letter-spacing:.6px}
+  .hero-band .big{font:700 clamp(34px,5vw,46px)/1.05 "Barlow Condensed","Arial Narrow",sans-serif;
+                  font-variant-numeric:tabular-nums;margin-top:2px}
+  .hero-band svg{display:block}
+  .delta{display:inline-block;font-size:11.5px;font-weight:700;border-radius:12px;
+         padding:2px 9px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .delta.up{background:#E6F6F1;color:#0B6B4F}
+  .delta.down{background:#FDECEC;color:#8C1114}
+  .delta.flat{background:#EEF2F7;color:#5A6472}
+  .hero-band .delta.up{background:rgba(27,175,122,.18);color:#7DE0B9}
+  .hero-band .delta.down{background:rgba(229,72,77,.2);color:#F1A1A4}
+  .hero-band .delta.flat{background:rgba(255,255,255,.12);color:#AEBBCC}
+  /* ---- needs attention --------------------------------------------------
+     The report that only mirrors is a report people stop opening. These are
+     the things that cost money by sitting still, found automatically, each
+     one openable to the rows behind it. */
+  .attn{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-bottom:18px}
+  .attn .a{background:#fff;border:1px solid var(--line);border-left:4px solid var(--orange);
+           border-radius:10px;padding:12px 14px;cursor:pointer;transition:border-color .1s}
+  .attn .a:hover{border-color:var(--orange)}
+  .attn .a b{font:700 21px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;
+             font-variant-numeric:tabular-nums;display:block}
+  .attn .a span{font-size:12.5px;color:var(--ink-2,#454F49);color:var(--text)}
+  .attn .a .why{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .attn .clear{border-left-color:#1baf7a;cursor:default}
+  .attn .clear b{color:#0B6B4F}
   .chart{width:100%;overflow:visible;display:block}
   .chart .grid-line{stroke:var(--grid);stroke-width:1}
   .chart .axis-label{fill:var(--text-secondary);font-size:11px}
@@ -489,6 +524,8 @@
         <div id="repRangeLabel" class="range-label"></div>
       </div>
 
+      <div class="hero-band" id="repHeroBand"></div>
+      <div class="attn" id="repAttention"></div>
       <div class="stats" id="repHero"></div>
 
       <!-- Grouped so the page opens readable rather than as a wall of eight
@@ -3141,11 +3178,128 @@ function renderReports(){
     <div class="stat askable" data-xp="margin"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>`;
   $('repRangeLabel').title = 'Collected and Hours count what happened inside this window. '
     + 'Est. profit is measured across the whole of every job touched in it.';
+  // ---- movement against the same-length window immediately before -------
+  // A figure alone says where you are; only the comparison says which way
+  // you are going. Same length, immediately adjacent, so seasonality lies as
+  // little as a simple comparison can.
+  const spanMs = repTo - repFrom;
+  const canCompare = spanMs > 0 && spanMs < 2 * 365 * 864e5; // "All time" has no meaningful before
+  const prevTo = new Date(repFrom.getTime() - 1);
+  const prevFrom = new Date(repFrom.getTime() - spanMs - 1);
+  const inPrev = ds => { if(!ds) return false; const t = d(ds); return t >= prevFrom && t <= prevTo; };
+
+  const prevCollected = payments.filter(p=>inPrev(p.received_at)).reduce((s,p)=>s+(p.amount||0),0);
+  const prevJobs = jobs.filter(j=>inPrev(j.updated_at||j.created_at));
+  const prevWon = prevJobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED').length;
+  const prevQuotes = prevJobs.filter(j=>j.status!=='DRAFT').length;
+  const prevClose = prevQuotes ? prevWon/prevQuotes*100 : 0;
+  const prevHours = times.filter(t=>t.ended_at&&inPrev(t.started_at)&&hourFilterOk(d(t.started_at)))
+    .reduce((s,t)=>s+hoursOf(t),0);
+
+  const deltaChip = (now, prev) => {
+    if (!canCompare) return '';
+    if (prev <= 0 && now <= 0) return '';
+    if (prev <= 0) return '<span class="delta up">new</span>';
+    const pct = (now - prev) / prev * 100;
+    const cls = pct > 2 ? 'up' : pct < -2 ? 'down' : 'flat';
+    const arrow = pct > 2 ? '▲' : pct < -2 ? '▼' : '•';
+    return '<span class="delta ' + cls + '">' + arrow + ' ' +
+      (Math.abs(pct) >= 1000 ? '10x+' : Math.abs(pct).toFixed(0) + '%') + ' vs previous</span>';
+  };
+
+  // ---- the hero band: collected, huge, with its shape --------------------
+  const wk = new Map();
+  paymentsIn.forEach(p=>{
+    const t=d(p.received_at); const monday=new Date(t); monday.setHours(0,0,0,0);
+    monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+    wk.set(monday.getTime(), (wk.get(monday.getTime())||0)+(p.amount||0));
+  });
+  const wkPts=[...wk.entries()].sort((a,b)=>a[0]-b[0]).map(e=>e[1]);
+  let spark='';
+  if(wkPts.length>1){
+    const W=210,H=56,mx=Math.max(...wkPts,1);
+    const pts=wkPts.map((v,i)=>((i/(wkPts.length-1))*W).toFixed(1)+','+ (H-4-(v/mx)*(H-10)).toFixed(1));
+    spark='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true">'
+      +'<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--orange)" stroke-width="2.5" '
+      +'stroke-linejoin="round" stroke-linecap="round"/>'
+      +'<circle cx="'+pts[pts.length-1].split(',')[0]+'" cy="'+pts[pts.length-1].split(',')[1]+'" r="4" fill="var(--orange)"/></svg>'
+      +'<div class="cap" style="text-align:right;margin-top:3px">by week</div>';
+  }
+  $('repHeroBand').innerHTML =
+    '<div><div class="cap">Collected this period</div>'
+    +'<div class="big">'+money(collected)+'</div>'
+    +deltaChip(collected, prevCollected)+'</div>'
+    +'<div>'+spark+'</div>';
+  $('repHeroBand').onclick = () => showExplain(XP.collected());
+
+  // ---- needs attention ---------------------------------------------------
+  const attn = [];
+  const unapproved = times.filter(t=>t.ended_at && !t.approved_at && !t.rejected_at);
+  const unappH = unapproved.reduce((s,t)=>s+hoursOf(t),0);
+  if (unappH > 0.05) attn.push({
+    n: unappH.toFixed(1)+' h', what: 'waiting on sign-off',
+    why: 'The crew are not paid and job costs are understated until these are approved.',
+    open: () => showExplain({
+      title:'Hours waiting on sign-off', value: unappH.toFixed(1)+' h',
+      how:'Every finished shift nobody has approved or rejected yet, whenever it happened.',
+      rowsTitle:'The shifts',
+      rows: unapproved.sort((a,b)=>d(b.started_at)-d(a.started_at)).map(t=>({
+        label: (shiftOwner(t)?.name || 'Nobody attached'),
+        sub: (jobBySync(t.job_sync_id)?.customer_name || '—') + ' · ' + d(t.started_at).toLocaleDateString(),
+        amount: hoursOf(t).toFixed(1)+' h' }))
+    })
+  });
+  const staleOwed = arAging.filter(r=>Number(r.owed||0)>0 && Number(r.days_out||0)>=60);
+  const staleSum = staleOwed.reduce((s,r)=>s+Number(r.owed||0),0);
+  if (staleSum > 0.5) attn.push({
+    n: money(staleSum), what: 'owed for 60+ days',
+    why: 'Debt gets harder to collect the longer it sits. The table below has a Text-them button.',
+    open: () => showExplain({
+      title:'Owed for 60 days or more', value: money(staleSum),
+      how:'Everything still outstanding where the debt is at least sixty days old.',
+      rowsTitle:'Who owes it',
+      rows: staleOwed.sort((a,b)=>Number(b.owed)-Number(a.owed)).map(r=>({
+        label: r.customer_name||'Unnamed', sub: r.days_out+' days', amount: money(r.owed) }))
+    })
+  });
+  const quiet = jobs.filter(j=>j.status==='SENT'
+    && (Date.now()-d(j.updated_at||j.created_at).getTime()) > 14*864e5);
+  if (quiet.length) attn.push({
+    n: String(quiet.length), what: quiet.length===1?'quote gone quiet':'quotes gone quiet',
+    why: 'Sent over two weeks ago with no answer. A call usually settles it either way.',
+    open: () => showExplain({
+      title:'Quotes gone quiet', value: String(quiet.length),
+      how:'Quotes sent more than fourteen days ago that nobody has accepted or declined.',
+      rowsTitle:'The quotes',
+      rows: quiet.map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'',
+        amount: d(j.updated_at||j.created_at).toLocaleDateString() }))
+    })
+  });
+  const orphan = times.filter(t=>t.ended_at && !(t.employee_sync_id||'').trim());
+  if (orphan.length) attn.push({
+    n: String(orphan.length), what: orphan.length===1?'shift with nobody attached':'shifts with nobody attached',
+    why: 'These cannot carry a pay rate until someone owns them, so their labour costs read as $0.',
+    open: () => showExplain({
+      title:'Shifts with nobody attached', value: String(orphan.length),
+      how:'Finished shifts whose crew member was never set. Open the shift in the app and pick who worked it.',
+      rowsTitle:'The shifts',
+      rows: orphan.map(t=>({ label: jobBySync(t.job_sync_id)?.customer_name || '—',
+        sub: d(t.started_at).toLocaleDateString(), amount: hoursOf(t).toFixed(1)+' h' }))
+    })
+  });
+  $('repAttention').innerHTML = attn.length
+    ? attn.map((a,i)=>'<div class="a" data-attn="'+i+'"><b>'+esc(a.n)+'</b>'
+        +'<span>'+esc(a.what)+'</span><span class="why">'+esc(a.why)+'</span></div>').join('')
+    : '<div class="a clear"><b>All clear</b><span>Nothing is sitting still — no unapproved hours, '
+      +'no stale debt, no quiet quotes.</span></div>';
+  document.querySelectorAll('#repAttention .a[data-attn]').forEach(el=>
+    el.addEventListener('click',()=>attn[Number(el.dataset.attn)].open()));
+
   $('repHero').innerHTML=`
-    <div class="stat askable" data-xp="collected"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>${proTiles}
-    <div class="stat askable" data-xp="won"><div class="n">${won.length}</div><div class="l">Jobs won</div></div>
-    <div class="stat askable" data-xp="close"><div class="n">${closing.toFixed(0)}%</div><div class="l">Close rate</div></div>
-    <div class="stat askable" data-xp="hours"><div class="n">${hours.toFixed(0)}</div><div class="l">Hours clocked</div></div>`;
+    ${proTiles}
+    <div class="stat askable" data-xp="won"><div class="n">${won.length}</div><div class="l">Jobs won</div>${deltaChip(won.length, prevWon)}</div>
+    <div class="stat askable" data-xp="close"><div class="n">${closing.toFixed(0)}%</div><div class="l">Close rate</div>${deltaChip(closing, prevClose)}</div>
+    <div class="stat askable" data-xp="hours"><div class="n">${hours.toFixed(0)}</div><div class="l">Hours clocked</div>${deltaChip(hours, prevHours)}</div>`;
 
   // Every headline figure explains itself. Wired here rather than inline so
   // the wording lives in one place and can be read as a whole.
