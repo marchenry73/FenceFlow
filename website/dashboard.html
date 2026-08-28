@@ -1303,30 +1303,39 @@ function renderProcessor(){
       </button>`;
   }).join('');
 
-  if (chosen === 'square' && !connected) {
+  // Whichever processor is chosen gets a Connect button. Stripe used to fall
+  // through to a sentence saying it was not connected, with nothing to press
+  // — the flow existed for Square only, and its absence read as the product
+  // being broken rather than the button being missing.
+  const CONNECT = {
+    square: { fn: 'square-oauth',   label: 'Connect my Square account', word: 'Square' },
+    stripe: { fn: 'stripe-connect', label: 'Connect my Stripe account', word: 'Stripe' },
+  };
+  const c = CONNECT[chosen];
+  if (c && !connected) {
     $('processorChoices').insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;margin-top:10px">
-         <button class="btn" id="connectSquare">Connect my Square account</button>
+         <button class="btn" id="connectProc">${c.label}</button>
        </div>`);
-    $('connectSquare').addEventListener('click', async () => {
-      const b = $('connectSquare');
+    $('connectProc').addEventListener('click', async () => {
+      const b = $('connectProc');
       b.disabled = true;
-      msg('processorMsg', 'Opening Square…', 'working');
+      msg('processorMsg', 'Opening ' + c.word + '…', 'working');
       const { data: sess } = await db.auth.getSession();
       try {
-        const res = await fetch(`${SUPA_URL}/functions/v1/square-oauth?action=start`, {
+        const res = await fetch(`${SUPA_URL}/functions/v1/${c.fn}?action=start`, {
           headers: { Authorization: `Bearer ${sess?.session?.access_token}` },
         });
         const body = await res.json().catch(() => ({}));
         if (body.url) { location.href = body.url; return; }
         b.disabled = false;
-        msg('processorMsg', body.error || 'Could not open Square just now.', 'err');
+        msg('processorMsg', body.error || ('Could not open ' + c.word + ' just now.'), 'err');
       } catch (e) {
         b.disabled = false;
-        msg('processorMsg', 'Could not reach Square: ' + (e.message || e), 'err');
+        msg('processorMsg', 'Could not reach ' + c.word + ': ' + (e.message || e), 'err');
       }
     });
-    msg('processorMsg', 'Square is chosen. Connect the account and card requests switch on — '
+    msg('processorMsg', c.word + ' is chosen. Connect the account and card requests switch on — '
       + 'until then the app will tell you to take the payment another way rather than taking '
       + 'one nobody can record.', 'info');
   } else if (chosen !== 'none' && !connected) {
@@ -1428,16 +1437,19 @@ function showServiceBanner(s){
  * whether it worked or not, which is the same fault the Stripe return had.
  */
 function settleAfterSquare(){
-  const p = new URLSearchParams(location.search).get('square');
-  if (!p) return;
+  // One handler for both processors' round trips; the parameter names which.
+  const q = new URLSearchParams(location.search);
+  const which = q.get('square') ? 'Square' : q.get('stripe') ? 'Stripe' : null;
+  if (!which) return;
+  const p = q.get('square') || q.get('stripe');
   history.replaceState({}, '', location.pathname + location.hash);
   switchTab('billing');
   const say = {
-    connected: ['Square is connected. Card requests from the app now go to your Square account.', 'ok'],
-    cancelled: ['No changes were made — you did not finish connecting Square.', 'info'],
+    connected: [which + ' is connected. Card requests from the app now go to your ' + which + ' account.', 'ok'],
+    cancelled: ['No changes were made — you did not finish connecting ' + which + '.', 'info'],
     expired:   ['That connection attempt timed out. Press Connect again.', 'err'],
-    failed:    ['Square would not complete the connection. Press Connect to try again.', 'err'],
-  }[p] || ['Something came back from Square that we did not recognise.', 'err'];
+    failed:    [which + ' would not complete the connection. Press Connect to try again.', 'err'],
+  }[p] || ['Something came back from ' + which + ' that we did not recognise.', 'err'];
   msg('processorMsg', say[0], say[1]);
 }
 

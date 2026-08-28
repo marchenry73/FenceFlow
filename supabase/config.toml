@@ -46,3 +46,9 @@ verify_jwt = false
 # and refuses without one -- so the gateway must not check first.
 [functions.square-oauth]
 verify_jwt = false
+
+# Same two-faced URL as square-oauth: the callback arrives from Stripe with
+# no JWT, so the gateway must let it through and the function checks the
+# start half itself.
+[functions.stripe-connect]
+verify_jwt = false
