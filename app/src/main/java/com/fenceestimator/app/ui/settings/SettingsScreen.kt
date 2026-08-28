@@ -256,6 +256,20 @@ fun SettingsScreen(
                     OutlinedButton(onClick = onOpenAccount, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.set_manage_account))
                     }
+                    // This lived under "Ordering", between the preferred
+                    // manufacturer and the order-email template, because it sat
+                    // next to Manage Manufacturers and both open a list. But
+                    // one is suppliers and the other is people's pay, and
+                    // nobody looks for a wage under Ordering -- it was reported
+                    // as the app simply not having the option.
+                    //
+                    // Crew management is a Crew-plan feature; a Solo company
+                    // has no seats to manage (the server refuses joins too).
+                    if (com.fenceestimator.app.ui.components.LocalEntitlements.current.timeAndCrew) {
+                        OutlinedButton(onClick = onOpenEmployees, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.set_manage_crew))
+                        }
+                    }
                 }
             }
             item {
@@ -471,13 +485,6 @@ fun SettingsScreen(
                     }
                     OutlinedButton(onClick = onOpenManufacturers, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.set_manage_manufacturers))
-                    }
-                    // Crew management is a Crew-plan feature; a Solo company
-                    // has no seats to manage (the server refuses joins too).
-                    if (com.fenceestimator.app.ui.components.LocalEntitlements.current.timeAndCrew) {
-                        OutlinedButton(onClick = onOpenEmployees, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.set_manage_crew))
-                        }
                     }
                     DraftTextField(
                         stableKey = "order_tmpl", initialValue = local.orderEmailTemplate,
