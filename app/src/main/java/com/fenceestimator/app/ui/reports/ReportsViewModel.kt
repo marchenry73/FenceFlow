@@ -55,7 +55,19 @@ enum class HourFilter {
 }
 
 /** One row of a bar chart: a name and a magnitude. */
-data class ChartRow(val label: String, val value: Double)
+data class ChartRow(
+    val label: String,
+    val value: Double,
+    /**
+     * What this row IS, as opposed to what it is labelled.
+     *
+     * The revenue chart labels a month "Aug". Over a range spanning more than
+     * a year there are two of those, bucketed separately in the chart but
+     * indistinguishable to anything matching on the label -- so a drill-down
+     * would merge them and show the wrong payments under the right heading.
+     */
+    val key: String = ""
+)
 
 data class ReportTotals(
     val collected: Double = 0.0,
@@ -309,7 +321,7 @@ class ReportsViewModel(
         val names = arrayOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
         return months.entries.toList().takeLast(12).map { entry ->
             val monthIndex = entry.key.substringAfter("-").toInt() - 1
-            ChartRow(names[monthIndex.coerceIn(0, 11)], entry.value)
+            ChartRow(names[monthIndex.coerceIn(0, 11)], entry.value, key = entry.key)
         }
     }
 
