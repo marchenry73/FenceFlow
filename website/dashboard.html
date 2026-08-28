@@ -486,6 +486,11 @@
         </div>
 
         <div class="panel pro-only" style="margin-top:12px">
+          <h2>How old the money owed is</h2>
+          <p class="sub">The same debts as the table below, grouped by how long they have been
+            outstanding. Counts are in brackets.</p>
+          <div id="chartAging" style="margin-bottom:22px"></div>
+
           <h2>Who owes you</h2>
           <p class="sub">
             Outstanding balances by how long they have been out. The oldest money
@@ -2109,6 +2114,174 @@ function noData(el,text){ $(el).innerHTML=`<div class="no-data">${esc(text)}</di
  * Horizontal bars. One series → one colour (slot 1); a value-ramp across
  * nominal categories would double-encode length as hue.
  */
+/* ---- More than one shape ------------------------------------------------
+   Five of the six panels on this tab were the same horizontal bar chart, which
+   is most of why the whole section read as generic. A bar chart answers "how
+   do these compare"; it is the wrong answer for a trend, for a composition,
+   and for a sequence that loses people at each step. Each of those gets its
+   own shape below. */
+
+/** Money over time. A trend is a line, not a row of separate columns. */
+function areaTrend(el, rows, fmt){
+  if(!rows.length || rows.every(r => !r.value)) return noData(el,'Nothing in this period.');
+  const w=560, h=230, padL=62, padB=32, padT=16, padR=14;
+  const plotH=h-padB-padT, plotW=w-padL-padR;
+  const vals=rows.map(r=>r.value);
+  const max=Math.max(...vals, 0), min=Math.min(...vals, 0);
+  const span=(max-min)||1;
+  const x=i=> rows.length===1 ? padL+plotW/2 : padL+(i/(rows.length-1))*plotW;
+  const y=v=> padT+plotH-((v-min)/span)*plotH;
+
+  const ticks=[0,.5,1].map(t=>{
+    const v=min+span*t, yy=y(v);
+    return `<line class="grid-line" x1="${padL}" y1="${yy}" x2="${w-padR}" y2="${yy}"/>
+      <text class="axis-label" x="${padL-8}" y="${yy+4}" text-anchor="end">${esc(fmt(v))}</text>`;
+  }).join('');
+
+  const line=rows.map((r,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(r.value).toFixed(1)}`).join(' ');
+  const base=y(Math.max(min,0));
+  const area=`${line} L${x(rows.length-1).toFixed(1)},${base.toFixed(1)} L${x(0).toFixed(1)},${base.toFixed(1)} Z`;
+
+  // The last point is the one people are looking for, so it is the only one
+  // labelled -- a number on every point is noise, not information.
+  const last=rows[rows.length-1];
+  const dots=rows.map((r,i)=>`<g><title>${esc(r.label)}: ${esc(fmt(r.value))}</title>
+    <circle cx="${x(i).toFixed(1)}" cy="${y(r.value).toFixed(1)}" r="4.5"
+            fill="var(--surface-1,#fff)" stroke="${SERIES[0]}" stroke-width="2"/></g>`).join('');
+
+  const xlab=rows.map((r,i)=>
+    (rows.length<=8 || i%Math.ceil(rows.length/8)===0 || i===rows.length-1)
+      ? `<text class="axis-label" x="${x(i).toFixed(1)}" y="${h-10}" text-anchor="middle">${esc(r.label)}</text>`
+      : '').join('');
+
+  $(el).innerHTML=`<svg class="chart" viewBox="0 0 ${w} ${h}" role="img"
+    aria-label="Trend over time">
+    <defs><linearGradient id="ar-${el}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${SERIES[0]}" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="${SERIES[0]}" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${ticks}
+    <path d="${area}" fill="url(#ar-${el})"/>
+    <path d="${line}" fill="none" stroke="${SERIES[0]}" stroke-width="2"
+          stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}${xlab}
+    <text class="val-label" x="${x(rows.length-1).toFixed(1)}" y="${(y(last.value)-12).toFixed(1)}"
+          text-anchor="end">${esc(fmt(last.value))}</text>
+  </svg>`;
+}
+
+/** A composition: parts of one whole, with the whole named in the middle. */
+function donut(el, rows, fmt){
+  const live=rows.filter(r=>r.value>0);
+  if(!live.length) return noData(el,'Nothing in this period.');
+  const total=live.reduce((s,r)=>s+r.value,0);
+  const size=230, cx=size/2, cy=size/2, rOut=96, rIn=62;
+  let a=-Math.PI/2;
+
+  const arcs=live.map((r,i)=>{
+    const sweep=(r.value/total)*Math.PI*2;
+    // A 2px gap of surface between neighbouring fills, so two similar values
+    // still read as two segments.
+    const gap= live.length>1 ? 0.016 : 0;
+    const a0=a+gap/2, a1=a+sweep-gap/2;
+    a+=sweep;
+    if(a1<=a0) return '';
+    const big=(a1-a0)>Math.PI?1:0;
+    const p=(rad,ang)=>`${(cx+rad*Math.cos(ang)).toFixed(2)},${(cy+rad*Math.sin(ang)).toFixed(2)}`;
+    const fill=SERIES[i%SERIES.length];
+    return `<g><title>${esc(r.label)}: ${esc(fmt(r.value))} (${(100*r.value/total).toFixed(0)}%)</title>
+      <path d="M${p(rOut,a0)} A${rOut},${rOut} 0 ${big} 1 ${p(rOut,a1)}
+               L${p(rIn,a1)} A${rIn},${rIn} 0 ${big} 0 ${p(rIn,a0)} Z" fill="${fill}"/></g>`;
+  }).join('');
+
+  $(el).innerHTML=`<svg class="chart" viewBox="0 0 ${size} ${size}" role="img"
+      aria-label="Composition" style="max-width:250px;margin:0 auto">
+      ${arcs}
+      <text x="${cx}" y="${cy-2}" text-anchor="middle" class="val-label"
+            style="font-size:17px">${esc(fmt(total))}</text>
+      <text x="${cx}" y="${cy+15}" text-anchor="middle" class="axis-label">total</text>
+    </svg>
+    <div class="legend">${live.map((r,i)=>
+      `<span><i style="background:${SERIES[i%SERIES.length]}"></i>${esc(r.label)} ${esc(fmt(r.value))}</span>`
+    ).join('')}</div>`;
+}
+
+/** A sequence that loses people at each step. The drop IS the information, so
+    it is stated between the steps rather than left to be worked out. */
+function funnelV(el, steps, fmt){
+  const live=steps.filter(s=>s.value>0);
+  if(live.length<2) return noData(el,'Not enough in this period to show a funnel.');
+  const w=560, rowH=54, pad=10;
+  const h=live.length*rowH+pad*2;
+  const max=live[0].value, plotW=w-190;
+
+  const body=live.map((s,i)=>{
+    const y=pad+i*rowH;
+    const bw=Math.max(3,(s.value/max)*plotW);
+    // One hue, stepping darker down the funnel: these are stages of one thing,
+    // not four different things, and four hues would say otherwise.
+    // Floor at 0.45: below that the first step washes out against white,
+    // and the widest bar in the funnel is the one carrying the total.
+    const shade=[0.45,0.59,0.72,0.86,1][Math.min(i,4)];
+    const drop = i>0
+      ? `<text class="axis-label" x="${185+bw+10}" y="${y+34}">
+           ${live[i-1].value ? (100*s.value/live[i-1].value).toFixed(0) : 0}% of the step above</text>`
+      : '';
+    return `<g><title>${esc(s.label)}: ${esc(fmt(s.value))}</title>
+      <text class="axis-label" x="177" y="${y+22}" text-anchor="end">${esc(s.label)}</text>
+      <rect class="bar" x="185" y="${y+6}" width="${bw}" height="22" rx="4"
+            fill="${SERIES[0]}" opacity="${shade}"/>
+      <text class="val-label" x="${185+bw+10}" y="${y+22}">${esc(fmt(s.value))}</text>
+      ${drop}</g>`;
+  }).join('');
+
+  $(el).innerHTML=`<svg class="chart" viewBox="0 0 ${w} ${h}" role="img"
+    aria-label="Conversion funnel">${body}</svg>`;
+}
+
+/** Two stacks side by side: what came in, and what it cost to earn it.
+    Income and outgoings are not categories of one quantity, and putting them
+    on one bar scale as though they were is what the old panel did. */
+function stackedPair(el, left, right, fmt){
+  const lTot=left.parts.reduce((s,p)=>s+p.value,0);
+  const rTot=right.parts.reduce((s,p)=>s+p.value,0);
+  if(lTot<=0 && rTot<=0) return noData(el,'Nothing in this period.');
+  const w=560, h=250, padT=18, padB=44, base=h-padB;
+  const plotH=h-padT-padB;
+  const max=Math.max(lTot,rTot,1);
+  const colW=104;
+  const xs=[w/2-colW-46, w/2+46];
+
+  const draw=(col, parts, x, offset)=>{
+    let acc=0;
+    return parts.filter(p=>p.value>0).map((p,i)=>{
+      const ph=(p.value/max)*plotH;
+      const y=base-((acc+p.value)/max)*plotH;
+      acc+=p.value;
+      // 2px of surface between segments so neighbouring fills stay countable.
+      return `<g><title>${esc(p.label)}: ${esc(fmt(p.value))}</title>
+        <rect x="${x}" y="${y}" width="${colW}" height="${Math.max(1,ph-2)}" rx="3"
+              fill="${p.color||SERIES[(i+offset)%SERIES.length]}"/></g>`;
+    }).join('');
+  };
+
+  const total=(x,t)=>`<text class="val-label" x="${x+colW/2}" y="${base-((t/max)*plotH)-8}"
+     text-anchor="middle">${esc(fmt(t))}</text>`;
+
+  $(el).innerHTML=`<svg class="chart" viewBox="0 0 ${w} ${h}" role="img"
+      aria-label="Money in against what it cost">
+      <line class="grid-line" x1="24" y1="${base}" x2="${w-24}" y2="${base}"/>
+      ${draw(left,left.parts,xs[0],0)}${total(xs[0],lTot)}
+      ${draw(right,right.parts,xs[1],1)}${total(xs[1],rTot)}
+      <text class="axis-label" x="${xs[0]+colW/2}" y="${base+18}" text-anchor="middle">${esc(left.label)}</text>
+      <text class="axis-label" x="${xs[1]+colW/2}" y="${base+18}" text-anchor="middle">${esc(right.label)}</text>
+    </svg>
+    <div class="legend">${
+      [...left.parts,...right.parts].filter(p=>p.value>0).map((p,i)=>
+        `<span><i style="background:${p.color||SERIES[i%SERIES.length]}"></i>${esc(p.label)}</span>`
+      ).join('')}</div>`;
+}
+
 function barsH(el,rows,fmt,colorFn){
   if(!rows.length) return noData(el,'Nothing in this period.');
   const rowH=34, pad=8, labelW=130, w=560;
@@ -2624,6 +2797,47 @@ function renderScorecard(){
       b.last ? b.last.toLocaleDateString() : ''])));
 }
 
+/** How overdue the money is.
+ *
+ *  "Who owes you" lists the debts; it does not say whether they are a week old
+ *  or a season old, and those are different problems. Buckets are the standard
+ *  30/60/90 the rest of the trade uses, so the figures mean the same here as
+ *  they do to a bookkeeper.
+ *
+ *  A single sequential hue, deliberately: these are one measure getting worse,
+ *  not four different things. */
+function renderAgingChart(){
+  const el='chartAging';
+  if(!$(el)) return;
+  if(!arAging.length) return noData(el,'Nobody owes you anything.');
+  const buckets=[
+    {label:'Under 30 days', min:0,  max:30,       n:0, value:0},
+    {label:'30 to 60',      min:30, max:60,       n:0, value:0},
+    {label:'60 to 90',      min:60, max:90,       n:0, value:0},
+    {label:'Over 90 days',  min:90, max:Infinity, n:0, value:0}
+  ];
+  arAging.forEach(r=>{
+    const days=Number(r.days_out||0), owed=Number(r.owed||0);
+    if(owed<=0) return;
+    const b=buckets.find(b=>days>=b.min && days<b.max);
+    if(b){ b.value+=owed; b.n+=1; }
+  });
+  const live=buckets.filter(b=>b.value>0);
+  if(!live.length) return noData(el,'Nobody owes you anything.');
+  const shade=['0.34','0.55','0.78','1'];
+  barsH(el,
+    live.map(b=>({label:`${b.label} (${b.n})`, value:b.value, _i:buckets.indexOf(b)})),
+    money,
+    r=>`color-mix(in srgb, #E5484D ${Number(shade[r._i])*100}%, #F3C9C9)`);
+  const oldest=live[live.length-1];
+  $(el).insertAdjacentHTML('beforeend',
+    `<p class="sub" style="margin:10px 0 0">${
+      oldest.min>=60
+        ? `${money(oldest.value)} has been outstanding ${oldest.label.toLowerCase().replace(' (${oldest.n})','')}. Debt gets harder to collect the longer it sits.`
+        : 'Nothing has been outstanding more than 60 days.'
+    }</p>`);
+}
+
 function renderReports(){
   if(!repFrom) setPreset(90);
   $('repRangeLabel').textContent =
@@ -2691,7 +2905,7 @@ function renderReports(){
     const k=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
     byMonth[k]=(byMonth[k]||0)+(p.amount||0);
   });
-  colsV('chartRevenue',
+  areaTrend('chartRevenue',
     Object.keys(byMonth).sort().slice(-12).map(k=>({
       label:new Date(k+'-01').toLocaleDateString('en-US',{month:'short'}),
       value:byMonth[k]
@@ -2707,17 +2921,24 @@ function renderReports(){
   // The cost breakdown -- what you collected against what it cost -- is the
   // Pro tier. Left empty rather than drawn and covered over.
   if (hasAdvancedReports()) {
-    barsH('chartCosts',costRows,money,(r,i)=>SERIES[i%SERIES.length]);
-    $('chartCosts').insertAdjacentHTML('beforeend',
-      `<div class="legend">${costRows.map((r,i)=>
-        `<span><i style="background:${SERIES[i%SERIES.length]}"></i>${esc(r.label)}</span>`).join('')}</div>`);
+    // Two stacks, not one row of bars. Collected is money IN; materials,
+    // labour and expenses are what it cost to earn it. The old panel put all
+    // four on one bar scale, which reads as four slices of the same pie and
+    // is not what any of them are.
+    stackedPair('chartCosts',
+      {label:'Money in',      parts:[{label:'Collected', value:collected, color:'#1baf7a'}]},
+      {label:'What it cost',  parts:[
+        {label:'Materials',      value:material, color:SERIES[0]},
+        {label:'Labour',         value:labor,    color:SERIES[1]},
+        {label:'Other expenses', value:other,    color:SERIES[3]}]},
+      money);
   } else {
     $('chartCosts').innerHTML = '';
   }
 
   // Pipeline stages
   const stages=['New Lead','Quote Sent','Approved','Deposit Paid','Scheduled','Installed','Paid in Full'];
-  barsH('chartStages',
+  funnelV('chartStages',
     stages.map(s=>({label:s,value:jobs.filter(j=>stageOf(j)===s).length})).filter(r=>r.value>0),
     v=>String(v));
 
@@ -2762,7 +2983,7 @@ function renderReports(){
     byCat[k]=(byCat[k]||0)+(e.amount||0);
   });
   if (hasAdvancedReports()) {
-    barsH('chartExpenses',
+    donut('chartExpenses',
       Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v})), money);
   } else {
     $('chartExpenses').innerHTML = '';
@@ -2774,17 +2995,34 @@ function renderReports(){
     const k=(j.referral_source||'').trim()||'Not recorded';
     bySrc[k]=(bySrc[k]||0)+1;
   });
-  barsH('chartLeads',
+  // Counting won jobs treats a $900 gate the same as a $40,000 install, so a
+  // source can look like your best while bringing in the least. Ranked by
+  // contract value instead, with the job count kept on the label so a single
+  // large job cannot masquerade as a strong channel.
+  const srcValue={};
+  won.forEach(j=>{
+    const k=(j.referral_source||'').trim()||'Not recorded';
+    srcValue[k]=srcValue[k]||{value:0,n:0};
+    srcValue[k].value+=Number(j.contract_total||j.quoted_total||0);
+    srcValue[k].n+=1;
+  });
+  const leadRows=Object.entries(srcValue)
+    .map(([k,v])=>({label:`${k} (${v.n})`, value:v.value}))
+    .sort((a,b)=>b.value-a.value).slice(0,8);
+  if (leadRows.some(r=>r.value>0)) barsH('chartLeads', leadRows, money);
+  else barsH('chartLeads',
     Object.entries(bySrc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k,value:v})),
     v=>String(v));
 
   // Conversion funnel — ordered stages, so a single hue is correct here.
-  barsH('chartFunnel',[
+  funnelV('chartFunnel',[
     {label:'All jobs',value:jobsIn.length},
     {label:'Quoted',value:quotes},
     {label:'Won',value:won.length},
     {label:'Paid in full',value:jobsIn.filter(j=>j.payment_status==='PAID_IN_FULL').length}
   ].filter(r=>r.value>0), v=>String(v));
+
+  renderAgingChart();
 
   // Tables — the accessible view of the same numbers.
   const crewRows=Object.entries(byEmp);
