@@ -516,7 +516,18 @@ object EntitySync {
         // So the crew member taps "can we move the gate?", nothing reaches the
         // office, and it never recovers -- every later request from that phone
         // dies the same way.
-        pushed += upsert("field_changes", changes, insertOnly = true)
+        // But insert-only cannot be the whole answer, because ANSWERING a
+        // request is an update to a row that already exists -- and
+        // ignoreDuplicates makes the server skip exactly that. So the office
+        // approved the gate move, the approval never left the phone, and the
+        // next pull brought the unanswered copy back down. The request
+        // reappeared as still waiting, every single sync, which is precisely
+        // what was reported.
+        //
+        // The two needs are not in conflict once the phone stops guessing:
+        // send the real upsert, and drop to insert-only only for a phone the
+        // server actually refuses.
+        pushed += pushFieldChanges(changes)
         return pushed
     }
 
@@ -598,6 +609,35 @@ object EntitySync {
             )
         }
         return upsert("pricing_tiers", rows)
+    }
+
+    /**
+     * Whether this phone has been refused the update half of field_changes.
+     *
+     * Remembered for the life of the process. A phone without the permission
+     * is refused every time, and re-attempting the full upsert on every sync
+     * would put a guaranteed failure in the log for ever. A phone that HAS the
+     * permission never pays for this at all.
+     */
+    @Volatile private var fieldChangesInsertOnly = false
+
+    /**
+     * Requests go up from any phone; answers go up from the phones allowed to
+     * give them.
+     */
+    private suspend fun pushFieldChanges(changes: List<CloudFieldChange>): Int {
+        if (changes.isEmpty()) return 0
+        if (!fieldChangesInsertOnly) {
+            val full = runCatching { upsert("field_changes", changes) }
+            full.getOrNull()?.let { return it }
+            val why = full.exceptionOrNull()!!
+            // A refusal means this phone may not answer requests, which is
+            // fine and expected on a crew handset. Anything else is a real
+            // failure and must not be swallowed by the retry.
+            if (!isNotOursToSync(why)) throw why
+            fieldChangesInsertOnly = true
+        }
+        return upsert("field_changes", changes, insertOnly = true)
     }
 
     /** Chunked so a large catalog doesn't become one oversized request. */
