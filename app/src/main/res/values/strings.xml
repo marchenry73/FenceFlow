@@ -824,6 +824,16 @@
     <string name="rep_jobs_worked_line">Across %1$d job(s), labor cost</string>
     <string name="rep_average_rate_line">Average per hour</string>
     <string name="rep_share_of_total_caveat">%1$s of everything spent in this period, which came to %2$s.</string>
+    <string name="rep_hero_cap">Collected this period</string>
+    <string name="rep_by_week">by week</string>
+    <string name="rep_vs_previous">vs previous</string>
+    <string name="rep_nobody_attached">Nobody attached</string>
+    <string name="rep_attn_wait_what">waiting on sign-off</string>
+    <string name="rep_attn_wait_why">Every finished shift nobody has approved or rejected, whenever it happened. The crew are not paid and job costs read low until these are decided.</string>
+    <string name="rep_attn_orphan_what">shifts with nobody attached</string>
+    <string name="rep_attn_orphan_why">Finished shifts whose crew member was never set. They cannot carry a pay rate until someone owns them, so their labour reads as $0. Open the shift and pick who worked it.</string>
+    <string name="rep_attn_quiet_what">quotes gone quiet</string>
+    <string name="rep_attn_quiet_why">Sent more than fourteen days ago with no answer either way. A call usually settles it.</string>
     <string name="rep_total">total</string>
     <string name="rep_what_it_cost">What it cost</string>
     <string name="rep_line_labor">Labor</string>

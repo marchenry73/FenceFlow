@@ -107,8 +107,39 @@ data class ReportData(
     /** The individual expenses, so a category can list what is in it. */
     val expenseDetail: List<ExpenseRow> = emptyList(),
     /** Every job with the stage it is at, so a stage can name its jobs. */
-    val stageDetail: List<StageJobRow> = emptyList()
+    val stageDetail: List<StageJobRow> = emptyList(),
+    val prev: PrevTotals = PrevTotals(),
+    /** Finished shifts nobody has approved or rejected, whenever they happened. */
+    val unapprovedShifts: List<AttentionShift> = emptyList(),
+    /** Finished shifts with no crew member attached -- their labour reads as zero. */
+    val orphanShifts: List<AttentionShift> = emptyList(),
+    /** Quotes sent over a fortnight ago that nobody answered. */
+    val quietQuotes: List<QuietQuote> = emptyList()
 )
+
+/**
+ * The same figures for the same-length window immediately before, so each
+ * headline can say which way it is moving. Absent (all zero, comparable
+ * false) when the period is "all time" -- there is no meaningful before.
+ */
+data class PrevTotals(
+    val comparable: Boolean = false,
+    val collected: Double = 0.0,
+    val jobsWon: Int = 0,
+    val closeRatePercent: Double = 0.0,
+    val hoursClocked: Double = 0.0,
+)
+
+/** A shift that needs someone's decision or someone's name. */
+data class AttentionShift(
+    val personName: String,
+    val jobName: String,
+    val startedAt: Long,
+    val hours: Double,
+)
+
+/** A quote that has sat unanswered long enough to be worth a phone call. */
+data class QuietQuote(val jobName: String, val address: String, val sentAt: Long)
 
 /** One expense, named well enough to be recognised in a list. */
 data class ExpenseRow(
@@ -254,7 +285,58 @@ class ReportsViewModel(
             val materialsByJob = jobs.associate { it.id to repository.getLineItems(it.id)
                 .sumOf { li -> li.lineTotal } }
 
+            // Movement: the same-length window immediately before this one.
+            // Same length and adjacent, so seasonality lies as little as a
+            // simple comparison can. "All time" spans years and has no
+            // meaningful before, so the chips simply do not appear there.
+            val spanMs = toMillis - fromMillis
+            val comparable = spanMs in 1..(2L * 365 * 86_400_000)
+            val prev = if (!comparable) PrevTotals() else {
+                val pFrom = fromMillis - spanMs - 1
+                val pTo = fromMillis - 1
+                val pJobs = allJobs.filter { jobDate(it) in pFrom..pTo }
+                val pQuotes = pJobs.count { it.status != JobStatus.DRAFT }
+                val pWon = pJobs.count { it.status.isWon }
+                PrevTotals(
+                    comparable = true,
+                    collected = repository.getPaymentsBetween(pFrom, pTo)
+                        .sumOf { it.amount },
+                    jobsWon = pWon,
+                    closeRatePercent = if (pQuotes > 0) pWon.toDouble() / pQuotes * 100 else 0.0,
+                    hoursClocked = repository.getAllTimeEntries()
+                        .filter { !it.isRunning && it.startedAt in pFrom..pTo && hours.matches(it.startedAt) }
+                        .sumOf { it.hours },
+                )
+            }
+
+            // What is sitting still, regardless of the report window: an
+            // unapproved shift from six weeks ago is not less unpaid for
+            // being outside the period someone happens to be looking at.
+            val allTimes = repository.getAllTimeEntries().filter { !it.isRunning && it.endedAt != null }
+            val empBySync = employees.associateBy { it.id }
+            val jobNameById = allJobs.associate { it.id to it.customerName.ifBlank { untitled } }
+            fun shiftRow(t: TimeEntry) = AttentionShift(
+                personName = t.employeeId?.let { empBySync[it]?.name } ?: "",
+                jobName = jobNameById[t.jobId] ?: untitled,
+                startedAt = t.startedAt,
+                hours = t.hours,
+            )
+            val unapproved = allTimes
+                .filter { it.approvedAt == null && it.rejectedAt == null }
+                .sortedByDescending { it.startedAt }.map(::shiftRow)
+            val orphans = allTimes
+                .filter { it.employeeId == null }
+                .sortedByDescending { it.startedAt }.map(::shiftRow)
+            val fortnightAgo = System.currentTimeMillis() - 14L * 86_400_000
+            val quiet = allJobs
+                .filter { it.status == JobStatus.SENT && it.updatedAt < fortnightAgo }
+                .map { QuietQuote(it.customerName.ifBlank { untitled }, it.address, it.updatedAt) }
+
             _data.value = ReportData(
+                prev = prev,
+                unapprovedShifts = unapproved,
+                orphanShifts = orphans,
+                quietQuotes = quiet,
                 totals = buildTotals(jobs, expenses, times, materialsByJob, paymentsInPeriod),
                 revenueByMonth = revenueByMonth(paymentsInPeriod),
                 costBreakdown = costBreakdown(jobs, expenses, times, materialsByJob, paymentsInPeriod),

@@ -176,10 +176,13 @@ fun ReportsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ---- Headline numbers ----------------------------------------
+            // ---- The headline, said once and said large ------------------
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat(stringResource(R.string.reports_collected), currency.format(totals.collected), Modifier.weight(1f)) {
+                HeroBand(
+                    collected = currency.format(totals.collected),
+                    delta = deltaOf(totals.collected, data.prev.collected, data.prev.comparable),
+                    weekly = weeklyCollected(data.payments),
+                    onTap = {
                         showing = StatDetails.collected(
                             context = context,
                             totals = totals,
@@ -189,14 +192,28 @@ fun ReportsScreen(onBack: () -> Unit) {
                             date = { dayFormat.format(java.util.Date(it)) }
                         )
                     }
+                )
+            }
+
+            // ---- What is sitting still -----------------------------------
+            // The report that only mirrors is a report people stop opening.
+            // Found from the data on every load; each card opens its rows.
+            item {
+                AttentionRow(data = data, dayFormat = dayFormat) { showing = it }
+            }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     if (ent.advancedReports) {
                         BigStat(stringResource(R.string.rep_stat_profit), currency.format(totals.profit), Modifier.weight(1f)) {
                             showing = StatDetails.profit(context, totals) { currency.format(it) }
                         }
-                    } else {
-                        BigStat(stringResource(R.string.rep_stat_jobs_won), totals.jobsWon.toString(), Modifier.weight(1f)) {
-                            showing = StatDetails.jobsWon(context, totals, data.wonJobNames)
-                        }
+                    }
+                    BigStat(
+                        stringResource(R.string.rep_stat_jobs_won), totals.jobsWon.toString(), Modifier.weight(1f),
+                        delta = deltaOf(totals.jobsWon.toDouble(), data.prev.jobsWon.toDouble(), data.prev.comparable)
+                    ) {
+                        showing = StatDetails.jobsWon(context, totals, data.wonJobNames)
                     }
                 }
             }
@@ -205,17 +222,21 @@ fun ReportsScreen(onBack: () -> Unit) {
                     BigStat(stringResource(R.string.reports_margin), "${"%.0f".format(totals.marginPercent)}%", Modifier.weight(1f)) {
                         showing = StatDetails.margin(context, totals)
                     }
-                    BigStat(stringResource(R.string.rep_stat_jobs_won), totals.jobsWon.toString(), Modifier.weight(1f)) {
-                        showing = StatDetails.jobsWon(context, totals, data.wonJobNames)
-                    }
+                    Spacer(Modifier.weight(1f))
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    BigStat(stringResource(R.string.rep_stat_close_rate), "${"%.0f".format(totals.closeRatePercent)}%", Modifier.weight(1f)) {
+                    BigStat(
+                        stringResource(R.string.rep_stat_close_rate), "${"%.0f".format(totals.closeRatePercent)}%", Modifier.weight(1f),
+                        delta = deltaOf(totals.closeRatePercent, data.prev.closeRatePercent, data.prev.comparable)
+                    ) {
                         showing = StatDetails.closeRate(context, totals)
                     }
-                    BigStat(stringResource(R.string.rep_stat_hours_clocked), "%.1f".format(totals.hoursClocked), Modifier.weight(1f)) {
+                    BigStat(
+                        stringResource(R.string.rep_stat_hours_clocked), "%.1f".format(totals.hoursClocked), Modifier.weight(1f),
+                        delta = deltaOf(totals.hoursClocked, data.prev.hoursClocked, data.prev.comparable)
+                    ) {
                         showing = StatDetails.hoursClocked(context, totals) { currency.format(it) }
                     }
                 }
@@ -1055,6 +1076,238 @@ private fun LegendRow(
     }
 }
 
+/** Which way a figure moved against the window before, already worded. */
+data class Delta(val up: Boolean?, val text: String)
+
+/** null when there is nothing meaningful to compare against. */
+private fun deltaOf(now: Double, prev: Double, comparable: Boolean): Delta? {
+    if (!comparable) return null
+    if (prev <= 0.0 && now <= 0.0) return null
+    if (prev <= 0.0) return Delta(true, "new")
+    val pct = (now - prev) / prev * 100
+    val body = if (kotlin.math.abs(pct) >= 1000) "10x+" else "%.0f%%".format(kotlin.math.abs(pct))
+    return when {
+        pct > 2 -> Delta(true, "▲ $body")
+        pct < -2 -> Delta(false, "▼ $body")
+        else -> Delta(null, "• $body")
+    }
+}
+
+@Composable
+private fun DeltaChip(d: Delta) {
+    val bg = when (d.up) {
+        true -> Color(0xFFE6F6F1)
+        false -> Color(0xFFFDECEC)
+        null -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val fg = when (d.up) {
+        true -> Color(0xFF0B6B4F)
+        false -> Color(0xFF8C1114)
+        null -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Text(
+        d.text,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = fg,
+        modifier = Modifier
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    )
+}
+
+/** Weekly collected totals across the period, oldest first, for the spark. */
+private fun weeklyCollected(payments: List<com.fenceestimator.app.data.PaymentRecord>): List<Double> {
+    if (payments.isEmpty()) return emptyList()
+    val wk = sortedMapOf<Long, Double>()
+    payments.forEach { p ->
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = p.receivedAt
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
+        val shift = (cal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -shift)
+        wk[cal.timeInMillis] = (wk[cal.timeInMillis] ?: 0.0) + p.amount
+    }
+    return wk.values.toList()
+}
+
+/**
+ * The one figure this screen is opened for, said once and said large, on the
+ * brand's own steel -- deliberately the only dark surface on the page, which
+ * is exactly why it reads as the headline. Single-look in both themes: a
+ * brand band, not a theme surface.
+ */
+@Composable
+private fun HeroBand(collected: String, delta: Delta?, weekly: List<Double>, onTap: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                Brush.linearGradient(listOf(Color(0xFF1E2A3D), Color(0xFF0F1826)))
+            )
+            .clickable { onTap() }
+    ) {
+        Box(Modifier.fillMaxWidth().height(3.dp).background(Color(0xFFFF5A1F)))
+        Row(
+            Modifier.padding(18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    stringResource(R.string.rep_hero_cap),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF8A93A3)
+                )
+                Text(
+                    collected,
+                    style = MaterialTheme.typography.displaySmall,
+                    color = Color.White
+                )
+                delta?.let {
+                    Text(
+                        it.text + " " + stringResource(R.string.rep_vs_previous),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = when (it.up) {
+                            true -> Color(0xFF7DE0B9)
+                            false -> Color(0xFFF1A1A4)
+                            null -> Color(0xFFAEBBCC)
+                        },
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+            if (weekly.size > 1) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Canvas(Modifier.width(110.dp).height(44.dp)) {
+                        val mx = weekly.max().coerceAtLeast(1.0)
+                        val stepX = size.width / (weekly.size - 1)
+                        val path = Path()
+                        weekly.forEachIndexed { i, v ->
+                            val x = stepX * i
+                            val y = (size.height - 4) - ((v / mx) * (size.height - 10)).toFloat()
+                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                        }
+                        drawPath(path, Color(0xFFFF5A1F),
+                            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+                        val lastY = (size.height - 4) -
+                            ((weekly.last() / mx) * (size.height - 10)).toFloat()
+                        drawCircle(Color(0xFFFF5A1F), radius = 3.5.dp.toPx(),
+                            center = Offset(size.width, lastY))
+                    }
+                    Text(
+                        stringResource(R.string.rep_by_week),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF8A93A3)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The needs-attention cards, or a quiet all-clear when nothing qualifies. */
+@Composable
+private fun AttentionRow(
+    data: ReportData,
+    dayFormat: java.text.DateFormat,
+    show: (StatDetail) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    data class Item(val n: String, val what: String, val detail: StatDetail)
+    val items = buildList {
+        val unappH = data.unapprovedShifts.sumOf { it.hours }
+        if (unappH > 0.05) add(Item(
+            "%.1f h".format(unappH),
+            context.getString(R.string.rep_attn_wait_what),
+            StatDetail(
+                title = context.getString(R.string.rep_attn_wait_what),
+                value = "%.1f h".format(unappH),
+                howItWorks = context.getString(R.string.rep_attn_wait_why),
+                lines = data.unapprovedShifts.map {
+                    DetailLine(
+                        label = it.personName.ifBlank { context.getString(R.string.rep_nobody_attached) },
+                        sublabel = it.jobName + " · " + dayFormat.format(java.util.Date(it.startedAt)),
+                        amount = "%.1f h".format(it.hours)
+                    )
+                }
+            )
+        ))
+        if (data.orphanShifts.isNotEmpty()) add(Item(
+            data.orphanShifts.size.toString(),
+            context.getString(R.string.rep_attn_orphan_what),
+            StatDetail(
+                title = context.getString(R.string.rep_attn_orphan_what),
+                value = data.orphanShifts.size.toString(),
+                howItWorks = context.getString(R.string.rep_attn_orphan_why),
+                lines = data.orphanShifts.map {
+                    DetailLine(
+                        label = it.jobName,
+                        sublabel = dayFormat.format(java.util.Date(it.startedAt)),
+                        amount = "%.1f h".format(it.hours)
+                    )
+                }
+            )
+        ))
+        if (data.quietQuotes.isNotEmpty()) add(Item(
+            data.quietQuotes.size.toString(),
+            context.getString(R.string.rep_attn_quiet_what),
+            StatDetail(
+                title = context.getString(R.string.rep_attn_quiet_what),
+                value = data.quietQuotes.size.toString(),
+                howItWorks = context.getString(R.string.rep_attn_quiet_why),
+                lines = data.quietQuotes.map {
+                    DetailLine(
+                        label = it.jobName,
+                        sublabel = it.address,
+                        amount = dayFormat.format(java.util.Date(it.sentAt))
+                    )
+                }
+            )
+        ))
+    }
+    if (items.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { item ->
+            Card(
+                onClick = { show(item.detail) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Row(
+                    Modifier.padding(13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.width(4.dp).height(34.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color(0xFFFF5A1F))
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        item.n,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        item.what,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** Says the numbers can be asked. Without it nobody discovers they can --
  *  a tappable figure that looks exactly like an untappable one is not a
  *  feature, it is a secret. */
@@ -1086,6 +1339,7 @@ private fun BigStat(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    delta: Delta? = null,
     onClick: (() -> Unit)? = null
 ) {
     Card(
@@ -1097,6 +1351,7 @@ private fun BigStat(
         Column(Modifier.padding(14.dp)) {
             Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            delta?.let { DeltaChip(it) }
             if (onClick != null) {
                 Text(
                     stringResource(R.string.rep_tap_for_detail),
