@@ -198,6 +198,27 @@
   .heat{display:grid;grid-template-columns:repeat(auto-fill,14px);gap:3px}
   .heat i{width:14px;height:14px;border-radius:3px;background:var(--grid);display:block}
   @media(max-width:700px){.people{grid-template-columns:1fr 1fr}.sc-grid .m{border-right:none}}
+
+  /* ---- "where did this number come from" ------------------------------
+     A figure on its own invites belief or disbelief, and neither is useful.
+     Anything that can be explained says so, and says it the same way. */
+  .askable{cursor:pointer}
+  .chart .pick{cursor:pointer}
+  .chart .pick:hover .bar,.chart .pick:hover path,.chart .pick:hover rect{opacity:.72}
+  .stat.askable:hover,.person:hover{border-color:var(--orange)}
+  .hint{font-size:11px;color:var(--muted);margin-top:6px}
+  .xp-how{background:#EEF2F7;border-radius:10px;padding:13px 15px;font-size:14px;line-height:1.5}
+  .xp-math{margin:14px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .xp-math div{display:flex;justify-content:space-between;gap:16px;padding:9px 14px;
+               border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+  .xp-math div:last-child{border-bottom:none}
+  .xp-math div.tot{background:var(--paper);font-weight:700}
+  .xp-math div.neg span:last-child{color:var(--red)}
+  .xp-math .op{color:var(--muted);font-weight:400;padding-right:8px}
+  .xp-caveat{border-left:3px solid var(--orange);background:#FFF6F2;padding:11px 14px;
+             border-radius:0 8px 8px 0;font-size:13px;margin-top:14px}
+  .xp-rows{margin-top:18px}
+  .xp-rows h4{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px}
   .readout{
     display:flex; flex-direction:column; gap:1px;
     padding:8px 10px; border:1px solid var(--line); border-radius:8px;
@@ -790,6 +811,14 @@
 </div></div>
 
 <!-- Crew editor -->
+<div class="overlay" id="xpOverlay"><div class="sheet" style="max-width:620px">
+  <div class="sheet-head">
+    <b id="xpTitle">Where this comes from</b>
+    <button class="btn btn-sm btn-ghost" id="xpClose">Close</button>
+  </div>
+  <div class="sheet-body" id="xpBody"></div>
+</div></div>
+
 <div class="overlay" id="empOverlay"><div class="sheet" style="max-width:520px">
   <div class="sheet-head"><strong id="empTitle">Crew Member</strong>
     <button class="btn btn-sm btn-ghost" id="closeEmp">Close</button></div>
@@ -2829,6 +2858,24 @@ function renderAgingChart(){
     live.map(b=>({label:`${b.label} (${b.n})`, value:b.value, _i:buckets.indexOf(b)})),
     money,
     r=>`color-mix(in srgb, #E5484D ${Number(shade[r._i])*100}%, #F3C9C9)`);
+  pickable(el, i => {
+    const b = live[i];
+    if(!b) return;
+    const mine = arAging.filter(r=>{
+      const days=Number(r.days_out||0);
+      return Number(r.owed||0) > 0 && days >= b.min && days < b.max;
+    });
+    showExplain({
+      title: b.label, value: money(b.value),
+      how:'Everything still owed where the debt is ' + b.label.toLowerCase() + ' old, added up. '
+        + 'Age is counted from when the money became due.',
+      rowsTitle:'Who owes it',
+      rows: mine.sort((a,b2)=>Number(b2.owed)-Number(a.owed)).map(r=>({
+        label:r.customer_name||'Unnamed',
+        sub:(r.status||'') + ' · ' + r.days_out + ' days',
+        amount: money(r.owed) }))
+    });
+  });
   const oldest=live[live.length-1];
   $(el).insertAdjacentHTML('beforeend',
     `<p class="sub" style="margin:10px 0 0">${
@@ -2836,6 +2883,58 @@ function renderAgingChart(){
         ? `${money(oldest.value)} has been outstanding ${oldest.label.toLowerCase().replace(' (${oldest.n})','')}. Debt gets harder to collect the longer it sits.`
         : 'Nothing has been outstanding more than 60 days.'
     }</p>`);
+}
+
+/* ===================== Where a number comes from =========================
+   Every figure on this tab can be asked to show its working: the sentence
+   that defines it, the arithmetic with the real numbers in, and the rows that
+   produced it. A total nobody can take apart is one people quietly work
+   around with a spreadsheet, and then the report is decoration. */
+
+/**
+ * @param spec {title, value, how, math:[{label,value,op,total,neg}],
+ *              rows:[{label,sub,amount,neg}], rowsTitle, caveat}
+ */
+function showExplain(spec){
+  $('xpTitle').textContent = spec.title || 'Where this comes from';
+  const math = (spec.math || []).map(m =>
+    `<div class="${m.total ? 'tot' : ''} ${m.neg ? 'neg' : ''}">
+       <span><span class="op">${esc(m.op || '')}</span>${esc(m.label)}</span>
+       <span>${esc(m.value)}</span></div>`).join('');
+  const rows = (spec.rows || []).map(r =>
+    `<tr><td>${esc(r.label)}${r.sub ? `<div class="sub" style="margin:2px 0 0">${esc(r.sub)}</div>` : ''}</td>
+       <td class="num" style="${r.neg ? 'color:var(--red)' : ''}">${esc(r.amount || '')}</td></tr>`).join('');
+
+  $('xpBody').innerHTML =
+      (spec.value ? `<div style="font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:12px">${esc(spec.value)}</div>` : '')
+    + (spec.how ? `<div class="xp-how">${esc(spec.how)}</div>` : '')
+    + (math ? `<div class="xp-math">${math}</div>` : '')
+    + (spec.caveat ? `<div class="xp-caveat">${esc(spec.caveat)}</div>` : '')
+    + (rows
+        ? `<div class="xp-rows"><h4>${esc(spec.rowsTitle || 'What is in it')}</h4>
+             <div class="scroll"><table><tbody>${rows}</tbody></table></div></div>`
+        : (spec.rowsEmpty
+            ? `<div class="xp-rows"><h4>${esc(spec.rowsTitle || 'What is in it')}</h4>
+                 <div class="no-data">${esc(spec.rowsEmpty)}</div></div>`
+            : ''));
+  $('xpOverlay').classList.add('on');
+}
+
+function hideExplain(){ $('xpOverlay').classList.remove('on'); }
+
+/** Makes the marks of a chart answerable. Called after the chart is drawn,
+ *  because the helpers build their own markup and this stays out of them. */
+function pickable(el, handler){
+  const root = $(el);
+  if(!root) return;
+  root.querySelectorAll('svg g').forEach((g, i) => {
+    g.classList.add('pick');
+    g.addEventListener('click', () => handler(i));
+  });
+  if(!root.nextElementSibling || !root.nextElementSibling.classList.contains('hint')){
+    root.insertAdjacentHTML('afterend',
+      '<p class="hint">Tap any bar to see what is in it.</p>');
+  }
 }
 
 function renderReports(){
@@ -2885,15 +2984,77 @@ function renderReports(){
   // Profit and margin tiles are Pro's money intelligence; Crew's hero row
   // shows the operation.
   const proTiles = !hasAdvancedReports() ? '' : `
-    <div class="stat"><div class="n">${money(profit)}</div><div class="l">Est. profit on these jobs</div></div>
-    <div class="stat"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>`;
+    <div class="stat askable" data-xp="profit"><div class="n">${money(profit)}</div><div class="l">Est. profit on these jobs</div></div>
+    <div class="stat askable" data-xp="margin"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>`;
   $('repRangeLabel').title = 'Collected and Hours count what happened inside this window. '
     + 'Est. profit is measured across the whole of every job touched in it.';
   $('repHero').innerHTML=`
-    <div class="stat"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>${proTiles}
-    <div class="stat"><div class="n">${won.length}</div><div class="l">Jobs won</div></div>
-    <div class="stat"><div class="n">${closing.toFixed(0)}%</div><div class="l">Close rate</div></div>
-    <div class="stat"><div class="n">${hours.toFixed(0)}</div><div class="l">Hours clocked</div></div>`;
+    <div class="stat askable" data-xp="collected"><div class="n">${money(collected)}</div><div class="l">Collected</div></div>${proTiles}
+    <div class="stat askable" data-xp="won"><div class="n">${won.length}</div><div class="l">Jobs won</div></div>
+    <div class="stat askable" data-xp="close"><div class="n">${closing.toFixed(0)}%</div><div class="l">Close rate</div></div>
+    <div class="stat askable" data-xp="hours"><div class="n">${hours.toFixed(0)}</div><div class="l">Hours clocked</div></div>`;
+
+  // Every headline figure explains itself. Wired here rather than inline so
+  // the wording lives in one place and can be read as a whole.
+  const jobName = sid => jobBySync(sid)?.customer_name || 'Job no longer here';
+  const XP = {
+    collected: () => ({
+      title:'Collected', value:money(collected),
+      how:'Every payment recorded against a live job, with a date inside this period. '
+        + 'Refunds are in here too, as negatives -- that is why this can go down.',
+      caveat:'Selected by when the money moved, not by which jobs were touched. A payment '
+        + 'from March does not join this period because its job synced today.',
+      rowsTitle:'The payments', rowsEmpty:'No payments landed in this period.',
+      rows: paymentsIn.slice().sort((a,b)=>d(b.received_at)-d(a.received_at)).map(p=>({
+        label: jobName(p.job_sync_id),
+        sub: d(p.received_at).toLocaleDateString() + (p.method ? ' · ' + String(p.method).replace(/_/g,' ').toLowerCase() : ''),
+        amount: money(p.amount), neg: Number(p.amount) < 0 }))
+    }),
+    won: () => ({
+      title:'Jobs won', value:String(won.length),
+      how:'Jobs touched in this period whose status is Accepted or Completed.',
+      rowsTitle:'The jobs', rowsEmpty:'Nothing won in this period.',
+      rows: won.map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'', amount:String(j.status||'').replace(/_/g,' ') }))
+    }),
+    close: () => ({
+      title:'Close rate', value:closing.toFixed(0)+'%',
+      how:'Of the jobs you quoted in this period, the share that turned into work.',
+      math:[{label:'Jobs won', value:String(won.length)},
+            {label:'Quotes sent', value:String(quotes), op:'÷'},
+            {label:'Close rate', value:closing.toFixed(0)+'%', total:true}],
+      caveat: quotes ? null : 'No quotes in this period, so there is nothing to divide by.'
+    }),
+    hours: () => ({
+      title:'Hours clocked', value:hours.toFixed(1)+' h',
+      how:'Every finished shift that started inside this period. A running timer has no '
+        + 'end yet, so it is not counted until it is stopped.',
+      rowsTitle:'The shifts', rowsEmpty:'Nobody clocked in during this period.',
+      rows: timesIn.slice().sort((a,b)=>d(b.started_at)-d(a.started_at)).slice(0,200).map(t=>({
+        label: jobName(t.job_sync_id),
+        sub: d(t.started_at).toLocaleDateString() + ' · ' + (shiftOwner(t)?.name || 'nobody attached'),
+        amount: hoursOf(t).toFixed(2)+' h' }))
+    }),
+    profit: () => ({
+      title:'Estimated profit', value:money(profit),
+      how:'The contract value of every job touched in this period, less that job\'s own '
+        + 'materials, labour and expenses.',
+      math:[{label:'Materials', value:money(material), op:'−', neg:true},
+            {label:'Labour', value:money(labor), op:'−', neg:true},
+            {label:'Other expenses', value:money(other), op:'−', neg:true},
+            {label:'Estimated profit', value:money(profit), total:true}],
+      caveat:'Measured against the contract, not against what has been collected. A job you '
+        + 'have quoted but not been paid for yet is not a loss.'
+    }),
+    margin: () => ({
+      title:'Profit margin', value:margin.toFixed(0)+'%',
+      how:'Estimated profit as a share of the contract value of the same jobs.',
+      math:[{label:'Estimated profit', value:money(profit)},
+            {label:'Profit margin', value:margin.toFixed(0)+'%', total:true}]
+    })
+  };
+  document.querySelectorAll('#repHero .askable').forEach(el =>
+    el.addEventListener('click', () => { const f = XP[el.dataset.xp]; if(f) showExplain(f()); }));
+
 
   // Revenue by month
   const byMonth={};
@@ -2905,11 +3066,32 @@ function renderReports(){
     const k=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
     byMonth[k]=(byMonth[k]||0)+(p.amount||0);
   });
+  const monthKeys = Object.keys(byMonth).sort().slice(-12);
   areaTrend('chartRevenue',
-    Object.keys(byMonth).sort().slice(-12).map(k=>({
+    monthKeys.map(k=>({
       label:new Date(k+'-01').toLocaleDateString('en-US',{month:'short'}),
       value:byMonth[k]
     })), money);
+  pickable('chartRevenue', i => {
+    const k = monthKeys[i];
+    if(!k) return;
+    const inMonth = paymentsIn.filter(p=>{
+      const t=d(p.received_at);
+      return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}` === k;
+    });
+    showExplain({
+      title: new Date(k+'-01').toLocaleDateString(undefined,{month:'long',year:'numeric'}),
+      value: money(byMonth[k]),
+      how:'Every payment recorded in this month, added up. Refunds are included as '
+        + 'negatives, so a month with a big refund can total less than you remember taking.',
+      rowsTitle:'The payments in this month',
+      rowsEmpty:'No payments in this month.',
+      rows: inMonth.sort((a,b)=>d(b.received_at)-d(a.received_at)).map(p=>({
+        label: jobName(p.job_sync_id),
+        sub: d(p.received_at).toLocaleDateString(),
+        amount: money(p.amount), neg: Number(p.amount) < 0 }))
+    });
+  });
 
   // Cost breakdown — named categories, so distinct hues plus a legend.
   const costRows=[
@@ -2938,9 +3120,21 @@ function renderReports(){
 
   // Pipeline stages
   const stages=['New Lead','Quote Sent','Approved','Deposit Paid','Scheduled','Installed','Paid in Full'];
-  funnelV('chartStages',
-    stages.map(s=>({label:s,value:jobs.filter(j=>stageOf(j)===s).length})).filter(r=>r.value>0),
-    v=>String(v));
+  const stageRows = stages.map(s=>({label:s,value:jobs.filter(j=>stageOf(j)===s).length}))
+    .filter(r=>r.value>0);
+  funnelV('chartStages', stageRows, v=>String(v));
+  pickable('chartStages', i => {
+    const row = stageRows[i];
+    if(!row) return;
+    showExplain({
+      title: row.label, value: String(row.value) + (row.value===1?' job':' jobs'),
+      how:'Every job whose stage is "' + row.label + '" right now. This one is not '
+        + 'limited to the report period -- a pipeline is what is open today.',
+      rowsTitle:'The jobs',
+      rows: jobs.filter(j=>stageOf(j)===row.label).map(j=>({
+        label:j.customer_name||'Unnamed', sub:j.address||'' }))
+    });
+  });
 
   // Fence types by linear feet — footage isn't stored, so count runs instead
   // and say so rather than inventing a number.
@@ -2983,8 +3177,22 @@ function renderReports(){
     byCat[k]=(byCat[k]||0)+(e.amount||0);
   });
   if (hasAdvancedReports()) {
-    donut('chartExpenses',
-      Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v})), money);
+    const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:k,value:v}));
+    donut('chartExpenses', catRows, money);
+    pickable('chartExpenses', i => {
+      const row = catRows[i];
+      if(!row) return;
+      const mine = expenses.filter(e=>syncIds.has(e.job_sync_id)
+        && ((e.category||'OTHER').replace(/_/g,' ')) === row.label);
+      showExplain({
+        title: row.label, value: money(row.value),
+        how:'Every expense in this category, on a job touched in this period.',
+        rowsTitle:'The expenses', rowsEmpty:'Nothing in this category.',
+        rows: mine.sort((a,b)=>(b.amount||0)-(a.amount||0)).map(e=>({
+          label: e.note || e.description || row.label,
+          sub: jobName(e.job_sync_id), amount: money(e.amount) }))
+      });
+    });
   } else {
     $('chartExpenses').innerHTML = '';
   }
@@ -3009,18 +3217,50 @@ function renderReports(){
   const leadRows=Object.entries(srcValue)
     .map(([k,v])=>({label:`${k} (${v.n})`, value:v.value}))
     .sort((a,b)=>b.value-a.value).slice(0,8);
-  if (leadRows.some(r=>r.value>0)) barsH('chartLeads', leadRows, money);
-  else barsH('chartLeads',
-    Object.entries(bySrc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k,value:v})),
-    v=>String(v));
+  const byValue = leadRows.some(r=>r.value>0);
+  const leadShown = byValue ? leadRows
+    : Object.entries(bySrc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>({label:k,value:v}));
+  barsH('chartLeads', leadShown, byValue ? money : (v=>String(v)));
+  pickable('chartLeads', i => {
+    const row = leadShown[i];
+    if(!row) return;
+    const src = row.label.replace(/ \(\d+\)$/,'');
+    const mine = won.filter(j=>((j.referral_source||'').trim()||'Not recorded')===src);
+    showExplain({
+      title: src, value: byValue ? money(row.value) : String(row.value),
+      how: byValue
+        ? 'The contract value of every job won in this period that came from this source. '
+          + 'Ranked by value rather than by count, because a $900 gate and a $40,000 install '
+          + 'are not the same win.'
+        : 'How many jobs won in this period came from this source.',
+      rowsTitle:'The jobs',
+      rows: mine.map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'',
+        amount: money(Number(j.contract_total||j.quoted_total||0)) }))
+    });
+  });
 
   // Conversion funnel — ordered stages, so a single hue is correct here.
-  funnelV('chartFunnel',[
-    {label:'All jobs',value:jobsIn.length},
-    {label:'Quoted',value:quotes},
-    {label:'Won',value:won.length},
-    {label:'Paid in full',value:jobsIn.filter(j=>j.payment_status==='PAID_IN_FULL').length}
-  ].filter(r=>r.value>0), v=>String(v));
+  const paidFull = jobsIn.filter(j=>j.payment_status==='PAID_IN_FULL');
+  const funnelRows=[
+    {label:'All jobs',    value:jobsIn.length, list:jobsIn},
+    {label:'Quoted',      value:quotes,        list:null},
+    {label:'Won',         value:won.length,    list:won},
+    {label:'Paid in full',value:paidFull.length, list:paidFull}
+  ].filter(r=>r.value>0);
+  funnelV('chartFunnel', funnelRows, v=>String(v));
+  pickable('chartFunnel', i => {
+    const row = funnelRows[i];
+    if(!row) return;
+    showExplain({
+      title: row.label, value: String(row.value),
+      how: row.label==='All jobs' ? 'Every job touched in this period, whatever became of it.'
+         : row.label==='Quoted'   ? 'Jobs that reached a quote in this period.'
+         : row.label==='Won'      ? 'Jobs marked Accepted or Completed.'
+         :                          'Jobs whose payment status is Paid in full.',
+      rowsTitle: row.list ? 'The jobs' : null,
+      rows: (row.list||[]).map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'' }))
+    });
+  });
 
   renderAgingChart();
 
@@ -3422,6 +3662,10 @@ $('saveSettings').addEventListener('click',saveSettings);
 $('catFilter').addEventListener('input',renderCatalog);
 
 // Report filters
+$('xpClose').addEventListener('click', hideExplain);
+$('xpOverlay').addEventListener('click', e => { if(e.target.id === 'xpOverlay') hideExplain(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') hideExplain(); });
+
 document.querySelectorAll('#repPresets .chip').forEach(c=>c.addEventListener('click',()=>{
   document.querySelectorAll('#repPresets .chip').forEach(x=>x.classList.remove('on'));
   c.classList.add('on');
