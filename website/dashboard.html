@@ -1233,7 +1233,6 @@ function renderProcessor(){
       const r = await db.rpc('my_payment_connection');
       paymentConn = r.error ? paymentConn : ((r.data || [])[0] || null);
       renderProcessor();
-  settleAfterSquare();
     }));
 }
 
@@ -1371,7 +1370,7 @@ async function loadAll(){
   planName = (service?.subscription_plan || '').toLowerCase();
   applyPlanGates();
   showServiceBanner(service);
-  renderProcessor();
+  settleAfterSquare();
   if (checkoutNote) {
     switchTab('billing');
     msg('billMsg', checkoutNote.note, checkoutNote.kind);
@@ -1462,6 +1461,9 @@ async function loadAll(){
   // then, once they had filled everything in, the panel appeared and started
   // refusing them. Off by one whole page load, in both directions.
   renderSetup();
+  // Same mistake as renderSetup had: this drew before its own fetch, so a
+  // processor already chosen showed as not chosen.
+  renderProcessor();
 
   const aging = await db.rpc('ar_aging');
   arAging = aging.error ? [] : (aging.data || []);
