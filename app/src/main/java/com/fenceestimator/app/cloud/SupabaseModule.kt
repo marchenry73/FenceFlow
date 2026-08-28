@@ -79,7 +79,14 @@ internal fun looksLikeNoNetwork(error: Throwable): Boolean {
         "unable to resolve host", "failed to connect", "timeout", "timed out",
         "no address associated", "network is unreachable", "unknownhost",
         "connectexception", "sockettimeout", "connect timeout",
-        "software caused connection abort"
+        "software caused connection abort",
+        // A connection that dies mid-response is the network, not a fault in
+        // the request. Without these two a dropped signal was reported as
+        // "Could not sync" -- the alarming wording, for the one condition that
+        // genuinely does clear itself.
+        "prematurely closed", "failed to parse http response",
+        "connection reset", "stream was reset", "unexpected end of stream",
+        "broken pipe"
     ).any { it in text }
 }
 
