@@ -152,6 +152,52 @@
   .cat.closed .caret{transform:rotate(-90deg)}
   .cat.closed .cat-body{display:none}
   @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+  /* ---- Crew reporting -------------------------------------------------
+     Figures are read down a column and compared, so every number is
+     tabular-nums: proportional digits make 11.5 and 8.75 fail to line up and
+     the eye can no longer scan the column. */
+  .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+  .person{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+          cursor:pointer;text-align:left;font-family:inherit;transition:border-color .12s,box-shadow .12s}
+  .person:hover{border-color:var(--orange)}
+  .person.on{border-color:var(--graphite);box-shadow:inset 0 0 0 1px var(--graphite)}
+  .person .nm{font-weight:700;font-size:15px;color:var(--text);display:flex;align-items:center;gap:7px}
+  .person .rl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+  .person .fig{margin-top:9px;display:flex;gap:14px;font-variant-numeric:tabular-nums}
+  .person .fig b{display:block;font-size:17px;font-weight:700;line-height:1.15}
+  .person .fig span{font-size:11px;color:var(--muted)}
+  /* A dot, not a coloured name: colour alone is never the only carrier. */
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+  .dot.act{background:var(--series-3)}.dot.ina{background:#B9C0CA}
+
+  .scorecard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+  .sc-head{background:var(--graphite);color:#fff;padding:16px 18px;display:flex;
+           justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+  .sc-head h3{font-size:19px;font-weight:800;margin:0}
+  .sc-head .meta{font-size:12px;color:#9AA4B4;margin-top:3px}
+  .sc-head .rate{font-size:13px;color:#fff;background:#2B3A52;border-radius:8px;padding:7px 12px;font-variant-numeric:tabular-nums}
+  .sc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
+           border-bottom:1px solid var(--line)}
+  .sc-grid .m{padding:13px 15px;border-right:1px solid var(--line)}
+  .sc-grid .m:last-child{border-right:none}
+  .sc-grid .m b{display:block;font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+  .sc-grid .m span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .sc-body{padding:16px 18px}
+  .sc-body h4{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+              margin:18px 0 8px}
+  .sc-body h4:first-child{margin-top:0}
+  .num{font-variant-numeric:tabular-nums;text-align:right}
+  /* State is a shape and a word as well as a colour. */
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;
+        border:1px solid transparent;white-space:nowrap}
+  .pill.ok{background:#E6F6F1;color:#0B6B4F;border-color:#BFE6D8}
+  .pill.wait{background:#FFF4E0;color:#8A5A00;border-color:#F3DDB0}
+  .pill.no{background:#FDECEC;color:#8C1114;border-color:#F3C9C9}
+  .bar-mini{height:6px;border-radius:4px;background:var(--grid);overflow:hidden;display:flex}
+  .bar-mini i{display:block;height:100%}
+  .heat{display:grid;grid-template-columns:repeat(auto-fill,14px);gap:3px}
+  .heat i{width:14px;height:14px;border-radius:3px;background:var(--grid);display:block}
+  @media(max-width:700px){.people{grid-template-columns:1fr 1fr}.sc-grid .m{border-right:none}}
   .readout{
     display:flex; flex-direction:column; gap:1px;
     padding:8px 10px; border:1px solid var(--line); border-radius:8px;
@@ -489,6 +535,40 @@
             <div id="chartTypes"></div>
           </div>
         </div></div>
+      </section>
+
+      <section class="cat" data-cat="people">
+        <button class="cat-head"><span class="caret">▾</span> Your people
+          <span class="cat-sub">Every hour, every job, per person</span></button>
+        <div class="cat-body">
+
+          <div class="panel">
+            <h2>The team in this period</h2>
+            <p class="sub">Tap anyone to open their full record. Hours and cost count
+              <strong>every clocked hour</strong>, approved or not — the approval column tells
+              you which of it is settled.</p>
+            <div class="people" id="peopleCards"></div>
+          </div>
+
+          <div class="grid2">
+            <div class="panel">
+              <h2>Hours week by week</h2>
+              <p class="sub">The whole crew's clocked hours, by week</p>
+              <div id="chartCrewWeeks"></div>
+            </div>
+            <div class="panel">
+              <h2>Hours waiting on sign-off</h2>
+              <p class="sub">Unapproved hours are money standing still: the crew are not paid
+                and the job cost is understated until someone signs them off.</p>
+              <div id="chartApproval"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="scorecardPanel" style="display:none">
+            <div class="scorecard" id="scorecard"></div>
+          </div>
+
+        </div>
       </section>
 
       <section class="cat" data-cat="detail">
@@ -2282,6 +2362,268 @@ function renderCosting(){
   }
 }
 
+/* ===================== Crew reporting =====================================
+   One person, everything they have done. Built from the shifts themselves
+   rather than from the job's assignee: attributing hours by assignee credits
+   a second person's work to whoever owns the job, which is exactly wrong on
+   the two-man jobs where this report earns its keep. */
+
+/** Who a shift belongs to. Falls back to the job's assignee only when the
+    shift itself names nobody, and says so rather than inventing a person. */
+function shiftOwner(t){
+  const j = jobBySync(t.job_sync_id);
+  return employees.find(e => e.sync_id === t.employee_sync_id)
+      || employees.find(e => e.id === j?.assigned_employee_id)
+      || null;
+}
+
+/** Everyone who worked in the period, with their shifts already sorted. */
+function crewIndex(timesIn){
+  const idx = new Map();
+  timesIn.forEach(t => {
+    const emp = shiftOwner(t);
+    const key = emp ? emp.sync_id : '__none__';
+    if (!idx.has(key)) idx.set(key, {
+      key, emp, name: emp ? (emp.name || 'Unnamed') : 'Not attributed',
+      shifts: [], hours: 0, cost: 0, jobs: new Set(), days: new Set(),
+      approvedH: 0, pendingH: 0, rejectedH: 0
+    });
+    const b = idx.get(key), h = hoursOf(t);
+    b.shifts.push(t);
+    b.hours += h;
+    b.cost  += h * (t.hourly_rate || 0);
+    b.jobs.add(t.job_sync_id);
+    b.days.add(d(t.started_at).toDateString());
+    if (t.rejected_at && !t.approved_at) b.rejectedH += h;
+    else if (t.approved_at) b.approvedH += h;
+    else b.pendingH += h;
+  });
+  idx.forEach(b => b.shifts.sort((x, y) => d(y.started_at) - d(x.started_at)));
+  return [...idx.values()].sort((a, b) => b.hours - a.hours);
+}
+
+let openPerson = null;
+
+function renderPeople(timesIn){
+  const crew = crewIndex(timesIn);
+  window.__crew = crew;
+
+  if (!crew.length){
+    $('peopleCards').innerHTML =
+      '<div class="no-data">Nobody clocked any hours in this period.</div>';
+    $('scorecardPanel').style.display = 'none';
+    noData('chartCrewWeeks','Nothing in this period.');
+    noData('chartApproval','Nothing in this period.');
+    return;
+  }
+
+  $('peopleCards').innerHTML = crew.map(c => {
+    const live = c.emp ? c.emp.is_active !== false : false;
+    const waiting = c.pendingH > 0.05
+      ? '<div class="fig" style="margin-top:8px"><span class="pill wait">'
+        + c.pendingH.toFixed(1) + ' h waiting on sign-off</span></div>'
+      : '';
+    return '<button class="person' + (openPerson === c.key ? ' on' : '') + '" data-person="' + esc(c.key) + '">'
+      + '<div class="nm"><span class="dot ' + (live ? 'act' : 'ina') + '"></span>' + esc(c.name) + '</div>'
+      + '<div class="rl">' + esc(c.emp?.role || (c.emp ? 'No role set' : 'No crew member on the shift')) + '</div>'
+      + '<div class="fig">'
+      +   '<div><b>' + c.hours.toFixed(1) + '</b><span>hours</span></div>'
+      +   '<div><b>' + money(c.cost) + '</b><span>labour</span></div>'
+      +   '<div><b>' + c.jobs.size + '</b><span>job' + (c.jobs.size === 1 ? '' : 's') + '</span></div>'
+      + '</div>' + waiting + '</button>';
+  }).join('');
+
+  document.querySelectorAll('#peopleCards .person').forEach(b =>
+    b.addEventListener('click', () => {
+      openPerson = (openPerson === b.dataset.person) ? null : b.dataset.person;
+      renderPeople(timesIn);
+      if (openPerson) $('scorecardPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+    }));
+
+  // Whole-crew hours by week. Weeks start Monday.
+  const weeks = new Map();
+  timesIn.forEach(t => {
+    const monday = new Date(d(t.started_at));
+    monday.setHours(0,0,0,0);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    weeks.set(monday.getTime(), (weeks.get(monday.getTime()) || 0) + hoursOf(t));
+  });
+  colsV('chartCrewWeeks',
+    [...weeks.entries()].sort((a,b) => a[0] - b[0]).map(([k,v]) => ({
+      label: new Date(k).toLocaleDateString(undefined, {month:'short', day:'numeric'}),
+      value: v
+    })),
+    v => v.toFixed(0) + ' h');
+
+  // Approval mix. Status colours, not series colours -- these mean a state,
+  // and a state must never be told apart by hue alone, so each is labelled.
+  const tot = crew.reduce((a,c) => ({
+    ok: a.ok + c.approvedH, wait: a.wait + c.pendingH, no: a.no + c.rejectedH
+  }), {ok:0, wait:0, no:0});
+  barsH('chartApproval',
+    [{label:'Signed off', value: tot.ok},
+     {label:'Waiting',    value: tot.wait},
+     {label:'Rejected',   value: tot.no}].filter(r => r.value > 0.05),
+    v => v.toFixed(1) + ' h',
+    r => r.label === 'Signed off' ? '#1baf7a' : r.label === 'Waiting' ? '#eda100' : '#E5484D');
+
+  renderScorecard();
+}
+
+function renderScorecard(){
+  const crew = window.__crew || [];
+  const c = crew.find(x => x.key === openPerson);
+  if (!c){ $('scorecardPanel').style.display = 'none'; return; }
+  $('scorecardPanel').style.display = '';
+
+  const shiftHours = c.shifts.map(hoursOf);
+  const longest = shiftHours.length ? Math.max(...shiftHours) : 0;
+  const avg = shiftHours.length ? c.hours / shiftHours.length : 0;
+  const pct = c.hours > 0 ? (c.approvedH / c.hours) * 100 : 0;
+  const payLine = c.emp
+    ? (c.emp.pay_type === 'PER_FOOT'
+        ? money(c.emp.per_foot_rate || 0) + ' per foot'
+        : money(c.emp.hourly_rate || 0) + ' an hour')
+    : 'No crew member attached to these shifts';
+
+  const byJob = new Map();
+  c.shifts.forEach(t => {
+    const k = t.job_sync_id;
+    if (!byJob.has(k)) byJob.set(k, {job: jobBySync(k), hours:0, cost:0, first:null, last:null, shifts:0});
+    const b = byJob.get(k), h = hoursOf(t), st = d(t.started_at);
+    b.hours += h; b.cost += h * (t.hourly_rate || 0); b.shifts++;
+    if (!b.first || st < b.first) b.first = st;
+    if (!b.last  || st > b.last)  b.last  = st;
+  });
+  const jobList = [...byJob.values()].sort((a,b) => b.hours - a.hours);
+  const jobRows = jobList.map(b =>
+    '<tr><td>' + esc(b.job?.customer_name || 'Job no longer here') + '</td>'
+    + '<td>' + esc(b.job?.address || '—') + '</td>'
+    + '<td>' + esc(b.job?.status || '—') + '</td>'
+    + '<td class="num">' + b.shifts + '</td>'
+    + '<td class="num">' + b.hours.toFixed(1) + '</td>'
+    + '<td class="num">' + money(b.cost) + '</td>'
+    + '<td>' + (b.first ? b.first.toLocaleDateString() : '—') + ' – '
+             + (b.last ? b.last.toLocaleDateString() : '—') + '</td></tr>').join('');
+
+  const shiftRows = c.shifts.map(t => {
+    const j = jobBySync(t.job_sync_id), h = hoursOf(t);
+    const state = (t.rejected_at && !t.approved_at) ? '<span class="pill no">Rejected</span>'
+      : t.approved_at ? '<span class="pill ok">Signed off</span>'
+                      : '<span class="pill wait">Waiting</span>';
+    return '<tr><td>' + d(t.started_at).toLocaleDateString() + '</td>'
+      + '<td>' + esc(j?.customer_name || '—') + '</td>'
+      + '<td>' + d(t.started_at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) + '</td>'
+      + '<td>' + (t.ended_at ? d(t.ended_at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) : '—') + '</td>'
+      + '<td class="num">' + h.toFixed(2) + '</td>'
+      + '<td class="num">' + money(t.hourly_rate || 0) + '</td>'
+      + '<td class="num">' + money(h * (t.hourly_rate || 0)) + '</td>'
+      + '<td>' + state + '</td>'
+      + '<td>' + esc(t.approved_by || '') + '</td>'
+      + '<td>' + esc(t.review_note || t.notes || '') + '</td></tr>';
+  }).join('');
+
+  // What they raised from the field. Matched on the name the app recorded
+  // against the entry, so it is "signed with this name", not a proven identity.
+  const all = (typeof fieldChanges !== 'undefined' && fieldChanges) ? fieldChanges : [];
+  const mine = c.emp
+    ? all.filter(f => (f.changed_by || '').trim().toLowerCase() === (c.emp.name || '').trim().toLowerCase())
+         .sort((a,b) => d(b.at) - d(a.at))
+    : [];
+  const raisedRows = mine.map(f =>
+    '<tr><td>' + d(f.at).toLocaleDateString() + '</td>'
+    + '<td>' + esc(jobBySync(f.job_sync_id)?.customer_name || '—') + '</td>'
+    + '<td>' + (f.is_request ? 'Asked' : 'Reported') + '</td>'
+    + '<td>' + esc(f.summary || '') + '</td>'
+    + '<td>' + (f.is_request
+        ? (f.approved_at ? '<span class="pill ok">Approved</span>'
+           : f.rejected_at ? '<span class="pill no">Turned down</span>'
+           : '<span class="pill wait">Waiting</span>')
+        : '') + '</td></tr>').join('');
+
+  const table = (head, rows, empty) => rows
+    ? '<div class="scroll"><table><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+    : '<div class="no-data">' + esc(empty) + '</div>';
+
+  const pctW = v => (c.hours ? 100 * v / c.hours : 0) + '%';
+
+  $('scorecard').innerHTML =
+    '<div class="sc-head"><div><h3>' + esc(c.name) + '</h3>'
+    + '<div class="meta">' + esc(c.emp?.role || 'No role set')
+    + (c.emp && c.emp.is_active === false ? ' · no longer active' : '')
+    + (c.emp?.phone ? ' · ' + esc(c.emp.phone) : '')
+    + (c.emp?.email ? ' · ' + esc(c.emp.email) : '')
+    + '</div></div><div class="rate">' + esc(payLine) + '</div></div>'
+
+    + '<div class="sc-grid">'
+    + '<div class="m"><b>' + c.hours.toFixed(1) + '</b><span>Hours</span></div>'
+    + '<div class="m"><b>' + money(c.cost) + '</b><span>Labour cost</span></div>'
+    + '<div class="m"><b>' + c.jobs.size + '</b><span>Jobs</span></div>'
+    + '<div class="m"><b>' + c.days.size + '</b><span>Days on site</span></div>'
+    + '<div class="m"><b>' + c.shifts.length + '</b><span>Shifts</span></div>'
+    + '<div class="m"><b>' + avg.toFixed(1) + '</b><span>Avg shift (h)</span></div>'
+    + '<div class="m"><b>' + longest.toFixed(1) + '</b><span>Longest (h)</span></div>'
+    + '<div class="m"><b>' + pct.toFixed(0) + '%</b><span>Signed off</span></div>'
+    + '</div>'
+
+    + '<div class="sc-body">'
+    + '<h4>Sign-off</h4><div class="bar-mini">'
+    + '<i style="width:' + pctW(c.approvedH) + ';background:#1baf7a"></i>'
+    + '<i style="width:' + pctW(c.pendingH)  + ';background:#eda100"></i>'
+    + '<i style="width:' + pctW(c.rejectedH) + ';background:#E5484D"></i></div>'
+    + '<div class="legend">'
+    // A legend line for a state nothing is in is just noise on the page.
+    + [['Signed off', c.approvedH, '#1baf7a'],
+       ['Waiting',    c.pendingH,  '#eda100'],
+       ['Rejected',   c.rejectedH, '#E5484D']]
+      .filter(r => r[1] > 0.05)
+      .map(r => '<span><i style="background:' + r[2] + '"></i>' + r[0] + ' ' + r[1].toFixed(1) + ' h</span>')
+      .join('')
+    + '</div>'
+
+    + '<h4>Jobs worked</h4>'
+    + table('<th>Customer</th><th>Address</th><th>Status</th><th class="num">Shifts</th>'
+          + '<th class="num">Hours</th><th class="num">Labour</th><th>Between</th>',
+            jobRows, 'No jobs in this period.')
+
+    + '<h4>Every shift</h4>'
+    + table('<th>Date</th><th>Job</th><th>In</th><th>Out</th><th class="num">Hours</th>'
+          + '<th class="num">Rate</th><th class="num">Cost</th><th>Sign-off</th><th>By</th><th>Note</th>',
+            shiftRows, 'No shifts in this period.')
+
+    + '<h4>Raised from the field</h4>'
+    + table('<th>Date</th><th>Job</th><th>Kind</th><th>What</th><th></th>',
+            raisedRows, 'Nothing raised in this period.')
+
+    + '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button class="btn btn-sm btn-grey" id="scExportShifts">Export shifts CSV</button>'
+    + '<button class="btn btn-sm btn-grey" id="scExportJobs">Export jobs CSV</button>'
+    + '</div></div>';
+
+  const slug = c.name.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase();
+
+  $('scExportShifts').addEventListener('click', () => downloadCsv(
+    slug + '-shifts.csv',
+    ['Date','Job','Address','In','Out','Hours','Rate','Cost','Sign-off','Approved by','Note'],
+    c.shifts.map(t => {
+      const j = jobBySync(t.job_sync_id), h = hoursOf(t);
+      return [d(t.started_at).toLocaleDateString(), j?.customer_name || '', j?.address || '',
+              d(t.started_at).toLocaleTimeString(),
+              t.ended_at ? d(t.ended_at).toLocaleTimeString() : '',
+              h.toFixed(2), (t.hourly_rate || 0).toFixed(2), (h * (t.hourly_rate || 0)).toFixed(2),
+              (t.rejected_at && !t.approved_at) ? 'Rejected' : t.approved_at ? 'Signed off' : 'Waiting',
+              t.approved_by || '', t.review_note || t.notes || ''];
+    })));
+
+  $('scExportJobs').addEventListener('click', () => downloadCsv(
+    slug + '-jobs.csv',
+    ['Customer','Address','Status','Shifts','Hours','Labour cost','First day','Last day'],
+    jobList.map(b => [b.job?.customer_name || '', b.job?.address || '', b.job?.status || '',
+      b.shifts, b.hours.toFixed(2), b.cost.toFixed(2),
+      b.first ? b.first.toLocaleDateString() : '',
+      b.last ? b.last.toLocaleDateString() : ''])));
+}
+
 function renderReports(){
   if(!repFrom) setPreset(90);
   $('repRangeLabel').textContent =
@@ -2405,6 +2747,9 @@ function renderReports(){
     byEmp[key].hours+=hoursOf(t);
     byEmp[key].cost+=hoursOf(t)*(t.hourly_rate||0);
   });
+  // Everything per-person: cards, weekly hours, sign-off mix, scorecard.
+  renderPeople(timesIn);
+
   barsH('chartCrew',
     Object.entries(byEmp).sort((a,b)=>b[1].hours-a[1].hours)
       .map(([k,v])=>({label:k,value:v.hours})),
