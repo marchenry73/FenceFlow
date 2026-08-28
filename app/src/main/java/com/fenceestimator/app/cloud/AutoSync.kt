@@ -18,7 +18,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class SyncPhase { IDLE, SYNCING, OK, FAILED, OFFLINE_ONLY, WAITING_FOR_SIGNAL }
+enum class SyncPhase {
+    IDLE, SYNCING, OK, FAILED, OFFLINE_ONLY,
+    /** Cannot reach the server. Waiting will fix it. */
+    WAITING_FOR_SIGNAL,
+    /** The sign-in has expired. Waiting will NOT fix it; only signing in will. */
+    SIGNED_OUT,
+}
 
 data class SyncState(
     val phase: SyncPhase = SyncPhase.OFFLINE_ONLY,
@@ -42,6 +48,13 @@ data class SyncState(
             SyncPhase.OK -> "Everything is backed up"
             SyncPhase.WAITING_FOR_SIGNAL ->
                 "No signal. Your work is saved on this phone and will upload by itself."
+            // Never "it uploads on its own" here. It does not, and cannot: the
+            // token is dead and only signing in makes another one. Saying
+            // otherwise is how a phone sat for eleven hours uploading nothing
+            // while the banner said everything was in hand.
+            SyncPhase.SIGNED_OUT ->
+                "Signed out. Your work is safe on this phone, but nothing will " +
+                    "upload until you sign in again."
             SyncPhase.FAILED ->
                 "Couldn't sync: ${lastError ?: "unknown"}. Your work is safe on this phone."
             // Two very different situations used to share one sentence. Telling
@@ -332,11 +345,18 @@ class AutoSync(
         // empty pulls are the dangerous half: they make every local row look
         // new. So ask for a fresh token and try again on the next trigger.
         if (!SupabaseModule.hasLiveSession()) {
-            SupabaseModule.tryRefreshSession()
+            val outcome = SupabaseModule.tryRefreshSession()
             if (!SupabaseModule.hasLiveSession()) {
+                // Two different situations that used to share one banner. A dead
+                // spot clears itself; an expired sign-in never does, and the
+                // person has to be told which one they are looking at.
+                val signedOut = outcome == SupabaseModule.RefreshOutcome.SIGNED_OUT
                 _state.value = _state.value.copy(
-                    phase = SyncPhase.WAITING_FOR_SIGNAL,
-                    lastError = context.getString(R.string.vm_waiting_sign_back_in),
+                    phase = if (signedOut) SyncPhase.SIGNED_OUT else SyncPhase.WAITING_FOR_SIGNAL,
+                    lastError = context.getString(
+                        if (signedOut) R.string.vm_signed_out_sign_in_again
+                        else R.string.vm_waiting_sign_back_in
+                    ),
                     hasUnsyncedWork = true
                 )
                 session.refresh()

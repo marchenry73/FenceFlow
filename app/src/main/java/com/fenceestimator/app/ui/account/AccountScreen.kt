@@ -296,6 +296,11 @@ private fun SyncStatusCard() {
                 // teaches people to ignore the one that isn't.
                 SyncPhase.WAITING_FOR_SIGNAL -> stringResource(R.string.acct_sync_waiting_for_signal) to
                     stringResource(R.string.acct_sync_waiting_for_signal_detail)
+                // Deliberately NOT grouped with "no signal" above. That one
+                // fixes itself and is right to read as a status; this one never
+                // does, and reading as a status is exactly how it went unnoticed.
+                SyncPhase.SIGNED_OUT -> stringResource(R.string.acct_sync_signed_out) to
+                    stringResource(R.string.acct_sync_signed_out_detail)
                 SyncPhase.FAILED -> stringResource(R.string.sync_failed) to
                     (sync.lastError ?: stringResource(R.string.acct_sync_failed_detail))
                 SyncPhase.OFFLINE_ONLY -> stringResource(R.string.sync_local_only) to

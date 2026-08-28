@@ -315,7 +315,8 @@ fun FenceEstimatorNavHost() {
                 onOpenSchedule = { navController.navigate(Routes.SCHEDULE) },
                 onOpenReports = { navController.navigate(Routes.REPORTS) },
                 onOpenPipeline = { navController.navigate(Routes.PIPELINE) },
-                onOpenTimeApproval = { navController.navigate(Routes.TIME_APPROVAL) }
+                onOpenTimeApproval = { navController.navigate(Routes.TIME_APPROVAL) },
+                onOpenAccount = { navController.navigate(Routes.ACCOUNT) }
             )
         }
         composable(Routes.REPORTS) {

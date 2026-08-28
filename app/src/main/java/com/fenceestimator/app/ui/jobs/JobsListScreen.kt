@@ -90,7 +90,13 @@ fun JobsListScreen(
     onOpenSchedule: () -> Unit,
     onOpenReports: () -> Unit,
     onOpenPipeline: () -> Unit,
-    onOpenTimeApproval: () -> Unit
+    onOpenTimeApproval: () -> Unit,
+    /**
+     * Straight to Account & Team, not via Settings. Settings is behind the
+     * catalog permission, so telling a signed-out crew member to go that way
+     * sends them into a wall on the one screen that could fix their problem.
+     */
+    onOpenAccount: () -> Unit
 ) {
     val app = currentApp()
     val viewModel: JobsViewModel = viewModel(factory = GenericViewModelFactory { JobsViewModel(app.repository) })
@@ -346,12 +352,22 @@ fun JobsListScreen(
                     // because everything looks like it is working.
                     if (sync.hasUnsyncedWork ||
                         sync.phase == com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL ||
+                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.SIGNED_OUT ||
                         (sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY &&
                             sync.sessionResolved) ||
                         sync.phase == com.fenceestimator.app.cloud.SyncPhase.FAILED
                     ) {
+                        // Tappable exactly when there is something to tap for.
+                        val needsSigningIn =
+                            sync.phase == com.fenceestimator.app.cloud.SyncPhase.SIGNED_OUT ||
+                            sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY
                         Card(
-                            Modifier.fillMaxWidth(),
+                            Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (needsSigningIn) Modifier.clickable { onOpenAccount() }
+                                    else Modifier
+                                ),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
@@ -363,11 +379,22 @@ fun JobsListScreen(
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                                 Text(
-                                    if (sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY)
-                                        "This phone is not connected to your company, so these " +
-                                            "figures are its own. Open Account & Team and sign in."
-                                    else
-                                        "Nothing is lost. Keep working — it uploads on its own.",
+                                    // "It uploads on its own" is only true when
+                                    // something is actually coming back. Said to
+                                    // a phone whose sign-in has expired it is
+                                    // simply false, and it is what kept a phone
+                                    // sitting quietly for half a day having
+                                    // uploaded nothing.
+                                    when (sync.phase) {
+                                        com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY ->
+                                            "This phone is not connected to your company, so these " +
+                                                "figures are its own. Open Account & Team and sign in."
+                                        com.fenceestimator.app.cloud.SyncPhase.SIGNED_OUT ->
+                                            "This will not fix itself. Open Account & Team and sign " +
+                                                "in — everything on this phone uploads as soon as you do."
+                                        else ->
+                                            "Nothing is lost. Keep working — it uploads on its own."
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )

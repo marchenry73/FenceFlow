@@ -1365,6 +1365,9 @@
     <string name="vm_couldnt_save_with">Couldn\'t save: %1$s</string>
     <string name="vm_couldnt_save_refused">Couldn\'t save: the server refused the change</string>
     <string name="vm_waiting_sign_back_in">Waiting to sign back in</string>
+    <string name="vm_signed_out_sign_in_again">Signed out — sign in again to upload</string>
+    <string name="acct_sync_signed_out">Signed out</string>
+    <string name="acct_sync_signed_out_detail">Your sign-in has expired, so nothing is uploading. Everything on this phone is safe. Sign in again and it all goes up straight away.</string>
     <string name="sync_account_not_active">Account not active — check Billing</string>
     <string name="set_update_check">Check for updates</string>
     <string name="set_update_checking">Checking…</string>

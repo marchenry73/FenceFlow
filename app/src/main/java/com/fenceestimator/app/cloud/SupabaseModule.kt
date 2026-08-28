@@ -60,6 +60,26 @@ data class CloudProfile(
  * properties are missing, which lets the app keep running fully offline on the
  * local Room database instead of crashing at startup.
  */
+/**
+ * Whether a failure was the network rather than the server.
+ *
+ * Shared deliberately: when two places decide this separately they drift, and
+ * the cost of drifting is telling somebody to check their signal when they
+ * have actually been signed out.
+ */
+internal fun looksLikeNoNetwork(error: Throwable): Boolean {
+    val text = generateSequence(error) { it.cause }
+        .mapNotNull { "${it::class.simpleName} ${it.message}" }
+        .joinToString(" ")
+        .lowercase()
+    return listOf(
+        "unable to resolve host", "failed to connect", "timeout", "timed out",
+        "no address associated", "network is unreachable", "unknownhost",
+        "connectexception", "sockettimeout", "connect timeout",
+        "software caused connection abort"
+    ).any { it in text }
+}
+
 object SupabaseModule {
     val isConfigured: Boolean =
         BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_KEY.isNotBlank()
@@ -138,9 +158,37 @@ object SupabaseModule {
     fun hasLiveSession(): Boolean =
         runCatching { client.auth.currentAccessTokenOrNull() }.getOrNull()?.isNotBlank() == true
 
-    /** Asks for a fresh token; quiet on failure, the next attempt retries. */
-    suspend fun tryRefreshSession() {
-        runCatching { client.auth.refreshCurrentSession() }
+    /** What came of asking for a fresh token. */
+    enum class RefreshOutcome {
+        /** There is a live token again. */
+        OK,
+        /** The phone could not reach the server. Trying later will work. */
+        NO_NETWORK,
+        /** The server answered, and the answer was no. Trying later will not help. */
+        SIGNED_OUT,
+    }
+
+    /**
+     * Asks for a fresh token, and says which of the two very different things
+     * went wrong.
+     *
+     * This used to be `runCatching { ... }` and nothing else, which threw away
+     * the only fact that mattered. A refresh token that has expired or been
+     * revoked fails here permanently, but the caller could not tell that from a
+     * phone in a dead spot, so it reported "no signal" -- and the app sat
+     * showing "Nothing is lost, it uploads on its own" while uploading
+     * nothing, for ever, because only signing in again could have fixed it and
+     * nothing ever said so.
+     */
+    suspend fun tryRefreshSession(): RefreshOutcome {
+        val attempt = runCatching { client.auth.refreshCurrentSession() }
+        if (attempt.isSuccess) {
+            // Succeeding without producing a token is still not being signed
+            // in, and must not be reported as if it were.
+            return if (hasLiveSession()) RefreshOutcome.OK else RefreshOutcome.SIGNED_OUT
+        }
+        return if (looksLikeNoNetwork(attempt.exceptionOrNull()!!)) RefreshOutcome.NO_NETWORK
+               else RefreshOutcome.SIGNED_OUT
     }
 
     fun currentUserId(): String? = client.auth.currentUserOrNull()?.id
