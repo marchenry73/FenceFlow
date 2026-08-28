@@ -1256,11 +1256,28 @@ object EntitySync {
         // Reading it this way rather than from the local session keeps the two
         // in step: if the rule changes server-side the phone follows, with no
         // release needed.
-        val withPay = SupabaseModule.client.postgrest.from("employees")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudEmployee>()
-        val fromRoster = withPay.isEmpty()
-        val cloud = if (!fromRoster) withPay else
+        // ASKED, not inferred.
+        //
+        // This decided with withPay.isEmpty() -- treating no rows as "not
+        // allowed to see pay". Empty also means the request came back with
+        // nothing for any other reason, and when that happened the phone
+        // replaced its local rates with the roster's zeros and pushed them
+        // back over the real ones. A real hourly rate on this database went
+        // from 25 to 0 that way, and payroll would have been silently wrong.
+        //
+        // A failure to ask leaves it false, which costs a crew phone nothing
+        // -- it uses the roster it was going to use anyway -- and costs an
+        // office phone one stale sync rather than its pay data.
+        val maySeePay = runCatching {
+            SupabaseModule.client.postgrest.rpc("can_see_pay").decodeAs<Boolean>()
+        }.getOrDefault(false)
+
+        val fromRoster = !maySeePay
+        val cloud = if (maySeePay)
+            SupabaseModule.client.postgrest.from("employees")
+                .select { filter { eq("company_id", companyId); notDeleted() } }
+                .decodeList<CloudEmployee>()
+        else
             SupabaseModule.client.postgrest
                 .rpc("crew_roster")
                 .decodeList<CrewRosterRow>()
@@ -1451,6 +1468,19 @@ object EntitySync {
     }
 
     private suspend fun pushEmployees(repository: Repository, companyId: String): Int {
+        // A phone that cannot see pay must not send employee rows at all.
+        //
+        // Its local copy came from the roster, which carries no rates, so
+        // pushing it writes zeros over the office's figures. RLS already
+        // refuses this for crew, but the owner's phone is allowed -- and the
+        // owner's phone is exactly the one that did the damage when the
+        // fallback misfired. Two independent things now have to fail before
+        // pay can be overwritten.
+        val maySeePay = runCatching {
+            SupabaseModule.client.postgrest.rpc("can_see_pay").decodeAs<Boolean>()
+        }.getOrDefault(false)
+        if (!maySeePay) return 0
+
         val rows = repository.getAllEmployees().map { it.toCloud(companyId) }
         if (rows.isEmpty()) return 0
         SupabaseModule.client.postgrest.from("employees")
