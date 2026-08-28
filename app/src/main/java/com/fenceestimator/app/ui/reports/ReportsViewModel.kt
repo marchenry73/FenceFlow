@@ -103,8 +103,25 @@ data class ReportData(
     /** Names of the jobs counted as won, so that figure can too. */
     val wonJobNames: List<String> = emptyList(),
     /** Job name lookup for the payment rows. */
-    val jobNamesById: Map<Long, String> = emptyMap()
+    val jobNamesById: Map<Long, String> = emptyMap(),
+    /** The individual expenses, so a category can list what is in it. */
+    val expenseDetail: List<ExpenseRow> = emptyList(),
+    /** Every job with the stage it is at, so a stage can name its jobs. */
+    val stageDetail: List<StageJobRow> = emptyList()
 )
+
+/** One expense, named well enough to be recognised in a list. */
+data class ExpenseRow(
+    /** The category enum NAME. The screen translates it; this class has no Context. */
+    val category: String,
+    val description: String,
+    val jobName: String,
+    val amount: Double,
+    val date: Long
+)
+
+/** One job, and the pipeline stage it is sitting at. */
+data class StageJobRow(val stage: String, val jobName: String, val address: String)
 
 data class CrewRow(val name: String, val jobs: Int, val hours: Double, val cost: Double) {
     val perHour: Double get() = if (hours > 0) cost / hours else 0.0
@@ -224,7 +241,8 @@ class ReportsViewModel(
             // whose receivedAt falls in it.
             val paymentsInPeriod = repository.getPaymentsBetween(fromMillis, toMillis)
 
-            val jobs = repository.getAllJobs().filter { jobDate(it) in fromMillis..toMillis }
+            val allJobs = repository.getAllJobs()
+            val jobs = allJobs.filter { jobDate(it) in fromMillis..toMillis }
             val jobIds = jobs.map { it.id }.toSet()
             val employees = repository.getAllEmployees()
             val expenses = repository.getAllExpenses().filter { it.jobId in jobIds }
@@ -245,7 +263,24 @@ class ReportsViewModel(
                 expensesByCategory = expenses.groupBy { it.category.name }
                     .map { (k, v) -> ChartRow(k, v.sumOf { it.amount }) }
                     .sortedByDescending { it.value },
-                jobsByStage = jobsByStage(jobs),
+                jobsByStage = jobsByStage(allJobs),
+                // The rows behind those two charts, so tapping either can name
+                // what is in it rather than only defining it.
+                expenseDetail = expenses
+                    .sortedByDescending { it.amount }
+                    .map { e ->
+                        ExpenseRow(
+                            category = e.category.name,
+                            description = e.description,
+                            jobName = jobs.firstOrNull { it.id == e.jobId }
+                                ?.customerName?.ifBlank { untitled } ?: untitled,
+                            amount = e.amount,
+                            date = e.date
+                        )
+                    },
+                stageDetail = allJobs.map { j ->
+                    StageJobRow(stage = stageOf(j), jobName = j.customerName, address = j.address)
+                },
                 funnel = funnel(jobs),
                 leadSources = jobs.filter { it.status.isWon }
                     .groupBy { it.referralSource.ifBlank { "Not recorded" } }
@@ -344,24 +379,34 @@ class ReportsViewModel(
         ChartRow("Other", expenses.sumOf { it.amount })
     ).filter { it.value > 0 }
 
+    /** The order stages are shown in, which is the order work moves through them. */
+    private val stageOrder = listOf(
+        "New Lead", "Quote Sent", "Approved", "Deposit Paid", "Scheduled", "Installed", "Paid in Full"
+    )
+
+    /**
+     * What stage a job is at.
+     *
+     * Deliberately the only definition. The chart counts jobs per stage and the
+     * drill-down lists the jobs in one -- if those two decided it separately
+     * they would drift, and the first anyone would know is a stage whose count
+     * disagrees with the list it opens.
+     */
+    private fun stageOf(j: Job): String = when {
+        j.paymentStatus == PaymentStatus.PAID_IN_FULL -> "Paid in Full"
+        j.status == JobStatus.COMPLETED -> "Installed"
+        j.scheduledDate != null && j.status == JobStatus.ACCEPTED -> "Scheduled"
+        JobMoney.netPaid(j) > 0 || j.paymentStatus == PaymentStatus.DEPOSIT_PAID -> "Deposit Paid"
+        j.status == JobStatus.ACCEPTED -> "Approved"
+        j.status == JobStatus.SENT -> "Quote Sent"
+        else -> "New Lead"
+    }
+
     private fun jobsByStage(jobs: List<Job>): List<ChartRow> {
-        val stages = linkedMapOf(
-            "New Lead" to 0, "Quote Sent" to 0, "Approved" to 0,
-            "Deposit Paid" to 0, "Scheduled" to 0, "Installed" to 0, "Paid in Full" to 0
-        )
-        jobs.forEach { j ->
-            val stage = when {
-                j.paymentStatus == PaymentStatus.PAID_IN_FULL -> "Paid in Full"
-                j.status == JobStatus.COMPLETED -> "Installed"
-                j.scheduledDate != null && j.status == JobStatus.ACCEPTED -> "Scheduled"
-                JobMoney.netPaid(j) > 0 || j.paymentStatus == PaymentStatus.DEPOSIT_PAID -> "Deposit Paid"
-                j.status == JobStatus.ACCEPTED -> "Approved"
-                j.status == JobStatus.SENT -> "Quote Sent"
-                else -> "New Lead"
-            }
-            stages[stage] = (stages[stage] ?: 0) + 1
+        val counts = jobs.groupingBy { stageOf(it) }.eachCount()
+        return stageOrder.mapNotNull { stage ->
+            counts[stage]?.let { ChartRow(stage, it.toDouble()) }
         }
-        return stages.filter { it.value > 0 }.map { ChartRow(it.key, it.value.toDouble()) }
     }
 
     private fun funnel(jobs: List<Job>) = listOf(

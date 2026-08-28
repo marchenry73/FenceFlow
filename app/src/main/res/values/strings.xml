@@ -823,6 +823,7 @@
     <string name="rep_payments_counted">%1$d payment(s)</string>
     <string name="rep_jobs_worked_line">Across %1$d job(s), labor cost</string>
     <string name="rep_average_rate_line">Average per hour</string>
+    <string name="rep_share_of_total_caveat">%1$s of everything spent in this period, which came to %2$s.</string>
     <string name="rep_total">total</string>
     <string name="rep_what_it_cost">What it cost</string>
     <string name="rep_line_labor">Labor</string>

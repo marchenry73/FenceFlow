@@ -275,25 +275,43 @@ fun ReportsScreen(onBack: () -> Unit) {
                         title = stringResource(R.string.rep_chart_expenses_by_category),
                         // Rows arrive keyed by enum name; show them in the
                         // user's language.
+                        // The label gets translated for display; the enum name
+                        // goes into key, because that is what the expense rows
+                        // are stored against. Matching a drill-down on a
+                        // translated string would work in English and quietly
+                        // find nothing in any other language.
                         rows = data.expensesByCategory.map { row ->
                             runCatching { ExpenseCategory.valueOf(row.label) }.getOrNull()
-                                ?.let { row.copy(label = context.getString(it.labelRes())) }
-                                ?: row
+                                ?.let {
+                                    row.copy(
+                                        label = context.getString(it.labelRes()),
+                                        key = row.label
+                                    )
+                                }
+                                ?: row.copy(key = row.label)
                         },
                         format = { currency.format(it) },
                         empty = stringResource(R.string.rep_empty_no_expenses),
                         onPick = { row ->
                             val total = data.expensesByCategory.sumOf { it.value }
+                            val mine = data.expenseDetail.filter { it.category == row.key }
                             showing = StatDetail(
                                 title = row.label,
                                 value = currency.format(row.value),
                                 howItWorks = context.getString(R.string.rep_how_expense_cat),
-                                lines = listOf(
+                                lines = mine.map { e ->
                                     DetailLine(
-                                        label = context.getString(R.string.rep_share_of_total,
-                                            if (total > 0) "%.0f%%".format(row.value / total * 100) else "0%"),
-                                        amount = currency.format(total)
+                                        label = e.description.ifBlank { row.label },
+                                        sublabel = listOf(e.jobName, dayFormat.format(java.util.Date(e.date)))
+                                            .filter { it.isNotBlank() }
+                                            .joinToString(" · "),
+                                        amount = currency.format(e.amount)
                                     )
+                                },
+                                caveat = context.getString(
+                                    R.string.rep_share_of_total_caveat,
+                                    if (total > 0) "%.0f%%".format(row.value / total * 100) else "0%",
+                                    currency.format(total)
                                 )
                             )
                         }
@@ -333,7 +351,17 @@ fun ReportsScreen(onBack: () -> Unit) {
                             showing = StatDetail(
                                 title = row.label,
                                 value = "%.0f".format(row.value),
-                                howItWorks = context.getString(R.string.rep_how_stage)
+                                howItWorks = context.getString(R.string.rep_how_stage),
+                                lines = data.stageDetail
+                                    .filter { it.stage == row.label }
+                                    .map { j ->
+                                        DetailLine(
+                                            label = j.jobName.ifBlank {
+                                                context.getString(R.string.rep_untitled)
+                                            },
+                                            sublabel = j.address
+                                        )
+                                    }
                             )
                         }
                     )
