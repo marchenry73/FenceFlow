@@ -1189,11 +1189,36 @@ function renderProcessor(){
       </button>`;
   }).join('');
 
-  if (chosen !== 'none' && !connected) {
+  if (chosen === 'square' && !connected) {
+    $('processorChoices').insertAdjacentHTML('beforeend',
+      `<div style="flex-basis:100%;margin-top:10px">
+         <button class="btn" id="connectSquare">Connect my Square account</button>
+       </div>`);
+    $('connectSquare').addEventListener('click', async () => {
+      const b = $('connectSquare');
+      b.disabled = true;
+      msg('processorMsg', 'Opening Square…', 'working');
+      const { data: sess } = await db.auth.getSession();
+      try {
+        const res = await fetch(`${SUPA_URL}/functions/v1/square-oauth?action=start`, {
+          headers: { Authorization: `Bearer ${sess?.session?.access_token}` },
+        });
+        const body = await res.json().catch(() => ({}));
+        if (body.url) { location.href = body.url; return; }
+        b.disabled = false;
+        msg('processorMsg', body.error || 'Could not open Square just now.', 'err');
+      } catch (e) {
+        b.disabled = false;
+        msg('processorMsg', 'Could not reach Square: ' + (e.message || e), 'err');
+      }
+    });
+    msg('processorMsg', 'Square is chosen. Connect the account and card requests switch on — '
+      + 'until then the app will tell you to take the payment another way rather than taking '
+      + 'one nobody can record.', 'info');
+  } else if (chosen !== 'none' && !connected) {
     msg('processorMsg',
       `You have chosen ${chosen.charAt(0).toUpperCase() + chosen.slice(1)}, but the account is not `
-      + 'connected yet, so card requests are still switched off. Connecting is one step and we '
-      + 'are finishing it now — nothing you do here can take a payment we cannot record.', 'info');
+      + 'connected yet, so card requests are still switched off.', 'info');
   } else if (connected) {
     msg('processorMsg', `Connected to ${esc(paymentConn.display_name || chosen)}. `
       + 'Card requests from the app go to this account.', 'ok');
@@ -1208,6 +1233,7 @@ function renderProcessor(){
       const r = await db.rpc('my_payment_connection');
       paymentConn = r.error ? paymentConn : ((r.data || [])[0] || null);
       renderProcessor();
+  settleAfterSquare();
     }));
 }
 
@@ -1281,6 +1307,27 @@ function showServiceBanner(s){
  * Nothing else on the page read the billing parameter at all, so there was
  * also no confirmation of any kind that the payment had gone through.
  */
+/**
+ * Back from Square's consent screen. Say what happened.
+ *
+ * square-oauth redirects here with ?square=connected|cancelled|failed|expired.
+ * Without this the contractor lands on a dashboard that looks identical
+ * whether it worked or not, which is the same fault the Stripe return had.
+ */
+function settleAfterSquare(){
+  const p = new URLSearchParams(location.search).get('square');
+  if (!p) return;
+  history.replaceState({}, '', location.pathname + location.hash);
+  switchTab('billing');
+  const say = {
+    connected: ['Square is connected. Card requests from the app now go to your Square account.', 'ok'],
+    cancelled: ['No changes were made — you did not finish connecting Square.', 'info'],
+    expired:   ['That connection attempt timed out. Press Connect again.', 'err'],
+    failed:    ['Square would not complete the connection. Press Connect to try again.', 'err'],
+  }[p] || ['Something came back from Square that we did not recognise.', 'err'];
+  msg('processorMsg', say[0], say[1]);
+}
+
 async function settleAfterCheckout(){
   const billing = new URLSearchParams(location.search).get('billing');
   if (!billing) return null;

@@ -116,11 +116,35 @@ Deno.serve(async (req) => {
       return new Response("no company for that merchant");
     }
 
-    // Which job it pays for. The payment link carries it in reference_id --
-    // set when the link was created -- and note is the fallback for a payment
-    // taken some other way on the same account.
-    const jobSyncId = String(payment.reference_id ?? "").trim();
-    if (!jobSyncId) return new Response("no job reference on the payment");
+    // Which job it pays for.
+    //
+    // Square's event carries Square's own ids and nothing of ours, so the row
+    // written when the link was created is the only thing that can place the
+    // money. Looked up by order id, which is what a quick-pay link returns and
+    // what the payment then reports.
+    const orderId = String(payment.order_id ?? "").trim();
+    if (!orderId) return new Response("no order on the payment");
+
+    const { data: request } = await admin
+      .from("job_payments")
+      .select("job_sync_id, company_id, status")
+      .eq("processor", "square")
+      .eq("external_id", orderId)
+      .maybeSingle();
+
+    if (!request?.job_sync_id) {
+      // A payment on their Square account that did not come from a FenceFlow
+      // link -- a card taken at the counter, say. Not ours to record, and
+      // answering 200 stops Square retrying it for ever.
+      return new Response("not a FenceFlow payment request");
+    }
+    const jobSyncId = request.job_sync_id;
+
+    // Mark the request itself paid, so the office's Payments list matches the
+    // job.
+    await admin.from("job_payments")
+      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .eq("processor", "square").eq("external_id", orderId);
 
     const amountMinor = Number(payment?.amount_money?.amount ?? 0);
     const currency = String(payment?.amount_money?.currency ?? "USD");
@@ -133,7 +157,7 @@ Deno.serve(async (req) => {
     const amount = zeroDecimal.includes(currency) ? amountMinor : amountMinor / 100;
 
     const outcome = await recordClearedPayment(admin, {
-      companyId: conn.company_id,
+      companyId: request.company_id ?? conn.company_id,
       jobSyncId,
       amount,
       externalId: String(payment.id ?? ""),

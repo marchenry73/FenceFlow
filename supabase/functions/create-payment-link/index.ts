@@ -97,16 +97,88 @@ Deno.serve(async (req) => {
     const processor = (conn?.processor ?? "none").toLowerCase();
 
     if (processor === "square") {
-      // Square is chosen but not yet connectable end to end: a payment taken
-      // through it raises its webhook at Square, and nothing here listens for
-      // that yet. Refusing is the only honest answer -- taking money we cannot
-      // record is exactly the failure this whole page exists to avoid.
-      return json({
-        error: "Square is set as your card processor, but the connection is not finished yet, " +
-               "so a payment could be taken without being recorded against the job. " +
-               "Take this one as cash, check or card by phone and record it on the job, " +
-               "and we will tell you the moment Square is ready.",
-      }, 501);
+      if (!conn?.access_token || !conn?.external_id) {
+        return json({
+          error: "Square is your chosen card processor but the account is not connected yet. " +
+                 "Connect it from the Billing tab, or take this payment as cash, check or " +
+                 "card by phone and record it on the job.",
+        }, 409);
+      }
+
+      const host = (Deno.env.get("SQUARE_ENVIRONMENT") ?? "sandbox") === "production"
+        ? "https://connect.squareup.com"
+        : "https://connect.squareupsandbox.com";
+
+      // Which of the merchant's locations to bill against. Square requires one,
+      // and a merchant can have several -- the main one is what a fencing
+      // contractor means by "my business".
+      const locRes = await fetch(`${host}/v2/locations`, {
+        headers: {
+          Authorization: `Bearer ${conn.access_token}`,
+          "Square-Version": "2025-01-23",
+        },
+      });
+      const locBody = await locRes.json().catch(() => ({}));
+      const locationId = (locBody?.locations ?? [])
+        .find((l: any) => l.status === "ACTIVE")?.id;
+      if (!locationId) {
+        return json({
+          error: "Square did not return an active location for your account. " +
+                 "Check the account is fully set up in Square, then try again.",
+        }, 502);
+      }
+
+      const linkRes = await fetch(`${host}/v2/online-checkout/payment-links`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${conn.access_token}`,
+          "Square-Version": "2025-01-23",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          // Square rejects a repeat of the same key, which is what stops a
+          // double-tap becoming two payment requests for one job.
+          idempotency_key: `${jobSyncId}-${kind}-${amount}`.slice(0, 45),
+          quick_pay: {
+            name: `${description} -- ${company?.name ?? "FenceFlow"}`,
+            price_money: { amount, currency: "USD" },
+            location_id: locationId,
+          },
+        }),
+      });
+      const linkBody = await linkRes.json().catch(() => ({}));
+      const link = linkBody?.payment_link;
+      if (!linkRes.ok || !link?.url) {
+        const why = linkBody?.errors?.[0]?.detail ?? "Square would not create the payment link.";
+        return json({ error: why }, 502);
+      }
+
+      // The mapping back, recorded BEFORE the customer can pay.
+      //
+      // Square's webhook arrives carrying its own ids and nothing of ours, so
+      // this row is the only thing that can say which job the money belongs
+      // to. Writing it after handing out the link would leave a window where a
+      // fast payment could not be placed.
+      const { error: insertError } = await admin.from("job_payments").insert({
+        company_id: profile.company_id,
+        job_sync_id: jobSyncId,
+        kind,
+        amount_cents: amount,
+        currency: "USD",
+        status: "pending",
+        payment_url: link.url,
+        processor: "square",
+        external_id: String(link.order_id ?? link.id ?? ""),
+        livemode: (Deno.env.get("SQUARE_ENVIRONMENT") ?? "sandbox") === "production",
+      });
+      if (insertError) {
+        return json({
+          error: "The payment link was created but could not be recorded against the job, " +
+                 "so it has not been sent. Try again.",
+        }, 500);
+      }
+
+      return json({ url: link.url });
     }
 
     const account = conn?.external_id || company?.stripe_account_id || undefined;
