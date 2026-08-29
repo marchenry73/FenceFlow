@@ -409,6 +409,8 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <h2 style="margin:0">Jobs</h2>
           <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-grey" id="openMap">Map</button>
+            <button class="btn btn-sm btn-grey" id="qboExport">QuickBooks CSVs</button>
             <button class="btn btn-sm btn-grey" id="openImport">Import customers</button>
             <button class="btn btn-sm" id="newJob">+ New Job</button>
           </div>
@@ -423,7 +425,15 @@
 
     <div id="tab-cal" style="display:none">
       <div class="panel">
-        <div class="cal-head">
+        <div class="panel" id="mapBox" style="display:none">
+        <h2 style="margin:0 0 8px">Jobs on the map</h2>
+        <p class="sub" id="mapNote" style="margin:0 0 10px"></p>
+        <div id="mapCanvasWrap" style="position:relative;border-radius:10px;overflow:hidden">
+          <canvas id="mapCanvas" style="display:block;width:100%"></canvas>
+        </div>
+        <div class="cal-legend" id="mapLegend"></div>
+      </div>
+      <div class="cal-head">
           <h2 id="calTitle" style="margin:0"></h2>
           <div class="nav">
             <button class="btn btn-sm btn-grey" id="calPrev">‹</button>
@@ -732,6 +742,15 @@
 
     <div id="tab-settings" style="display:none">
       <div class="panel">
+        <h2>Your get-a-quote page</h2>
+        <p class="sub">Jobber calls this online booking. A homeowner opens this link, asks for a
+          fence, and lands in your pipeline as a Website lead — put it on your business card, your
+          Facebook page, your truck's QR code.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin:10px 0 18px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="copyLeadLink">Copy my link</button>
+          <span class="sub" id="leadLinkNote"></span>
+        </div>
+
         <h2>Business Settings</h2>
         <div id="setNote"></div><div class="msg" id="setMsg"></div>
         <div class="row2">
@@ -974,16 +993,17 @@
   </div>
 </div></div>
 
+<script src="config.js"></script>
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 // Publishable key — safe client-side. Row Level Security enforces access.
 // Publishable key on purpose -- it is designed to be public. Row Level
 // Security in Postgres is what actually keeps one company out of another's data.
-const SUPA_URL = 'https://newcrgafcptspmapacrx.supabase.co';
+const SUPA_URL = window.FENCEFLOW_CONFIG.SUPABASE_URL;
 const db = createClient(
   SUPA_URL,
-  'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
+  window.FENCEFLOW_CONFIG.SUPABASE_KEY
 );
 
 const $ = id => document.getElementById(id);
@@ -2173,6 +2193,123 @@ const CAL_STAGE = {
   'Paid in Full': '#1baf7a',
   'Lost':         '#B9C0CA',
 };
+
+/* ===================== Jobs on the map ====================================
+   Every competitor's dispatchers live on a map view; this one is built from
+   the same free tiles and geocoder the 3D page uses. Coordinates are
+   geocoded once and stored on the job, so the map costs one lookup per job
+   ever, not per open. */
+const mapMerc={
+  tile(lat,lon,z){const n=Math.pow(2,z);
+    return {x:(lon+180)/360*n,
+            y:(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n};},
+};
+
+async function geocodeMissingJobs(){
+  const missing=jobs.filter(j=>j.address&&j.address.trim().length>=8&&(j.site_lat==null));
+  let placed=0;
+  for(const j of missing.slice(0,25)){          // one batch per open; the rest next time
+    try{
+      const r=await fetch(SUPA_URL+'/functions/v1/quote-map?action=geocode&address='
+        +encodeURIComponent(j.address.trim()));
+      const g=await r.json();
+      if(r.ok&&g.lat){
+        await db.from('jobs').update({site_lat:g.lat,site_lon:g.lon}).eq('id',j.id);
+        j.site_lat=g.lat; j.site_lon=g.lon; placed++;
+      } else {
+        // Mark tried-and-failed with 0 so the next open does not retry forever.
+        await db.from('jobs').update({site_lat:0,site_lon:0}).eq('id',j.id);
+        j.site_lat=0; j.site_lon=0;
+      }
+    }catch(e){break;}
+  }
+  return placed;
+}
+
+async function renderJobsMap(){
+  $('mapBox').style.display='';
+  $('mapNote').textContent='Placing jobs…';
+  await geocodeMissingJobs();
+  const pins=jobs.filter(j=>j.site_lat&&j.site_lon);
+  if(!pins.length){
+    $('mapNote').textContent='No jobs could be placed yet — addresses need street, city and ZIP (use Verify address on a job).';
+    return;
+  }
+  const lats=pins.map(p=>p.site_lat), lons=pins.map(p=>p.site_lon);
+  const cLat=(Math.min(...lats)+Math.max(...lats))/2;
+  const cLon=(Math.min(...lons)+Math.max(...lons))/2;
+  // Zoom that fits the spread; a single pin gets a neighbourhood view.
+  let z=15;
+  const span=Math.max(Math.max(...lats)-Math.min(...lats),
+                      (Math.max(...lons)-Math.min(...lons))*Math.cos(cLat*Math.PI/180));
+  if(span>0.0005) z=Math.max(10,Math.min(16,Math.floor(Math.log2(360/(span*3.2)))));
+  const N=4;
+  const c=mapMerc.tile(cLat,cLon,z);
+  const x0=Math.floor(c.x)-Math.floor(N/2), y0=Math.floor(c.y)-Math.floor(N/2);
+  const cvs=$('mapCanvas');
+  cvs.width=256*N; cvs.height=256*N;
+  const g=cvs.getContext('2d');
+  await Promise.all(Array.from({length:N*N},(_,i)=>{
+    const dx=i%N, dy=Math.floor(i/N);
+    return new Promise(res=>{
+      const img=new Image(); img.crossOrigin='anonymous';
+      img.onload=()=>{g.drawImage(img,dx*256,dy*256);res(1);};
+      img.onerror=()=>res(0);
+      img.src=SUPA_URL+'/functions/v1/quote-map?action=tile&z='+z+'&y='+(y0+dy)+'&x='+(x0+dx);
+    });
+  }));
+  const px=p=>{const t=mapMerc.tile(p.site_lat,p.site_lon,z);
+    return {x:(t.x-x0)*256,y:(t.y-y0)*256};};
+  pins.forEach(p=>{
+    const {x,y}=px(p);
+    if(x<0||y<0||x>cvs.width||y>cvs.height) return;
+    const col=CAL_STAGE[stageOf(p)]||'#8A93A3';
+    g.beginPath(); g.arc(x,y,9,0,7); g.fillStyle=col; g.fill();
+    g.lineWidth=2.5; g.strokeStyle='#fff'; g.stroke();
+    g.font='700 11px Barlow Condensed,sans-serif'; g.fillStyle='#12151A';
+    g.strokeStyle='rgba(255,255,255,.85)'; g.lineWidth=3;
+    const label=(p.customer_name||'Job').slice(0,14);
+    g.strokeText(label,x+12,y+4); g.fillText(label,x+12,y+4);
+  });
+  // Clicks resolve to the nearest pin within reach.
+  cvs.onclick=e=>{
+    const r=cvs.getBoundingClientRect();
+    const mx=(e.clientX-r.left)*cvs.width/r.width, my=(e.clientY-r.top)*cvs.height/r.height;
+    let best=null,bd=28;
+    pins.forEach(p=>{const q=px(p);const d=Math.hypot(q.x-mx,q.y-my);
+      if(d<bd){bd=d;best=p;}});
+    if(best) showJob(best.id);
+  };
+  $('mapNote').textContent=pins.length+' job'+(pins.length===1?'':'s')
+    +' on the map — colours are pipeline stages, tap a pin to open the job.';
+  const used=[...new Set(pins.map(p=>stageOf(p)))];
+  $('mapLegend').innerHTML=used.map(st=>
+    '<span><i style="background:'+(CAL_STAGE[st]||'#8A93A3')+'"></i>'+esc(st)+'</span>').join('');
+}
+
+/* ===================== QuickBooks CSVs ====================================
+   Not a sync -- three clean files QuickBooks Online imports natively
+   (Customers, Invoices, Payments), which answers the first question every
+   buyer asks without an OAuth app. The full sync is a Runbook task. */
+function exportQuickBooks(){
+  const dt=x=>x?new Date(x).toLocaleDateString('en-US'):'';
+  downloadCsv('quickbooks-customers.csv',
+    ['Name','Phone','Email','Billing Address'],
+    jobs.filter(j=>j.customer_name).map(j=>[j.customer_name,j.phone||'',j.email||'',j.address||'']));
+  const won=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&netTotal(j)>0);
+  downloadCsv('quickbooks-invoices.csv',
+    ['*InvoiceNo','*Customer','*InvoiceDate','*DueDate','Item(Product/Service)','ItemAmount'],
+    won.map((j,i)=>['FF-'+String(j.id).padStart(4,'0'),j.customer_name,
+      dt(j.updated_at||j.created_at),dt(j.updated_at||j.created_at),
+      'Fence installation',netTotal(j).toFixed(2)]));
+  downloadCsv('quickbooks-payments.csv',
+    ['Customer','Payment Date','Amount','Ref No.'],
+    payments.filter(p=>p.amount>0).map(p=>{
+      const j=jobBySync(p.job_sync_id);
+      return [j?j.customer_name:'',dt(p.received_at),Number(p.amount).toFixed(2),p.sync_id.slice(0,8)];
+    }));
+  msg('jobsMsg','Three files downloaded. In QuickBooks Online: Settings → Import data → pick each file. Customers first, then invoices, then payments.','ok');
+}
 
 function renderCal(){
   const y=calMonth.getFullYear(), m=calMonth.getMonth();
@@ -4270,6 +4407,18 @@ try{
 
 $('newJob').addEventListener('click',createJob);
 $('openImport').addEventListener('click',()=>{ $('impOverlay').classList.add('on'); });
+$('openMap').addEventListener('click',()=>{
+  const box=$('mapBox');
+  if(box.style.display==='none'){ renderJobsMap(); } else { box.style.display='none'; }
+});
+$('qboExport').addEventListener('click',exportQuickBooks);
+$('copyLeadLink').addEventListener('click',async ()=>{
+  const {data,error}=await db.from('companies').select('leads_token').eq('id',profile.company_id).single();
+  if(error||!data){ $('leadLinkNote').textContent='Could not fetch the link.'; return; }
+  const link=location.origin+location.pathname.replace(/[^/]*$/,'')+'lead.html?c='+data.leads_token;
+  try{ await navigator.clipboard.writeText(link); $('leadLinkNote').textContent='Copied: '+link; }
+  catch(e){ $('leadLinkNote').textContent=link; }
+});
 $('impClose').addEventListener('click',()=>{ $('impOverlay').classList.remove('on'); });
 $('impOverlay').addEventListener('click',e=>{ if(e.target.id==='impOverlay') $('impOverlay').classList.remove('on'); });
 $('impPreview').addEventListener('click',previewImport);

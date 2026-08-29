@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get a Fence Quote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+  :root{--graphite:#0F1826;--graphite2:#1E2A3D;--orange:#FF5A1F;--orange-dk:#B23800;
+        --paper:#F7F8FA;--line:#E3E7ED;--text:#12151A;--muted:#5A6472;--ok:#0B6B4F}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--paper);color:var(--text)}
+  header{background:linear-gradient(180deg,var(--graphite2),var(--graphite));color:#fff;
+         padding:18px 20px;border-top:3px solid var(--orange)}
+  header .co{font:700 26px/1.1 "Barlow Condensed","Arial Narrow",sans-serif;
+             text-transform:uppercase}
+  header .sub{font-size:13px;color:#8A93A3;margin-top:4px}
+  .wrap{max-width:520px;margin:0 auto;padding:20px 16px 60px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+  label{display:block;font-size:11px;font-weight:600;margin:12px 0 4px;color:var(--muted);
+        text-transform:uppercase;letter-spacing:.4px}
+  input,textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;
+        font-size:16px;font-family:inherit}
+  textarea{min-height:80px;resize:vertical}
+  .btn{display:block;width:100%;background:var(--orange);color:#fff;border:none;
+       padding:14px;border-radius:9px;font-weight:700;font-size:16px;cursor:pointer;margin-top:16px}
+  .btn:hover{background:var(--orange-dk)}
+  .btn:disabled{opacity:.55}
+  .msg{border-radius:8px;padding:11px 14px;font-size:14px;margin-top:12px;display:none}
+  .msg.err{background:#FDECEC;color:#8C1114;display:block}
+  .done{background:#E6F6F1;border:1px solid #BFE6D8;color:var(--ok);border-radius:12px;
+        padding:20px;font-size:15.5px;display:none}
+  .foot{font-size:12px;color:var(--muted);text-align:center;margin-top:24px}
+  .foot b{font:700 13px "Barlow Condensed",sans-serif;text-transform:uppercase}
+  .foot b span{color:var(--orange)}
+</style>
+</head>
+<body>
+<header>
+  <div class="co" id="coName">Get a fence quote</div>
+  <div class="sub">Tell us about your fence — we'll call you back to set up a free quote.</div>
+</header>
+<div class="wrap">
+  <div class="done" id="done"></div>
+  <form class="panel" id="form">
+    <label>Your name</label><input id="f_name" autocomplete="name" required>
+    <label>Phone</label><input id="f_phone" type="tel" autocomplete="tel">
+    <label>Email</label><input id="f_email" type="email" autocomplete="email">
+    <label>Property address</label><input id="f_addr" autocomplete="street-address"
+      placeholder="Street, City, ST ZIP">
+    <label>What are you looking for?</label>
+    <textarea id="f_notes" placeholder="Around 120 ft of wood privacy fence, one gate…"></textarea>
+    <button class="btn" id="go" type="submit">Request my quote</button>
+    <div class="msg err" id="err"></div>
+  </form>
+  <p class="foot">Powered by <b>Fence<span>Flow</span></b></p>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const API='https://newcrgafcptspmapacrx.supabase.co/functions/v1';
+const token=new URLSearchParams(location.search).get('c')||'';
+$('form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const err=$('err'); err.style.display='none';
+  $('go').disabled=true;
+  try{
+    const r=await fetch(API+'/lead-intake?c='+encodeURIComponent(token),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:$('f_name').value,phone:$('f_phone').value,
+        email:$('f_email').value,address:$('f_addr').value,notes:$('f_notes').value})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'Could not send just now.');
+    $('form').style.display='none';
+    $('done').style.display='block';
+    $('done').textContent='Got it — '+(j.company||'the team')
+      +' will call you back to set up your free quote. Thank you!';
+    if(j.company) $('coName').textContent=j.company;
+  }catch(ex){ err.textContent=ex.message; err.style.display='block'; $('go').disabled=false; }
+});
+</script>
+</body>
+</html>

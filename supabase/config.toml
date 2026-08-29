@@ -65,3 +65,7 @@ verify_jwt = false
 # it is sensitive and its callers hold no JWT.
 [functions.quote-map]
 verify_jwt = false
+
+# Homeowners posting quote requests hold no JWT; the leads token is the key.
+[functions.lead-intake]
+verify_jwt = false
