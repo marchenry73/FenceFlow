@@ -406,7 +406,11 @@
     <div id="tab-jobs" style="display:none">
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h2 style="margin:0">Jobs</h2><button class="btn btn-sm" id="newJob">+ New Job</button>
+          <h2 style="margin:0">Jobs</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-grey" id="openImport">Import customers</button>
+            <button class="btn btn-sm" id="newJob">+ New Job</button>
+          </div>
         </div>
         <div class="msg" id="jobsMsg"></div>
         <div class="scroll"><table>
@@ -894,6 +898,36 @@
 </div></div>
 
 <!-- Crew editor -->
+<div class="overlay" id="impOverlay"><div class="sheet" style="max-width:720px">
+  <div class="sheet-head">
+    <b>Import customers</b>
+    <button class="btn btn-sm btn-ghost" id="impClose">Close</button>
+  </div>
+  <div class="sheet-body">
+    <div class="msg" id="impMsg"></div>
+    <div class="panel">
+      <p class="sub" style="margin:0 0 10px">For a company moving over from another product.
+        Export their customer list as a CSV (every product has this under Export), then drop it
+        here or paste it. Each row becomes a lead — nothing is quoted, priced or invoiced by an
+        import; that stays a person's decision.</p>
+      <input type="file" id="impFile" accept=".csv,.txt,text/csv" style="margin-bottom:10px">
+      <label>Or paste the rows</label>
+      <textarea id="impText" style="min-height:120px;font-family:ui-monospace,monospace;font-size:13px"
+        placeholder="Name, Phone, Email, Address&#10;Jane Halloran, 561-555-0142, jane@example.com, 812 Palm Ridge Dr"></textarea>
+      <button class="btn btn-sm btn-grey" id="impPreview" style="margin-top:10px">Preview</button>
+    </div>
+    <div class="panel" id="impPreviewBox" style="display:none">
+      <h2 style="margin:0 0 8px">What will be imported</h2>
+      <p class="sub" id="impCounts"></p>
+      <div class="scroll"><table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th></th></tr></thead>
+        <tbody id="impRows"></tbody>
+      </table></div>
+      <button class="btn" id="impGo" style="margin-top:12px">Import these</button>
+    </div>
+  </div>
+</div></div>
+
 <div class="overlay" id="xpOverlay"><div class="sheet" style="max-width:620px">
   <div class="sheet-head">
     <b id="xpTitle">Where this comes from</b>
@@ -3763,6 +3797,138 @@ async function saveJob(){
   return;
 }
 
+/* ===================== Customer import ===================================
+   The conversion path. A company switching from another product arrives with
+   a customer list, and typing it back in by hand is the tax that stops them
+   switching. Rows become LEADS -- customer, phone, email, address, notes --
+   and deliberately nothing more: an import must never invent a quote, a
+   price, or money. */
+
+/** A real CSV line-parser: quoted fields, embedded commas, doubled quotes,
+    CRLF. Splitting on commas is how one customer named "Smith, Jr" becomes
+    two customers. */
+function parseCsv(text){
+  const rows=[]; let row=[], field='', inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else inQ=false; }
+      else field+=c;
+    } else if(c==='"') inQ=true;
+    else if(c===','){ row.push(field); field=''; }
+    else if(c==='\n'||c==='\r'){
+      if(c==='\r'&&text[i+1]==='\n') i++;
+      row.push(field); field='';
+      if(row.some(f=>f.trim()!=='')) rows.push(row);
+      row=[];
+    }
+    else field+=c;
+  }
+  row.push(field);
+  if(row.some(f=>f.trim()!=='')) rows.push(row);
+  return rows;
+}
+
+/** Which column is which, from the header row when there is one, by position
+    when there is not. Guessing beats a mapping UI here: exports from the big
+    products all label these four the same handful of ways. */
+function mapImportColumns(rows){
+  if(!rows.length) return null;
+  const H={name:-1,phone:-1,email:-1,address:-1,notes:-1};
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  // Each column is claimed once, and email is claimed before address --
+  // "E-mail Address" contains the word address, and without the ordering it
+  // stole the address slot from "Street Address". Found by the test, not by
+  // reading.
+  const used=new Set();
+  const find=(...words)=>{
+    const i=head.findIndex((h,ix)=>!used.has(ix)&&words.some(w=>h.includes(w)));
+    if(i>=0) used.add(i);
+    return i;
+  };
+  H.email=find('email','e-mail');
+  H.phone=find('phone','mobile','cell','tel');
+  H.name=find('name','customer','client','contact');
+  H.address=find('address','street','addr','location');
+  H.notes=find('note','comment','memo');
+  const hasHeader=H.name>=0||H.email>=0||H.phone>=0;
+  if(!hasHeader){ H.name=0; H.phone=1; H.email=2; H.address=3; H.notes=4; }
+  const body=hasHeader?rows.slice(1):rows;
+  const cell=(r,i)=>i>=0&&i<r.length?String(r[i]).trim():'';
+  return body.map(r=>({
+    name:cell(r,H.name), phone:cell(r,H.phone), email:cell(r,H.email),
+    address:cell(r,H.address), notes:cell(r,H.notes)
+  }));
+}
+
+let impReady=[];
+
+function previewImport(){
+  const text=$('impText').value;
+  if(!text.trim()){ msg('impMsg','Paste rows or choose a file first.','err'); return; }
+  const parsed=mapImportColumns(parseCsv(text));
+  if(!parsed||!parsed.length){ msg('impMsg','Nothing readable in that.','err'); return; }
+
+  // A row with no name has nothing to become; an import that already exists
+  // must not become a duplicate lead. Matched on name (case-blind) plus
+  // phone digits, so "Jane Halloran / 561-555-0142" cannot arrive twice.
+  const digits=v=>String(v||'').replace(/\D/g,'');
+  const existing=new Set(jobs.map(j=>
+    (j.customer_name||'').trim().toLowerCase()+'|'+digits(j.phone)));
+  let noName=0, dupes=0;
+  impReady=[];
+  const shown=[];
+  parsed.forEach(p=>{
+    if(!p.name){ noName++; return; }
+    const k=p.name.toLowerCase()+'|'+digits(p.phone);
+    if(existing.has(k)){ dupes++; shown.push({...p,skip:'already here'}); return; }
+    existing.add(k);
+    impReady.push(p); shown.push(p);
+  });
+  $('impCounts').textContent =
+    impReady.length+' will be imported'
+    +(dupes?' · '+dupes+' skipped as already here':'')
+    +(noName?' · '+noName+' skipped with no name':'');
+  $('impRows').innerHTML=shown.slice(0,200).map(p=>
+    '<tr'+(p.skip?' style="opacity:.45"':'')+'><td>'+esc(p.name)+'</td><td>'+esc(p.phone)+'</td>'
+    +'<td>'+esc(p.email)+'</td><td>'+esc(p.address)+'</td>'
+    +'<td>'+(p.skip?esc(p.skip):'')+'</td></tr>').join('');
+  $('impPreviewBox').style.display='';
+  $('impGo').disabled=impReady.length===0;
+  msg('impMsg','','info'); $('impMsg').style.display='none';
+}
+
+async function runImport(){
+  if(!canEdit()||!impReady.length) return;
+  $('impGo').disabled=true;
+  msg('impMsg','Importing '+impReady.length+'…','working');
+  const base={
+    company_id:profile.company_id,
+    tax_rate_percent:num($('s_tax').value)||7, markup_percent:num($('s_markup').value)||15,
+    labor_rate_per_ft:num($('s_labor').value)||8, minimum_job_charge:num($('s_min').value)||200,
+    referral_source:'Imported'
+  };
+  let done=0;
+  // Chunked so one bad row fails its chunk, not the whole list silently.
+  for(let i=0;i<impReady.length;i+=100){
+    const chunk=impReady.slice(i,i+100).map(p=>({...base,
+      customer_name:p.name, phone:p.phone, email:p.email,
+      address:p.address, notes:p.notes}));
+    const {error}=await db.from('jobs').insert(chunk);
+    if(error){
+      msg('impMsg', done+' imported, then: '+error.message, 'err');
+      $('impGo').disabled=false;
+      await loadAll();
+      return;
+    }
+    done+=chunk.length;
+  }
+  await loadAll();
+  msg('impMsg', done+' customers imported as leads. They are in the pipeline under New Lead, '
+    +'and in Reports their jobs will show the source as "Imported".', 'ok');
+  impReady=[]; $('impPreviewBox').style.display='none'; $('impText').value='';
+}
+
 async function createJob(){
   // Held back until the numbers a quote is made of are actually theirs.
   if (setupBlocks) {
@@ -3958,6 +4124,17 @@ $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'
 $('saveJob').addEventListener('click',saveJob);
 $('deleteJob').addEventListener('click',deleteJob);
 $('newJob').addEventListener('click',createJob);
+$('openImport').addEventListener('click',()=>{ $('impOverlay').classList.add('on'); });
+$('impClose').addEventListener('click',()=>{ $('impOverlay').classList.remove('on'); });
+$('impOverlay').addEventListener('click',e=>{ if(e.target.id==='impOverlay') $('impOverlay').classList.remove('on'); });
+$('impPreview').addEventListener('click',previewImport);
+$('impGo').addEventListener('click',runImport);
+$('impFile').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0];
+  if(!f) return;
+  $('impText').value=await f.text();
+  previewImport();
+});
 $('newEmp').addEventListener('click',()=>showEmp(null));
 $('saveEmp').addEventListener('click',saveEmp);
 $('deleteEmp').addEventListener('click',deleteEmp);
