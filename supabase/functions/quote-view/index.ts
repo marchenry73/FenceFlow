@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     .from("jobs")
     .select("id, sync_id, company_id, customer_name, address, status, deleted_at, " +
       "contract_total, deposit_amount, tax_rate_percent, discount_percent, " +
-      "quote_viewed_at, quote_approved_at, quote_approved_name")
+      "quote_viewed_at, quote_approved_at, quote_approved_name, calibration_pixels_per_foot")
     .eq("quote_token", token)
     .maybeSingle();
   if (!job || job.deleted_at) return json({ error: "That quote is no longer available." }, 404);
@@ -124,6 +124,10 @@ Deno.serve(async (req) => {
     subtotal, tax, taxRate, total,
     deposit: Number(job.deposit_amount) || 0,
     approvedAt: job.quote_approved_at,
+    // The survey canvas draws on a 20px/ft grid unless the job was calibrated
+    // against a known measurement; the 3D view must use the same number or
+    // the fence is built at the wrong size entirely.
+    pxPerFoot: Number(job.calibration_pixels_per_foot) || 20,
     approvedBy: job.quote_approved_name,
     paymentsReady,
     runs: (runs ?? []).filter((r) => !r.is_teardown).map((r) => ({
