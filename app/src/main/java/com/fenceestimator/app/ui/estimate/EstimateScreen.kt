@@ -701,12 +701,37 @@ private fun ExportSection(
         )
         Spacer(Modifier.height(8.dp))
 
+        // The internal copy shows what the job costs YOU -- supplier prices,
+        // margin, everything the customer documents exist to protect. It sits
+        // one tap from those documents in the same column, so a mis-tap here
+        // hands a customer your buying prices. One extra tap is cheap
+        // insurance against the leak the whole document system was built to
+        // prevent.
+        var confirmInternalShare by remember { mutableStateOf(false) }
         OutlinedButton(
-            onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.WORKING_ESTIMATE) },
+            onClick = { confirmInternalShare = true },
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
             Text("  " + stringResource(R.string.est_working_copy))
+        }
+        if (confirmInternalShare) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { confirmInternalShare = false },
+                title = { Text(stringResource(R.string.est_internal_share_title)) },
+                text = { Text(stringResource(R.string.est_internal_share_body)) },
+                confirmButton = {
+                    Button(onClick = {
+                        confirmInternalShare = false
+                        shareDocument(com.fenceestimator.app.estimate.JobDocument.WORKING_ESTIMATE)
+                    }) { Text(stringResource(R.string.est_internal_share_confirm)) }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { confirmInternalShare = false }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                }
+            )
         }
         Text(
             stringResource(R.string.est2_working_copy_hint),
