@@ -551,12 +551,26 @@ object EstimateEngine {
                 // zero out the biggest number on the estimate.
                 val priced = candidates.filter { it.unitPrice > 0.0 }
                 val pool = priced.ifEmpty { candidates }
-                pool.minByOrNull { kotlin.math.abs((it.coversFt ?: entry.preferCoversFt) - entry.preferCoversFt) }
+                // Two items at the same distance must resolve the same way
+                // every single time -- minByOrNull alone keeps whichever came
+                // first in an unordered list, which is a coin toss dressed as
+                // a choice. Distance, then price, then id: total order.
+                pool.minWithOrNull(
+                    compareBy(
+                        { kotlin.math.abs((it.coversFt ?: entry.preferCoversFt) - entry.preferCoversFt) },
+                        { it.unitPrice },
+                        { it.id }
+                    )
+                )
             } else {
                 // Prefer something actually priced. Picking the first match blind
                 // is how a $0.00 placeholder ended up representing a whole role
                 // and quietly zeroed out the materials total.
-                candidates.firstOrNull { it.unitPrice > 0.0 } ?: candidates.firstOrNull()
+                // Same rule: never let list position decide. Priced beats
+                // unpriced, then cheapest, then lowest id.
+                candidates.sortedWith(
+                    compareBy({ it.unitPrice <= 0.0 }, { it.unitPrice }, { it.id })
+                ).firstOrNull()
             } ?: run {
                 unmatched += entry.role
                 return@forEach

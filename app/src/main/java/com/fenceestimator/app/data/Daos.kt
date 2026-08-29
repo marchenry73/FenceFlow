@@ -67,7 +67,13 @@ interface FenceRunDao {
 
 @Dao
 interface MaterialItemDao {
-    @Query("SELECT * FROM material_items")
+    // ORDER BY is load-bearing here, not cosmetic. Without it SQLite returns
+    // rows in whatever order the storage engine likes, and the estimate
+    // engine breaks ties by list position -- so the same drawing repriced
+    // twice could pick a DIFFERENT product for the same role, and the
+    // customer watched their quote flip between the white panel at $52.35
+    // and the gray one at $54.50 "by itself".
+    @Query("SELECT * FROM material_items ORDER BY category, name, id")
     suspend fun getAll(): List<MaterialItem>
     @Query("SELECT * FROM material_items WHERE isActive = 1 ORDER BY category, name")
     fun observeAllActive(): Flow<List<MaterialItem>>
