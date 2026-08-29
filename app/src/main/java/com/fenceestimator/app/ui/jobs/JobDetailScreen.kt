@@ -137,6 +137,8 @@ import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.labelRes
 import com.fenceestimator.app.ui.runs.FenceRunListViewModel
 import kotlinx.coroutines.launch
+import com.fenceestimator.app.cloud.SupabaseModule
+import io.github.jan.supabase.postgrest.postgrest
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -296,6 +298,49 @@ fun JobDetailScreen(
                             Text("  " + stringResource(R.string.estimate_title))
                         }
                     }
+                }
+            }
+            // The sales moment happens in the driveway, not at the office desk.
+            // This hands the customer their quote page -- the itemised quote,
+            // their fence in 3D, and the Approve button -- through whatever
+            // app they actually answer. Money-gated like the estimate: the
+            // link shows sell prices, so crew do not get to send it.
+            if (session.canSeeMoney) item {
+                // Snapshot the delegated property once; the coroutine below
+                // outlives this composition and must not race a null.
+                val j = job ?: return@item
+                val shareFailed = stringResource(R.string.jd_quote_link_failed)
+                val chooser = stringResource(R.string.jd_send_quote_chooser)
+                val bodyTemplate = stringResource(R.string.jd_quote_link_body)
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            val url = runCatching {
+                                val token = SupabaseModule.client.postgrest.from("jobs")
+                                    .select(io.github.jan.supabase.postgrest.query.Columns.list("quote_token")) {
+                                        filter { eq("sync_id", j.syncId) }
+                                    }
+                                    .decodeSingleOrNull<QuoteTokenRow>()?.quoteToken
+                                token?.let { "https://marchenry73.github.io/FenceFlow/quote.html?t=" + it }
+                            }.getOrNull()
+                            if (url == null) {
+                                android.widget.Toast.makeText(context, shareFailed,
+                                    android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                IntentHelpers.shareText(
+                                    context = context,
+                                    subject = chooser,
+                                    body = bodyTemplate.format(
+                                        j.customerName.ifBlank { "there" }, url),
+                                    chooserTitle = chooser
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Star, contentDescription = null)
+                    Text("  " + stringResource(R.string.jd_send_quote_to_customer))
                 }
             }
             item {
@@ -2519,3 +2564,17 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
         )
     }
 }
+
+
+/**
+ * The quote link's key, fetched at the moment of sharing rather than synced.
+ *
+ * The token is a live credential -- whoever holds it can read the quote and
+ * approve it. Keeping it out of the phone's database means a lost handset's
+ * local data cannot leak every customer's quote link; the phone asks for one
+ * token, for one job, when its owner presses Send.
+ */
+@kotlinx.serialization.Serializable
+private data class QuoteTokenRow(
+    @kotlinx.serialization.SerialName("quote_token") val quoteToken: String? = null,
+)

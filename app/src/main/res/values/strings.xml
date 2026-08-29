@@ -834,6 +834,10 @@
     <string name="rep_attn_orphan_why">Finished shifts whose crew member was never set. They cannot carry a pay rate until someone owns them, so their labour reads as $0. Open the shift and pick who worked it.</string>
     <string name="rep_attn_quiet_what">quotes gone quiet</string>
     <string name="rep_attn_quiet_why">Sent more than fourteen days ago with no answer either way. A call usually settles it.</string>
+    <string name="jd_send_quote_to_customer">Send quote to customer</string>
+    <string name="jd_send_quote_chooser">Send the quote</string>
+    <string name="jd_quote_link_body">Hi %1$s — here is your fence quote. You can see your fence in 3D, and approve it right on the page: %2$s</string>
+    <string name="jd_quote_link_failed">Could not fetch the quote link — check your signal and try again.</string>
     <string name="rep_total">total</string>
     <string name="rep_what_it_cost">What it cost</string>
     <string name="rep_line_labor">Labor</string>
