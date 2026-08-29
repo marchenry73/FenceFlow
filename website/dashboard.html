@@ -3325,9 +3325,20 @@ function showExplain(spec){
     `<div class="${m.total ? 'tot' : ''} ${m.neg ? 'neg' : ''}">
        <span><span class="op">${esc(m.op || '')}</span>${esc(m.label)}</span>
        <span>${esc(m.value)}</span></div>`).join('');
-  const rows = (spec.rows || []).map(r =>
-    `<tr><td>${esc(r.label)}${r.sub ? `<div class="sub" style="margin:2px 0 0">${esc(r.sub)}</div>` : ''}</td>
-       <td class="num" style="${r.neg ? 'color:var(--red)' : ''}">${esc(r.amount || '')}</td></tr>`).join('');
+  const rows = (spec.rows || []).map(r => {
+    // A phone on the row becomes Call / Text buttons -- the follow-up is one
+    // tap instead of a copy-paste into another app.
+    const tel = (r.phone || '').replace(/[^0-9+]/g, '');
+    const acts = tel.length >= 7
+      ? `<div class="sub" style="margin:3px 0 0">
+           <a href="tel:${tel}" style="color:var(--orange);font-weight:600">Call</a>
+           &nbsp;·&nbsp;
+           <a href="sms:${tel}${r.smsBody ? '?&body=' + encodeURIComponent(r.smsBody) : ''}"
+              style="color:var(--orange);font-weight:600">Text them</a></div>`
+      : '';
+    return `<tr><td>${esc(r.label)}${r.sub ? `<div class="sub" style="margin:2px 0 0">${esc(r.sub)}</div>` : ''}${acts}</td>
+       <td class="num" style="${r.neg ? 'color:var(--red)' : ''}">${esc(r.amount || '')}</td></tr>`;
+  }).join('');
 
   $('xpBody').innerHTML =
       (spec.value ? `<div style="font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:12px">${esc(spec.value)}</div>` : '')
@@ -3506,7 +3517,10 @@ function renderReports(){
       how:'Quotes sent more than fourteen days ago that nobody has accepted or declined.',
       rowsTitle:'The quotes',
       rows: quiet.map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'',
-        amount: d(j.updated_at||j.created_at).toLocaleDateString() }))
+        amount: d(j.updated_at||j.created_at).toLocaleDateString(),
+        phone: j.phone||'',
+        smsBody: 'Hi '+(j.customer_name||'').split(' ')[0]
+          +", just checking in on the fence quote we sent over — any questions I can answer?" }))
     })
   });
   const orphan = times.filter(t=>t.ended_at && !(t.employee_sync_id||'').trim());
