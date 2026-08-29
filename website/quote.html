@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Fence Quote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+  :root{--graphite:#0F1826;--graphite2:#1E2A3D;--orange:#FF5A1F;--orange-dk:#B23800;
+        --teal:#0E8C7B;--paper:#F7F8FA;--line:#E3E7ED;--text:#12151A;--muted:#5A6472;
+        --ok:#1baf7a;--ok-dk:#0B6B4F}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--paper);color:var(--text)}
+  header{background:linear-gradient(180deg,var(--graphite2),var(--graphite));color:#fff;
+         padding:16px 20px;border-top:3px solid var(--orange)}
+  header .co{font:700 26px/1.1 "Barlow Condensed","Arial Narrow",sans-serif;
+             text-transform:uppercase;letter-spacing:.02em}
+  header .sub{font-size:13px;color:#8A93A3;margin-top:3px}
+  .wrap{max-width:760px;margin:0 auto;padding:16px 14px 60px}
+  h2{font:600 19px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;
+     text-transform:uppercase;letter-spacing:.03em;margin:0 0 10px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;
+         padding:16px;margin-bottom:14px}
+  .sub{font-size:12.5px;color:var(--muted)}
+  /* ------- the 3D stage ------- */
+  #stage{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--line);
+         margin-bottom:14px;background:#BFD9EA;touch-action:none}
+  #stage canvas{display:block;width:100%;height:100%}
+  #stageHint{position:absolute;left:0;right:0;bottom:10px;text-align:center;
+             font-size:12px;color:rgba(15,24,38,.75);pointer-events:none;
+             text-shadow:0 1px 3px rgba(255,255,255,.7)}
+  #stageBadge{position:absolute;top:10px;left:10px;background:rgba(15,24,38,.82);color:#fff;
+              font:600 11px/1 "Barlow Condensed",sans-serif;letter-spacing:.08em;
+              text-transform:uppercase;padding:6px 10px;border-radius:6px}
+  /* ------- quote table ------- */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+     color:var(--muted);padding:7px 6px;border-bottom:2px solid var(--line)}
+  td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .totals{margin-top:10px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;
+          font-variant-numeric:tabular-nums}
+  .totals div{display:flex;gap:22px;font-size:14.5px}
+  .totals .grand{font:700 25px/1.2 "Barlow Condensed",sans-serif}
+  .totals .grand span:first-child{align-self:center;font-size:13px;font-family:inherit}
+  /* ------- approve ------- */
+  .approve{background:var(--graphite);color:#fff;border-radius:12px;padding:18px;margin-bottom:14px;
+           border-top:3px solid var(--orange)}
+  .approve h2{color:#fff}
+  .approve input{width:100%;padding:12px;border-radius:8px;border:1px solid #48566B;
+                 background:#1E2A3D;color:#fff;font-size:16px;margin:8px 0 12px}
+  .approve input::placeholder{color:#7c8798}
+  .btn{display:block;width:100%;background:var(--orange);color:#fff;border:none;
+       padding:14px;border-radius:9px;font-weight:700;font-size:16px;cursor:pointer}
+  .btn:hover{background:var(--orange-dk)}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn.pay{background:var(--ok);margin-top:10px}
+  .btn.pay:hover{background:var(--ok-dk)}
+  .done{background:#E6F6F1;border:1px solid #BFE6D8;color:var(--ok-dk);border-radius:12px;
+        padding:16px;margin-bottom:14px;font-size:15px}
+  .err{background:#FDECEC;color:#8C1114;border-radius:8px;padding:10px 13px;
+       font-size:13.5px;margin-top:10px;display:none}
+  .foot{font-size:12px;color:var(--muted);text-align:center;margin-top:26px}
+  .foot b{font:700 13px "Barlow Condensed",sans-serif;text-transform:uppercase}
+  .foot b span{color:var(--orange)}
+  #loading{padding:60px 20px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="co" id="coName">&nbsp;</div>
+  <div class="sub" id="coContact"></div>
+</header>
+
+<div class="wrap">
+  <div id="loading">Opening your quote&hellip;</div>
+
+  <div id="content" style="display:none">
+    <div id="stage" style="display:none">
+      <div id="stageBadge">Your fence &middot; 3D preview</div>
+      <div id="stageHint">Drag to walk around &middot; pinch or scroll to zoom</div>
+    </div>
+
+    <div id="approvedBox" class="done" style="display:none"></div>
+
+    <div class="panel">
+      <h2 id="quoteTitle">Your quote</h2>
+      <p class="sub" id="quoteAddr"></p>
+      <div style="overflow-x:auto;margin-top:10px"><table>
+        <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></thead>
+        <tbody id="lines"></tbody>
+      </table></div>
+      <div class="totals" id="totals"></div>
+    </div>
+
+    <div class="approve" id="approveBox" style="display:none">
+      <h2>Ready to go ahead?</h2>
+      <p style="font-size:14px;color:#AEBBCC">Type your name and press approve &mdash; that tells
+        us to put you on the schedule. You&rsquo;ll get a copy of everything.</p>
+      <input id="signName" placeholder="Your full name" autocomplete="name">
+      <button class="btn" id="approveBtn">Approve this quote</button>
+      <div class="err" id="approveErr"></div>
+    </div>
+
+    <button class="btn pay" id="payBtn" style="display:none"></button>
+    <div class="err" id="payErr"></div>
+  </div>
+
+  <p class="foot">Powered by <b>Fence<span>Flow</span></b></p>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const API='https://newcrgafcptspmapacrx.supabase.co/functions/v1';
+const token=new URLSearchParams(location.search).get('t')||'';
+
+let quote=null;
+
+async function load(){
+  if(!token){ $('loading').textContent='This link is missing its key. Ask for a fresh one.'; return; }
+  let r;
+  try{ r=await fetch(API+'/quote-view?t='+encodeURIComponent(token)); }
+  catch(e){ $('loading').textContent='Could not reach the server. Check your connection and reload.'; return; }
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ $('loading').textContent=j.error||'That quote is no longer available.'; return; }
+  quote=j;
+  render();
+}
+
+function render(){
+  const q=quote;
+  $('coName').textContent=q.company.name||'Your contractor';
+  $('coContact').textContent=[q.company.phone,q.company.email].filter(Boolean).join(' · ');
+  $('quoteTitle').textContent='Quote for '+(q.customerName||'you');
+  $('quoteAddr').textContent=q.address||'';
+
+  $('lines').innerHTML=(q.lines||[]).map(l=>'<tr><td>'+esc(l.description)+'</td>'
+    +'<td class="num">'+(l.quantity||0)+(l.unit?' '+esc(l.unit):'')+'</td>'
+    +'<td class="num">'+money(l.unitPrice)+'</td>'
+    +'<td class="num">'+money(l.total)+'</td></tr>').join('')
+    ||'<tr><td colspan="4" class="sub">Itemised lines to follow.</td></tr>';
+
+  const t=[];
+  t.push('<div><span>Subtotal</span><span>'+money(q.subtotal)+'</span></div>');
+  if(q.tax>0.005) t.push('<div><span>Tax ('+q.taxRate+'%)</span><span>'+money(q.tax)+'</span></div>');
+  t.push('<div class="grand"><span>Total</span><span>'+money(q.total)+'</span></div>');
+  if(q.deposit>0.005) t.push('<div><span>Deposit to schedule</span><span>'+money(q.deposit)+'</span></div>');
+  $('totals').innerHTML=t.join('');
+
+  if(q.approvedAt){
+    $('approvedBox').style.display='';
+    $('approvedBox').textContent='Approved by '+q.approvedBy+' on '
+      +new Date(q.approvedAt).toLocaleDateString()+'. '
+      +(q.company.name||'Your contractor')+' has been told — thank you!';
+  } else {
+    $('approveBox').style.display='';
+  }
+
+  if(q.paymentsReady && q.deposit>0.005){
+    $('payBtn').style.display='';
+    $('payBtn').textContent='Pay the '+money(q.deposit)+' deposit';
+  }
+
+  $('loading').style.display='none';
+  $('content').style.display='';
+
+  if((q.runs||[]).length){ $('stage').style.display=''; build3D(q.runs); }
+}
+
+$('approveBtn').addEventListener('click', async ()=>{
+  const name=$('signName').value.trim();
+  const err=$('approveErr'); err.style.display='none';
+  if(name.length<2){ err.textContent='Type your name first.'; err.style.display='block'; return; }
+  $('approveBtn').disabled=true;
+  try{
+    const r=await fetch(API+'/quote-view?t='+encodeURIComponent(token),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'approve',name})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'Could not record the approval.');
+    quote.approvedAt=new Date().toISOString(); quote.approvedBy=j.approvedBy||name;
+    $('approveBox').style.display='none';
+    $('approvedBox').style.display='';
+    $('approvedBox').textContent='Approved — thank you, '+(j.approvedBy||name)
+      +'! '+(quote.company.name||'Your contractor')+' has been told.';
+  }catch(e){
+    err.textContent=e.message; err.style.display='block'; $('approveBtn').disabled=false;
+  }
+});
+
+$('payBtn').addEventListener('click', async ()=>{
+  $('payBtn').disabled=true; const err=$('payErr'); err.style.display='none';
+  try{
+    const r=await fetch(API+'/create-payment-link',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({quoteToken:token,kind:'deposit'})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.url) throw new Error(j.error||'Could not open the payment page.');
+    location.href=j.url;
+  }catch(e){
+    err.textContent=e.message; err.style.display='block'; $('payBtn').disabled=false;
+  }
+});
+
+/* ===================== the 3D fence ======================================
+   The customer's own drawing, stood up. Coordinates come from the phone's
+   survey canvas in pixels; the true scale is only known when the contractor
+   typed the measured length, so when it is absent the drawing is scaled by
+   the app's working default (4px per foot) — the proportions, post rhythm
+   and gates are exact either way, which is what the eye reads. */
+function build3D(runs,attempt){
+  const stage=$('stage');
+  // The stage was display:none a moment ago and layout may not have settled,
+  // in which case clientWidth reads 0 and the renderer would be born blank.
+  // Wait a frame and try again rather than rendering into nothing.
+  const W=stage.clientWidth||stage.getBoundingClientRect().width;
+  if(!W){
+    if((attempt||0)<60) requestAnimationFrame(()=>build3D(runs,(attempt||0)+1));
+    return;
+  }
+  const H=Math.max(300,Math.min(430,Math.round(W*0.62)));
+  stage.style.height=H+'px';
+
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0xBFD9EA);
+  scene.fog=new THREE.Fog(0xBFD9EA, 120, 420);
+
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  renderer.setSize(W,H);
+  renderer.shadowMap.enabled=true;
+  stage.insertBefore(renderer.domElement,stage.firstChild);
+
+  const sun=new THREE.DirectionalLight(0xfff4e0,1.15);
+  sun.position.set(60,90,40); sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);
+  sun.shadow.camera.left=-120; sun.shadow.camera.right=120;
+  sun.shadow.camera.top=120; sun.shadow.camera.bottom=-120;
+  scene.add(sun);
+  scene.add(new THREE.AmbientLight(0xdde8f0,.55));
+  scene.add(new THREE.HemisphereLight(0xbfd9ea,0x4c7a3f,.35));
+
+  const grass=new THREE.Mesh(
+    new THREE.CircleGeometry(400,48),
+    new THREE.MeshLambertMaterial({color:0x5E8C4A}));
+  grass.rotation.x=-Math.PI/2; grass.receiveShadow=true;
+  scene.add(grass);
+
+  const M={
+    wood:new THREE.MeshLambertMaterial({color:0xA97B4F}),
+    woodDark:new THREE.MeshLambertMaterial({color:0x8a6238}),
+    vinyl:new THREE.MeshLambertMaterial({color:0xF2F1EC}),
+    metal:new THREE.MeshLambertMaterial({color:0x2b2f33}),
+    galv:new THREE.MeshLambertMaterial({color:0x9aa4ab}),
+    mesh:new THREE.MeshLambertMaterial({color:0x8f9aa1,transparent:true,opacity:.34,side:THREE.DoubleSide}),
+    rail:new THREE.MeshLambertMaterial({color:0x9b7546}),
+  };
+  const paletteFor=t=>{
+    t=String(t||'').toUpperCase();
+    if(t.includes('CHAIN')) return {post:M.galv,board:M.mesh,rail:M.galv,kind:'chain'};
+    if(t.includes('ALUMIN')||t.includes('ORNAMENT')||t.includes('STEEL')||t.includes('IRON'))
+      return {post:M.metal,board:M.metal,rail:M.metal,kind:'picket'};
+    if(t.includes('SPLIT')) return {post:M.woodDark,board:null,rail:M.rail,kind:'split'};
+    if(t.includes('WOOD')) return {post:M.woodDark,board:M.wood,rail:M.wood,kind:'board'};
+    return {post:M.vinyl,board:M.vinyl,rail:M.vinyl,kind:'panel'};   // vinyl + default
+  };
+
+  const box=(w,h,d,mat,x,y,z)=>{
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+    m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
+    scene.add(m); return m;
+  };
+
+  const all=[]; // world-space points for camera fit
+  runs.forEach(run=>{
+    let pts=String(run.points||'').split(',').map(p=>{
+      const q=p.split(':'); return {x:parseFloat(q[0]),y:parseFloat(q[1])};
+    }).filter(p=>isFinite(p.x)&&isFinite(p.y));
+
+    // No drawing (measured by hand): stand up a straight run of the measured
+    // length so every quote still gets its fence, not a blank lawn.
+    if(pts.length<2){
+      const ft=run.manualFeet>0?run.manualFeet:40;
+      pts=[{x:0,y:0},{x:ft*4,y:0}];
+    }
+    if(run.closed && pts.length>2) pts=pts.concat([pts[0]]);
+
+    let px=0;
+    for(let i=1;i<pts.length;i++) px+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
+    const ftPerPx=run.manualFeet>0 ? run.manualFeet/px : 0.25;
+
+    const P=pts.map(p=>({x:p.x*ftPerPx,z:p.y*ftPerPx}));
+    P.forEach(p=>all.push(p));
+    const hgt=run.heightFt, pal=paletteFor(run.type);
+    const spacing=Math.max(4,run.postSpacingFt);
+
+    // Gates: cut a hole in the panels where each one sits, then hang it.
+    const gates=String(run.gates||'').split(',').map(g=>{
+      const q=g.split(':');
+      return {x:parseFloat(q[0])*ftPerPx,z:parseFloat(q[1])*ftPerPx,w:parseFloat(q[2])||4};
+    }).filter(g=>isFinite(g.x));
+
+    for(let i=1;i<P.length;i++){
+      const a=P[i-1],b=P[i];
+      const len=Math.hypot(b.x-a.x,b.z-a.z);
+      if(len<0.5) continue;
+      const ux=(b.x-a.x)/len, uz=(b.z-a.z)/len;
+      const ang=Math.atan2(-(b.z-a.z),b.x-a.x);
+      const bays=Math.max(1,Math.round(len/spacing));
+      const bay=len/bays;
+
+      for(let k=0;k<=bays;k++){
+        const x=a.x+ux*bay*k, z=a.z+uz*bay*k;
+        const post=box(.33,hgt+.5,.33,pal.post,x,(hgt+.5)/2,z);
+        post.rotation.y=ang;
+        if(pal.kind==='chain'){ box(.12,.12,.12,pal.post,x,hgt+.55,z); }
+        else { box(.45,.12,.45,pal.post,x,hgt+.56,z); }
+      }
+
+      for(let k=0;k<bays;k++){
+        const cx=a.x+ux*bay*(k+.5), cz=a.z+uz*bay*(k+.5);
+        // A bay containing a gate is left open; the gate leaf hangs there.
+        const g=gates.find(g=>Math.hypot(g.x-cx,g.z-cz)<bay*0.6);
+        if(g){
+          const leafW=Math.min(g.w,bay-0.5);
+          const leaf=new THREE.Group();
+          const lm=pal.kind==='chain'?M.galv:pal.board||pal.rail;
+          const frame=new THREE.Mesh(new THREE.BoxGeometry(leafW,hgt-.3,.15),
+            pal.kind==='chain'?M.mesh:lm);
+          frame.position.set(leafW/2,0,0); frame.castShadow=true; leaf.add(frame);
+          const brace=new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(leafW,hgt-.4),.12,.18),lm);
+          brace.position.set(leafW/2,0,0.02);
+          brace.rotation.z=Math.atan2(hgt-.4,leafW); leaf.add(brace);
+          // Hinged at the bay's start post, swung 20 degrees for life.
+          leaf.position.set(a.x+ux*bay*k,(hgt-.3)/2+.15,a.z+uz*bay*k);
+          leaf.rotation.y=ang+0.35;
+          leaf.traverse(o=>{o.castShadow=true;});
+          scene.add(leaf);
+          continue;
+        }
+        if(pal.kind==='panel'){
+          const pn=box(bay-.3,hgt-.2,.12,pal.board,cx,(hgt-.2)/2+.1,cz); pn.rotation.y=ang;
+          const r1=box(bay-.2,.32,.2,pal.rail,cx,hgt-.25,cz); r1.rotation.y=ang;
+          const r2=box(bay-.2,.32,.2,pal.rail,cx,.45,cz); r2.rotation.y=ang;
+        } else if(pal.kind==='board'){
+          // Boards read as wood only up close; past a point they are just
+          // draw calls. Wider boards on a very long run keeps the rhythm
+          // without asking a phone for thousands of meshes.
+          const boardW=len>200?1.1:0.52;
+          const boards=Math.max(1,Math.round((bay-.4)/boardW));
+          const bw=(bay-.5)/boards;
+          for(let bi=0;bi<boards;bi++){
+            const t2=(bi+.5)*bw+(bay-boards*bw)/2 - bay/2;
+            const m=box(bw*.92,hgt-.15,.1,pal.board,cx+ux*t2,(hgt-.15)/2+.1,cz+uz*t2);
+            m.rotation.y=ang;
+          }
+          const r1=box(bay-.3,.3,.16,pal.rail,cx,hgt-.35,cz); r1.rotation.y=ang;
+          const r2=box(bay-.3,.3,.16,pal.rail,cx,.55,cz); r2.rotation.y=ang;
+        } else if(pal.kind==='picket'){
+          const n=Math.max(2,Math.round(bay/0.35));
+          for(let bi=0;bi<n;bi++){
+            const t2=(bi+.5)*(bay-.4)/n - (bay-.4)/2;
+            const m=box(.07,hgt-.25,.07,pal.board,cx+ux*t2,(hgt-.25)/2+.1,cz+uz*t2);
+            m.rotation.y=ang;
+          }
+          [hgt-.28,hgt*.5,.5].forEach(ry=>{
+            const r=box(bay-.2,.1,.1,pal.rail,cx,ry,cz); r.rotation.y=ang;
+          });
+        } else if(pal.kind==='split'){
+          const rails=Math.max(2,run.splitRails);
+          for(let ri=0;ri<rails;ri++){
+            const ry=.8+(hgt-1.2)*(ri/(Math.max(1,rails-1)));
+            const r=box(bay+.2,.28,.22,pal.rail,cx,ry,cz); r.rotation.y=ang;
+          }
+        } else { // chain link
+          const p2=box(bay-.25,hgt-.35,.04,M.mesh,cx,(hgt-.35)/2+.2,cz); p2.rotation.y=ang;
+          const tr=box(bay,.09,.09,pal.rail,cx,hgt+.1,cz); tr.rotation.y=ang;
+        }
+      }
+    }
+  });
+
+  // Camera: orbit the fence's own centre, sized to fit it.
+  let cx=0,cz=0,r=20;
+  if(all.length){
+    cx=all.reduce((s,p)=>s+p.x,0)/all.length;
+    cz=all.reduce((s,p)=>s+p.z,0)/all.length;
+    r=Math.max(14,...all.map(p=>Math.hypot(p.x-cx,p.z-cz)))*1.9+10;
+  }
+  const cam=new THREE.PerspectiveCamera(50,W/H,0.1,900);
+  let yaw=0.7,pitch=0.42,dist=r,auto=true;
+  const look=new THREE.Vector3(cx,2.5,cz);
+  function place(){
+    cam.position.set(
+      cx+Math.cos(yaw)*Math.cos(pitch)*dist,
+      2.5+Math.sin(pitch)*dist,
+      cz+Math.sin(yaw)*Math.cos(pitch)*dist);
+    cam.lookAt(look);
+  }
+
+  // A hand-rolled orbit: drag turns, wheel and pinch zoom. The moment a
+  // finger lands, the slow show-off spin stops and the person is in charge.
+  const el=renderer.domElement;
+  const touches=new Map();
+  let pinchD=0;
+  el.addEventListener('pointerdown',e=>{auto=false;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});el.setPointerCapture(e.pointerId);});
+  el.addEventListener('pointerup',e=>{touches.delete(e.pointerId);pinchD=0;});
+  el.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);pinchD=0;});
+  el.addEventListener('pointermove',e=>{
+    if(!touches.has(e.pointerId)) return;
+    const prev=touches.get(e.pointerId);
+    touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(touches.size===2){
+      const [p1,p2]=[...touches.values()];
+      const d=Math.hypot(p1.x-p2.x,p1.y-p2.y);
+      if(pinchD) dist=Math.min(r*3,Math.max(8,dist*pinchD/d));
+      pinchD=d;
+      return;
+    }
+    yaw+=(e.clientX-prev.x)*0.008;
+    pitch=Math.min(1.35,Math.max(0.08,pitch+(e.clientY-prev.y)*0.005));
+  });
+  el.addEventListener('wheel',e=>{e.preventDefault();auto=false;
+    dist=Math.min(r*3,Math.max(8,dist*(e.deltaY>0?1.08:0.93)));},{passive:false});
+
+  function tick(){
+    if(auto) yaw+=0.0022;
+    place();
+    renderer.render(scene,cam);
+    requestAnimationFrame(tick);
+  }
+  // A hook for automated checks: how much scene actually exists.
+  window.__fence={meshes:scene.children.length,drawCalls:()=>renderer.info.render.calls,tris:()=>renderer.info.render.triangles};
+  tick();
+
+  addEventListener('resize',()=>{
+    const w2=stage.clientWidth,h2=Math.max(300,Math.min(430,Math.round(w2*0.62)));
+    stage.style.height=h2+'px';
+    renderer.setSize(w2,h2); cam.aspect=w2/h2; cam.updateProjectionMatrix();
+  });
+}
+
+load();
+</script>
+</body>
+</html>

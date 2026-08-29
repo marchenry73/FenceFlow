@@ -130,6 +130,7 @@
   .cal .day.out{opacity:.45}
   .cal .day.today{border-color:var(--orange);border-width:2px;box-shadow:0 1px 6px rgba(255,90,31,.18)}
   .cal .day.today .dnum{color:var(--orange)}
+  .cal .day.drop{outline:2px solid var(--orange);outline-offset:-2px}
   .cal .dnum{font-weight:700;color:var(--muted);margin-bottom:3px;display:flex;justify-content:space-between;align-items:baseline}
   /* Hours the crew actually clocked that day — the schedule is the plan, this
      is what happened. A calendar showing both is the one worth opening. */
@@ -870,6 +871,18 @@
           <option value="UNPAID">Unpaid</option><option value="DEPOSIT_PAID">Deposit paid</option>
           <option value="PAID_IN_FULL">Paid in full</option></select></div>
       </div>
+    </div>
+
+    <div class="panel"><h2>Customer quote page</h2>
+      <p class="sub">A link for the homeowner: the quote, their fence in 3D, and an Approve
+        button that signs with their name. No app, no account &mdash; the link is the key, so
+        only send it to them.</p>
+      <div class="readout" id="q_link" style="user-select:all;overflow-wrap:anywhere"></div>
+      <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
+        <button class="btn btn-sm" id="q_copy">Copy link</button>
+        <button class="btn btn-sm btn-grey" id="q_open">Preview it</button>
+      </div>
+      <p class="sub" id="q_status" style="margin-top:9px"></p>
     </div>
 
     <div class="panel"><h2>HOA &amp; Permits</h2>
@@ -2224,7 +2237,9 @@ function renderCal(){
     const wkend=cur.getDay()===0||cur.getDay()===6;
     const isToday=cur.getTime()===today.getTime();
     const hidden=Math.max(0,evs.length-3);
-    html+='<div class="day'+(isToday?' today':'')+(wkend?' wkend':'')+(out?' out':'')+'">'
+    const pad2=n=>String(n).padStart(2,'0');
+    const isoDate=cur.getFullYear()+'-'+pad2(cur.getMonth()+1)+'-'+pad2(cur.getDate());
+    html+='<div class="day'+(isToday?' today':'')+(wkend?' wkend':'')+(out?' out':'')+'" data-date="'+isoDate+'">'
       +'<div class="dnum"><span>'+cur.getDate()+'</span>'
       +(hrs>0.05?'<span class="hrs">'+hrs.toFixed(1)+'h</span>':'')+'</div>'
       +evs.map(({j,cont},i)=>{
@@ -2232,7 +2247,12 @@ function renderCal(){
         const emp=empById[String(j.assigned_employee_id)];
         // Everything past the third is rendered but hidden, so "+N more"
         // reveals real chips rather than promising ones that were never made.
+        // Continuation chips are not draggable: they exist because the job's
+        // estimate spans multiple days, not because that day is theirs to
+        // reschedule. Dragging one would have no sensible target date of its
+        // own, so only the chip on the actual start day can be picked up.
         return '<div class="ev'+(cont?' cont':'')+'" data-id="'+j.id+'"'
+          +(cont?'':' draggable="true"')
           +' style="background:'+(CAL_STAGE[stage]||'#8A93A3')+(i>=3?';display:none':'')+'"'
           +' title="'+esc(j.customer_name||'Job')+' — '+esc(stage)
           +(emp?' — '+esc(emp.name):'')+(cont?' (continues)':'')+'">'
@@ -2262,6 +2282,45 @@ function renderCal(){
       dayEl.querySelectorAll('.ev').forEach(e=>e.style.display='');
       el.remove();
     }));
+
+  // Drag-and-drop rescheduling. The chip carries its job id in the native
+  // drag payload rather than a module-level variable, so a stray drag left
+  // over from a previous render (or from another tab entirely) can't be
+  // dropped here by mistake.
+  document.querySelectorAll('.cal .ev[draggable="true"]').forEach(el=>
+    el.addEventListener('dragstart',e=>{
+      e.dataTransfer.setData('text/plain', el.dataset.id);
+      e.dataTransfer.effectAllowed='move';
+    }));
+  document.querySelectorAll('.cal .day').forEach(dayEl=>{
+    dayEl.addEventListener('dragover',e=>{
+      e.preventDefault();
+      dayEl.classList.add('drop');
+    });
+    dayEl.addEventListener('dragleave',()=>dayEl.classList.remove('drop'));
+    dayEl.addEventListener('drop',async e=>{
+      e.preventDefault();
+      dayEl.classList.remove('drop');
+      const id=e.dataTransfer.getData('text/plain');
+      const job=jobs.find(j=>String(j.id)===String(id));
+      if(!job || !canEdit()) return;
+      // The drop only tells us the new day; the crew still shows up at the
+      // same hour they always do, so the original time-of-day survives the
+      // move and only the date changes.
+      let hh=8, mm=0;
+      if(job.scheduled_date){
+        const old=d(job.scheduled_date);
+        hh=old.getHours(); mm=old.getMinutes();
+      }
+      const [ny,nm,nd]=dayEl.dataset.date.split('-').map(Number);
+      const next=new Date(ny, nm-1, nd, hh, mm);
+      const iso=next.toISOString();
+      const { error } = await db.from('jobs').update({scheduled_date: iso}).eq('id', job.id);
+      if(error){ console.error(error); renderCal(); return; }
+      job.scheduled_date=iso;
+      renderCal();
+    });
+  });
 }
 
 /* ---------- pipeline ---------- */
@@ -3663,8 +3722,29 @@ const J_NUM=['tax_rate_percent','markup_percent','discount_percent','minimum_job
              'labor_rate_per_ft','labor_flat_fee','estimated_duration_hours','deposit_amount'];
 const J_SEL=['status','payment_status','hoa_approval_status','permit_status'];
 
+function quoteLinkFor(j){
+  return location.origin + location.pathname.replace(/[^/]*$/,'') + 'quote.html?t=' + j.quote_token;
+}
+
+function renderQuoteBlock(){
+  const j = openJob;
+  if (!j || !$('q_link')) return;
+  $('q_link').textContent = quoteLinkFor(j);
+  const bits = [];
+  if (j.quote_approved_at)
+    bits.push('Approved by ' + (j.quote_approved_name || 'the customer') + ' on '
+      + d(j.quote_approved_at).toLocaleDateString() + '.');
+  else if (j.quote_viewed_at)
+    bits.push('Viewed ' + d(j.quote_viewed_at).toLocaleString() + ', not approved yet.');
+  else if (j.quote_sent_at)
+    bits.push('Sent ' + d(j.quote_sent_at).toLocaleDateString() + ', not opened yet.');
+  else bits.push('Not sent yet.');
+  $('q_status').textContent = bits.join(' ');
+}
+
 function showJob(id){
   openJob=jobs.find(j=>String(j.id)===String(id));
+  renderQuoteBlock();
   if(!openJob) return;
   $('jobTitle').textContent=openJob.customer_name||'Job';
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||'';});
@@ -4123,6 +4203,22 @@ $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'
 $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'));
 $('saveJob').addEventListener('click',saveJob);
 $('deleteJob').addEventListener('click',deleteJob);
+$('q_copy').addEventListener('click', async ()=>{
+  if(!openJob) return;
+  try{ await navigator.clipboard.writeText(quoteLinkFor(openJob)); }
+  catch(e){ /* the readout is select-all as the fallback */ }
+  $('q_copy').textContent='Copied';
+  setTimeout(()=>{ $('q_copy').textContent='Copy link'; }, 1400);
+  // Copying is sending, as far as the record cares. First copy stamps it.
+  if(!openJob.quote_sent_at){
+    const now=new Date().toISOString();
+    await db.from('jobs').update({quote_sent_at:now}).eq('id',openJob.id);
+    openJob.quote_sent_at=now;
+    renderQuoteBlock();
+  }
+});
+$('q_open').addEventListener('click',()=>{ if(openJob) window.open(quoteLinkFor(openJob),'_blank'); });
+
 $('newJob').addEventListener('click',createJob);
 $('openImport').addEventListener('click',()=>{ $('impOverlay').classList.add('on'); });
 $('impClose').addEventListener('click',()=>{ $('impOverlay').classList.remove('on'); });

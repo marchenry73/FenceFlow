@@ -45,13 +45,47 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "No login sent with the request" }, 401);
-
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    const body = await req.json().catch(() => ({}));
+
+    // ---- door two: a homeowner holding a quote link ----------------------
+    //
+    // The token authorises exactly one thing: paying THIS job's own deposit
+    // or balance. The amount comes from the job row, never from the request
+    // -- a homeowner picks whether to pay, not how much a deposit is.
+    if (body?.quoteToken) {
+      const tok = String(body.quoteToken).trim();
+      if (!/^[0-9a-f-]{36}$/.test(tok)) return json({ error: "That link is not valid." }, 400);
+      const { data: qjob } = await admin
+        .from("jobs")
+        .select("sync_id, company_id, customer_name, deposit_amount, contract_total, amount_paid, refunded_amount, deleted_at")
+        .eq("quote_token", tok).maybeSingle();
+      if (!qjob || qjob.deleted_at) return json({ error: "That quote is no longer available." }, 404);
+
+      const kindWanted = body.kind === "balance" ? "balance" : "deposit";
+      const dollars = kindWanted === "deposit"
+        ? Number(qjob.deposit_amount) || 0
+        : Math.max(0, (Number(qjob.contract_total) || 0)
+            - ((Number(qjob.amount_paid) || 0) - (Number(qjob.refunded_amount) || 0)));
+      const cents = Math.round(dollars * 100);
+      if (cents < 50) return json({ error: "There is nothing to pay on this quote yet." }, 400);
+
+      return await makeLink(admin, {
+        companyId: qjob.company_id,
+        jobSyncId: qjob.sync_id,
+        amount: cents,
+        kind: kindWanted,
+        description: "Fence work — " + (qjob.customer_name || "deposit"),
+      });
+    }
+
+    // ---- door one: the office, signed in ---------------------------------
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json({ error: "No login sent with the request" }, 401);
 
     // Validate the caller's token explicitly. Handing the header to a client
     // and calling getUser() with no argument does not reliably read it, which
@@ -72,13 +106,33 @@ Deno.serve(async (req) => {
       return json({ error: "Only an owner or manager can request payment" }, 403);
     }
 
-    const { jobSyncId, amountCents, kind = "deposit", description = "Fence work" } =
-      await req.json();
+    const { jobSyncId, amountCents, kind = "deposit", description = "Fence work" } = body;
 
     const amount = Math.round(Number(amountCents));
     if (!jobSyncId || !Number.isFinite(amount) || amount < 50) {
       return json({ error: "Amount must be at least $0.50" }, 400);
     }
+
+    return await makeLink(admin, {
+      companyId: profile.company_id, jobSyncId, amount, kind, description,
+    });
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
+});
+
+/**
+ * The one implementation of "produce a checkout for this job on this
+ * company's own processor" -- both doors land here, so the homeowner's
+ * deposit and the office's request cannot drift apart.
+ */
+async function makeLink(
+  admin: ReturnType<typeof createClient>,
+  a: { companyId: string; jobSyncId: string; amount: number; kind: string; description: string },
+): Promise<Response> {
+  try {
+    const profile = { company_id: a.companyId };
+    const { jobSyncId, amount, kind, description } = a;
 
     const { data: company } = await admin
       .from("companies").select("name, stripe_account_id, subscription_plan")
@@ -268,4 +322,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: String(e instanceof Error ? e.message : e) }, 400);
   }
-});
+}

@@ -29,8 +29,11 @@ verify_jwt = false
 [functions.create-checkout-session]
 verify_jwt = true
 
+# Two doors now: the office (the function checks its own JWT inside) and a
+# homeowner holding a quote token, who has no JWT and never will. The gateway
+# must let both reach the function; the function is the bouncer for each.
 [functions.create-payment-link]
-verify_jwt = true
+verify_jwt = false
 
 [functions.invite-company]
 verify_jwt = true
@@ -51,4 +54,9 @@ verify_jwt = false
 # no JWT, so the gateway must let it through and the function checks the
 # start half itself.
 [functions.stripe-connect]
+verify_jwt = false
+
+# The homeowner opening a quote link has no JWT and never will; the
+# unguessable token in the URL is the authorisation, checked by the function.
+[functions.quote-view]
 verify_jwt = false
