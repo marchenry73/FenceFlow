@@ -151,8 +151,11 @@ object EstimateEngine {
      * An uncalibrated run with no typed-in footage contributes nothing rather
      * than guessing, so a half-set-up job reads as incomplete instead of wrong.
      */
+    // Only fence being BUILT. The old fence's footage is the teardown
+    // charge's business, not the labour rate's -- counting it here billed
+    // installation labour for a fence that is leaving the property.
     fun linearFeet(job: Job, runs: List<FenceRun>): Float =
-        runs.sumOf { run ->
+        runs.filterNot { it.isTeardown }.sumOf { run ->
             val manual = run.manualLinearFeet
             if (manual != null && manual > 0f) manual.toDouble()
             else job.calibrationPixelsPerFoot
@@ -676,6 +679,16 @@ object EstimateEngine {
      *   slowest work on the job per foot, and pricing it like fence line loses
      *   money on every gate.
      */
+    /** The old fence's own footage, for the teardown charge. */
+    fun teardownLinearFeet(job: Job, runs: List<FenceRun>): Float =
+        runs.filter { it.isTeardown }.sumOf { run ->
+            val manual = run.manualLinearFeet
+            if (manual != null && manual > 0f) manual.toDouble()
+            else job.calibrationPixelsPerFoot
+                ?.let { resolveGeometry(run, it).totalLinearFeet.toDouble() }
+                ?: 0.0
+        }.toFloat()
+
     fun computeTotals(
         job: Job,
         lineItems: List<EstimateLineItem>,
@@ -709,7 +722,15 @@ object EstimateEngine {
         // The typed teardown length when there is one, because the old fence
         // does not always match the new one. Zero means what every job meant
         // before the field existed: priced along the new fence.
-        val teardownFt = if (job.teardownFeet > 0.0) job.teardownFeet else billableFeet.toDouble()
+        // Typed footage first; then the drawn old fence itself, which is the
+        // whole point of drawing it; the new fence's footage only as the last
+        // guess when nothing better exists.
+        val drawnTeardownFt = teardownLinearFeet(job, runs).toDouble()
+        val teardownFt = when {
+            job.teardownFeet > 0.0 -> job.teardownFeet
+            drawnTeardownFt > 0.0 -> drawnTeardownFt
+            else -> billableFeet.toDouble()
+        }
         val teardownCost =
             if (job.teardownEnabled) job.teardownFlatFee + job.teardownRatePerFt * teardownFt + trashHaul
             else 0.0

@@ -116,6 +116,28 @@ fun RunEditScreen(
                         stableKey = currentRun.id, initialValue = currentRun.colorOrFinish,
                         label = stringResource(R.string.est2_color_finish), modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(colorOrFinish = it) } }
+                    // The field existed in the data model and synced to every
+                    // phone -- and nothing anywhere let a person SET it. So the
+                    // first time somebody drew their customer's old fence, every
+                    // board of it was billed as new fence to build: quantities
+                    // jumped by the old fence's whole takeoff and the estimate
+                    // looked possessed.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.est2_is_teardown))
+                            Text(
+                                stringResource(R.string.est2_is_teardown_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = currentRun.isTeardown,
+                            onCheckedChange = { checked ->
+                                viewModel.update { r -> r.copy(isTeardown = checked) }
+                            }
+                        )
+                    }
                 }
             }
             item {
