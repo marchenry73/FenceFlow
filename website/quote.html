@@ -81,13 +81,17 @@
   <div id="content" style="display:none">
     <div id="stage" style="display:none">
       <div id="stageBadge">Your fence &middot; 3D preview</div>
-      <div id="stageHint">Drag to walk around &middot; pinch or scroll to zoom</div>
+      <div id="stageHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
       <div id="rotCtl" style="display:none;position:absolute;top:10px;right:10px;
            background:rgba(15,24,38,.82);border-radius:8px;padding:8px 12px;color:#fff">
         <div style="font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
              text-transform:uppercase;margin-bottom:5px">Turn the fence to match</div>
         <input id="rotSlider" type="range" min="0" max="360" value="0" step="1"
                style="width:150px;margin:0">
+        <button id="slideBtn" style="display:none;margin-top:7px;width:100%;background:transparent;
+                border:1px solid #48566B;color:#fff;border-radius:6px;padding:5px;
+                font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
+                text-transform:uppercase;cursor:pointer">Slide into place</button>
       </div>
       <div id="mapCred" style="display:none;position:absolute;left:8px;bottom:28px;
            font-size:9.5px;color:rgba(15,24,38,.65);background:rgba(255,255,255,.55);
@@ -100,10 +104,7 @@
     <div class="panel">
       <h2 id="quoteTitle">Your quote</h2>
       <p class="sub" id="quoteAddr"></p>
-      <div style="overflow-x:auto;margin-top:10px"><table>
-        <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></thead>
-        <tbody id="lines"></tbody>
-      </table></div>
+      <div id="scope" style="margin-top:10px"></div>
       <div class="totals" id="totals"></div>
     </div>
 
@@ -151,11 +152,33 @@ function render(){
   $('quoteTitle').textContent='Quote for '+(q.customerName||'you');
   $('quoteAddr').textContent=q.address||'';
 
-  $('lines').innerHTML=(q.lines||[]).map(l=>'<tr><td>'+esc(l.description)+'</td>'
-    +'<td class="num">'+(l.quantity||0)+(l.unit?' '+esc(l.unit):'')+'</td>'
-    +'<td class="num">'+money(l.unitPrice)+'</td>'
-    +'<td class="num">'+money(l.total)+'</td></tr>').join('')
-    ||'<tr><td colspan="4" class="sub">Itemised lines to follow.</td></tr>';
+  // The scope in the customer's language: what fence, how much of it, how
+  // tall, how many gates. The parts list never leaves the office.
+  const label=t=>String(t||'').replace(/_/g,' ').toLowerCase()
+    .replace(/\b\w/g,c=>c.toUpperCase());
+  $('scope').innerHTML=(q.runs||[]).length
+    ? (q.runs||[]).map(r=>{
+        let ft=r.manualFeet;
+        if(!ft && r.points){
+          const pts=String(r.points).split(',').map(p=>p.split(':').map(Number));
+          let px=0;
+          for(let i=1;i<pts.length;i++) px+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
+          if(r.closed&&pts.length>2) px+=Math.hypot(pts[0][0]-pts[pts.length-1][0],pts[0][1]-pts[pts.length-1][1]);
+          ft=px/(q.pxPerFoot||20);
+        }
+        const gates=String(r.gates||'').split(',').filter(g=>g.trim()).length;
+        return '<div style="display:flex;justify-content:space-between;gap:14px;'
+          +'padding:10px 2px;border-bottom:1px solid var(--line);font-size:14.5px">'
+          +'<span><strong>'+label(r.type)+' fence</strong>'
+          +(r.finish?', '+esc(r.finish):'')
+          +' — '+r.heightFt+' ft tall'
+          +(gates?' · '+gates+' gate'+(gates===1?'':'s'):'')
+          +(r.label?'<span class="sub" style="display:block">'+esc(r.label)+'</span>':'')
+          +'</span>'
+          +'<span class="num" style="white-space:nowrap">'+(ft?Math.round(ft)+' ft':'')+'</span>'
+          +'</div>';
+      }).join('')
+    : '<p class="sub">Full details of the work to follow.</p>';
 
   const t=[];
   t.push('<div><span>Subtotal</span><span>'+money(q.subtotal)+'</span></div>');
@@ -435,29 +458,52 @@ function build3D(runs,attempt){
     cz=all.reduce((s,p)=>s+p.z,0)/all.length;
     r=Math.max(14,...all.map(p=>Math.hypot(p.x-cx,p.z-cz)))*1.35+8;
   }
+  // Re-hang the fence from a pivot at its own centroid, so "turn it" and
+  // "slide it" are each one line on the pivot instead of trigonometry in
+  // every handler.
+  scene.remove(fence);
+  const pivot=new THREE.Group();
+  pivot.position.set(cx,0,cz);
+  fence.position.set(-cx,0,-cz);
+  pivot.add(fence);
+  scene.add(pivot);
   // The far plane follows the scene: a fixed 900 once culled an entire fence
   // whose scale guess was 5x off, and the page showed nothing but sky.
   const cam=new THREE.PerspectiveCamera(50,W/H,0.1,Math.max(900,r*4+100));
   // Opens near eye level, close enough to read the boards -- a fence seen
   // from a drone reads as a diagram; seen from the lawn it reads as REAL.
-  let yaw=0.7,pitch=0.16,dist=r,auto=true;
-  const look=new THREE.Vector3(cx,2.5,cz);
+  let yaw=0.7,pitch=0.16,dist=r,auto=true,slideMode=false;
+  // The camera's target can travel: tx/tz start on the fence but pan moves
+  // them anywhere on the ground -- walking the neighbourhood, not circling a
+  // post. panLimit keeps the walk on the photo once one exists.
+  let tx=cx, tz=cz, panLimit=r*2.5;
+  const look=new THREE.Vector3(tx,2.5,tz);
   function place(){
+    tx=Math.max(cx-panLimit,Math.min(cx+panLimit,tx));
+    tz=Math.max(cz-panLimit,Math.min(cz+panLimit,tz));
+    look.set(tx,2.5,tz);
     cam.position.set(
-      cx+Math.cos(yaw)*Math.cos(pitch)*dist,
+      tx+Math.cos(yaw)*Math.cos(pitch)*dist,
       2.5+Math.sin(pitch)*dist,
-      cz+Math.sin(yaw)*Math.cos(pitch)*dist);
+      tz+Math.sin(yaw)*Math.cos(pitch)*dist);
     cam.lookAt(look);
+  }
+  function panBy(dxPx,dzPx){
+    const k=dist*0.0014;
+    const dx=dxPx*k, dz=dzPx*k;
+    tx += Math.sin(yaw)*-dx + Math.cos(yaw)*-dz;
+    tz += Math.cos(yaw)*dx + Math.sin(yaw)*-dz;
   }
 
   // A hand-rolled orbit: drag turns, wheel and pinch zoom. The moment a
   // finger lands, the slow show-off spin stops and the person is in charge.
   const el=renderer.domElement;
   const touches=new Map();
-  let pinchD=0;
+  let pinchD=0, pinchMid=null;
+  el.addEventListener('contextmenu',e=>e.preventDefault());
   el.addEventListener('pointerdown',e=>{auto=false;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});el.setPointerCapture(e.pointerId);});
-  el.addEventListener('pointerup',e=>{touches.delete(e.pointerId);pinchD=0;});
-  el.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);pinchD=0;});
+  el.addEventListener('pointerup',e=>{touches.delete(e.pointerId);pinchD=0;pinchMid=null;});
+  el.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);pinchD=0;pinchMid=null;});
   el.addEventListener('pointermove',e=>{
     if(!touches.has(e.pointerId)) return;
     const prev=touches.get(e.pointerId);
@@ -467,6 +513,26 @@ function build3D(runs,attempt){
       const d=Math.hypot(p1.x-p2.x,p1.y-p2.y);
       if(pinchD) dist=Math.min(r*3,Math.max(8,dist*pinchD/d));
       pinchD=d;
+      // The midpoint's travel is a pan -- two fingers move you across the
+      // map while their spread zooms, the way every map app behaves.
+      const mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2;
+      if(pinchMid) panBy(mx-pinchMid.x, my-pinchMid.y);
+      pinchMid={x:mx,y:my};
+      return;
+    }
+    // Desktop pan: hold Shift, or drag with the right button.
+    if(e.shiftKey || (e.buttons&2)){
+      panBy(e.clientX-prev.x, e.clientY-prev.y);
+      return;
+    }
+    if(slideMode){
+      // Screen-drag becomes ground-plane motion in the camera's frame, so
+      // dragging right always moves the fence right no matter which way the
+      // person has walked around it.
+      const k=dist*0.0016;
+      const dx=(e.clientX-prev.x)*k, dz=(e.clientY-prev.y)*k;
+      pivot.position.x += Math.sin(yaw)*-dx + Math.cos(yaw)*-dz;
+      pivot.position.z += Math.cos(yaw)*dx + Math.sin(yaw)*-dz;
       return;
     }
     yaw+=(e.clientX-prev.x)*0.008;
@@ -500,10 +566,14 @@ function build3D(runs,attempt){
    * with a slider to turn the fence to match the yard -- the drawing knows
    * its shape and size precisely, but not which way the yard faces.
    */
-  window.__fence.attachSatellite=async function(lat,lon){
-    const Z=19, N=3;
+  window.__fence.attachSatellite=async function(lat,lon,zoom){
+    // Google-Earth sharpness first: z20 is roughly 4-inch pixels. Some areas
+    // stop at z19, so a failed grid retries one level down rather than
+    // showing a checkerboard.
+    const Z=zoom||20, N=4;
     const t=merc.tile(lat,lon,Z);
-    const cxT=Math.floor(t.x), cyT=Math.floor(t.y);
+    const half=(N-1)/2;
+    const cxT=Math.floor(t.x)-Math.floor(half), cyT=Math.floor(t.y)-Math.floor(half);
     const cvs=document.createElement('canvas');
     cvs.width=cvs.height=256*N;
     const g2=cvs.getContext('2d');
@@ -514,21 +584,23 @@ function build3D(runs,attempt){
         img.crossOrigin='anonymous';
         img.onload=()=>{ g2.drawImage(img,dx*256,dy*256); res(true); };
         img.onerror=()=>res(false);
-        img.src=API+'/quote-map?action=tile&z='+Z+'&y='+(cyT-1+dy)+'&x='+(cxT-1+dx);
+        img.src=API+'/quote-map?action=tile&z='+Z+'&y='+(cyT+dy)+'&x='+(cxT+dx);
       }));
     }
     const got=(await Promise.all(loads)).filter(Boolean).length;
-    if(got<N*N) return false;            // partial imagery looks broken; keep the grass
+    if(got<N*N){
+      return Z>19 ? window.__fence.attachSatellite(lat,lon,19) : false;
+    }
 
     const ftPerTile=merc.metersPerTile(lat,Z)*3.28084;
     const sideFt=ftPerTile*N;
     // Where inside the stitched image the address itself is, so that pixel
     // lands under the fence centre rather than the house drifting a tile off.
-    const px=((t.x-(cxT-1))/N - .5)*sideFt;
-    const pz=((t.y-(cyT-1))/N - .5)*sideFt;
+    const px=((t.x-cxT)/N - .5)*sideFt;
+    const pz=((t.y-cyT)/N - .5)*sideFt;
 
     const tex=new THREE.CanvasTexture(cvs);
-    tex.anisotropy=4;
+    tex.anisotropy=renderer.capabilities.getMaxAnisotropy();
     const plane=new THREE.Mesh(
       new THREE.PlaneGeometry(sideFt,sideFt),
       new THREE.MeshLambertMaterial({map:tex}));
@@ -542,15 +614,17 @@ function build3D(runs,attempt){
     const rot=document.getElementById('rotSlider');
     document.getElementById('rotCtl').style.display='';
     document.getElementById('mapCred').style.display='';
-    rot.addEventListener('input',()=>{
-      const a=rot.value*Math.PI/180;
-      fence.rotation.y=a;
-      // Rotate around the centroid, not the origin.
-      fence.position.set(
-        cx-Math.cos(a)*cx+Math.sin(a)*cz,
-        0,
-        cz-Math.sin(a)*cx-Math.cos(a)*cz);
+    rot.addEventListener('input',()=>{ pivot.rotation.y=rot.value*Math.PI/180; });
+    const slideBtn=document.getElementById('slideBtn');
+    slideBtn.style.display='';
+    slideBtn.addEventListener('click',()=>{
+      slideMode=!slideMode;
+      slideBtn.style.background=slideMode?'var(--orange)':'transparent';
+      document.getElementById('stageHint').textContent=slideMode
+        ? 'Drag to slide the fence into place'
+        : 'Drag to walk around · pinch or scroll to zoom';
     });
+    panLimit=sideFt*0.48;
     // A flat photo smears at lawn level; the reveal reads best from the
     // height a drone would shoot the yard from. The person still drops down
     // to eye level with one drag.

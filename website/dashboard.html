@@ -828,7 +828,11 @@
         <div><label>Customer name</label><input id="j_customer_name"></div>
         <div><label>Phone</label><input id="j_phone"></div>
       </div>
-      <label>Property address</label><input id="j_address">
+      <label>Property address</label><input id="j_address" placeholder="Street, City, ST ZIP">
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-grey" id="j_addr_verify" type="button">Verify address</button>
+        <span class="sub" id="j_addr_result"></span>
+      </div>
       <div class="row2">
         <div><label>Email</label><input id="j_email"></div>
         <div><label>How they found us</label><input id="j_referral_source"></div>
@@ -4218,6 +4222,35 @@ $('q_copy').addEventListener('click', async ()=>{
   }
 });
 $('q_open').addEventListener('click',()=>{ if(openJob) window.open(quoteLinkFor(openJob),'_blank'); });
+
+// The 3D quote page can only stand the fence on the real yard when the
+// address places on a map. Verify runs it through the same geocoders the
+// page uses and offers the canonical form back -- catching "no city, no
+// ZIP" while someone is still typing, instead of as a grass lawn on the
+// customer's link.
+$('j_addr_verify').addEventListener('click', async ()=>{
+  const el=$('j_addr_result');
+  const addr=$('j_address').value.trim();
+  if(addr.length<8){ el.textContent='Type the address first — street, city, state, ZIP.'; return; }
+  el.textContent='Checking…';
+  try{
+    const r=await fetch(SUPA_URL+'/functions/v1/quote-map?action=geocode&address='+encodeURIComponent(addr));
+    const j=await r.json();
+    if(r.ok && j.lat){
+      el.innerHTML='Found: <b>'+esc(j.matched||addr)+'</b> — the 3D view will show this yard.'
+        +(j.matched && j.matched!==addr
+          ? ' <a href="#" id="j_addr_use">Use this exact form</a>' : '');
+      const use=$('j_addr_use');
+      if(use) use.addEventListener('click',e=>{
+        e.preventDefault();
+        $('j_address').value=j.matched;
+        el.textContent='Address updated — remember to save the job.';
+      });
+    } else {
+      el.textContent=j.error||'Could not place it. Add the city, state and ZIP.';
+    }
+  }catch(e){ el.textContent='Could not check just now.'; }
+});
 
 $('newJob').addEventListener('click',createJob);
 $('openImport').addEventListener('click',()=>{ $('impOverlay').classList.add('on'); });

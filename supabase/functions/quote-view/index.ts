@@ -120,7 +120,11 @@ Deno.serve(async (req) => {
     company: { name: company?.name ?? "", phone: company?.phone ?? "", email: company?.email ?? "" },
     customerName: job.customer_name,
     address: job.address,
-    lines,
+    // Deliberately NO line items. The parts list -- 103 bags of concrete at
+    // $4.75, panels at $52.35 -- is the contractor's working, and handing it
+    // over invites pricing the job from a hardware-store receipt. The
+    // customer buys a fence, not a bill of materials: they get what they are
+    // getting and what it costs, enforced here rather than hidden by CSS.
     subtotal, tax, taxRate, total,
     deposit: Number(job.deposit_amount) || 0,
     approvedAt: job.quote_approved_at,
