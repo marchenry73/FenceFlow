@@ -30,7 +30,8 @@
   .btn:hover{background:var(--orange-dk)}
   .btn:disabled{opacity:.55}
   .msg{border-radius:8px;padding:11px 14px;font-size:14px;margin-top:12px;display:none}
-  .msg.err{background:#FDECEC;color:#8C1114;display:block}
+  .msg.err{background:#FDECEC;color:#8C1114}
+  .msg.on{display:block}
   .done{background:#E6F6F1;border:1px solid #BFE6D8;color:var(--ok);border-radius:12px;
         padding:20px;font-size:15.5px;display:none}
   .foot{font-size:12px;color:var(--muted);text-align:center;margin-top:24px}
@@ -64,7 +65,7 @@ const API='https://newcrgafcptspmapacrx.supabase.co/functions/v1';
 const token=new URLSearchParams(location.search).get('c')||'';
 $('form').addEventListener('submit', async e=>{
   e.preventDefault();
-  const err=$('err'); err.style.display='none';
+  const err=$('err'); err.classList.remove('on');
   $('go').disabled=true;
   try{
     const r=await fetch(API+'/lead-intake?c='+encodeURIComponent(token),{
@@ -78,7 +79,7 @@ $('form').addEventListener('submit', async e=>{
     $('done').textContent='Got it — '+(j.company||'the team')
       +' will call you back to set up your free quote. Thank you!';
     if(j.company) $('coName').textContent=j.company;
-  }catch(ex){ err.textContent=ex.message; err.style.display='block'; $('go').disabled=false; }
+  }catch(ex){ err.textContent=ex.message; err.classList.add('on'); $('go').disabled=false; }
 });
 </script>
 </body>
