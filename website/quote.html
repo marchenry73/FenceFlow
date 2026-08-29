@@ -551,6 +551,11 @@ function build3D(runs,attempt){
         0,
         cz-Math.sin(a)*cx-Math.cos(a)*cz);
     });
+    // A flat photo smears at lawn level; the reveal reads best from the
+    // height a drone would shoot the yard from. The person still drops down
+    // to eye level with one drag.
+    pitch=0.55; dist=Math.min(dist, r*1.1);
+    place();
     renderer.render(scene,cam);
     return true;
   };
