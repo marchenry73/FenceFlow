@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
   const appId = Deno.env.get("SQUARE_APPLICATION_ID") ?? "";
   const appSecret = Deno.env.get("SQUARE_APPLICATION_SECRET") ?? "";
-  const site = Deno.env.get("SITE_URL") ?? "https://marchenry73.github.io/FenceFlow";
+  const site = Deno.env.get("SITE_URL") ?? "https://fenceflowapp.com";
   const redirectUri = Deno.env.get("SQUARE_REDIRECT_URI") ?? "";
 
   if (!appId || !appSecret || !redirectUri) {

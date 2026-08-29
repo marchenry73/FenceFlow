@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
         .update({ stripe_customer_id: customerId }).eq("id", profile.company_id);
     }
 
-    const site = Deno.env.get("SITE_URL") ?? "https://marchenry73.github.io/FenceFlow";
+    const site = Deno.env.get("SITE_URL") ?? "https://fenceflowapp.com";
 
     const session = await stripe("POST", "/checkout/sessions", {
       mode: "subscription",

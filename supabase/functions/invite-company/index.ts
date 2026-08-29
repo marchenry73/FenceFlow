@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     const { companyId, email, companyName } = await req.json();
     if (!companyId || !email) return json({ error: "Need a company and an email address." }, 400);
 
-    const site = Deno.env.get("SITE_URL") ?? "https://marchenry73.github.io/FenceFlow";
+    const site = Deno.env.get("SITE_URL") ?? "https://fenceflowapp.com";
     const redirectTo = `${site}/welcome.html`;
 
     const mailKey = Deno.env.get("MAIL_API_KEY");

@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
   const clientId = Deno.env.get("STRIPE_CONNECT_CLIENT_ID") ?? "";
   const secretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-  const site = Deno.env.get("SITE_URL") ?? "https://marchenry73.github.io/FenceFlow";
+  const site = Deno.env.get("SITE_URL") ?? "https://fenceflowapp.com";
   const redirectUri = Deno.env.get("STRIPE_CONNECT_REDIRECT_URI") ?? "";
 
   if (!clientId || !secretKey || !redirectUri) {
