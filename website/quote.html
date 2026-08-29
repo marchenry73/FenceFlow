@@ -437,6 +437,11 @@ function build3D(runs,attempt){
   }
   // A hook for automated checks: how much scene actually exists.
   window.__fence={meshes:scene.children.length,drawCalls:()=>renderer.info.render.calls,tris:()=>renderer.info.render.triangles};
+  window.__fence.renderOnce=()=>{place();renderer.render(scene,cam);};
+  // One eager frame before the loop: a tab restored from the background, or
+  // any context where animation frames are throttled, still shows the fence
+  // immediately instead of sky until the first rAF lands.
+  place();renderer.render(scene,cam);
   tick();
 
   addEventListener('resize',()=>{
