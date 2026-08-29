@@ -258,27 +258,11 @@ fun JobDetailScreen(
                 // Everything already saves as you type -- this is here because
                 // an app with no Save button leaves people unsure whether their
                 // work is safe, and they leave the screen expecting to lose it.
-                Card(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(R.string.jd_saved_automatically),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                        Button(onClick = { app.autoSync.requestSync(); onBack() }) {
-                            Text(stringResource(R.string.jd_save_and_close))
-                        }
-                    }
-                }
+                Text(
+                    stringResource(R.string.jd_saved_automatically),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -312,6 +296,7 @@ fun JobDetailScreen(
                 val shareFailed = stringResource(R.string.jd_quote_link_failed)
                 val chooser = stringResource(R.string.jd_send_quote_chooser)
                 val bodyTemplate = stringResource(R.string.jd_quote_link_body)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = {
                         scope.launch {
@@ -330,12 +315,11 @@ fun JobDetailScreen(
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Filled.Star, contentDescription = null)
-                    Text("  " + stringResource(R.string.jd_send_quote_to_customer))
+                    Text("  " + stringResource(R.string.jd_send_quote_short))
                 }
-                Spacer(Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = {
                         scope.launch {
@@ -355,22 +339,23 @@ fun JobDetailScreen(
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Filled.Map, contentDescription = null)
-                    Text("  " + stringResource(R.string.jd_show_fence_3d))
+                    Text("  " + stringResource(R.string.jd_show_3d_short))
+                }
                 }
             }
             item {
-                Button(onClick = { onOpenCrewView(jobId) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Filled.Construction, contentDescription = null)
-                    Text("  " + stringResource(R.string.jd_open_crew_view))
-                }
-            }
-            item {
-                OutlinedButton(onClick = { onOpenInventory(jobId) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Filled.Inventory, contentDescription = null)
-                    Text("  " + stringResource(R.string.jd_inventory_checklist))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { onOpenCrewView(jobId) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Construction, contentDescription = null)
+                        Text("  " + stringResource(R.string.jd_crew_view_short))
+                    }
+                    OutlinedButton(onClick = { onOpenInventory(jobId) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Inventory, contentDescription = null)
+                        Text("  " + stringResource(R.string.jd_inventory_short))
+                    }
                 }
             }
             item {

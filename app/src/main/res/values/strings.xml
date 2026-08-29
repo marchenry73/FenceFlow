@@ -844,6 +844,10 @@
     <string name="est_internal_share_confirm">Share internal copy</string>
     <string name="est2_is_teardown">This is the OLD fence</string>
     <string name="est2_is_teardown_hint">Being removed — no materials are billed for it; its footage feeds the teardown charge, and the 3D shows it weathered until the customer removes it.</string>
+    <string name="jd_send_quote_short">Send quote</string>
+    <string name="jd_show_3d_short">See in 3D</string>
+    <string name="jd_crew_view_short">Crew view</string>
+    <string name="jd_inventory_short">Inventory</string>
     <string name="rep_total">total</string>
     <string name="rep_what_it_cost">What it cost</string>
     <string name="rep_line_labor">Labor</string>
