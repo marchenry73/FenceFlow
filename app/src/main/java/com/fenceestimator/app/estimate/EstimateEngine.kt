@@ -742,7 +742,10 @@ object EstimateEngine {
         val discountAmount = afterMarkup * (job.discountPercent / 100.0)
         val afterDiscount = afterMarkup - discountAmount
 
-        val grandTotal = maxOf(afterDiscount, job.minimumJobCharge)
+        // Up to the next ten, never down. A quote of $15,991.06 kept coming in
+        // "less than needed" once material prices moved a cent -- rounding up
+        // means the number on the contract always covers the buy.
+        val grandTotal = kotlin.math.ceil(maxOf(afterDiscount, job.minimumJobCharge) / 10.0) * 10.0
 
         return Totals(
             materialsSubtotal, taxableSubtotal, tax, laborCost, teardownCost,

@@ -4252,6 +4252,22 @@ $('j_addr_verify').addEventListener('click', async ()=>{
   }catch(e){ el.textContent='Could not check just now.'; }
 });
 
+// The approval arrives while the owner is looking at the dashboard, not on
+// the next reload. One realtime subscription on jobs; an update that carries
+// a fresh quote_approved_at raises the banner and refreshes the lists.
+try{
+  db.channel('quote-approvals')
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'jobs'},payload=>{
+      const j=payload.new||{};
+      if(j.quote_approved_at && !(payload.old||{}).quote_approved_at){
+        msg('jobsMsg',(j.quote_approved_name||'The customer')+' approved the quote for '
+          +(j.customer_name||'a job')+' 🎉','ok');
+        switchTab('jobs');
+        loadAll();
+      }
+    }).subscribe();
+}catch(e){/* older browsers just reload */}
+
 $('newJob').addEventListener('click',createJob);
 $('openImport').addEventListener('click',()=>{ $('impOverlay').classList.add('on'); });
 $('impClose').addEventListener('click',()=>{ $('impOverlay').classList.remove('on'); });

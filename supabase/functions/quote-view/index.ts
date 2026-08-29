@@ -69,6 +69,64 @@ Deno.serve(async (req) => {
         ...(["DRAFT", "SENT"].includes(job.status) ? { status: "ACCEPTED" } : {}),
       }).eq("id", job.id);
     }
+    // The whole point of an approval is somebody hearing about it. Every
+    // phone signed into the company gets the push the moment the name goes
+    // on the record; failures are swallowed because the approval itself must
+    // never fail for want of a notification.
+    try {
+      const sa = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT") ?? "null");
+      if (sa) {
+        const { data: toks } = await admin
+          .from("device_tokens").select("token").eq("company_id", job.company_id);
+        if (toks?.length) {
+          const jwtHeader = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }))
+            .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+          const now = Math.floor(Date.now() / 1000);
+          const claims = btoa(JSON.stringify({
+            iss: sa.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging",
+            aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600,
+          })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+          const keyDer = atob(sa.private_key.replace(/-----[^-]+-----/g, "").replace(/\s/g, ""));
+          const keyBytes = new Uint8Array([...keyDer].map((c) => c.charCodeAt(0)));
+          const key = await crypto.subtle.importKey("pkcs8", keyBytes,
+            { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+          const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key,
+            new TextEncoder().encode(jwtHeader + "." + claims));
+          const jwt = jwtHeader + "." + claims + "." +
+            btoa(String.fromCharCode(...new Uint8Array(sig)))
+              .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+          const tokRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt,
+            }),
+          });
+          const accessTok = (await tokRes.json()).access_token;
+          if (accessTok) {
+            await Promise.all(toks.map((t: { token: string }) =>
+              fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${accessTok}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  message: {
+                    token: t.token,
+                    notification: {
+                      title: "Quote approved 🎉",
+                      body: `${name} approved the quote for ${job.customer_name || "the job"}.`,
+                    },
+                  },
+                }),
+              }).catch(() => null)
+            ));
+          }
+        }
+      }
+    } catch (_e) { /* the approval stands regardless */ }
+
     return json({ ok: true, approvedBy: job.quote_approved_name || name });
   }
 
@@ -107,7 +165,15 @@ Deno.serve(async (req) => {
   const subtotal = lines.reduce((s, l) => s + l.total, 0);
   const taxRate = Number(job.tax_rate_percent) || 0;
   const tax = lines.filter((l) => l.taxable).reduce((s, l) => s + l.total, 0) * taxRate / 100;
-  const total = Number(job.contract_total) || (subtotal + tax);
+  // Whatever the source, the customer-facing figure rounds UP to the next
+  // ten -- the number on the page always covers the buy.
+  const total = Math.ceil((Number(job.contract_total) || (subtotal + tax)) / 10) * 10;
+  // The deposit exists so the materials can be bought before labour starts.
+  // When the contractor has not set one, it defaults to the material cost
+  // plus its tax, rounded up to the next ten -- enough to order the fence.
+  const deposit = Number(job.deposit_amount) > 0
+    ? Number(job.deposit_amount)
+    : Math.min(total, Math.ceil((subtotal + tax) / 10) * 10);
 
   // Whether the deposit button can do anything. A connected processor means
   // create-payment-link's token path will produce a real checkout.
@@ -126,7 +192,7 @@ Deno.serve(async (req) => {
     // customer buys a fence, not a bill of materials: they get what they are
     // getting and what it costs, enforced here rather than hidden by CSS.
     subtotal, tax, taxRate, total,
-    deposit: Number(job.deposit_amount) || 0,
+    deposit,
     approvedAt: job.quote_approved_at,
     // The survey canvas draws on a 20px/ft grid unless the job was calibrated
     // against a known measurement; the 3D view must use the same number or

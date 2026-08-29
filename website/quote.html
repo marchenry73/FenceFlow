@@ -185,11 +185,11 @@ function render(){
       }).join('')
     : '<p class="sub">Full details of the work to follow.</p>';
 
+  // Two numbers only. Subtotals and tax lines are the office's arithmetic;
+  // the customer needs what it costs and what starts the work.
   const t=[];
-  t.push('<div><span>Subtotal</span><span>'+money(q.subtotal)+'</span></div>');
-  if(q.tax>0.005) t.push('<div><span>Tax ('+q.taxRate+'%)</span><span>'+money(q.tax)+'</span></div>');
   t.push('<div class="grand"><span>Total</span><span>'+money(q.total)+'</span></div>');
-  if(q.deposit>0.005) t.push('<div><span>Deposit to schedule</span><span>'+money(q.deposit)+'</span></div>');
+  if(q.deposit>0.005) t.push('<div><span>Deposit to begin</span><span>'+money(q.deposit)+'</span></div>');
   $('totals').innerHTML=t.join('');
 
   if(q.approvedAt){
@@ -617,7 +617,7 @@ function build3D(runs,attempt){
     // Google-Earth sharpness first: z20 is roughly 4-inch pixels. Some areas
     // stop at z19, so a failed grid retries one level down rather than
     // showing a checkerboard.
-    const Z=zoom||20, N=4;
+    const Z=zoom||20, N=5;
     const t=merc.tile(lat,lon,Z);
     const half=(N-1)/2;
     const cxT=Math.floor(t.x)-Math.floor(half), cyT=Math.floor(t.y)-Math.floor(half);
@@ -675,6 +675,10 @@ function build3D(runs,attempt){
         : 'Drag to walk around · pinch or scroll to zoom';
     });
     panLimit=sideFt*0.48;
+    // The haze was the blur. Scene fog starts at 120ft for the grass look,
+    // and a satellite photo 200ft across sat entirely inside it. Over real
+    // imagery the fog starts past the photo's edge instead.
+    scene.fog.near=sideFt*0.9; scene.fog.far=sideFt*2.5;
     // A flat photo smears at lawn level; the reveal reads best from the
     // height a drone would shoot the yard from. The person still drops down
     // to eye level with one drag.
