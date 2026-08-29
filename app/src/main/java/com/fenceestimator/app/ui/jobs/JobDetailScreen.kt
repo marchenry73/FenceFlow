@@ -315,14 +315,7 @@ fun JobDetailScreen(
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            val url = runCatching {
-                                val token = SupabaseModule.client.postgrest.from("jobs")
-                                    .select(io.github.jan.supabase.postgrest.query.Columns.list("quote_token")) {
-                                        filter { eq("sync_id", j.syncId) }
-                                    }
-                                    .decodeSingleOrNull<QuoteTokenRow>()?.quoteToken
-                                token?.let { "https://marchenry73.github.io/FenceFlow/quote.html?t=" + it }
-                            }.getOrNull()
+                            val url = quoteUrlFor(j.syncId)
                             if (url == null) {
                                 android.widget.Toast.makeText(context, shareFailed,
                                     android.widget.Toast.LENGTH_LONG).show()
@@ -341,6 +334,31 @@ fun JobDetailScreen(
                 ) {
                     Icon(Icons.Filled.Star, contentDescription = null)
                     Text("  " + stringResource(R.string.jd_send_quote_to_customer))
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            val url = quoteUrlFor(j.syncId)
+                            if (url == null) {
+                                android.widget.Toast.makeText(context, shareFailed,
+                                    android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                runCatching {
+                                    context.startActivity(
+                                        android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse(url)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Map, contentDescription = null)
+                    Text("  " + stringResource(R.string.jd_show_fence_3d))
                 }
             }
             item {
@@ -2565,6 +2583,16 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
     }
 }
 
+
+/** Fetches this job's quote-page URL, or null when it cannot be reached. */
+private suspend fun quoteUrlFor(syncId: String): String? = runCatching {
+    val token = SupabaseModule.client.postgrest.from("jobs")
+        .select(io.github.jan.supabase.postgrest.query.Columns.list("quote_token")) {
+            filter { eq("sync_id", syncId) }
+        }
+        .decodeSingleOrNull<QuoteTokenRow>()?.quoteToken
+    token?.let { "https://marchenry73.github.io/FenceFlow/quote.html?t=" + it }
+}.getOrNull()
 
 /**
  * The quote link's key, fetched at the moment of sharing rather than synced.
