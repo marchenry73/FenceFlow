@@ -395,12 +395,14 @@ function build3D(runs,attempt){
   if(all.length){
     cx=all.reduce((s,p)=>s+p.x,0)/all.length;
     cz=all.reduce((s,p)=>s+p.z,0)/all.length;
-    r=Math.max(14,...all.map(p=>Math.hypot(p.x-cx,p.z-cz)))*1.9+10;
+    r=Math.max(14,...all.map(p=>Math.hypot(p.x-cx,p.z-cz)))*1.35+8;
   }
   // The far plane follows the scene: a fixed 900 once culled an entire fence
   // whose scale guess was 5x off, and the page showed nothing but sky.
   const cam=new THREE.PerspectiveCamera(50,W/H,0.1,Math.max(900,r*4+100));
-  let yaw=0.7,pitch=0.42,dist=r,auto=true;
+  // Opens near eye level, close enough to read the boards -- a fence seen
+  // from a drone reads as a diagram; seen from the lawn it reads as REAL.
+  let yaw=0.7,pitch=0.16,dist=r,auto=true;
   const look=new THREE.Vector3(cx,2.5,cz);
   function place(){
     cam.position.set(
