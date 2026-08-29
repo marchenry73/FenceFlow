@@ -221,7 +221,10 @@ function build3D(runs,attempt){
   // Wait a frame and try again rather than rendering into nothing.
   const W=stage.clientWidth||stage.getBoundingClientRect().width;
   if(!W){
-    if((attempt||0)<60) requestAnimationFrame(()=>build3D(runs,(attempt||0)+1));
+    // setTimeout, not requestAnimationFrame: a link opened in a background
+    // tab never gets an animation frame, so an rAF retry loop simply never
+    // ran and the fence was never built at all.
+    if((attempt||0)<60) setTimeout(()=>build3D(runs,(attempt||0)+1),50);
     return;
   }
   const H=Math.max(300,Math.min(430,Math.round(W*0.62)));
