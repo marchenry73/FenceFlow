@@ -82,6 +82,11 @@
     <div id="stage" style="display:none">
       <div id="stageBadge">Your fence &middot; 3D preview</div>
       <div id="stageHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
+      <button id="oldFenceBtn" style="display:none;position:absolute;top:10px;left:10px;
+              margin-top:34px;background:rgba(15,24,38,.82);border:none;color:#fff;
+              border-radius:8px;padding:8px 12px;cursor:pointer;
+              font:600 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
+              text-transform:uppercase">Remove the old fence</button>
       <div id="rotCtl" style="display:none;position:absolute;top:10px;right:10px;
            background:rgba(15,24,38,.82);border-radius:8px;padding:8px 12px;color:#fff">
         <div style="font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
@@ -169,7 +174,7 @@ function render(){
         const gates=String(r.gates||'').split(',').filter(g=>g.trim()).length;
         return '<div style="display:flex;justify-content:space-between;gap:14px;'
           +'padding:10px 2px;border-bottom:1px solid var(--line);font-size:14.5px">'
-          +'<span><strong>'+label(r.type)+' fence</strong>'
+          +'<span><strong>'+(r.teardown?'Remove old ':'')+label(r.type)+' fence</strong>'
           +(r.finish?', '+esc(r.finish):'')
           +' — '+r.heightFt+' ft tall'
           +(gates?' · '+gates+' gate'+(gates===1?'':'s'):'')
@@ -296,7 +301,7 @@ function build3D(runs,attempt){
   renderer.shadowMap.enabled=true;
   stage.insertBefore(renderer.domElement,stage.firstChild);
 
-  const sun=new THREE.DirectionalLight(0xfff4e0,1.15);
+  const sun=new THREE.DirectionalLight(0xfff4e0,1.3);
   sun.position.set(60,90,40); sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);
   sun.shadow.camera.left=-120; sun.shadow.camera.right=120;
@@ -312,6 +317,11 @@ function build3D(runs,attempt){
   scene.add(grass);
 
   const M={
+    // The old fence's palette: sun-bleached gray-brown, the colour every
+    // customer already hates. Nothing in the new-fence palette gets near it,
+    // so old and new never read as the same fence.
+    oldWood:new THREE.MeshLambertMaterial({color:0x8B8272}),
+    oldPost:new THREE.MeshLambertMaterial({color:0x6E675B}),
     wood:new THREE.MeshLambertMaterial({color:0xA97B4F}),
     woodDark:new THREE.MeshLambertMaterial({color:0x8a6238}),
     vinyl:new THREE.MeshLambertMaterial({color:0xF2F1EC}),
@@ -334,15 +344,28 @@ function build3D(runs,attempt){
   // and slid as a unit over the aerial photo -- the drawing knows its own
   // shape and size exactly, but nothing about which way the yard faces.
   const fence=new THREE.Group();
+  const oldFence=new THREE.Group();
   scene.add(fence);
+  // Which group a piece lands in follows which run is being built, so the
+  // whole old fence can vanish with one visibility flip.
+  let target=fence;
   const box=(w,h,d,mat,x,y,z)=>{
     const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
     m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
-    fence.add(m); return m;
+    target.add(m); return m;
   };
+  // A deterministic wobble: the same run always leans the same way, so the
+  // old fence does not reshuffle itself on every reload.
+  let wob=1;
+  const wobble=()=>{ wob=(wob*16807)%2147483647; return (wob/2147483647)-0.5; };
 
   const all=[]; // world-space points for camera fit
   runs.forEach(run=>{
+    // The old fence: weathered wood whatever it used to be, posts leaning,
+    // the odd board missing -- age you can read at a glance, standing right
+    // where the drawing says it stands.
+    const isOld=!!run.teardown;
+    target=isOld?oldFence:fence;
     let pts=String(run.points||'').split(',').map(p=>{
       const q=p.split(':'); return {x:parseFloat(q[0]),y:parseFloat(q[1])};
     }).filter(p=>isFinite(p.x)&&isFinite(p.y));
@@ -362,7 +385,10 @@ function build3D(runs,attempt){
 
     const P=pts.map(p=>({x:p.x*ftPerPx,z:p.y*ftPerPx}));
     P.forEach(p=>all.push(p));
-    const hgt=run.heightFt, pal=paletteFor(run.type);
+    const hgt=run.heightFt;
+    const pal=isOld
+      ? {post:M.oldPost,board:M.oldWood,rail:M.oldWood,kind:'board'}
+      : paletteFor(run.type);
     const spacing=Math.max(4,run.postSpacingFt);
 
     // Gates: cut a hole in the panels where each one sits, then hang it.
@@ -384,6 +410,7 @@ function build3D(runs,attempt){
         const x=a.x+ux*bay*k, z=a.z+uz*bay*k;
         const post=box(.33,hgt+.5,.33,pal.post,x,(hgt+.5)/2,z);
         post.rotation.y=ang;
+        if(isOld) post.rotation.z=wobble()*0.12;
         if(pal.kind==='chain'){ box(.12,.12,.12,pal.post,x,hgt+.55,z); }
         else { box(.45,.12,.45,pal.post,x,hgt+.56,z); }
       }
@@ -421,9 +448,15 @@ function build3D(runs,attempt){
           const boards=Math.max(1,Math.round((bay-.4)/boardW));
           const bw=(bay-.5)/boards;
           for(let bi=0;bi<boards;bi++){
+            // Age reads as absence and disorder: roughly one board in eight
+            // is gone, the rest tilt and sag a little.
+            if(isOld && Math.abs(wobble())>0.44) continue;
             const t2=(bi+.5)*bw+(bay-boards*bw)/2 - bay/2;
-            const m=box(bw*.92,hgt-.15,.1,pal.board,cx+ux*t2,(hgt-.15)/2+.1,cz+uz*t2);
+            const sag=isOld?wobble()*0.22:0;
+            const m=box(bw*.92,hgt-.15-Math.abs(sag),.1,pal.board,
+              cx+ux*t2,(hgt-.15)/2+.1-Math.abs(sag)/2,cz+uz*t2);
             m.rotation.y=ang;
+            if(isOld) m.rotation.z=wobble()*0.06;
           }
           const r1=box(bay-.3,.3,.16,pal.rail,cx,hgt-.35,cz); r1.rotation.y=ang;
           const r2=box(bay-.3,.3,.16,pal.rail,cx,.55,cz); r2.rotation.y=ang;
@@ -465,7 +498,9 @@ function build3D(runs,attempt){
   const pivot=new THREE.Group();
   pivot.position.set(cx,0,cz);
   fence.position.set(-cx,0,-cz);
+  oldFence.position.set(-cx,0,-cz);
   pivot.add(fence);
+  pivot.add(oldFence);
   scene.add(pivot);
   // The far plane follows the scene: a fixed 900 once culled an entire fence
   // whose scale guess was 5x off, and the page showed nothing but sky.
@@ -547,6 +582,18 @@ function build3D(runs,attempt){
     renderer.render(scene,cam);
     requestAnimationFrame(tick);
   }
+  // The before-and-after: the customer looks at the weathered thing they
+  // hate, taps once, and it is gone -- new fence alone in the yard.
+  if(oldFence.children.length){
+    const ob=document.getElementById('oldFenceBtn');
+    ob.style.display='';
+    ob.addEventListener('click',()=>{
+      oldFence.visible=!oldFence.visible;
+      ob.textContent=oldFence.visible?'Remove the old fence':'Show the old fence';
+      ob.style.background=oldFence.visible?'rgba(15,24,38,.82)':'rgba(27,175,122,.85)';
+    });
+  }
+
   // A hook for automated checks: how much scene actually exists.
   window.__fence={meshes:scene.children.length,drawCalls:()=>renderer.info.render.calls,tris:()=>renderer.info.render.triangles};
 
@@ -577,6 +624,9 @@ function build3D(runs,attempt){
     const cvs=document.createElement('canvas');
     cvs.width=cvs.height=256*N;
     const g2=cvs.getContext('2d');
+    // Aerial imagery ships flat and hazy; a nudge of contrast and colour is
+    // the difference between a scan and a photograph.
+    g2.filter='contrast(1.1) saturate(1.12) brightness(1.03)';
     const loads=[];
     for(let dy=0;dy<N;dy++) for(let dx=0;dx<N;dx++){
       loads.push(new Promise(res=>{

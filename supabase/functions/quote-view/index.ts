@@ -134,7 +134,11 @@ Deno.serve(async (req) => {
     pxPerFoot: Number(job.calibration_pixels_per_foot) || 20,
     approvedBy: job.quote_approved_name,
     paymentsReady,
-    runs: (runs ?? []).filter((r) => !r.is_teardown).map((r) => ({
+    // Teardown runs ride along too. The old fence is half the sales pitch:
+    // the customer sees the weathered thing they hate standing in the yard,
+    // then removes it with one tap and looks at the new one alone.
+    runs: (runs ?? []).map((r) => ({
+      teardown: !!r.is_teardown,
       label: r.label,
       type: r.fence_type,
       finish: r.color_or_finish,
