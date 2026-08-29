@@ -41,12 +41,27 @@ Deno.serve(async (req) => {
     );
     const body = await r.json().catch(() => null);
     const m = body?.result?.addressMatches?.[0];
-    if (!m?.coordinates) {
-      // A miss usually means the job's address has no city or ZIP -- say so,
-      // because "not found" reads as broken while "add the city" is a fix.
-      return json({ error: "Could not place that address. It usually needs the city and ZIP." }, 404);
+    if (m?.coordinates) {
+      return json({ lat: m.coordinates.y, lon: m.coordinates.x, matched: m.matchedAddress ?? "" });
     }
-    return json({ lat: m.coordinates.y, lon: m.coordinates.x, matched: m.matchedAddress ?? "" });
+
+    // The Census data lags new construction by years, and fence customers
+    // disproportionately LIVE in new construction -- the first real address
+    // this feature met was a Riverview FL street the Census had never heard
+    // of. Esri's public geocoder carries new streets first; anonymous
+    // single-line lookups are permitted on this endpoint.
+    const e = await fetch(
+      "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates" +
+      `?f=json&maxLocations=1&countryCode=USA&singleLine=${encodeURIComponent(address)}`,
+    ).then((r) => r.json()).catch(() => null);
+    const c = e?.candidates?.[0];
+    if (c?.location && Number(c.score) >= 80) {
+      return json({ lat: c.location.y, lon: c.location.x, matched: c.address ?? "" });
+    }
+
+    // A miss usually means the job's address has no city or ZIP -- say so,
+    // because "not found" reads as broken while "add the city" is a fix.
+    return json({ error: "Could not place that address. It usually needs the city and ZIP." }, 404);
   }
 
   if (action === "tile") {
