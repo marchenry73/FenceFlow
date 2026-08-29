@@ -848,6 +848,7 @@
     <string name="jd_show_3d_short">See in 3D</string>
     <string name="jd_crew_view_short">Crew view</string>
     <string name="jd_inventory_short">Inventory</string>
+    <string name="home_quote_approved">%1$s approved the quote for %2$s 🎉 — time to schedule it</string>
     <string name="rep_total">total</string>
     <string name="rep_what_it_cost">What it cost</string>
     <string name="rep_line_labor">Labor</string>

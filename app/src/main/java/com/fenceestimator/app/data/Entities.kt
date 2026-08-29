@@ -297,6 +297,9 @@ data class Job(
     /** The acceptance signature in cloud storage. Local files do not survive a new phone. */
     val signatureStoragePath: String? = null,
     val signedAt: Long? = null,
+    /** When the customer approved the quote page, and who typed their name. */
+    val quoteApprovedAt: Long? = null,
+    val quoteApprovedName: String = "",
     /**
      * What the customer was actually looking at when they signed.
      *

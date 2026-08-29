@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.PriorityHigh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -325,6 +326,18 @@ private fun attentionItems(
 
     jobs.filter { JobSchedule.hasOverrun(it, workdayHours) }.forEach {
         out += Attention(Icons.Filled.PriorityHigh, s(R.string.home_running_late, name(it)), it.id, urgent = true)
+    }
+    // The best news the screen can carry. Recent approvals lead for two days,
+    // then step aside -- an approval from last month is history, not news.
+    val twoDays = System.currentTimeMillis() - 2L * 86_400_000
+    jobs.filter { (it.quoteApprovedAt ?: 0) > twoDays }.forEach {
+        out += Attention(
+            Icons.Filled.Star,
+            s(R.string.home_quote_approved,
+                it.quoteApprovedName.ifBlank { name(it) }, name(it)),
+            it.id,
+            urgent = true
+        )
     }
     if (pendingHours > 0) {
         out += Attention(Icons.Filled.Event, s(R.string.home_shifts_to_approve, pendingHours), null, urgent = false)

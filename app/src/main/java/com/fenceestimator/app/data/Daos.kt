@@ -39,14 +39,14 @@ interface JobDao {
 
 @Dao
 interface FenceRunDao {
-    @Query("SELECT * FROM fence_runs WHERE jobId = :jobId ORDER BY sortOrder ASC, id ASC")
+    @Query("SELECT * FROM fence_runs WHERE jobId = :jobId ORDER BY sortOrder ASC, syncId ASC")
     fun observeForJob(jobId: Long): Flow<List<FenceRun>>
 
-    @Query("SELECT * FROM fence_runs WHERE jobId = :jobId ORDER BY sortOrder ASC, id ASC")
+    @Query("SELECT * FROM fence_runs WHERE jobId = :jobId ORDER BY sortOrder ASC, syncId ASC")
     suspend fun getForJob(jobId: Long): List<FenceRun>
 
     /** Every run in one query, for figures that span all jobs. */
-    @Query("SELECT * FROM fence_runs ORDER BY sortOrder ASC, id ASC")
+    @Query("SELECT * FROM fence_runs ORDER BY sortOrder ASC, syncId ASC")
     suspend fun getAll(): List<FenceRun>
 
     @Query("SELECT * FROM fence_runs WHERE id = :id")
@@ -117,14 +117,14 @@ interface MaterialItemDao {
 
 @Dao
 interface EstimateLineItemDao {
-    @Query("SELECT * FROM estimate_line_items WHERE jobId = :jobId ORDER BY sortOrder ASC, id ASC")
+    @Query("SELECT * FROM estimate_line_items WHERE jobId = :jobId ORDER BY sortOrder ASC, syncId ASC")
     fun observeForJob(jobId: Long): Flow<List<EstimateLineItem>>
 
-    @Query("SELECT * FROM estimate_line_items WHERE jobId = :jobId ORDER BY sortOrder ASC, id ASC")
+    @Query("SELECT * FROM estimate_line_items WHERE jobId = :jobId ORDER BY sortOrder ASC, syncId ASC")
     suspend fun getForJob(jobId: Long): List<EstimateLineItem>
 
     /** Every line item in one query, for figures that span all jobs. */
-    @Query("SELECT * FROM estimate_line_items ORDER BY sortOrder ASC, id ASC")
+    @Query("SELECT * FROM estimate_line_items ORDER BY sortOrder ASC, syncId ASC")
     suspend fun getAll(): List<EstimateLineItem>
 
     @Insert
@@ -215,7 +215,7 @@ interface ManufacturerDao {
 interface PricingTierDao {
     @Query("SELECT * FROM pricing_tiers")
     suspend fun getAll(): List<PricingTier>
-    @Query("SELECT * FROM pricing_tiers ORDER BY sortOrder ASC, id ASC")
+    @Query("SELECT * FROM pricing_tiers ORDER BY sortOrder ASC, syncId ASC")
     fun observeAll(): Flow<List<PricingTier>>
 
     @Query("SELECT COUNT(*) FROM pricing_tiers")
