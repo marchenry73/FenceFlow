@@ -860,6 +860,11 @@
     </div>
 
     <div class="panel"><h2>Fence Runs</h2><div id="jobRuns"></div></div>
+    <div class="panel"><h2>Photos &amp; Documents</h2>
+      <p class="sub" style="margin:0 0 8px">What the crew photographed on site, the signed
+        signature, and the survey the fence was drawn on — straight from the phones.</p>
+      <div id="jobPhotos" class="empty">Loading…</div>
+    </div>
     <div class="panel"><h2>Estimate</h2><div id="jobItems"></div></div>
 
     <div class="panel"><h2>Pricing</h2>
@@ -3897,6 +3902,56 @@ function renderQuoteBlock(){
   $('q_status').textContent = bits.join(' ');
 }
 
+/* ================= Photos & documents from the job's cloud folder =========
+   The app uploads under {company}/{job}/{kind}/{file}. Everything readable
+   here goes through signed URLs that expire in an hour -- the bucket itself
+   stays private, and the storage policy scopes listing by company just as
+   RLS scopes the rows. */
+async function loadJobPhotos(sid){
+  const box=$('jobPhotos');
+  box.className='empty'; box.textContent='Loading…';
+  try{
+    const root=profile.company_id+'/'+sid;
+    const kinds=['photo','signature','survey','change-order'];
+    const found=[];
+    for(const kind of kinds){
+      const {data,error}=await db.storage.from('job-files').list(root+'/'+kind,{limit:100});
+      if(error||!data) continue;
+      for(const f of data){
+        if(!f.name||f.name.startsWith('.')) continue;
+        found.push({kind, path:root+'/'+kind+'/'+f.name, name:f.name,
+                    when:f.created_at||''});
+      }
+    }
+    if(!found.length){
+      box.className='empty';
+      box.textContent='Nothing here yet. Photos the crew takes in the app land here on their next sync.';
+      return;
+    }
+    const KIND_LABEL={photo:'Photo', signature:'Signature', survey:'Survey drawing',
+                      'change-order':'Change order signature'};
+    const {data:signed,error:sErr}=await db.storage.from('job-files')
+      .createSignedUrls(found.map(f=>f.path),3600);
+    if(sErr||!signed) throw sErr||new Error('sign failed');
+    box.className='';
+    box.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:10px">'+
+      found.map((f,i)=>{
+        const url=signed[i]&&signed[i].signedUrl;
+        if(!url) return '';
+        return '<a href="'+url+'" target="_blank" rel="noopener" '+
+          'style="display:block;width:120px;text-decoration:none;color:inherit">'+
+          '<img src="'+url+'" loading="lazy" alt="" style="width:120px;height:90px;'+
+          'object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#f2f2f2">'+
+          '<div class="sub" style="font-size:11px;margin-top:3px;overflow:hidden;'+
+          'text-overflow:ellipsis;white-space:nowrap">'+esc(KIND_LABEL[f.kind]||f.kind)+
+          (f.when?' · '+new Date(f.when).toLocaleDateString():'')+'</div></a>';
+      }).join('')+'</div>';
+  }catch(e){
+    box.className='empty';
+    box.textContent='Could not load the photos just now.';
+  }
+}
+
 function showJob(id){
   openJob=jobs.find(j=>String(j.id)===String(id));
   renderQuoteBlock();
@@ -3941,6 +3996,7 @@ function showJob(id){
   }
 
   const sid=openJob.sync_id;
+  loadJobPhotos(sid);
   const jr=runs.filter(r=>r.job_sync_id===sid);
   $('jobRuns').innerHTML = jr.length ? jr.map(r=>`
     <div style="padding:7px 0;border-bottom:1px solid var(--line)">
