@@ -60,3 +60,8 @@ verify_jwt = false
 # unguessable token in the URL is the authorisation, checked by the function.
 [functions.quote-view]
 verify_jwt = false
+
+# Public imagery and geocoding proxy for the 3D quote page; nothing behind
+# it is sensitive and its callers hold no JWT.
+[functions.quote-map]
+verify_jwt = false

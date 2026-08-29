@@ -82,6 +82,17 @@
     <div id="stage" style="display:none">
       <div id="stageBadge">Your fence &middot; 3D preview</div>
       <div id="stageHint">Drag to walk around &middot; pinch or scroll to zoom</div>
+      <div id="rotCtl" style="display:none;position:absolute;top:10px;right:10px;
+           background:rgba(15,24,38,.82);border-radius:8px;padding:8px 12px;color:#fff">
+        <div style="font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
+             text-transform:uppercase;margin-bottom:5px">Turn the fence to match</div>
+        <input id="rotSlider" type="range" min="0" max="360" value="0" step="1"
+               style="width:150px;margin:0">
+      </div>
+      <div id="mapCred" style="display:none;position:absolute;left:8px;bottom:28px;
+           font-size:9.5px;color:rgba(15,24,38,.65);background:rgba(255,255,255,.55);
+           padding:1px 6px;border-radius:4px">
+        Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</div>
     </div>
 
     <div id="approvedBox" class="done" style="display:none"></div>
@@ -170,7 +181,29 @@ function render(){
   $('loading').style.display='none';
   $('content').style.display='';
 
-  if((q.runs||[]).length){ $('stage').style.display=''; build3D(q.runs); }
+  if((q.runs||[]).length){
+    $('stage').style.display='';
+    build3D(q.runs);
+    // The address puts the fence in the real yard. The a= override exists so
+    // a demo can stand any drawing on any address; the imagery is the same
+    // public imagery any web map serves.
+    const addr=new URLSearchParams(location.search).get('a')||q.address;
+    if(addr && addr.trim().length>=8){
+      (async()=>{
+        try{
+          const r=await fetch(API+'/quote-map?action=geocode&address='+encodeURIComponent(addr.trim()));
+          const g=await r.json();
+          if(r.ok && g.lat){
+            const tryAttach=(n)=>{
+              if(window.__fence&&window.__fence.attachSatellite) window.__fence.attachSatellite(g.lat,g.lon);
+              else if(n<40) setTimeout(()=>tryAttach(n+1),100);
+            };
+            tryAttach(0);
+          }
+        }catch(e){/* the grass is a perfectly good yard */}
+      })();
+    }
+  }
 }
 
 $('approveBtn').addEventListener('click', async ()=>{
@@ -274,10 +307,15 @@ function build3D(runs,attempt){
     return {post:M.vinyl,board:M.vinyl,rail:M.vinyl,kind:'panel'};   // vinyl + default
   };
 
+  // Every fence piece lives in one group so the whole fence can be turned
+  // and slid as a unit over the aerial photo -- the drawing knows its own
+  // shape and size exactly, but nothing about which way the yard faces.
+  const fence=new THREE.Group();
+  scene.add(fence);
   const box=(w,h,d,mat,x,y,z)=>{
     const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
     m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
-    scene.add(m); return m;
+    fence.add(m); return m;
   };
 
   const all=[]; // world-space points for camera fit
@@ -345,7 +383,7 @@ function build3D(runs,attempt){
           leaf.position.set(a.x+ux*bay*k,(hgt-.3)/2+.15,a.z+uz*bay*k);
           leaf.rotation.y=ang+0.35;
           leaf.traverse(o=>{o.castShadow=true;});
-          scene.add(leaf);
+          fence.add(leaf);
           continue;
         }
         if(pal.kind==='panel'){
@@ -445,6 +483,77 @@ function build3D(runs,attempt){
   }
   // A hook for automated checks: how much scene actually exists.
   window.__fence={meshes:scene.children.length,drawCalls:()=>renderer.info.render.calls,tris:()=>renderer.info.render.triangles};
+
+  /** Web-Mercator maths shared by the tile fetch and the centring. */
+  const merc={
+    tile(lat,lon,z){
+      const n=Math.pow(2,z);
+      return { x:(lon+180)/360*n,
+               y:(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n };
+    },
+    metersPerTile(lat,z){ return 156543.03392*Math.cos(lat*Math.PI/180)/Math.pow(2,z)*256; }
+  };
+
+  /**
+   * Stands the fence on the actual property: a 3x3 patch of aerial imagery,
+   * centred so the geocoded address sits exactly under the fence's middle,
+   * with a slider to turn the fence to match the yard -- the drawing knows
+   * its shape and size precisely, but not which way the yard faces.
+   */
+  window.__fence.attachSatellite=async function(lat,lon){
+    const Z=19, N=3;
+    const t=merc.tile(lat,lon,Z);
+    const cxT=Math.floor(t.x), cyT=Math.floor(t.y);
+    const cvs=document.createElement('canvas');
+    cvs.width=cvs.height=256*N;
+    const g2=cvs.getContext('2d');
+    const loads=[];
+    for(let dy=0;dy<N;dy++) for(let dx=0;dx<N;dx++){
+      loads.push(new Promise(res=>{
+        const img=new Image();
+        img.crossOrigin='anonymous';
+        img.onload=()=>{ g2.drawImage(img,dx*256,dy*256); res(true); };
+        img.onerror=()=>res(false);
+        img.src=API+'/quote-map?action=tile&z='+Z+'&y='+(cyT-1+dy)+'&x='+(cxT-1+dx);
+      }));
+    }
+    const got=(await Promise.all(loads)).filter(Boolean).length;
+    if(got<N*N) return false;            // partial imagery looks broken; keep the grass
+
+    const ftPerTile=merc.metersPerTile(lat,Z)*3.28084;
+    const sideFt=ftPerTile*N;
+    // Where inside the stitched image the address itself is, so that pixel
+    // lands under the fence centre rather than the house drifting a tile off.
+    const px=((t.x-(cxT-1))/N - .5)*sideFt;
+    const pz=((t.y-(cyT-1))/N - .5)*sideFt;
+
+    const tex=new THREE.CanvasTexture(cvs);
+    tex.anisotropy=4;
+    const plane=new THREE.Mesh(
+      new THREE.PlaneGeometry(sideFt,sideFt),
+      new THREE.MeshLambertMaterial({map:tex}));
+    plane.rotation.x=-Math.PI/2;
+    plane.position.set(cx-px, 0.02, cz-pz);
+    plane.receiveShadow=true;
+    scene.add(plane);
+    grass.visible=false;
+
+    // The fence turns about its own centre; the photo stays put.
+    const rot=document.getElementById('rotSlider');
+    document.getElementById('rotCtl').style.display='';
+    document.getElementById('mapCred').style.display='';
+    rot.addEventListener('input',()=>{
+      const a=rot.value*Math.PI/180;
+      fence.rotation.y=a;
+      // Rotate around the centroid, not the origin.
+      fence.position.set(
+        cx-Math.cos(a)*cx+Math.sin(a)*cz,
+        0,
+        cz-Math.sin(a)*cx-Math.cos(a)*cz);
+    });
+    renderer.render(scene,cam);
+    return true;
+  };
   window.__fence.renderOnce=()=>{place();renderer.render(scene,cam);};
   // One eager frame before the loop: a tab restored from the background, or
   // any context where animation frames are throttled, still shows the fence
