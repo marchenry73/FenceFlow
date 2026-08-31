@@ -194,13 +194,20 @@
   footer a:hover{color:#fff}
   footer .rule{border-top:1px solid rgba(255,255,255,.09);margin:28px 0 18px}
 
-  /* Sections arrive as you reach them, unless the reader would rather they
-     did not. */
-  .rise{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
-  .rise.in{opacity:1;transform:none}
+  /* Sections arrive as you reach them, unless the reader would rather they did
+     not — but they are VISIBLE unless something is going to reveal them.
+
+     Hiding content in CSS and depending on script to bring it back is how a
+     page ends up blank for somebody: an observer that never fires, an extension
+     in the way, a browser throttling work in a background tab. The hiding is
+     therefore scoped to a class this page's own script adds only once it knows
+     it can undo it, and a timer undoes it anyway. */
+  html.reveal .rise{opacity:0;transform:translateY(16px);
+                    transition:opacity .6s ease,transform .6s ease}
+  html.reveal .rise.in{opacity:1;transform:none}
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto}
-    .rise{opacity:1;transform:none;transition:none}
+    html.reveal .rise{opacity:1;transform:none;transition:none}
     .fence-path{animation:none;stroke-dashoffset:0}
     .corner{animation:none;opacity:1}
     .btn:hover,.tile:hover{transform:none}
@@ -551,15 +558,24 @@
   document.getElementById('yr').textContent = new Date().getFullYear();
 
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const risers = document.querySelectorAll('.rise');
+  const showAll = () => risers.forEach(el => el.classList.add('in'));
 
-  /* Sections arrive as you reach them. */
+  /* Only now, knowing the reveal can happen, is it safe to hide anything. */
   if ('IntersectionObserver' in window && !still) {
+    document.documentElement.classList.add('reveal');
     const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
-    }, { threshold: 0.12 });
-    document.querySelectorAll('.rise').forEach(el => io.observe(el));
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+      // A section taller than the window can never reach a percentage
+      // threshold, so intersecting at all is what counts.
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+    risers.forEach(el => io.observe(el));
+    // Belt and braces: whatever happens, nothing stays invisible for long.
+    setTimeout(showAll, 2500);
   } else {
-    document.querySelectorAll('.rise').forEach(el => el.classList.add('in'));
+    showAll();
   }
 
   /* The tally counts up as the fence finishes drawing, because that is the
