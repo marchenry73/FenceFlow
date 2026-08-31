@@ -169,11 +169,14 @@ Deno.serve(async (req) => {
   // ten -- the number on the page always covers the buy.
   const total = Math.ceil((Number(job.contract_total) || (subtotal + tax)) / 10) * 10;
   // The deposit exists so the materials can be bought before labour starts.
-  // When the contractor has not set one, it defaults to the material cost
-  // plus its tax, rounded up to the next ten -- enough to order the fence.
+  // When the contractor has not set one it is derived from the material cost
+  // -- but rounded up to the next HUNDRED rather than the next ten, because a
+  // deposit derived to the dollar from the materials IS the materials figure,
+  // and this number is shown to the person being quoted. Coarse enough to
+  // cover the buy, blunt enough not to hand over the cost basis.
   const deposit = Number(job.deposit_amount) > 0
-    ? Number(job.deposit_amount)
-    : Math.min(total, Math.ceil((subtotal + tax) / 10) * 10);
+    ? Math.min(total, Number(job.deposit_amount))
+    : Math.min(total, Math.ceil((subtotal + tax) / 100) * 100);
 
   // Whether the deposit button can do anything. A connected processor means
   // create-payment-link's token path will produce a real checkout.
@@ -191,7 +194,14 @@ Deno.serve(async (req) => {
     // over invites pricing the job from a hardware-store receipt. The
     // customer buys a fence, not a bill of materials: they get what they are
     // getting and what it costs, enforced here rather than hidden by CSS.
-    subtotal, tax, taxRate, total,
+    //
+    // subtotal, tax and taxRate used to ride along in this object. Nothing on
+    // the page ever read them, and subtotal IS the material cost -- so anyone
+    // who opened the browser's network tab, or anyone the link was forwarded
+    // to, could subtract it from the total and read the labour and margin
+    // before sitting down to negotiate. The comment above was already the
+    // right rule; the line under it was breaking it.
+    total,
     deposit,
     approvedAt: job.quote_approved_at,
     // The survey canvas draws on a 20px/ft grid unless the job was calibrated
