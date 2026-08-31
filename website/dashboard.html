@@ -4606,11 +4606,33 @@ function mapImportColumns(rows){
   H.city  = find('service city','city','town');
   H.state = find('service state','state','province','region');
   H.zip   = find('service zip','service postal','zip','postal');
-  H.total = find('total revenue','contract total','job total','quote total',
-                 'subtotal','total','amount','value','revenue');
-  H.deposit=find('deposit');
-  H.paid  = find('paid','collected');
-  H.owed  = find('balance','due','outstanding');
+  /* Money columns are matched phrase-first, not column-first.
+     A QuickBooks-style export headed "Customer, Invoice Date, Amount Paid,
+     Total, Balance" gave the CONTRACT TOTAL slot to Amount Paid -- that column
+     came earlier and contained the word "amount" -- so a $12,000 job with
+     $3,000 collected imported as a $3,000 job with nothing paid, and the real
+     Total column was never read. The mirror case is as easy: "Unpaid Balance"
+     contains the word paid, so money still owed imported as money collected.
+     Specific phrases now win wherever the column sits, and anything reading as
+     an outstanding balance is refused for the total and paid slots outright. */
+  const OWED_WORDS = ['unpaid','balance','due','outstanding','owing','remaining'];
+  const findMoney = (refuseOwed, ...phrases) => {
+    for(const p of phrases){
+      const i = head.findIndex((h,ix) =>
+        !used.has(ix) && h.includes(p) &&
+        !(refuseOwed && OWED_WORDS.some(w => h.includes(w))));
+      if(i >= 0){ used.add(i); return i; }
+    }
+    return -1;
+  };
+  H.total = findMoney(true,'total revenue','contract total','job total','quote total',
+                           'grand total','subtotal','total','job amount','job value',
+                           'revenue','contract','value');
+  H.deposit=findMoney(false,'required deposit','deposit');
+  H.paid  = findMoney(true,'amount paid','total paid','collected deposit',
+                           'amount collected','collected','paid');
+  H.owed  = findMoney(false,'balance due','amount due','unpaid balance','outstanding',
+                            'balance','owed','due');
   H.status= find('job status','quote status','status');
   H.price = find('unit price','unit cost','price','rate','cost');
   H.unit  = find('unit','uom','measure');
@@ -4777,7 +4799,10 @@ async function runImport(){
     labor_rate_per_ft:num($('s_labor').value)||8, minimum_job_charge:num($('s_min').value)||200,
     referral_source:'Imported'
   };
-  let done=0;
+  // Ids are minted here rather than left to the database, so the opening
+  // balance written afterwards knows which job it belongs to.
+  if(kind==='jobs') impReady.forEach(p => { p._sync = crypto.randomUUID(); });
+  let done=0, opened=0;
   // Chunked so one bad row fails its chunk, not the whole list silently.
   for(let i=0;i<impReady.length;i+=100){
     const chunk=impReady.slice(i,i+100).map(p=>{
@@ -4785,13 +4810,20 @@ async function runImport(){
         customer_name:p.name, phone:p.phone, email:p.email,
         address:p.address, notes:p.notes};
       if(kind==='jobs'){
+        row.sync_id=p._sync;
         row.status=impStatus(p.statusRaw);
         // What they quoted is carried across as the contract total, so the
         // job arrives worth what it was worth. It is not re-derived from
         // line items -- there are none, and inventing them would be fiction.
         if(p.total>0) row.contract_total=p.total;
         if(p.deposit>0) row.deposit_amount=p.deposit;
-        if(p.paid>0) row.amount_paid=p.paid;
+        // amount_paid is deliberately NOT written here. It is a cache the
+        // server rebuilds from the payment ledger, so a figure written
+        // straight onto the job survives exactly until the next ordinary
+        // sync and then silently becomes zero -- and the customer gets
+        // invoiced again for money they already handed over. The money goes
+        // into the ledger instead, below, where the rest of the system
+        // already looks for it.
         const carried=[];
         if(p.total>0) carried.push('quoted '+money(p.total));
         if(p.owed>0)  carried.push(money(p.owed)+' still owed');
@@ -4807,11 +4839,46 @@ async function runImport(){
     if(error) return fail(done,error);
     done+=chunk.length;
   }
+  /* Money they had already collected becomes an opening balance in the
+     ledger. The ledger is what every total in the product is rebuilt from, so
+     this is the only place the figure can be written and survive. */
+  if(kind==='jobs'){
+    const withMoney=impReady.filter(p => p.paid > 0);
+    for(let i=0;i<withMoney.length;i+=100){
+      const chunk=withMoney.slice(i,i+100).map(p=>({
+        sync_id:crypto.randomUUID(),
+        company_id:profile.company_id,
+        job_sync_id:p._sync,
+        amount:p.paid,
+        method:'OTHER',
+        received_at:new Date().toISOString(),
+        reference:'',
+        note:'Opening balance carried in from their previous system',
+        recorded_by:(profile.full_name||'Import'),
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString(),
+      }));
+      const {error}=await db.from('payment_records').insert(chunk);
+      // The jobs are already in and are the valuable part; a ledger that did
+      // not take is worth saying out loud rather than failing the import.
+      if(error){
+        await loadAll();
+        msg('impMsg', done+' jobs imported, but the money already collected could not be '
+          +'recorded: '+error.message+' — those jobs will read as nothing paid until you '
+          +'add the payments by hand.', 'err');
+        impReady=[]; impParsed=null;
+        $('impPreviewBox').style.display='none'; $('impText').value='';
+        return;
+      }
+      opened+=chunk.length;
+    }
+  }
+
   await loadAll();
   msg('impMsg', kind==='jobs'
-    ? done+' jobs imported with their stage and the amount they were quoted. Money already '
-      +'collected is written on the job as a note rather than as a payment — the payment ledger '
-      +'only records money that actually arrived through FenceFlow.'
+    ? done+' jobs imported with their stage and the amount they were quoted'
+      +(opened? ', and '+opened+' opening balance'+(opened===1?'':'s')+' recorded for money '
+        +'they had already collected — so nobody gets invoiced twice for it' : '')+'.'
     : done+' customers imported as leads. They are in the pipeline under New Lead, '
       +'and in Reports their jobs will show the source as "Imported".', 'ok');
   impReady=[]; impParsed=null;
