@@ -352,8 +352,22 @@ object JobSync {
                 // line-item and run edits and dashboard price edits all move the
                 // price without touching the job row, and the website showed the
                 // old figure until something else happened to save the job.
+                // ...but only for a job this phone can actually price.
+                //
+                // A job with nothing on it to work from -- no line items, no
+                // runs, no change orders -- computes to the bare minimum job
+                // charge, which is not a price anybody quoted. An imported job
+                // is exactly that shape: it carries a total from the old
+                // system and none of the working behind it. Without this guard
+                // a $12,400 imported job became $200 on the next background
+                // sync, with nobody touching anything, and the office, the
+                // ageing report and the homeowner's quote page all agreed on
+                // the wrong number.
+                val hasWorking = itemsByJob[job.id].orEmpty().isNotEmpty() ||
+                    runsByJob[job.id].orEmpty().isNotEmpty() ||
+                    ordersByJob[job.id].orEmpty().isNotEmpty()
                 val freshTotal = totalFor(job)
-                if (cloudJob != null && cloudJob.deletedAt == null &&
+                if (hasWorking && cloudJob != null && cloudJob.deletedAt == null &&
                     (cloudJob.contractTotal == null || kotlin.math.abs(cloudJob.contractTotal - freshTotal) > 0.005)
                 ) {
                     runCatching {
