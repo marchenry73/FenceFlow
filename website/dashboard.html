@@ -859,7 +859,9 @@
       <label>Notes</label><textarea id="j_notes"></textarea>
     </div>
 
-    <div class="panel"><h2>Fence Runs</h2><div id="jobRuns"></div></div>
+    <div class="panel"><h2>Fence Runs</h2>
+      <button class="btn btn-sm btn-grey" id="openSat" style="margin-bottom:10px">Measure from satellite</button>
+      <div id="jobRuns"></div></div>
     <div class="panel"><h2>Photos &amp; Documents</h2>
       <p class="sub" style="margin:0 0 8px">What the crew photographed on site, the signed
         signature, and the survey the fence was drawn on — straight from the phones.</p>
@@ -975,6 +977,52 @@
         <tbody id="impRows"></tbody>
       </table></div>
       <button class="btn" id="impGo" style="margin-top:12px">Import these</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="overlay" id="satOverlay"><div class="sheet" style="max-width:900px">
+  <div class="sheet-head">
+    <b>Measure from satellite</b>
+    <button class="btn btn-sm btn-ghost" id="satClose">Close</button>
+  </div>
+  <div class="sheet-body">
+    <div class="msg" id="satMsg"></div>
+    <div class="panel">
+      <p class="sub" style="margin:0 0 8px" id="satWhere"></p>
+      <div style="position:relative;border-radius:10px;overflow:hidden;background:#e9ecef">
+        <canvas id="satCanvas" style="display:block;width:100%;cursor:crosshair;touch-action:none"></canvas>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-sm btn-grey" id="satUndo">Undo point</button>
+        <button class="btn btn-sm btn-grey" id="satClear">Start over</button>
+        <button class="btn btn-sm btn-grey" id="satOut">Zoom out</button>
+        <button class="btn btn-sm btn-grey" id="satIn">Zoom in</button>
+        <label style="margin:0 0 0 auto;display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="satLoop"> Closed loop
+        </label>
+      </div>
+      <p class="sub" style="margin:10px 0 0">Click along the fence line, corner to corner.
+        Drag the picture to move it. Tick <b>closed loop</b> if the fence comes back
+        round to where it started.</p>
+    </div>
+    <div class="panel">
+      <div style="font-size:30px;font-weight:800;font-variant-numeric:tabular-nums" id="satTotal">0 ft</div>
+      <p class="sub" id="satBreak" style="margin:2px 0 12px"></p>
+      <div class="grid2">
+        <div><label>Call it</label><input id="satLabel" placeholder="Back yard"></div>
+        <div><label>Fence type</label><select id="satType">
+          <option value="WOOD">Wood</option><option value="VINYL">Vinyl</option>
+          <option value="CHAIN_LINK">Chain link</option><option value="ALUMINUM">Aluminum</option>
+          <option value="ORNAMENTAL_IRON">Ornamental iron</option>
+          <option value="COMPOSITE">Composite</option><option value="SPLIT_RAIL">Split rail</option>
+        </select></div>
+        <div><label>Height (ft)</label><input id="satHeight" type="number" step="0.5" value="6"></div>
+        <div><label>Posts every (ft)</label><input id="satSpacing" type="number" step="0.5" value="8"></div>
+      </div>
+      <button class="btn" id="satSave" style="margin-top:12px" disabled>Save as a fence run</button>
+      <p class="sub" style="margin:8px 0 0">Saved runs price themselves from your catalog the
+        same as one drawn in the app, and can be adjusted there afterwards.</p>
     </div>
   </div>
 </div></div>
@@ -3962,6 +4010,290 @@ async function loadJobPhotos(sid){
   }
 }
 
+/* ===================== Measuring a fence off a satellite photo ===========
+   The thing fence contractors are asked for more than anything else: a length
+   without a site visit. The satellite tiles and the linear-foot arithmetic both
+   already existed here for other reasons; this joins them.
+
+   Two decisions worth knowing about:
+
+   Points are held as latitude and longitude, never as pixels. Zoom or drag the
+   picture and they stay on the ground where they were put, because the ground
+   is what they refer to.
+
+   The number on screen and the run that gets saved come from ONE scale factor.
+   Measuring with one and saving with another is how a quote ends up disagreeing
+   with the fence, and the disagreement would be invisible until the materials
+   arrived short. */
+
+const SAT = {
+  job:null, z:20, cLat:0, cLon:0, pts:[], drag:null, moved:0,
+  W:0, H:0, feetPerWorldPx:0,
+};
+
+/* Web Mercator, the projection every slippy map uses. */
+function satWorld(lat, lon, z){
+  const n = 256 * Math.pow(2, z);
+  const x = (lon + 180) / 360 * n;
+  const la = lat * Math.PI / 180;
+  const y = (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n;
+  return { x, y };
+}
+function satUnworld(x, y, z){
+  const n = 256 * Math.pow(2, z);
+  const lon = x / n * 360 - 180;
+  const t = Math.PI - 2 * Math.PI * y / n;
+  const lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t)));
+  return { lat, lon };
+}
+/* Feet covered by one pixel, at this zoom and this far from the equator.
+   156543.034 is the metres a pixel spans at the equator at zoom 0. */
+function satFeetPerPx(lat, z){
+  return 156543.03392804097 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z) * 3.280839895;
+}
+/* The length of the line as drawn, in feet. Uses the same projection the
+   picture is drawn in, so what is measured is what is saved. */
+function satLength(pts, loop, lat, z){
+  if(pts.length < 2) return 0;
+  const f = satFeetPerPx(lat, z);
+  const at = p => satWorld(p.lat, p.lon, z);
+  let total = 0;
+  const list = loop ? pts.concat([pts[0]]) : pts;
+  for(let i = 1; i < list.length; i++){
+    const a = at(list[i-1]), b = at(list[i]);
+    total += Math.hypot(b.x - a.x, b.y - a.y) * f;
+  }
+  return total;
+}
+
+function satCanvasXY(p){
+  const w = satWorld(p.lat, p.lon, SAT.z);
+  const c = satWorld(SAT.cLat, SAT.cLon, SAT.z);
+  return { x: w.x - c.x + SAT.W / 2, y: w.y - c.y + SAT.H / 2 };
+}
+function satLatLon(cx, cy){
+  const c = satWorld(SAT.cLat, SAT.cLon, SAT.z);
+  return satUnworld(c.x + cx - SAT.W / 2, c.y + cy - SAT.H / 2, SAT.z);
+}
+
+async function satDraw(){
+  const cvs = $('satCanvas'), g = cvs.getContext('2d');
+  g.clearRect(0, 0, SAT.W, SAT.H);
+  const c = satWorld(SAT.cLat, SAT.cLon, SAT.z);
+  const left = c.x - SAT.W / 2, top = c.y - SAT.H / 2;
+  const x0 = Math.floor(left / 256), y0 = Math.floor(top / 256);
+  const cols = Math.ceil(SAT.W / 256) + 1, rows = Math.ceil(SAT.H / 256) + 1;
+  const jobs_ = [];
+  for(let i = 0; i < cols; i++) for(let j = 0; j < rows; j++){
+    const tx = x0 + i, ty = y0 + j;
+    jobs_.push(new Promise(res => {
+      const img = new Image(); img.crossOrigin = 'anonymous';
+      img.onload = () => { g.drawImage(img, tx * 256 - left, ty * 256 - top); res(1); };
+      img.onerror = () => res(0);
+      img.src = SUPA_URL + '/functions/v1/quote-map?action=tile&z=' + SAT.z
+              + '&y=' + ty + '&x=' + tx;
+    }));
+  }
+  await Promise.all(jobs_);
+  satOverlayDraw(g);
+}
+
+function satOverlayDraw(g){
+  const loop = $('satLoop').checked;
+  const pts = SAT.pts;
+  if(pts.length){
+    const xy = pts.map(satCanvasXY);
+    if(xy.length > 1){
+      g.beginPath();
+      xy.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y));
+      if(loop) g.closePath();
+      g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.85)'; g.stroke();
+      g.lineWidth = 2.5; g.strokeStyle = '#FF5A1F'; g.stroke();
+      // The length of each leg, written on it, because a wrong corner is
+      // easier to see as "94 ft" than as a line an inch too long.
+      const f = satFeetPerPx(SAT.cLat, SAT.z);
+      const legs = loop ? xy.concat([xy[0]]) : xy;
+      g.font = '600 12px ui-sans-serif,system-ui,sans-serif';
+      for(let i = 1; i < legs.length; i++){
+        const a = legs[i-1], b = legs[i];
+        const ft = Math.hypot(b.x - a.x, b.y - a.y) * f;
+        if(ft < 4) continue;
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        const t = Math.round(ft) + ' ft';
+        g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 3; g.strokeText(t, mx + 6, my - 6);
+        g.fillStyle = '#12151A'; g.fillText(t, mx + 6, my - 6);
+      }
+    }
+    xy.forEach((p, i) => {
+      g.beginPath(); g.arc(p.x, p.y, 6, 0, 7);
+      g.fillStyle = i === 0 ? '#0E8C7B' : '#FF5A1F';
+      g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+    });
+  }
+  const total = satLength(SAT.pts, loop, SAT.cLat, SAT.z);
+  $('satTotal').textContent = Math.round(total).toLocaleString() + ' ft';
+  const corners = Math.max(0, SAT.pts.length - (loop ? 0 : 2));
+  $('satBreak').textContent = SAT.pts.length
+    ? SAT.pts.length + ' point' + (SAT.pts.length === 1 ? '' : 's') + ' · '
+      + corners + ' corner' + (corners === 1 ? '' : 's')
+      + (loop ? ' · closed loop' : '')
+    : 'Click the first corner of the fence to begin.';
+  $('satSave').disabled = SAT.pts.length < 2;
+}
+
+async function openSatellite(){
+  const j = openJob;
+  if(!j) return;
+  $('satOverlay').classList.add('on');
+  msg('satMsg', '', 'info'); $('satMsg').style.display = 'none';
+  SAT.job = j; SAT.pts = []; SAT.z = 20;
+  $('satLabel').value = ''; $('satLoop').checked = false;
+  const cvs = $('satCanvas');
+  SAT.W = cvs.width = Math.min(840, Math.max(600, cvs.clientWidth || 840));
+  SAT.H = cvs.height = 520;
+
+  let lat = Number(j.site_lat), lon = Number(j.site_lon);
+  if(!lat || !lon){
+    if(!(j.address || '').trim()){
+      $('satWhere').textContent = 'This job has no address yet, so there is nowhere to look.';
+      msg('satMsg', 'Add the property address to the job first.', 'err');
+      return;
+    }
+    $('satWhere').textContent = 'Finding ' + j.address + '…';
+    try{
+      const r = await fetch(SUPA_URL + '/functions/v1/quote-map?action=geocode&address='
+        + encodeURIComponent(j.address.trim()));
+      const gj = await r.json();
+      if(!r.ok || !gj.lat) throw new Error(gj.error || 'not found');
+      lat = gj.lat; lon = gj.lon;
+      await db.from('jobs').update({ site_lat: lat, site_lon: lon }).eq('id', j.id);
+      j.site_lat = lat; j.site_lon = lon;
+    }catch(e){
+      $('satWhere').textContent = '';
+      msg('satMsg', 'Could not place that address. It usually needs the city and ZIP. '
+        + 'Fix it on the job and try again.', 'err');
+      return;
+    }
+  }
+  SAT.cLat = lat; SAT.cLon = lon;
+  $('satWhere').textContent = j.address || 'This property';
+  await satDraw();
+}
+
+function satWire(){
+  const cvs = $('satCanvas');
+  const pos = e => {
+    const r = cvs.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * cvs.width / r.width,
+             y: (e.clientY - r.top) * cvs.height / r.height };
+  };
+  cvs.addEventListener('pointerdown', e => {
+    cvs.setPointerCapture(e.pointerId);
+    SAT.drag = pos(e); SAT.moved = 0;
+  });
+  cvs.addEventListener('pointermove', e => {
+    if(!SAT.drag) return;
+    const p = pos(e);
+    const dx = p.x - SAT.drag.x, dy = p.y - SAT.drag.y;
+    SAT.moved += Math.abs(dx) + Math.abs(dy);
+    if(SAT.moved < 4) return;
+    const c = satWorld(SAT.cLat, SAT.cLon, SAT.z);
+    const moved = satUnworld(c.x - dx, c.y - dy, SAT.z);
+    SAT.cLat = moved.lat; SAT.cLon = moved.lon;
+    SAT.drag = p;
+    satDraw();
+  });
+  cvs.addEventListener('pointerup', e => {
+    const wasDrag = SAT.moved >= 4;
+    SAT.drag = null;
+    // A drag moves the picture; a tap puts down a corner. Four pixels of
+    // travel is the line between the two, because a finger is never still.
+    if(!wasDrag){
+      const p = pos(e);
+      SAT.pts.push(satLatLon(p.x, p.y));
+      satDraw();
+    }
+    SAT.moved = 0;
+  });
+  $('satUndo').addEventListener('click', () => { SAT.pts.pop(); satDraw(); });
+  $('satClear').addEventListener('click', () => { SAT.pts = []; satDraw(); });
+  $('satLoop').addEventListener('change', () => satDraw());
+  $('satIn').addEventListener('click', () => { if(SAT.z < 20){ SAT.z++; satDraw(); } });
+  $('satOut').addEventListener('click', () => { if(SAT.z > 16){ SAT.z--; satDraw(); } });
+  $('satClose').addEventListener('click', () => $('satOverlay').classList.remove('on'));
+  $('satOverlay').addEventListener('click', e => {
+    if(e.target.id === 'satOverlay') $('satOverlay').classList.remove('on');
+  });
+  $('satSave').addEventListener('click', saveSatelliteRun);
+}
+
+/** Writes what was measured as a fence run, in the same coordinate space the
+    app's own drawing screen uses: 20 pixels to the foot, first corner at the
+    origin. The estimator downstream cannot tell the difference, which is the
+    point -- a run measured from the air prices exactly like one walked. */
+async function saveSatelliteRun(){
+  if(!canEdit() || SAT.pts.length < 2) return;
+  const j = SAT.job;
+  $('satSave').disabled = true;
+  msg('satMsg', 'Saving…', 'working');
+
+  const f = satFeetPerPx(SAT.cLat, SAT.z);
+  const o = satWorld(SAT.pts[0].lat, SAT.pts[0].lon, SAT.z);
+  const PX_PER_FT = 20;
+  const encoded = SAT.pts.map(p => {
+    const w = satWorld(p.lat, p.lon, SAT.z);
+    const x = (w.x - o.x) * f * PX_PER_FT;
+    const y = (w.y - o.y) * f * PX_PER_FT;
+    return (Math.round(x * 1000) / 1000) + ':' + (Math.round(y * 1000) / 1000);
+  }).join(',');
+
+  const loop = $('satLoop').checked;
+  const mine = runs.filter(r => r.job_sync_id === j.sync_id);
+  const row = {
+    company_id: profile.company_id,
+    sync_id: crypto.randomUUID(),
+    job_sync_id: j.sync_id,
+    label: ($('satLabel').value || '').trim() || 'Measured from satellite',
+    fence_type: $('satType').value,
+    color_or_finish: '',
+    points_encoded: encoded,
+    gates_encoded: '',
+    closed_loop: loop,
+    panel_width_ft: 6,
+    panel_height_ft: num($('satHeight').value) || 6,
+    post_spacing_ft: num($('satSpacing').value) || 8,
+    concrete_bags_per_post: 1,
+    manual_corner_count: 0,
+    suppressed_roles: '',
+    sort_order: mine.length,
+    aluminum_style: 'RACKABLE',
+    wood_style: 'PRIVACY',
+    wood_rail_count: 3,
+    picket_width_in: 5.5,
+    picket_gap_in: 0,
+    fabric_height_ft: num($('satHeight').value) || 4,
+    include_top_rail: true,
+    include_tension_wire: false,
+    include_barbed_wire_arms: false,
+    include_privacy_slats: false,
+    split_rail_count: 2,
+    is_teardown: false,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await db.from('fence_runs').insert(row);
+  if(error){
+    msg('satMsg', 'It would not save: ' + error.message, 'err');
+    $('satSave').disabled = false;
+    return;
+  }
+  await loadAll();
+  const ft = Math.round(satLength(SAT.pts, loop, SAT.cLat, SAT.z));
+  msg('satMsg', ft + ' ft saved as a fence run. Open the job in the app to check the line '
+    + 'against the ground and add gates — a satellite photo is a good measurement, not a '
+    + 'survey, so walk it before you commit to a price.', 'ok');
+  if(openJob && String(openJob.id) === String(j.id)) showJob(j.id);
+}
+
 function showJob(id){
   openJob=jobs.find(j=>String(j.id)===String(id));
   renderQuoteBlock();
@@ -4760,6 +5092,8 @@ $('impClose').addEventListener('click',()=>{ $('impOverlay').classList.remove('o
 $('impOverlay').addEventListener('click',e=>{ if(e.target.id==='impOverlay') $('impOverlay').classList.remove('on'); });
 // Called without arguments on purpose: the listener's own click event would
 // arrive as `reuse` and be truthy, which would re-render a file never read.
+$('openSat').addEventListener('click',openSatellite);
+satWire();
 $('impPreview').addEventListener('click',()=>previewImport());
 $('impGo').addEventListener('click',runImport);
 $('impFile').addEventListener('change',async e=>{
