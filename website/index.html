@@ -111,6 +111,9 @@
 
   /* ----------------------------------------------------------- bands --- */
   section{padding:84px 0}
+  /* The header floats over the page, so a jump to #pricing would otherwise
+     land with the heading tucked underneath it. */
+  section[id]{scroll-margin-top:72px}
   section.paper{background:var(--paper)}
   section.dark{background:var(--ink);color:#fff}
   h2{font:700 clamp(30px,3.6vw,42px)/1.05 var(--display);text-transform:uppercase;
