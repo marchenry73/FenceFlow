@@ -302,7 +302,7 @@ fun JobDetailScreen(
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            val link = quoteLinkFor(context, j.syncId)
+                            val link = quoteLinkFor(context, app, j.syncId)
                             val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
                                 android.widget.Toast.makeText(
@@ -329,7 +329,7 @@ fun JobDetailScreen(
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            val link = quoteLinkFor(context, j.syncId)
+                            val link = quoteLinkFor(context, app, j.syncId)
                             val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
                                 android.widget.Toast.makeText(
@@ -2596,21 +2596,51 @@ private sealed interface QuoteLink {
     object Failed : QuoteLink
 }
 
-private suspend fun quoteLinkFor(context: android.content.Context, syncId: String): QuoteLink {
-    val row = runCatching {
+private suspend fun fetchQuoteToken(context: android.content.Context, syncId: String): Result<String?> =
+    runCatching {
         SupabaseModule.client.postgrest.from("jobs")
             .select(io.github.jan.supabase.postgrest.query.Columns.list("quote_token")) {
                 filter { eq("sync_id", syncId) }
             }
-            .decodeSingleOrNull<QuoteTokenRow>()
-    }.getOrElse { e ->
+            .decodeSingleOrNull<QuoteTokenRow>()?.quoteToken
+    }.onFailure { e ->
         // Swallowing this was why the app could only ever blame the signal.
         CrashReporter.report(context, "quote-link", e)
-        return QuoteLink.Failed
     }
-    val token = row?.quoteToken
-    return if (token.isNullOrBlank()) QuoteLink.NotSyncedYet
-           else QuoteLink.Ready("https://fenceflowapp.com/quote.html?t=" + token)
+
+/**
+ * The link for a job, pushing the job up first if that is what it takes.
+ *
+ * A quote token is issued by the server when the job lands there, so a job
+ * made five minutes ago in a yard has none yet. Telling its owner to go and
+ * sync, and then come back and press the same button again, is asking them to
+ * do the app's job. Pressing Send is a clear enough instruction on its own:
+ * if the job is not up there, put it up there.
+ */
+private suspend fun quoteLinkFor(
+    context: android.content.Context,
+    app: com.fenceestimator.app.FenceEstimatorApp,
+    syncId: String
+): QuoteLink {
+    val first = fetchQuoteToken(context, syncId)
+    if (first.isFailure) return QuoteLink.Failed
+    first.getOrNull()?.takeIf { it.isNotBlank() }?.let {
+        return QuoteLink.Ready("https://fenceflowapp.com/quote.html?t=" + it)
+    }
+
+    // Not up there yet. Send it, and wait a little for the row to appear --
+    // the token is minted by the database as the row is written, so there is
+    // nothing to poll for beyond the job's own arrival.
+    app.autoSync.requestSync()
+    repeat(10) {
+        kotlinx.coroutines.delay(1_000)
+        val again = fetchQuoteToken(context, syncId)
+        if (again.isFailure) return QuoteLink.Failed
+        again.getOrNull()?.takeIf { it.isNotBlank() }?.let {
+            return QuoteLink.Ready("https://fenceflowapp.com/quote.html?t=" + it)
+        }
+    }
+    return QuoteLink.NotSyncedYet
 }
 
 /**
