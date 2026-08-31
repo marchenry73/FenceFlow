@@ -839,6 +839,7 @@
     <string name="jd_send_quote_chooser">Send the quote</string>
     <string name="jd_quote_link_body">Hi %1$s — here is your fence quote. You can see your fence in 3D, and approve it right on the page: %2$s</string>
     <string name="jd_quote_link_failed">Could not fetch the quote link — check your signal and try again.</string>
+    <string name="jd_quote_link_signed_out">This phone is signed out of the cloud, so it can\'t fetch the customer link. Sign out and sign back in, then try again.</string>
     <string name="jd_quote_link_unsynced">This job hasn\'t reached the cloud yet, so it has no customer link. Let it sync once, then try again.</string>
     <string name="est_internal_share_title">This copy shows YOUR costs</string>
     <string name="est_internal_share_body">The internal estimate lists every material with your buying prices and margin. It is for you and your team — a customer should get the Contract or Invoice instead. Share the internal copy anyway?</string>

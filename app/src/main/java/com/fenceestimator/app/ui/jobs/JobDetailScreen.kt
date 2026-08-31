@@ -296,18 +296,26 @@ fun JobDetailScreen(
                 val j = job ?: return@item
                 val shareFailed = stringResource(R.string.jd_quote_link_failed)
                 val notSyncedYet = stringResource(R.string.jd_quote_link_unsynced)
+                val signedOutMsg = stringResource(R.string.jd_quote_link_signed_out)
                 val chooser = stringResource(R.string.jd_send_quote_chooser)
                 val bodyTemplate = stringResource(R.string.jd_quote_link_body)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            val link = quoteLinkFor(context, app, j.syncId)
+                            val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
                             val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
                                 android.widget.Toast.makeText(
                                     context,
-                                    if (link is QuoteLink.NotSyncedYet) notSyncedYet else shareFailed,
+                                    when (link) {
+                                        is QuoteLink.SignedOut -> signedOutMsg
+                                        is QuoteLink.NotSyncedYet -> notSyncedYet
+                                        is QuoteLink.Failed ->
+                                            if (link.why.isBlank()) shareFailed
+                                            else shareFailed + " (" + link.why.take(90) + ")"
+                                        else -> shareFailed
+                                    },
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
                             } else {
@@ -329,12 +337,19 @@ fun JobDetailScreen(
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            val link = quoteLinkFor(context, app, j.syncId)
+                            val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
                             val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
                                 android.widget.Toast.makeText(
                                     context,
-                                    if (link is QuoteLink.NotSyncedYet) notSyncedYet else shareFailed,
+                                    when (link) {
+                                        is QuoteLink.SignedOut -> signedOutMsg
+                                        is QuoteLink.NotSyncedYet -> notSyncedYet
+                                        is QuoteLink.Failed ->
+                                            if (link.why.isBlank()) shareFailed
+                                            else shareFailed + " (" + link.why.take(90) + ")"
+                                        else -> shareFailed
+                                    },
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
                             } else {
@@ -2588,12 +2603,16 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
  */
 private sealed interface QuoteLink {
     data class Ready(val url: String) : QuoteLink
+    /** This phone is not signed in to the cloud. Every query then returns
+     *  nothing at all rather than failing, which looks exactly like a job
+     *  that has not synced -- and is why this took three attempts to find. */
+    object SignedOut : QuoteLink
     /** The job exists only on this phone so far; the token is issued by the
      *  server when the job lands there, so there is nothing to fetch yet. */
     object NotSyncedYet : QuoteLink
-    /** Something actually failed -- no signal, an expired session, a server
-     *  having a bad day. The reason is recorded rather than guessed at. */
-    object Failed : QuoteLink
+    /** Something actually failed. The reason travels with it, both to the
+     *  error log and on to the screen, so nobody has to guess again. */
+    data class Failed(val why: String) : QuoteLink
 }
 
 private suspend fun fetchQuoteToken(context: android.content.Context, syncId: String): Result<String?> =
@@ -2620,10 +2639,16 @@ private suspend fun fetchQuoteToken(context: android.content.Context, syncId: St
 private suspend fun quoteLinkFor(
     context: android.content.Context,
     app: com.fenceestimator.app.FenceEstimatorApp,
+    signedIn: Boolean,
     syncId: String
 ): QuoteLink {
+    // Asked first, because a phone with no session gets an empty answer to
+    // every question rather than an error, and an empty answer is
+    // indistinguishable from a job that has not been uploaded.
+    if (!signedIn) return QuoteLink.SignedOut
+
     val first = fetchQuoteToken(context, syncId)
-    if (first.isFailure) return QuoteLink.Failed
+    if (first.isFailure) return QuoteLink.Failed(first.exceptionOrNull()?.message.orEmpty())
     first.getOrNull()?.takeIf { it.isNotBlank() }?.let {
         return QuoteLink.Ready("https://fenceflowapp.com/quote.html?t=" + it)
     }
@@ -2635,7 +2660,7 @@ private suspend fun quoteLinkFor(
     repeat(10) {
         kotlinx.coroutines.delay(1_000)
         val again = fetchQuoteToken(context, syncId)
-        if (again.isFailure) return QuoteLink.Failed
+        if (again.isFailure) return QuoteLink.Failed(again.exceptionOrNull()?.message.orEmpty())
         again.getOrNull()?.takeIf { it.isNotBlank() }?.let {
             return QuoteLink.Ready("https://fenceflowapp.com/quote.html?t=" + it)
         }
