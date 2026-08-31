@@ -137,6 +137,7 @@ import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.labelRes
 import com.fenceestimator.app.ui.runs.FenceRunListViewModel
 import kotlinx.coroutines.launch
+import com.fenceestimator.app.cloud.CrashReporter
 import com.fenceestimator.app.cloud.SupabaseModule
 import io.github.jan.supabase.postgrest.postgrest
 import java.text.SimpleDateFormat
@@ -294,16 +295,21 @@ fun JobDetailScreen(
                 // outlives this composition and must not race a null.
                 val j = job ?: return@item
                 val shareFailed = stringResource(R.string.jd_quote_link_failed)
+                val notSyncedYet = stringResource(R.string.jd_quote_link_unsynced)
                 val chooser = stringResource(R.string.jd_send_quote_chooser)
                 val bodyTemplate = stringResource(R.string.jd_quote_link_body)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            val url = quoteUrlFor(j.syncId)
+                            val link = quoteLinkFor(context, j.syncId)
+                            val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
-                                android.widget.Toast.makeText(context, shareFailed,
-                                    android.widget.Toast.LENGTH_LONG).show()
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (link is QuoteLink.NotSyncedYet) notSyncedYet else shareFailed,
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
                             } else {
                                 IntentHelpers.shareText(
                                     context = context,
@@ -323,10 +329,14 @@ fun JobDetailScreen(
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            val url = quoteUrlFor(j.syncId)
+                            val link = quoteLinkFor(context, j.syncId)
+                            val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
-                                android.widget.Toast.makeText(context, shareFailed,
-                                    android.widget.Toast.LENGTH_LONG).show()
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (link is QuoteLink.NotSyncedYet) notSyncedYet else shareFailed,
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
                             } else {
                                 runCatching {
                                     context.startActivity(
@@ -2570,14 +2580,38 @@ private fun RecordPaymentControl(job: Job, contractTotal: Double, viewModel: Job
 
 
 /** Fetches this job's quote-page URL, or null when it cannot be reached. */
-private suspend fun quoteUrlFor(syncId: String): String? = runCatching {
-    val token = SupabaseModule.client.postgrest.from("jobs")
-        .select(io.github.jan.supabase.postgrest.query.Columns.list("quote_token")) {
-            filter { eq("sync_id", syncId) }
-        }
-        .decodeSingleOrNull<QuoteTokenRow>()?.quoteToken
-    token?.let { "https://marchenry73.github.io/FenceFlow/quote.html?t=" + it }
-}.getOrNull()
+/**
+ * Three different things can go wrong here and they want three different
+ * sentences. Telling somebody to check their signal when the job simply has
+ * not reached the cloud yet sends them to the top of the yard looking for
+ * bars, which is the wrong place and the wrong problem.
+ */
+private sealed interface QuoteLink {
+    data class Ready(val url: String) : QuoteLink
+    /** The job exists only on this phone so far; the token is issued by the
+     *  server when the job lands there, so there is nothing to fetch yet. */
+    object NotSyncedYet : QuoteLink
+    /** Something actually failed -- no signal, an expired session, a server
+     *  having a bad day. The reason is recorded rather than guessed at. */
+    object Failed : QuoteLink
+}
+
+private suspend fun quoteLinkFor(context: android.content.Context, syncId: String): QuoteLink {
+    val row = runCatching {
+        SupabaseModule.client.postgrest.from("jobs")
+            .select(io.github.jan.supabase.postgrest.query.Columns.list("quote_token")) {
+                filter { eq("sync_id", syncId) }
+            }
+            .decodeSingleOrNull<QuoteTokenRow>()
+    }.getOrElse { e ->
+        // Swallowing this was why the app could only ever blame the signal.
+        CrashReporter.report(context, "quote-link", e)
+        return QuoteLink.Failed
+    }
+    val token = row?.quoteToken
+    return if (token.isNullOrBlank()) QuoteLink.NotSyncedYet
+           else QuoteLink.Ready("https://fenceflowapp.com/quote.html?t=" + token)
+}
 
 /**
  * The quote link's key, fetched at the moment of sharing rather than synced.
