@@ -411,7 +411,7 @@
           <div style="display:flex;gap:8px">
             <button class="btn btn-sm btn-grey" id="openMap">Map</button>
             <button class="btn btn-sm btn-grey" id="qboExport">QuickBooks CSVs</button>
-            <button class="btn btn-sm btn-grey" id="openImport">Import customers</button>
+            <button class="btn btn-sm btn-grey" id="openImport">Import their data</button>
             <button class="btn btn-sm" id="newJob">+ New Job</button>
           </div>
         </div>
@@ -941,16 +941,17 @@
 <!-- Crew editor -->
 <div class="overlay" id="impOverlay"><div class="sheet" style="max-width:720px">
   <div class="sheet-head">
-    <b>Import customers</b>
+    <b>Import their data</b>
     <button class="btn btn-sm btn-ghost" id="impClose">Close</button>
   </div>
   <div class="sheet-body">
     <div class="msg" id="impMsg"></div>
     <div class="panel">
       <p class="sub" style="margin:0 0 10px">For a company moving over from another product.
-        Export their customer list as a CSV (every product has this under Export), then drop it
-        here or paste it. Each row becomes a lead — nothing is quoted, priced or invoiced by an
-        import; that stays a person's decision.</p>
+        Export what they have — <b>customers</b>, <b>open jobs</b>, or their <b>price list</b> —
+        and drop the file here, one at a time. Jobber, JobNimbus, Housecall Pro, QuickBooks and a
+        homemade spreadsheet all come out differently; the columns are worked out for you and shown
+        before anything is saved.</p>
       <input type="file" id="impFile" accept=".csv,.txt,text/csv" style="margin-bottom:10px">
       <label>Or paste the rows</label>
       <textarea id="impText" style="min-height:120px;font-family:ui-monospace,monospace;font-size:13px"
@@ -959,9 +960,18 @@
     </div>
     <div class="panel" id="impPreviewBox" style="display:none">
       <h2 style="margin:0 0 8px">What will be imported</h2>
+      <div style="display:flex;gap:8px;align-items:center;margin:0 0 8px;flex-wrap:wrap">
+        <label style="margin:0">This file is</label>
+        <select id="impKind" style="max-width:220px">
+          <option value="customers">Customers</option>
+          <option value="jobs">Jobs and quotes</option>
+          <option value="pricelist">Their price list</option>
+        </select>
+        <span class="sub" id="impGuess"></span>
+      </div>
       <p class="sub" id="impCounts"></p>
       <div class="scroll"><table>
-        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th></th></tr></thead>
+        <thead id="impHead"></thead>
         <tbody id="impRows"></tbody>
       </table></div>
       <button class="btn" id="impGo" style="margin-top:12px">Import these</button>
@@ -4120,70 +4130,272 @@ function parseCsv(text){
   return rows;
 }
 
-/** Which column is which, from the header row when there is one, by position
-    when there is not. Guessing beats a mapping UI here: exports from the big
-    products all label these four the same handful of ways. */
+/* ===================== Reading somebody else's export ====================
+   Three things arrive here -- a customer list, a list of open jobs, or a price
+   list -- and no two products spell any of it the same way. Rather than a
+   mapping screen nobody wants to fill in, the columns are worked out from the
+   header row and shown before a single row is saved.
+
+   The hard-won details:
+   - Email is claimed before address. "E-mail Address" contains the word
+     address and once stole the slot from "Street Address".
+   - Names and addresses arrive SPLIT. Jobber gives First name / Last name and
+     Street / City / State / Zip; JobNimbus gives Address Line 1 / Line 2 /
+     City / State Text / Zip. Reading one column got a first name and a street
+     with no town, which is a lead nobody can drive to.
+   - Where a product exports both a billing and a service address, the fence
+     goes at the service one. */
+
+function impMoney(v){
+  const raw=String(v==null?'':v);
+  const cleaned=raw.replace(/[^0-9.\-]/g,'');
+  if(!cleaned) return 0;
+  const n=Number(cleaned);
+  if(!isFinite(n)) return 0;
+  return /\(/.test(raw) ? -Math.abs(n) : n;   // (123.45) is how accountants write -123.45
+}
+
+/** Their status word in ours. Checked worst-first: "Paid &amp; Closed" is
+    finished, "Signed Contract" is won, "Awaiting Response" is still out. */
+function impStatus(v){
+  const t=String(v||'').toLowerCase();
+  if(!t) return 'DRAFT';
+  if(/(lost|dead|declin|reject|cancel|no sale|unsold)/.test(t)) return 'DECLINED';
+  if(/(paid|complet|closed|finish|install|done|invoiced)/.test(t)) return 'COMPLETED';
+  if(/(approv|accept|signed|won|sold|convert|schedul|in progress|active|deposit)/.test(t)) return 'ACCEPTED';
+  // "Changes Requested" is a quote still in play, not a quote nobody sent.
+  if(/(sent|await|pending|estimat|quote|proposal|bid|review|request|change)/.test(t)) return 'SENT';
+  return 'DRAFT';
+}
+
+/** What a fence part is, from what they called it. Guesses are marked so the
+    Catalog shows them for checking rather than pretending to be certain. */
+function impMaterial(name, unitRaw){
+  const n=String(name||'').toLowerCase();
+  const has=(...w)=>w.some(x=>n.includes(x));
+  let fence='UNIVERSAL';
+  if(has('vinyl','pvc')) fence='VINYL';
+  else if(has('chain link','chainlink','chain-link','galv')) fence='CHAIN_LINK';
+  else if(has('alumin')) fence='ALUMINUM';
+  else if(has('ornamental','wrought','iron','steel panel')) fence='ORNAMENTAL_IRON';
+  else if(has('composite','trex')) fence='COMPOSITE';
+  else if(has('split rail','split-rail')) fence='SPLIT_RAIL';
+  else if(has('wood','cedar','pine','spruce','treated','pt ')) fence='WOOD';
+
+  let category='MISC', role='TRIM', unit='EA';
+  // Hardware is checked before gates on purpose: a "Gate Hinge Set" is a
+  // hinge, and filing it as a gate panel put a $32 part where a $400 one
+  // belongs. The word gate describes what it is FOR, not what it IS.
+  if(has('hinge')){ category='HARDWARE'; role='HINGE_SET'; unit='SET'; }
+  else if(has('latch')){ category='HARDWARE'; role='LATCH'; }
+  else if(has('handle')){ category='HARDWARE'; role='HANDLE'; }
+  else if(has('gate')){
+    category='GATE';
+    if(has('post')){ category='POST'; role='GATE_POST'; }
+    else if(has('kit','frame','hardware')){ role='GATE_FRAME_KIT'; }
+    else role='GATE_PANEL';
+  }
+  else if(has('post cap','cap')){ category='CAP'; role='POST_CAP'; }
+  else if(has('post')){
+    category='POST';
+    role = has('corner')?'CORNER_POST' : has('end','terminal')?'END_POST' : 'LINE_POST';
+  }
+  else if(has('picket','board','slat board')){ category='PICKET'; role='WOOD_PICKET'; }
+  else if(has('top rail')){ category='RAIL'; role='TOP_RAIL'; unit='LF'; }
+  else if(has('rail')){ category='RAIL'; role='WOOD_RAIL'; }
+  else if(has('panel','section')){ category='PANEL'; role='PANEL'; }
+  else if(has('brace band')){ category='HARDWARE'; role='BRACE_BAND'; }
+  else if(has('tension band')){ category='HARDWARE'; role='TENSION_BAND'; }
+  else if(has('rail end')){ category='HARDWARE'; role='RAIL_END'; }
+  else if(has('brace')){ category='HARDWARE'; role='BRACE'; }
+  else if(has('concrete','cement','postcrete','quikrete')){ category='CONCRETE'; role='CONCRETE_BAG'; }
+  else if(has('privacy slat','slat')){ category='FABRIC'; role='PRIVACY_SLAT'; unit='LF'; }
+  else if(has('fabric','mesh','chain')){ category='FABRIC'; role='CHAIN_FABRIC'; unit='LF'; }
+  else if(has('tension wire','wire')){ category='MISC'; role='TENSION_WIRE'; unit='LF'; }
+  else if(has('stiffener')){ category='HARDWARE'; role='STIFFENER'; }
+  else if(has('plug')){ category='HARDWARE'; role='HOLE_PLUG'; }
+  else if(has('trim','fascia')){ category='TRIM'; role='TRIM'; unit='LF'; }
+
+  // A unit they actually stated beats anything guessed from the name.
+  const u=String(unitRaw||'').trim().toLowerCase();
+  if(u){
+    if(/^(lf|ft|foot|feet|linear)/.test(u)) unit='LF';
+    else if(/^(ea|each|item|unit|pc|piece)/.test(u)) unit='EA';
+    else if(/^(set|kit)/.test(u)) unit='SET';
+    else if(/^(pair)/.test(u)) unit='PAIR';
+    else if(/^(box|bx|case)/.test(u)) unit='BOX';
+  }
+  return { fence_type:fence, category, role, unit };
+}
+
+/** What kind of file this is. Conservative on purpose: a customer list that
+    happens to carry an account balance is still a customer list, and the
+    answer is shown with a dropdown to overrule it. */
+function impDetectKind(head){
+  const has=(...w)=>head.some(h=>w.some(x=>h.includes(x)));
+  const person = has('client','customer','contact','first name','last name',
+                     'full name','display name','company name');
+  const priced = has('unit price','unit cost','price','rate','cost');
+  const jobbish = has('total revenue','subtotal','quote','job #','job number',
+                      'job total','job amount','job value','invoice','contract',
+                      'balance due','amount due','deposit');
+  if(!person && priced) return 'pricelist';
+  if(person && jobbish) return 'jobs';
+  return 'customers';
+}
+
+/** The whole file, read into rows we can save. */
 function mapImportColumns(rows){
   if(!rows.length) return null;
-  const H={name:-1,phone:-1,email:-1,address:-1,notes:-1};
-  const head=rows[0].map(h=>h.trim().toLowerCase());
-  // Each column is claimed once, and email is claimed before address --
-  // "E-mail Address" contains the word address, and without the ordering it
-  // stole the address slot from "Street Address". Found by the test, not by
-  // reading.
+  const head=rows[0].map(h=>String(h).trim().toLowerCase());
   const used=new Set();
   const find=(...words)=>{
     const i=head.findIndex((h,ix)=>!used.has(ix)&&words.some(w=>h.includes(w)));
     if(i>=0) used.add(i);
     return i;
   };
-  H.email=find('email','e-mail');
-  H.phone=find('phone','mobile','cell','tel');
-  H.name=find('name','customer','client','contact');
-  H.address=find('address','street','addr','location');
-  H.notes=find('note','comment','memo');
-  const hasHeader=H.name>=0||H.email>=0||H.phone>=0;
-  if(!hasHeader){ H.name=0; H.phone=1; H.email=2; H.address=3; H.notes=4; }
-  const body=hasHeader?rows.slice(1):rows;
-  const cell=(r,i)=>i>=0&&i<r.length?String(r[i]).trim():'';
-  return body.map(r=>({
-    name:cell(r,H.name), phone:cell(r,H.phone), email:cell(r,H.email),
-    address:cell(r,H.address), notes:cell(r,H.notes)
-  }));
+  const cell=(r,i)=>i>=0&&i<r.length?String(r[i]==null?'':r[i]).trim():'';
+
+  const H={};
+  H.email = find('email','e-mail');
+  // Most useful number first: a mobile reaches somebody on a Saturday.
+  H.phone = find('mobile','cell');
+  H.phone2= find('main phone','home phone','work phone','home number',
+                 'work number','phone number','phone','tel');
+  H.first = find('first name','firstname','given');
+  H.last  = find('last name','lastname','surname','family');
+  H.name  = find('display name','full name','client name','customer name',
+                 'contact name','company name','name','client','customer','contact');
+  // Service address before billing -- the fence is built at one of them.
+  H.street= find('service street','service address','job address','property address',
+                 'address line 1','address 1','street','address','addr');
+  H.addr2 = find('address line 2','address 2','street line 2','street 2',
+                 'apt','suite','unit #');
+  H.city  = find('service city','city','town');
+  H.state = find('service state','state','province','region');
+  H.zip   = find('service zip','service postal','zip','postal');
+  H.total = find('total revenue','contract total','job total','quote total',
+                 'subtotal','total','amount','value','revenue');
+  H.deposit=find('deposit');
+  H.paid  = find('paid','collected');
+  H.owed  = find('balance','due','outstanding');
+  H.status= find('job status','quote status','status');
+  H.price = find('unit price','unit cost','price','rate','cost');
+  H.unit  = find('unit','uom','measure');
+  H.desc  = find('description','details');
+  H.notes = find('note','comment','memo');
+
+  const hasHeader = [H.email,H.phone,H.phone2,H.first,H.name,H.street,H.price]
+                      .some(i=>i>=0);
+  // No header row at all: fall back to the shape the old paste box taught.
+  if(!hasHeader){
+    H.name=0; H.phone=1; H.email=2; H.street=3; H.notes=4;
+  }
+  const body = hasHeader ? rows.slice(1) : rows;
+  const kind = hasHeader ? impDetectKind(head) : 'customers';
+
+  const records = body.map(r=>{
+    const first=cell(r,H.first), last=cell(r,H.last);
+    const joined=(first+' '+last).trim();
+    const name = joined || cell(r,H.name) || first || last;
+    const addr = [cell(r,H.street), cell(r,H.addr2), cell(r,H.city),
+                  [cell(r,H.state), cell(r,H.zip)].filter(Boolean).join(' ')]
+                 .map(p=>p.trim()).filter(Boolean).join(', ');
+    return {
+      name,
+      phone: cell(r,H.phone) || cell(r,H.phone2),
+      email: cell(r,H.email),
+      address: addr,
+      notes: [cell(r,H.notes), cell(r,H.desc)].filter(Boolean).join(' — '),
+      total: impMoney(cell(r,H.total)),
+      deposit: impMoney(cell(r,H.deposit)),
+      paid: impMoney(cell(r,H.paid)),
+      owed: impMoney(cell(r,H.owed)),
+      statusRaw: cell(r,H.status),
+      price: impMoney(cell(r,H.price)),
+      unitRaw: cell(r,H.unit)
+    };
+  });
+  return { kind, records };
 }
 
-let impReady=[];
+let impReady=[], impParsed=null;
 
-function previewImport(){
-  const text=$('impText').value;
-  if(!text.trim()){ msg('impMsg','Paste rows or choose a file first.','err'); return; }
-  const parsed=mapImportColumns(parseCsv(text));
-  if(!parsed||!parsed.length){ msg('impMsg','Nothing readable in that.','err'); return; }
-
-  // A row with no name has nothing to become; an import that already exists
-  // must not become a duplicate lead. Matched on name (case-blind) plus
-  // phone digits, so "Jane Halloran / 561-555-0142" cannot arrive twice.
+/** Preview is re-run whenever the kind changes, so overruling the guess
+    re-reads the same file rather than making them paste it again. */
+function previewImport(reuse){
+  if(!reuse){
+    const text=$('impText').value;
+    if(!text.trim()){ msg('impMsg','Paste rows or choose a file first.','err'); return; }
+    impParsed=mapImportColumns(parseCsv(text));
+    if(!impParsed||!impParsed.records.length){ msg('impMsg','Nothing readable in that.','err'); return; }
+    $('impKind').value=impParsed.kind;
+    $('impGuess').textContent='(worked out from the columns — change it if that is wrong)';
+  }
+  const kind=$('impKind').value;
+  const rows=impParsed.records;
   const digits=v=>String(v||'').replace(/\D/g,'');
-  const existing=new Set(jobs.map(j=>
-    (j.customer_name||'').trim().toLowerCase()+'|'+digits(j.phone)));
-  let noName=0, dupes=0;
-  impReady=[];
-  const shown=[];
-  parsed.forEach(p=>{
-    if(!p.name){ noName++; return; }
-    const k=p.name.toLowerCase()+'|'+digits(p.phone);
-    if(existing.has(k)){ dupes++; shown.push({...p,skip:'already here'}); return; }
-    existing.add(k);
-    impReady.push(p); shown.push(p);
-  });
-  $('impCounts').textContent =
-    impReady.length+' will be imported'
-    +(dupes?' · '+dupes+' skipped as already here':'')
-    +(noName?' · '+noName+' skipped with no name':'');
-  $('impRows').innerHTML=shown.slice(0,200).map(p=>
-    '<tr'+(p.skip?' style="opacity:.45"':'')+'><td>'+esc(p.name)+'</td><td>'+esc(p.phone)+'</td>'
-    +'<td>'+esc(p.email)+'</td><td>'+esc(p.address)+'</td>'
-    +'<td>'+(p.skip?esc(p.skip):'')+'</td></tr>').join('');
+
+  if(kind==='pricelist'){
+    // A price list is matched on the item name alone: nobody stocks two
+    // different things called "6ft cedar picket".
+    const existing=new Set(catalog.map(m=>(m.name||'').trim().toLowerCase()));
+    let noName=0, dupes=0, shown=[];
+    impReady=[];
+    rows.forEach(p=>{
+      if(!p.name){ noName++; return; }
+      const k=p.name.toLowerCase();
+      if(existing.has(k)){ dupes++; shown.push({...p,skip:'already in the catalog'}); return; }
+      existing.add(k);
+      const g=impMaterial(p.name,p.unitRaw);
+      const rec={...p,...g};
+      impReady.push(rec); shown.push(rec);
+    });
+    $('impHead').innerHTML='<tr><th>Item</th><th>Price</th><th>Unit</th>'
+      +'<th>Filed under</th><th></th></tr>';
+    $('impCounts').textContent=impReady.length+' will be added to the catalog'
+      +(dupes?' · '+dupes+' skipped as already there':'')
+      +(noName?' · '+noName+' skipped with no name':'');
+    $('impRows').innerHTML=shown.slice(0,200).map(p=>
+      '<tr'+(p.skip?' style="opacity:.45"':'')+'><td>'+esc(p.name)+'</td>'
+      +'<td>'+money(p.price)+'</td><td>'+esc(p.unit||'')+'</td>'
+      +'<td>'+esc(((p.fence_type||'')+' · '+(p.category||'')).replace(/_/g,' '))+'</td>'
+      +'<td>'+(p.skip?esc(p.skip):'')+'</td></tr>').join('');
+  } else {
+    const existing=new Set(jobs.map(j=>
+      (j.customer_name||'').trim().toLowerCase()+'|'+digits(j.phone)));
+    let noName=0, dupes=0, shown=[];
+    impReady=[];
+    rows.forEach(p=>{
+      if(!p.name){ noName++; return; }
+      const k=p.name.toLowerCase()+'|'+digits(p.phone);
+      if(existing.has(k)){ dupes++; shown.push({...p,skip:'already here'}); return; }
+      existing.add(k);
+      impReady.push(p); shown.push(p);
+    });
+    if(kind==='jobs'){
+      $('impHead').innerHTML='<tr><th>Customer</th><th>Address</th><th>Quoted</th>'
+        +'<th>Paid</th><th>Stage</th><th></th></tr>';
+      $('impCounts').textContent=impReady.length+' jobs will be imported'
+        +(dupes?' · '+dupes+' skipped as already here':'')
+        +(noName?' · '+noName+' skipped with no name':'');
+      $('impRows').innerHTML=shown.slice(0,200).map(p=>
+        '<tr'+(p.skip?' style="opacity:.45"':'')+'><td>'+esc(p.name)+'</td>'
+        +'<td>'+esc(p.address)+'</td><td>'+money(p.total)+'</td>'
+        +'<td>'+money(p.paid)+'</td><td>'+esc(impStatus(p.statusRaw))+'</td>'
+        +'<td>'+(p.skip?esc(p.skip):'')+'</td></tr>').join('');
+    } else {
+      $('impHead').innerHTML='<tr><th>Name</th><th>Phone</th><th>Email</th>'
+        +'<th>Address</th><th></th></tr>';
+      $('impCounts').textContent=impReady.length+' will be imported'
+        +(dupes?' · '+dupes+' skipped as already here':'')
+        +(noName?' · '+noName+' skipped with no name':'');
+      $('impRows').innerHTML=shown.slice(0,200).map(p=>
+        '<tr'+(p.skip?' style="opacity:.45"':'')+'><td>'+esc(p.name)+'</td><td>'+esc(p.phone)+'</td>'
+        +'<td>'+esc(p.email)+'</td><td>'+esc(p.address)+'</td>'
+        +'<td>'+(p.skip?esc(p.skip):'')+'</td></tr>').join('');
+    }
+  }
   $('impPreviewBox').style.display='';
   $('impGo').disabled=impReady.length===0;
   msg('impMsg','','info'); $('impMsg').style.display='none';
@@ -4191,8 +4403,42 @@ function previewImport(){
 
 async function runImport(){
   if(!canEdit()||!impReady.length) return;
+  const kind=$('impKind').value;
   $('impGo').disabled=true;
   msg('impMsg','Importing '+impReady.length+'…','working');
+
+  const fail=async(done,error)=>{
+    msg('impMsg', done+' saved, then it stopped: '+error.message, 'err');
+    $('impGo').disabled=false;
+    await loadAll();
+  };
+
+  if(kind==='pricelist'){
+    let done=0;
+    for(let i=0;i<impReady.length;i+=100){
+      const chunk=impReady.slice(i,i+100).map(p=>({
+        company_id:profile.company_id,
+        sync_id:crypto.randomUUID(),
+        name:p.name,
+        category:p.category, role:p.role, fence_type:p.fence_type,
+        color_or_finish:'', unit:p.unit, unit_price:p.price||0,
+        taxable:true, is_active:true,
+        source_doc:'Imported — check this one',
+        updated_at:new Date().toISOString()
+      }));
+      const {error}=await db.from('material_items').insert(chunk);
+      if(error) return fail(done,error);
+      done+=chunk.length;
+    }
+    await loadAll();
+    msg('impMsg', done+' items added to your catalog. Every one is marked "Imported — check '
+      +'this one", because which fence type and which part it is were worked out from the name. '
+      +'Open the Catalog tab and correct any that landed in the wrong place before quoting from them.', 'ok');
+    impReady=[]; impParsed=null;
+    $('impPreviewBox').style.display='none'; $('impText').value='';
+    return;
+  }
+
   const base={
     company_id:profile.company_id,
     tax_rate_percent:num($('s_tax').value)||7, markup_percent:num($('s_markup').value)||15,
@@ -4202,22 +4448,42 @@ async function runImport(){
   let done=0;
   // Chunked so one bad row fails its chunk, not the whole list silently.
   for(let i=0;i<impReady.length;i+=100){
-    const chunk=impReady.slice(i,i+100).map(p=>({...base,
-      customer_name:p.name, phone:p.phone, email:p.email,
-      address:p.address, notes:p.notes}));
+    const chunk=impReady.slice(i,i+100).map(p=>{
+      const row={...base,
+        customer_name:p.name, phone:p.phone, email:p.email,
+        address:p.address, notes:p.notes};
+      if(kind==='jobs'){
+        row.status=impStatus(p.statusRaw);
+        // What they quoted is carried across as the contract total, so the
+        // job arrives worth what it was worth. It is not re-derived from
+        // line items -- there are none, and inventing them would be fiction.
+        if(p.total>0) row.contract_total=p.total;
+        if(p.deposit>0) row.deposit_amount=p.deposit;
+        if(p.paid>0) row.amount_paid=p.paid;
+        const carried=[];
+        if(p.total>0) carried.push('quoted '+money(p.total));
+        if(p.owed>0)  carried.push(money(p.owed)+' still owed');
+        if(p.statusRaw) carried.push('their status: '+p.statusRaw);
+        if(carried.length){
+          row.notes=[row.notes,'From their old system — '+carried.join(', ')]
+            .filter(Boolean).join('\n');
+        }
+      }
+      return row;
+    });
     const {error}=await db.from('jobs').insert(chunk);
-    if(error){
-      msg('impMsg', done+' imported, then: '+error.message, 'err');
-      $('impGo').disabled=false;
-      await loadAll();
-      return;
-    }
+    if(error) return fail(done,error);
     done+=chunk.length;
   }
   await loadAll();
-  msg('impMsg', done+' customers imported as leads. They are in the pipeline under New Lead, '
-    +'and in Reports their jobs will show the source as "Imported".', 'ok');
-  impReady=[]; $('impPreviewBox').style.display='none'; $('impText').value='';
+  msg('impMsg', kind==='jobs'
+    ? done+' jobs imported with their stage and the amount they were quoted. Money already '
+      +'collected is written on the job as a note rather than as a payment — the payment ledger '
+      +'only records money that actually arrived through FenceFlow.'
+    : done+' customers imported as leads. They are in the pipeline under New Lead, '
+      +'and in Reports their jobs will show the source as "Imported".', 'ok');
+  impReady=[]; impParsed=null;
+  $('impPreviewBox').style.display='none'; $('impText').value='';
 }
 
 async function createJob(){
@@ -4489,9 +4755,12 @@ $('copyLeadLink').addEventListener('click',async ()=>{
   try{ await navigator.clipboard.writeText(link); $('leadLinkNote').textContent='Copied: '+link; }
   catch(e){ $('leadLinkNote').textContent=link; }
 });
+$('impKind').addEventListener('change',()=>{ if(impParsed) previewImport(true); });
 $('impClose').addEventListener('click',()=>{ $('impOverlay').classList.remove('on'); });
 $('impOverlay').addEventListener('click',e=>{ if(e.target.id==='impOverlay') $('impOverlay').classList.remove('on'); });
-$('impPreview').addEventListener('click',previewImport);
+// Called without arguments on purpose: the listener's own click event would
+// arrive as `reuse` and be truthy, which would re-render a file never read.
+$('impPreview').addEventListener('click',()=>previewImport());
 $('impGo').addEventListener('click',runImport);
 $('impFile').addEventListener('change',async e=>{
   const f=e.target.files&&e.target.files[0];
