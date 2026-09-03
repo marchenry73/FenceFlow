@@ -870,6 +870,7 @@
     <div class="panel"><h2>Estimate</h2><div id="jobItems"></div></div>
 
     <div class="panel"><h2>Pricing</h2>
+      <div class="readout" id="j_total_readout" style="margin-bottom:10px"></div>
       <div class="row3">
         <div><label>Tax rate (%)</label><input id="j_tax_rate_percent" type="number" step="0.1"></div>
         <div><label>Markup (%)</label><input id="j_markup_percent" type="number" step="0.1"></div>
@@ -4328,6 +4329,14 @@ function showJob(id){
     : `<b>${money(paidGross)}</b>
        <span class="sub2">Recorded in the app</span>`;
 
+  // The office never prices a job. The engine that turns runs, items and
+  // these rates into a figure lives in the app, and it is deliberately the
+  // only one -- two formulas is how the office and the phone once disagreed
+  // about the same job. So this is a readout, and it says whose number it is.
+  $('j_total_readout').innerHTML =
+    `<b>${money(Number(openJob.contract_total ?? openJob.quoted_total ?? 0))}</b>
+     <span class="sub2">Priced in the app from the runs, estimate and the rates below.</span>`;
+
   $('j_scheduled_date').value=openJob.scheduled_date
     ? new Date(openJob.scheduled_date).toISOString().slice(0,10) : '';
   // Only people still on the crew can be given new work.
@@ -4427,9 +4436,21 @@ async function saveJob(){
   // By sync id: the old column held the app's local row id, which means
   // nothing on any other device -- dashboard assignments never reached a phone.
   patch.assigned_employee_sync_id = $('j_assigned_employee_id').value || null;
+  // A rate change does not move the total here. The phone that holds this
+  // job's estimate recomputes from its own copy of the rates, so the new
+  // figure appears after that phone has pulled the rate AND pushed the
+  // total -- two syncs. Saying 'saved' and leaving the old total on screen
+  // read as the change having been ignored.
+  const PRICING=['tax_rate_percent','markup_percent','discount_percent',
+                 'labor_rate_per_ft','labor_flat_fee','minimum_job_charge'];
+  const repriced = PRICING.some(k => k in patch &&
+    Math.abs(num(patch[k]) - num(openJob[k] ?? 0)) > 0.0001);
   const {error}=await db.from('jobs').update(patch).eq('id',openJob.id);
   if(error) return msg('jobMsg',error.message,'err');
-  msg('jobMsg','Saved. Phones pick this up on their next sync.','ok');
+  msg('jobMsg', repriced
+    ? 'Saved. The quote total is re-priced by the phone that holds this job's estimate '
+      + 'on its next sync, and the figure under Pricing updates once it has.'
+    : 'Saved. Phones pick this up on their next sync.','ok');
   // Repainted from the row that was just written.
   //
   // loadAll() rebuilds the jobs array, but openJob still pointed at the old
