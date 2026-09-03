@@ -218,9 +218,14 @@ function render(){
         const gates=String(r.gates||'').split(',').filter(g=>g.trim()).length;
         return '<div style="display:flex;justify-content:space-between;gap:14px;'
           +'padding:10px 2px;border-bottom:1px solid var(--line);font-size:14.5px">'
-          +'<span><strong>'+(r.teardown?'Remove old ':'')+label(r.type)+' fence</strong>'
+          // Escaped like its neighbours. The fence type is a controlled value
+          // today, but it arrives from the database and lands in innerHTML,
+          // and the two values on either side of it were already escaped --
+          // one unescaped string in a row of escaped ones is a mistake
+          // waiting for the day the value stops being controlled.
+          +'<span><strong>'+(r.teardown?'Remove old ':'')+esc(label(r.type))+' fence</strong>'
           +(r.finish?', '+esc(r.finish):'')
-          +' — '+r.heightFt+' ft tall'
+          +' — '+esc(r.heightFt)+' ft tall'
           +(gates?' · '+gates+' gate'+(gates===1?'':'s'):'')
           +(r.label?'<span class="sub" style="display:block">'+esc(r.label)+'</span>':'')
           +'</span>'

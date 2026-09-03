@@ -60,7 +60,8 @@ Deno.serve(async (req) => {
 
     // First signature wins. A second approval must not overwrite whose name
     // is on the record.
-    if (!job.quote_approved_at) {
+    const justApproved = !job.quote_approved_at;
+    if (justApproved) {
       await admin.from("jobs").update({
         quote_approved_at: new Date().toISOString(),
         quote_approved_name: name,
@@ -73,7 +74,13 @@ Deno.serve(async (req) => {
     // phone signed into the company gets the push the moment the name goes
     // on the record; failures are swallowed because the approval itself must
     // never fail for want of a notification.
-    try {
+    //
+    // Only on the approval that actually landed, though. This sat outside the
+    // guard above and fired on every request, with an attacker-supplied name
+    // at the front of it -- so anyone holding a forwarded quote link could
+    // buzz every phone in the company in a loop until the crew turned
+    // notifications off and stopped seeing real job alerts.
+    if (justApproved) try {
       const sa = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT") ?? "null");
       if (sa) {
         const { data: toks } = await admin

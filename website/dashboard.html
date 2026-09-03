@@ -1131,6 +1131,13 @@ function msg(el,text,kind){
    account (the pricing page's "Start free trial" lands here), and the
    one-field finish for an account that exists but has no company yet. */
 let authMode='signin';
+/* The address they are signed in with, shown on the "start a business" screen.
+   Somebody who already has a business here and signs in with a different email
+   -- a brand-new work address, say -- gets offered a fresh empty company and
+   no hint that theirs is sitting under the other address. That has now
+   happened to a real person, cost them an evening, and looked to them like the
+   product had lost all their work. */
+let signedInEmail = '';
 
 function setAuthMode(m){
   authMode=m;
@@ -1143,8 +1150,12 @@ function setAuthMode(m){
   const su = m==='signup', co = m==='company';
   $('signupFields').style.display = (su||co) ? 'block' : 'none';
   $('loginFields').style.display  = co ? 'none' : 'block';
-  $('authTitle').textContent = co ? 'One last step' : su ? 'Start your free trial' : 'Office sign in';
-  $('authSub').textContent   = co ? "Name your business and you're in."
+  $('authTitle').textContent = co ? 'Start a new business' : su ? 'Start your free trial' : 'Office sign in';
+  $('authSub').textContent   = co
+      ? 'You are signed in as ' + (signedInEmail || 'this address')
+        + ', and it does not belong to a business yet. Naming one here creates a '
+        + 'NEW business. If yours already exists under a different email, sign out '
+        + 'below and sign in with that one instead.'
                              : su ? '14 days free. Works with the FenceFlow app too.'
                              : 'Same account as the FenceFlow app.';
   $('signIn').textContent    = co ? 'Create my company' : su ? 'Create account' : 'Sign in';
@@ -1287,6 +1298,7 @@ async function boot(){
         {company_name:pending.company, owner_name:pending.name||''});
       if(!error){ localStorage.removeItem('ff_pending_company'); return boot(); }
     }
+    signedInEmail = user.email || '';
     setAuthMode('company');
     if (pending?.company) { $('suCompany').value=pending.company; $('suName').value=pending.name||''; }
     return;
