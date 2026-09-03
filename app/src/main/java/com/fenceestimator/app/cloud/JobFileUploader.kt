@@ -35,7 +35,20 @@ class JobFileUploader(
                 }
             }
 
-            // 2. The survey the fence line was traced on. Without it the
+            // 2. The completion sign-off -- the customer confirming the finished
+            //    work, not just the price. As irreplaceable as the acceptance
+            //    signature above, and this branch was simply missing: nothing
+            //    ever uploaded it, so a job finished in a yard with no signal
+            //    kept its sign-off on whichever phone captured it and nowhere
+            //    else -- gone the moment that phone was lost, wiped, or handed
+            //    to somebody else.
+            if (job.finalSignOffStoragePath == null && job.finalSignOffImagePath != null) {
+                FileSync.upload(companyId, job.syncId, "final-sign-off", job.finalSignOffImagePath)?.let { remote ->
+                    repository.updateJobFromCloud(job.copy(finalSignOffStoragePath = remote))
+                }
+            }
+
+            // 3. The survey the fence line was traced on. Without it the
             //    drawing still measures correctly but sits on a blank grid,
             //    and nobody can check it against the property.
             if (job.surveyStoragePath == null && job.surveyImagePath != null) {
@@ -44,7 +57,7 @@ class JobFileUploader(
                 }
             }
 
-            // 3. Change order signatures -- the evidence for extra work billed.
+            // 4. Change order signatures -- the evidence for extra work billed.
             repository.getChangeOrders(job.id).forEach { order ->
                 if (order.signatureStoragePath == null && order.signatureImagePath != null) {
                     FileSync.upload(companyId, job.syncId, "change-order", order.signatureImagePath)?.let { remote ->
@@ -53,7 +66,7 @@ class JobFileUploader(
                 }
             }
 
-            // 4. Before and after photos. Last because they are the largest and
+            // 5. Before and after photos. Last because they are the largest and
             //    the least likely to be needed in a dispute -- on a phone plan
             //    the order these go up in is a real cost.
             repository.getPhotos(job.id).forEach { photo ->
@@ -101,6 +114,13 @@ class JobFileUploader(
                 if (job.surveyImagePath == null || !java.io.File(job.surveyImagePath).exists()) {
                     FileSync.ensureLocal(context, remote, "surveys")?.let { local ->
                         repository.updateJobFromCloud(job.copy(surveyImagePath = local))
+                    }
+                }
+            }
+            job.finalSignOffStoragePath?.let { remote ->
+                if (job.finalSignOffImagePath == null || !java.io.File(job.finalSignOffImagePath).exists()) {
+                    FileSync.ensureLocal(context, remote, "signatures")?.let { local ->
+                        repository.updateJobFromCloud(job.copy(finalSignOffImagePath = local))
                     }
                 }
             }

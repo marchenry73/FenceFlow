@@ -246,6 +246,10 @@ interface JobPhotoDao {
     @Query("SELECT * FROM job_photos WHERE jobId = :jobId")
     suspend fun getForJob(jobId: Long): List<JobPhoto>
 
+    /** Every photo on the phone, for the unsynced-work check -- one query beats one per job. */
+    @Query("SELECT * FROM job_photos")
+    suspend fun getAll(): List<JobPhoto>
+
     @Update
     suspend fun update(photo: JobPhoto)
 

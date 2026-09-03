@@ -652,7 +652,37 @@ object EntitySync {
         return upsert("field_changes", changes, insertOnly = true)
     }
 
-    /** Chunked so a large catalog doesn't become one oversized request. */
+    /**
+     * One or more rows a chunk-level upsert still rejected even sent alone.
+     *
+     * Thrown only after every row that COULD go up already has -- it exists
+     * to carry news of the failure back through [pushAll]'s existing
+     * reporting rather than to stop anything. Its cause is the real
+     * underlying error, so [isNotOursToSync] still walks straight through to
+     * it: a row refused for the same reason the whole file already treats as
+     * a normal, silent skip is still treated as one.
+     */
+    private class PartialUpsertFailure(
+        table: String,
+        failedCount: Int,
+        totalCount: Int,
+        cause: Throwable
+    ) : Exception("push $table: $failedCount of $totalCount rows rejected", cause)
+
+    /**
+     * Chunked so a large catalog doesn't become one oversized request -- and,
+     * within a chunk, isolated so one bad row doesn't become one oversized
+     * failure.
+     *
+     * A single upsert call used to cover the whole table at once for four of
+     * these callers, so one row the server would not accept -- a constraint
+     * violation, a value it rejects -- failed the entire request and nothing
+     * for that table went up AT ALL, every sync, for every row, until
+     * whatever was wrong with the one row got fixed. Chunking already
+     * narrowed that from "the table" to "the 200-row batch it happened to
+     * fall in"; retrying a failed chunk one row at a time narrows it the rest
+     * of the way, to just that row.
+     */
     private suspend inline fun <reified T : Any> upsert(
         table: String,
         rows: List<T>,
@@ -661,14 +691,47 @@ object EntitySync {
         insertOnly: Boolean = false,
     ): Int {
         if (rows.isEmpty()) return 0
+        var pushed = 0
+        var firstRowFailure: Throwable? = null
+        var failedCount = 0
+
         rows.chunked(200).forEach { chunk ->
-            SupabaseModule.client.postgrest.from(table)
-                .upsert(chunk) {
-                    onConflict = "company_id,sync_id"
-                    if (insertOnly) ignoreDuplicates = true
+            val whole = runCatching {
+                SupabaseModule.client.postgrest.from(table)
+                    .upsert(chunk) {
+                        onConflict = "company_id,sync_id"
+                        if (insertOnly) ignoreDuplicates = true
+                    }
+            }
+            if (whole.isSuccess) {
+                pushed += chunk.size
+            } else {
+                chunk.forEach { row ->
+                    val single = runCatching {
+                        SupabaseModule.client.postgrest.from(table)
+                            .upsert(listOf(row)) {
+                                onConflict = "company_id,sync_id"
+                                if (insertOnly) ignoreDuplicates = true
+                            }
+                    }
+                    if (single.isSuccess) {
+                        pushed++
+                    } else {
+                        failedCount++
+                        if (firstRowFailure == null) firstRowFailure = single.exceptionOrNull()
+                        android.util.Log.w("EntitySync", "push $table: one row rejected and skipped", single.exceptionOrNull())
+                    }
                 }
+            }
         }
-        return rows.size
+
+        // Everything that could reach the cloud already has, by this point --
+        // what's left is making sure the row(s) that could not are not simply
+        // forgotten. Silence about a bad row is how it stays broken forever,
+        // because nothing is ever prompted to ask about it.
+        firstRowFailure?.let { throw PartialUpsertFailure(table, failedCount, rows.size, it) }
+
+        return pushed
     }
 
     /**
@@ -1536,18 +1599,12 @@ object EntitySync {
         if (!maySeePay) return 0
 
         val rows = repository.getAllEmployees().map { it.toCloud(companyId) }
-        if (rows.isEmpty()) return 0
-        SupabaseModule.client.postgrest.from("employees")
-            .upsert(rows) { onConflict = "company_id,sync_id" }
-        return rows.size
+        return upsert("employees", rows)
     }
 
     private suspend fun pushManufacturers(repository: Repository, companyId: String): Int {
         val rows = repository.getAllManufacturers().map { it.toCloud(companyId) }
-        if (rows.isEmpty()) return 0
-        SupabaseModule.client.postgrest.from("manufacturers")
-            .upsert(rows) { onConflict = "company_id,sync_id" }
-        return rows.size
+        return upsert("manufacturers", rows)
     }
 
     private suspend fun pushFenceRuns(repository: Repository, companyId: String): Int {
@@ -1555,10 +1612,7 @@ object EntitySync {
         val rows = jobs.flatMap { job ->
             repository.getFenceRuns(job.id).map { it.toCloud(companyId, job.syncId) }
         }
-        if (rows.isEmpty()) return 0
-        SupabaseModule.client.postgrest.from("fence_runs")
-            .upsert(rows) { onConflict = "company_id,sync_id" }
-        return rows.size
+        return upsert("fence_runs", rows)
     }
 
     private suspend fun pushTimeEntries(repository: Repository, companyId: String): Int {
@@ -1571,10 +1625,7 @@ object EntitySync {
             .mapNotNull { entry ->
                 jobsBySyncId[entry.jobId]?.let { entry.toCloud(companyId, it, entry.employeeId?.let { e -> employeeSyncById[e] }) }
             }
-        if (rows.isEmpty()) return 0
-        SupabaseModule.client.postgrest.from("time_entries")
-            .upsert(rows) { onConflict = "company_id,sync_id" }
-        return rows.size
+        return upsert("time_entries", rows)
     }
 }
 

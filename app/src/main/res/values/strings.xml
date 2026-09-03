@@ -1034,6 +1034,16 @@
     <string name="onb_paused_open_billing">Open billing</string>
     <string name="onb_sign_out">Sign out</string>
     <string name="onb_signing_out">Signing out…</string>
+    <!-- Second-tap confirmation on the blocked-service screen, shown after
+         the first tap when this phone still holds work the cloud has never
+         seen; signing out from here used to skip that check entirely. -->
+    <string name="onb_sign_out_anyway">Sign out anyway and lose it</string>
+    <string name="onb_sign_out_unsynced_warning">This phone still holds work that hasn\'t reached the cloud yet: %1$d job(s), %2$d photo(s). Signing out now deletes it for good -- tap Sign out anyway only if that\'s what you want.</string>
+    <!-- Shown when a wipe was refused because the phone still holds work
+         the cloud never got, most often someone taken off the crew before
+         a signature or photo taken with no signal ever had a chance to
+         upload. %1$s is the company the work belongs to. -->
+    <string name="data_ownership_held_work">This phone still holds work that never reached %1$s: %2$d job(s), %3$d photo(s). Ask the owner to put you back on the crew, then sync. Nothing is deleted until it has.</string>
     <string name="onb_update_needed">Update needed</string>
     <string name="onb_new_version_available">New version available</string>
     <string name="onb_version_label">Version %1$s</string>
@@ -1198,6 +1208,15 @@
     <string name="home_all_clear">All clear — nothing is waiting on you right now.</string>
     <string name="home_running_late">Running late: %1$s</string>
     <string name="home_shifts_to_approve">%1$d shifts waiting for approval</string>
+    <string name="held_work_title">This phone holds work the cloud never got</string>
+    <string name="held_work_previous_business">your previous business</string>
+    <string name="held_work_sign_out_keep">Sign out and keep it on this phone</string>
+    <string name="held_work_discard">Discard it and continue</string>
+    <string name="held_work_discard_confirm">Discard for good</string>
+    <string name="held_work_discard_warning">This removes the unsynced jobs and photos from this phone. Nothing in the cloud is touched, but this work is not in the cloud. There is no undo.</string>
+    <string name="plan_crew">Crew</string>
+    <string name="plan_pro">Pro</string>
+    <string name="plan_locked_body">Part of the %1$s plan. Upgrade in the office at fenceflowapp.com under Billing, and it switches on here at the next sync.</string>
     <string name="home_plan_change">Plan change waiting: %1$s</string>
     <string name="home_locate_expired">811 locate expired: %1$s</string>
     <string name="home_finished_unpaid">Finished, not paid: %1$s</string>

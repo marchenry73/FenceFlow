@@ -12,6 +12,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -56,6 +61,27 @@ fun ServiceBlockedScreen(
     // is to say so and open the page.
     val neverSubscribed = status.subscriptionStatus.isBlank() ||
         status.subscriptionStatus in setOf("pending", "none")
+
+    // What Sign out from here would actually throw away.
+    //
+    // This screen's sign-out used to skip straight to a forced wipe -- the
+    // gate above already blocks syncing, so the reasoning was that waiting
+    // for signal could never help anyway. True right up until somebody hits
+    // this screen holding a signature or photos taken with no signal that
+    // never got a chance to go up before their access was cut off. Checked
+    // locally so the warning below is accurate on its own, independent of
+    // whatever onSignOut itself ends up doing with force.
+    var unsynced by remember { mutableStateOf<com.fenceestimator.app.data.UnsyncedSummary?>(null) }
+    LaunchedEffect(Unit) {
+        val app = context.applicationContext as? com.fenceestimator.app.FenceEstimatorApp
+        unsynced = app?.let { runCatching { it.repository.unsyncedSummary() }.getOrNull() }
+    }
+    val holdsUnsyncedWork = unsynced?.isEmpty == false
+    // The first tap only warns. Signing out -- and losing whatever is
+    // counted above -- takes a second, deliberate tap once that warning is
+    // on screen, the same "are you sure" shape as any other destructive
+    // confirmation in this app.
+    var confirmingLoss by remember { mutableStateOf(false) }
 
     // Scrollable, and that is not a detail.
     //
@@ -146,18 +172,49 @@ fun ServiceBlockedScreen(
         ) {
             Text(stringResource(if (checking) R.string.onb_checking else R.string.onb_check_again))
         }
+        // Told before it is lost, not after -- shown as soon as the first tap
+        // asks for it, so the button's changed label ("Sign out anyway and
+        // lose it") is not the first anyone hears of what it now means.
+        if (holdsUnsyncedWork && confirmingLoss) {
+            Text(
+                stringResource(
+                    R.string.onb_sign_out_unsynced_warning,
+                    unsynced?.jobs ?: 0,
+                    unsynced?.files ?: 0
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
         // Signing out talks to the server before it takes effect, so it is not
         // instant -- and with no sign of that, a second or two of nothing reads
         // as a button that does not work. It says what it is doing.
         OutlinedButton(
-            onClick = onSignOut,
+            onClick = {
+                if (holdsUnsyncedWork && !confirmingLoss) {
+                    // First tap: ask, don't act. The actual sign-out below is
+                    // unchanged by this -- it is whatever onSignOut already
+                    // does -- but nobody reaches it without seeing this first.
+                    confirmingLoss = true
+                } else {
+                    onSignOut()
+                }
+            },
             enabled = !signingOut,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(if (signingOut) R.string.onb_signing_out else R.string.onb_sign_out))
+            Text(
+                stringResource(
+                    when {
+                        signingOut -> R.string.onb_signing_out
+                        confirmingLoss -> R.string.onb_sign_out_anyway
+                        else -> R.string.onb_sign_out
+                    }
+                )
+            )
         }
     }
 }
 
 /** Where a plan is chosen. Web only, so Play billing never applies. */
-private const val BILLING_URL = "https://marchenry73.github.io/FenceFlow/dashboard.html"
+private const val BILLING_URL = "https://fenceflowapp.com/dashboard.html"

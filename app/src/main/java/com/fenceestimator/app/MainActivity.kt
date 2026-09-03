@@ -62,6 +62,7 @@ import com.fenceestimator.app.ui.runs.RunEditScreen
 import com.fenceestimator.app.ui.schedule.ScheduleScreen
 import com.fenceestimator.app.ui.settings.SettingsScreen
 import com.fenceestimator.app.ui.survey.SurveyDrawScreen
+import com.fenceestimator.app.ui.components.devBackendBadge
 import com.fenceestimator.app.ui.theme.FenceEstimatorTheme
 
 // FragmentActivity rather than ComponentActivity: BiometricPrompt requires a
@@ -95,7 +96,7 @@ class MainActivity : FragmentActivity() {
             }
             WithAppLanguage(profile.language) {
                 FenceEstimatorTheme(darkTheme = darkTheme) {
-                    Surface(modifier = Modifier.fillMaxSize()) {
+                    Surface(modifier = Modifier.fillMaxSize().devBackendBadge()) {
                         var locked by remember { mutableStateOf(false) }
 
                         // Re-check on every return to the foreground; that's when a
@@ -152,6 +153,13 @@ class MainActivity : FragmentActivity() {
                                 var checkingService by remember { mutableStateOf(false) }
                                 var couldNotCheck by remember { mutableStateOf(false) }
                                 var signingOut by remember { mutableStateOf(false) }
+                                // Work the phone is holding because a wipe was
+                                // refused; see HeldWorkScreen for the two ways
+                                // out. Checked before the service gate because
+                                // a removed crew member is usually blocked too,
+                                // and the block screen's answer -- sign out --
+                                // is the wrong one while this is set.
+                                val heldWork by app.dataOwnership.heldWork.collectAsState()
 
                                 // Re-asked whenever the app comes back to the
                                 // foreground, not only when somebody signs in.
@@ -216,7 +224,40 @@ class MainActivity : FragmentActivity() {
                                 }
 
                                 val blocked = service?.allowed == false
-                                if (checkedService && blocked) {
+                                if (heldWork != null) {
+                                    com.fenceestimator.app.ui.onboarding.HeldWorkScreen(
+                                        held = heldWork!!,
+                                        signingOut = signingOut,
+                                        onSignOutKeeping = {
+                                            signingOut = true
+                                            app.applicationScope.launch {
+                                                // Not through DataOwnership.onSignedOut:
+                                                // that is the wipe this screen exists
+                                                // to refuse. The session ends, the
+                                                // data and its owner stamp stay.
+                                                runCatching {
+                                                    app.dataOwnership.releaseHold()
+                                                    com.fenceestimator.app.cloud.ServiceGate
+                                                        .clear(applicationContext)
+                                                    com.fenceestimator.app.cloud.SupabaseModule.signOut()
+                                                }
+                                                com.fenceestimator.app.cloud.SupabaseModule
+                                                    .justSignedOut = true
+                                                app.session.refresh()
+                                                signingOut = false
+                                            }
+                                        },
+                                        onDiscard = {
+                                            app.applicationScope.launch {
+                                                runCatching { app.dataOwnership.discardHeldWork() }
+                                                // Resolving again runs the ownership
+                                                // hooks with a clean phone, which
+                                                // adopts whatever is signed in.
+                                                app.session.refresh()
+                                            }
+                                        }
+                                    )
+                                } else if (checkedService && blocked) {
                                     com.fenceestimator.app.ui.onboarding.ServiceBlockedScreen(
                                         status = service!!,
                                         checking = checkingService,
@@ -233,9 +274,13 @@ class MainActivity : FragmentActivity() {
                                                     // DataOwnership; this path called signOut()
                                                     // directly and left the company's books on
                                                     // a device that may be exactly the one that
-                                                    // was lost or taken. Forced, because the
-                                                    // gate already blocks syncing from here, so
-                                                    // "wait for signal first" can never succeed.
+                                                    // was lost or taken. Forced -- but only
+                                                    // after the screen has shown what unsynced
+                                                    // work the phone holds and taken a second
+                                                    // tap to confirm losing it. The gate blocks
+                                                    // syncing from here, so waiting for signal
+                                                    // can never get that work up; saying so and
+                                                    // asking is the most the app can do.
                                                     runCatching { app.dataOwnership.onSignedOut(force = true) }
                                                     com.fenceestimator.app.cloud.ServiceGate
                                                         .clear(applicationContext)

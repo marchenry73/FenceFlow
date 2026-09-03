@@ -41,6 +41,50 @@ val gitVersionCode: Int = runCatching {
     text.toInt()
 }.getOrDefault(1).coerceAtLeast(1)
 
+/**
+ * Which backend this build talks to.
+ *
+ * Until there was a dev project, every build pointed at the live database and
+ * every test ran against real customers' jobs and money. The switch is one line
+ * in local.properties, which is gitignored, so it never travels with the repo:
+ *
+ *     fenceflow.env=dev      # or prod, or leave it out entirely for prod
+ *
+ * A build flavor would have been the tidier Gradle answer and is deliberately
+ * not what this is. Flavors rename every task -- assembleDebug becomes
+ * assembleProdDebug -- which breaks copyDebugApkToDrive below, the publish
+ * script, and the Android Studio run configuration; and giving the dev flavor
+ * an applicationIdSuffix would change the application id, which is the one
+ * thing the buildTypes comment further down says never to do, because every
+ * phone carrying the old id opens the new build with nothing in it.
+ */
+val fenceFlowEnv = (localProperties.getProperty("fenceflow.env") ?: "prod").trim().lowercase()
+if (fenceFlowEnv != "prod" && fenceFlowEnv != "dev") {
+    throw GradleException("fenceflow.env in local.properties must be 'dev' or 'prod', not '$fenceFlowEnv'.")
+}
+val isDevBackend = fenceFlowEnv == "dev"
+
+val supabaseUrl: String = localProperties.getProperty(
+    if (isDevBackend) "supabase.dev.url" else "supabase.url", ""
+)
+val supabaseKey: String = localProperties.getProperty(
+    if (isDevBackend) "supabase.dev.key" else "supabase.key", ""
+)
+
+// Failing here rather than falling back. A dev build that quietly reverts to
+// the live database because two properties were missing is precisely the
+// accident this whole arrangement exists to prevent, and it would look
+// exactly like a working dev build until it charged somebody.
+if (isDevBackend && (supabaseUrl.isBlank() || supabaseKey.isBlank())) {
+    throw GradleException(
+        "fenceflow.env=dev but supabase.dev.url / supabase.dev.key are missing from local.properties."
+    )
+}
+
+// Printed on every build, so which database this APK talks to is never a guess.
+logger.lifecycle(
+    "FenceFlow backend: " + (if (isDevBackend) "DEV  " else "PRODUCTION  ") + supabaseUrl
+)
 android {
     namespace = "com.fenceestimator.app"
     compileSdk = 35
@@ -52,8 +96,12 @@ android {
         versionCode = gitVersionCode
         versionName = "1.$gitVersionCode"
 
-        buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("supabase.url", "")}\"")
-        buildConfigField("String", "SUPABASE_KEY", "\"${localProperties.getProperty("supabase.key", "")}\"")
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+
+        // Read by the DEV badge painted over every screen. A phone must never
+        // be able to look like the live app while talking to dev.
+        buildConfigField("boolean", "IS_DEV_BACKEND", isDevBackend.toString())
 
         // Whether this build updates itself.
         //

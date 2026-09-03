@@ -5,6 +5,17 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 
+/**
+ * What is on this phone that the cloud has never seen, in numbers a person
+ * can read rather than a boolean.
+ *
+ * Exists for exactly one moment: telling someone whose data is about to be
+ * wiped, or who is about to sign out, what that would actually cost them.
+ */
+data class UnsyncedSummary(val jobs: Int, val files: Int) {
+    val isEmpty: Boolean get() = jobs == 0 && files == 0
+}
+
 class Repository(private val db: AppDatabase) {
 
     /**
@@ -222,6 +233,66 @@ class Repository(private val db: AppDatabase) {
 
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
     suspend fun clearPendingDeletion(syncId: String) = pendingDeletionDao.clear(syncId)
+
+    /**
+     * Counts what a wipe would actually destroy, using the same signals the
+     * pushers themselves act on rather than inventing new ones.
+     *
+     * A job counts as unsynced by the same test [com.fenceestimator.app.cloud.JobSync]
+     * effectively applies: [Job.lastSyncedAt] is only ever stamped the moment a
+     * push for that row succeeds, and never otherwise, so "never stamped, or
+     * stamped before the last edit" is exactly "the next sync would push this."
+     * Files are counted the same way [JobFileUploader] decides whether to
+     * upload one: a local path with no storage path yet, on a signature, a
+     * survey, a final sign-off, a change-order signature, or a photo.
+     *
+     * Time entries, fence runs, employees and the rest carry no per-row sync
+     * flag -- [EntitySync] pushes those tables in full on every pass rather
+     * than tracking what changed -- so there is no local signal to check them
+     * against and they are deliberately left out rather than guessed at.
+     */
+    suspend fun unsyncedSummary(): UnsyncedSummary {
+        val jobs = jobDao.getAll()
+        val unsyncedJobIds = mutableSetOf<Long>()
+        var files = 0
+
+        jobs.forEach { job ->
+            if (job.lastSyncedAt == null || job.updatedAt > job.lastSyncedAt) {
+                unsyncedJobIds += job.id
+            }
+            if (job.signatureImagePath != null && job.signatureStoragePath == null) {
+                files++; unsyncedJobIds += job.id
+            }
+            if (job.surveyImagePath != null && job.surveyStoragePath == null) {
+                files++; unsyncedJobIds += job.id
+            }
+            if (job.finalSignOffImagePath != null && job.finalSignOffStoragePath == null) {
+                files++; unsyncedJobIds += job.id
+            }
+        }
+        jobPhotoDao.getAll().forEach { photo ->
+            if (photo.storagePath == null) { files++; unsyncedJobIds += photo.jobId }
+        }
+        changeOrderDao.getAll().forEach { order ->
+            if (order.signatureImagePath != null && order.signatureStoragePath == null) {
+                files++; unsyncedJobIds += order.jobId
+            }
+        }
+
+        return UnsyncedSummary(jobs = unsyncedJobIds.size, files = files)
+    }
+
+    /**
+     * True if wiping the local database right now would throw away work the
+     * cloud does not have a copy of yet.
+     *
+     * A pending deletion counts too, even though it is not a job or a file:
+     * it is a delete this phone owes the cloud, and a wipe would forget that
+     * the record was ever supposed to go away, same as it would forget an
+     * un-pushed edit.
+     */
+    suspend fun hasUnsyncedWork(): Boolean =
+        !unsyncedSummary().isEmpty || pendingDeletions().isNotEmpty()
 
 
     fun observeFenceRuns(jobId: Long): Flow<List<FenceRun>> = fenceRunDao.observeForJob(jobId)
