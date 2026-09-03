@@ -67,10 +67,20 @@ Deno.serve(async (req) => {
       if (!qjob || qjob.deleted_at) return json({ error: "That quote is no longer available." }, 404);
 
       const kindWanted = body.kind === "balance" ? "balance" : "deposit";
+      // What is actually still owed, for either button.
+      //
+      // The deposit branch used to ignore money already received entirely, so
+      // the quote page went on offering the same deposit after it had been
+      // paid -- and pressing it charged the homeowner a second time for the
+      // same thing. A deposit is a part of the price, not a separate fee, so
+      // it is reduced by what has come in exactly as the balance is, and can
+      // never exceed the total of the job.
+      const netPaid = (Number(qjob.amount_paid) || 0) - (Number(qjob.refunded_amount) || 0);
+      const total = Number(qjob.contract_total) || 0;
+      const askedDeposit = Math.min(Number(qjob.deposit_amount) || 0, total || Infinity);
       const dollars = kindWanted === "deposit"
-        ? Number(qjob.deposit_amount) || 0
-        : Math.max(0, (Number(qjob.contract_total) || 0)
-            - ((Number(qjob.amount_paid) || 0) - (Number(qjob.refunded_amount) || 0)));
+        ? Math.max(0, askedDeposit - netPaid)
+        : Math.max(0, total - netPaid);
       const cents = Math.round(dollars * 100);
       if (cents < 50) return json({ error: "There is nothing to pay on this quote yet." }, 400);
 
@@ -134,6 +144,33 @@ async function makeLink(
     const profile = { company_id: a.companyId };
     const { jobSyncId, amount, kind, description } = a;
 
+    // Already asked for, and not yet paid? Hand back the same link.
+    //
+    // A homeowner pressing "Pay deposit" twice made two rows carrying the same
+    // order id. The webhook looks that id up expecting one row, finds two,
+    // gives up with "not a FenceFlow payment request", and is never retried --
+    // so the money lands in the contractor's account, nothing is recorded, and
+    // the job still shows the full balance owing.
+    //
+    // Deliberately before the processor is chosen. The first version of this
+    // guard sat inside the Square branch because that is where the audit found
+    // the fault; testing it produced two Stripe rows carrying one order id
+    // within the minute. The defect was never Square's, it was this function's.
+    const { data: openRows } = await admin
+      .from("job_payments")
+      .select("payment_url")
+      .eq("job_sync_id", jobSyncId)
+      .eq("kind", kind)
+      .eq("amount_cents", amount)
+      // No deleted_at filter: this table has no such column, and asking for
+      // one made the whole query fail, which left the guard silently never
+      // firing. Found by testing it rather than by reading it back.
+      .eq("status", "pending")
+      .limit(1);
+    if (openRows?.[0]?.payment_url) {
+      return json({ url: openRows[0].payment_url });
+    }
+
     const { data: company } = await admin
       .from("companies").select("name, stripe_account_id, subscription_plan")
       .eq("id", profile.company_id).single();
@@ -182,7 +219,13 @@ async function makeLink(
         }, 502);
       }
 
-      const linkRes = await fetch(`${host}/v2/online-checkout/payment-links`, {
+      const idemSource = `${jobSyncId}-${kind}-${amount}`;
+    const idemDigest = await crypto.subtle.digest(
+      "SHA-256", new TextEncoder().encode(idemSource));
+    const idemKey = [...new Uint8Array(idemDigest)]
+      .map((n) => n.toString(16).padStart(2, "0")).join("").slice(0, 45);
+
+    const linkRes = await fetch(`${host}/v2/online-checkout/payment-links`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${conn.access_token}`,
@@ -192,7 +235,14 @@ async function makeLink(
         body: JSON.stringify({
           // Square rejects a repeat of the same key, which is what stops a
           // double-tap becoming two payment requests for one job.
-          idempotency_key: `${jobSyncId}-${kind}-${amount}`.slice(0, 45),
+          //
+          // Hashed rather than truncated. A job id is 36 characters and
+          // "-deposit-" is nine, which is exactly the 45 the key was being cut
+          // to -- so the amount, the one part that distinguishes one request
+          // from the next, was sliced off every time. Change a deposit from
+          // $3,680 to $5,000, send it again, and Square returned the original
+          // $3,680 link while our own records said $5,000 was pending.
+          idempotency_key: idemKey,
           quick_pay: {
             name: `${description} -- ${company?.name ?? "FenceFlow"}`,
             price_money: { amount, currency: "USD" },
