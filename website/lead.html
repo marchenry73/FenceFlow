@@ -59,9 +59,14 @@
   </form>
   <p class="foot">Powered by <b>Fence<span>Flow</span></b></p>
 </div>
+<script src="config.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-const API='https://newcrgafcptspmapacrx.supabase.co/functions/v1';
+// Through config.js like every other page. This one carried the project URL
+// on its own, so a dev copy of the site would have posted real homeowners'
+// requests straight into the production jobs table with no red banner to
+// say so.
+const API=window.FENCEFLOW_CONFIG.SUPABASE_URL+'/functions/v1';
 const token=new URLSearchParams(location.search).get('c')||'';
 $('form').addEventListener('submit', async e=>{
   e.preventDefault();

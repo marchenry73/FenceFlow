@@ -60,13 +60,14 @@
 <h2>Payment information</h2>
 <p>
   FenceFlow never receives, stores, or processes card numbers. When you take a card payment, the customer
-  enters their card details directly with our payment provider, <strong>Stripe</strong> —
+  enters their card details directly with the payment provider you connected — <strong>Square</strong> or <strong>Stripe</strong> —
   and the money goes from them to that provider to your bank. We store only the amounts you record, the date,
   the method, and a link to the payment page. Card numbers, expiry dates, and security codes never reach our
   servers or your device.
 </p>
 <p>
-  Stripe handles that card data under its own privacy policy, as the business responsible for it:
+  Whichever you connect handles that card data under its own privacy policy, as the business responsible for it:
+  <a href="https://squareup.com/us/en/legal/general/privacy">Square</a> or
   <a href="https://stripe.com/privacy">Stripe</a>.
 </p>
 
@@ -84,7 +85,7 @@
   <li><strong>Supabase</strong> — hosts the database and handles sign-in.</li>
   <li><strong>Google Firebase</strong> — delivers push notifications. Receives the device push token and a short
       message such as a job name; not your customer records.</li>
-  <li><strong>Stripe</strong> — processes card payments, if you choose to take them.</li>
+  <li><strong>Square</strong> or <strong>Stripe</strong> — processes card payments through your own account there, if you choose to take them.</li>
   <li><strong>Address lookup services</strong> — see below.</li>
 </ul>
 <p>

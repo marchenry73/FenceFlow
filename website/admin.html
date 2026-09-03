@@ -233,13 +233,14 @@
   </div>
 </dialog>
 
+<script src="config.js"></script>
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 // Publishable key by design -- Row Level Security is the actual gate, and the
 // platform-admin policy is what makes this page show anything at all.
-const SUPA_URL = 'https://newcrgafcptspmapacrx.supabase.co';
-const db = createClient(SUPA_URL, 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b');
+const SUPA_URL = window.FENCEFLOW_CONFIG.SUPABASE_URL;
+const db = createClient(SUPA_URL, window.FENCEFLOW_CONFIG.SUPABASE_KEY);
 
 const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n || 0).toFixed(0);

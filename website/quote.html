@@ -179,6 +179,12 @@ const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const API=window.FENCEFLOW_CONFIG.SUPABASE_URL+'/functions/v1';
+// The person reading this page is a homeowner with a link, not a developer.
+// A dropped connection surfaces as a TypeError whose message is 'Failed to
+// fetch'; anything else is a sentence the server wrote for them.
+const friendly=e=>(e instanceof TypeError)
+  ? 'Could not reach the server — check your connection and try again.'
+  : (e && e.message) || 'Something went wrong. Please try again in a moment.';
 const token=new URLSearchParams(location.search).get('t')||'';
 
 let quote=null;
@@ -300,7 +306,7 @@ $('approveBtn').addEventListener('click', async ()=>{
     $('approvedBox').textContent='Approved — thank you, '+(j.approvedBy||name)
       +'! '+(quote.company.name||'Your contractor')+' has been told.';
   }catch(e){
-    err.textContent=e.message; err.style.display='block'; $('approveBtn').disabled=false;
+    err.textContent=friendly(e); err.style.display='block'; $('approveBtn').disabled=false;
   }
 });
 
@@ -314,7 +320,7 @@ $('payBtn').addEventListener('click', async ()=>{
     if(!r.ok||!j.url) throw new Error(j.error||'Could not open the payment page.');
     location.href=j.url;
   }catch(e){
-    err.textContent=e.message; err.style.display='block'; $('payBtn').disabled=false;
+    err.textContent=friendly(e); err.style.display='block'; $('payBtn').disabled=false;
   }
 });
 

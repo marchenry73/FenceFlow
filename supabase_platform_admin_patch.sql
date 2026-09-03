@@ -120,4 +120,4 @@ grant execute on function my_service_status() to authenticated;
 -- makes.
 -- ============================================================
 -- update profiles set is_platform_admin = true
--- where id = (select id from auth.users where email = 'marchenry73@gmail.com');
+-- where id = (select id from auth.users where email = 'you@example.com');

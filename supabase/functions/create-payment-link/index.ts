@@ -51,6 +51,8 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json().catch(() => ({}));
+    // Which door the caller came through decides what an error may say.
+    let publicDoor = false;
 
     // ---- door two: a homeowner holding a quote link ----------------------
     //
@@ -58,6 +60,7 @@ Deno.serve(async (req) => {
     // or balance. The amount comes from the job row, never from the request
     // -- a homeowner picks whether to pay, not how much a deposit is.
     if (body?.quoteToken) {
+      publicDoor = true;
       const tok = String(body.quoteToken).trim();
       if (!/^[0-9a-f-]{36}$/.test(tok)) return json({ error: "That link is not valid." }, 400);
       const { data: qjob } = await admin
@@ -127,7 +130,17 @@ Deno.serve(async (req) => {
       companyId: profile.company_id, jobSyncId, amount, kind, description,
     });
   } catch (e) {
-    return json({ error: (e as Error).message }, 500);
+    // The real reason goes to the function log, where somebody who can act
+    // on it will read it. A homeowner holding a quote link gets a sentence
+    // written for them; a signed-in contractor gets the processor's own
+    // wording, which is usually the instruction they need ("reconnect
+    // Square"). Neither gets a table name.
+    console.error("create-payment-link", (e as Error).message);
+    return json({
+      error: publicDoor
+        ? "Could not open the payment page right now. Please try again in a moment, or contact your contractor."
+        : (e as Error).message,
+    }, 500);
   }
 });
 
@@ -362,7 +375,10 @@ async function makeLink(
       // summed within one mode so a test payment can never credit a live job.
       livemode: link.livemode === true,
     });
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) {
+      console.error("create-payment-link insert", insertError.message);
+      throw new Error("Could not record the payment request. Try again in a moment.");
+    }
 
     // Report which mode the key is operating in. Test and live keys behave
     // identically right up until a real card is charged, and the only visible

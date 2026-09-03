@@ -106,7 +106,7 @@ if "!FAILED!"=="" (
     echo   Edge Functions -^> Secrets:
     echo.
     echo     STRIPE_SECRET_KEY       your sk_test_... from Stripe
-    echo     SITE_URL                https://marchenry73.github.io/FenceFlow
+    echo     SITE_URL                https://fenceflowapp.com
     echo     STRIPE_WEBHOOK_SECRET   the whsec_... Stripe gives you
     echo                             when you add the webhook endpoint
     echo.
