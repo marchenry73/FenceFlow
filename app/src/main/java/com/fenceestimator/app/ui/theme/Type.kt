@@ -72,10 +72,23 @@ val AppTypography = Typography(
         lineHeight = 28.sp,
         letterSpacing = 0.2.sp,
     ),
+    // The section heading -- Customer, Estimate, Payment -- repeated a dozen
+    // and more times down every job. This one was never set, so it fell back
+    // to the system face and the app's most-read headings were the only ones
+    // NOT in the product's voice. Now it is the same face, a size down again.
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DisplayFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 18.sp,
+        fontSize = 20.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.2.sp,
+    ),
+    titleSmall = TextStyle(
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 17.sp,
+        lineHeight = 21.sp,
+        letterSpacing = 0.2.sp,
     ),
     // Everything read at length stays the system face.
     bodyLarge = TextStyle(
@@ -88,9 +101,31 @@ val AppTypography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
     ),
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+    ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
+    ),
+    // Eyebrows and tile captions: small, medium weight, a touch of tracking
+    // so they read as labels rather than as body text that shrank.
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.4.sp,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.4.sp,
     ),
 )

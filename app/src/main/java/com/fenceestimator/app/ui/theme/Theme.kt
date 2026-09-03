@@ -3,7 +3,10 @@ package com.fenceestimator.app.ui.theme
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -60,6 +63,23 @@ private val DarkColors = darkColorScheme(
     error = ErrorRed,
 )
 
+/**
+ * One scale of corners for the whole app.
+ *
+ * Thirteen different radii were in use, six of them on one report screen,
+ * because every card chose its own. Material's components read these five
+ * -- cards take medium, text fields extraSmall, dialogs extraLarge -- so
+ * setting them here straightens most of the app without touching a screen,
+ * and [Radius] gives hand-drawn surfaces the same numbers to reach for.
+ */
+val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(Radius.sm),
+    medium = RoundedCornerShape(Radius.md),
+    large = RoundedCornerShape(Radius.lg),
+    extraLarge = RoundedCornerShape(Radius.xl),
+)
+
 @Composable
 fun FenceEstimatorTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -87,6 +107,7 @@ fun FenceEstimatorTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = AppShapes,
         content = content
     )
 }
