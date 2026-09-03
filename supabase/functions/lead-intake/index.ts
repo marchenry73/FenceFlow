@@ -41,7 +41,13 @@ Deno.serve(async (req) => {
   const { data: co } = await admin
     .from("companies").select("id, name, suspended")
     .eq("leads_token", token).maybeSingle();
-  if (!co || co.suspended) return json({ error: "That company is not taking requests right now." }, 404);
+  if (!co) return json({ error: "That company is not taking requests right now." }, 404);
+  // company_allowed, not the raw suspended flag. Nothing sets that flag when
+  // a trial simply runs out -- the app and the office lock on the date, via
+  // this function -- so a lapsed company's public form went on collecting
+  // homeowners' requests into an account nobody could open.
+  const { data: allowed } = await admin.rpc("company_allowed", { cid: co.id });
+  if (allowed === false) return json({ error: "That company is not taking requests right now." }, 404);
 
   const body = await req.json().catch(() => ({}));
   const f = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);

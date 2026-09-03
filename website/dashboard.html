@@ -1784,8 +1784,16 @@ async function loadAll(){
   // Profit per job is computed by the database, not here, so this page and
   // the app can never disagree about what a job made -- which is exactly how
   // they came to disagree about everything else.
-  const costing = await db.rpc('job_costing', { from_date: null, to_date: null });
-  jobCosting = costing.error ? [] : (costing.data || []);
+  //
+  // And fetched only on the plan that includes it. renderCosting already
+  // refused to BUILD the panel for Solo and Crew because a hidden panel still
+  // puts the numbers in the page -- but the numbers were already in the page,
+  // in this variable and in the network tab, before render was ever asked.
+  // The same reasoning has to apply to the fetch or it applies to nothing.
+  if (hasAdvancedReports()) {
+    const costing = await db.rpc('job_costing', { from_date: null, to_date: null });
+    jobCosting = costing.error ? [] : (costing.data || []);
+  } else jobCosting = [];
 
   // Only owners, managers and accountants can read this -- a trail a crew
   // member can see is a list of what everyone earns. An error here is a
@@ -1821,8 +1829,10 @@ async function loadAll(){
   // processor already chosen showed as not chosen.
   renderProcessor();
 
-  const aging = await db.rpc('ar_aging');
-  arAging = aging.error ? [] : (aging.data || []);
+  if (hasAdvancedReports()) {
+    const aging = await db.rpc('ar_aging');
+    arAging = aging.error ? [] : (aging.data || []);
+  } else arAging = [];
 
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
   renderTime(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();

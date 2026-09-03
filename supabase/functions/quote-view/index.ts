@@ -51,6 +51,16 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!job || job.deleted_at) return json({ error: "That quote is no longer available." }, 404);
 
+  // Suspension reaches the public pages too. This runs as the service role,
+  // so the RESTRICTIVE not-suspended policies that lock a switched-off
+  // company out of the app and the office never see these reads -- and a
+  // suspended company's quote links went on working: viewable, approvable,
+  // and pushing "Quote approved" to every phone on a company that was shut.
+  // Same answer as a deleted job, on purpose: the homeowner is not the one
+  // who needs to know why.
+  const { data: allowed } = await admin.rpc("company_allowed", { cid: job.company_id });
+  if (allowed === false) return json({ error: "That quote is no longer available." }, 404);
+
   // ------------------------------------------------------------- approve ---
   if (req.method === "POST") {
     const body = await req.json().catch(() => ({}));

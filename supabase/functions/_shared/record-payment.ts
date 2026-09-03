@@ -111,7 +111,11 @@ export async function recordClearedPayment(
     // Latches the figure read-only in the app: what the processor reports is
     // the record, and typing over it is a discrepancy, not a correction.
     payments_from_processor: true,
-    updated_at: new Date().toISOString(),
+    // No updated_at. That column is the edit clock last-edit-wins compares,
+    // and money arriving is not an edit: bumping it here made the cloud row
+    // "newer" than whatever a crew phone had changed offline, so that change
+    // lost the race and was overwritten. Phones learn about the money from
+    // the amount itself and from the ledger, never from the clock.
   }).eq("id", job.id);
 
   return { recorded: true, reason: "recorded against the job", paidAfter: paid };

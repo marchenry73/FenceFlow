@@ -157,6 +157,33 @@ async function makeLink(
     const profile = { company_id: a.companyId };
     const { jobSyncId, amount, kind, description } = a;
 
+    const { data: company } = await admin
+      .from("companies").select("name, stripe_account_id, subscription_plan")
+      .eq("id", profile.company_id).single();
+
+    // Both gates sit ABOVE the processor branch and above the reuse of an
+    // open link. They used to sit at the bottom, in the platform-Stripe path
+    // only -- so a company that had connected Square walked straight past
+    // them: a suspended company kept billing through us, and a Solo company
+    // got the card payments the Crew plan is sold on, for the price of
+    // choosing Square. The processor is a detail; who may raise money is not.
+    // A company that is switched off may not raise money through us. This
+    // function runs as the service role, so RLS is not watching it -- without
+    // this check a suspended or lapsed company kept billing its customers
+    // through FenceFlow while its own account was shut.
+    const { data: entitled } = await admin
+      .rpc("company_allowed", { cid: profile.company_id });
+    if (entitled === false) {
+      return json({ error: "This FenceFlow account is not active. Check the Billing tab." }, 403);
+    }
+
+    // Card payments are sold with the Crew plan. Enforced here rather than in
+    // any client, because a client that forgets is not a paywall. A blank plan
+    // is a hand-granted company from before plans existed -- no cap applies.
+    if ((company?.subscription_plan ?? "").toLowerCase() === "solo") {
+      return json({ error: "Card payments are part of the Crew plan. Upgrade in the dashboard's Billing tab." }, 403);
+    }
+
     // Already asked for, and not yet paid? Hand back the same link.
     //
     // A homeowner pressing "Pay deposit" twice made two rows carrying the same
@@ -184,9 +211,6 @@ async function makeLink(
       return json({ url: openRows[0].payment_url });
     }
 
-    const { data: company } = await admin
-      .from("companies").select("name, stripe_account_id, subscription_plan")
-      .eq("id", profile.company_id).single();
     // Which processor this company takes card payments through.
     //
     // One place decides, so adding a third means adding a branch here and a
@@ -328,22 +352,6 @@ async function makeLink(
       }, 501);
     }
 
-    // A company that is switched off may not raise money through us. This
-    // function runs as the service role, so RLS is not watching it -- without
-    // this check a suspended or lapsed company kept billing its customers
-    // through FenceFlow while its own account was shut.
-    const { data: entitled } = await admin
-      .rpc("company_allowed", { cid: profile.company_id });
-    if (entitled === false) {
-      return json({ error: "This FenceFlow account is not active. Check the Billing tab." }, 403);
-    }
-
-    // Card payments are sold with the Crew plan. Enforced here rather than in
-    // any client, because a client that forgets is not a paywall. A blank plan
-    // is a hand-granted company from before plans existed -- no cap applies.
-    if ((company?.subscription_plan ?? "").toLowerCase() === "solo") {
-      return json({ error: "Card payments are part of the Crew plan. Upgrade in the dashboard's Billing tab." }, 403);
-    }
 
     // Create the product inline with the price. This used to be a separate
     // /products call first: three sequential Stripe round trips on top of a
