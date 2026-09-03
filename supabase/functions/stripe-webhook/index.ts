@@ -295,12 +295,25 @@ async function fcmAccessToken(sa: any): Promise<string> {
 }
 
 Deno.serve(async (req) => {
+  // No secret, no service. Both sibling webhooks already refuse in this
+  // position and this one did not: the missing value arrived at verify() as
+  // undefined, was encoded as the literal text "undefined", and became the
+  // HMAC key -- so anyone who worked out the secret was unset could sign their
+  // own events and have this function believe them. Refusing loudly also means
+  // a deployment that forgot the secret fails visibly rather than quietly
+  // accepting nothing.
+  const signingSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
+  if (!signingSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET is not set; refusing to trust any event.");
+    return new Response("Webhook not configured", { status: 500 });
+  }
+
   const raw = await req.text();
 
   const ok = await verify(
     raw,
     req.headers.get("stripe-signature"),
-    Deno.env.get("STRIPE_WEBHOOK_SECRET")!,
+    signingSecret,
   );
   if (!ok) return new Response("Bad signature", { status: 400 });
 
