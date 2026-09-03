@@ -141,14 +141,20 @@ Deno.serve(async (req) => {
   const [{ data: company }, { data: items }, { data: runs }, { data: conn }] =
     await Promise.all([
       admin.from("companies").select("name, phone, email").eq("id", job.company_id).single(),
+      // Pinned to the company as well as the job. The job id alone was the
+      // key, so a row written under another company but carrying this job's
+      // id would have been priced into this quote -- defence in depth against
+      // exactly the cross-company write the rest of the system guards for.
       admin.from("estimate_line_items")
         .select("description, quantity, unit, unit_price, taxable, sort_order")
+        .eq("company_id", job.company_id)
         .eq("job_sync_id", job.sync_id).is("deleted_at", null)
         .order("sort_order"),
       admin.from("fence_runs")
         .select("label, fence_type, color_or_finish, points_encoded, gates_encoded, " +
           "closed_loop, panel_height_ft, post_spacing_ft, manual_linear_feet, " +
           "wood_style, aluminum_style, fabric_height_ft, split_rail_count, is_teardown")
+        .eq("company_id", job.company_id)
         .eq("job_sync_id", job.sync_id).is("deleted_at", null),
       admin.from("payment_connections")
         .select("processor, external_id, access_token")

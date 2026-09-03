@@ -125,12 +125,20 @@ Deno.serve(async (req) => {
     const orderId = String(payment.order_id ?? "").trim();
     if (!orderId) return new Response("no order on the payment");
 
-    const { data: request } = await admin
+    // First of however many. maybeSingle() throws when two rows carry the
+    // same order id, and until this morning a double-tap on Pay made exactly
+    // that -- so the webhook gave up, answered "not ours", Square stopped
+    // retrying, and the money sat in the account with nothing recorded. The
+    // duplicate is now prevented at the source; this makes sure that if one
+    // ever slips through anyway, the payment still lands.
+    const { data: requests } = await admin
       .from("job_payments")
       .select("job_sync_id, company_id, status")
       .eq("processor", "square")
       .eq("external_id", orderId)
-      .maybeSingle();
+      .order("created_at", { ascending: true })
+      .limit(1);
+    const request = requests?.[0];
 
     if (!request?.job_sync_id) {
       // A payment on their Square account that did not come from a FenceFlow
