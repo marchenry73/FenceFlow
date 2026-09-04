@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +37,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.rememberCoroutineScope
@@ -62,7 +62,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fenceestimator.app.R
@@ -71,14 +70,13 @@ import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.isWon
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.Money
+import com.fenceestimator.app.ui.theme.Space
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.NumberFormat
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,6 +104,7 @@ fun JobsListScreen(
     val ent = com.fenceestimator.app.ui.components.LocalEntitlements.current
     val pendingHours by viewModel.pendingHours.collectAsState()
     val allPayments by viewModel.allPayments.collectAsState()
+    val jobTotals by viewModel.jobTotals.collectAsState()
     val pendingPlanChanges by viewModel.pendingPlanChanges.collectAsState()
     // Search and status filter for the job list below the dashboard.
     var query by remember { mutableStateOf("") }
@@ -173,6 +172,9 @@ fun JobsListScreen(
         var progress by remember {
             mutableStateOf<com.fenceestimator.app.cloud.ApkUpdater.Progress?>(null)
         }
+        // Resolved here, in composable scope, because onOpenInBrowser below
+        // is a plain click handler and cannot call stringResource itself.
+        val noBrowserMessage = stringResource(R.string.jobpolish_no_browser)
 
         com.fenceestimator.app.ui.onboarding.UpdateAvailableDialog(
             release = release,
@@ -198,15 +200,25 @@ fun JobsListScreen(
                 }
             },
             onOpenInBrowser = {
-                runCatching {
+                // The dialog only closes once the browser actually opened. A
+                // phone with nothing registered for http(s) links used to
+                // dismiss anyway, leaving no way back to the download except
+                // waiting for the next app-resume check.
+                val opened = runCatching {
                     ctx.startActivity(
                         android.content.Intent(
                             android.content.Intent.ACTION_VIEW,
                             android.net.Uri.parse(release.downloadUrl)
                         )
                     )
+                }.isSuccess
+                if (opened) {
+                    updateDismissed = true
+                } else {
+                    android.widget.Toast.makeText(
+                        ctx, noBrowserMessage, android.widget.Toast.LENGTH_LONG
+                    ).show()
                 }
-                updateDismissed = true
             },
             onLater = { updateDismissed = true }
         )
@@ -337,8 +349,8 @@ fun JobsListScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(Space.screen),
+                verticalArrangement = Arrangement.spacedBy(Space.row)
             ) {
                 // Only shown when there is something to say. A permanent "all
                 // good" badge is wallpaper -- people stop seeing it, and then
@@ -539,6 +551,7 @@ fun JobsListScreen(
                     HomeDashboard(
                         ownerName = profile.ownerName,
                         jobs = jobs,
+                        jobTotals = jobTotals,
                         payments = allPayments,
                         pendingHours = pendingHours.size,
                         pendingPlanChanges = pendingPlanChanges,
@@ -550,11 +563,13 @@ fun JobsListScreen(
                         onOpenJob = onOpenJob,
                         onOpenSchedule = onOpenSchedule,
                         // Solo's cards still show the numbers -- they are Solo
-                        // features -- but stop navigating into screens the
-                        // plan does not include.
-                        onOpenPipeline = if (ent.pipeline) onOpenPipeline else ({}),
-                        onOpenReports = if (ent.reports) onOpenReports else ({}),
-                        onOpenTimeApproval = if (ent.timeAndCrew) onOpenTimeApproval else ({})
+                        // features. HomeDashboard reads the plan itself now and
+                        // shows a lock instead of quietly swallowing the tap --
+                        // a tile that rippled and did nothing used to read as
+                        // the app being broken.
+                        onOpenPipeline = onOpenPipeline,
+                        onOpenReports = onOpenReports,
+                        onOpenTimeApproval = onOpenTimeApproval
                     )
                 }
 
@@ -618,11 +633,23 @@ fun JobsListScreen(
                     }
                 }
                 items(filteredJobs, key = { it.id }) { job ->
-                    JobCard(
-                        job = job,
+                    JobRow(
+                        customerName = job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
+                        address = job.address,
+                        status = job.status,
+                        trailingText = Money.short(jobTotals[job.id] ?: 0.0),
                         onClick = { onOpenJob(job.id) },
-                        onDelete = if (session.canDelete) {
-                            { pendingDelete = job }
+                        showStatusPill = true,
+                        action = if (session.canDelete) {
+                            {
+                                IconButton(onClick = { pendingDelete = job }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = stringResource(R.string.jobpolish_delete_job),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         } else null
                     )
                 }
@@ -642,7 +669,16 @@ fun JobsListScreen(
                 )
             },
             confirmButton = {
-                Button(onClick = { viewModel.deleteJob(job); pendingDelete = null }) { Text(stringResource(R.string.action_delete)) }
+                // Error-tinted, matching the job's own Delete Job flow: red is
+                // reserved for the one button on this screen that cannot be
+                // undone, not spent on ordinary confirmations.
+                Button(
+                    onClick = { viewModel.deleteJob(job); pendingDelete = null },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
                 OutlinedButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.action_cancel)) }
@@ -651,87 +687,6 @@ fun JobsListScreen(
     }
 }
 
-@Composable
-private fun JobCard(job: Job, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .width(5.dp)
-                    .fillMaxHeight()
-                    .background(statusColor(job.status))
-            )
-            Row(
-                modifier = Modifier.weight(1f).padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (job.address.isNotBlank()) {
-                        Text(job.address, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    val scheduled = job.scheduledDate
-                    val dayFmt = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
-                    Text(
-                        if (scheduled != null)
-                            stringResource(R.string.home_scheduled_on, dayFmt.format(Date(scheduled)))
-                        else
-                            stringResource(R.string.home_updated_on, dayFmt.format(Date(job.updatedAt))),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                StatusPill(job.status)
-                if (onDelete != null) {
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Delete job",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun statusColor(status: JobStatus): Color = when (status) {
-    JobStatus.DRAFT -> Color(0xFF8A93A3)
-    JobStatus.SENT -> Color(0xFFFF5A1F)
-    JobStatus.ACCEPTED -> Color(0xFF0E8C7B)
-    JobStatus.COMPLETED -> Color(0xFF1E2A3D)
-    JobStatus.DECLINED -> Color(0xFFE5484D)
-}
-
 /** One wording for a job's status everywhere it is shown; see [JobStatus.label]. */
 @Composable
 internal fun statusLabel(status: JobStatus): String = status.label()
-
-@Composable
-private fun StatusPill(status: JobStatus) {
-    val label = statusLabel(status)
-    val (bg, fg) = when (status) {
-        JobStatus.DRAFT -> Pair(Color(0xFFE3E7ED), Color(0xFF3A4048))
-        JobStatus.SENT -> Pair(Color(0xFFFFC49A), Color(0xFFB23800))
-        JobStatus.ACCEPTED -> Pair(Color(0xFFA9EEE1), Color(0xFF07473D))
-        JobStatus.COMPLETED -> Pair(Color(0xFFD7DEE8), Color(0xFF1E2A3D))
-        JobStatus.DECLINED -> Pair(Color(0xFFFBD3D4), Color(0xFF8C1114))
-    }
-    Box(
-        modifier = Modifier
-            .background(bg, RoundedCornerShape(50))
-            .padding(horizontal = 10.dp, vertical = 5.dp)
-    ) {
-        Text(label, color = fg, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-    }
-}

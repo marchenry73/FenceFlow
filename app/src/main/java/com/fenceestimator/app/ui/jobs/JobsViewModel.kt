@@ -51,6 +51,36 @@ class JobsViewModel(private val repository: Repository) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    /**
+     * Every job's contract total, keyed by id, for the row that shows one
+     * figure per job in a list.
+     *
+     * The same batch [outstandingTotal] already uses -- three queries for the
+     * whole business, computed once when the job list changes, rather than a
+     * job's totals being recomputed every time its row scrolls past. A job
+     * with no runs or line items yet prices to zero rather than being left
+     * out of the map, so a fresh draft's row shows "$0" instead of nothing.
+     */
+    val jobTotals: StateFlow<Map<Long, Double>> = repository.observeJobs()
+        .map { allJobs ->
+            if (allJobs.isEmpty()) return@map emptyMap()
+            val itemsByJob = repository.getAllLineItemsByJob()
+            val runsByJob = repository.getAllFenceRunsByJob()
+            val ordersByJob = repository.getAllChangeOrdersByJob()
+            allJobs.associate { job ->
+                val runs = runsByJob[job.id].orEmpty()
+                val totals = com.fenceestimator.app.estimate.EstimateEngine.computeTotals(
+                    job,
+                    itemsByJob[job.id].orEmpty(),
+                    com.fenceestimator.app.estimate.EstimateEngine.linearFeet(job, runs),
+                    ordersByJob[job.id].orEmpty(),
+                    runs
+                )
+                job.id to totals.grandTotal
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     /** Plan-change requests nobody has answered, so the home screen can say so. */
     val pendingPlanChanges: StateFlow<List<com.fenceestimator.app.data.FieldChange>> =
         repository.observeUnacknowledgedFieldChanges()
