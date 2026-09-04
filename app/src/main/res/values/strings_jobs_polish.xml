@@ -3,19 +3,6 @@
     <!--
         New strings for the jobs/schedule polish pass. Kept out of the main
         strings.xml on purpose, per the rollout note below.
-
-        plan_crew, plan_pro and plan_locked_body belong conceptually to
-        PlanGate/LocalEntitlements (ui/components), not to the jobs screens.
-        They are defined here because PlanGate.kt already references
-        R.string.plan_locked_body and it does not exist anywhere yet, so
-        every screen wiring up PlanGate hits the same missing resource. Once
-        the component's own strings land in the shared strings.xml, these
-        three should move there and be removed from this file.
-    -->
-    <string name="plan_crew">Crew</string>
-    <string name="plan_pro">Pro</string>
-    <string name="plan_locked_body">Included in the %1$s plan.</string>
-
     <!-- JobDetailScreen: card payments, gated behind Crew (see task 1). -->
     <string name="jobpolish_feature_card_payments">Card payments</string>
 
