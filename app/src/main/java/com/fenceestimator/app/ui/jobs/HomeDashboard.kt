@@ -18,13 +18,18 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +49,10 @@ import com.fenceestimator.app.data.HomeCard
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentRecord
+import com.fenceestimator.app.ui.components.EmptyState
+import com.fenceestimator.app.ui.components.LocalEntitlements
+import com.fenceestimator.app.ui.components.LockedNote
+import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.isWon
@@ -52,8 +61,8 @@ import com.fenceestimator.app.estimate.LocateTicket
 import com.fenceestimator.app.ui.theme.Graphite20
 import com.fenceestimator.app.ui.theme.Graphite40
 import com.fenceestimator.app.ui.theme.SafetyOrange80
+import com.fenceestimator.app.ui.theme.Space
 import com.fenceestimator.app.ui.theme.SteelTeal80
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -73,6 +82,8 @@ import java.util.Locale
 fun HomeDashboard(
     ownerName: String,
     jobs: List<Job>,
+    /** Every job's contract total, keyed by id -- see [JobsViewModel.jobTotals]. */
+    jobTotals: Map<Long, Double>,
     payments: List<PaymentRecord>,
     pendingHours: Int,
     pendingPlanChanges: List<FieldChange>,
@@ -86,7 +97,6 @@ fun HomeDashboard(
     onOpenReports: () -> Unit,
     onOpenTimeApproval: () -> Unit
 ) {
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
     val now = System.currentTimeMillis()
     val monthStart = remember(now / 3_600_000L) { startOfMonth(0) }
     val lastMonthStart = remember(now / 3_600_000L) { startOfMonth(-1) }
@@ -107,7 +117,6 @@ fun HomeDashboard(
                 collectedThisMonth = collectedThisMonth,
                 collectedLastMonth = collectedLastMonth,
                 weekly = remember(payments) { weeklyCollected(payments, weeks = 8) },
-                currency = currency,
                 onClick = onOpenReports
             )
         } else {
@@ -122,13 +131,13 @@ fun HomeDashboard(
         }
         AttentionCard(attention, onOpenJob, onOpenTimeApproval)
 
-        ThisWeek(jobs, onOpenJob, onOpenSchedule)
+        ThisWeek(jobs, jobTotals, onOpenJob, onOpenSchedule)
 
         StatTiles(
             jobs = jobs, cards = cards, showMoney = showMoney, workdayHours = workdayHours,
             pendingHours = pendingHours, outstanding = outstanding,
             collectedThisMonth = collectedThisMonth, collectedLastMonth = collectedLastMonth,
-            monthStart = monthStart, lastMonthStart = lastMonthStart, currency = currency,
+            monthStart = monthStart, lastMonthStart = lastMonthStart,
             onOpenSchedule = onOpenSchedule, onOpenPipeline = onOpenPipeline,
             onOpenReports = onOpenReports, onOpenTimeApproval = onOpenTimeApproval
         )
@@ -177,7 +186,6 @@ private fun MoneyHero(
     collectedThisMonth: Double,
     collectedLastMonth: Double,
     weekly: List<Double>,
-    currency: NumberFormat,
     onClick: () -> Unit
 ) {
     val delta = collectedThisMonth - collectedLastMonth
@@ -197,7 +205,7 @@ private fun MoneyHero(
                 letterSpacing = 1.2.sp
             )
             Text(
-                currency.format(outstanding),
+                Money.format(outstanding),
                 color = Color.White,
                 fontSize = 38.sp,
                 fontWeight = FontWeight.Bold,
@@ -212,14 +220,14 @@ private fun MoneyHero(
                         style = MaterialTheme.typography.labelMedium
                     )
                     Text(
-                        currency.format(collectedThisMonth),
+                        Money.format(collectedThisMonth),
                         color = Color.White,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         (if (delta >= 0) "▲ " else "▼ ") +
-                            stringResource(R.string.home_vs_last_month, currency.format(kotlin.math.abs(delta))),
+                            stringResource(R.string.home_vs_last_month, Money.format(kotlin.math.abs(delta))),
                         color = if (delta >= 0) SteelTeal80 else SafetyOrange80,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -431,14 +439,18 @@ private fun AttentionCard(items: List<Attention>, onOpenJob: (Long) -> Unit, onO
 // ---- This week ------------------------------------------------------------
 
 @Composable
-private fun ThisWeek(jobs: List<Job>, onOpenJob: (Long) -> Unit, onOpenSchedule: () -> Unit) {
+private fun ThisWeek(
+    jobs: List<Job>,
+    jobTotals: Map<Long, Double>,
+    onOpenJob: (Long) -> Unit,
+    onOpenSchedule: () -> Unit
+) {
     val today = startOfToday()
     val upcoming = remember(jobs) {
         jobs.filter { (it.scheduledDate ?: 0L) >= today }
             .sortedBy { it.scheduledDate }
             .take(3)
     }
-    if (upcoming.isEmpty()) return
     val dayFmt = remember { SimpleDateFormat("EEE d", Locale.getDefault()) }
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -451,39 +463,38 @@ private fun ThisWeek(jobs: List<Job>, onOpenJob: (Long) -> Unit, onOpenSchedule:
                 SectionTitle(stringResource(R.string.home_this_week), modifier = Modifier.weight(1f))
                 TextButton(onClick = onOpenSchedule) { Text(stringResource(R.string.home_see_schedule)) }
             }
-            upcoming.forEach { job ->
-                Row(
-                    Modifier.fillMaxWidth().clickable { onOpenJob(job.id) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            dayFmt.format(Date(job.scheduledDate ?: today)).replaceFirstChar { it.uppercase() },
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                    Spacer(Modifier.size(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
-                            style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                        if (job.address.isNotBlank()) {
-                            Text(job.address, style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (upcoming.isEmpty()) {
+                // Matches the neighbouring AttentionCard's "all clear" -- an
+                // empty week and a broken query used to look identical, both
+                // rendering as this whole card simply not being here.
+                EmptyState(
+                    stringResource(R.string.jobpolish_nothing_scheduled),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            } else {
+                upcoming.forEach { job ->
+                    JobRow(
+                        customerName = job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
+                        address = job.address,
+                        status = job.status,
+                        trailingText = Money.short(jobTotals[job.id] ?: 0.0),
+                        onClick = { onOpenJob(job.id) },
+                        modifier = Modifier.padding(horizontal = Space.screen, vertical = 4.dp),
+                        leading = {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    dayFmt.format(Date(job.scheduledDate ?: today)).replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
                         }
-                    }
-                    Icon(Icons.Filled.ChevronRight, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
                 }
             }
         }
@@ -504,7 +515,6 @@ private fun StatTiles(
     collectedLastMonth: Double,
     monthStart: Long,
     lastMonthStart: Long,
-    currency: NumberFormat,
     onOpenSchedule: () -> Unit,
     onOpenPipeline: () -> Unit,
     onOpenReports: () -> Unit,
@@ -520,8 +530,8 @@ private fun StatTiles(
     fun valueFor(card: HomeCard): String = when (card) {
         HomeCard.SCHEDULED_THIS_WEEK -> jobs.count { it.scheduledDate != null && it.scheduledDate in now..weekEnd }.toString()
         HomeCard.WON_THIS_MONTH -> wonThisMonth.toString()
-        HomeCard.COLLECTED_THIS_MONTH -> currency.format(collectedThisMonth)
-        HomeCard.OUTSTANDING -> currency.format(outstanding)
+        HomeCard.COLLECTED_THIS_MONTH -> Money.short(collectedThisMonth)
+        HomeCard.OUTSTANDING -> Money.short(outstanding)
         HomeCard.UNPAID_JOBS -> jobs.count { it.status.isWon && it.paymentStatus != PaymentStatus.PAID_IN_FULL }.toString()
         HomeCard.HOURS_TO_APPROVE -> pendingHours.toString()
         HomeCard.DRAFT_ESTIMATES -> jobs.count { it.status == JobStatus.DRAFT }.toString()
@@ -531,7 +541,7 @@ private fun StatTiles(
     val context = androidx.compose.ui.platform.LocalContext.current
     fun captionFor(card: HomeCard): String? = when (card) {
         HomeCard.WON_THIS_MONTH -> context.getString(R.string.home_last_month, wonLastMonth.toString())
-        HomeCard.COLLECTED_THIS_MONTH -> context.getString(R.string.home_last_month, currency.format(collectedLastMonth))
+        HomeCard.COLLECTED_THIS_MONTH -> context.getString(R.string.home_last_month, Money.short(collectedLastMonth))
         else -> null
     }
 
@@ -542,27 +552,62 @@ private fun StatTiles(
         else -> onOpenPipeline
     }
 
+    // Which plan-gated screen a tile opens, so a Solo phone can say so instead
+    // of rippling and going nowhere. Schedule isn't sold behind a plan, so
+    // SCHEDULED_THIS_WEEK and OVERRUNNING are never locked here.
+    val ent = LocalEntitlements.current
+    fun lockedFeatureFor(card: HomeCard): String? = when (card) {
+        HomeCard.COLLECTED_THIS_MONTH, HomeCard.OUTSTANDING ->
+            if (ent.reports) null else context.getString(R.string.jobpolish_feature_reports)
+        HomeCard.HOURS_TO_APPROVE ->
+            if (ent.timeAndCrew) null else context.getString(R.string.jobpolish_feature_time_crew)
+        HomeCard.SCHEDULED_THIS_WEEK, HomeCard.OVERRUNNING -> null
+        else -> if (ent.pipeline) null else context.getString(R.string.jobpolish_feature_pipeline)
+    }
+
     // Money cards are dropped rather than blanked for anyone without permission
     // to see money -- an empty card labelled "Collected" still tells them there
     // is money to know about.
     val visible = cards.filter { showMoney || !it.needsMoney }
-    if (visible.isEmpty()) return
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        visible.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                pair.forEach { card ->
-                    StatTile(
-                        label = card.label(),
-                        value = valueFor(card),
-                        caption = captionFor(card),
-                        modifier = Modifier.weight(1f),
-                        onClick = destinationFor(card)
-                    )
+    var lockedFeature by remember { mutableStateOf<String?>(null) }
+
+    if (visible.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            visible.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    pair.forEach { card ->
+                        val feature = lockedFeatureFor(card)
+                        StatTile(
+                            label = card.label(),
+                            value = valueFor(card),
+                            caption = captionFor(card),
+                            locked = feature != null,
+                            modifier = Modifier.weight(1f),
+                            onClick = if (feature != null) {
+                                { lockedFeature = feature }
+                            } else destinationFor(card)
+                        )
+                    }
+                    if (pair.size == 1) Box(Modifier.weight(1f))
                 }
-                if (pair.size == 1) Box(Modifier.weight(1f))
             }
         }
+    }
+
+    // Named rather than generic: which of the three Crew features this
+    // particular tile is selling matters more here than anywhere else on the
+    // screen, since a tile gives no other clue why it stopped working.
+    lockedFeature?.let { feature ->
+        AlertDialog(
+            onDismissRequest = { lockedFeature = null },
+            confirmButton = {
+                TextButton(onClick = { lockedFeature = null }) { Text(stringResource(R.string.action_done)) }
+            },
+            text = {
+                LockedNote(feature = feature, plan = stringResource(R.string.plan_crew))
+            }
+        )
     }
 }
 
@@ -571,6 +616,7 @@ private fun StatTile(
     label: String,
     value: String,
     caption: String?,
+    locked: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -581,11 +627,21 @@ private fun StatTile(
         modifier = modifier.clickable(onClick = onClick)
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text(
-                label, style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    label, style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (locked) {
+                    Icon(
+                        Icons.Outlined.Lock, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)

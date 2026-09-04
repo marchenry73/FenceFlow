@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,7 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
@@ -45,6 +43,11 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     val viewModel: ScheduleViewModel = viewModel(factory = GenericViewModelFactory { ScheduleViewModel(app.repository) })
     val jobs by viewModel.scheduledJobs.collectAsState()
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.US) }
+    // Compact date for a row's trailing slot -- the day header above a
+    // selected day already carries the full date, so a row only needs the
+    // time; the flat list below has no such header, so it needs a short date.
+    val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.US) }
+    val shortDateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.US) }
     val profile by app.settingsStore.profile.collectAsState(
         initial = com.fenceestimator.app.data.BusinessProfile()
     )
@@ -83,8 +86,8 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
             val workday = (profile.workdayHours - profile.breakHoursPerDay).coerceAtLeast(1.0)
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(com.fenceestimator.app.ui.theme.Space.screen),
+                verticalArrangement = Arrangement.spacedBy(com.fenceestimator.app.ui.theme.Space.section)
             ) {
                 item {
                     MonthCalendar(
@@ -139,30 +142,15 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                         }
                     }
                     items(onDay, key = { it.id }) { job ->
-                        Card(
-                            onClick = { onOpenJob(job.id) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(
-                                    job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                                if (job.address.isNotBlank()) {
-                                    Text(
-                                        job.address,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Text(
-                                    com.fenceestimator.app.estimate.JobSchedule
-                                        .plan(job, workday, day).crewSummary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        com.fenceestimator.app.ui.jobs.JobRow(
+                            customerName = job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
+                            address = job.address,
+                            status = job.status,
+                            trailingText = job.scheduledDate?.let { timeFormat.format(java.util.Date(it)) }.orEmpty(),
+                            caption = com.fenceestimator.app.estimate.JobSchedule
+                                .plan(job, workday, day).crewSummary,
+                            onClick = { onOpenJob(job.id) }
+                        )
                     }
                 }
             }
@@ -173,8 +161,8 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(com.fenceestimator.app.ui.theme.Space.screen),
+                verticalArrangement = Arrangement.spacedBy(com.fenceestimator.app.ui.theme.Space.sm)
             ) {
                 item {
                     val context = androidx.compose.ui.platform.LocalContext.current
@@ -203,15 +191,13 @@ fun ScheduleScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                     }
                 }
                 items(jobs, key = { it.id }) { job ->
-                    Card(onClick = { onOpenJob(job.id) }, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(job.scheduledDate?.let { dateFormat.format(Date(it)) } ?: "", fontWeight = FontWeight.SemiBold)
-                            Text(job.customerName.ifBlank { stringResource(R.string.jobs_untitled) }, style = MaterialTheme.typography.bodyLarge)
-                            if (job.address.isNotBlank()) {
-                                Text(job.address, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
+                    com.fenceestimator.app.ui.jobs.JobRow(
+                        customerName = job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
+                        address = job.address,
+                        status = job.status,
+                        trailingText = job.scheduledDate?.let { shortDateFormat.format(Date(it)) }.orEmpty(),
+                        onClick = { onOpenJob(job.id) }
+                    )
                 }
             }
         }

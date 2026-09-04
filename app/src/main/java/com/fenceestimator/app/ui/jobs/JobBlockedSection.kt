@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -117,7 +116,10 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
                 modifier = Modifier.weight(1f)
             ) { Text(stringResource(R.string.jsec_blocked_text_customer)) }
 
-            Button(
+            // Text and email are equal alternatives -- either one tells the
+            // customer -- so neither gets the filled button; a filled button
+            // here would read as "prefer this one" when there is no preference.
+            OutlinedButton(
                 onClick = {
                     IntentHelpers.openEmailDraft(
                         context, job.email, emailSubject, message
