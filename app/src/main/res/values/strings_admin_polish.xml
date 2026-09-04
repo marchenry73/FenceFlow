@@ -7,12 +7,6 @@
   writes to.
 -->
 <resources>
-    <!-- Shared plan-gate vocabulary (PlanGate.kt / LockedNote), referenced
-         from several owned screens once a feature is gated by plan. -->
-    <string name="plan_crew">Crew</string>
-    <string name="plan_pro">Pro</string>
-    <string name="plan_locked_body">Available on the %1$s plan and up.</string>
-
     <!-- Generic retry action, for a fetch that failed rather than came back empty. -->
     <string name="action_retry">Retry</string>
 
