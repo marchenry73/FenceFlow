@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  New strings for the admin-screens polish pass. Kept out of strings.xml on
+  purpose: these were added by an agent scoped to settings/employees/
+  inventory/catalog/account/reports/lock/pipeline/help/manufacturers, and a
+  second file means that scope never has to touch the one everybody else
+  writes to.
+-->
+<resources>
+    <!-- Shared plan-gate vocabulary (PlanGate.kt / LockedNote), referenced
+         from several owned screens once a feature is gated by plan. -->
+    <string name="plan_crew">Crew</string>
+    <string name="plan_pro">Pro</string>
+    <string name="plan_locked_body">Available on the %1$s plan and up.</string>
+
+    <!-- Generic retry action, for a fetch that failed rather than came back empty. -->
+    <string name="action_retry">Retry</string>
+
+    <!-- AccountScreen / AccountViewModel: a dropped connection while loading
+         the profile must read as "try again", never as "you have no company". -->
+    <string name="acct_profile_unreachable">Could not reach the cloud to load your business — check your signal.</string>
+
+    <!-- SettingsViewModel: the local save always lands; this is only about
+         whether the company's copy in the cloud has caught up yet. -->
+    <string name="set_saved_not_synced">Saved on this phone — not synced yet, will retry.</string>
+
+    <!-- SettingsScreen: the update-checker's "open in browser" fallback, for
+         a device with no browser installed to hand the link to. -->
+    <string name="set_no_browser">No browser could open the link.</string>
+
+    <!-- ReportsScreen: shown where the Profit tile sits for a plan that doesn't include it. -->
+    <string name="rep_profit_margin_locked">Profit and margin</string>
+
+    <!-- InventoryScreen: Tools starts seeded, but once it's cleared out it
+         needs the same explanation Materials already gives for an empty list. -->
+    <string name="inv_no_tools_yet">No tools yet -- tap Add Tool below to build the checklist.</string>
+
+    <!-- CatalogScreen: shown under the price field when Save can't parse it. -->
+    <string name="cat_price_invalid_hint">Enter a price like 12.50</string>
+
+    <!-- AppLock: a cancelled prompt or a hardware error, so the lock screen
+         says what happened instead of just sitting there. -->
+    <string name="lock_auth_not_recognized">Not recognized — try again.</string>
+</resources>

@@ -111,10 +111,11 @@ fun SettingsScreen(
     val profile by viewModel.profile.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val savedMessage = stringResource(R.string.settings_saved)
+    val savedNotSyncedMessage = stringResource(R.string.set_saved_not_synced)
 
     LaunchedEffect(Unit) {
-        viewModel.saved.collect {
-            snackbarHostState.showSnackbar(savedMessage)
+        viewModel.saved.collect { synced ->
+            snackbarHostState.showSnackbar(if (synced) savedMessage else savedNotSyncedMessage)
         }
     }
     val pricingTiers by viewModel.pricingTiers.collectAsState()
@@ -265,10 +266,18 @@ fun SettingsScreen(
                     //
                     // Crew management is a Crew-plan feature; a Solo company
                     // has no seats to manage (the server refuses joins too).
+                    // Hiding the row outright used to read as the app simply
+                    // not having the option -- this says what it is and where
+                    // to get it instead.
                     if (com.fenceestimator.app.ui.components.LocalEntitlements.current.timeAndCrew) {
                         OutlinedButton(onClick = onOpenEmployees, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.set_manage_crew))
                         }
+                    } else {
+                        com.fenceestimator.app.ui.components.LockedNote(
+                            feature = stringResource(R.string.set_manage_crew),
+                            plan = stringResource(R.string.plan_crew)
+                        )
                     }
                 }
             }
@@ -1033,13 +1042,21 @@ private fun UpdateCheckRow(modifier: Modifier = Modifier) {
                 }
             },
             onOpenInBrowser = {
-                runCatching {
+                val opened = runCatching {
                     context.startActivity(
                         android.content.Intent(
                             android.content.Intent.ACTION_VIEW,
                             android.net.Uri.parse(release.downloadUrl)
                         )
                     )
+                }
+                // A device with no browser at all used to fail here with
+                // nothing on screen -- the dialog just closed and the tap
+                // appeared to have done nothing.
+                if (opened.isFailure) {
+                    android.widget.Toast.makeText(
+                        context, context.getString(R.string.set_no_browser), android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
                 found = null
             },
