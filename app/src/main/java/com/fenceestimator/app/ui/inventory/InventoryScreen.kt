@@ -96,6 +96,18 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(Space.row)
         ) {
             item {
+                // This checklist is per-device: it never leaves the phone it was
+                // ticked off on, unlike the estimate and job data around it that
+                // does sync. Said up front so a crew member checking a different
+                // phone doesn't assume the list they see there is the same one.
+                Text(
+                    stringResource(R.string.inv_local_only_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = Space.xs)
+                )
+            }
+            item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.inv_materials), style = MaterialTheme.typography.titleMedium)
                     OutlinedButton(onClick = { viewModel.syncMaterialsFromEstimate() }) {

@@ -479,7 +479,14 @@ data class PricingTier(
     val laborFlatFee: Double = 0.0,
     val markupPercent: Double = 0.0,
     val discountPercent: Double = 0.0,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    /**
+     * This phone's last-edit-wins clock for sync, same idea as [Job.updatedAt].
+     * Bumped on every user edit (see Repository.savePricingTier); a pull
+     * stores the cloud's own clock here instead of bumping it, so the next
+     * push doesn't mistake a just-downloaded row for a fresh local edit.
+     */
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "material_items")

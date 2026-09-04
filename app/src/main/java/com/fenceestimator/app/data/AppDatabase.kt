@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
         PaymentRecord::class
     ],
-    version = 31,
+    version = 32,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -475,13 +475,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Gives pricing tiers their own last-edit-wins clock, the same idea
+         * `jobs.updatedAt` already uses. Without one, catalog/tier sync could
+         * only overwrite unconditionally in both directions -- whichever side
+         * happened to sync last won, even if it was the stale copy.
+         *
+         * Backfilled to *now*, not 0. A phone mid-upgrade may be holding tier
+         * edits it made offline and never got to push; stamping them 0 would
+         * make every one of them read as older than whatever the cloud
+         * happens to hold, so the very first sync after the upgrade would
+         * silently discard them. Stamping *now* instead means this phone's
+         * copy wins that first race, which is the same bias the app already
+         * has everywhere else: local edits are assumed real until something
+         * provably newer shows up.
+         *
+         * material_items needs no equivalent column -- it already has
+         * `lastUpdated`, just never wired into sync until now.
+         */
+        private val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pricing_tiers` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE `pricing_tiers` SET `updatedAt` = ${System.currentTimeMillis()}")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a

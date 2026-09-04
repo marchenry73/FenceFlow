@@ -322,6 +322,16 @@ class Repository(private val db: AppDatabase) {
         materialDao.insert(item.copy(lastUpdated = System.currentTimeMillis()))
     suspend fun updateMaterialItem(item: MaterialItem) =
         materialDao.update(item.copy(lastUpdated = System.currentTimeMillis()))
+    /**
+     * The pull half of catalog sync. Stores the row exactly as handed in --
+     * including its `lastUpdated`, which the caller has already set to the
+     * cloud's own clock -- rather than bumping it to now. Bumping here would
+     * make a row this phone just downloaded look like a fresh local edit, and
+     * the very next push would send it straight back up as though someone had
+     * just typed it.
+     */
+    suspend fun saveMaterialItemFromCloud(item: MaterialItem): Long = materialDao.insert(item)
+    suspend fun updateMaterialItemFromCloud(item: MaterialItem) = materialDao.update(item)
     suspend fun deleteMaterialItem(item: MaterialItem) = deleteSynced(item.syncId, "material_items") { materialDao.delete(item) }
     suspend fun addMaterialItems(items: List<MaterialItem>) = materialDao.insertAll(items)
 
@@ -387,7 +397,20 @@ class Repository(private val db: AppDatabase) {
     suspend fun deleteManufacturer(m: Manufacturer) = deleteSynced(m.syncId, "manufacturers") { manufacturerDao.delete(m) }
 
     fun observePricingTiers(): Flow<List<PricingTier>> = pricingTierDao.observeAll()
-    suspend fun savePricingTier(tier: PricingTier): Long =
+    /** A user edit (including the initial creation of a new tier), so this phone's clock moves. */
+    suspend fun savePricingTier(tier: PricingTier): Long {
+        val stamped = tier.copy(updatedAt = System.currentTimeMillis())
+        return if (stamped.id == 0L) pricingTierDao.insert(stamped) else { pricingTierDao.update(stamped); stamped.id }
+    }
+    /**
+     * The pull half of pricing-tier sync. Stores the row exactly as handed in
+     * -- including its `updatedAt`, which the caller has already set to the
+     * cloud's own clock -- rather than bumping it to now. Bumping here would
+     * make a tier this phone just downloaded look like a fresh local edit, and
+     * the very next push would send it straight back up as though someone had
+     * just typed it.
+     */
+    suspend fun savePricingTierFromCloud(tier: PricingTier): Long =
         if (tier.id == 0L) pricingTierDao.insert(tier) else { pricingTierDao.update(tier); tier.id }
     suspend fun deletePricingTier(tier: PricingTier) = deleteSynced(tier.syncId, "pricing_tiers") { pricingTierDao.delete(tier) }
 
