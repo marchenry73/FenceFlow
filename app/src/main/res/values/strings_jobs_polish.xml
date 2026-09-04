@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-        New strings for the jobs/schedule polish pass. Kept out of the main
-        strings.xml on purpose, per the rollout note below.
+    <!-- New strings for the jobs/schedule polish pass. -->
     <!-- JobDetailScreen: card payments, gated behind Crew (see task 1). -->
     <string name="jobpolish_feature_card_payments">Card payments</string>
 
