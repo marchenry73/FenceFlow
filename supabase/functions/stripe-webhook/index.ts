@@ -7,6 +7,7 @@
 // Deploy with JWT verification OFF -- Stripe calls this, not a signed-in user.
 // The signature check below is what authenticates the caller instead.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { recordRefund, minorToMajor } from "../_shared/record-payment.ts";
 
 /**
  * Verifies Stripe's signature header over the RAW body.
@@ -216,7 +217,9 @@ async function applyPaymentToJob(admin: any, payment: any) {
     // is the record; typing over it is not a correction, it is a discrepancy
     // that only surfaces when the customer disputes the bill.
     payments_from_processor: true,
-    updated_at: new Date().toISOString(),
+    // No updated_at: that is the edit clock last-edit-wins compares, and
+    // money arriving is not an edit. The shared recorder stopped sending it
+    // this morning; this copy had kept on.
   }).eq("id", job.id);
 
 
@@ -343,7 +346,14 @@ Deno.serve(async (req) => {
 
             if (pending && pending.status !== "paid") {
               await admin.from("job_payments")
-                .update({ status: "paid", paid_at: new Date().toISOString() })
+                .update({
+                  status: "paid",
+                  paid_at: new Date().toISOString(),
+                  // A refund arrives naming the payment intent and nothing of
+                  // ours; the link id we stored is not on it. Kept here so the
+                  // refund branch below can place the money.
+                  external_id: String(session.payment_intent ?? ""),
+                })
                 .eq("id", pending.id);
 
               await applyPaymentToJob(admin, pending);
@@ -373,6 +383,40 @@ Deno.serve(async (req) => {
       }
 
       // ---- Subscription created, renewed, lapsed, or cancelled ----
+      // ---- Money went back ----
+      //
+      // One event per Refund object with that refund's own amount and a
+      // stable id, so two partial refunds on one charge are two rows.
+      // charge.refunded is deliberately not used: it carries the charge's
+      // CUMULATIVE amount_refunded and would double-count the second one.
+      case "refund.created":
+      case "refund.updated": {
+        const refund = event.data.object;
+        if (String(refund?.status ?? "") !== "succeeded") break;
+        const intent = String(refund?.payment_intent ?? "");
+        if (!intent) break;
+        const { data: rows } = await admin.from("job_payments")
+          .select("job_sync_id, company_id")
+          .eq("processor", "stripe")
+          .eq("external_id", intent)
+          .limit(1);
+        const request = rows?.[0];
+        // A refund on a charge that did not come from a FenceFlow link, or
+        // one taken before the intent was being kept: nothing to place it
+        // against, and nothing to retry.
+        if (!request?.job_sync_id) break;
+        await recordRefund(admin, {
+          companyId: request.company_id,
+          jobSyncId: request.job_sync_id,
+          amount: minorToMajor(Number(refund.amount ?? 0), String(refund.currency ?? "usd")),
+          refundId: String(refund.id ?? ""),
+          processor: "stripe",
+          reason: String(refund.reason ?? ""),
+          liveMode: event.livemode === true,
+        });
+        break;
+      }
+
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {

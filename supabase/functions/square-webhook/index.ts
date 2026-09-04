@@ -11,7 +11,7 @@
  * product once had a job reading $42,301 paid against $10,755 of records.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
-import { recordClearedPayment } from "../_shared/record-payment.ts";
+import { recordClearedPayment, recordRefund, minorToMajor } from "../_shared/record-payment.ts";
 
 /**
  * Is this really from Square?
@@ -89,6 +89,53 @@ Deno.serve(async (req) => {
     // the bank. APPROVED means authorised and not yet captured, which is not
     // the same thing and must not mark a job paid.
     const type = String(event?.type ?? "");
+
+    // ---- money went back ---------------------------------------------
+    //
+    // A refund issued from the contractor's Square dashboard or POS. Only a
+    // COMPLETED one is money that has actually left; PENDING can still be
+    // rejected. Placed by the same order id the payment was placed by: a
+    // refund on a card taken at the counter has no FenceFlow row and is not
+    // ours to record.
+    if (type === "refund.created" || type === "refund.updated") {
+      const refund = event?.data?.object?.refund;
+      if (!refund || String(refund.status ?? "") !== "COMPLETED") {
+        return new Response("not a completed refund");
+      }
+      const merchantId = String(event?.merchant_id ?? "");
+      if (!merchantId) return new Response("no merchant on the event");
+      const { data: conn } = await admin
+        .from("payment_connections")
+        .select("company_id")
+        .eq("processor", "square")
+        .eq("external_id", merchantId)
+        .maybeSingle();
+      if (!conn?.company_id) return new Response("no company for that merchant");
+
+      const orderId = String(refund.order_id ?? "").trim();
+      if (!orderId) return new Response("no order on the refund");
+      const { data: requests } = await admin
+        .from("job_payments")
+        .select("job_sync_id, company_id")
+        .eq("processor", "square")
+        .eq("external_id", orderId)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const request = requests?.[0];
+      if (!request?.job_sync_id) return new Response("not a FenceFlow payment request");
+
+      const outcome = await recordRefund(admin, {
+        companyId: request.company_id ?? conn.company_id,
+        jobSyncId: request.job_sync_id,
+        amount: minorToMajor(Number(refund?.amount_money?.amount ?? 0), String(refund?.amount_money?.currency ?? "USD")),
+        refundId: String(refund.id ?? ""),
+        processor: "square",
+        reason: String(refund.reason ?? ""),
+        liveMode: String(Deno.env.get("SQUARE_ENVIRONMENT") ?? "sandbox") === "production",
+      });
+      return new Response(outcome.reason);
+    }
+
     if (type !== "payment.created" && type !== "payment.updated") {
       return new Response("no action needed");
     }
