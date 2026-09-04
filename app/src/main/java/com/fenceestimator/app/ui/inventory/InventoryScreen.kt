@@ -57,9 +57,11 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.InventoryChecklistItem
 import com.fenceestimator.app.data.InventoryKind
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.PhotoFiles
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,8 +92,8 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.row)
         ) {
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -104,12 +106,7 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
             }
             val materials = items.filter { it.kind == InventoryKind.MATERIAL }
             if (materials.isEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.misc_inventory_no_materials),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                item { EmptyState(stringResource(R.string.misc_inventory_no_materials)) }
             }
             materials.forEach { checkItem -> item { ChecklistRow(checkItem, viewModel) } }
             item {
@@ -120,6 +117,12 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
 
             item { Text(stringResource(R.string.inv_tools), style = MaterialTheme.typography.titleMedium) }
             val tools = items.filter { it.kind == InventoryKind.TOOL }
+            // Tools sat blank with no explanation when the seeded default list
+            // was cleared -- Materials already says why an empty list is empty,
+            // Tools needs the same rather than looking like the load failed.
+            if (tools.isEmpty()) {
+                item { EmptyState(stringResource(R.string.inv_no_tools_yet)) }
+            }
             tools.forEach { checkItem -> item { ChecklistRow(checkItem, viewModel) } }
             item {
                 OutlinedButton(onClick = { addDialogKind = InventoryKind.TOOL }, modifier = Modifier.fillMaxWidth()) {
@@ -149,7 +152,7 @@ private fun ChecklistRow(item: InventoryChecklistItem, viewModel: InventoryViewM
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().padding(Space.row), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = item.checked, onCheckedChange = { viewModel.toggle(item) })
             Text(
                 item.description,
@@ -183,7 +186,9 @@ private fun AddItemDialog(kind: InventoryKind, onConfirm: (String) -> Unit, onDi
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (kind == InventoryKind.TOOL) R.string.misc_inventory_add_tool_title else R.string.misc_inventory_add_material_title)) },
         text = { OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.inv_description)) }) },
-        confirmButton = { Button(onClick = { onConfirm(text) }) { Text(stringResource(R.string.action_add)) } },
+        confirmButton = {
+            Button(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text(stringResource(R.string.action_add)) }
+        },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

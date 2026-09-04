@@ -65,13 +65,13 @@ import com.fenceestimator.app.data.MaterialItem
 import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.estimate.ImportMatch
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.labelRes
+import com.fenceestimator.app.ui.theme.Space
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import java.text.NumberFormat
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,7 +83,6 @@ fun CatalogScreen(onBack: () -> Unit) {
     val importMatches by viewModel.importMatches.collectAsState()
     val importError by viewModel.importError.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
 
     var editingItem by remember { mutableStateOf<MaterialItem?>(null) }
     var showNewDialog by remember { mutableStateOf(false) }
@@ -154,7 +153,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Space.lg, vertical = Space.sm)
             )
 
             // The tabs are meaningless while a search is filtering across all
@@ -174,8 +173,8 @@ fun CatalogScreen(onBack: () -> Unit) {
             }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(Space.screen),
+                verticalArrangement = Arrangement.spacedBy(Space.sm)
             ) {
                 if (!searching) {
                     item {
@@ -194,7 +193,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
+                                Column(modifier = Modifier.padding(Space.md)) {
                                     Text(
                                         if (unpricedCount == 1) stringResource(R.string.cat_unpriced_one)
                                         else stringResource(R.string.cat_unpriced_many, unpricedCount),
@@ -223,7 +222,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                     item {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                            Text("  " + stringResource(R.string.cat_reading_pdf), modifier = Modifier.padding(start = 8.dp))
+                            Text("  " + stringResource(R.string.cat_reading_pdf), modifier = Modifier.padding(start = Space.sm))
                         }
                     }
                 }
@@ -252,14 +251,13 @@ fun CatalogScreen(onBack: () -> Unit) {
                         Text(
                             category.label(),
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                            modifier = Modifier.padding(top = Space.sm, bottom = Space.xs)
                         )
                         itemsInCategory.forEach { item ->
                             // Which fence type an item belongs to is obvious
                             // from the tab, but not from a search result.
                             CatalogRow(
                                 item = item,
-                                currency = currency,
                                 manufacturers = manufacturers,
                                 showFenceType = searching || showOnlyUnpriced
                             ) { editingItem = item }
@@ -305,7 +303,6 @@ fun CatalogScreen(onBack: () -> Unit) {
 @Composable
 private fun CatalogRow(
     item: MaterialItem,
-    currency: NumberFormat,
     manufacturers: List<Manufacturer>,
     showFenceType: Boolean = false,
     onClick: () -> Unit
@@ -314,17 +311,17 @@ private fun CatalogRow(
     val unpriced = item.unitPrice <= 0.0
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(Space.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 categoryIcon(item.category), contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 12.dp)
+                modifier = Modifier.padding(end = Space.md)
             )
             Column(
-                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                modifier = Modifier.weight(1f).padding(end = Space.sm)
             ) {
                 Text(item.name, fontWeight = FontWeight.Medium)
                 if (item.colorOrFinish.isNotBlank()) {
@@ -344,7 +341,7 @@ private fun CatalogRow(
                             if (manufacturerName != null) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                             androidx.compose.foundation.shape.RoundedCornerShape(50)
                         )
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .padding(horizontal = Space.sm, vertical = 2.dp)
                 ) {
                     Text(
                         manufacturerName ?: stringResource(R.string.cat_default_price),
@@ -355,13 +352,13 @@ private fun CatalogRow(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    if (unpriced) stringResource(R.string.cat_no_price) else stringResource(R.string.cat_price_per_unit, currency.format(item.unitPrice), item.unit),
+                    if (unpriced) stringResource(R.string.cat_no_price) else stringResource(R.string.cat_price_per_unit, Money.format(item.unitPrice), item.unit),
                     fontWeight = FontWeight.SemiBold,
                     // "No price" rather than "$0.00 / ea", because $0.00 reads
                     // as a decision and this is an omission.
                     color = if (unpriced) MaterialTheme.colorScheme.error else Color.Unspecified
                 )
-                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.cat_edit), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.cat_edit), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = Space.xs))
             }
         }
     }
@@ -378,6 +375,10 @@ private fun EditItemDialog(
 ) {
     var name by remember { mutableStateOf(item.name) }
     var priceText by remember { mutableStateOf(item.unitPrice.toString()) }
+    // Save used to just no-op on a price it couldn't parse, with nothing on
+    // screen to say why -- the dialog looked like the button had stopped
+    // working. This keeps it open and points at the field instead.
+    var priceError by remember { mutableStateOf(false) }
     var taxable by remember { mutableStateOf(item.taxable) }
     var unit by remember { mutableStateOf(item.unit) }
     var colorOrFinish by remember { mutableStateOf(item.colorOrFinish) }
@@ -406,26 +407,35 @@ private fun EditItemDialog(
             val defaultPriceAnyManufacturer = stringResource(R.string.cat_default_price_any_manufacturer)
             Column {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.cat_name)) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(Space.sm))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text(stringResource(R.string.est_unit)) }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text(stringResource(R.string.cat_price_dollars)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(
+                        value = priceText,
+                        onValueChange = { priceText = it; priceError = false },
+                        label = { Text(stringResource(R.string.cat_price_dollars)) },
+                        isError = priceError,
+                        supportingText = {
+                            if (priceError) Text(stringResource(R.string.cat_price_invalid_hint))
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = colorOrFinish, onValueChange = { colorOrFinish = it }, label = { Text(stringResource(R.string.cat_color_finish_optional)) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(
                     value = coversFtText, onValueChange = { coversFtText = it },
                     label = { Text(stringResource(R.string.cat_covers_ft)) },
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 EnumDropdown(stringResource(R.string.cat_category), MaterialCategory.values().toList(), category, { context.getString(it.labelRes()) }) { category = it }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 EnumDropdown(stringResource(R.string.cat_fence_type), FenceType.values().toList(), fenceType, { context.getString(it.labelRes()) }) { fenceType = it }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 EnumDropdown(stringResource(R.string.cat_role_in_engine), MaterialRole.values().toList(), role, { context.getString(it.labelRes()) }) { role = it }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 EnumDropdown(
                     stringResource(R.string.cat_priced_from),
                     listOf<Manufacturer?>(null) + manufacturers,
@@ -436,14 +446,14 @@ private fun EditItemDialog(
                     stringResource(R.string.cat_default_price_explain),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = taxable, onCheckedChange = { taxable = it })
                     Text(" " + stringResource(R.string.cat_taxable))
                 }
 
                 if (manufacturers.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Space.md))
                     Text(stringResource(R.string.cat_also_price_for_another), style = MaterialTheme.typography.titleMedium)
                     val otherManufacturers = manufacturers.filter { it.id != manufacturerId }
                     if (otherManufacturers.isNotEmpty()) {
@@ -464,7 +474,10 @@ private fun EditItemDialog(
         },
         confirmButton = {
             Button(onClick = {
-                priceText.replace(',', '.').toDoubleOrNull() ?: return@Button
+                if (priceText.replace(',', '.').toDoubleOrNull() == null) {
+                    priceError = true
+                    return@Button
+                }
                 onSave(currentEdits())
             }) { Text(stringResource(R.string.action_save)) }
         },
@@ -472,7 +485,7 @@ private fun EditItemDialog(
             Row {
                 if (item.id != 0L) {
                     OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.sm))
                 }
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
@@ -507,7 +520,6 @@ private fun ImportReviewDialog(
     onDismiss: () -> Unit
 ) {
     val selectedFlags = remember(matches) { matches.map { mutableStateOf(it.priceChanged || it.existingMatch == null) }.toMutableList() }
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -529,10 +541,10 @@ private fun ImportReviewDialog(
                                 Text(match.parsed.rawDescription.take(60), style = MaterialTheme.typography.bodyMedium)
                                 val label = if (match.existingMatch != null) {
                                     if (match.priceChanged)
-                                        stringResource(R.string.cat_price_change, currency.format(match.existingMatch.unitPrice), currency.format(match.parsed.rate))
-                                    else stringResource(R.string.cat_no_change, currency.format(match.parsed.rate))
+                                        stringResource(R.string.cat_price_change, Money.format(match.existingMatch.unitPrice), Money.format(match.parsed.rate))
+                                    else stringResource(R.string.cat_no_change, Money.format(match.parsed.rate))
                                 } else {
-                                    stringResource(R.string.cat_new_item_price, currency.format(match.parsed.rate))
+                                    stringResource(R.string.cat_new_item_price, Money.format(match.parsed.rate))
                                 }
                                 Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }

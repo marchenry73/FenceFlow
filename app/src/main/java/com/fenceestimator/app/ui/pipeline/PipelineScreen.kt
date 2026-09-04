@@ -36,11 +36,11 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.jobs.JobsViewModel
-import java.text.NumberFormat
-import java.util.Locale
+import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +48,6 @@ fun PipelineScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: JobsViewModel = viewModel(factory = GenericViewModelFactory { JobsViewModel(app.repository) })
     val jobs by viewModel.jobs.collectAsState()
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
 
     // A job counts as "being estimated" once there's a scheduled date or any
     // money on it -- enough signal to separate real work from a bare lead.
@@ -69,14 +68,13 @@ fun PipelineScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     ) { padding ->
         LazyRow(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(Space.md),
+            horizontalArrangement = Arrangement.spacedBy(Space.md)
         ) {
             items(PipelineStage.flow) { stage ->
                 StageColumn(
                     stage = stage,
                     jobs = grouped[stage].orEmpty(),
-                    currency = currency,
                     onOpenJob = onOpenJob
                 )
             }
@@ -85,7 +83,6 @@ fun PipelineScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
                     StageColumn(
                         stage = PipelineStage.LOST,
                         jobs = lost,
-                        currency = currency,
                         onOpenJob = onOpenJob
                     )
                 }
@@ -98,12 +95,11 @@ fun PipelineScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
 private fun StageColumn(
     stage: PipelineStage,
     jobs: List<Job>,
-    currency: NumberFormat,
     onOpenJob: (Long) -> Unit
 ) {
     Column(modifier = Modifier.width(260.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = Space.sm),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(stage.label(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
@@ -120,13 +116,13 @@ private fun StageColumn(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             items(jobs, key = { it.id }) { job ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onOpenJob(job.id) },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column(Modifier.padding(12.dp)) {
+                    Column(Modifier.padding(Space.md)) {
                         Text(
                             job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
                             fontWeight = FontWeight.Medium,
@@ -141,7 +137,7 @@ private fun StageColumn(
                         }
                         if (JobMoney.netPaid(job) > 0.0) {
                             Text(
-                                stringResource(R.string.misc_pipeline_paid, currency.format(JobMoney.netPaid(job))),
+                                stringResource(R.string.misc_pipeline_paid, Money.format(JobMoney.netPaid(job))),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

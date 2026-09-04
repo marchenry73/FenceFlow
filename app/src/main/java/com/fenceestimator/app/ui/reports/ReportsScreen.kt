@@ -68,9 +68,15 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.data.ExpenseCategory
 import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.LockedNote
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.labelRes
+import com.fenceestimator.app.ui.theme.Graphite20
+import com.fenceestimator.app.ui.theme.Graphite40
+import com.fenceestimator.app.ui.theme.Graphite80
+import com.fenceestimator.app.ui.theme.SafetyOrange40
+import com.fenceestimator.app.ui.theme.Space
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -128,16 +134,16 @@ fun ReportsScreen(onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(Space.screen),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // ---- Filters -------------------------------------------------
             item {
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.row)) {
                         Row(
                             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm)
                         ) {
                             ReportPreset.values().filter { it != ReportPreset.CUSTOM }.forEach { p ->
                                 FilterChip(
@@ -147,7 +153,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                                 )
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                             OutlinedButton(onClick = { pickingFrom = true }, modifier = Modifier.weight(1f)) {
                                 Text(if (from == 0L) stringResource(R.string.rep_start) else dateFmt.format(from), maxLines = 1)
                             }
@@ -157,7 +163,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                         }
                         Row(
                             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm)
                         ) {
                             HourFilter.values().forEach { h ->
                                 FilterChip(
@@ -203,11 +209,22 @@ fun ReportsScreen(onBack: () -> Unit) {
             }
 
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.row), modifier = Modifier.fillMaxWidth()) {
                     if (ent.advancedReports) {
                         BigStat(stringResource(R.string.rep_stat_profit), currency.format(totals.profit), Modifier.weight(1f)) {
                             showing = StatDetails.profit(context, totals) { currency.format(it) }
                         }
+                    } else {
+                        // Costs and expenses stay visible below Pro -- they are the
+                        // owner's own records entered by their own company. Profit
+                        // and margin are the money intelligence Pro is sold on, so
+                        // this says what is missing instead of leaving a silent gap
+                        // where the Profit tile used to sit.
+                        LockedNote(
+                            feature = stringResource(R.string.rep_profit_margin_locked),
+                            plan = stringResource(R.string.plan_pro),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                     BigStat(
                         stringResource(R.string.rep_stat_jobs_won), totals.jobsWon.toString(), Modifier.weight(1f),
@@ -218,7 +235,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                 }
             }
             if (ent.advancedReports) item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.row), modifier = Modifier.fillMaxWidth()) {
                     BigStat(stringResource(R.string.reports_margin), "${"%.0f".format(totals.marginPercent)}%", Modifier.weight(1f)) {
                         showing = StatDetails.margin(context, totals)
                     }
@@ -226,7 +243,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.row), modifier = Modifier.fillMaxWidth()) {
                     BigStat(
                         stringResource(R.string.rep_stat_close_rate), "${"%.0f".format(totals.closeRatePercent)}%", Modifier.weight(1f),
                         delta = deltaOf(totals.closeRatePercent, data.prev.closeRatePercent, data.prev.comparable)
@@ -344,7 +361,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                 }
                 item {
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(stringResource(R.string.rep_the_numbers), style = MaterialTheme.typography.titleMedium)
                             ReportRow(stringResource(R.string.reports_collected), currency.format(totals.collected))
                             ReportRow(stringResource(R.string.rep_row_material_cost), currency.format(totals.materialCost))
@@ -510,7 +527,7 @@ fun ReportsScreen(onBack: () -> Unit) {
             if (tablesOpen) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(stringResource(R.string.rep_crew_pay), style = MaterialTheme.typography.titleMedium)
                             if (data.crewDetail.isEmpty()) {
                                 EmptyNote(stringResource(R.string.rep_empty_no_clocked_time))
@@ -535,7 +552,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                 }
                 item {
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(stringResource(R.string.rep_still_owed), style = MaterialTheme.typography.titleMedium)
                             if (data.outstanding.isEmpty()) {
                                 EmptyNote(stringResource(R.string.rep_empty_all_paid))
@@ -549,7 +566,7 @@ fun ReportsScreen(onBack: () -> Unit) {
                 }
                 item {
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(stringResource(R.string.rep_clock_in_out), style = MaterialTheme.typography.titleMedium)
                             if (data.timeDetail.isEmpty()) {
                                 EmptyNote(stringResource(R.string.rep_empty_no_shifts))
@@ -673,7 +690,7 @@ private fun ChartCard(
     onPick: ((ChartRow) -> Unit)? = null
 ) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             val visible = rows.filter { it.value.isFinite() }
             val max = visible.maxOfOrNull { it.value } ?: 0.0
@@ -692,7 +709,7 @@ private fun ChartCard(
                                 if (onPick != null) Modifier.clickable { onPick(row) }
                                 else Modifier
                             ),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(Space.xs)
                     ) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(row.label, style = MaterialTheme.typography.bodyMedium)
@@ -747,7 +764,7 @@ private fun TrendCard(
         modifier = Modifier.fillMaxWidth(),
         enabled = onPick != null
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             val pts = rows.filter { it.value.isFinite() }
             if (pts.size < 2 || pts.all { it.value == 0.0 }) {
@@ -830,7 +847,7 @@ private fun SplitCard(
 ) {
     val costTotal = costParts.sumOf { it.second }
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.md)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             if (inValue <= 0.0 && costTotal <= 0.0) {
                 EmptyNote(empty)
@@ -851,7 +868,7 @@ private fun SplitCard(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Space.xs))
                     Box(
                         Modifier.fillMaxWidth()
                             .fillMaxHeight((inValue / top).toFloat().coerceIn(0.02f, 1f))
@@ -866,7 +883,7 @@ private fun SplitCard(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Space.xs))
                     Column(
                         Modifier.fillMaxWidth()
                             .fillMaxHeight((costTotal / top).toFloat().coerceIn(0.02f, 1f)),
@@ -897,7 +914,7 @@ private fun SplitCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 LegendRow(SalesGreen, inLabel, format(inValue))
                 costParts.filter { it.second > 0.0 }.forEachIndexed { i, part ->
                     LegendRow(palette[i % palette.size], part.first, format(part.second))
@@ -917,7 +934,7 @@ private fun DonutCard(
     onPick: ((ChartRow) -> Unit)? = null
 ) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.md)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             val live = rows.filter { it.value.isFinite() && it.value > 0.0 }
             if (live.isEmpty()) {
@@ -964,7 +981,7 @@ private fun DonutCard(
                 }
             }
             if (onPick != null) TapHint()
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 live.forEachIndexed { i, r ->
                     LegendRow(
                         palette[i % palette.size], r.label, format(r.value),
@@ -988,7 +1005,7 @@ private fun FunnelCard(
     onPick: ((ChartRow) -> Unit)? = null
 ) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             val live = rows.filter { it.value.isFinite() && it.value > 0.0 }
             if (live.size < 2) {
@@ -1066,7 +1083,7 @@ private fun LegendRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.sm))
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
         Text(
             value,
@@ -1114,7 +1131,7 @@ private fun DeltaChip(d: Delta) {
             .padding(top = 6.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(bg)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .padding(horizontal = Space.sm, vertical = 2.dp)
     )
 }
 
@@ -1147,11 +1164,11 @@ private fun HeroBand(collected: String, delta: Delta?, weekly: List<Double>, onT
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(
-                Brush.linearGradient(listOf(Color(0xFF1E2A3D), Color(0xFF0F1826)))
+                Brush.linearGradient(listOf(Graphite40, Graphite20))
             )
             .clickable { onTap() }
     ) {
-        Box(Modifier.fillMaxWidth().height(3.dp).background(Color(0xFFFF5A1F)))
+        Box(Modifier.fillMaxWidth().height(3.dp).background(SafetyOrange40))
         Row(
             Modifier.padding(18.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1176,9 +1193,9 @@ private fun HeroBand(collected: String, delta: Delta?, weekly: List<Double>, onT
                         color = when (it.up) {
                             true -> Color(0xFF7DE0B9)
                             false -> Color(0xFFF1A1A4)
-                            null -> Color(0xFFAEBBCC)
+                            null -> Graphite80
                         },
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = Space.xs)
                     )
                 }
             }
@@ -1193,11 +1210,11 @@ private fun HeroBand(collected: String, delta: Delta?, weekly: List<Double>, onT
                             val y = (size.height - 4) - ((v / mx) * (size.height - 10)).toFloat()
                             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
                         }
-                        drawPath(path, Color(0xFFFF5A1F),
+                        drawPath(path, SafetyOrange40,
                             style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
                         val lastY = (size.height - 4) -
                             ((weekly.last() / mx) * (size.height - 10)).toFloat()
-                        drawCircle(Color(0xFFFF5A1F), radius = 3.5.dp.toPx(),
+                        drawCircle(SafetyOrange40, radius = 3.5.dp.toPx(),
                             center = Offset(size.width, lastY))
                     }
                     Text(
@@ -1272,7 +1289,7 @@ private fun AttentionRow(
         ))
     }
     if (items.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         items.forEach { item ->
             Card(
                 onClick = { show(item.detail) },
@@ -1288,15 +1305,15 @@ private fun AttentionRow(
                     Box(
                         Modifier.width(4.dp).height(34.dp)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(Color(0xFFFF5A1F))
+                            .background(SafetyOrange40)
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Text(
                         item.n,
                         style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.row))
                     Text(
                         item.what,
                         style = MaterialTheme.typography.bodyMedium,
@@ -1386,10 +1403,10 @@ private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
     ) {
       androidx.compose.material3.Surface(
         modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f),
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface
       ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(Space.card)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1405,8 +1422,8 @@ private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.rep_close)) }
             }
-            Spacer(Modifier.height(8.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(Space.sm))
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 item {
                     Text(detail.howItWorks, style = MaterialTheme.typography.bodyMedium)
                 }
@@ -1419,7 +1436,7 @@ private fun StatDetailSheet(detail: StatDetail, onDismiss: () -> Unit) {
                         ) {
                             Text(
                                 caveat,
-                                Modifier.padding(10.dp),
+                                Modifier.padding(Space.row),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
@@ -1487,7 +1504,7 @@ private fun ReportRow(label: String, value: String, bold: Boolean = false) {
             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.weight(1f)
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.sm))
         Text(value, fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium)
     }
 }

@@ -45,6 +45,7 @@ import com.fenceestimator.app.cloud.SyncPhase
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.resolve
+import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,7 +142,14 @@ fun AccountScreen(
                     )
                 }
                 item { SyncStatusCard(onRecalculate = { viewModel.recalculateTotals() }) }
-                if (state.needsCompany) {
+                // A dropped connection while loading the profile must never be
+                // read as "no company" -- that is exactly the mixup that once
+                // put the setup form in front of an owner who already had a
+                // business, and they built a second, empty one. Only a fetch
+                // that actually succeeded and came back empty gets the form.
+                if (state.profileFetchFailed) {
+                    item { ProfileUnreachableSection(onRetry = { viewModel.refresh() }) }
+                } else if (state.needsCompany) {
                     item { CompanySetupSection(viewModel) }
                 }
             }
@@ -333,6 +341,28 @@ private fun SyncStatusCard(onRecalculate: () -> Unit) {
     }
 }
 
+/**
+ * Shown instead of [CompanySetupSection] while the profile fetch itself
+ * failed -- never while it succeeded and simply found no company. Offering
+ * the setup form here is how an owner who already has a business ends up
+ * building a second, empty one because their signal dropped mid-load.
+ */
+@Composable
+private fun ProfileUnreachableSection(onRetry: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
+            Text(
+                stringResource(R.string.acct_profile_unreachable),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.action_retry))
+            }
+        }
+    }
+}
+
 @Composable
 private fun CompanySetupSection(viewModel: AccountViewModel) {
     var companyName by remember { mutableStateOf("") }
@@ -393,7 +423,14 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
                 value = ownerName, onValueChange = { ownerName = it },
                 label = { Text(stringResource(R.string.acct_your_name)) }, modifier = Modifier.fillMaxWidth()
             )
-            Button(
+            // Setup code above is the recommended path -- it is the one FenceFlow
+            // actually sends people to sign up with. This and Join below are
+            // both alternatives to it, so only setup code gets the filled
+            // button; two equally-weighted filled buttons for mutually
+            // exclusive paths made it look like a choice with no wrong answer,
+            // when picking this over a setup code you were sent means a second,
+            // empty business instead of the one waiting for you.
+            OutlinedButton(
                 onClick = { viewModel.createCompany(companyName, ownerName) },
                 enabled = companyName.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()

@@ -18,6 +18,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.theme.Space
 
 /**
  * Tracks how long the app has been idle and reports whether it should be locked.
@@ -74,8 +79,15 @@ fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
     // call stringResource itself.
     val promptTitle = stringResource(R.string.onb_unlock_prompt_title)
     val promptSubtitle = stringResource(R.string.onb_unlock_prompt_subtitle)
+    val notRecognizedMessage = stringResource(R.string.lock_auth_not_recognized)
+    // Only onAuthenticationSucceeded used to be handled, so a cancelled prompt
+    // or a hardware error (a cold finger, a sensor locked out from too many
+    // tries) left this screen exactly as it was -- nothing said what happened,
+    // and nothing pointed at the button that tries again. It read as frozen.
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     fun prompt() {
+        errorMessage = null
         if (activity == null) {
             // No FragmentActivity to host the prompt: better to let the user in
             // than to trap them behind a dialog that can never appear.
@@ -97,7 +109,16 @@ fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     IdleTimer.reset()
+                    errorMessage = null
                     onUnlocked()
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    errorMessage = errString.toString()
+                }
+
+                override fun onAuthenticationFailed() {
+                    errorMessage = notRecognizedMessage
                 }
             }
         ).authenticate(info)
@@ -112,7 +133,7 @@ fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.padding(32.dp)
+                modifier = Modifier.padding(Space.xxl)
             ) {
                 Icon(
                     Icons.Filled.Lock,
@@ -125,6 +146,9 @@ fun LockScreen(useBiometric: Boolean, onUnlocked: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                errorMessage?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
                 Button(onClick = { prompt() }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (useBiometric) stringResource(R.string.onb_unlock) else stringResource(R.string.onb_unlock_with_screen_lock))
                 }

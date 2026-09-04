@@ -19,13 +19,23 @@ import kotlinx.coroutines.launch
 data class AccountUiState(
     val signedInEmail: String? = null,
     val profile: CloudProfile? = null,
+    /**
+     * A dropped connection while fetching the profile used to look exactly
+     * like a successful fetch that came back with no company -- both left
+     * [profile] null. That put the "set up your business" form in front of
+     * someone who already had one, and they built a second, empty company.
+     * This is set only when the fetch itself threw, so needsCompany below
+     * cannot fire on a network hiccup.
+     */
+    val profileFetchFailed: Boolean = false,
     val busy: Boolean = false,
     val message: UiMessage? = null
 ) {
     /** Not signed in means local-only mode, which keeps full access on your own device. */
     val role: UserRole get() = profile?.userRole ?: UserRole.OWNER
     val isSignedIn: Boolean get() = signedInEmail != null
-    val needsCompany: Boolean get() = isSignedIn && profile?.companyId == null
+    /** True only after a fetch that actually succeeded came back with no company. */
+    val needsCompany: Boolean get() = isSignedIn && !profileFetchFailed && profile?.companyId == null
 }
 
 class AccountViewModel(
@@ -43,8 +53,19 @@ class AccountViewModel(
         if (!SupabaseModule.isConfigured) return
         viewModelScope.launch {
             val email = SupabaseModule.currentUserEmail()
-            val profile = if (email != null) runCatching { SupabaseModule.fetchProfile() }.getOrNull() else null
-            _state.value = _state.value.copy(signedInEmail = email, profile = profile)
+            if (email == null) {
+                _state.value = _state.value.copy(signedInEmail = null, profile = null, profileFetchFailed = false)
+                return@launch
+            }
+            // Distinguish "the fetch threw" from "the fetch succeeded and there
+            // really is no company" -- collapsing them into one null used to
+            // show the setup form to someone whose signal just dropped.
+            val result = runCatching { SupabaseModule.fetchProfile() }
+            _state.value = _state.value.copy(
+                signedInEmail = email,
+                profile = result.getOrNull(),
+                profileFetchFailed = result.isFailure
+            )
         }
     }
 
@@ -151,11 +172,12 @@ class AccountViewModel(
             _state.value = _state.value.copy(busy = true, message = null)
             val result = runCatching { block() }
             val email = runCatching { SupabaseModule.currentUserEmail() }.getOrNull()
-            val profile = if (email != null) runCatching { SupabaseModule.fetchProfile() }.getOrNull() else null
+            val profileResult = if (email != null) runCatching { SupabaseModule.fetchProfile() } else null
             _state.value = _state.value.copy(
                 busy = false,
                 signedInEmail = email,
-                profile = profile,
+                profile = profileResult?.getOrNull(),
+                profileFetchFailed = profileResult?.isFailure ?: false,
                 message = result.fold(
                     onSuccess = { successMessage },
                     onFailure = { error ->

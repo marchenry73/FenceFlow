@@ -48,6 +48,7 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,8 +56,6 @@ fun EmployeesScreen(onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: EmployeesViewModel = viewModel(factory = GenericViewModelFactory { EmployeesViewModel(app.repository) })
     val employees by viewModel.employees.collectAsState()
-    val session by app.session.state.collectAsState()
-    val canDelete = session.canDelete
     var removing by remember { mutableStateOf<Employee?>(null) }
 
     var editing by remember { mutableStateOf<Employee?>(null) }
@@ -76,7 +75,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
         }
     ) { padding ->
         if (employees.isEmpty()) {
-            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(Space.xl)) {
                 Text(
                     stringResource(R.string.emp_no_crew_yet),
                     style = MaterialTheme.typography.bodyMedium,
@@ -86,8 +85,8 @@ fun EmployeesScreen(onBack: () -> Unit) {
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(Space.screen),
+                verticalArrangement = Arrangement.spacedBy(Space.sm)
             ) {
                 // People still here first, then people who have left. Former
                 // crew stay visible rather than vanishing: you need to find
@@ -98,7 +97,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
                     key = { it.id }
                 ) { e ->
                     Card(onClick = { editing = e }, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(Space.md)) {
                             Text(
                                 e.name.ifBlank { stringResource(R.string.emp_unnamed) },
                                 fontWeight = FontWeight.Medium,
@@ -126,8 +125,6 @@ fun EmployeesScreen(onBack: () -> Unit) {
         EditEmployeeDialog(
             employee = e,
             onSave = { viewModel.save(it); editing = null },
-            onDelete = { viewModel.delete(e); editing = null },
-            canDelete = canDelete,
             onRemoveFromCrew = { editing = null; removing = e },
             onPutBackOnCrew = { viewModel.reactivate(e); editing = null },
             onDismiss = { editing = null }
@@ -145,7 +142,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
             onDismissRequest = { removing = null },
             title = { Text(stringResource(R.string.emp_take_off_crew_title, leaver.name.ifBlank { stringResource(R.string.emp_this_person) })) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.row)) {
                     Text(
                         stringResource(R.string.emp_take_off_crew_body),
                         style = MaterialTheme.typography.bodyMedium
@@ -201,8 +198,6 @@ fun EmployeesScreen(onBack: () -> Unit) {
         EditEmployeeDialog(
             employee = Employee(),
             onSave = { viewModel.save(it); showNew = false },
-            onDelete = { showNew = false },
-            canDelete = canDelete,
             onDismiss = { showNew = false }
         )
     }
@@ -212,8 +207,6 @@ fun EmployeesScreen(onBack: () -> Unit) {
 private fun EditEmployeeDialog(
     employee: Employee,
     onSave: (Employee) -> Unit,
-    onDelete: () -> Unit,
-    canDelete: Boolean,
     onRemoveFromCrew: () -> Unit = {},
     onPutBackOnCrew: () -> Unit = {},
     onDismiss: () -> Unit
@@ -233,12 +226,12 @@ private fun EditEmployeeDialog(
         text = {
             Column {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.emp_name)) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = role, onValueChange = { role = it }, label = { Text(stringResource(R.string.emp_role_hint)) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 Text(stringResource(R.string.emp_how_paid), style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     com.fenceestimator.app.data.PayType.values().forEach { type ->
                         androidx.compose.material3.FilterChip(
                             selected = payType == type,
@@ -247,7 +240,7 @@ private fun EditEmployeeDialog(
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 if (payType == com.fenceestimator.app.data.PayType.HOURLY) {
                     OutlinedTextField(
                         value = hourlyRate, onValueChange = { hourlyRate = it },
@@ -272,11 +265,11 @@ private fun EditEmployeeDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text(stringResource(R.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text(stringResource(R.string.field_email)) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.field_notes)) }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             }
         },
@@ -307,7 +300,7 @@ private fun EditEmployeeDialog(
                     } else {
                         OutlinedButton(onClick = onPutBackOnCrew) { Text(stringResource(R.string.emp_put_back_on)) }
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.sm))
                 }
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }

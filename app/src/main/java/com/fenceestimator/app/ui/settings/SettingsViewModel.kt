@@ -44,22 +44,28 @@ class SettingsViewModel(
     val manufacturers: StateFlow<List<Manufacturer>> = repository.observeManufacturers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _saved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val saved: SharedFlow<Unit> = _saved
+    /** True when the save reached the cloud, false when it only landed on this phone. */
+    private val _saved = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    val saved: SharedFlow<Boolean> = _saved
 
     fun save(profile: BusinessProfile) {
         appScope.launch {
             // Local write first and uncancellable: settings must survive even if
-            // the cloud is unreachable or the user backs out immediately.
+            // the cloud is unreachable or the user backs out immediately. This
+            // write is never gated on the push below, so a dead connection
+            // cannot slow down or block the local save.
             withContext(NonCancellable) { settingsStore.save(profile) }
-            _saved.tryEmit(Unit)
 
             // Then push to the company account so a reinstall or a second phone
-            // gets the same setup. Failure here is not worth interrupting anyone
-            // over -- the next save or sync retries it.
-            if (SupabaseModule.isConfigured) {
-                runCatching { SettingsSync.push(profile) }
+            // gets the same setup. This used to fail silently -- the "Saved"
+            // snackbar fired from the local write alone, so a failed push here
+            // was invisible until someone noticed the other phone never got it.
+            val synced = if (SupabaseModule.isConfigured) {
+                runCatching { SettingsSync.push(profile) }.isSuccess
+            } else {
+                true // Nothing to sync to, so the local save is the whole story.
             }
+            _saved.tryEmit(synced)
         }
     }
 

@@ -48,48 +48,12 @@ class TrashViewModel(
      * rather than only this one, and it comes down the path that has already
      * been made to behave correctly.
      */
-    /**
-     * Deletes for good. The one action in the app with no way back, which is
-     * why it is confirmed separately rather than sitting next to Restore as an
-     * equal-looking button.
-     */
-    fun purge(record: TrashedRecord) {
-        val companyId = session.state.value.companyId ?: return
-        viewModelScope.launch {
-            _busy.value = true
-            TrashBin.purge(companyId, record)
-                .onSuccess {
-                    _message.value = UiMessage(R.string.vm_permanently_deleted)
-                    load()
-                }
-                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_delete, listOf(it.message.orEmpty())) }
-            _busy.value = false
-        }
-    }
-
-    /**
-     * Deletes several for good in one go. Each row is its own request -- a
-     * failure on one must not stop the rest -- and the list reloads once at
-     * the end rather than flickering per item.
-     */
-    fun purgeMany(records: List<TrashedRecord>) {
-        val companyId = session.state.value.companyId ?: return
-        viewModelScope.launch {
-            _busy.value = true
-            var ok = 0
-            var failed = 0
-            records.forEach { record ->
-                TrashBin.purge(companyId, record)
-                    .onSuccess { ok++ }
-                    .onFailure { failed++ }
-            }
-            _message.value = if (failed == 0) UiMessage(R.string.vm_deleted_count, listOf(ok))
-                else UiMessage(R.string.vm_deleted_some_failed, listOf(ok, failed))
-            load()
-            _busy.value = false
-        }
-    }
-
+    // "Purge forever" used to call TrashBin.purge, which the database refuses
+    // for every role -- there is no DELETE policy on this table for anyone,
+    // owner included. The call returned success and did nothing, so someone
+    // who purged an item saw it come right back on the next load with no
+    // explanation. Removed rather than fixed: nothing in this app is meant to
+    // be destroyed, and Restore already covers the only path anyone needs.
     fun restore(record: TrashedRecord) {
         val companyId = session.state.value.companyId ?: return
         viewModelScope.launch {

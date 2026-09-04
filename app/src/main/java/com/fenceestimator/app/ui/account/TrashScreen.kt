@@ -18,7 +18,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -28,8 +27,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +37,7 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.resolve
+import com.fenceestimator.app.ui.theme.Space
 
 /**
  * Everything that was deleted, and putting it back.
@@ -68,12 +66,6 @@ fun TrashScreen(onBack: () -> Unit) {
     LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
 
     val dayFormat = remember { java.text.SimpleDateFormat("d MMM yyyy, h:mm a", java.util.Locale.US) }
-    var purging by remember { mutableStateOf<com.fenceestimator.app.cloud.TrashedRecord?>(null) }
-    // Bulk selection for delete-forever. Keys, not records, so a reload does
-    // not strand stale objects in the set.
-    var selected by remember { mutableStateOf(setOf<String>()) }
-    var purgingMany by remember { mutableStateOf(false) }
-    fun keyOf(r: com.fenceestimator.app.cloud.TrashedRecord) = r.table + r.syncId
 
     Scaffold(
         topBar = {
@@ -90,7 +82,7 @@ fun TrashScreen(onBack: () -> Unit) {
         // permission. Someone who cannot delete has no business undoing
         // somebody else's deletion either.
         if (!session.canDelete) {
-            Column(Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+            Column(Modifier.fillMaxSize().padding(padding).padding(Space.xl)) {
                 Text(
                     stringResource(R.string.acct_trash_only_deleters_restore),
                     style = MaterialTheme.typography.bodyLarge
@@ -101,8 +93,8 @@ fun TrashScreen(onBack: () -> Unit) {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.row)
         ) {
             if (busy) {
                 item {
@@ -123,45 +115,10 @@ fun TrashScreen(onBack: () -> Unit) {
                 }
             }
 
-            if (items.size > 1) {
-                item {
-                    // The bar appears once there is something to bulk-delete.
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        OutlinedButton(onClick = {
-                            selected = if (selected.size == items.size) emptySet()
-                                       else items.map { keyOf(it) }.toSet()
-                        }) {
-                            Text(stringResource(
-                                if (selected.size == items.size) R.string.acct_trash_select_none
-                                else R.string.acct_trash_select_all
-                            ))
-                        }
-                        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                        Button(
-                            enabled = selected.isNotEmpty(),
-                            onClick = { purgingMany = true }
-                        ) { Text(stringResource(R.string.acct_trash_delete_selected, selected.size)) }
-                    }
-                }
-            }
             items(items, key = { it.table + it.syncId }) { record ->
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.Checkbox(
-                                checked = keyOf(record) in selected,
-                                onCheckedChange = { on ->
-                                    selected = if (on) selected + keyOf(record) else selected - keyOf(record)
-                                }
-                            )
-                            Text(record.label, style = MaterialTheme.typography.titleMedium)
-                        }
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                        Text(record.label, style = MaterialTheme.typography.titleMedium)
                         Text(
                             stringResource(record.kindLabelRes) +
                                 (record.deletedAt?.let { " · " + stringResource(R.string.acct_trash_deleted_on, dayFormat.format(java.util.Date(it))) } ?: "") +
@@ -169,16 +126,10 @@ fun TrashScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { viewModel.restore(record) },
-                                modifier = Modifier.weight(1f)
-                            ) { Text(stringResource(R.string.acct_trash_put_it_back)) }
-                            OutlinedButton(
-                                onClick = { purging = record },
-                                modifier = Modifier.weight(1f)
-                            ) { Text(stringResource(R.string.acct_trash_delete_for_good)) }
-                        }
+                        Button(
+                            onClick = { viewModel.restore(record) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.acct_trash_put_it_back)) }
                     }
                 }
             }
@@ -200,51 +151,4 @@ fun TrashScreen(onBack: () -> Unit) {
             }
         }
     }
-
-    purging?.let { record ->
-        PurgeConfirmDialog(
-            record = record,
-            onConfirm = { viewModel.purge(record); purging = null },
-            onDismiss = { purging = null }
-        )
-    }
-
-    if (purgingMany) {
-        val count = selected.size
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { purgingMany = false },
-            title = { Text(stringResource(R.string.acct_trash_delete_selected, count)) },
-            text = { Text(stringResource(R.string.acct_trash_bulk_warning, count)) },
-            confirmButton = {
-                Button(onClick = {
-                    val chosen = items.filter { (it.table + it.syncId) in selected }
-                    viewModel.purgeMany(chosen)
-                    selected = emptySet()
-                    purgingMany = false
-                }) { Text(stringResource(R.string.acct_trash_delete_permanently)) }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { purgingMany = false }) { Text(stringResource(R.string.acct_trash_keep_it)) }
-            }
-        )
-    }
-}
-
-
-/** Confirmation for the one action in the app that genuinely cannot be undone. */
-@Composable
-private fun PurgeConfirmDialog(
-    record: com.fenceestimator.app.cloud.TrashedRecord,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.acct_trash_delete_for_good_title)) },
-        text = {
-            Text(stringResource(R.string.acct_trash_purge_warning, record.label))
-        },
-        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.acct_trash_delete_permanently)) } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.acct_trash_keep_it)) } }
-    )
 }
