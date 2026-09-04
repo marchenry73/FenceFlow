@@ -42,3 +42,6 @@ fenceflow-*/
 # Scratch output from database probes -- never belongs in the repo.
 *.probe.txt
 o*.txt
+
+# agent worktrees (tooling scratch, never source)
+.claude/worktrees/
