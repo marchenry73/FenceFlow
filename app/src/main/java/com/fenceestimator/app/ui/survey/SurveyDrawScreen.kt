@@ -96,6 +96,12 @@ import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.theme.Graphite40
+import com.fenceestimator.app.ui.theme.PlanColors
+import com.fenceestimator.app.ui.theme.Radius
+import com.fenceestimator.app.ui.theme.SafetyOrange40
+import com.fenceestimator.app.ui.theme.Space
+import com.fenceestimator.app.ui.theme.SteelTeal20
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
@@ -107,7 +113,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     val app = currentApp()
     val viewModel: SurveyViewModel = viewModel(
         key = "survey_$jobId",
-        factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId, app) }
     )
     // Attribute edits so the office knows who changed the plan and when. Only
     // for people working under someone -- an owner editing their own drawing
@@ -126,6 +132,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     val runs by viewModel.runs.collectAsState()
     val selectedRunId by viewModel.selectedRunId.collectAsState()
     val mode by viewModel.mode.collectAsState()
+    // True when a drawing change couldn't be re-priced, so materials and the
+    // estimate total are stale until someone opens the estimate to recalculate.
+    val repriceFailed by viewModel.repriceFailed.collectAsState()
     // For the run a gate creates for itself when the job has no fence drawn --
     // it should carry the same defaults a hand-added run would.
     val runDefaults by app.settingsStore.profile.collectAsState(
@@ -178,9 +187,16 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Persistent, not a snackbar that scrolls away: the drawing itself
+            // looks perfectly fine while this is true, so the only way anyone
+            // finds out materials and price stopped following it is if the
+            // warning stays on screen until the estimate is reopened.
+            if (repriceFailed) {
+                RepriceFailedBanner()
+            }
             if (runs.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.draw_add_run_first), modifier = Modifier.padding(24.dp))
+                    Text(stringResource(R.string.draw_add_run_first), modifier = Modifier.padding(Space.xl))
                 }
                 return@Column
             }
@@ -192,7 +208,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             if (!fullScreenDrawing) {
                 RunSelector(runs = runs, selectedRunId = selectedRunId, onSelect = { viewModel.selectRun(it) })
 
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(if (usingGrid) R.string.misc_survey_drawing_on_grid else R.string.misc_survey_drawing_on_photo),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -220,11 +236,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         Text(
                             stringResource(R.string.misc_survey_how_big),
                             style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = Space.sm, vertical = Space.xs)
                         )
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm)
                         ) {
                             SurveyViewModel.GRID_SIZES_FT.forEach { size ->
                                 val selected = kotlin.math.abs(job2.gridExtentFt - size) < 0.5f
@@ -240,12 +256,12 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             stringResource(R.string.misc_survey_keeps_length),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                            modifier = Modifier.padding(horizontal = Space.sm)
                         )
                         DraftNumberField(
                             stableKey = job2.id, label = stringResource(R.string.misc_survey_feet_per_square),
                             initialValue = job2.gridFeetPerSquare,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm)
                         ) { viewModel.setGridLineSpacingFt(it) }
                     }
                 }
@@ -271,7 +287,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             LaunchedEffect(usingGrid) {
                 if (usingGrid && mode == SurveyMode.CALIBRATE) viewModel.setMode(SurveyMode.DRAW)
             }
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(Space.sm)) {
                 visibleModes.forEachIndexed { index, (m, label) ->
                     SegmentedButton(
                         selected = mode == m,
@@ -285,7 +301,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     stringResource(R.string.misc_survey_adjust_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp)
+                    modifier = Modifier.padding(horizontal = Space.sm)
                 )
             }
 
@@ -314,7 +330,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 } else 0f
                 Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.md, vertical = Space.sm),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Filled.Straighten, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -353,7 +369,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(8.dp)
+                        .padding(Space.sm)
                 ) {
                     val bmp = bitmap
                     Canvas(
@@ -550,10 +566,16 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         otherRuns.forEach { other ->
                             val otherPoints = FenceCodec.decodePoints(other.pointsEncoded)
                             if (otherPoints.size >= 2) {
+                                // Faded because it isn't the run being worked on
+                                // right now, not because it means anything
+                                // different -- teardown vs. build still has to
+                                // read correctly at a glance even dimmed.
+                                val otherColor = (if (other.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine)
+                                    .copy(alpha = OTHER_RUN_ALPHA)
                                 val canvasPts = otherPoints.map { transform.toCanvas(it) }
                                 val segCount = if (other.closedLoop) otherPoints.size else otherPoints.size - 1
                                 for (i in 0 until max(0, segCount)) {
-                                    drawLine(OtherRunLineColor, canvasPts[i], canvasPts[(i + 1) % canvasPts.size], strokeWidth = 4f)
+                                    drawLine(otherColor, canvasPts[i], canvasPts[(i + 1) % canvasPts.size], strokeWidth = 4f)
                                 }
                             }
                         }
@@ -571,6 +593,12 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             }
                         } else emptyList()
 
+                        // A run marked as the old fence coming out is drawn in
+                        // teardown's colour instead of the build colour -- same
+                        // geometry, so a crew can tell "pull this out" from
+                        // "build this" without a legend, on this screen or the
+                        // crew's copy of it.
+                        val activeLineColor = if (activeRun.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine
                         val segCount = if (activeRun.closedLoop) points.size else points.size - 1
                         for (i in 0 until max(0, segCount)) {
                             val a = points[i]
@@ -585,7 +613,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 .map { it.second }
                             GateGeometry.segmentGaps(a, b, onThisSegment).forEach { (from, to) ->
                                 drawLine(
-                                    FenceLineColor,
+                                    activeLineColor,
                                     transform.toCanvas(from),
                                     transform.toCanvas(to),
                                     strokeWidth = 4f
@@ -597,9 +625,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         geometry.vertices.forEach { v ->
                             val c = transform.toCanvas(v.point)
                             val color = when (v.kind) {
-                                VertexKind.CORNER -> CornerVertexColor
-                                VertexKind.END -> EndVertexColor
-                                VertexKind.LINE -> LineVertexColor
+                                VertexKind.CORNER -> SafetyOrange40
+                                VertexKind.END -> Graphite40
+                                VertexKind.LINE -> SteelTeal20
                             }
                             drawCircle(color, radius = vertexRadius, center = c)
                             drawCircle(Color.White, radius = vertexRadius, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
@@ -620,7 +648,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             // the things that get set in concrete, so they are
                             // what the crew is really looking for.
                             listOf(a, b).forEach { post ->
-                                drawCircle(GateMarkerColor, radius = 7f, center = post)
+                                drawCircle(PlanColors.gate, radius = 7f, center = post)
                                 drawCircle(
                                     Color.White, radius = 7f, center = post,
                                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
@@ -661,9 +689,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                         a.x + kotlin.math.cos(angle).toFloat() * leafLength,
                                         a.y + kotlin.math.sin(angle).toFloat() * leafLength
                                     )
-                                    drawLine(GateMarkerColor, a, tip, strokeWidth = 3f)
+                                    drawLine(PlanColors.gate, a, tip, strokeWidth = 3f)
                                     drawArc(
-                                        color = GateMarkerColor.copy(alpha = 0.35f),
+                                        color = PlanColors.gate.copy(alpha = 0.35f),
                                         startAngle = if (side > 0f) alongDegrees else alongDegrees - 45f,
                                         sweepAngle = 45f,
                                         useCenter = false,
@@ -689,7 +717,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 context.getString(R.string.misc_survey_gate_width_swing, widthText, swingLabel),
                                 mid.x, mid.y - 10f,
                                 android.graphics.Paint().apply {
-                                    color = android.graphics.Color.parseColor("#B23800")
+                                    color = PlanColors.gate.toArgb()
                                     textSize = 26f
                                     textAlign = android.graphics.Paint.Align.CENTER
                                     isFakeBoldText = true
@@ -699,7 +727,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
                         siteMarkers.forEach { marker ->
                             val c = transform.toCanvas(FencePoint(marker.x, marker.y))
-                            val color = markerColor(marker.kind)
+                            val color = PlanColors.marker(marker.kind)
                             drawCircle(color, radius = 13f, center = c)
                             drawCircle(Color.White, radius = 13f, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
                             drawContext.canvas.nativeCanvas.drawText(
@@ -721,8 +749,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     }
 
                     Column(
-                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.align(Alignment.TopEnd).padding(Space.sm),
+                        verticalArrangement = Arrangement.spacedBy(Space.sm)
                     ) {
                         ZoomButton(Icons.Filled.Add) { viewZoom = (viewZoom * 1.3f).coerceIn(0.25f, 12f) }
                         ZoomButton(Icons.Filled.Remove) { viewZoom = (viewZoom / 1.3f).coerceIn(0.25f, 12f) }
@@ -764,7 +792,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
                 val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
                 Surface(tonalElevation = 2.dp) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(Space.md)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Straighten, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Text(
@@ -788,7 +816,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm)
                         ) {
                             OutlinedButton(onClick = { viewModel.undoLast(mode) }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Undo, contentDescription = null)
@@ -863,18 +891,6 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     }
 }
 
-private fun markerColor(kind: SiteMarkerKind): Color = when (kind) {
-    SiteMarkerKind.EXISTING_FENCE -> Color(0xFF8A93A3)
-    SiteMarkerKind.HOUSE -> Color(0xFF1E2A3D)
-    SiteMarkerKind.POOL -> Color(0xFF0EA5E9)
-    SiteMarkerKind.DRIVEWAY -> Color(0xFF6B7280)
-    SiteMarkerKind.EASEMENT -> Color(0xFFD946EF)
-    SiteMarkerKind.UTILITY -> Color(0xFFEF4444)
-    SiteMarkerKind.TREE -> Color(0xFF16A34A)
-    SiteMarkerKind.SLOPE -> Color(0xFFF59E0B)
-    SiteMarkerKind.OBSTACLE -> Color(0xFFB23800)
-}
-
 private fun markerShortLabelRes(kind: SiteMarkerKind): Int = when (kind) {
     SiteMarkerKind.EXISTING_FENCE -> R.string.misc_marker_old_fence
     SiteMarkerKind.HOUSE -> R.string.misc_marker_house
@@ -908,9 +924,9 @@ private fun SiteMarkerDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(Space.sm)
                 ) {
                     SiteMarkerKind.values().forEach { k ->
                         androidx.compose.material3.FilterChip(
@@ -920,14 +936,14 @@ private fun SiteMarkerDialog(
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(
                     value = label, onValueChange = { label = it },
                     label = { Text(stringResource(R.string.draw_note_optional)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (existing.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Space.md))
                     Text(stringResource(R.string.draw_already_marked), style = MaterialTheme.typography.labelLarge)
                     existing.forEach { marker ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -949,6 +965,31 @@ private fun SiteMarkerDialog(
     )
 }
 
+/**
+ * Says plainly that the numbers stopped following the drawing.
+ *
+ * The canvas gives no other sign of this -- the line is still there, still
+ * editable, still looks correct -- so without this the first anyone learns
+ * that materials and price went stale is a customer questioning an estimate
+ * that quietly stopped matching what got drawn.
+ */
+@Composable
+private fun RepriceFailedBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer
+    ) {
+        Text(
+            stringResource(R.string.field_polish_reprice_failed),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.screen, vertical = Space.sm)
+        )
+    }
+}
+
 @Composable
 private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Surface(tonalElevation = 3.dp, shape = androidx.compose.foundation.shape.CircleShape) {
@@ -964,7 +1005,7 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
     val untitled = stringResource(R.string.misc_survey_untitled)
     ExposedDropdownMenuBox(
         expanded = expanded, onExpandedChange = { expanded = it },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm, vertical = Space.xs)
     ) {
         OutlinedTextField(
             value = selected?.let { "${it.label.ifBlank { untitled }} (${it.fenceType.label()})" } ?: "",
@@ -993,7 +1034,7 @@ private fun CalibrationDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit)
         text = {
             Column {
                 Text(stringResource(R.string.draw_distance_question))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.draw_feet)) })
             }
         },
@@ -1018,24 +1059,24 @@ private fun GateWidthDialog(
         text = {
             Column {
                 Text(stringResource(R.string.draw_gate_width_question))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.draw_feet)) })
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Space.lg))
 
                 // Asked here rather than left to the estimate, because it
                 // changes what gets loaded on the truck: a wall-hung gate takes
                 // a blank post and plugs and no concrete at all.
                 Text(stringResource(R.string.draw_gate_hanging), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 GateMountingChoice(selected = mounting, onSelect = { mounting = it })
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Space.lg))
                 // Asked while somebody is standing at the opening looking at it.
                 // A gate that swings into a slope, a step or where a car parks
                 // is a return visit, and this is the detail that gets lost
                 // between quoting and installing.
                 Text(stringResource(R.string.draw_gate_swing), style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 GateSwingChoice(selected = swing, onSelect = { swing = it })
             }
         },
@@ -1078,14 +1119,14 @@ private fun GateSwingChoice(
     Column {
         options.forEach { (value, label, detail) ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = Space.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 androidx.compose.material3.RadioButton(
                     selected = selected == value,
                     onClick = { onSelect(value) }
                 )
-                Column(Modifier.padding(start = 4.dp)) {
+                Column(Modifier.padding(start = Space.xs)) {
                     Text(label, style = MaterialTheme.typography.bodyMedium)
                     Text(
                         detail,
@@ -1109,14 +1150,14 @@ private fun GateMountingChoice(selected: GateMounting, onSelect: (GateMounting) 
     Column {
         options.forEach { (value, label, detail) ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = Space.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 androidx.compose.material3.RadioButton(
                     selected = selected == value,
                     onClick = { onSelect(value) }
                 )
-                Column(Modifier.padding(start = 4.dp)) {
+                Column(Modifier.padding(start = Space.xs)) {
                     Text(label, style = MaterialTheme.typography.bodyMedium)
                     Text(
                         detail,
@@ -1129,15 +1170,15 @@ private fun GateMountingChoice(selected: GateMounting, onSelect: (GateMounting) 
     }
 }
 
-// Matches the app's Graphite/SafetyOrange/SteelTeal theme -- these used to be a leftover
-// "organic" green from before the redesign, which visually clashed and made it hard to pick
-// out calibration/gate markers against the drawn line, especially zoomed in.
-private val FenceLineColor = Color(0xFF0E8C7B)
-private val OtherRunLineColor = Color(0x660E8C7B)
-private val CornerVertexColor = Color(0xFFFF5A1F)
-private val EndVertexColor = Color(0xFF1E2A3D)
-private val LineVertexColor = Color(0xFF07473D)
-private val GateMarkerColor = Color(0xFFB23800)
+// Fence, gate and vertex colours used to be named again right here -- a
+// leftover "organic" green from before the redesign that clashed and made it
+// hard to pick calibration/gate markers out from the drawn line, especially
+// zoomed in. They now come from PlanColors (fence/gate/teardown) or straight
+// off the theme (the per-vertex-kind dots), so this drawing and the crew's
+// read-only copy of the same plan are never one accidental hex digit apart.
+
+/** Alpha applied to another run's line so the one being worked on stands out; 0x66 of 0xFF. */
+private const val OTHER_RUN_ALPHA = 0.4f
 
 /** Screen-space tap tolerance for grabbing a vertex in Adjust mode, independent of zoom level. */
 private const val VERTEX_HIT_RADIUS_PX = 40f
@@ -1178,8 +1219,10 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform:
         size = androidx.compose.ui.geometry.Size(contentW * transform.scale, contentH * transform.scale)
     )
     val stepUnits = (gridLineSpacingFt.coerceAtLeast(0.5f)) * SurveyViewModel.PIXELS_PER_FOOT_GRID
-    val minorColor = Color(0xFFE2DFD5)
-    val majorColor = Color(0xFFC9C4B5)
+    // Shared with the crew's copy of this grid via PlanColors, so a square
+    // means the same thing measured off either screen.
+    val minorColor = PlanColors.grid
+    val majorColor = PlanColors.gridMajor
     var lineIndex = 0
     var x = 0f
     while (x <= contentW) {
@@ -1220,12 +1263,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform:
 private fun CanvasHint(modifier: Modifier = Modifier, text: String) {
     Box(
         modifier
-            .padding(8.dp)
+            .padding(Space.sm)
             .background(
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
-                androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                androidx.compose.foundation.shape.RoundedCornerShape(Radius.sm)
             )
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = Space.md, vertical = Space.sm)
     ) {
         Text(
             text,
@@ -1250,12 +1293,12 @@ private fun NudgePad(
     onDone: () -> Unit
 ) {
     Surface(
-        modifier = modifier.padding(8.dp),
+        modifier = modifier.padding(Space.sm),
         tonalElevation = 6.dp,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.md)
     ) {
         Column(
-            Modifier.padding(6.dp),
+            Modifier.padding(Space.sm),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(

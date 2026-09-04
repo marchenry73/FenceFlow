@@ -18,6 +18,7 @@ import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.GateSwing
 import kotlinx.coroutines.Dispatchers
+import com.fenceestimator.app.cloud.CrashReporter
 import com.fenceestimator.app.estimate.TakeoffRefresher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
@@ -33,12 +34,22 @@ import java.util.UUID
 
 enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, PAN }
 
-class SurveyViewModel(private val repository: Repository, private val jobId: Long) : ViewModel() {
+class SurveyViewModel(private val repository: Repository, private val jobId: Long, private val appContext: Context) : ViewModel() {
     val job: StateFlow<Job?> = repository.observeJob(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val runs: StateFlow<List<FenceRun>> = repository.observeFenceRuns(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _repriceFailed = MutableStateFlow(false)
+
+    /**
+     * True when the last drawing change could not be re-priced -- the drawing
+     * itself saved fine, but materials and the estimate total did not follow
+     * it, and the canvas gives no other sign of that. Cleared the moment a
+     * refresh succeeds, so this only ever reflects the most recent attempt.
+     */
+    val repriceFailed: StateFlow<Boolean> = _repriceFailed
 
     /**
      * Re-prices a run's materials when its drawing changes.
@@ -70,7 +81,20 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                     withContext(Dispatchers.IO) {
                         movedRunIds.forEach { id ->
                             repository.getFenceRun(id)?.let { run ->
+                                // Swallowing this used to mean the drawing kept
+                                // updating while the materials and price quietly
+                                // stopped following it, with nothing on screen
+                                // to say so. Now a failure is reported the same
+                                // way other background failures are (see
+                                // CrashReporter usage elsewhere) and flagged so
+                                // the drawing screen can say so too -- cleared
+                                // the moment a later refresh actually succeeds.
                                 runCatching { TakeoffRefresher.refreshRun(repository, run) }
+                                    .onSuccess { _repriceFailed.value = false }
+                                    .onFailure { e ->
+                                        CrashReporter.report(appContext, "survey-reprice", e)
+                                        _repriceFailed.value = true
+                                    }
                             }
                         }
                     }

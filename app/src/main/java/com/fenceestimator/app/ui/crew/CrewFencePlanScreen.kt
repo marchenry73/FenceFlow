@@ -52,17 +52,14 @@ import com.fenceestimator.app.data.SiteMarker
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.survey.SurveyViewModel
-
-/** Faint enough to read the fence line over, visible enough to count squares against. */
-private val GridLine = androidx.compose.ui.graphics.Color(0xFFDCE3EC)
-
-private val LineBlue = Color(0xFF2A78D6)
-private val GateOrange = Color(0xFFEB6834)
-private val MarkerAmber = Color(0xFFEDA100)
+import com.fenceestimator.app.ui.theme.PlanColors
+import com.fenceestimator.app.ui.theme.Radius
+import com.fenceestimator.app.ui.theme.Space
 
 /**
  * The fence plan as the crew needs it: what to build and where, with nothing
@@ -80,7 +77,7 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: SurveyViewModel = viewModel(
         key = "crew_plan_$jobId",
-        factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId, app) }
     )
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
@@ -99,8 +96,8 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.section)
         ) {
             item {
                 Text(
@@ -123,11 +120,18 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
             val drawn = runs.filter { FenceCodec.decodePoints(it.pointsEncoded).size >= 2 }
             if (drawn.isNotEmpty()) {
                 item { PlanCanvas(currentJob, drawn, markers) }
-                item { Legend() }
+                item { Legend(drawn, markers) }
             }
 
-            items(runs.size) { index ->
-                RunCard(currentJob, runs[index])
+            // Empty and broken look identical on a bare list -- this is the
+            // difference between "nothing to build yet" and a sync that never
+            // arrived, same wording the job screen uses for the same gap.
+            if (runs.isEmpty()) {
+                item { EmptyState(stringResource(R.string.misc_crew_no_runs)) }
+            } else {
+                items(runs.size) { index ->
+                    RunCard(currentJob, runs[index])
+                }
             }
 
             if (markers.isNotEmpty()) {
@@ -157,8 +161,8 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
     Card(Modifier.fillMaxWidth()) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(1.1f)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .padding(Space.md)
+                .clip(RoundedCornerShape(Radius.sm))
                 // White, like the drawing surface the plan was made on, so the
                 // crew are looking at the same picture rather than a recoloured
                 // version of it.
@@ -206,12 +210,12 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
                 if (squarePx > 6f) {
                     var gx = offsetX
                     while (gx <= size.width) {
-                        drawLine(GridLine, Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
+                        drawLine(PlanColors.grid, Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
                         gx += squarePx
                     }
                     var gy = offsetY
                     while (gy <= size.height) {
-                        drawLine(GridLine, Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
+                        drawLine(PlanColors.grid, Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
                         gy += squarePx
                     }
                 }
@@ -220,28 +224,33 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
                     val points = FenceCodec.decodePoints(run.pointsEncoded)
                     if (points.size < 2) return@forEach
 
+                    // Teardown reads differently from a run being built, the
+                    // same as it does on the drawing screen -- the crew needs
+                    // to tell "pull this out" from "build this" from the plan
+                    // itself, not by asking.
+                    val lineColor = if (run.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine
                     val count = if (run.closedLoop) points.size else points.size - 1
                     for (i in 0 until count) {
                         drawLine(
-                            color = LineBlue,
+                            color = lineColor,
                             start = place(points[i]),
                             end = place(points[(i + 1) % points.size]),
                             strokeWidth = 6f
                         )
                     }
                     // Every vertex is a post the crew has to set, so mark them.
-                    points.forEach { drawCircle(LineBlue, radius = 9f, center = place(it)) }
+                    points.forEach { drawCircle(lineColor, radius = 9f, center = place(it)) }
 
                     FenceCodec.decodeGates(run.gatesEncoded).forEach { gate ->
                         val at = place(FencePoint(gate.x, gate.y))
-                        drawCircle(GateOrange, radius = 16f, center = at)
+                        drawCircle(PlanColors.gate, radius = 16f, center = at)
                         drawCircle(Color.White, radius = 16f, center = at, style = Stroke(width = 4f))
                     }
                 }
 
                 markers.forEach { marker ->
                     val at = place(FencePoint(marker.x, marker.y))
-                    drawCircle(MarkerAmber, radius = 13f, center = at)
+                    drawCircle(PlanColors.marker(marker.kind), radius = 13f, center = at)
                     drawCircle(Color.White, radius = 13f, center = at, style = Stroke(width = 3f))
                 }
             }
@@ -249,12 +258,35 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
     }
 }
 
+/**
+ * What the colours on [PlanCanvas] mean, for exactly what is on this job.
+ *
+ * Site markers used to share one generic amber dot regardless of kind, so
+ * this said "Watch out" and left the crew to work out what from the canvas
+ * alone. The canvas now draws a pool, a tree and a utility line in three
+ * different colours -- the same three the office sees while drawing -- so
+ * the legend has to say which is which or it stops explaining what it is
+ * next to.
+ */
 @Composable
-private fun Legend() {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        LegendDot(LineBlue, "Fence line & posts")
-        LegendDot(GateOrange, "Gate")
-        LegendDot(MarkerAmber, "Watch out")
+private fun Legend(runs: List<FenceRun>, markers: List<SiteMarker>) {
+    val hasBuildLine = remember(runs) { runs.any { !it.isTeardown } }
+    val hasTeardownLine = remember(runs) { runs.any { it.isTeardown } }
+    val presentMarkerKinds = remember(markers) { markers.map { it.kind }.distinct() }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
+            if (hasBuildLine) LegendDot(PlanColors.fenceLine, "Fence line & posts")
+            if (hasTeardownLine) LegendDot(PlanColors.teardownLine, "Fence coming out")
+            LegendDot(PlanColors.gate, "Gate")
+        }
+        // Two per row rather than one long row, so this stays legible on a
+        // 360dp phone even on a job with several kinds of marker on it.
+        presentMarkerKinds.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
+                pair.forEach { kind -> LegendDot(PlanColors.marker(kind), kind.label()) }
+            }
+        }
     }
 }
 
@@ -287,7 +319,7 @@ private fun RunCard(job: Job, run: FenceRun) {
     val corners = if (usingManual) run.manualCornerCount else geometry?.cornerCount ?: 0
 
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text(run.label.ifBlank { "Fence run" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
 
             if (feet <= 0.0) {
@@ -333,7 +365,7 @@ private fun MarkersCard(markers: List<SiteMarker>) {
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(
                 "Watch out on site",
                 style = MaterialTheme.typography.titleMedium,
@@ -376,7 +408,7 @@ private fun RequestChangeCard(jobId: Long) {
         Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text(
                 if (sent) "Change requested" else "Something not right?",
                 style = MaterialTheme.typography.titleSmall,
@@ -407,7 +439,7 @@ private fun RequestChangeCard(jobId: Long) {
             onDismissRequest = { showDialog = false },
             title = { Text(stringResource(R.string.crew_ask_change_plan)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.row)) {
                     OutlinedTextField(
                         value = what,
                         onValueChange = { what = it },

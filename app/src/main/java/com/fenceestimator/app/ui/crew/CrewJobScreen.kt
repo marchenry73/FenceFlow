@@ -61,10 +61,13 @@ import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.IntentHelpers
+import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.NewPhotoTarget
 import com.fenceestimator.app.ui.components.PhotoFiles
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.theme.Radius
+import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,8 +119,8 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.section)
         ) {
             // First thing on the screen, because it changes how the day is
             // worked. Knowing at eight in the morning that this is day two of
@@ -144,7 +147,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                 else MaterialTheme.colorScheme.errorContainer
                         )
                     ) {
-                        Column(Modifier.padding(14.dp)) {
+                        Column(Modifier.padding(Space.card)) {
                             Text(
                                 stringResource(R.string.misc_crew_before_you_dig),
                                 style = MaterialTheme.typography.titleSmall,
@@ -175,7 +178,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         else MaterialTheme.colorScheme.tertiaryContainer
                     )
                 ) {
-                    Column(Modifier.padding(14.dp)) {
+                    Column(Modifier.padding(Space.card)) {
                         Text(
                             dayPlan.crewSummary,
                             style = MaterialTheme.typography.titleSmall,
@@ -196,7 +199,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                     Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                         Text(
                             currentJob.customerName.ifBlank { stringResource(R.string.section_customer) },
                             style = MaterialTheme.typography.titleLarge,
@@ -207,7 +210,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         if (currentJob.phone.isNotBlank()) {
                             Text(currentJob.phone, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), modifier = Modifier.padding(top = Space.sm)) {
                             if (currentJob.address.isNotBlank()) {
                                 OutlinedButton(onClick = { IntentHelpers.searchNearby(context, currentJob.address) }) {
                                     Icon(Icons.Filled.Directions, contentDescription = null)
@@ -244,7 +247,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 
             item {
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                         Text(stringResource(R.string.crew_what_building), style = MaterialTheme.typography.titleMedium)
                         if (runs.isEmpty()) {
                             Text(
@@ -323,15 +326,15 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         .forJob(assigned, entries, runs, pxPerFt)
                     if (pay.amount > 0.0 || pay.hoursAwaitingApproval > 0.0) {
                         Card(
-                            Modifier.fillMaxWidth().padding(top = 10.dp),
+                            Modifier.fillMaxWidth().padding(top = Space.section),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                         ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                                 Text(stringResource(R.string.crew_your_pay), style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    "$${"%.2f".format(pay.amount)}",
+                                    Money.format(pay.amount),
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -402,9 +405,9 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 
             item {
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
                         Text(stringResource(R.string.crew_photos), style = MaterialTheme.typography.titleMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                             listOf(PhotoKind.BEFORE, PhotoKind.AFTER).forEach { kind ->
                                 OutlinedButton(onClick = {
                                     pendingKind = kind
@@ -418,14 +421,14 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                             }
                         }
                         if (photos.isNotEmpty()) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                                 items(photos, key = { it.id }) { photo ->
                                     Box {
                                         AsyncImage(
                                             model = photo.filePath,
                                             contentDescription = null,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.size(90.dp).clip(RoundedCornerShape(8.dp))
+                                            modifier = Modifier.size(90.dp).clip(RoundedCornerShape(Radius.sm))
                                         )
                                     }
                                 }
@@ -476,7 +479,7 @@ private fun TimeClockCard(
             else MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
             Text(stringResource(R.string.crew_time_clock), style = MaterialTheme.typography.titleMedium)
 
             if (running != null) {
@@ -530,7 +533,7 @@ private fun StepSection(
 ) {
     val done = steps.count { it.checked }
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             subtitle?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -582,7 +585,7 @@ private fun FinalSignOffCard(
     val remaining = steps.count { !it.checked }
 
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
             Text(stringResource(R.string.crew_sign_off_title), style = MaterialTheme.typography.titleMedium)
 
             if (job.finalSignOffImagePath != null) {

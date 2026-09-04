@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.AluminumStyle
@@ -48,6 +47,7 @@ import com.fenceestimator.app.ui.components.DraftTextField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,8 +75,8 @@ fun RunEditScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.section)
         ) {
             item {
                 // The natural next step after naming a run is drawing it. Without
@@ -155,7 +155,7 @@ fun RunEditScreen(
             item {
                 SectionCard(stringResource(R.string.est2_section_posts_concrete)) {
                     val locked = currentRun.fenceType == FenceType.VINYL || currentRun.fenceType == FenceType.ALUMINUM || currentRun.fenceType == FenceType.ORNAMENTAL_IRON
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
                         DraftNumberField(
                             stableKey = currentRun.id,
                             label = stringResource(R.string.est2_post_spacing_ft),
@@ -192,7 +192,7 @@ fun RunEditScreen(
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             content()
         }
@@ -223,7 +223,7 @@ private fun FenceTypeDropdown(current: FenceType, onSelect: (FenceType) -> Unit)
 
 @Composable
 private fun VinylFields(run: FenceRun, viewModel: RunEditViewModel) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
         DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
@@ -235,7 +235,7 @@ private fun VinylFields(run: FenceRun, viewModel: RunEditViewModel) {
 
 @Composable
 private fun AluminumFields(run: FenceRun, viewModel: RunEditViewModel) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
         DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
@@ -270,7 +270,7 @@ private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
             }
         )
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
         DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fence_height_ft), initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) { newHeight ->
             viewModel.update { r ->
                 r.copy(panelHeightFt = newHeight, woodRailCount = if (newHeight > 4f) 3 else 2)
@@ -280,7 +280,7 @@ private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
             viewModel.update { r -> r.copy(woodRailCount = it.toInt().coerceAtLeast(1)) }
         }
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
         DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_width_in), initialValue = run.picketWidthIn, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(picketWidthIn = it) }
         }
