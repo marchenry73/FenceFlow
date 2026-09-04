@@ -193,3 +193,105 @@ tiers (office gains create/edit; tombstone only) → Crew (skipped on Solo)
 - Commit small, push, and keep [[fenceflow-state]] / [[fenceflow-prelaunch-audit]] memory current.
 - Stop and report (do not guess) if a fixture disagrees between engines and
   the cause is a genuine Kotlin bug — the owner decides which side is right.
+
+## Binding specifics from the judge (read before Phase A)
+
+These refine the sections above and win where they differ.
+
+**Schema details.** `jobs.wizard_step integer default 0` (0 = finished /
+not a wizard job; 1..7 = resume here). `jobs.priced_by text` ('' | 'APP' |
+'OFFICE'), `priced_at`, `pricing_engine_version`. Table `pricing_drift`
+(company_id, job_sync_id, office_total, phone_total, office_engine,
+phone_engine, detail jsonb, noted_by default auth.uid(), noted_at, seen_at);
+RLS read OWNER/MANAGER, insert any member, no delete. Quiet list for
+`touch_updated_at()`: add `priced_by, priced_at, pricing_engine_version,
+wizard_step` — re-create the whole function from
+`supabase_quiet_touch_patch.sql`, never a second version.
+`build_template_sync_id` and `calibration_pixels_per_foot` stay LOUD (they
+are real edits). Spec columns on `build_templates` use the same types as
+`fence_runs` (real / integer / text / boolean). Shipped rows are never
+updated in place: a superseded one gets `deleted_at` and a new fixed id.
+`company_settings.settings` gains keys `gate_rate` (default 20 — the
+Kotlin Job default; `jobs.gate_rate_per_ft`'s DB default is 0, so every
+office-created job sets it explicitly), `waste` (0), `deposit_percent`
+(0 = quote-view's next-$100 rule), `default_build_template`. Always write
+settings per step through `save_company_settings` (merge); a whole-object
+write reopens the tools_list / prices_reviewed wipe.
+
+**price-job.** POST `{ job_sync_id, mode: 'dry_run' | 'commit' | 'sample',
+expected_updated_at?, template_sync_id?, feet? }`; `verify_jwt = true`;
+built from the CALLER's Authorization header so RLS and `company_allowed`
+hold; refuses unless role in (OWNER, MANAGER) and
+`has_permission('SEE_MONEY')`. Never sends `updated_at`. Never writes
+`calibration_pixels_per_foot` (the wizard writes 20 on a job it created;
+`survey_image_path` is not synced, so the server cannot apply the photo
+rule). `commit` upserts lines by deterministic sync id, tombstones stale
+auto lines, preserves hand-edited unit prices and supplier prices by role
+exactly as TakeoffRefresher does, writes contract_total + priced_by='OFFICE'
++ engine version.
+
+**Sync ids are sacred.** Line-item sync ids are Java
+`UUID.nameUUIDFromBytes` (MD5, NOT RFC v5) over
+`'fenceflow-line:<runSyncId>:<ROLE>'` plus `':<coversFt ?: 0f>'` rendered
+with Kotlin's `Float.toString` formatting. The port must reproduce that
+string byte for byte (a `kotlinFloatToString` helper, pinned by fixtures
+with 3.5 / 4.0 / 5.0 / 10.0 / 12.0 ft gates). A "cleaner" format duplicates
+every multi-width run's lines on the next regenerate.
+
+**Replicate, do not fix, inside the port:** LINE_TO_WALL's third end
+post/cap undercount, markup-on-tax, discount-after-markup, the always-round-
+up $10 rule, `gatePosts = gates.size * 2`, `teardownLinearFeet`'s dead
+`is_teardown` filter. A behaviour change is a separate, versioned change to
+BOTH engines with regenerated fixtures. Do not port `GateSpan.kt` /
+`GateGeometry` (drawing-only). No tolerances in the comparison, ever.
+
+**Fixtures.** Layout `fixtures/pricing/<case>.json` + `manifest.json`
+{version, generated_at, case_count}; shape `{ schema: 1, engine, case,
+input: PricingInput (Supabase column names), expected: PricingOutput }`.
+Kotlin writes (JUnit `ParityFixtureWriter`, active only when env
+`FENCEFLOW_PARITY_OUT` is set), `ParityFixtureCheck` fails the phone build
+when the engine changes without regeneration, `pricing_test.ts` asserts
+exact equality stage by stage and names the first divergent stage. Extra
+coverage: corners at 14.9° and 15.1° (exact 15.000° is documented, not
+asserted); gates at 7.99 and 8.0 ft; two same-width gates merging vs
+different widths staying separate; gate-only run (0 points); legacy
+3-part and 4-part gate encodings; malformed point pairs dropped; each of
+the ten shipped templates on a 100 ft open run. Export fixture inputs from
+invented cases, never from production customers.
+
+**JobSync rules (phone release, later).** When pushing contract_total also
+write priced_by='APP' + version. If the cloud row is priced_by='OFFICE'
+with a lexically NEWER engine version, do not overwrite — write
+`app_errors` (fatal=false, where_at='pricing_parity'). If priced_by='OFFICE'
+and totals differ at the same or older version, insert a `pricing_drift`
+row, then behave per the owner's answer to question 1 below.
+
+**Gates.** No `--skip` flag on `check-parity.mjs`; it exports JDK 17
+itself; `deploy-functions.mjs` and `publish-release.mjs` call it first.
+The wizard sends inputs and edited prices only, never quantities or totals.
+
+**Dev-first.** The judge requires both SQL patches to run on dev before
+prod. The dev project does not exist yet (owner task 8). Until it does:
+rehearse each file on prod inside `begin; …; rollback;`, then apply — and
+say so in the report. If the dev project exists when you start, use it.
+
+**Open questions, with the defaults the build uses until the owner answers:**
+1. After the office has priced and SENT a quote, and a phone later computes
+   a different total for the same rows: default = the office number stands
+   (phone writes a `pricing_drift` row, does not overwrite) once
+   `quote_sent_at` is set; before sending, the phone overwrites as today.
+2. Gates on a satellite-traced run: default = auto-placed at segment
+   midpoints, movable on the phone; click-to-place is a later day.
+3. Deposit for an office-made quote: default = the existing next-$100 rule;
+   `deposit_percent` exists and is 0.
+4. Template memory: both per-person recent and company default are stored;
+   the picker shows Recent first.
+
+**Judge's order (16–17 days, one engineer):** days 1–2 phone pins
+(tie-break, sqrt, version, fixture writer/check, fixtures committed); days
+3–6 TS port green + parity gate; days 7–8 SQL + price-job on dev; day 9 the
+first usable thing — "Re-price at the office" and Pricing-panel edits
+committing through price-job (ends the two-sync lag); days 10–13 the New
+Client wizard; days 14–15 the Setup wizard and Settings templates panel;
+day 16 the phone release; day 17 prod apply + docs. Later: phone template
+picker; quote-view importing computeTotals/defaultDeposit.
