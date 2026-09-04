@@ -21,12 +21,13 @@
  * holds, fails the whole run, leaves LAST_BACKUP_FAILED.txt in the folder,
  * and exits non-zero so a scheduler can notice.
  *
- * Usage:
+ * Runs weekly from Windows Task Scheduler ("FenceFlow DB backup", Sundays
+ * 10:00, StartWhenAvailable) and by hand:
  *   node scripts/backup-db.mjs              -> writes to the Drive folder below
  *   node scripts/backup-db.mjs <out dir>    -> writes there instead
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -49,15 +50,67 @@ function query(sql) {
     const raw = execFileSync("npx", [
       "--no-install", "supabase@2.115.0", "db", "query",
       "--linked", "--project-ref", PROJECT_REF, "-f", f,
+      // Explicit. Interactively the CLI answers in JSON; under Task Scheduler
+      // it decided it had a console and drew a table, and the first scheduled
+      // run failed with "no JSON in CLI output".
+      "--output", "json",
     ], { encoding: "utf8", shell: true, maxBuffer: 256 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
-    // The CLI prints a JSON object; anything before its first brace is chatter.
-    const start = raw.indexOf("{");
-    if (start < 0) throw new Error("no JSON in CLI output: " + raw.slice(0, 200));
-    const parsed = JSON.parse(raw.slice(start, raw.lastIndexOf("}") + 1));
-    return parsed.rows ?? [];
+    return extractRows(raw);
   } finally {
     rmSync(f, { force: true });
   }
+}
+
+/**
+ * The rows, wherever the CLI put them.
+ *
+ * Two shapes so far: `{ boundary, rows: [...] }` from a console, and a bare
+ * `[...]` of rows from Task Scheduler. Rather than guess at the next one,
+ * walk every balanced {...} or [...] in the output and take the first that
+ * is a rows array or an object carrying one. Chatter before, between and
+ * after is ignored; the raw text rides along in the failure so the next
+ * surprise is diagnosable from the log alone.
+ */
+function extractRows(raw) {
+  let i = -1;
+  for (;;) {
+    const nextObj = raw.indexOf("{", i + 1);
+    const nextArr = raw.indexOf("[", i + 1);
+    if (nextObj < 0 && nextArr < 0) break;
+    i = nextObj < 0 ? nextArr : nextArr < 0 ? nextObj : Math.min(nextObj, nextArr);
+    const end = matchingBracket(raw, i);
+    if (end < 0) break;
+    try {
+      const o = JSON.parse(raw.slice(i, end + 1));
+      if (Array.isArray(o) && o.every((r) => r && typeof r === "object")) return o;
+      if (o && Array.isArray(o.rows)) return o.rows;
+    } catch {
+      // not this one
+    }
+  }
+  throw new Error("no rows in CLI output: " + raw.slice(0, 400).replace(/\s+/g, " "));
+}
+
+function matchingBracket(s, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let k = start; k < s.length; k++) {
+    const c = s[k];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") {
+      depth--;
+      if (depth === 0) return k;
+    }
+  }
+  return -1;
 }
 
 function fail(msg) {
@@ -87,7 +140,7 @@ try {
   }
   writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
 
-  // Older runs go, newest first kept. Never the one just written.
+  // Older runs go, newest kept. Never the one just written.
   const runs = readdirSync(outRoot)
     .filter((d) => /^\d{4}-\d{2}-\d{2}-/.test(d) && statSync(join(outRoot, d)).isDirectory())
     .sort();
