@@ -272,8 +272,15 @@ data class CloudMaterialItem(
     val taxable: Boolean = true,
     @SerialName("covers_ft") val coversFt: Float? = null,
     @SerialName("is_active") val isActive: Boolean = true,
-    @SerialName("source_doc") val sourceDoc: String = ""
-)
+    @SerialName("source_doc") val sourceDoc: String = "",
+    // Never set on push -- the touch_updated_at trigger owns this column, the
+    // same as jobs.updated_at. Only read, on pull, to arbitrate which side of
+    // an edit is newer.
+    @SerialName("updated_at") val updatedAt: String? = null
+) {
+    /** See [CloudJob.updatedAtMillis]: falls back to 0 so an absent value never outranks real local work. */
+    fun updatedAtMillis(): Long = CloudTime.parseMillis(updatedAt) ?: 0L
+}
 
 @Serializable
 data class CloudPricingTier(
@@ -284,8 +291,15 @@ data class CloudPricingTier(
     @SerialName("labor_flat_fee") val laborFlatFee: Double = 0.0,
     @SerialName("markup_percent") val markupPercent: Double = 0.0,
     @SerialName("discount_percent") val discountPercent: Double = 0.0,
-    @SerialName("sort_order") val sortOrder: Int = 0
-)
+    @SerialName("sort_order") val sortOrder: Int = 0,
+    // Never set on push -- the touch_updated_at trigger owns this column, the
+    // same as jobs.updated_at. Only read, on pull, to arbitrate which side of
+    // an edit is newer.
+    @SerialName("updated_at") val updatedAt: String? = null
+) {
+    /** See [CloudJob.updatedAtMillis]: falls back to 0 so an absent value never outranks real local work. */
+    fun updatedAtMillis(): Long = CloudTime.parseMillis(updatedAt) ?: 0L
+}
 
 @Serializable
 data class CloudTimeEntry(
@@ -569,7 +583,13 @@ object EntitySync {
             val claimed = cloudByIdentity[
                 identity(item.name, item.role.name, item.fenceType.name, item.colorOrFinish)
             ]
-            claimed == null || claimed.syncId == item.syncId
+            // No cloud row of this identity yet: push it, same as always. One
+            // already up there under this row's own sync id only goes back up
+            // when this phone's copy is actually newer -- otherwise a phone
+            // that merely pulled the item, and never touched it, re-pushes its
+            // now-stale copy on every sync and clobbers a price corrected
+            // elsewhere in between.
+            claimed == null || (claimed.syncId == item.syncId && item.lastUpdated > claimed.updatedAtMillis())
         }.map {
             CloudMaterialItem(
                 companyId, it.syncId, it.name, it.category.name, it.role.name,
@@ -610,10 +630,13 @@ object EntitySync {
 
         val rows = local.filter { tier ->
             val claimed = cloudByName[tier.name.trim().lowercase()]
-            // Push it when the cloud has no tier by that name, or when the one
-            // it has IS this row. Anything else is a duplicate of somebody
-            // else's copy.
-            claimed == null || claimed.syncId == tier.syncId
+            // Push it when the cloud has no tier by that name -- a duplicate of
+            // somebody else's copy is the only thing excluded here, not
+            // staleness. When the cloud row IS this row, though, only push
+            // when this phone's copy is actually newer: otherwise a phone that
+            // only pulled the tier re-pushes its now-stale copy every sync and
+            // clobbers a rate changed in the office in between.
+            claimed == null || (claimed.syncId == tier.syncId && tier.updatedAt > claimed.updatedAtMillis())
         }.map {
             CloudPricingTier(
                 companyId, it.syncId, it.name, it.laborRatePerFt,
@@ -796,15 +819,27 @@ object EntitySync {
             if (held != null) {
                 // Rates are what every estimate is priced from, so a change made
                 // in the office has to reach the phone quoting in the driveway.
-                val merged = held.copy(
-                    name = row.name,
-                    laborRatePerFt = row.laborRatePerFt,
-                    laborFlatFee = row.laborFlatFee,
-                    markupPercent = row.markupPercent,
-                    discountPercent = row.discountPercent,
-                    sortOrder = row.sortOrder
-                )
-                if (merged != held) { repository.savePricingTier(merged); added++ }
+                //
+                // Gated last-edit-wins: a rate typed on this phone and not yet
+                // pushed must survive a pull landing in between, or the figure
+                // the crew is about to quote from reverts under them. Applying
+                // stamps this phone's clock to the cloud's, not to "now" --
+                // otherwise the very next push would see its own just-pulled
+                // copy as newer and send it straight back up.
+                if (row.updatedAtMillis() > held.updatedAt) {
+                    repository.savePricingTierFromCloud(
+                        held.copy(
+                            name = row.name,
+                            laborRatePerFt = row.laborRatePerFt,
+                            laborFlatFee = row.laborFlatFee,
+                            markupPercent = row.markupPercent,
+                            discountPercent = row.discountPercent,
+                            sortOrder = row.sortOrder,
+                            updatedAt = row.updatedAtMillis()
+                        )
+                    )
+                    added++
+                }
                 return@forEach
             }
             // Unknown id, but the name-matching above still applies: a tier
@@ -815,30 +850,36 @@ object EntitySync {
             // labour rate raised in the office never reached the phone that
             // had seeded its own Residential tier. Every estimate it wrote
             // afterwards was priced from last season's rate.
+            //
+            // Unconditional, same as before this clock existed: there is no
+            // prior pull of THIS cloud row to have a stale local clock about,
+            // so there is nothing to gate against.
             val tierName = row.name.trim().lowercase()
             val sameTier = if (tierName in adoptedNames) null else localByName[tierName]
             if (sameTier != null) {
                 adoptedNames += tierName
-                repository.savePricingTier(
+                repository.savePricingTierFromCloud(
                     sameTier.copy(
                         syncId = row.syncId,
                         laborRatePerFt = row.laborRatePerFt,
                         laborFlatFee = row.laborFlatFee,
                         markupPercent = row.markupPercent,
                         discountPercent = row.discountPercent,
-                        sortOrder = row.sortOrder
+                        sortOrder = row.sortOrder,
+                        updatedAt = row.updatedAtMillis()
                     )
                 )
                 added++
                 return@forEach
             }
             if (tierName in knownNames) return@forEach
-            repository.savePricingTier(
+            repository.savePricingTierFromCloud(
                 PricingTier(
                     syncId = row.syncId, name = row.name,
                     laborRatePerFt = row.laborRatePerFt, laborFlatFee = row.laborFlatFee,
                     markupPercent = row.markupPercent, discountPercent = row.discountPercent,
-                    sortOrder = row.sortOrder
+                    sortOrder = row.sortOrder,
+                    updatedAt = row.updatedAtMillis()
                 )
             )
             added++
@@ -879,23 +920,34 @@ object EntitySync {
                 // A price corrected after a supplier invoice has to reach every
                 // phone, or two people quote the same fence at two prices.
                 //
-                // copy() keeps manufacturerId and lastUpdated, which the cloud
-                // shape does not carry. Losing manufacturerId would detach every
-                // item from its supplier.
-                val merged = existing.copy(
-                    name = row.name,
-                    category = category,
-                    role = role,
-                    fenceType = fenceType,
-                    colorOrFinish = row.colorOrFinish,
-                    unit = row.unit,
-                    unitPrice = row.unitPrice,
-                    taxable = row.taxable,
-                    coversFt = row.coversFt,
-                    isActive = row.isActive,
-                    sourceDoc = row.sourceDoc
-                )
-                if (merged != existing) { repository.updateMaterialItem(merged); added++ }
+                // Gated last-edit-wins: a price typed on this phone and not yet
+                // pushed must survive a pull landing in between, or it reverts
+                // under whoever is mid-edit. Applying stamps this phone's clock
+                // to the cloud's, not to "now" -- otherwise the very next push
+                // would see its own just-pulled copy as newer and send it
+                // straight back up.
+                //
+                // copy() keeps manufacturerId, which the cloud shape does not
+                // carry. Losing it would detach the item from its supplier.
+                if (row.updatedAtMillis() > existing.lastUpdated) {
+                    repository.updateMaterialItemFromCloud(
+                        existing.copy(
+                            name = row.name,
+                            category = category,
+                            role = role,
+                            fenceType = fenceType,
+                            colorOrFinish = row.colorOrFinish,
+                            unit = row.unit,
+                            unitPrice = row.unitPrice,
+                            taxable = row.taxable,
+                            coversFt = row.coversFt,
+                            isActive = row.isActive,
+                            sourceDoc = row.sourceDoc,
+                            lastUpdated = row.updatedAtMillis()
+                        )
+                    )
+                    added++
+                }
                 return@forEach
             }
             // New to this phone by sync id -- but every phone seeds the same
@@ -913,11 +965,14 @@ object EntitySync {
             // reference the catalog by role and carry their own price snapshot,
             // so nothing is orphaned by the re-key -- and the cloud row is the
             // company's copy, which is the one that should win.
+            // Unconditional, same as before this clock existed: there is no
+            // prior pull of THIS cloud row to have a stale local clock about,
+            // so there is nothing to gate against.
             val ident = identity(row.name, row.role, row.fenceType, row.colorOrFinish)
             val sameThing = if (ident in adoptedIdentities) null else localByIdentity[ident]
             if (sameThing != null) {
                 adoptedIdentities += ident
-                repository.updateMaterialItem(
+                repository.updateMaterialItemFromCloud(
                     sameThing.copy(
                         syncId = row.syncId,
                         category = category,
@@ -926,14 +981,15 @@ object EntitySync {
                         taxable = row.taxable,
                         coversFt = row.coversFt,
                         isActive = row.isActive,
-                        sourceDoc = row.sourceDoc
+                        sourceDoc = row.sourceDoc,
+                        lastUpdated = row.updatedAtMillis()
                     )
                 )
                 added++
                 return@forEach
             }
             if (ident in knownIdentities) return@forEach
-            repository.saveMaterialItem(
+            repository.saveMaterialItemFromCloud(
                 MaterialItem(
                     syncId = row.syncId,
                     name = row.name,
@@ -946,7 +1002,8 @@ object EntitySync {
                     taxable = row.taxable,
                     coversFt = row.coversFt,
                     isActive = row.isActive,
-                    sourceDoc = row.sourceDoc
+                    sourceDoc = row.sourceDoc,
+                    lastUpdated = row.updatedAtMillis()
                 )
             )
             added++

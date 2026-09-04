@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- New strings introduced while adding a last-edit-wins clock to
+         pricing-tier and catalog sync. Kept out of strings.xml so this pass
+         never has to touch the file every other screen also edits. -->
+
+    <!-- Job-day checklist: shown above the Materials section so a crew member
+         checking the list on a different phone doesn't assume it's the same
+         one. Ticks on this screen are per-device only, unlike the estimate
+         and job data around it. -->
+    <string name="inv_local_only_note">This checklist stays on this phone. It is not synced to the cloud or to other phones yet.</string>
+</resources>
