@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- New strings introduced by the field-polish pass on the survey, crew,
+         estimate and run-edit screens. Kept out of strings.xml so this pass
+         never has to touch the file every other screen also edits. -->
+
+    <!-- Survey drawing screen: shown as a persistent banner when a drawing
+         change couldn't be re-priced, so materials and the total are stale
+         until the estimate is reopened. -->
+    <string name="field_polish_reprice_failed">Materials and price did not update from this drawing — open the estimate to recalculate.</string>
+
+    <!-- Not owned by this pass: ui/components/PlanGate.kt (shared foundation,
+         outside these files) calls stringResource(R.string.plan_locked_body, plan)
+         in real code, but the foundation commit that added PlanGate.kt never
+         added this string to strings.xml, so the whole module fails to
+         compile until it exists somewhere. strings.xml is off limits here, so
+         it is defined in this file instead; Android resource merging does
+         not care which values/*.xml a name comes from. Whoever owns PlanGate.kt
+         should feel free to move this into strings.xml proper. -->
+    <string name="plan_locked_body">Included on the %1$s plan. Ask the owner to upgrade to turn this on.</string>
+</resources>

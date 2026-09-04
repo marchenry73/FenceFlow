@@ -40,9 +40,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
-import java.text.NumberFormat
-import java.util.Locale
+import com.fenceestimator.app.ui.theme.Space
 
 /**
  * Entering what the supplier actually quoted.
@@ -67,7 +67,6 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
     )
     val job by viewModel.job.collectAsState()
     val lineItems by viewModel.lineItems.collectAsState()
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
 
     // Typed values live here until saved, so a half-entered figure never
     // re-prices the job mid-keystroke.
@@ -95,8 +94,8 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.row)
         ) {
             item {
                 Text(
@@ -128,15 +127,15 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                         else MaterialTheme.colorScheme.secondaryContainer
                     )
                 ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(stringResource(R.string.est2_estimated_from_catalog, currency.format(catalogTotal)))
-                        Text(stringResource(R.string.est2_with_supplier_prices, currency.format(quotedTotal)))
+                    Column(Modifier.padding(Space.md)) {
+                        Text(stringResource(R.string.est2_estimated_from_catalog, Money.format(catalogTotal)))
+                        Text(stringResource(R.string.est2_with_supplier_prices, Money.format(quotedTotal)))
                         if (kotlin.math.abs(difference) > 0.005) {
                             Text(
                                 if (difference > 0)
-                                    stringResource(R.string.est2_more_than_quoted, currency.format(difference))
+                                    stringResource(R.string.est2_more_than_quoted, Money.format(difference))
                                 else
-                                    stringResource(R.string.est2_less_than_estimated, currency.format(-difference)),
+                                    stringResource(R.string.est2_less_than_estimated, Money.format(-difference)),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -148,7 +147,6 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                 SupplierPriceRow(
                     item = item,
                     typed = entered[item.id] ?: item.supplierUnitPrice?.let { "%.2f".format(java.util.Locale.US, it) } ?: "",
-                    currency = currency,
                     onChange = { entered[item.id] = it }
                 )
             }
@@ -173,18 +171,17 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
 private fun SupplierPriceRow(
     item: EstimateLineItem,
     typed: String,
-    currency: NumberFormat,
     onChange: (String) -> Unit
 ) {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(Space.row)
     ) {
         Column(Modifier.weight(1f)) {
             Text(item.description, style = MaterialTheme.typography.bodyMedium)
             Text(
-                stringResource(R.string.est2_supplier_row_detail, "%.1f".format(item.quantity), item.unit, currency.format(item.unitPrice)) +
+                stringResource(R.string.est2_supplier_row_detail, "%.1f".format(item.quantity), item.unit, Money.format(item.unitPrice)) +
                     if (item.isSupplierPriced) " · " + stringResource(R.string.est2_quoted) else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (item.isSupplierPriced) MaterialTheme.colorScheme.primary

@@ -42,7 +42,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.TimeEntry
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.theme.Space
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -103,7 +105,7 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (!session.canApproveTime) {
-            Column(Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+            Column(Modifier.fillMaxSize().padding(padding).padding(Space.xl)) {
                 Text(
                     "You don't have \"Approve crew hours\". Ask an owner if you should.",
                     style = MaterialTheme.typography.bodyLarge
@@ -114,8 +116,8 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.row)
         ) {
             if (pending.isEmpty()) {
                 item {
@@ -188,7 +190,7 @@ private fun PendingShiftCard(
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
         } else CardDefaults.cardColors()
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(who, style = MaterialTheme.typography.titleMedium)
             if (isOwn) {
                 Text(
@@ -212,11 +214,11 @@ private fun PendingShiftCard(
             )
             Text(
                 "%.2f hours".format(entry.hours) +
-                    if (entry.hourlyRate > 0.0) "  =  $${"%.2f".format(entry.claimedCost)}" else "",
+                    if (entry.hourlyRate > 0.0) "  =  " + Money.format(entry.claimedCost) else "",
                 style = MaterialTheme.typography.bodyMedium
             )
             if (suspiciouslyLong) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Space.xs)) {
                     Icon(
                         Icons.Filled.WarningAmber,
                         contentDescription = null,
@@ -279,14 +281,14 @@ private fun ReviewShiftDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.time_review_shift)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.row)) {
                 Text(
                     "Correct the times if the clock ran through a break or was left " +
                         "running, then approve. Approving is what makes these hours count.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
                     OutlinedTextField(
                         value = startText,
                         onValueChange = { startText = it },
@@ -306,7 +308,7 @@ private fun ReviewShiftDialog(
                 }
                 Text(
                     "%.2f hours".format(correctedHours) +
-                        if (entry.hourlyRate > 0.0) "  =  $${"%.2f".format(correctedHours * entry.hourlyRate)}" else "",
+                        if (entry.hourlyRate > 0.0) "  =  " + Money.format(correctedHours * entry.hourlyRate) else "",
                     style = MaterialTheme.typography.titleMedium
                 )
                 if (!timesValid) {
@@ -331,7 +333,7 @@ private fun ReviewShiftDialog(
             ) { Text(stringResource(R.string.time_approve)) }
         },
         dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
                 OutlinedButton(
                     // A reason is required. "Rejected" with no explanation is

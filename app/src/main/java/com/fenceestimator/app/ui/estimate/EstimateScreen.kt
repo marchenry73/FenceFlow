@@ -62,9 +62,10 @@ import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.TakeoffLine
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
-import java.text.NumberFormat
-import java.util.Locale
+import com.fenceestimator.app.ui.theme.Radius
+import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,7 +81,6 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
     val totals by viewModel.totals.collectAsState()
     val takeoff by viewModel.takeoff.collectAsState()
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale.US) }
     val currentJob = job ?: return
 
     var editingItem by remember { mutableStateOf<EstimateLineItem?>(null) }
@@ -108,8 +108,8 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(Space.screen),
+            verticalArrangement = Arrangement.spacedBy(Space.row)
         ) {
             // Keys have to be unique across the WHOLE list, not just within one
             // items() block. Runs and line items both used their raw row id, so
@@ -122,7 +122,6 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                     linearFeet = viewModel.linearFeetFor(run),
                     items = itemsByRun[run.id].orEmpty(),
                     takeoff = takeoff[run.id].orEmpty(),
-                    currency = currency,
                     onRegenerate = { viewModel.regenerateSuggested(run) },
                     onManualFeet = { feet, corners -> viewModel.setManualFeet(run, feet, corners) },
                     wasDrawn = viewModel.canRecalibrateFrom(run),
@@ -147,10 +146,10 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                 }
             }
             items(unassigned, key = { "item-${it.id}" }) { item ->
-                LineItemRow(item, currency, onClick = { editingItem = item })
+                LineItemRow(item, onClick = { editingItem = item })
             }
 
-            item { TotalsCard(totals, currentJob, currency) }
+            item { TotalsCard(totals, currentJob) }
             if (warnings.isNotEmpty()) {
                 item { WarningsCard(warnings) }
             }
@@ -174,7 +173,6 @@ private fun RunSection(
     linearFeet: Float,
     items: List<EstimateLineItem>,
     takeoff: List<TakeoffLine>,
-    currency: NumberFormat,
     onRegenerate: () -> Unit,
     onManualFeet: (Float?, Int) -> Unit,
     /** True when this run has a drawn line the scale can be worked out from. */
@@ -193,7 +191,7 @@ private fun RunSection(
     }
 
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(Space.card)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(run.label.ifBlank { stringResource(R.string.est2_untitled_run) }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -204,16 +202,16 @@ private fun RunSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Text(currency.format(subtotal), fontWeight = FontWeight.SemiBold)
+                Text(Money.format(subtotal), fontWeight = FontWeight.SemiBold)
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.row))
             // Typing the length is the fastest path and needs no drawing, no
             // photo, and no calibration -- most quotes start from a wheel
             // measurement, not a survey.
             Text(stringResource(R.string.est_know_length), style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(Space.sm))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 OutlinedTextField(
                     value = feetText,
                     onValueChange = {
@@ -251,7 +249,7 @@ private fun RunSection(
             // drawn, which corrects the whole plan at once.
             val typedFeet = feetText.replace(',', '.').toFloatOrNull()
             if (wasDrawn && typedFeet != null && typedFeet > 0f) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedButton(
                     onClick = { onFixScaleFromFeet(typedFeet) },
                     modifier = Modifier.fillMaxWidth()
@@ -265,25 +263,25 @@ private fun RunSection(
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.row))
             Button(onClick = onRegenerate, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.Refresh, contentDescription = null)
                 Text("  " + stringResource(R.string.est_suggest_quantities))
             }
 
             if (takeoff.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.md))
                 TakeoffBlock(takeoff)
             } else {
                 val summary = quantitySummary(items)
                 if (summary.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.sm))
                     Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
             if (run.suppressedRoles.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (run.suppressedRoles.size == 1) stringResource(R.string.est2_item_types_removed_one)
@@ -296,10 +294,10 @@ private fun RunSection(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.sm))
             items.forEach { item ->
-                LineItemRow(item, currency, onClick = { onItemClick(item) })
-                Spacer(Modifier.height(6.dp))
+                LineItemRow(item, onClick = { onItemClick(item) })
+                Spacer(Modifier.height(Space.sm))
             }
         }
     }
@@ -310,9 +308,9 @@ private fun RunSection(
 private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
     Column(
         Modifier.fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(Radius.sm))
+            .padding(Space.md),
+        verticalArrangement = Arrangement.spacedBy(Space.xs)
     ) {
         Text(stringResource(R.string.est_what_job_needs), style = MaterialTheme.typography.labelLarge)
 
@@ -326,7 +324,7 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
             val lines = takeoff.filter { it.group == group }
             if (lines.isEmpty()) return@forEach
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Text(
                 group.heading,
                 style = MaterialTheme.typography.labelMedium,
@@ -359,9 +357,9 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
 @Composable
 private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(Space.card)) {
             Text(stringResource(R.string.est_waste_allowance), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             Text(
                 stringResource(R.string.est2_waste_explain),
                 style = MaterialTheme.typography.bodySmall,
@@ -374,8 +372,8 @@ private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(Space.sm))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 listOf(0.0, 5.0, 10.0, 15.0).forEach { pct ->
                     androidx.compose.material3.FilterChip(
                         selected = wastePercent == pct,
@@ -414,58 +412,58 @@ private fun quantitySummary(items: List<EstimateLineItem>): String {
 }
 
 @Composable
-private fun LineItemRow(item: EstimateLineItem, currency: NumberFormat, onClick: () -> Unit) {
+private fun LineItemRow(item: EstimateLineItem, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(Space.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
                 Text(item.description, fontWeight = FontWeight.Medium)
                 val qtyStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else String.format("%.2f", item.quantity)
-                Text(stringResource(R.string.est2_line_item_detail, qtyStr, item.unit, currency.format(item.unitPrice)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.est2_line_item_detail, qtyStr, item.unit, Money.format(item.unitPrice)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(currency.format(item.quantity * item.unitPrice), fontWeight = FontWeight.SemiBold)
+            Text(Money.format(item.quantity * item.unitPrice), fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
 @Composable
-private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: NumberFormat) {
+private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            TotalRow(stringResource(R.string.estimate_materials_subtotal), currency.format(totals.materialsSubtotal))
-            TotalRow(stringResource(R.string.est2_tax_pct, "${job?.taxRatePercent ?: 0}"), currency.format(totals.tax))
-            if (totals.laborCost > 0.0) TotalRow(stringResource(R.string.estimate_labor), currency.format(totals.laborCost))
+        Column(Modifier.padding(Space.card)) {
+            TotalRow(stringResource(R.string.estimate_materials_subtotal), Money.format(totals.materialsSubtotal))
+            TotalRow(stringResource(R.string.est2_tax_pct, "${job?.taxRatePercent ?: 0}"), Money.format(totals.tax))
+            if (totals.laborCost > 0.0) TotalRow(stringResource(R.string.estimate_labor), Money.format(totals.laborCost))
             if (totals.gateCharge > 0.0) {
                 TotalRow(
-                    stringResource(R.string.est2_gates_line, "%.0f".format(totals.gateFeet), currency.format(job?.gateRatePerFt ?: 0.0)),
-                    currency.format(totals.gateCharge)
+                    stringResource(R.string.est2_gates_line, "%.0f".format(totals.gateFeet), Money.format(job?.gateRatePerFt ?: 0.0)),
+                    Money.format(totals.gateCharge)
                 )
             }
             if (totals.teardownCost > 0.0) {
-                TotalRow(stringResource(R.string.est2_teardown_existing), currency.format(totals.teardownCost - totals.trashHaulFee))
+                TotalRow(stringResource(R.string.est2_teardown_existing), Money.format(totals.teardownCost - totals.trashHaulFee))
             }
-            if (totals.trashHaulFee > 0.0) TotalRow(stringResource(R.string.est2_haul_away_fee), currency.format(totals.trashHaulFee))
-            if (totals.markupAmount > 0.0) TotalRow(stringResource(R.string.est2_markup_pct, "${job?.markupPercent ?: 0}"), currency.format(totals.markupAmount))
+            if (totals.trashHaulFee > 0.0) TotalRow(stringResource(R.string.est2_haul_away_fee), Money.format(totals.trashHaulFee))
+            if (totals.markupAmount > 0.0) TotalRow(stringResource(R.string.est2_markup_pct, "${job?.markupPercent ?: 0}"), Money.format(totals.markupAmount))
             if (totals.discountAmount > 0.0) {
                 TotalRow(
                     if (job?.pricingTierName?.isNotBlank() == true)
                         stringResource(R.string.est2_discount_tier_pct, job?.pricingTierName ?: "", "${job?.discountPercent ?: 0}")
                     else stringResource(R.string.est2_discount_pct, "${job?.discountPercent ?: 0}"),
-                    "-" + currency.format(totals.discountAmount)
+                    "-" + Money.format(totals.discountAmount)
                 )
             }
             if (totals.changeOrderCost > 0.0 || totals.changeOrderFeet > 0.0) {
                 TotalRow(
                     stringResource(R.string.est2_approved_extra_work) +
                         if (totals.changeOrderFeet > 0.0) " " + stringResource(R.string.est2_plus_feet, "%.0f".format(totals.changeOrderFeet)) else "",
-                    currency.format(totals.changeOrderCost)
+                    Money.format(totals.changeOrderCost)
                 )
             }
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-            TotalRow(stringResource(R.string.estimate_total), currency.format(totals.grandTotal), bold = true)
+            Divider(modifier = Modifier.padding(vertical = Space.sm))
+            TotalRow(stringResource(R.string.estimate_total), Money.format(totals.grandTotal), bold = true)
 
             // What the job keeps, shown every time rather than only when it is
             // bad. The warning below fires under 35%; the owner asked to see
@@ -478,16 +476,16 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?, currency: Numbe
                 val kept = priceExTax - totals.materialsSubtotal
                 val keptPct = kept / priceExTax * 100.0
                 Text(
-                    stringResource(R.string.est2_stays_with_you, currency.format(kept), "%.0f".format(keptPct)),
+                    stringResource(R.string.est2_stays_with_you, Money.format(kept), "%.0f".format(keptPct)),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (keptPct < 35.0) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp)
+                    modifier = Modifier.padding(top = Space.sm)
                 )
             }
             if (job != null && totals.grandTotal <= job!!.minimumJobCharge && job!!.minimumJobCharge > 0.0) {
                 Text(
-                    stringResource(R.string.est2_minimum_charge_applied, currency.format(job!!.minimumJobCharge)),
+                    stringResource(R.string.est2_minimum_charge_applied, Money.format(job!!.minimumJobCharge)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -502,7 +500,7 @@ private fun WarningsCard(warnings: List<EstimateWarning>) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.fillMaxWidth().padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
                 Text("  " + stringResource(R.string.est_before_you_send), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -562,10 +560,10 @@ private fun ExportSection(
     Column {
         if (needsResign) {
             Card(
-                Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(bottom = Space.sm),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
-                Column(Modifier.padding(12.dp)) {
+                Column(Modifier.padding(Space.md)) {
                     Text(
                         stringResource(R.string.est2_changed_after_signed_title),
                         style = MaterialTheme.typography.titleSmall,
@@ -589,12 +587,16 @@ private fun ExportSection(
         }
 
         if (job.signatureImagePath != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = Space.sm)) {
                 coil.compose.AsyncImage(
                     model = job.signatureImagePath, contentDescription = null,
                     modifier = Modifier.height(40.dp).weight(1f)
                 )
-                Button(onClick = { showSignaturePad = true }) {
+                // Send Contract below is the one filled, primary action on this
+                // scroll -- re-signing is a secondary path back into it, and two
+                // filled buttons in the same column reads as "pick either", when
+                // only one of them is the actual next step for most estimates.
+                OutlinedButton(onClick = { showSignaturePad = true }) {
                     Text(stringResource(if (needsResign) R.string.est2_get_new_signature else R.string.est2_re_sign))
                 }
             }
@@ -602,7 +604,7 @@ private fun ExportSection(
             OutlinedButton(onClick = { showSignaturePad = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.est_sign_to_accept))
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.sm))
         }
         // Says plainly that the figures are a guess, because they are.
         //
@@ -612,12 +614,12 @@ private fun ExportSection(
         // stated rather than left for someone to remember.
         if (job.materialPricesConfirmedAt == null) {
             Card(
-                Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(bottom = Space.sm),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer
                 )
             ) {
-                Column(Modifier.padding(12.dp)) {
+                Column(Modifier.padding(Space.md)) {
                     Text(
                         stringResource(R.string.est2_provisional_pricing),
                         style = MaterialTheme.typography.titleSmall,
@@ -628,7 +630,7 @@ private fun ExportSection(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.sm))
                     OutlinedButton(
                         onClick = { onOpenSupplierPrices(job.id) },
                         modifier = Modifier.fillMaxWidth()
@@ -662,7 +664,7 @@ private fun ExportSection(
             color = if (needsResign) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.sm))
 
         OutlinedButton(
             onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.SUPPLIER_REQUEST) },
@@ -676,7 +678,7 @@ private fun ExportSection(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.sm))
 
         OutlinedButton(
             onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_INVOICE) },
@@ -699,7 +701,7 @@ private fun ExportSection(
             color = if (needsResign || job.signedAt == null) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.sm))
 
         // The internal copy shows what the job costs YOU -- supplier prices,
         // margin, everything the customer documents exist to protect. It sits
@@ -769,12 +771,12 @@ private fun EditLineItemDialog(
         text = {
             Column {
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text(stringResource(R.string.est_description)) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(Space.sm))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     OutlinedTextField(value = qtyText, onValueChange = { qtyText = it }, label = { Text(stringResource(R.string.est_qty)) }, modifier = Modifier.weight(1f))
                     OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text(stringResource(R.string.est_unit)) }, modifier = Modifier.weight(1f))
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text(stringResource(R.string.est_unit_price)) }, modifier = Modifier.fillMaxWidth())
             }
         },
@@ -800,7 +802,7 @@ private fun EditLineItemDialog(
         dismissButton = {
             Row {
                 OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.sm))
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
