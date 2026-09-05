@@ -22,7 +22,7 @@
  * project starts with none, and a function whose secret is missing fails at
  * runtime rather than at deploy time.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -38,6 +38,22 @@ if (!ref) {
     `  prod : ${PROD_REF}`
   );
   process.exit(1);
+}
+
+// The pricing parity gate, before a single function is deployed -- to dev
+// as much as to production, because the dev project is where the office
+// first prices a job against the phone. price-job carries the server copy
+// of the pricing engine, and deploying a copy that disagrees with the phone
+// is the failure this whole arrangement exists to prevent. There is
+// deliberately no flag to skip this.
+{
+  const gate = spawnSync(process.execPath, [join(REPO_ROOT, "scripts", "check-parity.mjs")], {
+    cwd: REPO_ROOT, stdio: "inherit",
+  });
+  if (gate.status !== 0) {
+    console.error("\nRefusing to deploy: the pricing parity gate is red (see above).");
+    process.exit(1);
+  }
 }
 
 const functions = readdirSync(FUNCTIONS_DIR, { withFileTypes: true })

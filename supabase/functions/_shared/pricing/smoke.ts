@@ -185,7 +185,7 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   const out = priceJob(input(job(), [run("run-1", { manual_linear_feet: 100, color_or_finish: "White" })]));
   check("case1 linear_feet", out.linear_feet, 100);
   check("case1 feet", [out.runs[0].gross_feet, out.runs[0].gate_feet, out.runs[0].net_feet], [100, 0, 100]);
-  check("case1 geometry", out.runs[0].geometry, { corner_count: 0, end_count: 2, line_vertex_count: 0 });
+  check("case1 geometry", out.runs[0].geometry, { corner_count: 0, end_count: 2, line_vertex_count: 0, segments: [], vertices: [] });
   check("case1 posts", out.runs[0].posts, { line: 16, corner: 0, end: 2, gate: 0, terminal: 2, total: 18 });
   check("case1 entries", entriesOf(out), [
     ["PANEL", 17, 6, 100], ["LINE_POST", 16, null, null], ["CORNER_POST", 0, null, null],
@@ -232,7 +232,7 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
     [{ sync_id: "co-1", additional_feet: 10, additional_cost: 200, material_cost: 50 }],
   ));
   check("case2 feet", [out.runs[0].gross_feet, out.runs[0].gate_feet, out.runs[0].net_feet], [120, 4, 116]);
-  check("case2 geometry", out.runs[0].geometry, { corner_count: 4, end_count: 0, line_vertex_count: 0 });
+  check("case2 geometry", out.runs[0].geometry, { corner_count: 4, end_count: 0, line_vertex_count: 0, segments: [], vertices: [] });
   check("case2 posts", out.runs[0].posts, { line: 10, corner: 4, end: 0, gate: 2, terminal: 6, total: 16 });
   check("case2 entries", entriesOf(out), [
     ["WOOD_PICKET", 280, null, null], ["WOOD_RAIL", 50, null, null], ["LINE_POST", 10, null, null], ["CORNER_POST", 4, null, null],
@@ -249,14 +249,25 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   check("case2 unmatched", out.unmatched_roles, [
     { run_sync_id: "run-2", role: "HANDLE" }, { run_sync_id: "run-2", role: "BRACE" }, { run_sync_id: "run-2", role: "STIFFENER" },
   ]);
-  check("case2 materials", out.totals.materials_subtotal, 1611.25);
+  // The written rows come to 1611.25. The "other-run" row names a run this
+  // job does not carry, so it is job-level: a regenerate never touches it,
+  // and it stays on the job and in the totals at 1 x its $1.00 supplier
+  // price (replaceGeneratedForRun only clears the run's own roled rows).
+  // The two rows that DO belong to run-2 were roled, so they were deleted
+  // and came back as the freshly built lines above, carrying their prices.
+  check("case2 materials", out.totals.materials_subtotal, 1612.25);
+  check("case2 totals order", out.totals_items, [
+    ...out.items.filter((i) => i.sort_order === 0).map((i) => i.sync_id), ...out.items.filter((i) => i.sort_order === 1).map((i) => i.sync_id),
+    ...out.items.filter((i) => i.sort_order === 2).map((i) => i.sync_id), "other-run",
+    ...out.items.filter((i) => i.sort_order > 2).map((i) => i.sync_id),
+  ]);
   check("case2 change order", [out.totals.change_order_cost, out.totals.change_order_feet], [200, 10]);
   check("case2 billable", out.billable_linear_feet, 130);
   check("case2 gate", [out.totals.gate_feet, out.totals.gate_charge], [4, 100]);
   check("case2 labor", out.totals.labor_cost, 630);
   check("case2 teardown", [out.totals.teardown_cost, out.totals.trash_haul_fee], [410, 50]);
-  check("case2 pre-markup", out.totals.pre_markup_total, 2951.25);
-  // 2951.25 * 1.10 = 3246.375, less 5% = 3084.05625, up to the next ten.
+  check("case2 pre-markup", out.totals.pre_markup_total, 2952.25);
+  // 2952.25 * 1.10 = 3247.475, less 5% = 3085.10125, up to the next ten.
   check("case2 grand total", out.totals.grand_total, 3090);
 }
 
@@ -273,7 +284,11 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   ));
   check("case3 linear_feet", out.linear_feet, 100);
   check("case3 feet", [out.runs[0].gross_feet, out.runs[0].gate_feet, out.runs[0].net_feet], [100, 20, 80]);
-  check("case3 geometry", out.runs[0].geometry, { corner_count: 1, end_count: 2, line_vertex_count: 0 });
+  check("case3 geometry", out.runs[0].geometry, {
+    corner_count: 1, end_count: 2, line_vertex_count: 0,
+    segments: [{ from_index: 0, to_index: 1, length_ft: 50 }, { from_index: 1, to_index: 2, length_ft: 50 }],
+    vertices: [{ index: 0, kind: "END", turn_degrees: 0 }, { index: 1, kind: "CORNER", turn_degrees: 90 }, { index: 2, kind: "END", turn_degrees: 0 }],
+  });
   check("case3 posts", out.runs[0].posts, { line: 10, corner: 1, end: 2, gate: 4, terminal: 7, total: 17 });
   check("case3 entry count", out.runs[0].entries.length, 28);
   check("case3 last entry is the one concrete line", entriesOf(out)[27], ["CONCRETE_BAG", 18, null, null]);

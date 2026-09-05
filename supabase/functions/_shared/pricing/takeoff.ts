@@ -48,11 +48,27 @@ export interface PostCounts {
   totalPosts: number;
 }
 
+/** Headings on the takeoff, in the order someone actually works through them. */
+export const TAKEOFF_GROUPS = ["SITE", "POSTS", "PANELS", "CONCRETE", "GATES", "OTHER"] as const;
+export type TakeoffGroup = (typeof TAKEOFF_GROUPS)[number];
+
+/** One "8 line posts" style readout for the takeoff summary. */
+export interface TakeoffLine {
+  label: string;
+  /** Double. */
+  quantity: number;
+  unit: string;
+  /** Which heading this belongs under. */
+  group: TakeoffGroup;
+}
+
 export interface EstimateSuggestions {
   geometry: FenceGeometryResult;
   /** Float. */
   netLinearFeet: number;
   entries: QtyEntry[];
+  /** Plain-English counts, shown to the contractor whether or not the catalog has a matching item. */
+  takeoff: TakeoffLine[];
   // The three below are private intermediates on the phone. They are kept
   // on the result so the fixture can assert them stage by stage.
   gates: GateMarker[];
@@ -142,10 +158,52 @@ export function suggestQuantities(run: FenceRun, pixelsPerFoot: number, wastePer
     geometry,
     netLinearFeet: netFt,
     entries: kept,
+    takeoff: buildTakeoff(geometry, gates.length, postCounts, kept),
     gates,
     gateWidthTotal,
     postCounts,
   };
+}
+
+/**
+ * The counts a contractor actually reads off before ordering. Every line is
+ * listed and the zero ones dropped, so a label's presence is itself a fact
+ * the fixtures pin (PricingRunner reads the post counts back off these).
+ */
+function buildTakeoff(
+  geometry: FenceGeometryResult,
+  gateCount: number,
+  posts: PostCounts,
+  entries: readonly QtyEntry[],
+): TakeoffLine[] {
+  const qtyOf = (role: MaterialRole): number => doubleSum(entries.filter((e) => e.role === role).map((e) => e.quantity));
+  const line = (label: string, quantity: number, unit: string, group: TakeoffGroup): TakeoffLine => ({ label, quantity, unit, group });
+  return [
+    line("Fence length", geometry.totalLinearFeet, "ft", "SITE"),
+    line("Gates", gateCount, "", "SITE"),
+
+    line("Line posts", posts.linePosts, "", "POSTS"),
+    line("Corner posts", posts.cornerPosts, "", "POSTS"),
+    line("End posts", posts.endPosts, "", "POSTS"),
+    line("Gate posts (end posts + stiffener)", posts.gatePosts, "", "POSTS"),
+    line("Blank posts (wall-hung gates)", qtyOf("BLANK_POST"), "", "POSTS"),
+    line("Total posts", posts.totalPosts, "", "POSTS"),
+    line("Post caps", qtyOf("POST_CAP"), "", "POSTS"),
+
+    line("Panels", qtyOf("PANEL"), "", "PANELS"),
+    line("Pickets", qtyOf("WOOD_PICKET"), "", "PANELS"),
+    line("Rails", qtyOf("WOOD_RAIL"), "", "PANELS"),
+    line("Chain link fabric", qtyOf("CHAIN_FABRIC"), "ft", "PANELS"),
+
+    line("Concrete", qtyOf("CONCRETE_BAG"), "bags", "CONCRETE"),
+
+    line("Hinge sets", qtyOf("HINGE_SET"), "", "GATES"),
+    line("Latches", qtyOf("LATCH"), "", "GATES"),
+    line("Gate handles", qtyOf("HANDLE"), "", "GATES"),
+    line("Gate braces", qtyOf("BRACE"), "", "GATES"),
+    line("Econo stiffeners", qtyOf("STIFFENER"), "", "GATES"),
+    line("Hole plugs", qtyOf("HOLE_PLUG"), "", "GATES"),
+  ].filter((t) => t.quantity > 0.0);
 }
 
 /**

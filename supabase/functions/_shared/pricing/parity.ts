@@ -9,19 +9,23 @@
  *
  * No tolerances, ever. Two engines that agree "to within a cent" are two
  * engines that disagree, and the customer sees whichever one wrote last.
- * Numbers are compared with Object.is; strings and booleans with ===;
- * arrays in order; objects on the union of both key sets, so a value one
- * side emits and the other does not is a failure, not an omission.
+ * Numbers are compared with Object.is (so -0 and 0 differ, and a NaN is
+ * only equal to a NaN); strings and booleans with ===; arrays in order;
+ * objects on the union of both key sets, so a value one side emits and the
+ * other does not is a failure, not an omission. The expected values are
+ * used exactly as JSON.parse hands them over: nothing is rounded, decoded
+ * or coerced on the way in.
  *
  * The fixtures are written by Kotlin (ParityFixtureWriter) and never
  * regenerated from this side. When a case fails, the first divergent stage
- * is named so the port can be read against the Kotlin at that stage.
+ * is named -- in the order ParityFixtureCheck names them, which is the order
+ * the engine computes them -- so the port can be read against the Kotlin at
+ * that stage rather than at the loudest one.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { f32 } from "./f32.ts";
 import { PRICING_ENGINE_VERSION, priceJob } from "./index.ts";
 import type { PricingInput, PricingOutput } from "./index.ts";
 
@@ -31,6 +35,7 @@ interface Fixture {
   schema: number;
   engine: { version: string; generated_at: string };
   case: string;
+  note?: string;
   input: PricingInput;
   expected: PricingOutput;
 }
@@ -42,33 +47,6 @@ interface Divergence {
   actual: unknown;
 }
 
-/**
- * Fields the phone holds as Float. The contract asks the writer to emit
- * them after fround, so decoding them through fround is the identity on a
- * well-formed fixture; on a fixture that wrote "0.1" instead of the exact
- * float32 value it recovers the float the writer meant. That is a decode
- * of the declared type, not a tolerance -- the comparison after it is still
- * Object.is. A field that was NOT float32-exact is reported so the writer
- * can be fixed.
- */
-const FLOAT32_PATHS = [
-  /^linear_feet$/,
-  /^teardown_linear_feet$/,
-  /^billable_linear_feet$/,
-  /^runs\[\d+\]\.(gross_feet|gate_feet|net_feet)$/,
-  /^runs\[\d+\]\.entries\[\d+\]\.(prefer_covers_ft|covers_linear_ft)$/,
-];
-
-const inexactFloatFields: string[] = [];
-
-function decodeExpected(path: string, value: unknown): unknown {
-  if (typeof value !== "number") return value;
-  if (!FLOAT32_PATHS.some((re) => re.test(path))) return value;
-  const decoded = f32(value);
-  if (!Object.is(decoded, value)) inexactFloatFields.push(path);
-  return decoded;
-}
-
 function describe(v: unknown): string {
   if (typeof v === "number") return Object.is(v, -0) ? "-0" : String(v);
   return JSON.stringify(v) ?? String(v);
@@ -76,26 +54,25 @@ function describe(v: unknown): string {
 
 /** First difference between expected and actual under `path`, or null. */
 function firstDifference(stage: string, path: string, expected: unknown, actual: unknown): Divergence | null {
-  const exp = decodeExpected(path, expected);
-  if (exp === null || actual === null || typeof exp !== "object" || typeof actual !== "object") {
-    if (typeof exp === "number" && typeof actual === "number") {
-      return Object.is(exp, actual) ? null : { stage, path, expected: exp, actual };
+  if (expected === null || actual === null || typeof expected !== "object" || typeof actual !== "object") {
+    if (typeof expected === "number" && typeof actual === "number") {
+      return Object.is(expected, actual) ? null : { stage, path, expected, actual };
     }
-    if (typeof exp !== typeof actual || exp !== actual) return { stage, path, expected: exp, actual };
+    if (typeof expected !== typeof actual || expected !== actual) return { stage, path, expected, actual };
     return null;
   }
-  if (Array.isArray(exp) !== Array.isArray(actual)) return { stage, path, expected: exp, actual };
-  if (Array.isArray(exp) && Array.isArray(actual)) {
-    if (exp.length !== actual.length) {
-      return { stage, path: `${path}.length`, expected: exp.length, actual: actual.length };
+  if (Array.isArray(expected) !== Array.isArray(actual)) return { stage, path, expected, actual };
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    if (expected.length !== actual.length) {
+      return { stage, path: `${path}.length`, expected: expected.length, actual: actual.length };
     }
-    for (let i = 0; i < exp.length; i++) {
-      const d = firstDifference(stage, `${path}[${i}]`, exp[i], actual[i]);
+    for (let i = 0; i < expected.length; i++) {
+      const d = firstDifference(stage, `${path}[${i}]`, expected[i], actual[i]);
       if (d !== null) return d;
     }
     return null;
   }
-  const expObj = exp as Record<string, unknown>;
+  const expObj = expected as Record<string, unknown>;
   const actObj = actual as Record<string, unknown>;
   // Expected's keys first, in its order, then anything only actual has.
   const keys = Array.from(new Set([...Object.keys(expObj), ...Object.keys(actObj)]));
@@ -110,42 +87,51 @@ function firstDifference(stage: string, path: string, expected: unknown, actual:
 }
 
 /**
- * The stages, in the order the engine computes them, so the report names
- * the earliest place the two engines parted rather than the loudest.
+ * The stages, in the order ParityFixtureCheck.firstDivergence names them
+ * (docs/PRICING_CONTRACT.md, "Output rules"): per run geometry, net feet,
+ * posts, entries, takeoff; then items, unmatched_roles, zero_priced,
+ * zero_priced_names, feet, totals_items, totals. The first that differs is
+ * the one reported.
  */
 function compareStaged(expected: PricingOutput, actual: PricingOutput): Divergence | null {
-  const stages: Array<[string, () => Divergence | null]> = [
-    ["engine_version", () => firstDifference("engine_version", "engine_version", expected.engine_version, actual.engine_version)],
-    ["linear_feet", () => firstDifference("linear_feet", "linear_feet", expected.linear_feet, actual.linear_feet)],
-    ["teardown_linear_feet", () => firstDifference("teardown_linear_feet", "teardown_linear_feet", expected.teardown_linear_feet, actual.teardown_linear_feet)],
-    ["runs.count", () => firstDifference("runs.count", "runs.length", expected.runs.length, actual.runs.length)],
+  const at = (stage: string, path: string, e: unknown, a: unknown): Divergence | null => firstDifference(stage, path, e, a);
+  const stages: Array<() => Divergence | null> = [
+    () => at("engine_version", "engine_version", expected.engine_version, actual.engine_version),
+    () => at("runs", "runs.length", expected.runs.length, actual.runs.length),
   ];
   for (let i = 0; i < Math.min(expected.runs.length, actual.runs.length); i++) {
     const e = expected.runs[i];
     const a = actual.runs[i];
     const p = `runs[${i}]`;
-    stages.push([`${p}.run_sync_id`, () => firstDifference(`${p}.run_sync_id`, `${p}.run_sync_id`, e.run_sync_id, a.run_sync_id)]);
-    stages.push([`${p}.geometry`, () => firstDifference(`${p}.geometry`, `${p}.geometry`, e.geometry, a.geometry)]);
-    stages.push([`${p}.feet`, () =>
-      firstDifference(`${p}.feet`, `${p}.gross_feet`, e.gross_feet, a.gross_feet) ??
-      firstDifference(`${p}.feet`, `${p}.gate_feet`, e.gate_feet, a.gate_feet) ??
-      firstDifference(`${p}.feet`, `${p}.net_feet`, e.net_feet, a.net_feet)]);
-    stages.push([`${p}.posts`, () => firstDifference(`${p}.posts`, `${p}.posts`, e.posts, a.posts)]);
-    stages.push([`${p}.entries`, () => firstDifference(`${p}.entries`, `${p}.entries`, e.entries, a.entries)]);
+    const tag = `run ${e.run_sync_id}`;
+    stages.push(() => at(`${tag} identity`, `${p}.run_sync_id`, e.run_sync_id, a.run_sync_id));
+    stages.push(() => at(`${tag} is_teardown`, `${p}.is_teardown`, e.is_teardown, a.is_teardown));
+    stages.push(() =>
+      at(`${tag} geometry`, `${p}.gross_feet`, e.gross_feet, a.gross_feet) ??
+      at(`${tag} geometry`, `${p}.geometry`, e.geometry, a.geometry));
+    stages.push(() =>
+      at(`${tag} net_feet`, `${p}.gate_count`, e.gate_count, a.gate_count) ??
+      at(`${tag} net_feet`, `${p}.gate_feet`, e.gate_feet, a.gate_feet) ??
+      at(`${tag} net_feet`, `${p}.net_feet`, e.net_feet, a.net_feet));
+    stages.push(() => at(`${tag} posts`, `${p}.posts`, e.posts, a.posts));
+    stages.push(() => at(`${tag} entries`, `${p}.entries`, e.entries, a.entries));
+    stages.push(() => at(`${tag} takeoff`, `${p}.takeoff`, e.takeoff, a.takeoff));
   }
-  stages.push(["items.count", () => firstDifference("items.count", "items.length", expected.items.length, actual.items.length)]);
-  for (let i = 0; i < Math.min(expected.items.length, actual.items.length); i++) {
-    stages.push([`items[${i}]`, () => firstDifference(`items[${i}]`, `items[${i}]`, expected.items[i], actual.items[i])]);
-  }
-  stages.push(["unmatched_roles", () => firstDifference("unmatched_roles", "unmatched_roles", expected.unmatched_roles, actual.unmatched_roles)]);
-  stages.push(["zero_priced", () => firstDifference("zero_priced", "zero_priced", expected.zero_priced, actual.zero_priced)]);
-  stages.push(["totals", () => firstDifference("totals", "totals", expected.totals, actual.totals)]);
-  stages.push(["billable_linear_feet", () => firstDifference("billable_linear_feet", "billable_linear_feet", expected.billable_linear_feet, actual.billable_linear_feet)]);
+  stages.push(() => at("items", "items", expected.items, actual.items));
+  stages.push(() => at("unmatched_roles", "unmatched_roles", expected.unmatched_roles, actual.unmatched_roles));
+  stages.push(() => at("zero_priced", "zero_priced", expected.zero_priced, actual.zero_priced));
+  stages.push(() => at("zero_priced_names", "zero_priced_names", expected.zero_priced_names, actual.zero_priced_names));
+  stages.push(() =>
+    at("feet", "linear_feet", expected.linear_feet, actual.linear_feet) ??
+    at("feet", "teardown_linear_feet", expected.teardown_linear_feet, actual.teardown_linear_feet) ??
+    at("feet", "billable_linear_feet", expected.billable_linear_feet, actual.billable_linear_feet));
+  stages.push(() => at("totals_items", "totals_items", expected.totals_items, actual.totals_items));
+  stages.push(() => at("totals", "totals", expected.totals, actual.totals));
   // Anything the stages above did not cover -- a field one side has and
-  // the other does not, at the top level.
-  stages.push(["output", () => firstDifference("output", "", expected, actual)]);
+  // the other does not, at any level.
+  stages.push(() => at("output", "", expected, actual));
 
-  for (const [, check] of stages) {
+  for (const check of stages) {
     const d = check();
     if (d !== null) return d;
   }
@@ -156,7 +142,7 @@ function main(): number {
   if (!existsSync(FIXTURES_DIR)) {
     console.error(`parity: no fixtures at ${FIXTURES_DIR}`);
     console.error("parity: generate them from Kotlin first:");
-    console.error('parity:   FENCEFLOW_PARITY_OUT=fixtures/pricing ./gradlew testDebugUnitTest --tests "*ParityFixtureWriter*"');
+    console.error('parity:   FENCEFLOW_PARITY_OUT=$(pwd)/fixtures/pricing ./gradlew testDebugUnitTest --tests "*ParityFixtureWriter*"');
     return 1;
   }
 
@@ -201,11 +187,6 @@ function main(): number {
       failed++;
       continue;
     }
-    if (fixture.input?.engine_version !== undefined && fixture.input.engine_version !== PRICING_ENGINE_VERSION) {
-      console.log(`FAIL ${caseId}  at input.engine_version: ${describe(fixture.input.engine_version)}`);
-      failed++;
-      continue;
-    }
 
     let actual: PricingOutput;
     try {
@@ -216,16 +197,12 @@ function main(): number {
       continue;
     }
 
-    inexactFloatFields.length = 0;
     const divergence = compareStaged(fixture.expected, actual);
     if (divergence === null) {
       console.log(`ok   ${caseId}`);
     } else {
       console.log(`FAIL ${caseId}  at ${divergence.stage}: ${divergence.path} expected=${describe(divergence.expected)} actual=${describe(divergence.actual)}`);
       failed++;
-    }
-    if (inexactFloatFields.length > 0) {
-      console.log(`     note: ${caseId} wrote non-float32 values for Float fields: ${Array.from(new Set(inexactFloatFields)).join(", ")}`);
     }
   }
 

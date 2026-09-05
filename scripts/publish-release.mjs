@@ -22,7 +22,7 @@
  * install something. This script goes through the Supabase CLI, which uses your
  * own login rather than a key stored anywhere.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { writeFileSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -48,6 +48,21 @@ if (!notes) {
   console.error('  node scripts/publish-release.mjs "Fixes the invoice total"');
   console.error('  node scripts/publish-release.mjs "Fixes a payment bug" --urgent');
   process.exit(1);
+}
+
+// The pricing parity gate, before anything else happens -- before the dry
+// run, before the version check, before a byte is uploaded. The phone and
+// the server each carry a copy of the pricing engine, and a release of one
+// that disagrees with the other is the office quoting a different number
+// from the phone. There is deliberately no flag to skip this.
+{
+  const gate = spawnSync(process.execPath, [join(REPO_ROOT, "scripts", "check-parity.mjs")], {
+    cwd: REPO_ROOT, stdio: "inherit",
+  });
+  if (gate.status !== 0) {
+    console.error("\nRefusing to publish: the pricing parity gate is red (see above).");
+    process.exit(1);
+  }
 }
 
 /** The same number the build stamps into the APK. */

@@ -124,9 +124,18 @@ const RADIANS_TO_DEGREES = 57.29577951308232;
  * (sharp direction change -> needs a corner post) or a straight line point
  * (needs only a standard line post), given a pixels-per-foot calibration.
  *
- * Segment length is `sqrt(dx*dx + dy*dy)` in Float arithmetic, step by step,
- * never hypot: hypot is allowed to differ by an ulp between libms, and both
- * engines were pinned to the plain form so they cannot.
+ * Segment length is `sqrt(dx*dx + dy*dy)`, never hypot: hypot is allowed to
+ * differ by an ulp between libms, and both engines were pinned to the plain
+ * form so they cannot. The Kotlin is
+ *
+ *     val dx = (b.x - a.x).toDouble()
+ *     val dy = (b.y - a.y).toDouble()
+ *     val distPx = sqrt(dx * dx + dy * dy).toFloat()
+ *
+ * so the two subtractions are Float, and everything after them -- the
+ * products, the sum, the square root -- is Double, narrowed once at the end.
+ * Rounding the products and the sum to Float as well is a different number
+ * on any leg that is not axis-aligned.
  */
 export function analyze(points: readonly FencePoint[], pixelsPerFoot: number, closedLoop = false): FenceGeometryResult {
   if (points.length < 2 || pixelsPerFoot <= 0) {
@@ -142,7 +151,7 @@ export function analyze(points: readonly FencePoint[], pixelsPerFoot: number, cl
     const b = points[(i + 1) % n];
     const dx = f32(b.x - a.x);
     const dy = f32(b.y - a.y);
-    const distPx = f32(Math.sqrt(f32(f32(dx * dx) + f32(dy * dy))));
+    const distPx = f32(Math.sqrt(dx * dx + dy * dy));
     totalPixels = f32(totalPixels + distPx);
     segments.push({ fromIndex: i, toIndex: (i + 1) % n, lengthFt: f32(distPx / pixelsPerFoot) });
   }
