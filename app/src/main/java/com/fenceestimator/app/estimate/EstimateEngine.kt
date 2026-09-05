@@ -78,6 +78,14 @@ private val FRAME_KIT_GATE_TYPES = setOf(FenceType.WOOD, FenceType.CHAIN_LINK, F
  */
 object EstimateEngine {
 
+    /**
+     * Which arithmetic this engine speaks. The server port carries the same
+     * constant, and the committed parity fixtures carry it too: a change to
+     * any formula here is a new version, regenerated fixtures, and the port
+     * moved in the same commit -- never one side alone.
+     */
+    const val PRICING_ENGINE_VERSION = "2026.09.1"
+
     private data class PostCounts(
         val linePosts: Int,
         val cornerPosts: Int,
@@ -557,12 +565,15 @@ object EstimateEngine {
                 // Two items at the same distance must resolve the same way
                 // every single time -- minByOrNull alone keeps whichever came
                 // first in an unordered list, which is a coin toss dressed as
-                // a choice. Distance, then price, then id: total order.
+                // a choice. Distance, then price, then sync id: total order.
+                // The sync id, not the Room id -- the Room id is minted per
+                // phone, so two phones (and the server) would break the same
+                // tie two ways.
                 pool.minWithOrNull(
                     compareBy(
                         { kotlin.math.abs((it.coversFt ?: entry.preferCoversFt) - entry.preferCoversFt) },
                         { it.unitPrice },
-                        { it.id }
+                        { it.syncId }
                     )
                 )
             } else {
@@ -570,9 +581,9 @@ object EstimateEngine {
                 // is how a $0.00 placeholder ended up representing a whole role
                 // and quietly zeroed out the materials total.
                 // Same rule: never let list position decide. Priced beats
-                // unpriced, then cheapest, then lowest id.
+                // unpriced, then cheapest, then lowest sync id (see above).
                 candidates.sortedWith(
-                    compareBy({ it.unitPrice <= 0.0 }, { it.unitPrice }, { it.id })
+                    compareBy({ it.unitPrice <= 0.0 }, { it.unitPrice }, { it.syncId })
                 ).firstOrNull()
             } ?: run {
                 unmatched += entry.role

@@ -1,0 +1,339 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "catalog-empty",
+  "note": "No catalog: every role unmatched, no items, labour and the gate charge still price.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 0.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000033-0000-4000-8000-000000000001",
+        "label": "vinyl",
+        "fence_type": "VINYL",
+        "color_or_finish": "",
+        "points_encoded": "",
+        "gates_encoded": "500.0:0.0:4.0:LINE:IN",
+        "closed_loop": false,
+        "manual_linear_feet": 100.0,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 6.0,
+        "post_spacing_ft": 6.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 100.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 100.0,
+    "runs": [
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 1,
+        "gross_feet": 100.0,
+        "gate_feet": 4.0,
+        "net_feet": 96.0,
+        "geometry": {
+          "corner_count": 0,
+          "end_count": 2,
+          "line_vertex_count": 0,
+          "segments": [],
+          "vertices": []
+        },
+        "posts": {
+          "line": 14,
+          "corner": 0,
+          "end": 2,
+          "gate": 2,
+          "terminal": 4,
+          "total": 18
+        },
+        "entries": [
+          {
+            "role": "PANEL",
+            "quantity": 16.0,
+            "prefer_covers_ft": 6.0,
+            "covers_linear_ft": 96.0
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 14.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 0.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "POST_CAP",
+            "quantity": 18.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "GATE_PANEL",
+            "quantity": 1.0,
+            "prefer_covers_ft": 4.0,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HINGE_SET",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "LATCH",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HANDLE",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "BRACE",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "TRIM",
+            "quantity": 4.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "STIFFENER",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 19.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 100.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Gates",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 14.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Gate posts (end posts + stiffener)",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 18.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Post caps",
+            "quantity": 18.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Panels",
+            "quantity": 16.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 19.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          },
+          {
+            "label": "Hinge sets",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Latches",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Gate handles",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Gate braces",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Econo stiffeners",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          }
+        ]
+      }
+    ],
+    "items": [],
+    "unmatched_roles": [
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "PANEL"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "LINE_POST"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "END_POST"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "POST_CAP"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "GATE_PANEL"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "HINGE_SET"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "LATCH"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "HANDLE"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "BRACE"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "TRIM"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "STIFFENER"
+      },
+      {
+        "run_sync_id": "00000033-0000-4000-8000-000000000001",
+        "role": "CONCRETE_BAG"
+      }
+    ],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [],
+    "totals": {
+      "materials_subtotal": 0.0,
+      "taxable_subtotal": 0.0,
+      "tax": 0.0,
+      "labor_cost": 768.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 4.0,
+      "gate_charge": 80.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 0.0,
+      "discount_amount": 0.0,
+      "pre_markup_total": 848.0,
+      "grand_total": 850.0,
+      "billable_linear_feet": 100.0
+    }
+  }
+}
