@@ -38,6 +38,15 @@ verify_jwt = false
 [functions.invite-company]
 verify_jwt = true
 
+# Only the signed-in office calls this, and it never will hold a homeowner's
+# link the way create-payment-link and quote-view do -- one door, so the
+# gateway can reject a missing or invalid JWT before the function ever runs.
+# The function still re-checks company, role and the SEE_MONEY permission
+# itself: verify_jwt only proves SOMEONE is signed in, not that this caller
+# may see this job's money.
+[functions.price-job]
+verify_jwt = true
+
 # Square signs its own requests and sends no Supabase JWT, exactly like Stripe.
 # Leaving this out is what made the first deploy answer 401 at the gateway
 # before the function ran at all.
