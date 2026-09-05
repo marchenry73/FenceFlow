@@ -245,6 +245,56 @@
   .cat.closed .caret{transform:rotate(-90deg)}
   .cat.closed .cat-body{display:none}
   @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+
+  /* ---- Materials catalog: one collapsible section per fence type --------
+     Same collapse language as the Reports tab's .cat (caret rotates, body
+     hides), but its own class names -- the Reports sections are wired once
+     at boot from a static querySelectorAll, while these are re-rendered
+     every time the catalog changes, so they need their own click wiring
+     rather than sharing that one-shot binding. Capped at 1100px and single
+     column under 720px, the same breakpoint the wizards already use. */
+  .cat-editor{max-width:1100px}
+  .mcat{margin-bottom:14px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .mcat-head{width:100%;text-align:left;background:#fff;border:none;padding:12px 14px;
+             font-size:15px;font-weight:700;color:var(--text);cursor:pointer;font-family:inherit;
+             display:flex;align-items:baseline;gap:8px}
+  .mcat-head:hover{color:var(--orange)}
+  .mcat-head .caret{transition:transform .15s}
+  .mcat.closed .mcat-head .caret{transform:rotate(-90deg)}
+  .mcat.closed .mcat-body{display:none}
+  .mcat-count{font-size:12px;font-weight:400;color:var(--muted);margin-left:auto}
+  .mcat-body{padding:0 14px 14px}
+  .mcat-missing{background:#FFF4E5;border:1px solid #E5C08A;color:#7A4B00;border-radius:8px;
+                padding:8px 11px;font-size:12.5px;margin:0 0 10px}
+  .mcat-missing.ok{background:#E6F6F3;border-color:#A6D9CE;color:#07473D}
+  @media(prefers-color-scheme:dark){
+    .mcat-missing{background:#3A2A0A;color:#FFD79A;border-color:#5C4415}
+    .mcat-missing.ok{background:#12312B;color:#8FD9C7;border-color:#1F4A41}
+  }
+  .mcat-cat-head td{background:var(--paper);font-size:11px;font-weight:700;text-transform:uppercase;
+                    letter-spacing:.5px;color:var(--muted);padding:7px 6px}
+  tr.mcat-inactive td{color:var(--muted)}
+  .mcat-flag{color:var(--orange-dk);font-size:11px;cursor:help}
+  @media(max-width:720px){.cat-editor table, .cat-editor thead, .cat-editor tbody{display:block}
+    .cat-editor{overflow-x:auto}}
+
+  /* ---- Fence run viewer: one small canvas per run in the job drawer's
+     Fence Runs panel, drawn in the same palette the phone's plan screen
+     uses (PlanColors.kt) so the office and a crew phone never disagree
+     about what a colour on the drawing means. */
+  .run-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;max-width:1100px}
+  .run-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .run-canvas{display:block;width:100%;height:auto;background:#EEF1F5;border-radius:8px;margin:8px 0 4px}
+  @media(prefers-color-scheme:dark){.run-canvas{background:#1a2433}}
+
+  /* ---- Satellite tool: gate placement popover + precision loupe -------- */
+  .sat-gate-pop{position:absolute;background:#fff;color:var(--text);border:1px solid var(--line);
+                border-radius:10px;padding:11px;box-shadow:0 6px 18px rgba(0,0,0,.22);z-index:6;width:180px}
+  .sat-gate-pop label{margin:6px 0 3px}
+  .sat-gate-pop label:first-child{margin-top:0}
+  #satLoupe{position:absolute;display:none;pointer-events:none;border:2px solid #fff;border-radius:10px;
+            box-shadow:0 3px 12px rgba(0,0,0,.35);image-rendering:pixelated;z-index:4}
+
   /* ---- Crew reporting -------------------------------------------------
      Figures are read down a column and compared, so every number is
      tabular-nums: proportional digits make 11.5 and 8.75 fail to line up and
@@ -516,16 +566,23 @@
     </div>
 
     <div id="tab-catalog" style="display:none">
-      <div class="panel">
-        <h2>Materials Catalog</h2>
-        <p class="sub">Your supplier's items and prices, as entered on the phone.
-          This is a read-only view — add and edit them in the app under Catalog,
-          and they appear here within a minute of the phone going online.</p>
-        <input id="catFilter" placeholder="Filter by name, type or role…" style="margin-bottom:10px">
-        <div class="scroll"><table>
-          <thead><tr><th>Item</th><th>Fence type</th><th>Role</th><th>Unit</th><th>Price</th></tr></thead>
-          <tbody id="catRows"></tbody></table></div>
-        <div class="empty" id="catEmpty" style="display:none">Catalog hasn't synced from the app yet.</div>
+      <div class="panel cat-editor">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div>
+            <h2 style="margin:0">Materials Catalog</h2>
+            <p class="sub" style="margin:4px 0 0">One part list per fence type, so there's no
+              confusion about which panel, post or gate belongs to which build. Edit here or in
+              the phone app under Catalog — both write the same list and sync to each other
+              within a minute of either one going online.</p>
+          </div>
+          <button class="btn btn-sm btn-grey" type="button" id="catStartSeed">Start from FenceFlow's catalog</button>
+        </div>
+        <input id="catFilter" placeholder="Filter by name, fence type, category or role…" style="margin:14px 0 10px">
+        <div class="msg" id="catMsg"></div>
+        <div class="empty" id="catEmpty" style="display:none">No materials yet. Add them by hand
+          below, import a price list from Jobs, or press "Start from FenceFlow's catalog" above
+          for a typical starting set you can then correct.</div>
+        <div id="catSections"></div>
       </div>
     </div>
 
@@ -1141,6 +1198,77 @@
   </div>
 </div></div>
 
+<!-- One material_items row, add or edit. Shared by the Catalog tab's own
+     per-type sections and the Business setup wizard's Supplier prices step
+     -- one dialog, one save path, wherever "Add item to <type>" or "Edit"
+     was pressed. Placed after tplOverlay and before impOverlay so it opens
+     on top of either the plain Settings tab or the wizard sitting behind
+     it, the same DOM-order trick every overlay on this page already uses. -->
+<div class="overlay" id="catItemOverlay"><div class="sheet" style="max-width:600px">
+  <div class="sheet-head"><strong id="catItemDialogTitle">Catalog item</strong>
+    <button class="btn btn-sm btn-ghost" id="catItemDialogClose" type="button">Close</button></div>
+  <div class="sheet-body"><div class="msg" id="catItemDialogMsg"></div>
+    <div class="panel">
+      <label>Name</label><input id="ci_name" placeholder="6' Dog-Ear Wood Picket, PT Pine">
+      <div class="wiz-row2">
+        <div><label>Fence type</label><select id="ci_fence_type">
+          <option value="VINYL">Vinyl</option><option value="WOOD">Wood</option>
+          <option value="CHAIN_LINK">Chain link</option><option value="ALUMINUM">Aluminum</option>
+          <option value="ORNAMENTAL_IRON">Ornamental iron</option>
+          <option value="SPLIT_RAIL">Split rail</option><option value="COMPOSITE">Composite</option>
+          <option value="UNIVERSAL">Universal — used by every fence</option>
+        </select></div>
+        <div><label>Category</label><select id="ci_category">
+          <option value="PANEL">Panel</option><option value="POST">Post</option>
+          <option value="CAP">Cap</option><option value="CONCRETE">Concrete</option>
+          <option value="HARDWARE">Hardware</option><option value="GATE">Gate</option>
+          <option value="TRIM">Trim</option><option value="FABRIC">Fabric</option>
+          <option value="RAIL">Rail</option><option value="PICKET">Picket</option>
+          <option value="MISC">Misc</option>
+        </select></div>
+      </div>
+      <div class="wiz-row2">
+        <div><label>Role</label><select id="ci_role">
+          <option value="NONE">No role (not auto-matched)</option>
+          <option value="PANEL">Panel</option><option value="GATE_PANEL">Gate panel</option>
+          <option value="LINE_POST">Line post</option><option value="END_POST">End post</option>
+          <option value="CORNER_POST">Corner post</option><option value="GATE_POST">Gate post</option>
+          <option value="POST_CAP">Post cap</option><option value="CONCRETE_BAG">Concrete bag</option>
+          <option value="HOLE_PLUG">Hole plug</option><option value="BLANK_POST">Blank post (wall-hung gate)</option>
+          <option value="HINGE_SET">Hinge set</option><option value="LATCH">Latch</option>
+          <option value="HANDLE">Handle</option><option value="BRACE">Brace</option>
+          <option value="STIFFENER">Stiffener</option><option value="TRIM">Trim</option>
+          <option value="WOOD_PICKET">Wood picket</option><option value="WOOD_RAIL">Wood rail</option>
+          <option value="GATE_FRAME_KIT">Gate frame kit</option><option value="CHAIN_FABRIC">Chain fabric</option>
+          <option value="TOP_RAIL">Top rail</option><option value="TENSION_WIRE">Tension wire</option>
+          <option value="TENSION_BAND">Tension band</option><option value="BRACE_BAND">Brace band</option>
+          <option value="RAIL_END">Rail end</option><option value="BARBED_WIRE_ARM">Barbed wire arm</option>
+          <option value="PRIVACY_SLAT">Privacy slat</option>
+        </select></div>
+        <div><label>Colour / finish</label><input id="ci_color" placeholder="White, Black, Tan…"></div>
+      </div>
+      <div class="wiz-row3">
+        <div><label>Unit</label><input id="ci_unit" placeholder="EA"></div>
+        <div><label>Unit price ($)</label><input id="ci_price" type="number" step="0.01"></div>
+        <div><label>Covers (ft)</label><input id="ci_covers" type="number" step="0.5" placeholder="Optional"></div>
+      </div>
+      <div id="ci_supplier_wrap" style="display:none">
+        <label>Supplier price ($)</label><input id="ci_supplier" type="number" step="0.01">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:12px">
+        <input type="checkbox" id="ci_taxable" style="width:auto"> Taxable
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <input type="checkbox" id="ci_active" style="width:auto"> Active
+      </label>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="catItemDialogRetire" type="button">Retire</button>
+    <button class="btn" id="catItemDialogSave" type="button">Save</button>
+  </div>
+</div></div>
+
 <!-- Crew editor -->
 <div class="overlay" id="impOverlay"><div class="sheet" style="max-width:720px">
   <div class="sheet-head">
@@ -1193,19 +1321,41 @@
       <p class="sub" style="margin:0 0 8px" id="satWhere"></p>
       <div style="position:relative;border-radius:10px;overflow:hidden;background:#e9ecef">
         <canvas id="satCanvas" style="display:block;width:100%;cursor:crosshair;touch-action:none"></canvas>
+        <canvas id="satLoupe" width="130" height="130"></canvas>
+        <div id="satGatePopup" class="sat-gate-pop" style="display:none">
+          <div style="font-weight:700;font-size:12px" id="satGatePopTitle">New gate</div>
+          <label>Width (ft)</label><input id="satGateWidth" type="number" step="0.5">
+          <label>Mounting</label><select id="satGateMounting">
+            <option value="LINE">Line</option><option value="WALL">Wall</option>
+            <option value="LINE_TO_WALL">Line to wall</option>
+          </select>
+          <label>Swing</label><select id="satGateSwing">
+            <option value="IN">In</option><option value="OUT">Out</option>
+          </select>
+          <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">
+            <button class="btn btn-sm" id="satGateAdd" type="button">Add</button>
+            <button class="btn btn-sm btn-grey" id="satGateRemove" type="button" style="display:none">Remove</button>
+            <button class="btn btn-sm btn-grey" id="satGateCancel" type="button">Cancel</button>
+          </div>
+        </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
         <button class="btn btn-sm btn-grey" id="satUndo">Undo point</button>
         <button class="btn btn-sm btn-grey" id="satClear">Start over</button>
         <button class="btn btn-sm btn-grey" id="satOut">Zoom out</button>
         <button class="btn btn-sm btn-grey" id="satIn">Zoom in</button>
+        <button class="btn btn-sm btn-grey" id="satGateMode" type="button">Place a gate</button>
         <label style="margin:0 0 0 auto;display:flex;align-items:center;gap:6px">
           <input type="checkbox" id="satLoop"> Closed loop
         </label>
       </div>
-      <p class="sub" style="margin:10px 0 0">Click along the fence line, corner to corner.
-        Drag the picture to move it. Tick <b>closed loop</b> if the fence comes back
-        round to where it started.</p>
+      <p class="sub" id="satLiveLen" style="margin:8px 0 0;min-height:15px"></p>
+      <p class="sub" style="margin:4px 0 0">Click along the fence line, corner to corner. A new
+        point snaps to the last one's straight line within 6px — hold <b>Shift</b> to place it
+        exactly instead. <b>Ctrl+Z</b> or Undo removes the last point; the arrow keys nudge it one
+        pixel at a time. Drag the picture to move it, and tick <b>closed loop</b> if the fence
+        comes back round to where it started. Press <b>Place a gate</b>, then click on the drawn
+        line to drop one where you clicked — click an existing gate to edit or remove it.</p>
     </div>
     <div class="panel">
       <div style="font-size:30px;font-weight:800;font-variant-numeric:tabular-nums" id="satTotal">0 ft</div>
@@ -2843,25 +2993,506 @@ function renderTime(){
     ? `Total: ${th.toFixed(1)} hours · ${money(tc)} labor` : '';
 }
 
-/* ---------- catalog ---------- */
-function renderCatalog(){
-  const f=($('catFilter').value||'').toLowerCase();
-  const list=catalog.filter(c=>!f||
-    (c.name||'').toLowerCase().includes(f)||
-    (c.fence_type||'').toLowerCase().includes(f)||
+/* ===================== Materials catalog ==================================
+   Owner ask #1: "modify the catalogs on the web, and organize them in an
+   orderly fashion -- a part for each type of fence so there is no
+   confusion." One collapsible section per fence type (VINYL first through
+   UNIVERSAL last, "used by every fence"), each grouped by category inside,
+   with a search box that filters across every section at once and a count
+   of what a fresh estimate would flag as unmatched -- read against the same
+   (fence_type = run's type OR UNIVERSAL) rule EstimateEngine.kt's own
+   catalog lookup uses (see its BuiltItems.unmatchedRoles / the filter at
+   EstimateEngine.kt:513), so "missing" here means the same thing it means
+   on a quote.
+
+   Reused verbatim by the Business setup wizard's Supplier prices step
+   (renderCatalogSections is called into a second container id there) --
+   owner ask #2 wants that step to do everything a new company needs without
+   leaving the wizard, so it is the exact same editor rather than a smaller
+   copy of it. */
+
+/** In this fixed order everywhere the catalog is shown: the seven real
+    fence types first, UNIVERSAL last since it is not a fence type a run
+    ever has, only a bucket of parts (concrete, hole plugs) every run can
+    draw from. */
+const CATALOG_FENCE_TYPES = ['VINYL','WOOD','CHAIN_LINK','ALUMINUM','ORNAMENTAL_IRON','SPLIT_RAIL','COMPOSITE','UNIVERSAL'];
+/** Entities.kt's own MaterialCategory order -- rows inside a section are
+    grouped under these headings, in this order, skipping any not present. */
+const MATERIAL_CATEGORIES = ['PANEL','POST','CAP','CONCRETE','HARDWARE','GATE','TRIM','FABRIC','RAIL','PICKET','MISC'];
+
+function catFenceTypeLabel(t){
+  return t==='UNIVERSAL' ? 'Universal' : wizFenceTypeLabel(t);
+}
+
+/**
+ * The phone's own starting catalog (app/src/main/java/com/fenceestimator/
+ * app/data/SeedData.kt), reproduced as data rather than retyped by hand --
+ * this array was generated straight off that file's item(...) calls so the
+ * name, unit, price, taxable, coversFt, colour and REAL/PLACEHOLDER source
+ * flag of every row match it exactly. tests/catalog-run-viewer.test.mjs
+ * pins the count per fence type against this same source so the two cannot
+ * quietly drift apart. VINYL prices are the user's real FloriFence
+ * documents; WOOD, CHAIN_LINK, ALUMINUM, ORNAMENTAL_IRON, SPLIT_RAIL and
+ * COMPOSITE are placeholders at typical Tampa-market rates, flagged as such
+ * in source_doc so a company using them knows to check before quoting off
+ * them.
+ */
+const CATALOG_SEED = [
+  // ---- VINYL (19 items) ----
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - White",unit:"EA",unit_price:52.35,taxable:false,covers_ft:6,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - White",unit:"EA",unit_price:71.4,taxable:true,covers_ft:8,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"POST",role:"END_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex End Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"POST",role:"CORNER_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Corner Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"POST",role:"GATE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Gate Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"CAP",role:"POST_CAP",fence_type:"VINYL",name:"5\" External Pyramid PVC Post Cap, White",unit:"EA",unit_price:0.74,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"GATE",role:"GATE_PANEL",fence_type:"VINYL",name:"Regular PVC Gate 6'H x 5'W, White",unit:"EA",unit_price:145.05,taxable:false,covers_ft:5,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"VINYL",name:"Self-Closing Hinge Set (box, 12 pairs)",unit:"BOX",unit_price:32.25,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"VINYL",name:"Two-Way Latch (box of 20)",unit:"BOX",unit_price:25.87,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"From a real supplier quote"},
+  {category:"HARDWARE",role:"HANDLE",fence_type:"VINYL",name:"7\" SS Gate Handle (box of 50)",unit:"BOX",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"From a real supplier quote"},
+  {category:"HARDWARE",role:"BRACE",fence_type:"VINYL",name:"Gate Support Brace, 8'",unit:"EA",unit_price:6.5,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"HARDWARE",role:"STIFFENER",fence_type:"VINYL",name:"5\" Econo Stiffener x 8'(H)",unit:"EA",unit_price:52.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"From a real supplier quote"},
+  {category:"TRIM",role:"TRIM",fence_type:"VINYL",name:"7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White",unit:"EA",unit_price:2,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Tan",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Tan",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Gray",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Gray",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - Tan",unit:"EA",unit_price:73.9,taxable:true,covers_ft:8,color_or_finish:"Tan",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Tan",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Tan",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Gray",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Gray",source_doc:"Placeholder — verify with your supplier"},
+
+  // ---- WOOD (10 items) ----
+  {category:"PICKET",role:"WOOD_PICKET",fence_type:"WOOD",name:"6' Dog-Ear Wood Picket, Pressure-Treated Pine",unit:"EA",unit_price:3.25,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"RAIL",role:"WOOD_RAIL",fence_type:"WOOD",name:"2x4x8' Pressure-Treated Rail",unit:"EA",unit_price:6.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"WOOD",name:"4x4 Wood Post Cap",unit:"EA",unit_price:2.25,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"WOOD",name:"Wood Gate Frame Kit, Steel-Reinforced (up to 4'W)",unit:"EA",unit_price:65,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"WOOD",name:"Heavy-Duty T-Hinge Pair",unit:"PAIR",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"WOOD",name:"Wood Gate Latch",unit:"EA",unit_price:9,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+
+  // ---- CHAIN_LINK (18 items) ----
+  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 4' (per LF)",unit:"LF",unit_price:3.1,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 6' (per LF)",unit:"LF",unit_price:4.35,taxable:true,covers_ft:6,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 8' (per LF)",unit:"LF",unit_price:5.6,taxable:true,covers_ft:8,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"RAIL",role:"TOP_RAIL",fence_type:"CHAIN_LINK",name:"1-3/8\" Top Rail (per LF)",unit:"LF",unit_price:2.1,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"MISC",role:"TENSION_WIRE",fence_type:"CHAIN_LINK",name:"7-Gauge Bottom Tension Wire (per LF)",unit:"LF",unit_price:0.55,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"CHAIN_LINK",name:"1-5/8\" Galvanized Line Post, 8'",unit:"EA",unit_price:11.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"CHAIN_LINK",name:"Line Post Cap",unit:"EA",unit_price:1.1,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"TENSION_BAND",fence_type:"CHAIN_LINK",name:"Tension Band",unit:"EA",unit_price:1.05,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"BRACE_BAND",fence_type:"CHAIN_LINK",name:"Brace Band",unit:"EA",unit_price:1.35,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"RAIL_END",fence_type:"CHAIN_LINK",name:"Rail End Cup",unit:"EA",unit_price:1.6,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"BARBED_WIRE_ARM",fence_type:"CHAIN_LINK",name:"3-Strand Barbed Wire Arm",unit:"EA",unit_price:8.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"FABRIC",role:"PRIVACY_SLAT",fence_type:"CHAIN_LINK",name:"Privacy Slats (per LF)",unit:"LF",unit_price:2.9,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"CHAIN_LINK",name:"Chain Link Walk Gate Frame, 4'W, Galvanized",unit:"EA",unit_price:85,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"CHAIN_LINK",name:"Chain Link Gate Hinge Set",unit:"SET",unit_price:12.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"CHAIN_LINK",name:"Chain Link Fork Latch",unit:"EA",unit_price:9.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+
+  // ---- ALUMINUM (14 items) ----
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, Black",unit:"EA",unit_price:95,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 8'W, Rackable, Black",unit:"EA",unit_price:118,taxable:true,covers_ft:8,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"ALUMINUM",name:"Aluminum Post Cap, Flat, Black",unit:"EA",unit_price:3.5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"GATE",role:"GATE_PANEL",fence_type:"ALUMINUM",name:"Aluminum Walk Gate 6'H x 4'W, Black",unit:"EA",unit_price:175,taxable:true,covers_ft:4,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"ALUMINUM",name:"Aluminum Gate Hinge Set, Self-Closing",unit:"SET",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"ALUMINUM",name:"Aluminum Gate Latch, Self-Latching",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, White",unit:"EA",unit_price:99,taxable:true,covers_ft:6,color_or_finish:"White",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, Bronze",unit:"EA",unit_price:99,taxable:true,covers_ft:6,color_or_finish:"Bronze",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', White",unit:"EA",unit_price:23,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Bronze",unit:"EA",unit_price:23,taxable:true,covers_ft:null,color_or_finish:"Bronze",source_doc:"Placeholder — verify with your supplier"},
+
+  // ---- ORNAMENTAL_IRON (11 items) ----
+  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 4'H x 6'W, Black",unit:"EA",unit_price:135,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 4'H x 8'W, Black",unit:"EA",unit_price:165,taxable:true,covers_ft:8,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 6'H x 6'W, Black",unit:"EA",unit_price:175,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Post Cap, Black",unit:"EA",unit_price:6,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"GATE",role:"GATE_PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Walk Gate 4'H x 4'W, Black",unit:"EA",unit_price:210,taxable:true,covers_ft:4,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"ORNAMENTAL_IRON",name:"Heavy Iron Gate Hinge Set",unit:"SET",unit_price:24,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"ORNAMENTAL_IRON",name:"Self-Latching Iron Gate Latch",unit:"EA",unit_price:19,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+
+  // ---- SPLIT_RAIL (8 items) ----
+  {category:"RAIL",role:"WOOD_RAIL",fence_type:"SPLIT_RAIL",name:"8' Round Wood Split Rail",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Frame Kit, 10'W",unit:"EA",unit_price:95,taxable:true,covers_ft:10,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Hinge Set",unit:"SET",unit_price:12,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Latch",unit:"EA",unit_price:7,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+
+  // ---- COMPOSITE (10 items) ----
+  {category:"PICKET",role:"WOOD_PICKET",fence_type:"COMPOSITE",name:"6' Composite Privacy Board",unit:"EA",unit_price:9.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"RAIL",role:"WOOD_RAIL",fence_type:"COMPOSITE",name:"Composite Rail, 8'",unit:"EA",unit_price:16,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"COMPOSITE",name:"Composite Post Cap",unit:"EA",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"COMPOSITE",name:"Composite Gate Frame Kit (up to 4'W)",unit:"EA",unit_price:145,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"COMPOSITE",name:"Composite Gate Hinge Set",unit:"SET",unit_price:18,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"COMPOSITE",name:"Composite Gate Latch",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+
+  // ---- UNIVERSAL (2 items) ----
+  {category:"CONCRETE",role:"CONCRETE_BAG",fence_type:"UNIVERSAL",name:"Concrete Mix 60lb Bag",unit:"EA",unit_price:4.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"From a real supplier quote"},
+  {category:"MISC",role:"HOLE_PLUG",fence_type:"UNIVERSAL",name:"5/8\" Hole Plug, White",unit:"EA",unit_price:0.15,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+];
+
+/** How many CATALOG_SEED rows carry each fence type -- the pin
+    tests/catalog-run-viewer.test.mjs checks against SeedData.kt's own
+    per-function item() counts. Pure. */
+function catalogSeedCounts(){
+  const counts={};
+  CATALOG_SEED.forEach(s=>{ counts[s.fence_type]=(counts[s.fence_type]||0)+1; });
+  return counts;
+}
+
+/** The roles a fence type needs a priced item for, going by what
+    FenceFlow's own seed catalog carries for it -- the same proxy the app
+    ships with, not a re-port of EstimateEngine.kt's full quantity logic.
+    UNIVERSAL roles (concrete, hole plugs) count for every type, matching
+    the catalog lookup's own `fenceType == run.fenceType || fenceType ==
+    UNIVERSAL` rule (EstimateEngine.kt:513) -- a company that deleted its
+    universal concrete row should see EVERY section flag CONCRETE_BAG
+    missing, not just a UNIVERSAL section nobody is looking at. */
+function catalogExpectedRoles(fenceType){
+  const rolesOf = t => CATALOG_SEED.filter(s=>s.fence_type===t).map(s=>s.role);
+  const own = fenceType==='UNIVERSAL' ? [] : rolesOf(fenceType);
+  const universal = rolesOf('UNIVERSAL');
+  return Array.from(new Set(own.concat(universal))).sort();
+}
+
+/** Which of a fence type's expected roles have no active priced item --
+    "so the owner sees what the estimate will flag as unmatched" (owner ask
+    #1). Retired (deleted_at set) rows are already excluded upstream by the
+    is('deleted_at', null) load; is_active===false items are excluded here
+    too, since an inactive item is not one the estimate will actually use. */
+function catalogMissingRoles(catalogItems, fenceType){
+  const have = new Set((catalogItems||[])
+    .filter(c => c.is_active !== false && (c.fence_type===fenceType || c.fence_type==='UNIVERSAL'))
+    .map(c => c.role));
+  return catalogExpectedRoles(fenceType).filter(r => !have.has(r));
+}
+
+/** One entry per CATALOG_FENCE_TYPES member: its own items, grouped again
+    by category in MATERIAL_CATEGORIES order, plus its missing-role list.
+    Pure -- what the section headers, tables and "missing" lines are built
+    from, in both the Catalog tab and the wizard's Supplier step. */
+function catalogGroupByType(items){
+  const all = items||[];
+  return CATALOG_FENCE_TYPES.map(type=>{
+    const list = all.filter(c=>c.fence_type===type);
+    const byCategory = {};
+    list.forEach(c=>{ const cat=c.category||'MISC'; (byCategory[cat]=byCategory[cat]||[]).push(c); });
+    return { type, items:list, byCategory, missing: catalogMissingRoles(all, type) };
+  });
+}
+
+/** The search box's own matching rule -- name, fence type, category or
+    role, so "hinge" finds every hinge set across every fence type's
+    section at once. Extends the old single-table filter (name/type/role
+    only) with category, since items are now grouped by it. */
+function catalogFilterItems(items, filterText){
+  const f = (filterText||'').toLowerCase().trim();
+  if(!f) return items||[];
+  return (items||[]).filter(c =>
+    (c.name||'').toLowerCase().includes(f) ||
+    (c.fence_type||'').toLowerCase().includes(f) ||
+    (c.category||'').toLowerCase().includes(f) ||
     (c.role||'').toLowerCase().includes(f));
-  // Keyed on what was actually rendered, not on whether the catalog has
-  // anything in it at all -- a filter matching nothing used to leave bare
-  // column headers and no text, which reads as the page having broken.
-  $('catEmpty').textContent = catalog.length
-    ? `Nothing matches "${$('catFilter').value}". Clear the box to see everything.`
-    : "No materials yet. Add your supplier's items and prices in the phone app under "
-      + "Catalog — they appear here within a minute of the phone going online.";
-  $('catEmpty').style.display=list.length?'none':'block';
-  $('catRows').innerHTML=list.map(c=>`<tr>
-    <td>${esc(c.name)}</td><td>${esc((c.fence_type||'').replace(/_/g,' '))}</td>
-    <td>${esc((c.role||'').replace(/_/g,' '))}</td><td>${esc(c.unit)}</td>
-    <td>${money(c.unit_price)}</td></tr>`).join('');
+}
+
+/** "Start from FenceFlow's catalog": every CATALOG_SEED row whose
+    (fence_type, role, name) triple is not already in this company's
+    catalog. Name compares case-insensitively -- a company that typed
+    "white" where the seed says "White" should not end up with two rows for
+    the same part -- fence_type and role are enum values, so an exact
+    compare is already case-correct for those. Never touches an existing
+    row. Pure. */
+function catalogSeedRowsToAdd(existingItems, seedRows){
+  const key = c => [c.fence_type, c.role, (c.name||'').trim().toLowerCase()].join('|');
+  const have = new Set((existingItems||[]).map(key));
+  return (seedRows||[]).filter(s => !have.has(key(s)));
+}
+
+/** One material_items row from the item dialog's fields -- existing carries
+    its own sync_id for an edit, newSyncId is used for a brand-new row.
+    Never includes updated_at: the touch trigger owns that clock, and an
+    explicit value here would beat its own default the same way every other
+    upsert on this page is careful to avoid (PostgREST upsert traps). */
+function catalogItemPayload(existing, form, newSyncId){
+  return {
+    sync_id: existing ? existing.sync_id : newSyncId,
+    name: form.name,
+    fence_type: form.fence_type,
+    category: form.category,
+    role: form.role,
+    color_or_finish: form.color_or_finish,
+    unit: form.unit,
+    unit_price: form.unit_price,
+    covers_ft: form.covers_ft,
+    taxable: form.taxable,
+    is_active: form.is_active,
+  };
+}
+
+/* ---------- rendering ---------- */
+
+let catCollapsed = new Set();   // fence types the user has collapsed (in-memory only)
+let openCatItem = null;         // the row open in catItemOverlay, or null for "new"
+
+/** True once we know supplier_unit_price exists on material_items --
+    checked off a live row rather than hardcoded, since the column may not
+    exist on every deployment yet. Missing entirely today (it lives on
+    estimate_line_items, not material_items -- see supabase_supplier_prices_
+    patch.sql), so this reads false and the field simply does not appear;
+    the moment a migration adds it, it appears with no code change here. */
+function catalogHasSupplierPrice(){
+  return catalog.length>0 && Object.prototype.hasOwnProperty.call(catalog[0], 'supplier_unit_price');
+}
+
+function catItemRowHtml(c, hasSupplierPrice){
+  const placeholder = (c.source_doc||'').toLowerCase().startsWith('placeholder');
+  return `<tr class="${c.is_active===false?'mcat-inactive':''}">
+    <td>${esc(c.name)}${placeholder?' <span class="mcat-flag" title="Placeholder price — verify with your supplier">◆</span>':''}</td>
+    <td>${esc((c.role||'').replace(/_/g,' '))}</td>
+    <td>${esc(c.color_or_finish)||'—'}</td>
+    <td>${esc(c.unit)}</td>
+    <td>${money(c.unit_price)}</td>
+    <td>${c.covers_ft?c.covers_ft+' ft':'—'}</td>
+    ${hasSupplierPrice?`<td>${c.supplier_unit_price!=null?money(c.supplier_unit_price):'—'}</td>`:''}
+    <td style="text-align:center"><input type="checkbox" data-cat-active="${c.sync_id}"
+      ${c.is_active!==false?'checked':''} style="width:auto" ${canEdit()?'':'disabled'}></td>
+    <td style="white-space:nowrap">${canEdit() ? `
+      <button class="btn btn-sm btn-grey" type="button" data-cat-edit="${c.sync_id}">Edit</button>
+      <button class="btn btn-sm btn-grey" type="button" data-cat-retire="${c.sync_id}">Retire</button>` : ''}</td>
+  </tr>`;
+}
+
+/** One fence type's section: header (count, collapse caret), the missing-
+    roles line, its items grouped by category, and "Add item to <type>".
+    `expanded`/`hasFilter` are passed in rather than read from module state
+    so this stays a pure function of its own arguments, callable from either
+    renderCatalogSections() root without re-deriving anything. */
+function catSectionHtml(g, filteredItems, expanded, hasFilter){
+  const label = catFenceTypeLabel(g.type);
+  const hasSupplierPrice = catalogHasSupplierPrice();
+  const colCount = hasSupplierPrice ? 8 : 7;
+  const rowsHtml = MATERIAL_CATEGORIES.concat(['__other__']).map(cat=>{
+    const inCat = filteredItems.filter(c => cat==='__other__'
+      ? !MATERIAL_CATEGORIES.includes(c.category)
+      : c.category===cat);
+    if(!inCat.length) return '';
+    const head = cat==='__other__' ? 'OTHER' : cat;
+    return `<tr class="mcat-cat-head"><td colspan="${colCount}">${esc(head)}</td></tr>`
+      + inCat.map(c=>catItemRowHtml(c, hasSupplierPrice)).join('');
+  }).join('');
+  const missingLine = g.missing.length
+    ? `<p class="mcat-missing">Missing: ${g.missing.map(r=>esc(r.replace(/_/g,' '))).join(', ')}`
+      + ' — the estimate will flag these as unmatched until one is priced.</p>'
+    : `<p class="mcat-missing ok">Every role this fence type needs has a priced item.</p>`;
+  return `<div class="mcat ${expanded?'':'closed'}">
+    <button type="button" class="mcat-head" data-cat-toggle="${g.type}">
+      <span class="caret">▾</span><strong>${esc(label)}</strong>
+      <span class="mcat-count">${g.items.length} item${g.items.length===1?'':'s'}</span>
+    </button>
+    <div class="mcat-body">
+      ${missingLine}
+      ${filteredItems.length ? `<div class="scroll"><table>
+        <thead><tr><th>Item</th><th>Role</th><th>Colour</th><th>Unit</th><th>Price</th><th>Covers ft</th>
+          ${hasSupplierPrice?'<th>Supplier price</th>':''}<th>Active</th><th></th></tr></thead>
+        <tbody>${rowsHtml}</tbody></table></div>`
+        : `<p class="empty">${hasFilter?'Nothing here matches the filter.':'No items yet.'}</p>`}
+      ${canEdit() ? `<button class="btn btn-sm" type="button" data-cat-add="${g.type}" style="margin-top:10px">Add item to ${esc(label)}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+/** Wires one root element's own catalog-section controls -- scoped to
+    `root` (not the whole document) so the Catalog tab and the wizard's
+    Supplier step, which can both have a copy of this editor rendered at
+    once, never double-bind each other's buttons. */
+function wireCatSectionsIn(root){
+  root.querySelectorAll('[data-cat-toggle]').forEach(b=>b.addEventListener('click', ()=>{
+    const t=b.dataset.catToggle;
+    if(catCollapsed.has(t)) catCollapsed.delete(t); else catCollapsed.add(t);
+    renderCatalog();
+    if(sw && swCurrentKey()==='supplier') renderCatalogSections('sw_catSections', $('sw_cat_filter')?.value||'');
+  }));
+  root.querySelectorAll('[data-cat-edit]').forEach(b=>b.addEventListener('click', ()=>
+    openCatItemDialog(catalog.find(c=>c.sync_id===b.dataset.catEdit))));
+  root.querySelectorAll('[data-cat-add]').forEach(b=>b.addEventListener('click', ()=>
+    openCatItemDialog(null, b.dataset.catAdd)));
+  root.querySelectorAll('[data-cat-retire]').forEach(b=>{
+    const c = catalog.find(x=>x.sync_id===b.dataset.catRetire);
+    b.addEventListener('click', ()=>retireCatalogItem(b.dataset.catRetire, c && c.name));
+  });
+  root.querySelectorAll('[data-cat-active]').forEach(el=>el.addEventListener('change', ()=>
+    toggleCatalogActive(el.dataset.catActive, el.checked)));
+}
+
+/** Renders the grouped, filtered sections into whichever container asked
+    for them -- #catSections on the Catalog tab, or #sw_catSections in the
+    Business setup wizard's Supplier step -- and wires that copy's own
+    buttons. A missing container is not an error, the same convention
+    renderTierRows already uses, since the wizard step usually is not on
+    screen at all. */
+function renderCatalogSections(containerId, filterValue){
+  const el = $(containerId);
+  if(!el) return;
+  const groups = catalogGroupByType(catalog);
+  const hasFilter = (filterValue||'').trim().length>0;
+  const html = groups.map(g=>{
+    const filteredItems = catalogFilterItems(g.items, filterValue);
+    if(hasFilter && !filteredItems.length) return '';
+    const expanded = hasFilter ? true : !catCollapsed.has(g.type);
+    return catSectionHtml(g, filteredItems, expanded, hasFilter);
+  }).join('');
+  el.innerHTML = html || (catalog.length ? '<p class="empty">Nothing matches your filter.</p>' : '');
+  wireCatSectionsIn(el);
+}
+
+function renderCatalog(){
+  if(!$('catFilter')) return;
+  $('catEmpty').style.display = catalog.length ? 'none' : 'block';
+  renderCatalogSections('catSections', $('catFilter').value);
+}
+
+/** Re-reads just material_items and repaints both possible copies of the
+    editor -- not a full loadAll(), the same reasoning refreshTiers() and
+    reloadTemplates() already give for their own tables. Also refreshes the
+    setup checklist, since "Your catalog" is one of my_setup_progress()'s
+    own steps. */
+async function refreshCatalog(){
+  const { data, error } = await db.from('material_items').select('*').is('deleted_at', null);
+  if(!error) catalog = data || [];
+  renderCatalog();
+  if(sw && swCurrentKey()==='supplier'){
+    renderCatalogSections('sw_catSections', $('sw_cat_filter')?.value||'');
+    swRenderCatalogCheck();
+  }
+  const sp = await db.rpc('my_setup_progress');
+  setupSteps = sp.error ? [] : (sp.data || []);
+  renderSetup();
+}
+
+/** Where a catalog mutation's own message belongs: the wizard's #swMsg when
+    the Supplier step is what is actually on screen, #catMsg otherwise --
+    the same background-vs-dialog routing addStarterTiers and retireTierRow
+    already use for the two places a tier or template mutation can be
+    triggered from. */
+function catBackgroundMsgId(){
+  return (sw && swCurrentKey()==='supplier') ? 'swMsg' : 'catMsg';
+}
+
+async function toggleCatalogActive(syncId, active){
+  if(!canEdit()) return;
+  const { error } = await db.from('material_items').update({ is_active: active })
+    .eq('company_id', profile.company_id).eq('sync_id', syncId);
+  if(error) msg(catBackgroundMsgId(), error.message, 'err');
+  await refreshCatalog();
+}
+
+async function retireCatalogItem(syncId, name){
+  if(!canEdit()) return;
+  const ok = await ask({
+    title: `Retire "${name||'this item'}"?`,
+    body: 'It stops showing up to price new work with. A job already using it keeps its own '
+      + 'numbers -- retiring an item never changes a quote that already has one.',
+    confirmLabel: 'Retire', danger: true,
+  });
+  if(!ok) return;
+  const { error } = await db.from('material_items')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: 'office dashboard' })
+    .eq('company_id', profile.company_id).eq('sync_id', syncId);
+  const dialogOpen = $('catItemOverlay').classList.contains('on');
+  if(error){ msg(dialogOpen?'catItemDialogMsg':catBackgroundMsgId(), error.message, 'err'); return; }
+  if(dialogOpen) $('catItemOverlay').classList.remove('on');
+  await refreshCatalog();
+}
+
+function openCatItemDialog(existing, forcedType){
+  if(!canEdit()) return;
+  openCatItem = existing || null;
+  $('catItemDialogTitle').textContent = existing ? 'Edit catalog item' : 'New catalog item';
+  $('ci_name').value = existing?.name || '';
+  $('ci_fence_type').value = existing?.fence_type || forcedType || 'VINYL';
+  $('ci_category').value = existing?.category || 'MISC';
+  $('ci_role').value = existing?.role || 'NONE';
+  $('ci_color').value = existing?.color_or_finish || '';
+  $('ci_unit').value = existing?.unit || 'EA';
+  $('ci_price').value = existing?.unit_price ?? '';
+  $('ci_covers').value = existing?.covers_ft ?? '';
+  $('ci_taxable').checked = existing ? existing.taxable !== false : true;
+  $('ci_active').checked = existing ? existing.is_active !== false : true;
+  const hasSupplierPrice = catalogHasSupplierPrice();
+  $('ci_supplier_wrap').style.display = hasSupplierPrice ? '' : 'none';
+  if(hasSupplierPrice) $('ci_supplier').value = existing?.supplier_unit_price ?? '';
+  $('catItemDialogRetire').style.display = existing ? '' : 'none';
+  $('catItemDialogMsg').className='msg'; $('catItemDialogMsg').textContent='';
+  $('catItemOverlay').classList.add('on');
+}
+
+async function saveCatItemDialog(){
+  if(!canEdit()) return;
+  const form = {
+    name: $('ci_name').value.trim(),
+    fence_type: $('ci_fence_type').value,
+    category: $('ci_category').value,
+    role: $('ci_role').value,
+    color_or_finish: $('ci_color').value.trim(),
+    unit: $('ci_unit').value.trim() || 'EA',
+    unit_price: num($('ci_price').value),
+    covers_ft: $('ci_covers').value===''? null : num($('ci_covers').value),
+    taxable: $('ci_taxable').checked,
+    is_active: $('ci_active').checked,
+  };
+  if(!form.name){ msg('catItemDialogMsg', 'Give this item a name.', 'err'); return; }
+  const row = catalogItemPayload(openCatItem, form, crypto.randomUUID());
+  if(catalogHasSupplierPrice()){
+    row.supplier_unit_price = $('ci_supplier').value==='' ? null : num($('ci_supplier').value);
+  }
+  const { error } = await db.from('material_items')
+    .upsert({ ...row, company_id: profile.company_id }, { onConflict: 'company_id,sync_id' });
+  if(error){ msg('catItemDialogMsg', error.message, 'err'); return; }
+  $('catItemOverlay').classList.remove('on');
+  await refreshCatalog();
+}
+
+/** Owner ask #1's "Start from FenceFlow's catalog" button, and its copy on
+    the Business setup wizard's Supplier step. Inserts every CATALOG_SEED
+    row this company does not already have (by fence_type, role, name) --
+    never touches or replaces an existing row. */
+async function startFromSeedCatalog(){
+  if(!canEdit()) return;
+  const toAdd = catalogSeedRowsToAdd(catalog, CATALOG_SEED);
+  const target = catBackgroundMsgId();
+  if(!toAdd.length){
+    msg(target, "Your catalog already has every item from FenceFlow's seed catalog.", 'ok');
+    return;
+  }
+  const ok = await ask({
+    title: `Add ${toAdd.length} starter item${toAdd.length===1?'':'s'}?`,
+    body: "Adds FenceFlow's own catalog for whatever you don't already have -- typical "
+      + 'Tampa-market prices, some pulled from real supplier invoices and some placeholders '
+      + 'clearly flagged to verify. Nothing already in your catalog is touched.',
+    confirmLabel: 'Add them',
+  });
+  if(!ok) return;
+  const payload = toAdd.map(s => ({ ...s, sync_id: crypto.randomUUID(), company_id: profile.company_id }));
+  const { error } = await db.from('material_items').insert(payload);
+  if(error){ msg(target, error.message, 'err'); return; }
+  msg(target, `${payload.length} item${payload.length===1?'':'s'} added.`, 'ok');
+  await refreshCatalog();
 }
 
 /* ---------- charts ----------
@@ -4702,6 +5333,13 @@ const SAT = {
   // trace back into a run that is still being assembled, instead of writing
   // a fence_runs row straight away with its own hardcoded spacing/height.
   fromWizard:false, prevOpenJob:undefined,
+  // Owner ask #4: gates placed directly on the trace, alongside the app.
+  // Held as lat/lon exactly like pts, for the same reason -- they must stay
+  // on the ground they were dropped on while the picture is panned or
+  // zoomed. mode toggles what a click on the canvas does; pendingGateIndex
+  // is which SAT.gates entry the popover is editing (>=0), or null for one
+  // not placed yet (see pendingGateLatLon).
+  gates:[], mode:'draw', pendingGateIndex:null, pendingGateLatLon:null,
 };
 
 /* Web Mercator, the projection every slippy map uses. */
@@ -4803,6 +5441,20 @@ function satOverlayDraw(g){
       g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
     });
   }
+  // Owner ask #4: gates placed on the trace, drawn the same orange as
+  // PlanColors.kt's own gate colour, each carrying its width so a crew
+  // reading this back can tell which opening is which without opening
+  // the popover again.
+  SAT.gates.forEach(gt => {
+    const p = satCanvasXY(gt);
+    g.beginPath(); g.arc(p.x, p.y, 6, 0, 7);
+    g.fillStyle = '#B23800'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+    const label = (gt.widthFt||0) + ' ft gate';
+    g.font = '600 11px ui-sans-serif,system-ui,sans-serif';
+    g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 3; g.strokeText(label, p.x + 8, p.y + 4);
+    g.fillStyle = '#12151A'; g.fillText(label, p.x + 8, p.y + 4);
+  });
   const total = satLength(SAT.pts, loop, SAT.cLat, SAT.z);
   $('satTotal').textContent = Math.round(total).toLocaleString() + ' ft';
   const corners = Math.max(0, SAT.pts.length - (loop ? 0 : 2));
@@ -4820,6 +5472,9 @@ async function openSatellite(){
   $('satOverlay').classList.add('on');
   msg('satMsg', '', 'info'); $('satMsg').style.display = 'none';
   SAT.job = j; SAT.pts = []; SAT.z = 20;
+  SAT.gates = []; SAT.mode = 'draw'; SAT.pendingGateIndex = null; SAT.pendingGateLatLon = null;
+  hideSatGatePopup();
+  satSetMode('draw');
   $('satLabel').value = ''; $('satLoop').checked = false;
   const cvs = $('satCanvas');
   SAT.W = cvs.width = Math.min(840, Math.max(600, cvs.clientWidth || 840));
@@ -4853,6 +5508,189 @@ async function openSatellite(){
   await satDraw();
 }
 
+/* ---------- owner ask #5: precision on the satellite trace --------------
+   Four small pure helpers -- the closest point on one segment, the closest
+   point (and which segment) on the whole polyline, snapping a new point to
+   the previous one's row or column, and converting a placed gate the same
+   way satPointsToRunSpace already converts the trace. All operate on plain
+   {x,y} pairs, in whatever coordinate space the caller passes (canvas
+   pixels for hit-testing, survey pixels for the saved run), so they carry
+   no dependency on SAT or the DOM and are exercised directly by
+   tests/catalog-run-viewer.test.mjs. */
+
+function nearestPointOnSegment(p, a, b){
+  const dx=b.x-a.x, dy=b.y-a.y;
+  const lenSq=dx*dx+dy*dy;
+  let t = lenSq>0 ? ((p.x-a.x)*dx+(p.y-a.y)*dy)/lenSq : 0;
+  t = Math.max(0, Math.min(1, t));
+  return { x:a.x+t*dx, y:a.y+t*dy, t };
+}
+
+/** The nearest point on ANY segment of the polyline -- the same segment
+    numbering autoPlaceGateMarkers uses (n-1 segments open, n closed), so a
+    gate dropped here and one auto-placed there agree about what "segment 2"
+    means. Returns null for fewer than two points (nothing to click on
+    yet). */
+function nearestPointOnPolyline(p, pts, closedLoop){
+  const n=(pts||[]).length;
+  const segCount = n<2 ? 0 : (closedLoop ? n : n-1);
+  let best=null;
+  for(let i=0;i<segCount;i++){
+    const a=pts[i], b=pts[(i+1)%n];
+    const np=nearestPointOnSegment(p,a,b);
+    const dist=Math.hypot(np.x-p.x, np.y-p.y);
+    if(!best || dist<best.dist) best={x:np.x, y:np.y, segIndex:i, t:np.t, dist};
+  }
+  return best;
+}
+
+/** A new point snaps onto the previous point's own row or column once
+    within thresholdPx of it -- a straight run stays straight without
+    needing a perfectly steady hand. Shift disables this at the call site by
+    simply not calling it. */
+function snapPointToPrev(pt, prev, thresholdPx){
+  if(!prev) return pt;
+  const th = thresholdPx==null ? 6 : thresholdPx;
+  let {x,y} = pt;
+  if(Math.abs(x-prev.x)<=th) x=prev.x;
+  if(Math.abs(y-prev.y)<=th) y=prev.y;
+  return {x,y};
+}
+
+/** Gates share the fence line's own origin (its first point), not a new one
+    of their own -- otherwise a gate's saved x/y would be relative to
+    nothing the run itself uses. Everything else is satPointsToRunSpace's
+    own math, called with that explicit origin instead of gates[0]. */
+function satGatesToRunSpace(gates, originLatLon, cLat, z){
+  if(!gates || !gates.length || !originLatLon) return [];
+  const f = satFeetPerPx(cLat, z);
+  const o = satWorld(originLatLon.lat, originLatLon.lon, z);
+  const PX_PER_FT = 20;
+  return gates.map(gt => {
+    const w = satWorld(gt.lat, gt.lon, z);
+    return { x:(w.x-o.x)*f*PX_PER_FT, y:(w.y-o.y)*f*PX_PER_FT,
+             widthFt:gt.widthFt, mounting:gt.mounting, swing:gt.swing };
+  });
+}
+
+function satSetMode(mode){
+  SAT.mode = mode;
+  const btn = $('satGateMode');
+  if(btn){ btn.textContent = mode==='gate' ? 'Placing a gate — click the line' : 'Place a gate'; }
+  if(btn) btn.classList.toggle('btn-grey', mode!=='gate');
+  const cvs = $('satCanvas');
+  if(cvs) cvs.style.cursor = mode==='gate' ? 'pointer' : 'crosshair';
+  if(mode!=='gate') hideSatGatePopup();
+}
+
+function hideSatGatePopup(){
+  const pop=$('satGatePopup');
+  if(pop) pop.style.display='none';
+  SAT.pendingGateIndex=null; SAT.pendingGateLatLon=null;
+}
+
+/** Opens the width/mounting/swing popover near the click -- prefilled from
+    an existing gate when editing one (index>=0, Remove shown), or from the
+    job's own build template gate_width_ft/gate_mounting (falling back to
+    4 ft / LINE) when placing a new one on the line. cssPos is in the
+    canvas's own CSS pixel space, since the popover is a normal positioned
+    HTML element sitting over a canvas whose internal resolution usually
+    differs from its rendered size. */
+function openSatGatePopup(index, cssPos, newLatLon){
+  SAT.pendingGateIndex = index;
+  SAT.pendingGateLatLon = index>=0 ? null : newLatLon;
+  const existing = index>=0 ? SAT.gates[index] : null;
+  const tpl = buildTemplates.find(t=>t.sync_id===(SAT.job && SAT.job.build_template_sync_id));
+  $('satGatePopTitle').textContent = existing ? 'Edit gate' : 'New gate';
+  $('satGateWidth').value = existing ? existing.widthFt : (tpl?.gate_width_ft || 4);
+  $('satGateMounting').value = existing ? existing.mounting : (tpl?.gate_mounting || 'LINE');
+  $('satGateSwing').value = existing ? existing.swing : 'IN';
+  $('satGateRemove').style.display = existing ? '' : 'none';
+  const pop = $('satGatePopup'), wrap = $('satCanvas').parentElement;
+  pop.style.display='block';
+  // Clamped against the popover's OWN measured size (its height changes
+  // with Remove shown or hidden) so it never renders off the edge of the
+  // wrapper -- which clips with overflow:hidden, same as the canvas itself.
+  const maxLeft = Math.max(4, wrap.clientWidth - pop.offsetWidth - 4);
+  const maxTop = Math.max(4, wrap.clientHeight - pop.offsetHeight - 4);
+  pop.style.left = Math.max(4, Math.min(cssPos.x+10, maxLeft)) + 'px';
+  pop.style.top = Math.max(4, Math.min(cssPos.y+10, maxTop)) + 'px';
+}
+
+/** Gate mode's own click handling: an existing gate marker within 12px
+    wins over placing a new one, so a gate near the line can still be
+    reopened instead of a duplicate landing next to it. Otherwise the click
+    snaps to the nearest point on the nearest segment of the drawn line,
+    per the brief. */
+function handleSatGateClick(canvasPos, cssPos){
+  const gateXY = SAT.gates.map(satCanvasXY);
+  let hitIndex=-1, hitDist=Infinity;
+  gateXY.forEach((gp,i)=>{
+    const dist=Math.hypot(gp.x-canvasPos.x, gp.y-canvasPos.y);
+    if(dist<12 && dist<hitDist){ hitDist=dist; hitIndex=i; }
+  });
+  if(hitIndex>=0){ openSatGatePopup(hitIndex, cssPos); return; }
+  if(SAT.pts.length<2){
+    msg('satMsg', 'Draw at least two points on the fence line before placing a gate.', 'err');
+    return;
+  }
+  const ptsXY = SAT.pts.map(satCanvasXY);
+  const nearest = nearestPointOnPolyline(canvasPos, ptsXY, $('satLoop').checked);
+  if(!nearest) return;
+  openSatGatePopup(-1, cssPos, satLatLon(nearest.x, nearest.y));
+}
+
+/** The zoomed crop near the cursor -- a straight drawImage from the already-
+    rendered tile canvas onto a small square one, so it shows the actual
+    imagery and trace, not a re-fetch. Shown while hovering the canvas in
+    either mode, since placing a gate benefits from it as much as placing a
+    point does. */
+function updateLoupe(canvasPos, cssPos){
+  const loupe = $('satLoupe');
+  if(!loupe) return;
+  loupe.style.display='block';
+  const size=loupe.width, srcR=26;
+  const g=loupe.getContext('2d');
+  g.imageSmoothingEnabled=false;
+  g.clearRect(0,0,size,size);
+  g.drawImage($('satCanvas'), canvasPos.x-srcR, canvasPos.y-srcR, srcR*2, srcR*2, 0, 0, size, size);
+  g.strokeStyle='rgba(255,90,31,.9)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(size/2,0); g.lineTo(size/2,size); g.moveTo(0,size/2); g.lineTo(size,size/2); g.stroke();
+  // Clamped to the wrapper's own bounds, same reason as the gate popover --
+  // the wrapper clips with overflow:hidden, so an unclamped loupe near an
+  // edge would be cut in half instead of shown fully on the other side.
+  const wrap = $('satCanvas').parentElement;
+  const maxLeft = Math.max(0, wrap.clientWidth - size), maxTop = Math.max(0, wrap.clientHeight - size);
+  loupe.style.left = Math.max(0, Math.min(cssPos.x+18, maxLeft)) + 'px';
+  loupe.style.top = Math.max(0, Math.min(cssPos.y+18, maxTop)) + 'px';
+}
+
+/** The next-leg / running-total readout, updated on every hover while
+    drawing -- the length a click RIGHT HERE would add, and what the whole
+    trace would then measure, both in feet off the same satLength the save
+    itself uses. */
+function updateSatLiveLength(canvasPos){
+  const el=$('satLiveLen');
+  if(!el) return;
+  if(SAT.mode==='gate' || !SAT.pts.length){ el.textContent=''; return; }
+  const hover = satLatLon(canvasPos.x, canvasPos.y);
+  const last = SAT.pts[SAT.pts.length-1];
+  const legFt = satLength([last, hover], false, SAT.cLat, SAT.z);
+  const totalFt = satLength(SAT.pts.concat([hover]), false, SAT.cLat, SAT.z);
+  el.textContent = 'Next leg: ' + Math.round(legFt) + ' ft · if placed here, total: ' + Math.round(totalFt) + ' ft';
+}
+
+/** Arrow-key nudge of the last point, one canvas pixel at a time regardless
+    of zoom -- round-tripped through canvas-XY rather than adjusting lat/lon
+    directly, since a degree of longitude is not a fixed number of feet. */
+function satNudgeLastPoint(dx, dy){
+  if(!SAT.pts.length) return;
+  const last = SAT.pts.length-1;
+  const xy = satCanvasXY(SAT.pts[last]);
+  SAT.pts[last] = satLatLon(xy.x+dx, xy.y+dy);
+  satDraw();
+}
+
 function satWire(){
   const cvs = $('satCanvas');
   const pos = e => {
@@ -4860,13 +5698,22 @@ function satWire(){
     return { x: (e.clientX - r.left) * cvs.width / r.width,
              y: (e.clientY - r.top) * cvs.height / r.height };
   };
+  // The same click, in the canvas's own on-screen CSS pixels rather than its
+  // internal resolution -- what the gate popover, an ordinary positioned
+  // HTML element, needs to sit next to the click.
+  const cssPos = e => {
+    const r = cvs.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
   cvs.addEventListener('pointerdown', e => {
     cvs.setPointerCapture(e.pointerId);
     SAT.drag = pos(e); SAT.moved = 0;
   });
   cvs.addEventListener('pointermove', e => {
-    if(!SAT.drag) return;
     const p = pos(e);
+    updateLoupe(p, cssPos(e));
+    updateSatLiveLength(p);
+    if(!SAT.drag) return;
     const dx = p.x - SAT.drag.x, dy = p.y - SAT.drag.y;
     SAT.moved += Math.abs(dx) + Math.abs(dy);
     if(SAT.moved < 4) return;
@@ -4876,23 +5723,59 @@ function satWire(){
     SAT.drag = p;
     satDraw();
   });
+  cvs.addEventListener('pointerleave', () => { const l=$('satLoupe'); if(l) l.style.display='none'; });
   cvs.addEventListener('pointerup', e => {
     const wasDrag = SAT.moved >= 4;
     SAT.drag = null;
-    // A drag moves the picture; a tap puts down a corner. Four pixels of
-    // travel is the line between the two, because a finger is never still.
+    // A drag moves the picture; a tap either drops a gate (gate mode) or a
+    // corner (draw mode). Four pixels of travel is the line between drag
+    // and tap, because a finger is never still.
     if(!wasDrag){
       const p = pos(e);
-      SAT.pts.push(satLatLon(p.x, p.y));
-      satDraw();
+      if(SAT.mode==='gate'){
+        handleSatGateClick(p, cssPos(e));
+      } else {
+        const prevXY = SAT.pts.length ? satCanvasXY(SAT.pts[SAT.pts.length-1]) : null;
+        const placed = e.shiftKey ? p : snapPointToPrev(p, prevXY, 6);
+        SAT.pts.push(satLatLon(placed.x, placed.y));
+        satDraw();
+      }
     }
     SAT.moved = 0;
   });
   $('satUndo').addEventListener('click', () => { SAT.pts.pop(); satDraw(); });
-  $('satClear').addEventListener('click', () => { SAT.pts = []; satDraw(); });
+  $('satClear').addEventListener('click', () => { SAT.pts = []; SAT.gates = []; hideSatGatePopup(); satDraw(); });
   $('satLoop').addEventListener('change', () => satDraw());
   $('satIn').addEventListener('click', () => { if(SAT.z < 20){ SAT.z++; satDraw(); } });
   $('satOut').addEventListener('click', () => { if(SAT.z > 16){ SAT.z--; satDraw(); } });
+  $('satGateMode').addEventListener('click', () => satSetMode(SAT.mode==='gate' ? 'draw' : 'gate'));
+  $('satGateAdd').addEventListener('click', () => {
+    const widthFt = num($('satGateWidth').value) || 4;
+    const mounting = $('satGateMounting').value;
+    const swing = $('satGateSwing').value;
+    if(SAT.pendingGateIndex>=0) Object.assign(SAT.gates[SAT.pendingGateIndex], {widthFt, mounting, swing});
+    else if(SAT.pendingGateLatLon) SAT.gates.push({ lat:SAT.pendingGateLatLon.lat, lon:SAT.pendingGateLatLon.lon, widthFt, mounting, swing });
+    hideSatGatePopup();
+    satDraw();
+  });
+  $('satGateRemove').addEventListener('click', () => {
+    if(SAT.pendingGateIndex>=0) SAT.gates.splice(SAT.pendingGateIndex, 1);
+    hideSatGatePopup();
+    satDraw();
+  });
+  $('satGateCancel').addEventListener('click', hideSatGatePopup);
+  // Ctrl/Cmd+Z undoes the last point same as the button, and the arrow keys
+  // nudge it -- both only while this overlay is actually open, and never
+  // while a text field in it has focus (typing "up" in Call it must not
+  // move a point).
+  document.addEventListener('keydown', e => {
+    if(!$('satOverlay').classList.contains('on')) return;
+    const typing = document.activeElement && ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
+    if((e.ctrlKey||e.metaKey) && e.key==='z' && !typing){ e.preventDefault(); SAT.pts.pop(); satDraw(); return; }
+    if(typing) return;
+    const nudge = {ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0]}[e.key];
+    if(nudge){ e.preventDefault(); satNudgeLastPoint(nudge[0], nudge[1]); }
+  });
   // Closing hands the tool back to whichever caller opened it -- the plain
   // job sheet just hides the overlay, the wizard also has to restore the
   // openJob it borrowed and re-enable the type/height/spacing fields it
@@ -4930,6 +5813,10 @@ async function saveSatelliteRun(){
   msg('satMsg', 'Saving…', 'working');
 
   const encoded = encodePointsList(satPointsToRunSpace(SAT.pts, SAT.cLat, SAT.z));
+  // Owner ask #4: gates placed on the trace are saved with the run, in the
+  // same coordinate space as the points -- sharing the trace's own first
+  // point as their origin, not one of their own.
+  const gatesEncoded = encodeGateMarkers(satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z));
 
   const loop = $('satLoop').checked;
   const mine = runs.filter(r => r.job_sync_id === j.sync_id);
@@ -4941,7 +5828,7 @@ async function saveSatelliteRun(){
     fence_type: $('satType').value,
     color_or_finish: '',
     points_encoded: encoded,
-    gates_encoded: '',
+    gates_encoded: gatesEncoded,
     closed_loop: loop,
     panel_width_ft: 6,
     panel_height_ft: num($('satHeight').value) || 6,
@@ -4972,9 +5859,10 @@ async function saveSatelliteRun(){
   }
   await loadAll();
   const ft = Math.round(satLength(SAT.pts, loop, SAT.cLat, SAT.z));
-  msg('satMsg', ft + ' ft saved as a fence run. Open the job in the app to check the line '
-    + 'against the ground and add gates — a satellite photo is a good measurement, not a '
-    + 'survey, so walk it before you commit to a price.', 'ok');
+  const gateNote = SAT.gates.length ? ` with ${SAT.gates.length} gate${SAT.gates.length===1?'':'s'}` : '';
+  msg('satMsg', ft + ' ft saved as a fence run' + gateNote + '. Open the job in the app to check '
+    + 'the line against the ground — a satellite photo is a good measurement, not a survey, so '
+    + 'walk it before you commit to a price.', 'ok');
   if(openJob && String(openJob.id) === String(j.id)) showJob(j.id);
 }
 
@@ -5162,6 +6050,242 @@ async function keepOfficePrice(){
   msg('jobMsg', 'Priced at the office — '+money(grand)+'.', 'ok');
 }
 
+/* ===================== Fence run viewer ===================================
+   Owner ask #3: "need to be able to see the fence run on the web too." A
+   small canvas per run in the job drawer's Fence Runs panel, decoding the
+   same pointsEncoded/gatesEncoded strings FenceCodec.kt writes and drawing
+   them the way the crew's own plan screen does (ui/crew/CrewFencePlanScreen.
+   kt, coloured from ui/theme/PlanColors.kt) -- so a corner marked here is a
+   corner marked the same way on the phone, not a second opinion. */
+
+/** FenceCodec.decodePoints, reproduced: "x:y,x:y,...", malformed pairs
+    dropped rather than thrown on, since a hand-edited row should degrade to
+    "draw what parses" and not blank the whole run. Pure. */
+function decodeRunPoints(raw){
+  if(!raw) return [];
+  return raw.split(',').map(pair=>{
+    const parts = pair.split(':');
+    if(parts.length!==2) return null;
+    const x=parseFloat(parts[0]), y=parseFloat(parts[1]);
+    if(Number.isNaN(x)||Number.isNaN(y)) return null;
+    return {x,y};
+  }).filter(Boolean);
+}
+
+/** FenceCodec.decodeGates, reproduced: the 3-, 4- and 5-part forms all read
+    (mounting/swing default to LINE/IN exactly as the phone's own decoder
+    falls back for gates saved before either was recorded). Pure. */
+function decodeRunGates(raw){
+  if(!raw) return [];
+  return raw.split(',').map(entry=>{
+    const parts = entry.split(':');
+    if(parts.length<3) return null;
+    const x=parseFloat(parts[0]), y=parseFloat(parts[1]), widthFt=parseFloat(parts[2]);
+    if(Number.isNaN(x)||Number.isNaN(y)||Number.isNaN(widthFt)) return null;
+    const mounting = ['LINE','WALL','LINE_TO_WALL'].includes(parts[3]) ? parts[3] : 'LINE';
+    const swing = ['IN','OUT','BOTH'].includes(parts[4]) ? parts[4] : 'IN';
+    return {x,y,widthFt,mounting,swing};
+  }).filter(Boolean);
+}
+
+/** FenceGeometryEngine.analyze's vertex classification, reproduced: an
+    interior turn of 15 degrees or more is a corner (needs a corner post),
+    anything less is a line point, and the two ends of an open run are
+    neither. CORNER_ANGLE_THRESHOLD_DEGREES in FenceGeometry.kt is the same
+    15. Pure. */
+function classifyRunVertices(points, closedLoop){
+  const pts = points||[];
+  const n = pts.length;
+  const CORNER_DEG = 15;
+  const out = [];
+  for(let i=0;i<n;i++){
+    const isEnd = !closedLoop && (i===0 || i===n-1);
+    if(isEnd || n<2){ out.push({index:i, kind:'END', turnDegrees:0}); continue; }
+    const prev=pts[(i-1+n)%n], curr=pts[i], next=pts[(i+1)%n];
+    const angleIn = Math.atan2(curr.y-prev.y, curr.x-prev.x);
+    const angleOut = Math.atan2(next.y-curr.y, next.x-curr.x);
+    let turn = angleOut-angleIn;
+    while(turn>Math.PI) turn -= 2*Math.PI;
+    while(turn<-Math.PI) turn += 2*Math.PI;
+    const turnDeg = Math.abs(turn*180/Math.PI);
+    out.push({index:i, kind: turnDeg>=CORNER_DEG?'CORNER':'LINE', turnDegrees:turnDeg});
+  }
+  return out;
+}
+
+/** FenceGeometryEngine.pixelLength/analyze's own distance sum, divided by
+    the calibration in effect -- 20 px/ft unless the job carries its own
+    calibration_pixels_per_foot. Pure. */
+function runLengthFt(points, closedLoop, pxPerFoot){
+  const pts = points||[];
+  if(pts.length<2 || !pxPerFoot) return 0;
+  const list = closedLoop ? pts.concat([pts[0]]) : pts;
+  let total=0;
+  for(let i=1;i<list.length;i++) total += Math.hypot(list[i].x-list[i-1].x, list[i].y-list[i-1].y);
+  return total/pxPerFoot;
+}
+
+/** Where every point (and, so gates are never clipped at a canvas edge, the
+    caller's own extra points too) lands once scaled to fit inside a
+    canvasW x canvasH box with `padding` px of margin, aspect preserved and
+    the drawing centred. Pure -- no canvas, just the numbers a draw call
+    needs. */
+function runBoundsFit(points, canvasW, canvasH, padding){
+  const pad = padding==null ? 20 : padding;
+  if(!points || !points.length){
+    return { scale:1, offsetX:canvasW/2, offsetY:canvasH/2, minX:0, minY:0, maxX:0, maxY:0 };
+  }
+  const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const w=Math.max(maxX-minX, 1), h=Math.max(maxY-minY, 1);
+  const availW=Math.max(canvasW-2*pad, 1), availH=Math.max(canvasH-2*pad, 1);
+  const scale=Math.min(availW/w, availH/h);
+  const drawnW=w*scale, drawnH=h*scale;
+  const offsetX = pad + (availW-drawnW)/2 - minX*scale;
+  const offsetY = pad + (availH-drawnH)/2 - minY*scale;
+  return { scale, offsetX, offsetY, minX, minY, maxX, maxY };
+}
+
+/** A "nice" round number of feet for the scale bar -- whichever of these
+    common survey lengths draws closest to targetPx wide at this drawing's
+    scale, so the bar reads "10 ft" instead of "9.37 ft". Pure. */
+function runScaleBarFeet(scale, pxPerFoot, targetPx){
+  const target = targetPx||70;
+  const options=[1,2,5,10,20,25,50,100,200,250,500,1000];
+  const pxPerFt = scale*pxPerFoot;
+  let best=options[0], bestDiff=Infinity;
+  options.forEach(ft=>{
+    const diff=Math.abs(ft*pxPerFt-target);
+    if(diff<bestDiff){ bestDiff=diff; best=ft; }
+  });
+  return best;
+}
+
+/** The Fence Runs panel's own footage line: typed feet for a manual run,
+    measured feet for a drawn one, or an honest "no geometry yet" for a run
+    that is neither (drawn with under two points). Pure. */
+function runFootageLabel(r, points, pxPerFoot){
+  if((r.manual_linear_feet||0)>0 && (!points || points.length<2)){
+    return Math.round(r.manual_linear_feet)+' ft (typed)';
+  }
+  if(points && points.length>1) return Math.round(runLengthFt(points, !!r.closed_loop, pxPerFoot))+' ft measured';
+  return 'No geometry yet';
+}
+
+// Colours straight off PlanColors.kt (ui/theme/PlanColors.kt), so a corner,
+// a gate or a teardown run reads the same colour here as it does on a crew
+// phone's own plan screen -- SteelTeal40, SafetyOrange20 and the shared
+// existing-fence grey, by their exact hex values, not a lookalike picked
+// to match this page's own CSS palette (which happens to already use two
+// of them for --teal and --orange-dk).
+const RUN_COLOR_FENCE = '#0E8C7B';
+const RUN_COLOR_TEARDOWN = '#8A93A3';
+const RUN_COLOR_GATE = '#B23800';
+const RUN_COLOR_CORNER = '#12151A';
+
+/** Draws one run into its own canvas: the line (dashed grey for a teardown,
+    solid teal otherwise), corners as filled dark dots versus small line-post
+    dots, gates as orange markers with their width, and a scale bar sized to
+    this drawing's own scale. Not pure -- it is a canvas 2D call -- so it is
+    the one piece of the run viewer tests/catalog-run-viewer.test.mjs cannot
+    exercise directly; decode/bounds-fit/corner-classification, everything
+    it is built from, are pinned there instead. */
+function drawRunCanvas(canvas, run, pxPerFoot){
+  const g = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  g.clearRect(0,0,W,H);
+  const points = decodeRunPoints(run.points_encoded);
+  const gates = decodeRunGates(run.gates_encoded);
+  const closed = !!run.closed_loop;
+  const teardown = !!run.is_teardown;
+
+  // Bounds include the gate positions too, so a gate near a corner is never
+  // drawn half off the edge of its own canvas.
+  const fit = runBoundsFit(points.concat(gates), W, H, 22);
+  const toXY = p => ({ x: p.x*fit.scale+fit.offsetX, y: p.y*fit.scale+fit.offsetY });
+
+  const xy = points.map(toXY);
+  if(xy.length>1){
+    const vtx = classifyRunVertices(points, closed);
+    g.beginPath();
+    xy.forEach((p,i)=> i ? g.lineTo(p.x,p.y) : g.moveTo(p.x,p.y));
+    if(closed) g.closePath();
+    g.lineWidth = 2.5;
+    g.strokeStyle = teardown ? RUN_COLOR_TEARDOWN : RUN_COLOR_FENCE;
+    g.setLineDash(teardown ? [7,5] : []);
+    g.stroke();
+    g.setLineDash([]);
+    xy.forEach((p,i)=>{
+      const kind = vtx[i] && vtx[i].kind;
+      g.beginPath();
+      g.arc(p.x,p.y, kind==='CORNER'?4.5:2.75, 0, Math.PI*2);
+      g.fillStyle = kind==='CORNER' ? RUN_COLOR_CORNER : (teardown?RUN_COLOR_TEARDOWN:RUN_COLOR_FENCE);
+      g.fill();
+    });
+  }
+
+  gates.forEach(gt=>{
+    const p = toXY(gt);
+    g.beginPath(); g.arc(p.x,p.y,5,0,Math.PI*2);
+    g.fillStyle = RUN_COLOR_GATE; g.fill();
+    g.lineWidth=1.5; g.strokeStyle='#fff'; g.stroke();
+    const label = (gt.widthFt||0)+' ft gate';
+    g.font='600 11px ui-sans-serif,system-ui,sans-serif';
+    g.strokeStyle='rgba(255,255,255,.9)'; g.lineWidth=3; g.strokeText(label, p.x+8, p.y+4);
+    g.fillStyle=RUN_COLOR_CORNER; g.fillText(label, p.x+8, p.y+4);
+  });
+
+  if(xy.length>1){
+    const barFt = runScaleBarFeet(fit.scale, pxPerFoot, 70);
+    const barPx = barFt*pxPerFoot*fit.scale;
+    const bx=10, by=H-12;
+    g.strokeStyle='#5A6472'; g.lineWidth=1.5;
+    g.beginPath(); g.moveTo(bx,by); g.lineTo(bx+barPx,by);
+    g.moveTo(bx,by-4); g.lineTo(bx,by+4);
+    g.moveTo(bx+barPx,by-4); g.lineTo(bx+barPx,by+4);
+    g.stroke();
+    g.fillStyle='#5A6472'; g.font='500 10px ui-sans-serif,system-ui,sans-serif';
+    g.fillText(barFt+' ft', bx, by-6);
+  }
+}
+
+/** A run with typed footage and no drawing at all: a short bar labelled
+    with the feet, per the brief -- there is no geometry to trace. */
+function drawManualFeetBar(canvas, feet){
+  const g = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height, y=H/2;
+  g.clearRect(0,0,W,H);
+  g.strokeStyle=RUN_COLOR_FENCE; g.lineWidth=5; g.lineCap='round';
+  g.beginPath(); g.moveTo(24,y); g.lineTo(W-24,y); g.stroke();
+  g.lineCap='butt';
+  g.fillStyle=RUN_COLOR_CORNER; g.font='600 13px ui-sans-serif,system-ui,sans-serif'; g.textAlign='center';
+  g.fillText(Math.round(feet||0)+' ft (typed, not drawn)', W/2, y-12);
+  g.textAlign='left';
+}
+
+/** The Fence Runs panel's own markup: one .run-card per run, each holding
+    a canvas the caller draws into right after this HTML lands (a canvas
+    freshly parsed from innerHTML is blank, so drawRunCanvas/drawManualFeetBar
+    always run as a second pass -- see showJob's own jr.forEach below). */
+function jobRunsHtml(jr, pxPerFoot){
+  if(!jr.length) return '<div class="empty">No fence runs. Draw one in the phone app, or use '
+    + '"Measure from satellite" above.</div>';
+  return jr.map((r,i)=>{
+    const points = decodeRunPoints(r.points_encoded);
+    const gates = decodeRunGates(r.gates_encoded);
+    return `<div class="run-card">
+      <div class="run-card-head">
+        <strong>${esc(r.label)||'Untitled run'}</strong>
+        <span class="sub">${esc((r.fence_type||'').replace(/_/g,' '))}${r.is_teardown?' · teardown':''}</span>
+      </div>
+      <canvas class="run-canvas" id="runCanvas_${i}" width="640" height="220"></canvas>
+      <div class="sub">${esc(runFootageLabel(r, points, pxPerFoot))}${gates.length
+        ? ' · '+gates.length+' gate'+(gates.length===1?'':'s') : ''}</div>
+    </div>`;
+  }).join('');
+}
+
 function showJob(id){
   // A job the wizard has not finished belongs in the wizard, resumed at
   // whatever step it stopped on -- opening the full sheet instead would show
@@ -5234,14 +6358,19 @@ function showJob(id){
 
   const sid=openJob.sync_id;
   loadJobPhotos(sid);
-  const jr=runs.filter(r=>r.job_sync_id===sid);
-  $('jobRuns').innerHTML = jr.length ? jr.map(r=>`
-    <div style="padding:7px 0;border-bottom:1px solid var(--line)">
-      <strong>${esc(r.label)||'Untitled run'}</strong>
-      <div style="color:var(--muted);font-size:13px">
-        ${esc((r.fence_type||'').replace(/_/g,' '))} · ${r.panel_height_ft} ft tall ·
-        posts ${r.post_spacing_ft} ft apart${r.color_or_finish?' · '+esc(r.color_or_finish):''}
-      </div></div>`).join('') : '<div class="empty">No fence runs. Draw them in the phone app.</div>';
+  // Owner ask #3: the drawn (or typed) run, visible on the web -- 20 px/ft
+  // unless this job carries its own calibration, exactly as FenceCodec.kt's
+  // points are only ever meaningful against one or the other.
+  const jr=runs.filter(r=>r.job_sync_id===sid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  const runPxPerFoot = Number(openJob.calibration_pixels_per_foot)||20;
+  $('jobRuns').innerHTML = jobRunsHtml(jr, runPxPerFoot);
+  jr.forEach((r,i)=>{
+    const cvs = $('runCanvas_'+i);
+    if(!cvs) return;
+    const pts = decodeRunPoints(r.points_encoded);
+    if(pts.length>1) drawRunCanvas(cvs, r, runPxPerFoot);
+    else drawManualFeetBar(cvs, r.manual_linear_feet||0);
+  });
 
   const li=items.filter(i=>i.job_sync_id===sid);
   const liTotal=li.reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
@@ -5971,6 +7100,7 @@ function wizGateRowsHtml(){
   const gates = wiz.currentRun.gates;
   if(!gates.length) return '<div class="empty">No gates on this run.</div>';
   return gates.map((g,i)=>`
+    ${g.placed ? '<p class="sub" style="margin:0 0 2px;font-size:11px">Placed on the satellite trace — Remove takes it off the run.</p>' : ''}
     <div class="wiz-row3" style="align-items:end;margin-bottom:6px">
       <div><label>Width (ft)</label><input type="number" step="0.5" class="wz-gate-w" data-i="${i}" value="${g.widthFt}"></div>
       <div><label>Mounting</label><select class="wz-gate-m" data-i="${i}">
@@ -6120,6 +7250,13 @@ function wizUseSatelliteTrace(){
   wiz.currentRun.closed_loop = $('satLoop').checked;
   wiz.currentRun.manual_linear_feet = '';
   wiz.currentRun.manual_corner_count = 0;
+  // Owner ask #4: gates placed directly on the trace replace the position-
+  // less rows wz_add_gate creates -- marked `placed` so wizAddRun knows not
+  // to run autoPlaceGateMarkers over them and throw the exact spot away.
+  if(SAT.gates.length){
+    wiz.currentRun.gates = satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z)
+      .map(g => ({ x:g.x, y:g.y, widthFt:g.widthFt, mounting:g.mounting, swing:g.swing, placed:true }));
+  }
   if(!(wiz.currentRun.label||'').trim() && ($('satLabel').value||'').trim())
     wiz.currentRun.label = $('satLabel').value.trim();
   $('satOverlay').classList.remove('on');
@@ -6142,7 +7279,14 @@ async function wizAddRun(){
   const closedLoop = !!cr.closed_loop;
   if(cr.points){
     pointsEncoded = encodePointsList(cr.points);
-    gatesEncoded = encodeGateMarkers(autoPlaceGateMarkers(cr.points, closedLoop, cr.gates));
+    // Gates already placed on the satellite trace (wizUseSatelliteTrace)
+    // carry their own real position and must not be re-placed at a segment
+    // midpoint -- only the ones still typed with no position of their own
+    // go through autoPlaceGateMarkers.
+    const placedGates = cr.gates.filter(g=>g.placed);
+    const unplacedGates = cr.gates.filter(g=>!g.placed);
+    const autoPlaced = autoPlaceGateMarkers(cr.points, closedLoop, unplacedGates);
+    gatesEncoded = encodeGateMarkers(placedGates.concat(autoPlaced));
   } else {
     manualFeet = typedFeet;
     // Rounded: manual_corner_count is a Postgres integer column, and
@@ -6735,28 +7879,69 @@ async function swSaveBuild(){
 
 /* ---------- step: supplier prices ---------- */
 
+/** Owner ask #2: "when setting up a new customer there is no way for me to
+    set up catalogs and other stuff; make it very simple for new customers
+    to set up their stuff all at once, no need to go to another page." This
+    step used to just embed the price-list import; it now embeds the whole
+    per-fence-type catalog editor (import OR "Start from FenceFlow's
+    catalog" OR add by hand), so nothing here ever has to leave the wizard. */
 function swSupplierHtml(){
   return `<div class="panel"><h2>Supplier prices</h2>
     <p class="sub" style="margin-top:0">What you actually pay for panels, posts, rails and
-      concrete -- every quote is priced off this list, never off a guess.</p>
-    <p style="margin:10px 0"><strong>${catalog.length}</strong> item${catalog.length===1?'':'s'} in your catalog right now.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      concrete -- every quote is priced off this list, never off a guess. Import a price list,
+      start from FenceFlow's own catalog, or add items by hand below -- nothing here sends you
+      to another page.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button class="btn btn-sm" type="button" id="sw_import_prices">Import price list</button>
+      <button class="btn btn-sm btn-grey" type="button" id="sw_seed_catalog">Start from FenceFlow's catalog</button>
       <button class="btn btn-sm btn-grey" type="button" id="sw_skip_supplier">Skip for now</button>
     </div>
-    <p class="sub" style="margin-top:10px">Importing opens the same tool as Settings, on top of
-      this one -- close it when it is done and this count updates.</p>
+    <div id="sw_catCheck" class="sub" style="margin-bottom:10px"></div>
+    <input id="sw_cat_filter" placeholder="Filter by name, fence type, category or role…" style="margin-bottom:10px">
+    <div id="sw_catSections"></div>
   </div>`;
 }
+
+/** Which fence types "Check my catalog" reports on: this company's own
+    templates if it has any, else the shipped ones it is currently picking
+    from -- a brand-new company has none of its own yet, and the point of
+    the check is to say what its catalog is missing for what it is about to
+    build with, not to stay silent until a template exists. Pure. */
+function swSupplierFenceTypes(templates){
+  const mine = (templates||[]).filter(t=>!t.is_shipped).map(t=>t.fence_type);
+  const set = mine.length ? mine : (templates||[]).map(t=>t.fence_type);
+  return Array.from(new Set(set));
+}
+
+function swRenderCatalogCheck(){
+  const el = $('sw_catCheck');
+  if(!el) return;
+  const types = swSupplierFenceTypes(buildTemplates);
+  if(!types.length){ el.innerHTML=''; return; }
+  const lines = types.map(t=>{
+    const missing = catalogMissingRoles(catalog, t);
+    return missing.length
+      ? `<div><strong>${esc(catFenceTypeLabel(t))}:</strong> missing ${esc(missing.map(r=>r.replace(/_/g,' ')).join(', '))}</div>`
+      : `<div><strong>${esc(catFenceTypeLabel(t))}:</strong> every role covered.</div>`;
+  }).join('');
+  el.innerHTML = `<div class="panel" style="background:var(--paper)">
+    <strong style="display:block;margin-bottom:4px">Check my catalog</strong>${lines}
+  </div>`;
+}
+
 function swWireSupplier(){
   $('sw_import_prices').addEventListener('click', () => { $('impOverlay').classList.add('on'); });
+  $('sw_seed_catalog').addEventListener('click', startFromSeedCatalog);
   $('sw_skip_supplier').addEventListener('click', swNext);
+  $('sw_cat_filter').addEventListener('input', () => renderCatalogSections('sw_catSections', $('sw_cat_filter').value));
+  renderCatalogSections('sw_catSections', '');
+  swRenderCatalogCheck();
 }
 
 /** Called wherever the price-list import can finish while this wizard is
     open behind it (a successful import, or the overlay just being closed) --
     a no-op unless the wizard is actually sitting on this step, so the
-    catalog count on screen is never left saying what it said before. */
+    catalog list on screen is never left showing what it showed before. */
 function maybeRefreshSetupSupplierStep(){
   if(sw && swCurrentKey()==='supplier') swRenderStep();
 }
@@ -6849,6 +8034,12 @@ $('tpl_panel_w').addEventListener('input', () => {
 });
 $('tplDialogSave').addEventListener('click', saveTplDialog);
 $('tplDialogRetire').addEventListener('click', () => { if(openTpl) retireTemplate(openTpl.sync_id); });
+
+$('catStartSeed').addEventListener('click', startFromSeedCatalog);
+$('catItemDialogClose').addEventListener('click', () => $('catItemOverlay').classList.remove('on'));
+$('catItemOverlay').addEventListener('click', e => { if(e.target.id==='catItemOverlay') $('catItemOverlay').classList.remove('on'); });
+$('catItemDialogSave').addEventListener('click', saveCatItemDialog);
+$('catItemDialogRetire').addEventListener('click', () => { if(openCatItem) retireCatalogItem(openCatItem.sync_id, openCatItem.name); });
 
 /* ===================== Customer import ===================================
    The conversion path. A company switching from another product arrives with
