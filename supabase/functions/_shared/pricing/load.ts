@@ -163,6 +163,9 @@ export function materialItemRowToInput(row: DbMaterialItemRow): MaterialItemRow 
     color_or_finish: row.color_or_finish,
     unit: row.unit,
     unit_price: row.unit_price,
+    // Read by neither engine, but the contract says every field travels and
+    // nulls are explicit -- the phone-side decoder refuses a missing key.
+    supplier_unit_price: (row as any).supplier_unit_price ?? null,
     taxable: row.taxable,
     covers_ft: row.covers_ft === null || row.covers_ft === undefined ? null : f32(row.covers_ft),
     is_active: row.is_active,
