@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.runs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.data.BuildTemplate
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
@@ -15,19 +16,39 @@ class FenceRunListViewModel(private val repository: Repository, private val jobI
     val runs: StateFlow<List<FenceRun>> = repository.observeFenceRuns(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addRun(label: String, fenceType: FenceType, defaults: BusinessProfile, onCreated: (Long) -> Unit) {
+    /** Shipped ∪ this company's own, for the Add Fence Run template picker. */
+    val templates: StateFlow<List<BuildTemplate>> = repository.observeBuildTemplates()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Starts a new run, either from a chosen [template] (its spec is copied
+     * on by [FenceRun.fromTemplate], including the fence type it carries) or
+     * from [defaultSpacingFor]'s hardcoded numbers when no template was
+     * offered or chosen -- the fallback this app has always had.
+     */
+    fun addRun(
+        label: String,
+        fenceType: FenceType,
+        defaults: BusinessProfile,
+        template: BuildTemplate? = null,
+        onCreated: (Long) -> Unit
+    ) {
         viewModelScope.launch {
             val nextOrder = (runs.value.maxOfOrNull { it.sortOrder } ?: -1) + 1
-            val run = FenceRun(
-                jobId = jobId,
-                label = label,
-                fenceType = fenceType,
-                sortOrder = nextOrder,
-                panelWidthFt = defaults.defaultPanelWidthFt,
-                panelHeightFt = defaults.defaultPanelHeightFt,
-                postSpacingFt = defaultSpacingFor(fenceType, defaults.defaultPanelWidthFt, defaults.defaultPostSpacingFt),
-                concreteBagsPerPost = defaults.defaultConcreteBagsPerPost
-            )
+            val run = if (template != null) {
+                FenceRun.fromTemplate(template, jobId = jobId, label = label, sortOrder = nextOrder)
+            } else {
+                FenceRun(
+                    jobId = jobId,
+                    label = label,
+                    fenceType = fenceType,
+                    sortOrder = nextOrder,
+                    panelWidthFt = defaults.defaultPanelWidthFt,
+                    panelHeightFt = defaults.defaultPanelHeightFt,
+                    postSpacingFt = defaultSpacingFor(fenceType, defaults.defaultPanelWidthFt, defaults.defaultPostSpacingFt),
+                    concreteBagsPerPost = defaults.defaultConcreteBagsPerPost
+                )
+            }
             val id = repository.createFenceRun(run)
             onCreated(id)
         }

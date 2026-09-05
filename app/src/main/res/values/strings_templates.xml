@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- New strings for the Add Fence Run template picker (office-complete
+         setup, phase C). Kept out of strings.xml so this pass never has to
+         touch the file every other screen also edits. -->
+
+    <string name="jd_build_template">Build template</string>
+    <!-- Shown when no template is picked: the run falls back to
+         FenceRunListViewModel.defaultSpacingFor's hardcoded numbers, exactly
+         as it always has. -->
+    <string name="jd_template_none">No template (use defaults)</string>
+    <string name="jd_template_untitled">Untitled template</string>
+    <string name="jd_template_group_your_default">Your default</string>
+    <string name="jd_template_group_yours">Your templates</string>
+    <string name="jd_template_group_shipped">FenceFlow templates</string>
+</resources>

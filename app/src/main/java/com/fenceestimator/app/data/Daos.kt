@@ -493,8 +493,43 @@ object SyncTables {
         "fence_runs", "estimate_line_items", "change_orders", "job_steps",
         "site_markers", "time_entries", "expenses", "punch_list_items",
         "employees", "manufacturers", "material_items", "pricing_tiers",
-        "field_changes"
+        "field_changes",
+        // Pull-only (see EntitySync.pullBuildTemplates), but the reaper still
+        // needs it here so a template a company retires actually disappears
+        // from this phone rather than sitting in Room forever. A shipped
+        // row's rare superseding (company_id null) is not caught by this
+        // sweep, which only asks for one company's own tombstones -- an
+        // acceptable gap for a change FenceFlow makes, not a customer.
+        "build_templates"
     )
+}
+
+/**
+ * Pull-only: nothing on the phone ever writes a new template or edits one,
+ * so there is no insert/update/delete here beyond the bulk upsert the pull
+ * uses to land the cloud's rows. Retiring a template is a cloud tombstone,
+ * cleared out by [SyncMaintenanceDao] via [SyncTables.ALL], not by anything
+ * in this interface.
+ */
+@Dao
+interface BuildTemplateDao {
+    /**
+     * Shipped rows before a company's own, matching the ordering
+     * `my_build_templates()` uses server-side, so the Add Fence Run picker
+     * shows "your templates" ahead of "FenceFlow templates" without having
+     * to re-sort in Kotlin.
+     */
+    @Query("SELECT * FROM build_templates WHERE deletedAt IS NULL ORDER BY (companyId IS NULL), fenceType, sortOrder, name")
+    fun observeAllLive(): Flow<List<BuildTemplate>>
+
+    @Query("SELECT * FROM build_templates WHERE deletedAt IS NULL")
+    suspend fun getAllLive(): List<BuildTemplate>
+
+    @Query("SELECT * FROM build_templates WHERE syncId = :syncId LIMIT 1")
+    suspend fun getBySyncId(syncId: String): BuildTemplate?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(templates: List<BuildTemplate>)
 }
 
 @Dao

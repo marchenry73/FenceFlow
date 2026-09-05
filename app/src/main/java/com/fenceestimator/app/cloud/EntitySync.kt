@@ -2,6 +2,7 @@ package com.fenceestimator.app.cloud
 
 import com.fenceestimator.app.data.AluminumStyle
 import com.fenceestimator.app.data.WoodStyle
+import com.fenceestimator.app.data.BuildTemplate
 import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.data.EstimateLineItem
@@ -122,6 +123,80 @@ data class CloudFenceRun(
     @SerialName("include_privacy_slats") val includePrivacySlats: Boolean = false,
     @SerialName("split_rail_count") val splitRailCount: Int = 2
 )
+
+/**
+ * The fence a company usually builds, as data. Pull-only -- see
+ * [EntitySync.pullBuildTemplates] -- so this shape is only ever decoded,
+ * never encoded, and needs no upsert helper of its own.
+ *
+ * [companyId] is nullable and deliberately never filtered on when pulling:
+ * RLS already restricts a select on build_templates to "company_id is null
+ * (shipped) or company_id = my company", so asking for everything this
+ * session can see already IS "shipped ∪ own" with no extra filter needed.
+ */
+@Serializable
+data class CloudBuildTemplate(
+    @SerialName("sync_id") val syncId: String,
+    @SerialName("company_id") val companyId: String? = null,
+    val name: String = "",
+    val description: String = "",
+    @SerialName("is_default") val isDefault: Boolean = false,
+    @SerialName("derived_from_sync_id") val derivedFromSyncId: String? = null,
+    @SerialName("sort_order") val sortOrder: Int = 0,
+    @SerialName("fence_type") val fenceType: String = "VINYL",
+    @SerialName("color_or_finish") val colorOrFinish: String = "",
+    @SerialName("panel_width_ft") val panelWidthFt: Float = 6f,
+    @SerialName("panel_height_ft") val panelHeightFt: Float = 6f,
+    @SerialName("post_spacing_ft") val postSpacingFt: Float = 6f,
+    @SerialName("concrete_bags_per_post") val concreteBagsPerPost: Float = 1f,
+    @SerialName("aluminum_style") val aluminumStyle: String = "RACKABLE",
+    @SerialName("wood_style") val woodStyle: String = "PRIVACY",
+    @SerialName("wood_rail_count") val woodRailCount: Int = 3,
+    @SerialName("picket_width_in") val picketWidthIn: Float = 5.5f,
+    @SerialName("picket_gap_in") val picketGapIn: Float = 0f,
+    @SerialName("fabric_height_ft") val fabricHeightFt: Float = 4f,
+    @SerialName("include_top_rail") val includeTopRail: Boolean = true,
+    @SerialName("include_tension_wire") val includeTensionWire: Boolean = false,
+    @SerialName("include_barbed_wire_arms") val includeBarbedWireArms: Boolean = false,
+    @SerialName("include_privacy_slats") val includePrivacySlats: Boolean = false,
+    @SerialName("split_rail_count") val splitRailCount: Int = 2,
+    @SerialName("gate_width_ft") val gateWidthFt: Float = 4f,
+    @SerialName("gate_mounting") val gateMounting: String = "LINE",
+    @SerialName("updated_at") val updatedAt: String? = null
+) {
+    /** See [CloudJob.updatedAtMillis]: falls back to 0 so an absent value never outranks real local work. */
+    fun updatedAtMillis(): Long = CloudTime.parseMillis(updatedAt) ?: 0L
+
+    fun toLocal(): BuildTemplate = BuildTemplate(
+        syncId = syncId,
+        companyId = companyId,
+        name = name,
+        description = description,
+        isDefault = isDefault,
+        derivedFromSyncId = derivedFromSyncId,
+        sortOrder = sortOrder,
+        fenceType = runCatching { FenceType.valueOf(fenceType) }.getOrDefault(FenceType.VINYL),
+        colorOrFinish = colorOrFinish,
+        panelWidthFt = panelWidthFt,
+        panelHeightFt = panelHeightFt,
+        postSpacingFt = postSpacingFt,
+        concreteBagsPerPost = concreteBagsPerPost,
+        aluminumStyle = runCatching { AluminumStyle.valueOf(aluminumStyle) }.getOrDefault(AluminumStyle.RACKABLE),
+        woodStyle = runCatching { WoodStyle.valueOf(woodStyle) }.getOrDefault(WoodStyle.PRIVACY),
+        woodRailCount = woodRailCount,
+        picketWidthIn = picketWidthIn,
+        picketGapIn = picketGapIn,
+        fabricHeightFt = fabricHeightFt,
+        includeTopRail = includeTopRail,
+        includeTensionWire = includeTensionWire,
+        includeBarbedWireArms = includeBarbedWireArms,
+        includePrivacySlats = includePrivacySlats,
+        splitRailCount = splitRailCount,
+        gateWidthFt = gateWidthFt,
+        gateMounting = gateMounting,
+        updatedAt = updatedAtMillis()
+    )
+}
 
 @Serializable
 data class CloudLineItem(
@@ -786,7 +861,8 @@ object EntitySync {
                     async { runCatching { netGate.withPermit { pullPricingTiers(repository, companyId) } } },
                     async { runCatching { netGate.withPermit { pullCatalog(repository, companyId) } } },
                     async { runCatching { netGate.withPermit { pullFenceRuns(repository, companyId) } } },
-                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId) } } }
+                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId) } } },
+                    async { runCatching { netGate.withPermit { pullBuildTemplates(repository, companyId) } } }
                 ).awaitAll()
             }
             val realFailure = results.mapNotNull { it.exceptionOrNull() }
@@ -885,6 +961,44 @@ object EntitySync {
             added++
         }
         return added
+    }
+
+    /**
+     * Shipped templates plus this company's own -- the first piece of the
+     * office setting a client up without a phone reaching the phone at all.
+     *
+     * Matched on syncId only, unlike [pullPricingTiers]/[pullCatalog]: those
+     * exist because every phone used to seed its own copy of the same
+     * starter data with a random id apiece, so two phones' "Residential"
+     * tiers had to be reconciled by name. Templates are never seeded on the
+     * phone -- they only ever arrive from here, with the sync id the office
+     * or the shipped-row migration already gave them -- so there is no
+     * local-only copy under a different id to adopt.
+     *
+     * Gated last-edit-wins on `updated_at`, the same clock pricing tiers use:
+     * a template this phone has not seen changes only when the cloud's copy
+     * is actually newer. In practice this phone never edits a template, so
+     * the gate is mostly a formality against two pulls racing -- but it is
+     * the same rule every other pull-and-compare table uses, and there is no
+     * reason to invent a second one here.
+     */
+    private suspend fun pullBuildTemplates(repository: Repository, companyId: String): Int {
+        val cloud = SupabaseModule.client.postgrest.from("build_templates")
+            // No company_id filter: RLS on build_templates already restricts
+            // a select to "company_id is null (shipped) or mine", which is
+            // exactly shipped union own -- asking for everything visible IS
+            // asking for that set, with nothing extra to intersect here.
+            .select { filter { notDeleted() } }
+            .decodeList<CloudBuildTemplate>()
+        val localBySyncId = repository.getAllBuildTemplates().associateBy { it.syncId }
+
+        val toUpsert = cloud.mapNotNull { row ->
+            val existing = localBySyncId[row.syncId]
+            if (existing != null && row.updatedAtMillis() <= existing.updatedAt) null else row.toLocal()
+        }
+        if (toUpsert.isEmpty()) return 0
+        repository.saveBuildTemplatesFromCloud(toUpsert)
+        return toUpsert.size
     }
 
     private suspend fun pullCatalog(repository: Repository, companyId: String): Int {

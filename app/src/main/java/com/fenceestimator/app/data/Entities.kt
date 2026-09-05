@@ -362,7 +362,34 @@ data class Job(
     val permitStatus: PermitStatus = PermitStatus.NOT_REQUIRED,
 
     // Crew
-    val assignedEmployeeId: Long? = null
+    val assignedEmployeeId: Long? = null,
+
+    // ---- Office pricing parity ----------------------------------------------
+    //
+    // The office can now price a job too (price-job, the New Client wizard).
+    // These four columns say whose number is on the job and how it got there,
+    // so the phone knows when to defer instead of quietly overwriting a
+    // number a customer has already been quoted. See JobSync's contract_total
+    // push block for the decision table. All four are on touch_updated_at's
+    // quiet list server-side -- writing them must never bump updatedAt, or
+    // the office pricing a job would look like an edit and steal every
+    // phone's offline work on the next sync (offline-sync-edit-clock).
+    /** Which template (if any) the job's build came from. Provenance only. */
+    val buildTemplateSyncId: String? = null,
+    /** Which engine wrote [Job.signedContractTotal]'s sibling, contractTotal, last: '' | 'APP' | 'OFFICE'. */
+    val pricedBy: String = "",
+    val pricedAt: Long? = null,
+    val pricingEngineVersion: String = "",
+    /**
+     * When the office sent this quote to the customer via the quote link.
+     *
+     * Once this is set, the office's number is what the customer saw and
+     * agreed to price against -- the phone stops overwriting contractTotal
+     * from here and only ever records a pricing_drift row if its own
+     * recompute disagrees. Before this is set, the phone still wins as it
+     * always has: nobody has been shown a number yet to contradict.
+     */
+    val quoteSentAt: Long? = null
 )
 
 /**
@@ -444,7 +471,19 @@ data class FenceRun(
      * Quantities skips them, so removing the auto-added handle (or anything
      * else) sticks instead of coming back on the next regenerate.
      */
-    val suppressedRolesCsv: String = ""
+    val suppressedRolesCsv: String = "",
+
+    /**
+     * Which build template this run's spec was copied from, if any.
+     *
+     * Provenance only -- a run COPIES the template's columns at creation and
+     * keeps them from then on, so editing the template later never moves a
+     * quote somebody has already signed. Null means the run was started from
+     * [com.fenceestimator.app.ui.runs.FenceRunListViewModel.defaultSpacingFor]'s
+     * hardcoded defaults instead, which stays the fallback for a fence type
+     * with no template chosen or none synced down yet.
+     */
+    val buildTemplateSyncId: String? = null
 ) {
     val suppressedRoles: Set<MaterialRole>
         get() = suppressedRolesCsv.split(",")
@@ -453,7 +492,113 @@ data class FenceRun(
 
     /** True when this run is quoted from typed-in footage rather than a drawing. */
     val usesManualFeet: Boolean get() = (manualLinearFeet ?: 0f) > 0f
+
+    companion object {
+        /**
+         * Starts a run from a saved build template: fence type and every
+         * spec column, copied by name so the run prices exactly like a fresh
+         * run of the template's own type. Only jobId, label and sortOrder
+         * come from the caller -- everything else here is either the
+         * template's spec or this run's own drawing/gate state, which a
+         * template never carries (a template is a spec, not a drawing).
+         *
+         * The columns copied here have to be exactly the spec columns on
+         * [BuildTemplate] -- see FenceRunFromTemplateTest, which fails on
+         * its own if one is ever added to only one side.
+         */
+        fun fromTemplate(
+            template: BuildTemplate,
+            jobId: Long,
+            label: String,
+            sortOrder: Int = 0
+        ): FenceRun = FenceRun(
+            jobId = jobId,
+            label = label,
+            sortOrder = sortOrder,
+            fenceType = template.fenceType,
+            colorOrFinish = template.colorOrFinish,
+            panelWidthFt = template.panelWidthFt,
+            panelHeightFt = template.panelHeightFt,
+            postSpacingFt = template.postSpacingFt,
+            concreteBagsPerPost = template.concreteBagsPerPost,
+            aluminumStyle = template.aluminumStyle,
+            woodStyle = template.woodStyle,
+            woodRailCount = template.woodRailCount,
+            picketWidthIn = template.picketWidthIn,
+            picketGapIn = template.picketGapIn,
+            fabricHeightFt = template.fabricHeightFt,
+            includeTopRail = template.includeTopRail,
+            includeTensionWire = template.includeTensionWire,
+            includeBarbedWireArms = template.includeBarbedWireArms,
+            includePrivacySlats = template.includePrivacySlats,
+            splitRailCount = template.splitRailCount,
+            buildTemplateSyncId = template.syncId
+        )
+    }
 }
+
+/**
+ * The fence a company usually builds, as data -- post spacing, panel height,
+ * bags of concrete per post, rail count, picket width, all of it, instead of
+ * the constants [com.fenceestimator.app.ui.runs.FenceRunListViewModel] used
+ * to bury in [com.fenceestimator.app.ui.runs.FenceRunListViewModel.defaultSpacingFor].
+ *
+ * A template is a SPEC, not a link: [FenceRun.fromTemplate] copies these
+ * columns onto a run at creation, and the run keeps them from then on, so
+ * editing a template later never moves a quote somebody has already signed.
+ *
+ * [companyId] null means this row is one of the ten FenceFlow ships --
+ * readable by every company, editable by none (the office RPCs that write
+ * these enforce that; nothing on the phone ever writes to this table at all,
+ * it only pulls). The spec columns carry the exact names and types of the
+ * matching [FenceRun] columns on purpose, so copying is by column name and
+ * nobody ever retypes a literal 6 or 8. See supabase_build_templates_patch.sql
+ * for the authoritative column list.
+ */
+@Entity(tableName = "build_templates")
+data class BuildTemplate(
+    /** The cloud row's own identity. Used as the Room primary key too: this
+     *  table is pull-only, so there is no device-local id to keep separate
+     *  from it, and every place a run refers back to a template already
+     *  does so by this string (see [FenceRun.buildTemplateSyncId]). */
+    @PrimaryKey val syncId: String,
+    /** Null = shipped by FenceFlow, visible to every company, editable by none. */
+    val companyId: String? = null,
+    val name: String = "",
+    val description: String = "",
+    val isDefault: Boolean = false,
+    val derivedFromSyncId: String? = null,
+    val sortOrder: Int = 0,
+
+    // Spec columns: same names and types as FenceRun, copied by FenceRun.fromTemplate.
+    val fenceType: FenceType = FenceType.VINYL,
+    val colorOrFinish: String = "",
+    val panelWidthFt: Float = 6f,
+    val panelHeightFt: Float = 6f,
+    val postSpacingFt: Float = 6f,
+    val concreteBagsPerPost: Float = 1f,
+    val aluminumStyle: AluminumStyle = AluminumStyle.RACKABLE,
+    val woodStyle: WoodStyle = WoodStyle.PRIVACY,
+    val woodRailCount: Int = 3,
+    val picketWidthIn: Float = 5.5f,
+    val picketGapIn: Float = 0f,
+    val fabricHeightFt: Float = 4f,
+    val includeTopRail: Boolean = true,
+    val includeTensionWire: Boolean = false,
+    val includeBarbedWireArms: Boolean = false,
+    val includePrivacySlats: Boolean = false,
+    val splitRailCount: Int = 2,
+
+    // Gate defaults the wizard offers on a new run -- not FenceRun columns,
+    // since a run's actual gates live in gatesEncoded once drawn or typed.
+    val gateWidthFt: Float = 4f,
+    val gateMounting: String = "LINE",
+
+    /** The cloud's own last-edit-wins clock; never bumped locally, since this table is pull-only. */
+    val updatedAt: Long = 0L,
+    /** Set once a template is retired. Filtered out before it ever reaches this table by the pull. */
+    val deletedAt: Long? = null
+)
 
 @Entity(tableName = "manufacturers")
 data class Manufacturer(
