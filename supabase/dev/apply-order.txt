@@ -104,3 +104,4 @@ supabase_can_see_pay_patch.sql
 supabase_time_entry_rate_patch.sql
 supabase_job_totals_authority_patch.sql
 supabase_quote_link_patch.sql
+supabase_build_templates_patch.sql
