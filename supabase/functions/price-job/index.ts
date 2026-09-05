@@ -219,15 +219,26 @@ Deno.serve(async (req) => {
       nowIso,
     });
 
-    if (plan.upsertItems.length > 0) {
-      const { error } = await supabase
-        .from("estimate_line_items")
-        .upsert(plan.upsertItems, { onConflict: "company_id,sync_id" });
-      if (error) {
-        console.error("price-job: upsert items", error.message);
-        return json({ error: "Could not save the estimate." }, 500);
+    // Replacing lines is a delete, and deletes are gated: the trash-bin
+    // trigger refuses a tombstone from anyone without DELETE_RECORDS, which a
+    // MANAGER does not hold by default. Asked BEFORE anything is written --
+    // the first draft upserted the new lines first, so a manager's re-price
+    // would have landed the new estimate on top of the old one and failed
+    // only at the tombstone, leaving both sets of lines counting.
+    if (plan.tombstoneSyncIds.length > 0) {
+      const { data: mayDelete, error: delPermError } = await supabase
+        .rpc("has_permission", { perm: "DELETE_RECORDS" });
+      if (delPermError) {
+        console.error("price-job: has_permission DELETE_RECORDS", delPermError.message);
+        return json({ error: "Could not check your permissions." }, 500);
+      }
+      if (mayDelete !== true) {
+        return json({
+          error: "Re-pricing replaces this job's estimate lines, which needs the Delete records permission. Ask the owner to re-price it, or to grant you that permission.",
+        }, 403);
       }
     }
+
     if (plan.tombstoneSyncIds.length > 0) {
       // Never delete -- update the same two columns every other table's
       // trash bin uses, so a mistaken re-price stays recoverable the same
@@ -240,6 +251,20 @@ Deno.serve(async (req) => {
       if (error) {
         console.error("price-job: tombstone items", error.message);
         return json({ error: "Could not clear the old estimate lines." }, 500);
+      }
+    }
+
+    // Old lines first, new lines second, on purpose: if the second write
+    // fails the job is briefly missing its estimate, which is visible and
+    // fixed by pressing the button again -- the other order left the old
+    // and the new lines counting together, which is invisible and wrong.
+    if (plan.upsertItems.length > 0) {
+      const { error } = await supabase
+        .from("estimate_line_items")
+        .upsert(plan.upsertItems, { onConflict: "company_id,sync_id" });
+      if (error) {
+        console.error("price-job: upsert items", error.message);
+        return json({ error: "Could not save the estimate." }, 500);
       }
     }
 
