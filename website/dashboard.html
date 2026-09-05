@@ -867,10 +867,21 @@
         signature, and the survey the fence was drawn on — straight from the phones.</p>
       <div id="jobPhotos" class="empty">Loading…</div>
     </div>
-    <div class="panel"><h2>Estimate</h2><div id="jobItems"></div></div>
+    <div class="panel"><h2>Estimate</h2><div id="jobItems"></div>
+      <!-- The office never carries the pricing formula -- it asks price-job,
+           the same TypeScript port of EstimateEngine.kt the phone runs, and
+           renders exactly what comes back. A dry_run previews; nothing here
+           is written until "Keep this price" commits it. -->
+      <div style="margin-top:12px">
+        <button class="btn btn-sm btn-grey" id="repriceOffice" type="button">Re-price at the office</button>
+        <div class="msg" id="officePricingMsg"></div>
+        <div id="officePricingResult"></div>
+      </div>
+    </div>
 
     <div class="panel"><h2>Pricing</h2>
       <div class="readout" id="j_total_readout" style="margin-bottom:10px"></div>
+      <p class="sub" id="j_priced_by_readout" style="margin-top:0"></p>
       <div class="row3">
         <div><label>Tax rate (%)</label><input id="j_tax_rate_percent" type="number" step="0.1"></div>
         <div><label>Markup (%)</label><input id="j_markup_percent" type="number" step="0.1"></div>
@@ -4317,10 +4328,204 @@ async function saveSatelliteRun(){
   if(openJob && String(openJob.id) === String(j.id)) showJob(j.id);
 }
 
+/* ---------- office pricing (price-job) ----------
+   Pricing lives in exactly one place: EstimateEngine.kt on the phone, ported
+   line for line to supabase/functions/_shared/pricing/ for the server. This
+   page never adds, multiplies or rounds a price -- not even a subtotal --
+   it only renders what price-job's PricingOutput already says. See
+   docs/PRICING_CONTRACT.md and docs/OFFICE_SETUP_PLAN.md. */
+
+/** What the Pricing panel's readout says about who last priced this job,
+    from jobs.priced_by / priced_at / pricing_engine_version. A pure function
+    (no DOM, no fetch) so it is covered by tests/office-pricing.test.mjs. */
+function pricedByReadout(job){
+  if(!job || !job.priced_by) return 'Not priced yet.';
+  if(job.priced_by==='OFFICE'){
+    const when = job.priced_at ? new Date(job.priced_at).toLocaleDateString() : 'an unknown date';
+    return 'Priced at the office on '+when+', engine '+(job.pricing_engine_version||'unknown')+'.';
+  }
+  if(job.priced_by==='APP') return 'Priced on the phone.';
+  return 'Not priced yet.';
+}
+
+/** Turns a price-job response into one sentence a contractor can act on.
+    Pure -- given the HTTP status and parsed body, not the fetch itself --
+    so the mapping from status code to wording is tested directly. */
+function officePricingErrorMessage(status, body){
+  if(status===403) return "This account can't price jobs here — pricing is limited to "
+    + 'owners and managers on an active plan.';
+  if(status===409) return 'This job changed since it was priced — reload it and try again.';
+  if(body && body.error) return body.error;
+  if(status===0) return 'Could not reach the pricing service just now.';
+  return 'Could not price this job just now.';
+}
+
+/** The one place this page calls price-job. Built from the caller's own
+    session -- never a service key -- so RLS and company_allowed hold exactly
+    as they do for every other request this page makes. */
+async function callPriceJob(jobSyncId, mode, expectedUpdatedAt){
+  try{
+    const { data: sess } = await db.auth.getSession();
+    const payload = { job_sync_id: jobSyncId, mode };
+    if(expectedUpdatedAt !== undefined) payload.expected_updated_at = expectedUpdatedAt;
+    const res = await fetch(`${SUPA_URL}/functions/v1/price-job`, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        Authorization:`Bearer ${sess?.session?.access_token}`,
+        apikey: window.FENCEFLOW_CONFIG.SUPABASE_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(()=>({}));
+    return { status: res.status, body };
+  }catch(e){
+    return { status: 0, body: { error: String(e.message||e) } };
+  }
+}
+
+/** The dry_run preview: line items, per-run summaries, warnings and totals,
+    straight off PricingOutput. No arithmetic happens here -- every number on
+    screen is a field the server already computed. */
+function renderOfficePricingResult(output){
+  const runLabel = sid => { const r=runs.find(x=>x.sync_id===sid); return (r&&r.label) || 'Untitled run'; };
+  const items = output.items||[], runsOut = output.runs||[], totals = output.totals||{};
+  const unmatched = output.unmatched_roles||[], zeroNamed = output.zero_priced_names||[];
+
+  const runLines = runsOut.map(r=>{
+    const gates = r.gate_count ? ', '+r.gate_count+' gate'+(r.gate_count===1?'':'s') : '';
+    return `<div style="padding:3px 0;font-size:13px;color:var(--muted)">${esc(runLabel(r.run_sync_id))}`
+      + `${r.is_teardown?' (teardown)':''} — ${Number(r.net_feet||0).toFixed(1)} ft net, `
+      + `${(r.posts&&r.posts.total)||0} posts${gates}</div>`;
+  }).join('');
+
+  const itemRows = items.length ? items.map(i=>`<tr>
+      <td>${esc(i.description)}${i.auto_generated===false
+        ? ' <span class="pill" style="background:#EEF2F7;color:#25313F;font-size:10px;font-weight:700">edited</span>' : ''}</td>
+      <td>${i.quantity}</td><td>${esc(i.unit||'')}</td>
+      <td>${money(i.unit_price)}</td>
+      <td>${money((i.quantity||0)*(i.unit_price||0))}</td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty">No line items.</td></tr>';
+
+  const warnings = [
+    ...unmatched.map(u=>'No catalog match for '+esc(u.role)+' on '+esc(runLabel(u.run_sync_id))+'.'),
+    ...zeroNamed.map(z=>esc(z.name)+' on '+esc(runLabel(z.run_sync_id))+' is priced at $0.'),
+  ];
+  const warnBlock = warnings.length
+    ? `<div style="margin:10px 0;padding:10px;background:#FFF4E5;border-radius:8px;color:#7A4B00;font-size:13px">
+         ${warnings.map(w=>`<div>${w}</div>`).join('')}
+       </div>` : '';
+
+  const row = (label,val) => `<div style="display:flex;justify-content:space-between;padding:2px 0">
+      <span>${label}</span><span>${money(val)}</span></div>`;
+
+  return `
+    <div style="margin-top:10px">${runLines}</div>
+    <div class="scroll" style="margin-top:6px"><table>
+      <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Unit price</th><th>Line total</th></tr></thead>
+      <tbody>${itemRows}</tbody></table></div>
+    ${warnBlock}
+    <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+      ${row('Materials', totals.materials_subtotal)}
+      ${row('Tax', totals.tax)}
+      ${row('Labour', totals.labor_cost)}
+      ${row('Gate charge', totals.gate_charge)}
+      ${row('Teardown', totals.teardown_cost)}
+      ${totals.trash_haul_fee ? row('Trash haul', totals.trash_haul_fee) : ''}
+      ${row('Change orders', totals.change_order_cost)}
+      ${row('Markup', totals.markup_amount)}
+      ${row('Discount', -(totals.discount_amount||0))}
+      <div style="display:flex;justify-content:space-between;padding:6px 0 0;font-weight:700;font-size:15px">
+        <span>Grand total</span><span>${money(totals.grand_total)}</span></div>
+    </div>`;
+}
+
+/* Holds the previewed-but-not-yet-committed price between the dry_run click
+   and "Keep this price", including the updated_at read at dry_run time --
+   sent back as expected_updated_at so a genuinely concurrent edit 409s
+   instead of the office silently overwriting it. */
+let officePricing = null;
+
+async function repriceAtOffice(){
+  if(!openJob) return;
+  const btn = $('repriceOffice');
+  btn.disabled = true;
+  officePricing = null;
+  $('officePricingResult').innerHTML = '';
+  msg('officePricingMsg', 'Pricing… the first call of the day can take a couple of seconds.', 'working');
+  const expectedUpdatedAt = openJob.updated_at;
+  const { status, body } = await callPriceJob(openJob.sync_id, 'dry_run');
+  btn.disabled = false;
+  if(status !== 200 || !body || !body.output){
+    msg('officePricingMsg', officePricingErrorMessage(status, body), 'err');
+    return;
+  }
+  officePricing = { jobSyncId: openJob.sync_id, expectedUpdatedAt, output: body.output };
+  $('officePricingMsg').className = 'msg';
+  $('officePricingResult').innerHTML = renderOfficePricingResult(body.output) + `
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-sm" id="keepOfficePrice" type="button">Keep this price</button>
+      <button class="btn btn-sm btn-grey" id="cancelOfficePrice" type="button">Cancel</button>
+    </div>`;
+  $('keepOfficePrice').addEventListener('click', keepOfficePrice);
+  $('cancelOfficePrice').addEventListener('click', ()=>{
+    officePricing = null;
+    $('officePricingResult').innerHTML = '';
+  });
+}
+
+async function keepOfficePrice(){
+  if(!officePricing || !openJob) return;
+  const keepBtn = $('keepOfficePrice');
+  if(keepBtn) keepBtn.disabled = true;
+  msg('officePricingMsg', 'Saving the office price…', 'working');
+  const { status, body } = await callPriceJob(
+    officePricing.jobSyncId, 'commit', officePricing.expectedUpdatedAt);
+  if(status === 409){
+    msg('officePricingMsg', officePricingErrorMessage(status, body), 'err');
+    if(!$('reloadOfficeJob')){
+      $('officePricingResult').insertAdjacentHTML('beforeend',
+        '<div style="margin-top:8px"><button class="btn btn-sm btn-grey" id="reloadOfficeJob" '
+        + 'type="button">Reload this job</button></div>');
+      $('reloadOfficeJob').addEventListener('click', async ()=>{
+        officePricing = null;
+        const id = openJob.id;
+        await loadAll();
+        showJob(id);
+      });
+    }
+    if(keepBtn) keepBtn.disabled = false;
+    return;
+  }
+  if(status !== 200 || !body || !body.output){
+    msg('officePricingMsg', officePricingErrorMessage(status, body), 'err');
+    if(keepBtn) keepBtn.disabled = false;
+    return;
+  }
+  const grand = body.output.totals ? body.output.totals.grand_total : undefined;
+  officePricing = null;
+  $('officePricingResult').innerHTML = '';
+  $('officePricingMsg').className = 'msg';
+  const reopen = openJob.id;
+  await loadAll();
+  if($('jobOverlay').classList.contains('on')) showJob(reopen);
+  msg('jobMsg', 'Priced at the office — '+money(grand)+'.', 'ok');
+}
+
 function showJob(id){
   openJob=jobs.find(j=>String(j.id)===String(id));
   renderQuoteBlock();
   if(!openJob) return;
+  // A preview left over from whichever job was open before this one is not
+  // this job's price -- "Keep this price" must never commit a stranger's
+  // numbers onto the job now on screen.
+  officePricing = null;
+  $('officePricingResult').innerHTML = '';
+  $('officePricingMsg').className = 'msg';
+  // Re-pricing touches money, so it is owner/manager only -- crew and other
+  // roles never see the button at all, the same gate canEdit() already
+  // applies to every other write on this sheet.
+  $('repriceOffice').style.display = canEdit() ? '' : 'none';
   $('jobTitle').textContent=openJob.customer_name||'Job';
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||'';});
   J_NUM.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]??0;});
@@ -4346,6 +4551,7 @@ function showJob(id){
   $('j_total_readout').innerHTML =
     `<b>${money(Number(openJob.contract_total ?? openJob.quoted_total ?? 0))}</b>
      <span class="sub2">Priced in the app from the runs, estimate and the rates below.</span>`;
+  $('j_priced_by_readout').textContent = pricedByReadout(openJob);
 
   $('j_scheduled_date').value=openJob.scheduled_date
     ? new Date(openJob.scheduled_date).toISOString().slice(0,10) : '';
@@ -4446,21 +4652,44 @@ async function saveJob(){
   // By sync id: the old column held the app's local row id, which means
   // nothing on any other device -- dashboard assignments never reached a phone.
   patch.assigned_employee_sync_id = $('j_assigned_employee_id').value || null;
-  // A rate change does not move the total here. The phone that holds this
-  // job's estimate recomputes from its own copy of the rates, so the new
-  // figure appears after that phone has pulled the rate AND pushed the
-  // total -- two syncs. Saying 'saved' and leaving the old total on screen
-  // read as the change having been ignored.
+  // A rate change used to leave the total stale until whichever phone holds
+  // this job's estimate happened to pull the new rate AND push a total back
+  // -- two syncs, during which "Saved" sat next to a figure that had not
+  // moved. Now that the office can ask price-job for a real number itself
+  // (this account is owner/manager, or saveJob would have returned above),
+  // it does, and only falls back to the old wait-for-a-phone wording if that
+  // call refuses or fails -- never silently, always saying why.
   const PRICING=['tax_rate_percent','markup_percent','discount_percent',
                  'labor_rate_per_ft','labor_flat_fee','minimum_job_charge'];
   const repriced = PRICING.some(k => k in patch &&
     Math.abs(num(patch[k]) - num(openJob[k] ?? 0)) > 0.0001);
   const {error}=await db.from('jobs').update(patch).eq('id',openJob.id);
   if(error) return msg('jobMsg',error.message,'err');
-  msg('jobMsg', repriced
-    ? "Saved. The quote total is re-priced by the phone that holds this job's estimate "
-      + 'on its next sync, and the figure under Pricing updates once it has.'
-    : 'Saved. Phones pick this up on their next sync.','ok');
+
+  const PHONE_SYNC_NOTE = "Saved. The quote total is re-priced by the phone that holds this "
+    + "job's estimate on its next sync, and the figure under Pricing updates once it has.";
+
+  if(!repriced){
+    msg('jobMsg', 'Saved. Phones pick this up on their next sync.', 'ok');
+  } else {
+    msg('jobMsg', 'Saved. Pricing at the office…', 'working');
+    // expected_updated_at comes from the row THIS update just wrote, not the
+    // stale openJob snapshot still in memory -- so a genuinely concurrent
+    // edit to the same job 409s instead of the office silently winning.
+    const fresh = await db.from('jobs').select('updated_at,sync_id').eq('id',openJob.id).single();
+    if(fresh.error || !fresh.data){
+      msg('jobMsg', PHONE_SYNC_NOTE + ' (Could not confirm the save to price it at the office.)', 'ok');
+    } else {
+      const { status, body } = await callPriceJob(fresh.data.sync_id, 'commit', fresh.data.updated_at);
+      if(status === 200 && body && body.output){
+        msg('jobMsg', 'Saved. Re-priced at the office — '
+          + money(body.output.totals ? body.output.totals.grand_total : undefined) + '.', 'ok');
+      } else {
+        msg('jobMsg', PHONE_SYNC_NOTE + ' (Office pricing did not run: '
+          + officePricingErrorMessage(status, body) + ')', 'ok');
+      }
+    }
+  }
   // Repainted from the row that was just written.
   //
   // loadAll() rebuilds the jobs array, but openJob still pointed at the old
@@ -5121,6 +5350,7 @@ $('refresh').addEventListener('click',loadAll);
 $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'));
 $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'));
 $('saveJob').addEventListener('click',saveJob);
+$('repriceOffice').addEventListener('click',repriceAtOffice);
 $('deleteJob').addEventListener('click',deleteJob);
 $('q_copy').addEventListener('click', async ()=>{
   if(!openJob) return;
