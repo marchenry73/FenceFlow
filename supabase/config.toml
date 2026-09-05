@@ -45,7 +45,11 @@ verify_jwt = true
 # itself: verify_jwt only proves SOMEONE is signed in, not that this caller
 # may see this job's money.
 [functions.price-job]
-verify_jwt = true
+# The function validates the caller itself (getUser on the bearer token, then
+# role and permission checks). With the gateway checking too, the browser's
+# CORS preflight -- which carries no token -- was refused and the office saw
+# "Failed to fetch", exactly as create-payment-link and quote-view found before.
+verify_jwt = false
 
 # Square signs its own requests and sends no Supabase JWT, exactly like Stripe.
 # Leaving this out is what made the first deploy answer 401 at the gateway
