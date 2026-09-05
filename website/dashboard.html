@@ -112,6 +112,21 @@
   .sheet-head{background:var(--graphite);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}
   .sheet-body{padding:16px}
   .sheet-foot{padding:12px 16px;background:#fff;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0}
+  /* New client wizard: its own row grid rather than reusing .row2/.row3,
+     because the office asked this page keep working at 1100px (three columns
+     of spec fields fit) and fall to one column below 720px specifically --
+     a different break than the rest of the page happens to use, and tying
+     the wizard to that would be a coincidence pretending to be a rule. */
+  .wiz-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .wiz-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  @media(max-width:720px){.wiz-row2,.wiz-row3{grid-template-columns:1fr}}
+  /* The step rail: seven flat segments, no numbers to keep it legible at
+     phone width -- "Step 3 of 7" underneath already says that in words. */
+  .wiz-rail{display:flex;gap:4px}
+  .wiz-rail .seg{flex:1;height:5px;border-radius:3px;background:var(--line)}
+  .wiz-rail .seg.done{background:var(--teal)}
+  .wiz-rail .seg.now{background:var(--orange)}
+  .wiz-tpl-btn{white-space:normal;text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis}
   .note{background:#FFF4E5;border:1px solid #FFD9A8;color:#7A4A00;padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px}
   /* Calendar */
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}
@@ -949,6 +964,33 @@
   <div class="sheet-foot">
     <button class="btn btn-grey" id="deleteJob">Delete</button>
     <button class="btn" id="saveJob">Save Changes</button>
+  </div>
+</div></div>
+
+<!-- New client wizard: "set up everything all together... show me next and
+     next till everything is done" -- the owner's own words in
+     docs/OFFICE_SETUP_PLAN.md. Placed BEFORE satOverlay in the DOM on
+     purpose: satOverlay is opened on top of this one (see openSatellite /
+     wizAddRun below) and, at equal z-index, the later element in the DOM is
+     the one that paints on top -- the same trick the job sheet already
+     relies on for its own "Measure from satellite" button. -->
+<div class="overlay" id="wizOverlay"><div class="sheet" style="max-width:760px">
+  <div class="sheet-head">
+    <strong id="wizStepTitle">New client</strong>
+    <button class="btn btn-sm btn-ghost" id="wizClose" type="button">Close</button>
+  </div>
+  <div style="padding:14px 18px 0">
+    <div class="wiz-rail" id="wizRail"></div>
+    <!-- .sub is scoped to ".panel .sub" everywhere else in this page; this
+         label sits above the first panel, so its look is spelled out inline
+         rather than silently rendering as unstyled black text. -->
+    <p id="wizStepLabel" style="margin:6px 0 0;font-size:12px;color:var(--muted)"></p>
+    <div class="msg" id="wizMsg"></div>
+  </div>
+  <div class="sheet-body" id="wizBody"></div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="wizBack" type="button">Back</button>
+    <button class="btn" id="wizNext" type="button">Next</button>
   </div>
 </div></div>
 
@@ -2270,7 +2312,8 @@ function renderJobs(){
     <tr class="click" data-id="${j.id}">
       <td><strong>${esc(j.customer_name)||'Untitled'}</strong></td>
       <td>${esc(j.address)||'—'}</td>
-      <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span></td>
+      <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span>
+        ${j.wizard_step ? '<span class="pill" style="background:#FFF4E5;color:#7A4B00;margin-left:4px;white-space:nowrap">Finish setting up</span>' : ''}</td>
       <td>${j.scheduled_date?d(j.scheduled_date).toLocaleDateString():'—'}</td>
       <td>${money(netPaid(j))}</td></tr>`).join('');
   document.querySelectorAll('#jobRows tr').forEach(tr=>
@@ -4063,6 +4106,10 @@ async function loadJobPhotos(sid){
 const SAT = {
   job:null, z:20, cLat:0, cLon:0, pts:[], drag:null, moved:0,
   W:0, H:0, feetPerWorldPx:0,
+  // Set by the wizard (wizStep3Measure below) so this same tool can hand its
+  // trace back into a run that is still being assembled, instead of writing
+  // a fence_runs row straight away with its own hardcoded spacing/height.
+  fromWizard:false, prevOpenJob:undefined,
 };
 
 /* Web Mercator, the projection every slippy map uses. */
@@ -4254,32 +4301,43 @@ function satWire(){
   $('satLoop').addEventListener('change', () => satDraw());
   $('satIn').addEventListener('click', () => { if(SAT.z < 20){ SAT.z++; satDraw(); } });
   $('satOut').addEventListener('click', () => { if(SAT.z > 16){ SAT.z--; satDraw(); } });
-  $('satClose').addEventListener('click', () => $('satOverlay').classList.remove('on'));
+  // Closing hands the tool back to whichever caller opened it -- the plain
+  // job sheet just hides the overlay, the wizard also has to restore the
+  // openJob it borrowed and re-enable the type/height/spacing fields it
+  // disabled. One function so neither caller can forget the other's cleanup.
+  $('satClose').addEventListener('click', closeSatelliteOverlay);
   $('satOverlay').addEventListener('click', e => {
-    if(e.target.id === 'satOverlay') $('satOverlay').classList.remove('on');
+    if(e.target.id === 'satOverlay') closeSatelliteOverlay();
   });
   $('satSave').addEventListener('click', saveSatelliteRun);
+}
+
+function closeSatelliteOverlay(){
+  $('satOverlay').classList.remove('on');
+  if(SAT.fromWizard) wizReturnFromSatellite();
 }
 
 /** Writes what was measured as a fence run, in the same coordinate space the
     app's own drawing screen uses: 20 pixels to the foot, first corner at the
     origin. The estimator downstream cannot tell the difference, which is the
-    point -- a run measured from the air prices exactly like one walked. */
+    point -- a run measured from the air prices exactly like one walked.
+
+    When opened from the wizard (SAT.fromWizard), the trace is not written to
+    fence_runs here at all -- it is handed back to wizAddRun, which still has
+    to collect gates before there is anything worth calling
+    create_run_from_template with. Saving straight to the table from here,
+    as this used to do unconditionally, is how a wizard-drawn run ended up
+    with the tool's own literal defaults (panel 6, spacing 8, bags 1, no
+    gates) instead of the spec picked on step 2. */
 async function saveSatelliteRun(){
-  if(!canEdit() || SAT.pts.length < 2) return;
+  if(SAT.pts.length < 2) return;
+  if(SAT.fromWizard) return wizUseSatelliteTrace();
+  if(!canEdit()) return;
   const j = SAT.job;
   $('satSave').disabled = true;
   msg('satMsg', 'Saving…', 'working');
 
-  const f = satFeetPerPx(SAT.cLat, SAT.z);
-  const o = satWorld(SAT.pts[0].lat, SAT.pts[0].lon, SAT.z);
-  const PX_PER_FT = 20;
-  const encoded = SAT.pts.map(p => {
-    const w = satWorld(p.lat, p.lon, SAT.z);
-    const x = (w.x - o.x) * f * PX_PER_FT;
-    const y = (w.y - o.y) * f * PX_PER_FT;
-    return (Math.round(x * 1000) / 1000) + ':' + (Math.round(y * 1000) / 1000);
-  }).join(',');
+  const encoded = encodePointsList(satPointsToRunSpace(SAT.pts, SAT.cLat, SAT.z));
 
   const loop = $('satLoop').checked;
   const mine = runs.filter(r => r.job_sync_id === j.sync_id);
@@ -4513,6 +4571,14 @@ async function keepOfficePrice(){
 }
 
 function showJob(id){
+  // A job the wizard has not finished belongs in the wizard, resumed at
+  // whatever step it stopped on -- opening the full sheet instead would show
+  // an estimate for runs that were never priced and a quote link nobody
+  // should send yet. Only for someone who can actually drive the wizard
+  // (OWNER/MANAGER); everyone else still gets the read-only sheet, same as
+  // before, rather than a click that silently does nothing.
+  const target = jobs.find(j=>String(j.id)===String(id));
+  if(target && target.wizard_step && canEdit()){ openWizard(id); return; }
   openJob=jobs.find(j=>String(j.id)===String(id));
   renderQuoteBlock();
   if(!openJob) return;
@@ -4701,6 +4767,1072 @@ async function saveJob(){
   if ($('jobOverlay').classList.contains('on')) showJob(reopen);
   return;
 }
+
+/* ===================== New client wizard ==================================
+   The owner's own words: "I need to be able to set up everything all
+   together. I should not have to go on the phone and finish it... it should
+   show me next and next till everything is done, also some default things
+   like the spacing of the post, the height, bags per post." See
+   docs/OFFICE_SETUP_PLAN.md (Phase B) for the full design.
+
+   Seven steps, saved on every Next so an interrupted call resumes exactly
+   where it stopped -- jobs.wizard_step carries the resume point (0 = done or
+   not a wizard job). Nothing here ever computes a price: step 5 asks
+   price-job the same as the job sheet's "Re-price at the office" does, and
+   renders exactly what comes back. */
+
+/* ---------- pure helpers (also exercised directly by
+   tests/wizard-encoding.test.mjs -- no DOM, no network) ---------- */
+
+/** FenceCodec's point format, "x:y,x:y,...", reproduced byte-for-byte enough
+    that decodePoints (Float parsing, malformed pairs dropped) reads it back
+    the same as a phone-drawn run. Coordinates are rounded to thousandths --
+    survey-pixel precision the estimator never needed finer than. */
+function encodePointsList(list){
+  return (list||[]).map(p =>
+    (Math.round(p.x*1000)/1000) + ':' + (Math.round(p.y*1000)/1000)
+  ).join(',');
+}
+
+/** FenceCodec's gate format, the 5-part form:
+    "x:y:widthFt:MOUNTING:SWING,...". Older 3- and 4-part gates are something
+    decodeGates reads, never something this page writes -- every gate the
+    wizard creates already knows its mounting and swing. */
+function encodeGateMarkers(gates){
+  return (gates||[]).map(g =>
+    (Math.round(g.x*1000)/1000) + ':' + (Math.round(g.y*1000)/1000) + ':'
+    + g.widthFt + ':' + (g.mounting||'LINE') + ':' + (g.swing||'IN')
+  ).join(',');
+}
+
+/** Where a gate without a drawn position goes.
+    A satellite trace gives every run an ordered point list, so a gate can
+    sit at the midpoint of an actual segment -- the office's answer to
+    question 2 in OFFICE_SETUP_PLAN.md ("auto-placed at segment midpoints,
+    movable on the phone"). A typed-footage run has no points at all, so its
+    gates are position-less (0,0): the pricing engine only ever sums gate
+    WIDTHS, never positions -- GateGeometry is drawing-only and this page
+    does not port it. Extra gates beyond the number of segments double up on
+    the last segment rather than throwing, because a fence with three gates
+    and two corners is unusual, not invalid. */
+function autoPlaceGateMarkers(points, closedLoop, gates){
+  const segCount = (!points || points.length < 2) ? 0
+    : (closedLoop ? points.length : points.length - 1);
+  return (gates||[]).map(g => {
+    if(segCount < 1) return { x:0, y:0, widthFt:g.widthFt, mounting:g.mounting, swing:g.swing };
+    const seg = Math.min(gates.indexOf(g), segCount - 1);
+    const a = points[seg], b = points[(seg + 1) % points.length];
+    return { x:(a.x+b.x)/2, y:(a.y+b.y)/2, widthFt:g.widthFt, mounting:g.mounting, swing:g.swing };
+  });
+}
+
+/** The satellite tool measures in latitude/longitude; a fence run is stored
+    in the app's own drawing space (20 px/ft, first corner at the origin).
+    Split out of saveSatelliteRun so the wizard's "use this trace" path and
+    the plain job-sheet save share one conversion instead of two that could
+    drift apart. */
+function satPointsToRunSpace(pts, cLat, z){
+  if(!pts || pts.length < 1) return [];
+  const f = satFeetPerPx(cLat, z);
+  const o = satWorld(pts[0].lat, pts[0].lon, z);
+  const PX_PER_FT = 20;
+  return pts.map(p => {
+    const w = satWorld(p.lat, p.lon, z);
+    return { x:(w.x-o.x)*f*PX_PER_FT, y:(w.y-o.y)*f*PX_PER_FT };
+  });
+}
+
+/** Maps step 2's chosen spec plus a run's own particulars (label, geometry,
+    gates) onto the overrides object create_run_from_template expects. Only
+    spec fields that are actually set are included -- an omitted one falls
+    through to coalesce() on the template's own column, exactly as the SQL
+    function documents. The panel-locks-spacing rule is re-applied here too,
+    not because the RPC skips it (it does not), but so the wizard's own
+    on-screen preview of a run never shows a spacing the server would then
+    silently override. */
+function buildRunOverrides(spec, extra){
+  const fields = ['fence_type','color_or_finish','panel_width_ft','panel_height_ft','post_spacing_ft',
+    'concrete_bags_per_post','aluminum_style','wood_style','wood_rail_count','picket_width_in','picket_gap_in',
+    'fabric_height_ft','include_top_rail','include_tension_wire','include_barbed_wire_arms',
+    'include_privacy_slats','split_rail_count'];
+  const o = {};
+  fields.forEach(k => { if(spec && spec[k] !== undefined && spec[k] !== null) o[k] = spec[k]; });
+  if(o.fence_type && ['VINYL','ALUMINUM','ORNAMENTAL_IRON'].includes(o.fence_type) && o.panel_width_ft != null){
+    o.post_spacing_ft = o.panel_width_ft;
+  }
+  Object.assign(o, extra||{});
+  return o;
+}
+
+/** my_build_templates() returns one flat list; the picker wants it grouped.
+    A template can land in more than one group (a company default that was
+    also used yesterday shows up under both Recent and Company default) --
+    that is a feature of a picker, not a bug in a partition. Recent is capped
+    at 3 per the plan's open question 4 ("the picker shows Recent first"). */
+function wizTemplateGroups(templates){
+  const list = templates || [];
+  const recent = list.filter(t=>t.my_last_used_at)
+    .sort((a,b)=>new Date(b.my_last_used_at)-new Date(a.my_last_used_at))
+    .slice(0,3);
+  const companyDefault = list.filter(t=>t.is_default);
+  const yours = list.filter(t=>!t.is_shipped && !t.is_default);
+  const shipped = list.filter(t=>t.is_shipped);
+  return [
+    ['Recent', recent],
+    ['Company default', companyDefault],
+    ['Your templates', yours],
+    ['FenceFlow templates', shipped],
+  ].filter(([,g])=>g.length);
+}
+
+const WIZ_STEP_NAMES = ['Who','Build','Fence line & gates','Pricing','Estimate','Schedule & paperwork','Send'];
+const WIZ_FENCE_TYPES = ['VINYL','WOOD','CHAIN_LINK','ALUMINUM','ORNAMENTAL_IRON','SPLIT_RAIL','COMPOSITE'];
+function wizFenceTypeLabel(t){
+  return { WOOD:'Wood', VINYL:'Vinyl', CHAIN_LINK:'Chain link', ALUMINUM:'Aluminum',
+    ORNAMENTAL_IRON:'Ornamental iron', COMPOSITE:'Composite', SPLIT_RAIL:'Split rail' }[t] || (t||'');
+}
+function wizLockedSpacing(fenceType){
+  return ['VINYL','ALUMINUM','ORNAMENTAL_IRON'].includes(fenceType);
+}
+
+/** A company_settings key this page has no input for yet (gate_rate, waste --
+    see OFFICE_SETUP_PLAN.md's "Schema details"). Read straight off the row
+    rather than adding DOM fields nobody has asked to edit directly; the
+    wizard only needs the fallback once, at job creation. */
+async function companySetting(key, fallback){
+  const { data } = await db.from('company_settings').select('settings')
+    .eq('company_id', profile.company_id).maybeSingle();
+  const v = data && data.settings ? data.settings[key] : undefined;
+  return (v === undefined || v === null || v === '') ? fallback : v;
+}
+
+/* ---------- wizard state ---------- */
+
+let wiz = null; // non-null only while wizOverlay is open
+
+function wizBlankRun(){
+  return { label:'', manual_linear_feet:'', manual_corner_count:0, closed_loop:false,
+           points:null, gates:[] };
+}
+
+/** Opens fresh (jobId null) or resumes an existing job at its own
+    wizard_step. The setup gate is the same one createJob used to enforce --
+    a quote built before rates and a catalog exist is built on blanks -- but
+    it only applies to STARTING a new job; resuming one already in progress
+    is never blocked by it. */
+async function openWizard(jobId, opts){
+  opts = opts || {};
+  if(!jobId && setupBlocks){
+    switchTab('dash');
+    msg('jobsMsg', 'Finish setting up first — a quote built before your labour rate, '
+      + 'markup, minimum charge, tax and supplier prices are set is built on blanks. '
+      + 'The list is at the top of the home tab.', 'err');
+    $('setupPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if(!canEdit()) return;
+
+  const job = jobId ? jobs.find(j=>String(j.id)===String(jobId)) : null;
+  wiz = {
+    job,
+    step: opts.step || (job ? (job.wizard_step || 1) : 1),
+    revisit: !!opts.revisit,          // opened via a "Change" link from the Send step
+    templates: [],                    // my_build_templates(), loaded once per session
+    templateSyncId: job ? (job.build_template_sync_id || null) : null,
+    spec: {},                         // step 2's chosen/edited build columns
+    currentRun: wizBlankRun(),        // step 3's in-progress run
+    officePricing: null,              // step 5's dry_run-to-commit handoff
+  };
+  $('wizOverlay').classList.add('on');
+  await wizRenderStep();
+}
+
+function wizClose(){
+  $('wizOverlay').classList.remove('on');
+  wiz = null;
+}
+
+/** Every mutating wizard call goes through here so wiz.job never drifts from
+    the row the server actually holds. saveJob learned this lesson already
+    (see its own "expected_updated_at comes from the row THIS update just
+    wrote" comment): a Next that patches the job but keeps the OLD updated_at
+    in memory is exactly how step 5's dry_run would send a stale
+    expected_updated_at to price-job and 409 against its own save. */
+async function wizPatchJob(patch){
+  const { data, error } = await db.from('jobs').update(patch).eq('id', wiz.job.id).select().maybeSingle();
+  if(error) return { error };
+  Object.assign(wiz.job, data);
+  const idx = jobs.findIndex(j2=>String(j2.id)===String(wiz.job.id));
+  if(idx>=0) jobs[idx]=wiz.job; else jobs.push(wiz.job);
+  return { data };
+}
+
+/** After a loadAll() (adding a run, adding a catalog item) the jobs array is
+    an entirely new set of objects; wiz.job would otherwise keep pointing at
+    a detached one that never sees the refresh. */
+function wizRefreshJob(){
+  if(!wiz || !wiz.job) return;
+  const fresh = jobs.find(j2=>String(j2.id)===String(wiz.job.id));
+  if(fresh) wiz.job = fresh;
+}
+
+/* ---------- rendering ---------- */
+
+function wizRailHtml(){
+  const segs=[];
+  for(let i=1;i<=7;i++){
+    segs.push('<div class="seg ' + (i<wiz.step?'done':(i===wiz.step?'now':'')) + '"></div>');
+  }
+  return segs.join('');
+}
+
+async function wizRenderStep(){
+  if(!wiz) return;
+  $('wizStepTitle').textContent = (wiz.job && wiz.job.customer_name) || 'New client';
+  $('wizRail').innerHTML = wizRailHtml();
+  $('wizStepLabel').textContent = 'Step ' + wiz.step + ' of 7 — ' + WIZ_STEP_NAMES[wiz.step-1];
+  $('wizMsg').className='msg'; $('wizMsg').textContent='';
+  // Templates are loaded once and cached for the session -- needed by both
+  // step 2 (the picker) and step 3 (create_run_from_template needs a
+  // template id whether or not the office ever revisited step 2).
+  if(wiz.step >= 2 && !wiz.templates.length){
+    await wizLoadTemplates();
+  }
+  const body=$('wizBody');
+  switch(wiz.step){
+    case 1: body.innerHTML = wizStepWhoHtml(); wizWireWho(); break;
+    case 2: body.innerHTML = wizStepBuildHtml(); wizWireBuild(); break;
+    case 3: body.innerHTML = wizStepRunsHtml(); wizWireRuns(); break;
+    case 4: body.innerHTML = wizStepPricingHtml(); break;
+    case 5: body.innerHTML = wizStepEstimateHtml(); await wizRunDryRun(); break;
+    case 6: body.innerHTML = wizStepScheduleHtml(); break;
+    case 7: body.innerHTML = wizStepSendHtml(); wizWireSend(); break;
+  }
+  $('wizBack').style.display = wiz.step>1 ? '' : 'none';
+  // Step 5 commits through its own "Looks right" button inside the estimate
+  // panel (the same pattern as the job sheet's keepOfficePrice) so a dry_run
+  // never gets skipped by a slip onto the generic Next.
+  $('wizNext').style.display = wiz.step===5 ? 'none' : '';
+  $('wizNext').textContent = wiz.revisit ? 'Save and return' : (wiz.step===7 ? 'Finish' : 'Next');
+}
+
+function wizBack(){
+  if(!wiz || wiz.step<=1) return;
+  wiz.step -= 1;
+  wizRenderStep();
+}
+
+async function wizNext(){
+  if(!wiz) return;
+  const btn=$('wizNext'); btn.disabled=true;
+  try{
+    let ok=true;
+    if(wiz.step===1) ok = await wizSaveWho();
+    else if(wiz.step===2) ok = await wizSaveBuild();
+    else if(wiz.step===3) ok = await wizSaveRunsStep();
+    else if(wiz.step===4) ok = await wizSavePricing();
+    else if(wiz.step===6) ok = await wizSaveSchedule();
+    else if(wiz.step===7) ok = await wizFinish();
+    if(!ok) return;
+    if(wiz.revisit && wiz.step!==7){ wiz.step=7; wiz.revisit=false; await wizRenderStep(); return; }
+    if(wiz.step===7){ wizClose(); await loadAll(); return; }
+    wiz.step += 1;
+    await wizRenderStep();
+  } finally {
+    if(btn) btn.disabled=false;
+  }
+}
+
+/* ---------- step 1: who ---------- */
+
+function wizStepWhoHtml(){
+  const j = wiz.job || {};
+  return `
+    <div class="panel">
+      <label>Customer name *</label><input id="wz_customer_name" value="${esc(j.customer_name||'')}">
+      <div class="wiz-row2">
+        <div><label>Phone</label><input id="wz_phone" value="${esc(j.phone||'')}"></div>
+        <div><label>Email</label><input id="wz_email" value="${esc(j.email||'')}"></div>
+      </div>
+      <label>Property address</label><input id="wz_address" placeholder="Street, City, ST ZIP" value="${esc(j.address||'')}">
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-grey" id="wz_addr_verify" type="button">Verify address</button>
+        <span class="sub" id="wz_addr_result"></span>
+      </div>
+      <label>How they found us</label><input id="wz_referral_source" value="${esc(j.referral_source||'')}">
+      <label>Notes</label><textarea id="wz_notes">${esc(j.notes||'')}</textarea>
+    </div>`;
+}
+
+function wizWireWho(){
+  $('wz_addr_verify').addEventListener('click', async ()=>{
+    const el=$('wz_addr_result');
+    const addr=$('wz_address').value.trim();
+    if(addr.length<8){ el.textContent='Type the address first — street, city, state, ZIP.'; return; }
+    el.textContent='Checking…';
+    try{
+      const r=await fetch(SUPA_URL+'/functions/v1/quote-map?action=geocode&address='+encodeURIComponent(addr));
+      const g=await r.json();
+      if(r.ok && g.lat){
+        el.innerHTML='Found: <b>'+esc(g.matched||addr)+'</b>.'
+          +(g.matched && g.matched!==addr ? ' <a href="#" id="wz_addr_use">Use this exact form</a>' : '');
+        const use=$('wz_addr_use');
+        if(use) use.addEventListener('click', e=>{
+          e.preventDefault(); $('wz_address').value=g.matched; el.textContent='Address updated.';
+        });
+      } else {
+        el.textContent=g.error||'Could not place it. Add the city, state and ZIP.';
+      }
+    }catch(e){ el.textContent='Could not check just now.'; }
+  });
+}
+
+async function wizSaveWho(){
+  const name=$('wz_customer_name').value.trim();
+  if(!name){ msg('wizMsg','A customer name is required.','err'); return false; }
+  const patch={
+    customer_name:name, phone:$('wz_phone').value.trim(), email:$('wz_email').value.trim(),
+    address:$('wz_address').value.trim(), referral_source:$('wz_referral_source').value.trim(),
+    notes:$('wz_notes').value,
+  };
+  if(!wiz.job){
+    // The first Next of a brand-new job: insert it. Rates copy from company
+    // settings exactly as the old quick-add did; gate rate and waste have no
+    // on-screen setting yet so they come straight off company_settings, and
+    // calibration is fixed at 20 px/ft because an office-made job has no
+    // survey photo to calibrate against (OFFICE_SETUP_PLAN.md, step 1).
+    const gateRate = await companySetting('gate_rate', 20);
+    const waste = await companySetting('waste', 0);
+    Object.assign(patch, {
+      company_id: profile.company_id, status: 'DRAFT', wizard_step: 2,
+      tax_rate_percent: num($('s_tax').value)||7, markup_percent: num($('s_markup').value)||15,
+      labor_rate_per_ft: num($('s_labor').value)||8, minimum_job_charge: num($('s_min').value)||200,
+      gate_rate_per_ft: num(gateRate)||20, waste_percent: num(waste)||0,
+      calibration_pixels_per_foot: 20,
+    });
+    const {data,error} = await db.from('jobs').insert(patch).select().maybeSingle();
+    if(error){ msg('wizMsg', error.message, 'err'); return false; }
+    jobs.push(data);
+    wiz.job = data;
+    return true;
+  }
+  if(!wiz.revisit) patch.wizard_step = 2;
+  const {error} = await wizPatchJob(patch);
+  if(error){ msg('wizMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+/* ---------- step 2: build ---------- */
+
+async function wizLoadTemplates(){
+  const {data,error} = await db.rpc('my_build_templates');
+  wiz.templates = error ? [] : (data||[]);
+  if(error){ msg('wizMsg', 'Could not load templates: '+error.message, 'err'); return; }
+  if(!Object.keys(wiz.spec).length){
+    // Resuming (build_template_sync_id already on the job) picks up that
+    // template's spec; a brand-new job falls to the company default for
+    // whichever fence type has one, then to any shipped row, so step 2 never
+    // opens on a blank, unpriceable spec.
+    const startFrom = (wiz.templateSyncId && wiz.templates.find(t=>t.sync_id===wiz.templateSyncId))
+      || wiz.templates.find(t=>t.is_default) || wiz.templates.find(t=>t.is_shipped) || wiz.templates[0];
+    if(startFrom) wizPickTemplateSilently(startFrom.sync_id);
+  }
+}
+
+function wizPickTemplateSilently(syncId){
+  const t = wiz.templates.find(x=>x.sync_id===syncId);
+  if(!t) return;
+  wiz.templateSyncId = t.sync_id;
+  wiz.spec = {
+    fence_type:t.fence_type, color_or_finish:t.color_or_finish,
+    panel_width_ft:t.panel_width_ft, panel_height_ft:t.panel_height_ft, post_spacing_ft:t.post_spacing_ft,
+    concrete_bags_per_post:t.concrete_bags_per_post, aluminum_style:t.aluminum_style,
+    wood_style:t.wood_style, wood_rail_count:t.wood_rail_count, picket_width_in:t.picket_width_in,
+    picket_gap_in:t.picket_gap_in, fabric_height_ft:t.fabric_height_ft, include_top_rail:t.include_top_rail,
+    include_tension_wire:t.include_tension_wire, include_barbed_wire_arms:t.include_barbed_wire_arms,
+    include_privacy_slats:t.include_privacy_slats, split_rail_count:t.split_rail_count,
+    gate_width_ft:t.gate_width_ft, gate_mounting:t.gate_mounting,
+  };
+}
+
+function wizPickTemplate(syncId){
+  // Picking a different template replaces the spec outright -- it does not
+  // start from whatever was half-edited on screen a moment ago, the same as
+  // clicking a different preset anywhere else discards the last one's tweaks.
+  wizPickTemplateSilently(syncId);
+  wizRenderStep();
+}
+
+function wizTypeBlockHtml(){
+  const s = wiz.spec;
+  if(s.fence_type==='WOOD') return `
+    <div class="wiz-row3">
+      <div><label>Style</label><select id="wz_wood_style">
+        <option value="PRIVACY" ${s.wood_style==='PRIVACY'?'selected':''}>Privacy</option>
+        <option value="SPACED_PICKET" ${s.wood_style==='SPACED_PICKET'?'selected':''}>Spaced picket</option>
+      </select></div>
+      <div><label>Rails</label><input id="wz_wood_rails" type="number" step="1" value="${s.wood_rail_count??3}"></div>
+      <div><label>Picket width (in)</label><input id="wz_picket_w" type="number" step="0.5" value="${s.picket_width_in??5.5}"></div>
+      <div><label>Picket gap (in)</label><input id="wz_picket_gap" type="number" step="0.5" value="${s.picket_gap_in??0}"></div>
+    </div>`;
+  if(s.fence_type==='CHAIN_LINK') return `
+    <div class="wiz-row3">
+      <div><label>Fabric height (ft)</label><input id="wz_fabric_h" type="number" step="0.5" value="${s.fabric_height_ft??4}"></div>
+      <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
+        <input type="checkbox" id="wz_top_rail" ${s.include_top_rail?'checked':''} style="width:auto"> Top rail</label></div>
+      <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
+        <input type="checkbox" id="wz_tension_wire" ${s.include_tension_wire?'checked':''} style="width:auto"> Tension wire</label></div>
+      <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
+        <input type="checkbox" id="wz_barbed" ${s.include_barbed_wire_arms?'checked':''} style="width:auto"> Barbed wire arms</label></div>
+      <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
+        <input type="checkbox" id="wz_slats" ${s.include_privacy_slats?'checked':''} style="width:auto"> Privacy slats</label></div>
+    </div>`;
+  if(s.fence_type==='SPLIT_RAIL') return `
+    <div class="wiz-row3"><div><label>Rails</label>
+      <input id="wz_split_rails" type="number" step="1" value="${s.split_rail_count??2}"></div></div>`;
+  if(s.fence_type==='ALUMINUM') return `
+    <div class="wiz-row3"><div><label>Style</label><select id="wz_alum_style">
+      <option value="RACKABLE" ${s.aluminum_style==='RACKABLE'?'selected':''}>Rackable</option>
+      <option value="FLAT_TOP" ${s.aluminum_style==='FLAT_TOP'?'selected':''}>Flat top</option>
+    </select></div></div>`;
+  return '';
+}
+
+function wizStepBuildHtml(){
+  const groups = wizTemplateGroups(wiz.templates);
+  const cards = groups.map(([label,list]) => `
+    <div style="margin-bottom:10px">
+      <div class="sub" style="font-weight:700;text-transform:uppercase;font-size:11px;letter-spacing:.5px;margin-bottom:4px">${esc(label)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${list.map(t => `<button type="button" class="btn btn-sm wiz-tpl-btn ${wiz.templateSyncId===t.sync_id?'':'btn-grey'}"
+          data-tpl="${t.sync_id}">${esc(t.name)||wizFenceTypeLabel(t.fence_type)}</button>`).join('')}
+      </div>
+    </div>`).join('');
+
+  const s = wiz.spec;
+  const lockedSpacing = wizLockedSpacing(s.fence_type);
+
+  return `
+    <div class="panel"><h2>Start from</h2>
+      ${groups.length ? cards : '<div class="empty">No templates yet — fill in the spec below and save one.</div>'}
+    </div>
+    <div class="panel"><h2>The build</h2>
+      <div class="wiz-row3">
+        <div><label>Fence type</label><select id="wz_fence_type">
+          ${WIZ_FENCE_TYPES.map(t=>`<option value="${t}" ${s.fence_type===t?'selected':''}>${esc(wizFenceTypeLabel(t))}</option>`).join('')}
+        </select></div>
+        <div><label>Colour / finish</label><input id="wz_color" value="${esc(s.color_or_finish||'')}"></div>
+        <div><label>Height (ft)</label><input id="wz_panel_h" type="number" step="0.5" value="${s.panel_height_ft??6}"></div>
+        <div><label>Panel width (ft)</label><input id="wz_panel_w" type="number" step="0.5" value="${s.panel_width_ft??6}"></div>
+        <div><label>Post spacing (ft)</label>
+          <input id="wz_spacing" type="number" step="0.5" value="${s.post_spacing_ft??6}" ${lockedSpacing?'disabled':''}></div>
+        <div><label>Bags of concrete / post</label><input id="wz_bags" type="number" step="0.5" value="${s.concrete_bags_per_post??1}"></div>
+      </div>
+      ${lockedSpacing ? '<p class="sub" style="margin-top:4px">Post spacing follows panel width on this fence type.</p>' : ''}
+      <div id="wz_type_block" style="margin-top:10px">${wizTypeBlockHtml()}</div>
+    </div>
+    <div class="panel"><h2>Gate defaults for this build</h2>
+      <p class="sub" style="margin-top:0">What a new gate on step 3 starts as -- still editable per gate.</p>
+      <div class="wiz-row2">
+        <div><label>Gate width (ft)</label><input id="wz_gate_w" type="number" step="0.5" value="${s.gate_width_ft??4}"></div>
+        <div><label>Mounting</label><select id="wz_gate_m">
+          <option value="LINE" ${s.gate_mounting==='LINE'?'selected':''}>Line</option>
+          <option value="WALL" ${s.gate_mounting==='WALL'?'selected':''}>Wall</option>
+          <option value="LINE_TO_WALL" ${s.gate_mounting==='LINE_TO_WALL'?'selected':''}>Line to wall</option>
+        </select></div>
+      </div>
+    </div>
+    <div class="panel">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="wz_save_tpl" style="width:auto"> Save as my template
+      </label>
+      <div id="wz_save_tpl_name" style="display:none;margin-top:6px">
+        <label>Template name</label><input id="wz_tpl_name" placeholder="${esc(wizFenceTypeLabel(s.fence_type))} — mine">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px">
+        <input type="checkbox" id="wz_make_default" style="width:auto"> Make this my default for ${esc(wizFenceTypeLabel(s.fence_type))}
+      </label>
+    </div>`;
+}
+
+function wizSyncSpecFromDom(){
+  const g = id => $(id);
+  const s = wiz.spec;
+  if(g('wz_fence_type')) s.fence_type = g('wz_fence_type').value;
+  if(g('wz_color')) s.color_or_finish = g('wz_color').value;
+  if(g('wz_panel_h')) s.panel_height_ft = num(g('wz_panel_h').value);
+  if(g('wz_panel_w')) s.panel_width_ft = num(g('wz_panel_w').value);
+  if(g('wz_spacing')) s.post_spacing_ft = num(g('wz_spacing').value);
+  if(g('wz_bags')) s.concrete_bags_per_post = num(g('wz_bags').value);
+  if(g('wz_gate_w')) s.gate_width_ft = num(g('wz_gate_w').value);
+  if(g('wz_gate_m')) s.gate_mounting = g('wz_gate_m').value;
+  if(g('wz_wood_style')) s.wood_style = g('wz_wood_style').value;
+  // Rounded: both are Postgres integer columns on build_templates, cast with
+  // a plain ::integer server-side -- a typed "2.5" would fail that cast.
+  if(g('wz_wood_rails')) s.wood_rail_count = Math.round(num(g('wz_wood_rails').value));
+  if(g('wz_picket_w')) s.picket_width_in = num(g('wz_picket_w').value);
+  if(g('wz_picket_gap')) s.picket_gap_in = num(g('wz_picket_gap').value);
+  if(g('wz_fabric_h')) s.fabric_height_ft = num(g('wz_fabric_h').value);
+  if(g('wz_top_rail')) s.include_top_rail = g('wz_top_rail').checked;
+  if(g('wz_tension_wire')) s.include_tension_wire = g('wz_tension_wire').checked;
+  if(g('wz_barbed')) s.include_barbed_wire_arms = g('wz_barbed').checked;
+  if(g('wz_slats')) s.include_privacy_slats = g('wz_slats').checked;
+  if(g('wz_split_rails')) s.split_rail_count = Math.round(num(g('wz_split_rails').value));
+  if(g('wz_alum_style')) s.aluminum_style = g('wz_alum_style').value;
+  if(lockedSpacingNow()) s.post_spacing_ft = s.panel_width_ft;
+  function lockedSpacingNow(){ return wizLockedSpacing(s.fence_type); }
+}
+
+function wizWireBuild(){
+  document.querySelectorAll('[data-tpl]').forEach(b=>
+    b.addEventListener('click', ()=>wizPickTemplate(b.dataset.tpl)));
+  $('wz_fence_type').addEventListener('change', ()=>{
+    wizSyncSpecFromDom();
+    wizRenderStep(); // the type-specific block and the spacing lock both depend on this
+  });
+  $('wz_panel_w').addEventListener('input', ()=>{
+    if(wizLockedSpacing($('wz_fence_type').value)) $('wz_spacing').value = $('wz_panel_w').value;
+  });
+  $('wz_save_tpl').addEventListener('change', ()=>{
+    $('wz_save_tpl_name').style.display = $('wz_save_tpl').checked ? '' : 'none';
+  });
+}
+
+async function wizSaveBuild(){
+  wizSyncSpecFromDom();
+  if(!wiz.templateSyncId){
+    msg('wizMsg', 'Pick a starting template above — every field is still yours to change afterwards.', 'err');
+    return false;
+  }
+
+  const saveAsTemplate = $('wz_save_tpl').checked;
+  const makeDefault = $('wz_make_default').checked;
+  const selected = wiz.templates.find(t=>t.sync_id===wiz.templateSyncId);
+  // A shipped template (company_id null) has no update policy at all, so
+  // "make this my default" on one has to clone it into the company's own
+  // table first -- there is no row a plain default-flip could target.
+  const mustClone = makeDefault && !saveAsTemplate && selected && selected.is_shipped;
+
+  if(saveAsTemplate || mustClone){
+    const name = ($('wz_tpl_name')?.value||'').trim() || (wizFenceTypeLabel(wiz.spec.fence_type) + ' — mine');
+    const payload = Object.assign({}, wiz.spec, { name, is_default: makeDefault });
+    const { data, error } = await db.rpc('save_build_template', { p: payload });
+    if(error){ msg('wizMsg', 'Could not save the template: '+error.message, 'err'); return false; }
+    wiz.templateSyncId = data;
+    wiz.templates = []; // stale until the next load; step 3 will reload it if needed
+  } else if(makeDefault && selected && !selected.is_shipped){
+    const payload = Object.assign({}, wiz.spec, { sync_id: selected.sync_id, name: selected.name, is_default: true });
+    const { error } = await db.rpc('save_build_template', { p: payload });
+    if(error){ msg('wizMsg', 'Could not set the default: '+error.message, 'err'); return false; }
+  }
+
+  const patch = { build_template_sync_id: wiz.templateSyncId };
+  if(!wiz.revisit) patch.wizard_step = 3;
+  const {error} = await wizPatchJob(patch);
+  if(error){ msg('wizMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+/* ---------- step 3: fence line and gates ---------- */
+
+function wizRunFeetFromPoints(){
+  const pts = wiz.currentRun.points;
+  if(!pts || pts.length<2) return 0;
+  const list = wiz.currentRun.closed_loop ? pts.concat([pts[0]]) : pts;
+  let total=0;
+  for(let i=1;i<list.length;i++) total += Math.hypot(list[i].x-list[i-1].x, list[i].y-list[i-1].y)/20;
+  return total;
+}
+
+function wizGateRowsHtml(){
+  const gates = wiz.currentRun.gates;
+  if(!gates.length) return '<div class="empty">No gates on this run.</div>';
+  return gates.map((g,i)=>`
+    <div class="wiz-row3" style="align-items:end;margin-bottom:6px">
+      <div><label>Width (ft)</label><input type="number" step="0.5" class="wz-gate-w" data-i="${i}" value="${g.widthFt}"></div>
+      <div><label>Mounting</label><select class="wz-gate-m" data-i="${i}">
+        <option value="LINE" ${g.mounting==='LINE'?'selected':''}>Line</option>
+        <option value="WALL" ${g.mounting==='WALL'?'selected':''}>Wall</option>
+        <option value="LINE_TO_WALL" ${g.mounting==='LINE_TO_WALL'?'selected':''}>Line to wall</option>
+      </select></div>
+      <div style="display:flex;gap:6px;align-items:end">
+        <div style="flex:1"><label>Swing</label><select class="wz-gate-s" data-i="${i}">
+          <option value="IN" ${g.swing==='IN'?'selected':''}>In</option>
+          <option value="OUT" ${g.swing==='OUT'?'selected':''}>Out</option>
+        </select></div>
+        <button class="btn btn-sm btn-grey" type="button" data-gate-rm="${i}">Remove</button>
+      </div>
+    </div>`).join('');
+}
+
+function wizStepRunsHtml(){
+  const jr = wiz.job ? runs.filter(r=>r.job_sync_id===wiz.job.sync_id) : [];
+  const list = jr.length ? jr.map(r=>{
+    const gateCount = (r.gates_encoded||'').split(',').filter(Boolean).length;
+    return `
+    <div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;align-items:center">
+      <div>
+        <strong>${esc(r.label)||'Untitled run'}</strong>
+        <div class="sub" style="font-size:12px">${esc(wizFenceTypeLabel(r.fence_type))} · ${r.panel_height_ft} ft tall
+          ${r.manual_linear_feet?(' · '+Math.round(r.manual_linear_feet)+' ft typed'):(r.points_encoded?' · measured':'')}
+          ${gateCount ? ' · '+gateCount+' gate'+(gateCount===1?'':'s') : ''}</div>
+      </div>
+      ${canEdit() ? `<button class="btn btn-sm btn-grey" type="button" data-wiz-rm="${r.id}" data-wiz-rm-label="${esc(r.label)}">Remove</button>` : ''}
+    </div>`;
+  }).join('') : '<div class="empty">No fence runs added yet.</div>';
+
+  const cr = wiz.currentRun;
+  const measured = cr.points ? `<div class="sub" style="margin-top:6px">Measured: ${Math.round(wizRunFeetFromPoints())} ft, `
+    + `${cr.points.length} points${cr.closed_loop?', closed loop':''}. <a href="#" id="wz_run_clear_trace">Clear</a></div>` : '';
+
+  return `
+    <div class="panel"><h2>Runs on this job</h2>${list}</div>
+    <div class="panel"><h2>Add a run</h2>
+      <label>Call it</label><input id="wz_run_label" placeholder="Back yard" value="${esc(cr.label)}">
+      <div class="wiz-row2">
+        <div><label>Footage (typed)</label><input id="wz_run_feet" type="number" step="0.5" value="${esc(cr.manual_linear_feet)}" ${cr.points?'disabled':''}></div>
+        <div><label>Corners</label><input id="wz_run_corners" type="number" step="1" value="${cr.manual_corner_count||0}" ${cr.points?'disabled':''}></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:6px">
+        <input type="checkbox" id="wz_run_loop" ${cr.closed_loop?'checked':''} style="width:auto" ${cr.points?'disabled':''}> Closed loop
+      </label>
+      <div style="margin:10px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="sub">— or —</span>
+        <button class="btn btn-sm btn-grey" type="button" id="wz_run_measure">Measure from satellite</button>
+      </div>
+      ${measured}
+      <h2 style="margin-top:14px">Gates</h2>
+      <div id="wz_gate_rows">${wizGateRowsHtml()}</div>
+      <button class="btn btn-sm btn-grey" type="button" id="wz_add_gate" style="margin-top:6px">Add a gate</button>
+      <div class="msg" id="wizRunMsg" style="margin-top:10px"></div>
+      <button class="btn" type="button" id="wz_add_run" style="margin-top:10px">Add this run</button>
+    </div>`;
+}
+
+function wizSyncRunFieldsFromDom(){
+  if(!$('wz_run_label')) return;
+  wiz.currentRun.label = $('wz_run_label').value;
+  if(!wiz.currentRun.points){
+    wiz.currentRun.manual_linear_feet = $('wz_run_feet').value;
+    wiz.currentRun.manual_corner_count = num($('wz_run_corners').value);
+    wiz.currentRun.closed_loop = $('wz_run_loop').checked;
+  }
+}
+
+function wizWireGateRows(){
+  document.querySelectorAll('.wz-gate-w').forEach(el=>el.addEventListener('input',()=>{
+    wiz.currentRun.gates[+el.dataset.i].widthFt = num(el.value);
+  }));
+  document.querySelectorAll('.wz-gate-m').forEach(el=>el.addEventListener('change',()=>{
+    wiz.currentRun.gates[+el.dataset.i].mounting = el.value;
+  }));
+  document.querySelectorAll('.wz-gate-s').forEach(el=>el.addEventListener('change',()=>{
+    wiz.currentRun.gates[+el.dataset.i].swing = el.value;
+  }));
+  document.querySelectorAll('[data-gate-rm]').forEach(b=>b.addEventListener('click', ()=>{
+    wizSyncRunFieldsFromDom();
+    wiz.currentRun.gates.splice(+b.dataset.gateRm,1);
+    $('wz_gate_rows').innerHTML = wizGateRowsHtml();
+    wizWireGateRows();
+  }));
+}
+
+function wizWireRuns(){
+  document.querySelectorAll('[data-wiz-rm]').forEach(b=>
+    b.addEventListener('click', ()=>wizRemoveRun(b.dataset.wizRm, b.dataset.wizRmLabel)));
+  $('wz_add_gate').addEventListener('click', ()=>{
+    wizSyncRunFieldsFromDom();
+    wiz.currentRun.gates.push({ widthFt: num(wiz.spec.gate_width_ft)||4, mounting: wiz.spec.gate_mounting||'LINE', swing:'IN' });
+    $('wz_gate_rows').innerHTML = wizGateRowsHtml();
+    wizWireGateRows();
+  });
+  wizWireGateRows();
+  const clearTrace = $('wz_run_clear_trace');
+  if(clearTrace) clearTrace.addEventListener('click', e=>{
+    e.preventDefault();
+    wizSyncRunFieldsFromDom();
+    wiz.currentRun.points = null;
+    wiz.currentRun.closed_loop = false;
+    wizRenderStep();
+  });
+  $('wz_run_measure').addEventListener('click', ()=>{
+    wizSyncRunFieldsFromDom();
+    openSatelliteForWizard();
+  });
+  $('wz_add_run').addEventListener('click', wizAddRun);
+}
+
+/** Borrows the plain job-sheet's satellite tool for the wizard's own run
+    draft. openSatellite() only ever reads the global openJob, so it is
+    swapped in for the duration and restored by wizReturnFromSatellite --
+    changing openSatellite's signature instead would risk the click handler
+    at $('openSat') passing it a PointerEvent as "the job". */
+async function openSatelliteForWizard(){
+  SAT.fromWizard = true;
+  SAT.prevOpenJob = openJob;
+  openJob = wiz.job;
+  await openSatellite();
+  $('satType').value = wiz.spec.fence_type || 'VINYL';
+  $('satHeight').value = wiz.spec.panel_height_ft ?? 6;
+  $('satSpacing').value = wiz.spec.post_spacing_ft ?? 8;
+  [$('satType'),$('satHeight'),$('satSpacing')].forEach(el=>{ el.disabled = true; });
+  $('satSave').textContent = 'Use this trace';
+  if(wiz.currentRun.label) $('satLabel').value = wiz.currentRun.label;
+}
+
+function wizReturnFromSatellite(){
+  SAT.fromWizard = false;
+  [$('satType'),$('satHeight'),$('satSpacing')].forEach(el=>{ if(el) el.disabled = false; });
+  if($('satSave')) $('satSave').textContent = 'Save as a fence run';
+  openJob = SAT.prevOpenJob ?? null;
+  SAT.prevOpenJob = undefined;
+}
+
+/** The satellite overlay's "Use this trace" button, in wizard mode: capture
+    the trace into the run draft instead of writing fence_runs directly --
+    there are still gates to collect, which is why the raw insert this used
+    to do could never have carried them correctly. */
+function wizUseSatelliteTrace(){
+  wiz.currentRun.points = satPointsToRunSpace(SAT.pts, SAT.cLat, SAT.z);
+  wiz.currentRun.closed_loop = $('satLoop').checked;
+  wiz.currentRun.manual_linear_feet = '';
+  wiz.currentRun.manual_corner_count = 0;
+  if(!(wiz.currentRun.label||'').trim() && ($('satLabel').value||'').trim())
+    wiz.currentRun.label = $('satLabel').value.trim();
+  $('satOverlay').classList.remove('on');
+  wizReturnFromSatellite();
+  wizRenderStep();
+}
+
+async function wizAddRun(){
+  wizSyncRunFieldsFromDom();
+  const cr = wiz.currentRun;
+  const typedFeet = num(cr.manual_linear_feet);
+  if(!cr.points && typedFeet<=0){
+    msg('wizRunMsg','Type a footage or measure the run from satellite first.','err');
+    return;
+  }
+  $('wz_add_run').disabled = true;
+  msg('wizRunMsg','Saving…','working');
+
+  let pointsEncoded='', gatesEncoded='', manualFeet=null, manualCorners=0;
+  const closedLoop = !!cr.closed_loop;
+  if(cr.points){
+    pointsEncoded = encodePointsList(cr.points);
+    gatesEncoded = encodeGateMarkers(autoPlaceGateMarkers(cr.points, closedLoop, cr.gates));
+  } else {
+    manualFeet = typedFeet;
+    // Rounded: manual_corner_count is a Postgres integer column, and
+    // create_run_from_template casts the override with a plain ::integer --
+    // a stray "2.5" typed into the corners box would 22P02 the whole call.
+    manualCorners = Math.round(num(cr.manual_corner_count));
+    // Position-less: nothing to place a gate ON, so every gate sits at the
+    // origin -- the engine only ever sums gate WIDTHS for pricing.
+    gatesEncoded = encodeGateMarkers(autoPlaceGateMarkers(null, closedLoop, cr.gates));
+  }
+
+  const overrides = buildRunOverrides(wiz.spec, {
+    label: (cr.label||'').trim() || 'Untitled run',
+    points_encoded: pointsEncoded, gates_encoded: gatesEncoded, closed_loop: closedLoop,
+    manual_linear_feet: manualFeet, manual_corner_count: manualCorners,
+  });
+
+  const { error } = await db.rpc('create_run_from_template', {
+    p_job_sync_id: wiz.job.sync_id, p_template_sync_id: wiz.templateSyncId, p_overrides: overrides,
+  });
+  $('wz_add_run').disabled = false;
+  if(error){ msg('wizRunMsg', error.message, 'err'); return; }
+
+  await loadAll();
+  wizRefreshJob();
+  wiz.currentRun = wizBlankRun();
+  msg('wizRunMsg','Run added.','ok');
+  await wizRenderStep();
+}
+
+async function wizRemoveRun(id, label){
+  if(!canEdit()) return;
+  const ok = await ask({
+    title: `Remove "${label||'this run'}"?`,
+    body: 'It moves to the trash rather than being destroyed, the same as any other fence run in the app.',
+    confirmLabel: 'Remove', danger: true,
+  });
+  if(!ok) return;
+  const {error} = await db.from('fence_runs')
+    .update({ deleted_at:new Date().toISOString(), deleted_by:'office wizard' }).eq('id', id);
+  if(error){ msg('wizMsg', 'Could not remove that run: '+error.message, 'err'); return; }
+  await loadAll();
+  wizRefreshJob();
+  await wizRenderStep();
+}
+
+async function wizSaveRunsStep(){
+  if(wiz.revisit) return true; // runs are written as they are added, not on Next
+  const {error} = await wizPatchJob({ wizard_step: 4 });
+  if(error){ msg('wizMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+/* ---------- step 4: pricing ---------- */
+
+function wizStepPricingHtml(){
+  const j = wiz.job;
+  return `
+    <div class="panel"><h2>Rates</h2>
+      <div class="wiz-row3">
+        <div><label>Tax rate (%)</label><input id="wz_tax" type="number" step="0.1" value="${j.tax_rate_percent??0}"></div>
+        <div><label>Markup (%)</label><input id="wz_markup" type="number" step="0.1" value="${j.markup_percent??0}"></div>
+        <div><label>Discount (%)</label><input id="wz_discount" type="number" step="0.1" value="${j.discount_percent??0}"></div>
+        <div><label>Labor $/ft</label><input id="wz_labor_ft" type="number" step="0.1" value="${j.labor_rate_per_ft??0}"></div>
+        <div><label>Labor flat fee ($)</label><input id="wz_labor_flat" type="number" step="1" value="${j.labor_flat_fee??0}"></div>
+        <div><label>Minimum charge ($)</label><input id="wz_min_charge" type="number" step="1" value="${j.minimum_job_charge??0}"></div>
+        <div><label>Waste (%)</label><input id="wz_waste" type="number" step="0.5" value="${j.waste_percent??0}"></div>
+        <div><label>Gate $/ft</label><input id="wz_gate_rate" type="number" step="0.5" value="${j.gate_rate_per_ft??0}"></div>
+      </div>
+    </div>
+    <div class="panel"><h2>Old fence &amp; teardown</h2>
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="wz_teardown_on" ${j.teardown_enabled?'checked':''} style="width:auto"> Tearing down an old fence
+      </label>
+      <div class="wiz-row3" style="margin-top:8px">
+        <div><label>Teardown feet</label><input id="wz_teardown_feet" type="number" step="1" value="${j.teardown_feet??0}"></div>
+        <div><label>Teardown flat fee ($)</label><input id="wz_teardown_flat" type="number" step="1" value="${j.teardown_flat_fee??0}"></div>
+        <div><label>Teardown $/ft</label><input id="wz_teardown_ft" type="number" step="0.5" value="${j.teardown_rate_per_ft??0}"></div>
+        <div><label>Trash haul fee ($)</label><input id="wz_trash_haul" type="number" step="1" value="${j.trash_haul_fee??0}"></div>
+      </div>
+    </div>`;
+}
+
+async function wizSavePricing(){
+  const patch = {
+    tax_rate_percent:num($('wz_tax').value), markup_percent:num($('wz_markup').value),
+    discount_percent:num($('wz_discount').value), labor_rate_per_ft:num($('wz_labor_ft').value),
+    labor_flat_fee:num($('wz_labor_flat').value), minimum_job_charge:num($('wz_min_charge').value),
+    waste_percent:num($('wz_waste').value), gate_rate_per_ft:num($('wz_gate_rate').value),
+    teardown_enabled: $('wz_teardown_on').checked, teardown_feet:num($('wz_teardown_feet').value),
+    teardown_flat_fee:num($('wz_teardown_flat').value), teardown_rate_per_ft:num($('wz_teardown_ft').value),
+    trash_haul_fee:num($('wz_trash_haul').value),
+  };
+  if(!wiz.revisit) patch.wizard_step = 5;
+  const {error} = await wizPatchJob(patch);
+  if(error){ msg('wizMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+/* ---------- step 5: estimate ---------- */
+
+function wizStepEstimateHtml(){
+  return `<div class="panel"><h2>Estimate</h2>
+    <div class="msg" id="wizEstMsg"></div>
+    <div id="wizEstResult"></div>
+  </div>`;
+}
+
+async function wizRunDryRun(){
+  msg('wizEstMsg', 'Pricing… the first call of the day can take a couple of seconds.', 'working');
+  const expectedUpdatedAt = wiz.job.updated_at;
+  const { status, body } = await callPriceJob(wiz.job.sync_id, 'dry_run');
+  if(status !== 200 || !body || !body.output){
+    msg('wizEstMsg', officePricingErrorMessage(status, body), 'err');
+    $('wizEstResult').innerHTML = '<button class="btn btn-sm btn-grey" id="wizEstRetry" type="button">Try again</button>';
+    $('wizEstRetry').addEventListener('click', wizRunDryRun);
+    return;
+  }
+  wiz.officePricing = { expectedUpdatedAt, output: body.output };
+  $('wizEstMsg').className='msg'; $('wizEstMsg').textContent='';
+  wizRenderEstimateResult();
+}
+
+function wizRenderEstimateResult(){
+  const output = wiz.officePricing.output;
+  const unmatched = output.unmatched_roles || [];
+  const addForms = unmatched.map((u,i) => {
+    const run = runs.find(r=>r.sync_id===u.run_sync_id);
+    const ft = run ? run.fence_type : 'UNIVERSAL';
+    return `<div class="panel" style="background:var(--paper)">
+      <div class="sub" style="margin-bottom:6px">No catalog match for <b>${esc(u.role)}</b> on
+        ${esc(run ? (run.label||'Untitled run') : 'a run')} (${esc(wizFenceTypeLabel(ft))}).</div>
+      <div class="wiz-row3">
+        <div><label>Name</label><input id="wz_cat_name_${i}" placeholder="6 ft white privacy panel"></div>
+        <div><label>Unit</label><input id="wz_cat_unit_${i}" value="EA"></div>
+        <div><label>Unit price ($)</label><input id="wz_cat_price_${i}" type="number" step="0.01"></div>
+      </div>
+      <button class="btn btn-sm" type="button" data-add-cat="${i}" data-role="${esc(u.role)}" data-ft="${esc(ft)}"
+        style="margin-top:8px">Add to catalog and re-price</button>
+    </div>`;
+  }).join('');
+
+  $('wizEstResult').innerHTML = renderOfficePricingResult(output) + addForms + `
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn" type="button" id="wizLooksRight">Looks right</button>
+      <button class="btn btn-sm btn-grey" type="button" id="wizReprice">Re-run pricing</button>
+    </div>`;
+  document.querySelectorAll('[data-add-cat]').forEach(b=>
+    b.addEventListener('click', ()=>wizAddCatalogItem(+b.dataset.addCat, b.dataset.role, b.dataset.ft)));
+  $('wizLooksRight').addEventListener('click', wizCommitEstimate);
+  $('wizReprice').addEventListener('click', wizRunDryRun);
+}
+
+async function wizAddCatalogItem(i, role, fenceType){
+  const name = $('wz_cat_name_'+i).value.trim();
+  const unit = $('wz_cat_unit_'+i).value.trim() || 'EA';
+  const price = num($('wz_cat_price_'+i).value);
+  if(!name){ msg('wizEstMsg','Name the item first.','err'); return; }
+  const row = {
+    company_id: profile.company_id, sync_id: crypto.randomUUID(),
+    name, role, fence_type: fenceType, unit, unit_price: price,
+    taxable: true, is_active: true, updated_at: new Date().toISOString(),
+  };
+  const {error} = await db.from('material_items').insert(row);
+  if(error){ msg('wizEstMsg', error.message, 'err'); return; }
+  await loadAll();
+  wizRefreshJob();
+  await wizRunDryRun();
+}
+
+async function wizCommitEstimate(){
+  if(!wiz.officePricing) return;
+  $('wizLooksRight').disabled = true;
+  msg('wizEstMsg', 'Saving the price…', 'working');
+  const { status, body } = await callPriceJob(wiz.job.sync_id, 'commit', wiz.officePricing.expectedUpdatedAt);
+  if(status === 409){
+    msg('wizEstMsg', officePricingErrorMessage(status, body) + ' Re-running…', 'err');
+    await wizRunDryRun();
+    return;
+  }
+  if(status !== 200 || !body || !body.output){
+    msg('wizEstMsg', officePricingErrorMessage(status, body), 'err');
+    $('wizLooksRight').disabled = false;
+    return;
+  }
+  await loadAll();
+  wizRefreshJob();
+  wiz.officePricing = null;
+  if(wiz.revisit){ wiz.step = 7; wiz.revisit = false; }
+  else wiz.step = 6;
+  await wizRenderStep();
+}
+
+/* ---------- step 6: schedule and paperwork ---------- */
+
+function wizStepScheduleHtml(){
+  const j = wiz.job;
+  const dateVal = j.scheduled_date ? new Date(j.scheduled_date).toISOString().slice(0,10) : '';
+  const crewOpts = employees.filter(e=>e.is_active!==false)
+    .map(e=>`<option value="${e.sync_id}" ${j.assigned_employee_sync_id===e.sync_id?'selected':''}>${esc(e.name)||'Unnamed'}</option>`).join('');
+  return `
+    <div class="panel"><h2>Schedule</h2>
+      <div class="wiz-row3">
+        <div><label>Scheduled date</label><input id="wz_sched_date" type="date" value="${dateVal}"></div>
+        <div><label>Estimated hours</label><input id="wz_sched_hours" type="number" step="0.5" value="${j.estimated_duration_hours??''}"></div>
+        <div><label>Assigned crew</label><select id="wz_sched_crew"><option value="">Unassigned</option>${crewOpts}</select></div>
+      </div>
+    </div>
+    <div class="panel"><h2>Deposit</h2>
+      <label>Deposit ($) — leave blank to use the quote page's own rule (materials and tax, rounded up to the next $100)</label>
+      <input id="wz_deposit" type="number" step="1" value="${j.deposit_amount?j.deposit_amount:''}">
+    </div>
+    <div class="panel"><h2>HOA &amp; permits</h2>
+      <div class="wiz-row3">
+        <div><label>HOA name</label><input id="wz_hoa_name" value="${esc(j.hoa_name||'')}"></div>
+        <div><label>HOA email</label><input id="wz_hoa_email" value="${esc(j.hoa_email||'')}"></div>
+        <div><label>HOA status</label><select id="wz_hoa_status">
+          <option value="NOT_REQUIRED" ${j.hoa_approval_status==='NOT_REQUIRED'?'selected':''}>Not required</option>
+          <option value="PENDING" ${j.hoa_approval_status==='PENDING'?'selected':''}>Pending</option>
+          <option value="APPROVED" ${j.hoa_approval_status==='APPROVED'?'selected':''}>Approved</option>
+          <option value="DENIED" ${j.hoa_approval_status==='DENIED'?'selected':''}>Denied</option>
+        </select></div>
+        <div><label>Permit number</label><input id="wz_permit_number" value="${esc(j.permit_number||'')}"></div>
+        <div><label>Permit status</label><select id="wz_permit_status">
+          <option value="NOT_REQUIRED" ${j.permit_status==='NOT_REQUIRED'?'selected':''}>Not required</option>
+          <option value="PENDING" ${j.permit_status==='PENDING'?'selected':''}>Pending</option>
+          <option value="APPROVED" ${j.permit_status==='APPROVED'?'selected':''}>Approved</option>
+        </select></div>
+      </div>
+    </div>`;
+}
+
+async function wizSaveSchedule(){
+  const dt = $('wz_sched_date').value;
+  const patch = {
+    scheduled_date: dt ? new Date(dt+'T08:00:00').toISOString() : null,
+    estimated_duration_hours: num($('wz_sched_hours').value),
+    assigned_employee_sync_id: $('wz_sched_crew').value || null,
+    deposit_amount: num($('wz_deposit').value),
+    hoa_name: $('wz_hoa_name').value, hoa_email: $('wz_hoa_email').value,
+    hoa_approval_status: $('wz_hoa_status').value,
+    permit_number: $('wz_permit_number').value, permit_status: $('wz_permit_status').value,
+  };
+  if(!wiz.revisit) patch.wizard_step = 7;
+  const {error} = await wizPatchJob(patch);
+  if(error){ msg('wizMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+/* ---------- step 7: send ---------- */
+
+function wizStepSendHtml(){
+  const j = wiz.job;
+  const bits = [];
+  if (j.quote_approved_at) bits.push('Approved by '+(j.quote_approved_name||'the customer')+' on '+d(j.quote_approved_at).toLocaleDateString()+'.');
+  else if (j.quote_viewed_at) bits.push('Viewed '+d(j.quote_viewed_at).toLocaleString()+', not approved yet.');
+  else if (j.quote_sent_at) bits.push('Sent '+d(j.quote_sent_at).toLocaleDateString()+'.');
+  else bits.push('Not sent yet.');
+  return `
+    <div class="panel"><h2>Customer quote page</h2>
+      <p class="sub">A link for the homeowner: the quote, their fence in 3D, and an Approve button
+        that signs with their name. No app, no account — the link is the key, so only send it to them.</p>
+      <div class="readout" id="wz_q_link" style="user-select:all;overflow-wrap:anywhere">${esc(quoteLinkFor(j))}</div>
+      <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
+        <button class="btn btn-sm" id="wz_q_copy" type="button">Copy link</button>
+        <button class="btn btn-sm btn-grey" id="wz_q_open" type="button">Preview it</button>
+        <button class="btn btn-sm btn-grey" id="wz_q_sent" type="button">Mark as sent</button>
+      </div>
+      <p class="sub" style="margin-top:9px">${esc(bits.join(' '))}</p>
+    </div>
+    <div class="panel"><h2>Everything's set</h2>
+      <p class="sub">Change anything before it goes out:</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        ${WIZ_STEP_NAMES.slice(0,6).map((name,i)=>
+          `<button class="btn btn-sm btn-grey" type="button" data-wiz-goto="${i+1}">Change ${esc(name)}</button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function wizWireSend(){
+  $('wz_q_copy').addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(quoteLinkFor(wiz.job)); }catch(e){ /* the readout is select-all as the fallback */ }
+    $('wz_q_copy').textContent='Copied';
+    setTimeout(()=>{ if($('wz_q_copy')) $('wz_q_copy').textContent='Copy link'; }, 1400);
+    if(!wiz.job.quote_sent_at) await wizMarkSent(false);
+  });
+  $('wz_q_open').addEventListener('click', ()=> window.open(quoteLinkFor(wiz.job), '_blank'));
+  $('wz_q_sent').addEventListener('click', ()=>wizMarkSent(true));
+  document.querySelectorAll('[data-wiz-goto]').forEach(b=>
+    b.addEventListener('click', async ()=>{
+      wiz.step = +b.dataset.wizGoto;
+      wiz.revisit = true;
+      await wizRenderStep();
+    }));
+}
+
+async function wizMarkSent(announce){
+  const patch = { quote_sent_at: wiz.job.quote_sent_at || new Date().toISOString(), status: 'SENT' };
+  const {error} = await wizPatchJob(patch);
+  if(error){ if(announce) msg('wizMsg', error.message, 'err'); return; }
+  if(announce) await wizRenderStep();
+}
+
+async function wizFinish(){
+  const {error} = await wizPatchJob({ wizard_step: 0 });
+  if(error){ msg('wizMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+$('wizClose').addEventListener('click', wizClose);
+$('wizOverlay').addEventListener('click', e => { if(e.target.id==='wizOverlay') wizClose(); });
+$('wizBack').addEventListener('click', wizBack);
+$('wizNext').addEventListener('click', wizNext);
 
 /* ===================== Customer import ===================================
    The conversion path. A company switching from another product arrives with
@@ -5157,27 +6289,6 @@ async function runImport(){
   $('impPreviewBox').style.display='none'; $('impText').value='';
 }
 
-async function createJob(){
-  // Held back until the numbers a quote is made of are actually theirs.
-  if (setupBlocks) {
-    switchTab('dash');
-    msg('jobsMsg', 'Finish setting up first — a quote built before your labour rate, '
-      + 'markup, minimum charge, tax and supplier prices are set is built on blanks. '
-      + 'The list is at the top of the home tab.', 'err');
-    $('setupPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return;
-  }
-
-  if(!canEdit()) return;
-  const {data,error}=await db.from('jobs').insert({
-    company_id:profile.company_id, customer_name:'New job',
-    tax_rate_percent:num($('s_tax').value)||7, markup_percent:num($('s_markup').value)||15,
-    labor_rate_per_ft:num($('s_labor').value)||8, minimum_job_charge:num($('s_min').value)||200
-  }).select().maybeSingle();
-  if(error) { msg('jobsMsg', error.message, 'err'); return; }
-  await loadAll(); if(data) showJob(data.id);
-}
-
 async function deleteJob(){
   if(!openJob||!canEdit()) return;
   const okDelete = await ask({
@@ -5413,7 +6524,10 @@ try{
     }).subscribe();
 }catch(e){/* older browsers just reload */}
 
-$('newJob').addEventListener('click',createJob);
+// "+ New job" opens the wizard directly -- there was never a separate quick
+// form, only a job insert followed by the same full sheet the wizard now
+// replaces the first pass through with.
+$('newJob').addEventListener('click',()=>openWizard(null));
 $('openImport').addEventListener('click',()=>{ $('impOverlay').classList.add('on'); });
 $('openMap').addEventListener('click',()=>{
   const box=$('mapBox');
