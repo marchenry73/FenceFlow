@@ -455,6 +455,61 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         }
     }
 
+    /** What came of trying to place the job on a map. */
+    sealed interface SiteLocationResult {
+        data class Ready(val lat: Double, val lon: Double) : SiteLocationResult
+        data class Failed(val message: String) : SiteLocationResult
+    }
+
+    /**
+     * Places the job on a map, geocoding its address at most once.
+     *
+     * Mirrors the office's openSatellite() (website/dashboard.html): if the
+     * job already carries site_lat/site_lon -- because either side has
+     * geocoded it before -- that is used as-is; otherwise the address is
+     * looked up through quote-map's `action=geocode` (the same keyless
+     * Census-then-Esri lookup the office uses) and the result is written
+     * back onto the job, so satellite mode never has to ask again for a
+     * property that hasn't moved.
+     */
+    suspend fun ensureSiteLocation(): SiteLocationResult {
+        val current = job.value ?: repository.getJob(jobId)
+            ?: return SiteLocationResult.Failed("This job hasn't finished loading yet.")
+        val lat = current.siteLat
+        val lon = current.siteLon
+        if (lat != null && lon != null) return SiteLocationResult.Ready(lat, lon)
+        if (current.address.isBlank()) {
+            return SiteLocationResult.Failed("This job has no address yet, so there is nowhere to look.")
+        }
+        return when (val geocoded = com.fenceestimator.app.cloud.Satellite.geocode(current.address)) {
+            is com.fenceestimator.app.cloud.Satellite.GeocodeResult.Ok -> {
+                repository.updateJob(current.copy(siteLat = geocoded.lat, siteLon = geocoded.lon))
+                SiteLocationResult.Ready(geocoded.lat, geocoded.lon)
+            }
+            is com.fenceestimator.app.cloud.Satellite.GeocodeResult.Failed ->
+                SiteLocationResult.Failed(geocoded.reason)
+        }
+    }
+
+    /**
+     * Forces the drawing onto the office's satellite scale -- exactly 20
+     * pixels per foot -- the moment satellite mode turns on. 400ft is not a
+     * suggestion here: GRID_CANVAS_SIZE / 400 is exactly
+     * PIXELS_PER_FOOT_GRID, which is the same pixels-per-foot
+     * SatelliteAnchor (SurveyDrawScreen.kt) assumes when it places imagery
+     * into this canvas -- so this can never drift from what the satellite
+     * background actually draws at.
+     *
+     * Reuses [setGridExtent] rather than writing calibration directly, so
+     * anything already drawn on a differently-scaled grid is rescaled by the
+     * same ratio and keeps the real-world length it was measured at --
+     * exactly what changing the grid size already guarantees. Its own guard
+     * (`if (current.surveyImagePath != null) return`) is what makes this
+     * satisfy the office's rule: satellite only ever sets calibration when
+     * there is no survey photo to calibrate against instead.
+     */
+    fun ensureSatelliteCalibration() = setGridExtent(SATELLITE_CANVAS_EXTENT_FT)
+
     /** Puts the no-photo grid back on its default scale after a hand calibration. */
     fun resetGridCalibration() {
         val current = job.value ?: return
@@ -497,6 +552,14 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
          * be drawn accurately; at 25ft the same run fills the screen.
          */
         val GRID_SIZES_FT = listOf(25f, 50f, 100f, 200f, 400f)
+
+        /**
+         * The grid extent whose calibration works out to exactly 20 px/ft
+         * (GRID_CANVAS_SIZE / this == PIXELS_PER_FOOT_GRID) -- the scale the
+         * office's satellite tool always traces at, independent of the
+         * user's own grid-size choice. See [ensureSatelliteCalibration].
+         */
+        const val SATELLITE_CANVAS_EXTENT_FT = 400f
 
         /** Units per foot for a grid covering [extentFt] across. */
         fun unitsPerFoot(extentFt: Float): Float =

@@ -304,8 +304,47 @@ class MainActivity : FragmentActivity() {
                                         // open the app in front of a customer. Three
                                         // days is enough to decide like a customer
                                         // rather than react like a lockout.
-                                        val daysLeft = service?.trialDaysLeft
-                                        if (service?.subscriptionStatus == "trialing" &&
+                                        // Copied to a local val: `service` is a
+                                        // delegated (collectAsState) property, so
+                                        // the compiler can't smart-cast through
+                                        // `service?.x` checks below to a plain
+                                        // `service.plan` read afterwards.
+                                        val svc = service
+                                        val daysLeft = svc?.trialDaysLeft
+                                        if (svc?.subscribed == true && daysLeft != null && daysLeft in 0..7) {
+                                            // Somebody who has already picked a plan
+                                            // during their trial is not deciding
+                                            // anything any more -- a card is on file
+                                            // and will be charged on the day their
+                                            // trial ends. "Your trial ends in N days"
+                                            // reads as a threat to someone who has
+                                            // already committed; what they actually
+                                            // want to know is when they start being
+                                            // charged, so that is what this says
+                                            // instead, and it is not styled as a
+                                            // warning because nothing here needs
+                                            // deciding.
+                                            val planLabel = svc.plan.trim().lowercase()
+                                                .replaceFirstChar { c -> c.uppercase() }
+                                            val whenText = when (daysLeft) {
+                                                0 -> "today"
+                                                1 -> "tomorrow"
+                                                else -> "in $daysLeft days"
+                                            }
+                                            androidx.compose.material3.Surface(
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    (if (planLabel.isNotBlank()) "Your $planLabel plan starts $whenText"
+                                                     else "Your plan starts $whenText") +
+                                                        " — your card is charged then.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                                )
+                                            }
+                                        } else if (svc?.subscriptionStatus == "trialing" &&
                                             daysLeft != null && daysLeft <= 3
                                         ) {
                                             androidx.compose.material3.Surface(

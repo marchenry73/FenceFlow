@@ -54,7 +54,18 @@ data class ServiceStatus(
     val reason: String = "",
     @SerialName("grace_ends_at") val graceEndsAt: String? = null,
     /** Days left on a live trial; null for everyone else. */
-    @SerialName("trial_days_left") val trialDaysLeft: Int? = null
+    @SerialName("trial_days_left") val trialDaysLeft: Int? = null,
+    /**
+     * True once the owner has picked a plan during the trial -- a card is on
+     * file and will be charged when the trial ends, rather than the trial
+     * simply lapsing with nothing chosen. Changes what [trialDaysLeft] means
+     * to show: "your trial ends" reads as a threat to someone who has
+     * already committed to a plan and is just waiting for their start date,
+     * so the banner asks my_service_status for this rather than guessing it
+     * from subscriptionStatus, which the server may not have flipped to
+     * "active" yet while the trial clock still has days left on it.
+     */
+    @SerialName("subscribed") val subscribed: Boolean = false
 )
 
 /**
@@ -99,6 +110,7 @@ object ServiceGate {
     private val PLAN = stringPreferencesKey("plan")
     private val CHECKED_AT = longPreferencesKey("checked_at")
     private val TRIAL_DAYS = intPreferencesKey("trial_days")
+    private val SUBSCRIBED = booleanPreferencesKey("subscribed")
 
     /**
      * This install's own id, made once and kept.
@@ -234,6 +246,7 @@ object ServiceGate {
                 prefs[PLAN] = answer.plan
                 prefs[CHECKED_AT] = System.currentTimeMillis()
                 prefs[TRIAL_DAYS] = answer.trialDaysLeft ?: -1
+                prefs[SUBSCRIBED] = answer.subscribed
             }
         }
         answer
@@ -294,7 +307,8 @@ object ServiceGate {
             subscriptionStatus = prefs[STATUS].orEmpty(),
             plan = prefs[PLAN].orEmpty(),
             reason = prefs[REASON].orEmpty(),
-            trialDaysLeft = prefs[TRIAL_DAYS]?.takeIf { it >= 0 }
+            trialDaysLeft = prefs[TRIAL_DAYS]?.takeIf { it >= 0 },
+            subscribed = prefs[SUBSCRIBED] ?: false
         )
     }
 

@@ -170,6 +170,15 @@ data class Job(
      * length it was and simply fills more or less of the screen.
      */
     val gridExtentFt: Float = 400f,
+    /**
+     * Where this property actually is, so the satellite tool (and anything
+     * else that needs a map) doesn't have to ask the geocoder again every
+     * time it opens -- an address doesn't move, so this is looked up once
+     * and kept. Null until either the office (website/dashboard.html) or
+     * this phone has geocoded the job's address at least once.
+     */
+    val siteLat: Double? = null,
+    val siteLon: Double? = null,
 
     // Pricing
     val taxRatePercent: Double = 7.0,

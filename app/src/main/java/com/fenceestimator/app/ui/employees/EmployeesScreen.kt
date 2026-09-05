@@ -61,6 +61,14 @@ fun EmployeesScreen(onBack: () -> Unit) {
     var editing by remember { mutableStateOf<Employee?>(null) }
     var showNew by remember { mutableStateOf(false) }
 
+    // Whether invite-crew is even worth trying right now -- checked here
+    // rather than just letting the call fail offline, because a failed
+    // network call and "there is genuinely no connection" read the same to
+    // this screen but should not: one is worth a retry message, the other
+    // isn't worth attempting at all.
+    val online by app.connectivity.online.collectAsState()
+    var inviteOutcome by remember { mutableStateOf<InviteCrewApi.Result?>(null) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -197,8 +205,82 @@ fun EmployeesScreen(onBack: () -> Unit) {
     if (showNew) {
         EditEmployeeDialog(
             employee = Employee(),
-            onSave = { viewModel.save(it); showNew = false },
+            // Only the ADD path invites -- editing an existing crew member
+            // reuses plain save() below, so fixing a typo in someone's phone
+            // number can never re-trigger their invitation.
+            onSave = {
+                viewModel.addCrewMember(it, online = online) { outcome -> inviteOutcome = outcome }
+                showNew = false
+            },
             onDismiss = { showNew = false }
+        )
+    }
+
+    inviteOutcome?.let { outcome -> InviteOutcomeDialog(outcome) { inviteOutcome = null } }
+}
+
+/**
+ * Reports what came of inviting a newly-added crew member by email.
+ *
+ * Three outcomes, three different things a manager standing at a truck needs
+ * to do next: nothing (it was emailed), read a code out loud or text it over
+ * (no mail path configured server-side), or try again later (a real
+ * failure). Collapsing these into one message would hide which one it was.
+ */
+@Composable
+private fun InviteOutcomeDialog(outcome: InviteCrewApi.Result, onDismiss: () -> Unit) {
+    when (outcome) {
+        is InviteCrewApi.Result.Emailed -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.emp_invite_sent_title)) },
+            text = { Text(stringResource(R.string.emp_invite_emailed_body)) },
+            confirmButton = { Button(onClick = onDismiss) { Text(stringResource(R.string.action_done)) } }
+        )
+        is InviteCrewApi.Result.NeedsCode -> {
+            val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+            var copied by remember(outcome.code) { mutableStateOf(false) }
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.emp_invite_needs_code_title)) },
+                text = {
+                    Column {
+                        Text(
+                            outcome.sentence.ifBlank { stringResource(R.string.emp_invite_needs_code_fallback) },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.height(Space.sm))
+                        Text(stringResource(R.string.emp_team_code_label), style = MaterialTheme.typography.labelLarge)
+                        androidx.compose.foundation.text.selection.SelectionContainer {
+                            Text(
+                                outcome.code,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        if (copied) {
+                            Spacer(Modifier.height(Space.xs))
+                            Text(
+                                stringResource(R.string.emp_team_code_copied),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(outcome.code))
+                        copied = true
+                    }) { Text(stringResource(R.string.acct_copy_code)) }
+                },
+                dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) } }
+            )
+        }
+        is InviteCrewApi.Result.Failed -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.emp_invite_failed_title)) },
+            text = { Text(outcome.reason) },
+            confirmButton = { Button(onClick = onDismiss) { Text(stringResource(R.string.action_done)) } }
         )
     }
 }
