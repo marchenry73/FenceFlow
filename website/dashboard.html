@@ -756,6 +756,15 @@
     </div>
 
     <div id="tab-settings" style="display:none">
+      <div class="panel" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <h2 style="margin:0">Business setup</h2>
+          <p class="sub" style="margin:4px 0 0">Business info, rates, your standard build, supplier
+            prices, pricing tiers and crew — one guided pass, in order. Nothing here is destroyed by
+            running it again; it just reopens where you left off.</p>
+        </div>
+        <button class="btn btn-sm" id="runSetupAgain" type="button">Run setup again</button>
+      </div>
       <div class="panel">
         <h2>Your get-a-quote page</h2>
         <p class="sub">Jobber calls this online booking. A homeowner opens this link, asks for a
@@ -790,17 +799,55 @@
         <p style="font-size:12px;color:var(--muted);margin-top:10px">
           <strong>These are the starting values for every new job.</strong> Changing them here does not
   re-price a job you have already created — open that job and change it there.<br>
-  Saved to your company account — phones pick these up on next sync.
+  Saved to your company account — phones pick these up on next sync.<br>
+  Post spacing, panel width, panel height and bags above also update your default Vinyl
+  build template below (creating one from FenceFlow's shipped Vinyl privacy 6&nbsp;ft if you
+  have none yet) — the same four numbers, now read from one place instead of two.
         </p>
       </div>
+
+      <div class="panel">
+        <h2>Build Templates</h2>
+        <p class="sub">What a new fence run starts as — post spacing, panel height, bags of
+          concrete, rails, everything. The New client wizard's "What we're building" step
+          picks from these; nothing here ever prices a job.</p>
+        <div class="msg" id="tplMsg"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px">
+          <h3 style="margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">Your templates</h3>
+          <button class="btn btn-sm" id="tplNew" type="button">Add a template</button>
+        </div>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>Type</th><th>Spec</th><th>Default</th><th></th></tr></thead>
+          <tbody id="tplMineRows"></tbody></table></div>
+        <div class="empty" id="tplMineEmpty" style="display:none">You have not added your own yet —
+          use "Copy to mine" on one of FenceFlow's below, or add one from scratch.</div>
+
+        <h3 style="margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">FenceFlow templates</h3>
+        <p class="sub" style="margin:0 0 8px">The phone app's own defaults for each fence type —
+          read-only. Copy one to make it yours and start editing.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>Type</th><th>Spec</th><th></th></tr></thead>
+          <tbody id="tplShippedRows"></tbody></table></div>
+
+        <p class="sub" style="margin-top:14px">A run copies its template when it is created;
+          editing a template never changes a job that already has runs.</p>
+      </div>
+
       <div class="panel">
         <h2>Pricing Tiers</h2>
-        <p class="sub">The labour rate, markup and discount behind each quote.
-          Read-only here — set them in the app under Settings → Pricing Tiers.</p>
+        <p class="sub">The labour rate, markup and discount behind each quote — a repair rate,
+          a full-install rate, a commercial rate, whatever tiers make sense for how you price.</p>
+        <div class="msg" id="tierMsg"></div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn btn-sm" id="tierAdd" type="button">Add a tier</button>
+          <button class="btn btn-sm btn-grey" id="tierAddStarter" type="button" style="display:none">Add starter tiers</button>
+        </div>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Labor $/ft</th><th>Markup %</th><th>Discount %</th></tr></thead>
+          <thead><tr><th>Name</th><th>Labor $/ft</th><th>Markup %</th><th>Discount %</th><th></th></tr></thead>
           <tbody id="tierRows"></tbody></table></div>
-        <div class="empty" id="tierEmpty" style="display:none">No pricing tiers yet. Add them in the phone app under Settings &rarr; Pricing Tiers.</div>
+        <div class="empty" id="tierEmpty" style="display:none">No pricing tiers yet — add one above,
+          or press "Add starter tiers" for five to start from.</div>
       </div>
     </div>
 
@@ -994,6 +1041,106 @@
   </div>
 </div></div>
 
+<!-- Business setup wizard: the owner's own words apply here too -- "when
+     setting up things it should show me next and next till everything is
+     done" (docs/OFFICE_SETUP_PLAN.md, Phase C). Opens in place of the New
+     client wizard's old "finish setting up first" bounce, and from Settings
+     -> "Run setup again". Its steps skip Crew on Solo and end on a Done
+     screen built from my_setup_progress() -- the same function the home
+     tab's own checklist reads, so the two can never disagree about what is
+     left. Placed after wizOverlay and before tierOverlay/tplOverlay/
+     impOverlay so its own steps can open those on top of it, the same
+     DOM-order trick wizOverlay already relies on for satOverlay. -->
+<div class="overlay" id="swOverlay"><div class="sheet" style="max-width:760px">
+  <div class="sheet-head">
+    <strong>Set up your business</strong>
+    <button class="btn btn-sm btn-ghost" id="swClose" type="button">Close</button>
+  </div>
+  <div style="padding:14px 18px 0">
+    <div class="wiz-rail" id="swRail"></div>
+    <p id="swStepLabel" style="margin:6px 0 0;font-size:12px;color:var(--muted)"></p>
+    <div class="msg" id="swMsg"></div>
+  </div>
+  <div class="sheet-body" id="swBody"></div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="swBack" type="button">Back</button>
+    <button class="btn" id="swNext" type="button">Next</button>
+  </div>
+</div></div>
+
+<!-- One pricing tier, add or edit. Shared by the Settings panel and the
+     setup wizard's own Pricing tiers step -- one dialog, one save path. -->
+<div class="overlay" id="tierOverlay"><div class="sheet" style="max-width:480px">
+  <div class="sheet-head"><strong id="tierDialogTitle">Pricing tier</strong>
+    <button class="btn btn-sm btn-ghost" id="tierDialogClose" type="button">Close</button></div>
+  <div class="sheet-body"><div class="msg" id="tierDialogMsg"></div>
+    <div class="panel">
+      <label>Name</label><input id="t_name" placeholder="Good, Better, Best…">
+      <div class="row2">
+        <div><label>Labor $/ft</label><input id="t_labor_rate" type="number" step="0.1"></div>
+        <div><label>Labor flat fee ($)</label><input id="t_labor_flat" type="number" step="1"></div>
+      </div>
+      <div class="row2">
+        <div><label>Markup (%)</label><input id="t_markup" type="number" step="0.1"></div>
+        <div><label>Discount (%)</label><input id="t_discount" type="number" step="0.1"></div>
+      </div>
+      <label>Sort order</label><input id="t_sort" type="number" step="1">
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="tierDialogRetire" type="button">Retire</button>
+    <button class="btn" id="tierDialogSave" type="button">Save</button>
+  </div>
+</div></div>
+
+<!-- One build template, add or edit (also how "Copy to mine" on a shipped
+     row lands: opened pre-filled with that row's spec but no sync_id of its
+     own, so Save inserts a brand-new company row rather than trying to
+     update a shipped one nothing can update). Every spec column is here,
+     unlike the New client wizard's own build step, which only shows what
+     that one run needs. -->
+<div class="overlay" id="tplOverlay"><div class="sheet" style="max-width:640px">
+  <div class="sheet-head"><strong id="tplDialogTitle">Build template</strong>
+    <button class="btn btn-sm btn-ghost" id="tplDialogClose" type="button">Close</button></div>
+  <div class="sheet-body"><div class="msg" id="tplDialogMsg"></div>
+    <div class="panel">
+      <div class="row2">
+        <div><label>Name</label><input id="tpl_name"></div>
+        <div><label>Fence type</label><select id="tpl_fence_type">
+          <option value="VINYL">Vinyl</option><option value="WOOD">Wood</option>
+          <option value="CHAIN_LINK">Chain link</option><option value="ALUMINUM">Aluminum</option>
+          <option value="ORNAMENTAL_IRON">Ornamental iron</option>
+          <option value="SPLIT_RAIL">Split rail</option><option value="COMPOSITE">Composite</option>
+        </select></div>
+      </div>
+      <label>Description</label><input id="tpl_description">
+      <div class="row3">
+        <div><label>Colour / finish</label><input id="tpl_color"></div>
+        <div><label>Height (ft)</label><input id="tpl_panel_h" type="number" step="0.5"></div>
+        <div><label>Panel width (ft)</label><input id="tpl_panel_w" type="number" step="0.5"></div>
+        <div><label>Post spacing (ft)</label><input id="tpl_spacing" type="number" step="0.5"></div>
+        <div><label>Bags of concrete / post</label><input id="tpl_bags" type="number" step="0.5"></div>
+      </div>
+      <p class="sub" id="tpl_spacing_note" style="margin-top:-6px;display:none">Post spacing follows panel width on this fence type.</p>
+      <div id="tpl_type_block" style="margin-top:6px"></div>
+      <div class="row2" style="margin-top:10px">
+        <div><label>Gate width (ft)</label><input id="tpl_gate_w" type="number" step="0.5"></div>
+        <div><label>Gate mounting</label><select id="tpl_gate_m">
+          <option value="LINE">Line</option><option value="WALL">Wall</option>
+          <option value="LINE_TO_WALL">Line to wall</option>
+        </select></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:12px">
+        <input type="checkbox" id="tpl_make_default" style="width:auto"> <span id="tpl_default_label">Make this my default</span>
+      </label>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="tplDialogRetire" type="button">Retire</button>
+    <button class="btn" id="tplDialogSave" type="button">Save</button>
+  </div>
+</div></div>
+
 <!-- Crew editor -->
 <div class="overlay" id="impOverlay"><div class="sheet" style="max-width:720px">
   <div class="sheet-head">
@@ -1156,7 +1303,12 @@ const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
 const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
-    orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null, planName='';
+    orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null, planName='',
+    // Build templates (my_build_templates(), shipped + this company's own) and
+    // the two small dialogs that edit a single tier or template -- see the
+    // "Settings: build templates & pricing tiers" and "Business setup wizard"
+    // sections below.
+    buildTemplates=[], openTier=null, openTpl=null, tplDraftSpec={}, tplDerivedFrom=null;
 /* Always the first of the month.
    Kept on today's date, stepping a month meant asking for the 31st of a
    30-day month, which JavaScript rolls forward into the month after -- so on
@@ -1867,6 +2019,13 @@ async function loadAll(){
   // the credential -- that lives where only the backend can read it.
   const connRes = await db.rpc('my_payment_connection');
   paymentConn = connRes.error ? null : ((connRes.data || [])[0] || null);
+
+  // Build templates: what a new fence run starts as. The office wizard's own
+  // template picker and the Business setup wizard's "Your standard build"
+  // step both need this the moment either overlay opens, so it loads here
+  // once per page load, alongside every other "what does this company have"
+  // read, rather than lazily on a first visit to Settings.
+  await reloadTemplates();
 
   const setupRes = await db.rpc('my_setup_progress');
   setupSteps = setupRes.error ? [] : (setupRes.data || []);
@@ -4004,11 +4163,433 @@ function downloadCsv(name,header,rows){
   URL.revokeObjectURL(url);
 }
 
+/** One tier's row, in the Settings panel or the setup wizard's own copy of
+    it -- same markup either way, since both render into a tbody via
+    renderTierRows(). Edit/Retire only ever show for canEdit(); the actual
+    permission that matters (SEE_MONEY to write, DELETE_RECORDS to retire) is
+    enforced by RLS and the enforce_delete_permission trigger exactly the way
+    deleteJob/deleteEmp already leave it -- shown here, refused there, with
+    the server's own words surfacing through msg() if it happens. */
+function tierRowHtml(t){
+  return `<tr>
+    <td>${esc(t.name)}</td>
+    <td>${money(t.labor_rate_per_ft)}</td>
+    <td>${(t.markup_percent||0)}%</td>
+    <td>${(t.discount_percent||0)}%</td>
+    <td style="white-space:nowrap">${canEdit() ? `
+      <button class="btn btn-sm btn-grey" type="button" data-tier-edit="${t.sync_id}">Edit</button>
+      <button class="btn btn-sm btn-grey" type="button" data-tier-retire="${t.sync_id}">Retire</button>` : ''}</td>
+  </tr>`;
+}
+
+/** Renders the live tiers list into whichever tbody asked for it (the
+    Settings panel's #tierRows, or the setup wizard's #sw_tierRows when that
+    step is on screen) and wires that copy's own Edit/Retire buttons. A
+    missing container is not an error -- the wizard's tiers step usually
+    is not rendered at all. */
+function renderTierRows(containerId){
+  const el = $(containerId);
+  if(!el) return;
+  el.innerHTML = tiers.map(tierRowHtml).join('');
+  el.querySelectorAll('[data-tier-edit]').forEach(b =>
+    b.addEventListener('click', () => openTierDialog(tiers.find(t=>t.sync_id===b.dataset.tierEdit))));
+  el.querySelectorAll('[data-tier-retire]').forEach(b => {
+    const t = tiers.find(x=>x.sync_id===b.dataset.tierRetire);
+    b.addEventListener('click', () => retireTierRow(b.dataset.tierRetire, t && t.name));
+  });
+}
+
 function renderTiers(){
-  $('tierEmpty').style.display=tiers.length?'none':'block';
-  $('tierRows').innerHTML=tiers.map(t=>`<tr><td>${esc(t.name)}</td>
-    <td>${money(t.labor_rate_per_ft)}</td><td>${(t.markup_percent||0)}%</td>
-    <td>${(t.discount_percent||0)}%</td></tr>`).join('');
+  $('tierEmpty').style.display = tiers.length ? 'none' : 'block';
+  // "Add starter tiers" is only ever a first-time offer -- once the company
+  // has any tier of its own, real or starter, it stays gone rather than
+  // sitting there as a standing invitation to duplicate what already exists.
+  $('tierAddStarter').style.display = (tiers.length || !canEdit()) ? 'none' : '';
+  renderTierRows('tierRows');
+  renderTierRows('sw_tierRows');
+  if($('sw_tierEmpty')) $('sw_tierEmpty').style.display = tiers.length ? 'none' : 'block';
+  if($('sw_tier_starter')) $('sw_tier_starter').style.display = (tiers.length || !canEdit()) ? 'none' : '';
+}
+
+/** "Add starter tiers": five sensible tiers, in the Good/Better/Best
+    convention stretched to cover a repair call and a commercial bid too.
+    Built off the company's OWN current labour rate and markup (0 if neither
+    is set yet) rather than a plan-wide number -- two companies on the same
+    plan charge two different amounts for the same fence, and a starter tier
+    that ignored that would be a worse guess than an empty one. Pure, so
+    tests/settings-wizard.test.mjs exercises it directly. */
+function starterTierRows(baseLaborRate, baseMarkup){
+  const labor = baseLaborRate || 0, markup = baseMarkup || 0;
+  return [
+    { name:'Repair / small job', labor_rate_per_ft: labor,          markup_percent: markup,       discount_percent: 0, sort_order: 0 },
+    { name:'Good',               labor_rate_per_ft: labor,          markup_percent: markup,       discount_percent: 0, sort_order: 1 },
+    { name:'Better',             labor_rate_per_ft: labor * 1.1,    markup_percent: markup + 5,    discount_percent: 0, sort_order: 2 },
+    { name:'Best',               labor_rate_per_ft: labor * 1.2,    markup_percent: markup + 10,   discount_percent: 0, sort_order: 3 },
+    { name:'Commercial / bid',   labor_rate_per_ft: labor,          markup_percent: markup,       discount_percent: 5, sort_order: 4 },
+  ];
+}
+
+/** One pricing_tiers row from the dialog's fields. existing is the tier
+    being edited (carries its own sync_id) or null for a brand-new one, in
+    which case newSyncId -- the caller's crypto.randomUUID() -- is used. Kept
+    as a parameter rather than generated in here so this stays pure like
+    every other helper in this file: existing wins its own identity, a new
+    tier gets whatever fresh id the caller already made. Never carries
+    updated_at -- the touch trigger stamps it, and an explicit value here
+    would beat the trigger's own default the same way PostgREST upsert traps
+    warns against everywhere else on this page. */
+function tierFormPayload(existing, form, newSyncId){
+  return {
+    sync_id: existing ? existing.sync_id : newSyncId,
+    name: form.name,
+    labor_rate_per_ft: form.labor_rate_per_ft,
+    labor_flat_fee: form.labor_flat_fee,
+    markup_percent: form.markup_percent,
+    discount_percent: form.discount_percent,
+    sort_order: form.sort_order,
+  };
+}
+
+function openTierDialog(existing){
+  openTier = existing || null;
+  $('tierDialogTitle').textContent = existing ? 'Edit pricing tier' : 'New pricing tier';
+  $('t_name').value = existing?.name || '';
+  $('t_labor_rate').value = existing?.labor_rate_per_ft ?? '';
+  $('t_labor_flat').value = existing?.labor_flat_fee ?? '';
+  $('t_markup').value = existing?.markup_percent ?? '';
+  $('t_discount').value = existing?.discount_percent ?? 0;
+  $('t_sort').value = existing?.sort_order ?? tiers.length;
+  $('tierDialogRetire').style.display = existing ? '' : 'none';
+  $('tierDialogMsg').className='msg'; $('tierDialogMsg').textContent='';
+  $('tierOverlay').classList.add('on');
+}
+
+/** Re-reads just pricing_tiers and repaints both copies of the list -- not a
+    full loadAll(), because adding one tier does not need this page to also
+    re-fetch jobs, runs, catalog and everything else loadAll() touches. Also
+    refreshes the setup checklist: "Your pricing tiers" is one of
+    my_setup_progress()'s own steps, so it should tick the moment a tier
+    lands, not on the next full reload. */
+async function refreshTiers(){
+  const { data, error } = await db.from('pricing_tiers').select('*').is('deleted_at', null);
+  if(!error) tiers = data || [];
+  renderTiers();
+  const sp = await db.rpc('my_setup_progress');
+  setupSteps = sp.error ? [] : (sp.data || []);
+  renderSetup();
+}
+
+async function saveTierDialog(){
+  if(!canEdit()) return;
+  const form = {
+    name: $('t_name').value.trim(),
+    labor_rate_per_ft: num($('t_labor_rate').value),
+    labor_flat_fee: num($('t_labor_flat').value),
+    markup_percent: num($('t_markup').value),
+    discount_percent: num($('t_discount').value),
+    sort_order: Math.round(num($('t_sort').value)) || 0,
+  };
+  if(!form.name){ msg('tierDialogMsg', 'Give this tier a name.', 'err'); return; }
+  const row = tierFormPayload(openTier, form, crypto.randomUUID());
+  // Upsert by (company_id, sync_id): a new tier inserts, an edited one
+  // updates in place -- the same unique index the phone's own sync relies on.
+  const { error } = await db.from('pricing_tiers')
+    .upsert({ ...row, company_id: profile.company_id }, { onConflict: 'company_id,sync_id' });
+  if(error){ msg('tierDialogMsg', error.message, 'err'); return; }
+  $('tierOverlay').classList.remove('on');
+  await refreshTiers();
+}
+
+async function retireTierRow(syncId, name){
+  if(!canEdit()) return;
+  const okRetire = await ask({
+    title: `Retire "${name||'this tier'}"?`,
+    body: 'It stops showing up to pick from. A job already using it keeps its own numbers '
+      + '-- retiring a tier never changes a quote that already has one.',
+    confirmLabel: 'Retire', danger: true
+  });
+  if(!okRetire) return;
+  const { error } = await db.from('pricing_tiers')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: 'office dashboard' })
+    .eq('company_id', profile.company_id).eq('sync_id', syncId);
+  // Retire is reachable both from a row's own button (tierOverlay closed,
+  // the panel's #tierMsg visible) and from inside the edit dialog's own
+  // Retire button (tierOverlay open, sitting on top of that same #tierMsg
+  // where nobody could see it) -- so the message goes wherever is actually
+  // on screen right now.
+  const dialogOpen = $('tierOverlay').classList.contains('on');
+  if(error){ msg(dialogOpen ? 'tierDialogMsg' : 'tierMsg', error.message, 'err'); return; }
+  if(dialogOpen) $('tierOverlay').classList.remove('on');
+  await refreshTiers();
+}
+
+async function addStarterTiers(){
+  if(!canEdit() || tiers.length) return;
+  const { data } = await db.from('company_settings').select('settings')
+    .eq('company_id', profile.company_id).maybeSingle();
+  const s = data?.settings || {};
+  const rows = starterTierRows(num(s.labor_rate), num(s.markup));
+  const payload = rows.map(r => ({ ...r, sync_id: crypto.randomUUID(), company_id: profile.company_id }));
+  const { error } = await db.from('pricing_tiers').insert(payload);
+  // Reachable from the Settings panel directly, or from inside the setup
+  // wizard's own Pricing tiers step -- #tierMsg sits on the Settings tab,
+  // which the wizard's overlay covers, so the wizard's own #swMsg gets it.
+  if(error){ msg((sw && swCurrentKey()==='tiers') ? 'swMsg' : 'tierMsg', error.message, 'err'); return; }
+  await refreshTiers();
+}
+
+/* ===================== Settings: build templates ==========================
+   The Settings-tab half of build_templates -- my_build_templates() split
+   into "Your templates" (editable, or copied from a shipped one) and
+   "FenceFlow templates" (read-only). Every spec field is on the dialog,
+   unlike the New client wizard's own build step, which only shows what one
+   run needs. Nothing here computes anything -- save_build_template and
+   retire_build_template are the only writes, exactly like the wizard. */
+
+/** my_build_templates() split for this panel. Unlike the wizard's own
+    picker (wizTemplateGroups, which hides an empty group entirely) this
+    never hides "Your templates" when it is empty -- the panel explains what
+    to do right there, and a vanished heading would take the explanation
+    with it. Pure, so tests/settings-wizard.test.mjs exercises it directly. */
+function tplGroups(templates){
+  const list = templates || [];
+  return {
+    mine: list.filter(t => !t.is_shipped),
+    shipped: list.filter(t => t.is_shipped),
+  };
+}
+
+/** One line describing a template's build for the panel's table -- long
+    enough that two VINYL rows read as different templates, short enough
+    not to wrap a table cell. Pure. */
+function tplSpecSummary(t){
+  const bits = [t.panel_height_ft + ' ft tall', t.panel_width_ft + ' ft panels',
+    'posts every ' + t.post_spacing_ft + ' ft'];
+  if(t.concrete_bags_per_post) bits.push(t.concrete_bags_per_post + (t.concrete_bags_per_post===1?' bag':' bags'));
+  if(t.color_or_finish) bits.push(t.color_or_finish);
+  return bits.join(' · ');
+}
+
+function tplMineRowHtml(t){
+  return `<tr>
+    <td>${esc(t.name)||'(untitled)'}</td>
+    <td>${esc(wizFenceTypeLabel(t.fence_type))}</td>
+    <td class="sub" style="font-size:12.5px">${esc(tplSpecSummary(t))}</td>
+    <td style="text-align:center">
+      <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-weight:400;text-transform:none;font-size:13px">
+        <input type="radio" name="tpl_default_${esc(t.fence_type)}" style="width:auto"
+          data-tpl-default="${t.sync_id}" ${t.is_default?'checked':''} ${canEdit()?'':'disabled'}> Default
+      </label>
+    </td>
+    <td style="white-space:nowrap">${canEdit() ? `
+      <button class="btn btn-sm btn-grey" type="button" data-tpl-edit="${t.sync_id}">Edit</button>
+      <button class="btn btn-sm btn-grey" type="button" data-tpl-retire="${t.sync_id}">Retire</button>` : ''}</td>
+  </tr>`;
+}
+function tplShippedRowHtml(t){
+  return `<tr>
+    <td>${esc(t.name)}</td>
+    <td>${esc(wizFenceTypeLabel(t.fence_type))}</td>
+    <td class="sub" style="font-size:12.5px">${esc(tplSpecSummary(t))}</td>
+    <td>${canEdit() ? `<button class="btn btn-sm btn-grey" type="button" data-tpl-copy="${t.sync_id}">Copy to mine</button>` : ''}</td>
+  </tr>`;
+}
+
+function renderTemplates(){
+  if(!$('tplMineRows')) return; // Settings tab markup not on this page yet mid-boot
+  const g = tplGroups(buildTemplates);
+  $('tplMineEmpty').style.display = g.mine.length ? 'none' : 'block';
+  $('tplMineRows').innerHTML = g.mine.map(tplMineRowHtml).join('');
+  $('tplShippedRows').innerHTML = g.shipped.map(tplShippedRowHtml).join('');
+
+  $('tplMineRows').querySelectorAll('[data-tpl-edit]').forEach(b =>
+    b.addEventListener('click', () => openTplDialog(buildTemplates.find(t=>t.sync_id===b.dataset.tplEdit))));
+  $('tplMineRows').querySelectorAll('[data-tpl-retire]').forEach(b =>
+    b.addEventListener('click', () => retireTemplate(b.dataset.tplRetire)));
+  $('tplMineRows').querySelectorAll('[data-tpl-default]').forEach(r =>
+    r.addEventListener('change', () => makeTemplateDefault(r.dataset.tplDefault)));
+  $('tplShippedRows').querySelectorAll('[data-tpl-copy]').forEach(b =>
+    b.addEventListener('click', () => copyShippedTemplate(b.dataset.tplCopy)));
+}
+
+/** Re-reads my_build_templates() and repaints the panel -- not a full
+    loadAll(), for the same reason refreshTiers() is not one: a template
+    edit does not need this page to also re-fetch jobs, runs and everything
+    else loadAll() touches. Used by every template mutation below, by
+    saveSettings()'s own VINYL-defaults sync, and once at boot from
+    loadAll() itself. */
+async function reloadTemplates(){
+  const { data, error } = await db.rpc('my_build_templates');
+  if(!error) buildTemplates = data || [];
+  renderTemplates();
+}
+
+function openTplDialog(existing, copyFrom){
+  // existing: editing one of "Your templates" in place -- it has its own
+  // sync_id, so Save updates that row. copyFrom: a shipped row being copied
+  // (see wizSaveBuild's own "mustClone" comment for why a shipped row can
+  // never just be edited) -- same starting spec, but Save must insert a
+  // brand-new company row, so no sync_id is carried over from it.
+  const src = existing || copyFrom || null;
+  openTpl = existing || null;
+  tplDerivedFrom = copyFrom ? copyFrom.sync_id : (existing ? (existing.derived_from_sync_id || null) : null);
+  tplDraftSpec = src ? {
+    fence_type:src.fence_type, color_or_finish:src.color_or_finish,
+    panel_width_ft:src.panel_width_ft, panel_height_ft:src.panel_height_ft,
+    post_spacing_ft:src.post_spacing_ft, concrete_bags_per_post:src.concrete_bags_per_post,
+    aluminum_style:src.aluminum_style, wood_style:src.wood_style, wood_rail_count:src.wood_rail_count,
+    picket_width_in:src.picket_width_in, picket_gap_in:src.picket_gap_in, fabric_height_ft:src.fabric_height_ft,
+    include_top_rail:src.include_top_rail, include_tension_wire:src.include_tension_wire,
+    include_barbed_wire_arms:src.include_barbed_wire_arms, include_privacy_slats:src.include_privacy_slats,
+    split_rail_count:src.split_rail_count, gate_width_ft:src.gate_width_ft, gate_mounting:src.gate_mounting,
+  } : {
+    fence_type:'VINYL', color_or_finish:'', panel_width_ft:6, panel_height_ft:6, post_spacing_ft:6,
+    concrete_bags_per_post:1, aluminum_style:'RACKABLE', wood_style:'PRIVACY', wood_rail_count:3,
+    picket_width_in:5.5, picket_gap_in:0, fabric_height_ft:4, include_top_rail:true,
+    include_tension_wire:false, include_barbed_wire_arms:false, include_privacy_slats:false,
+    split_rail_count:2, gate_width_ft:4, gate_mounting:'LINE',
+  };
+
+  $('tplDialogTitle').textContent = existing ? 'Edit template' : copyFrom ? 'Copy to mine' : 'New template';
+  $('tpl_name').value = existing ? (existing.name||'') : copyFrom ? ((copyFrom.name||'') + ' — mine') : '';
+  $('tpl_description').value = (existing ? existing.description : copyFrom ? copyFrom.description : '') || '';
+  $('tpl_fence_type').value = tplDraftSpec.fence_type;
+  $('tpl_color').value = tplDraftSpec.color_or_finish || '';
+  $('tpl_panel_h').value = tplDraftSpec.panel_height_ft;
+  $('tpl_panel_w').value = tplDraftSpec.panel_width_ft;
+  $('tpl_spacing').value = tplDraftSpec.post_spacing_ft;
+  $('tpl_bags').value = tplDraftSpec.concrete_bags_per_post;
+  $('tpl_gate_w').value = tplDraftSpec.gate_width_ft;
+  $('tpl_gate_m').value = tplDraftSpec.gate_mounting;
+  $('tpl_make_default').checked = existing ? !!existing.is_default : false;
+  $('tplDialogRetire').style.display = existing ? '' : 'none';
+  tplRefreshTypeBlock();
+  $('tplDialogMsg').className='msg'; $('tplDialogMsg').textContent='';
+  $('tplOverlay').classList.add('on');
+}
+
+function tplRefreshTypeBlock(){
+  $('tpl_type_block').innerHTML = fenceTypeBlockHtml(tplDraftSpec, 'tpl');
+  const locked = wizLockedSpacing(tplDraftSpec.fence_type);
+  $('tpl_spacing').disabled = locked;
+  $('tpl_spacing_note').style.display = locked ? '' : 'none';
+  $('tpl_default_label').textContent = 'Make this my default for ' + wizFenceTypeLabel(tplDraftSpec.fence_type);
+}
+
+function tplSyncSpecFromDom(){
+  const s = tplDraftSpec;
+  s.fence_type = $('tpl_fence_type').value;
+  s.color_or_finish = $('tpl_color').value;
+  s.panel_height_ft = num($('tpl_panel_h').value);
+  s.panel_width_ft = num($('tpl_panel_w').value);
+  s.post_spacing_ft = wizLockedSpacing(s.fence_type) ? s.panel_width_ft : num($('tpl_spacing').value);
+  s.concrete_bags_per_post = num($('tpl_bags').value);
+  s.gate_width_ft = num($('tpl_gate_w').value);
+  s.gate_mounting = $('tpl_gate_m').value;
+  readTypeBlockFields(s, 'tpl');
+}
+
+async function saveTplDialog(){
+  if(!canEdit()) return;
+  tplSyncSpecFromDom();
+  const name = $('tpl_name').value.trim();
+  if(!name){ msg('tplDialogMsg', 'Give this template a name.', 'err'); return; }
+  const payload = Object.assign({}, tplDraftSpec, {
+    name, description: $('tpl_description').value.trim(),
+    is_default: $('tpl_make_default').checked,
+    sync_id: openTpl ? openTpl.sync_id : undefined,
+    derived_from_sync_id: tplDerivedFrom,
+  });
+  const { error } = await db.rpc('save_build_template', { p: payload });
+  if(error){ msg('tplDialogMsg', error.message, 'err'); return; }
+  $('tplOverlay').classList.remove('on');
+  await reloadTemplates();
+}
+
+async function retireTemplate(syncId){
+  if(!canEdit()) return;
+  const t = buildTemplates.find(x=>x.sync_id===syncId);
+  const okRetire = await ask({
+    title: `Retire "${t?.name||'this template'}"?`,
+    body: 'Jobs already built from it keep their own copy of the spec -- retiring a '
+      + 'template never changes a run that already exists.',
+    confirmLabel: 'Retire', danger: true
+  });
+  if(!okRetire) return;
+  const { error } = await db.rpc('retire_build_template', { p_sync_id: syncId });
+  // Same reason as retireTierRow's own comment: reachable from a row button
+  // (panel visible) or from inside the edit dialog (panel hidden behind it).
+  const dialogOpen = $('tplOverlay').classList.contains('on');
+  if(error){ msg(dialogOpen ? 'tplDialogMsg' : 'tplMsg', error.message, 'err'); return; }
+  if(dialogOpen) $('tplOverlay').classList.remove('on');
+  await reloadTemplates();
+}
+
+/** The row-level radio's "Default per fence type" -- resend the template's
+    own current spec with only is_default flipped on. save_build_template
+    itself clears every other row of the same company and fence type, so
+    only one is ever true at once, the same rule the radio grouping displays. */
+async function makeTemplateDefault(syncId){
+  if(!canEdit()) return;
+  const t = buildTemplates.find(x=>x.sync_id===syncId);
+  if(!t) return;
+  const payload = Object.assign({}, t, { sync_id: t.sync_id, is_default: true });
+  const { error } = await db.rpc('save_build_template', { p: payload });
+  if(error){ msg('tplMsg', error.message, 'err'); await reloadTemplates(); return; }
+  await reloadTemplates();
+}
+
+function copyShippedTemplate(syncId){
+  const t = buildTemplates.find(x=>x.sync_id===syncId && x.is_shipped);
+  if(!t) return;
+  openTplDialog(null, t);
+}
+
+/** The legacy Settings inputs (post spacing / panel width / panel height /
+    bags) used to write four loose company_settings keys that nothing else
+    ever read. They now ALSO edit the company's default VINYL template --
+    the one thing on a phone that actually consumes "the spacing/height/
+    width/bags a new run starts at" -- while saveSettings() still writes the
+    old keys too, so a phone that predates templates keeps working exactly
+    as it did.
+
+    existing is the company's own default VINYL template row (from
+    my_build_templates()) or null if it has none yet, in which case fallback
+    -- the shipped "Vinyl privacy 6 ft" row -- supplies every field this
+    typed patch does not override. raw is the four input values as typed
+    (strings; blank means "leave alone", the same rule SET_NUM applies
+    everywhere else on this page). Returns null when all four are blank --
+    nothing to write, and no template call is made. Pure, so
+    tests/settings-wizard.test.mjs exercises it directly. */
+function vinylDefaultTemplatePayload(existing, fallback, raw){
+  const has = v => String(v ?? '').trim() !== '';
+  if(!has(raw.spacing) && !has(raw.pw) && !has(raw.ph) && !has(raw.bags)) return null;
+  const base = existing || fallback;
+  const n = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
+  const panelWidth = has(raw.pw) ? n(raw.pw) : base.panel_width_ft;
+  return {
+    sync_id: existing ? existing.sync_id : undefined,
+    name: base.name || 'Vinyl privacy 6 ft',
+    description: base.description || '',
+    is_default: true,
+    derived_from_sync_id: existing ? (existing.derived_from_sync_id || null) : fallback.sync_id,
+    fence_type: 'VINYL',
+    color_or_finish: base.color_or_finish || '',
+    panel_width_ft: panelWidth,
+    panel_height_ft: has(raw.ph) ? n(raw.ph) : base.panel_height_ft,
+    // VINYL locks spacing to panel width -- the same rule save_build_template
+    // itself enforces server-side, applied here too so this never sends a
+    // spacing the server would silently overrule.
+    post_spacing_ft: panelWidth,
+    concrete_bags_per_post: has(raw.bags) ? n(raw.bags) : base.concrete_bags_per_post,
+    aluminum_style: base.aluminum_style, wood_style: base.wood_style,
+    wood_rail_count: base.wood_rail_count, picket_width_in: base.picket_width_in,
+    picket_gap_in: base.picket_gap_in, fabric_height_ft: base.fabric_height_ft,
+    include_top_rail: base.include_top_rail, include_tension_wire: base.include_tension_wire,
+    include_barbed_wire_arms: base.include_barbed_wire_arms,
+    include_privacy_slats: base.include_privacy_slats, split_rail_count: base.split_rail_count,
+    gate_width_ft: base.gate_width_ft, gate_mounting: base.gate_mounting,
+  };
 }
 
 /* ---------- job detail ---------- */
@@ -4919,14 +5500,23 @@ function wizBlankRun(){
     wizard_step. The setup gate is the same one createJob used to enforce --
     a quote built before rates and a catalog exist is built on blanks -- but
     it only applies to STARTING a new job; resuming one already in progress
-    is never blocked by it. */
+    is never blocked by it.
+
+    Until Phase C this bounced to the home tab with an error and left the
+    owner to go find Settings themselves -- exactly the "I should not have to
+    go on the phone and finish it" complaint the whole office redesign is
+    answering, just aimed at this page instead of a phone. It now opens the
+    Business setup wizard in its place, for anyone who can actually act on
+    it; someone who cannot (no OWNER/MANAGER role) still gets the old message,
+    because showing them a wizard they cannot save a step of would be worse. */
 async function openWizard(jobId, opts){
   opts = opts || {};
   if(!jobId && setupBlocks){
+    if(canEdit()){ openSetupWizard(); return; }
     switchTab('dash');
     msg('jobsMsg', 'Finish setting up first — a quote built before your labour rate, '
       + 'markup, minimum charge, tax and supplier prices are set is built on blanks. '
-      + 'The list is at the top of the home tab.', 'err');
+      + 'Ask an owner or manager to finish it under Settings.', 'err');
     $('setupPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
@@ -5163,39 +5753,73 @@ function wizPickTemplate(syncId){
   wizRenderStep();
 }
 
-function wizTypeBlockHtml(){
-  const s = wiz.spec;
+/** The type-specific spec fields (wood style/rails/picket, chain-link
+    options, split-rail count, aluminum style) as an HTML block, its element
+    ids namespaced by prefix. Pulled out of the New client wizard so the
+    Settings template dialog and the Business setup wizard's own build step
+    can put the exact same fields on screen without three copies of "what a
+    WOOD row means" drifting apart. Pure -- no DOM read, only DOM ids written
+    into the strings it returns -- so tests/settings-wizard.test.mjs can
+    exercise it directly the same way tests/wizard-encoding.test.mjs exercises
+    the wizard's other pure helpers. */
+function fenceTypeBlockHtml(spec, prefix){
+  const s = spec || {}, p = prefix;
   if(s.fence_type==='WOOD') return `
     <div class="wiz-row3">
-      <div><label>Style</label><select id="wz_wood_style">
+      <div><label>Style</label><select id="${p}_wood_style">
         <option value="PRIVACY" ${s.wood_style==='PRIVACY'?'selected':''}>Privacy</option>
         <option value="SPACED_PICKET" ${s.wood_style==='SPACED_PICKET'?'selected':''}>Spaced picket</option>
       </select></div>
-      <div><label>Rails</label><input id="wz_wood_rails" type="number" step="1" value="${s.wood_rail_count??3}"></div>
-      <div><label>Picket width (in)</label><input id="wz_picket_w" type="number" step="0.5" value="${s.picket_width_in??5.5}"></div>
-      <div><label>Picket gap (in)</label><input id="wz_picket_gap" type="number" step="0.5" value="${s.picket_gap_in??0}"></div>
+      <div><label>Rails</label><input id="${p}_wood_rails" type="number" step="1" value="${s.wood_rail_count??3}"></div>
+      <div><label>Picket width (in)</label><input id="${p}_picket_w" type="number" step="0.5" value="${s.picket_width_in??5.5}"></div>
+      <div><label>Picket gap (in)</label><input id="${p}_picket_gap" type="number" step="0.5" value="${s.picket_gap_in??0}"></div>
     </div>`;
   if(s.fence_type==='CHAIN_LINK') return `
     <div class="wiz-row3">
-      <div><label>Fabric height (ft)</label><input id="wz_fabric_h" type="number" step="0.5" value="${s.fabric_height_ft??4}"></div>
+      <div><label>Fabric height (ft)</label><input id="${p}_fabric_h" type="number" step="0.5" value="${s.fabric_height_ft??4}"></div>
       <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
-        <input type="checkbox" id="wz_top_rail" ${s.include_top_rail?'checked':''} style="width:auto"> Top rail</label></div>
+        <input type="checkbox" id="${p}_top_rail" ${s.include_top_rail?'checked':''} style="width:auto"> Top rail</label></div>
       <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
-        <input type="checkbox" id="wz_tension_wire" ${s.include_tension_wire?'checked':''} style="width:auto"> Tension wire</label></div>
+        <input type="checkbox" id="${p}_tension_wire" ${s.include_tension_wire?'checked':''} style="width:auto"> Tension wire</label></div>
       <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
-        <input type="checkbox" id="wz_barbed" ${s.include_barbed_wire_arms?'checked':''} style="width:auto"> Barbed wire arms</label></div>
+        <input type="checkbox" id="${p}_barbed" ${s.include_barbed_wire_arms?'checked':''} style="width:auto"> Barbed wire arms</label></div>
       <div><label style="display:flex;align-items:center;gap:6px;margin-top:16px">
-        <input type="checkbox" id="wz_slats" ${s.include_privacy_slats?'checked':''} style="width:auto"> Privacy slats</label></div>
+        <input type="checkbox" id="${p}_slats" ${s.include_privacy_slats?'checked':''} style="width:auto"> Privacy slats</label></div>
     </div>`;
   if(s.fence_type==='SPLIT_RAIL') return `
     <div class="wiz-row3"><div><label>Rails</label>
-      <input id="wz_split_rails" type="number" step="1" value="${s.split_rail_count??2}"></div></div>`;
+      <input id="${p}_split_rails" type="number" step="1" value="${s.split_rail_count??2}"></div></div>`;
   if(s.fence_type==='ALUMINUM') return `
-    <div class="wiz-row3"><div><label>Style</label><select id="wz_alum_style">
+    <div class="wiz-row3"><div><label>Style</label><select id="${p}_alum_style">
       <option value="RACKABLE" ${s.aluminum_style==='RACKABLE'?'selected':''}>Rackable</option>
       <option value="FLAT_TOP" ${s.aluminum_style==='FLAT_TOP'?'selected':''}>Flat top</option>
     </select></div></div>`;
   return '';
+}
+function wizTypeBlockHtml(){ return fenceTypeBlockHtml(wiz.spec, 'wz'); }
+
+/** The same type-specific fields, read back off whichever prefix's inputs
+    are on screen right now, straight onto spec. Elements not on screen for
+    the current fence type are simply not there to find -- each read is
+    guarded the same way the wizard's own DOM sync always guarded them. Not
+    pure (it reads the DOM), so unlike fenceTypeBlockHtml it is exercised
+    only through the three callers that wire it up, never grabbed by a test. */
+function readTypeBlockFields(spec, prefix){
+  const g = id => $(prefix + '_' + id);
+  const s = spec;
+  if(g('wood_style')) s.wood_style = g('wood_style').value;
+  // Rounded: both are Postgres integer columns on build_templates, cast with
+  // a plain ::integer server-side -- a typed "2.5" would fail that cast.
+  if(g('wood_rails')) s.wood_rail_count = Math.round(num(g('wood_rails').value));
+  if(g('picket_w')) s.picket_width_in = num(g('picket_w').value);
+  if(g('picket_gap')) s.picket_gap_in = num(g('picket_gap').value);
+  if(g('fabric_h')) s.fabric_height_ft = num(g('fabric_h').value);
+  if(g('top_rail')) s.include_top_rail = g('top_rail').checked;
+  if(g('tension_wire')) s.include_tension_wire = g('tension_wire').checked;
+  if(g('barbed')) s.include_barbed_wire_arms = g('barbed').checked;
+  if(g('slats')) s.include_privacy_slats = g('slats').checked;
+  if(g('split_rails')) s.split_rail_count = Math.round(num(g('split_rails').value));
+  if(g('alum_style')) s.aluminum_style = g('alum_style').value;
 }
 
 function wizStepBuildHtml(){
@@ -5266,19 +5890,7 @@ function wizSyncSpecFromDom(){
   if(g('wz_bags')) s.concrete_bags_per_post = num(g('wz_bags').value);
   if(g('wz_gate_w')) s.gate_width_ft = num(g('wz_gate_w').value);
   if(g('wz_gate_m')) s.gate_mounting = g('wz_gate_m').value;
-  if(g('wz_wood_style')) s.wood_style = g('wz_wood_style').value;
-  // Rounded: both are Postgres integer columns on build_templates, cast with
-  // a plain ::integer server-side -- a typed "2.5" would fail that cast.
-  if(g('wz_wood_rails')) s.wood_rail_count = Math.round(num(g('wz_wood_rails').value));
-  if(g('wz_picket_w')) s.picket_width_in = num(g('wz_picket_w').value);
-  if(g('wz_picket_gap')) s.picket_gap_in = num(g('wz_picket_gap').value);
-  if(g('wz_fabric_h')) s.fabric_height_ft = num(g('wz_fabric_h').value);
-  if(g('wz_top_rail')) s.include_top_rail = g('wz_top_rail').checked;
-  if(g('wz_tension_wire')) s.include_tension_wire = g('wz_tension_wire').checked;
-  if(g('wz_barbed')) s.include_barbed_wire_arms = g('wz_barbed').checked;
-  if(g('wz_slats')) s.include_privacy_slats = g('wz_slats').checked;
-  if(g('wz_split_rails')) s.split_rail_count = Math.round(num(g('wz_split_rails').value));
-  if(g('wz_alum_style')) s.aluminum_style = g('wz_alum_style').value;
+  readTypeBlockFields(s, 'wz');
   if(lockedSpacingNow()) s.post_spacing_ft = s.panel_width_ft;
   function lockedSpacingNow(){ return wizLockedSpacing(s.fence_type); }
 }
@@ -5834,6 +6446,399 @@ $('wizOverlay').addEventListener('click', e => { if(e.target.id==='wizOverlay') 
 $('wizBack').addEventListener('click', wizBack);
 $('wizNext').addEventListener('click', wizNext);
 
+/* ===================== Business setup wizard ==============================
+   The owner's own words apply here too: "when setting up things it should
+   show me next and next till everything is done." Six steps -- Business,
+   Rates, Your standard build, Supplier prices, Pricing tiers, Crew -- plus a
+   Done screen, saved one step at a time exactly like the New client wizard:
+   save_company_settings with only that step's keys (never a whole settings
+   object, or a page that does not know about a setting could delete it --
+   see supabase_settings_merge_patch.sql), or the step's own RPC. Crew is
+   skipped entirely on Solo, where the owner IS the crew. Opens from
+   Settings -> "Run setup again", and from openWizard() in place of its old
+   "finish setting up first" bounce. */
+
+/** The wizard's steps in order. Crew is skipped on Solo -- the same reason
+    my_setup_progress() already excuses that step there. 'done' is always
+    last: a checklist screen, not a step with fields of its own. Pure, so
+    tests/settings-wizard.test.mjs exercises it directly. */
+function setupWizardSteps(planName){
+  const steps = ['business','rates','build','supplier','tiers','crew','done'];
+  return planName === 'solo' ? steps.filter(s => s !== 'crew') : steps;
+}
+function swStepLabel(key){
+  return { business:'Business', rates:'Rates', build:'Your standard build',
+    supplier:'Supplier prices', tiers:'Pricing tiers', crew:'Crew', done:'Done' }[key] || key;
+}
+
+let sw = null; // non-null only while swOverlay is open
+
+async function openSetupWizard(){
+  if(!canEdit()) return;
+  const { data: settingsRow } = await db.from('company_settings').select('settings')
+    .eq('company_id', profile.company_id).maybeSingle();
+  sw = {
+    steps: setupWizardSteps(planName),
+    stepIndex: 0,
+    settings: (settingsRow && settingsRow.settings) || {},
+    spec: {},           // step 'build's chosen/edited template spec
+    templateSyncId: null,
+  };
+  await reloadTemplates(); // fresh company + shipped rows for step 'build'
+  $('swOverlay').classList.add('on');
+  await swRenderStep();
+}
+
+function closeSetupWizard(){
+  $('swOverlay').classList.remove('on');
+  sw = null;
+  loadSettings(); // the plain Settings tab picks up whatever was just saved
+}
+
+function swCurrentKey(){ return sw.steps[sw.stepIndex]; }
+
+function swRailHtml(){
+  return sw.steps.map((k,i) =>
+    `<div class="seg ${i<sw.stepIndex?'done':(i===sw.stepIndex?'now':'')}"></div>`).join('');
+}
+
+async function swRenderStep(){
+  if(!sw) return;
+  const key = swCurrentKey();
+  $('swRail').innerHTML = swRailHtml();
+  $('swStepLabel').textContent = 'Step ' + (sw.stepIndex+1) + ' of ' + sw.steps.length + ' — ' + swStepLabel(key);
+  $('swMsg').className='msg'; $('swMsg').textContent='';
+  const body = $('swBody');
+  switch(key){
+    case 'business': body.innerHTML = swBusinessHtml(); break;
+    case 'rates':    body.innerHTML = swRatesHtml(); break;
+    case 'build':    body.innerHTML = swBuildHtml(); swWireBuild(); break;
+    case 'supplier': body.innerHTML = swSupplierHtml(); swWireSupplier(); break;
+    case 'tiers':    body.innerHTML = swTiersHtml(); renderTierRows('sw_tierRows'); swWireTiers(); break;
+    case 'crew':     body.innerHTML = swCrewHtml(); swWireCrew(); break;
+    case 'done':     body.innerHTML = await swDoneHtml(); swWireDone(); break;
+  }
+  $('swBack').style.display = sw.stepIndex>0 ? '' : 'none';
+  // Done has no Next of its own -- "Create your first client" and "Close"
+  // live in the body, the same way the New client wizard's own estimate
+  // step (5) hides Next for its own "Looks right" button.
+  $('swNext').style.display = key==='done' ? 'none' : '';
+}
+
+function swBack(){
+  if(!sw || sw.stepIndex<=0) return;
+  sw.stepIndex -= 1;
+  swRenderStep();
+}
+
+async function swNext(){
+  if(!sw) return;
+  const btn=$('swNext'); btn.disabled=true;
+  try{
+    const key = swCurrentKey();
+    let ok=true;
+    if(key==='business') ok = await swSaveBusiness();
+    else if(key==='rates') ok = await swSaveRates();
+    else if(key==='build') ok = await swSaveBuild();
+    // 'supplier' and 'tiers' have nothing of their own for Next to save --
+    // each field on those steps writes itself the moment it is used.
+    if(!ok) return;
+    if(sw.stepIndex >= sw.steps.length-1) return; // 'done': no Next button anyway
+    sw.stepIndex += 1;
+    await swRenderStep();
+  } finally {
+    if(btn) btn.disabled=false;
+  }
+}
+
+/* ---------- step: business ---------- */
+
+function swBusinessHtml(){
+  const s = sw.settings;
+  return `<div class="panel"><h2>Business</h2>
+    <p class="sub" style="margin-top:0">Shown on quotes, and how a customer reaches you back.</p>
+    <div class="wiz-row2">
+      <div><label>Business name</label><input id="sw_business_name" value="${esc(s.business_name||'')}"></div>
+      <div><label>Owner name</label><input id="sw_owner_name" value="${esc(s.owner_name||'')}"></div>
+      <div><label>Phone</label><input id="sw_phone" value="${esc(s.phone||'')}"></div>
+      <div><label>Email</label><input id="sw_email" value="${esc(s.email||'')}"></div>
+      <div><label>License number</label><input id="sw_license" value="${esc(s.license_number||'')}"></div>
+    </div>
+  </div>`;
+}
+async function swSaveBusiness(){
+  const payload = {
+    business_name: $('sw_business_name').value.trim(),
+    owner_name: $('sw_owner_name').value.trim(),
+    phone: $('sw_phone').value.trim(),
+    email: $('sw_email').value.trim(),
+    license_number: $('sw_license').value.trim(),
+  };
+  Object.assign(sw.settings, payload);
+  const { error } = await db.rpc('save_company_settings', { new_settings: payload });
+  if(error){ msg('swMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+/* ---------- step: rates ---------- */
+
+function swRatesHtml(){
+  const s = sw.settings;
+  return `<div class="panel"><h2>Rates</h2>
+    <div class="wiz-row3">
+      <div><label>Labor rate ($/ft)</label><input id="sw_labor_rate" type="number" step="0.1" value="${s.labor_rate ?? ''}"></div>
+      <div><label>Labor flat fee ($)</label><input id="sw_labor_flat" type="number" step="1" value="${s.labor_flat_fee ?? 0}"></div>
+      <div><label>Markup (%)</label><input id="sw_markup" type="number" step="0.1" value="${s.markup ?? ''}"></div>
+      <div><label>Tax rate (%)</label><input id="sw_tax" type="number" step="0.1" value="${s.tax_rate ?? ''}"></div>
+      <div><label>Minimum job charge ($)</label><input id="sw_min" type="number" step="1" value="${s.min_job_charge ?? ''}"></div>
+      <div><label>Gate rate ($/ft)</label><input id="sw_gate_rate" type="number" step="0.5" value="${s.gate_rate ?? 20}"></div>
+      <div><label>Waste (%)</label><input id="sw_waste" type="number" step="0.5" value="${s.waste ?? 0}"></div>
+      <div><label>Deposit (%)</label><input id="sw_deposit" type="number" step="1" value="${s.deposit_percent ?? 0}"></div>
+    </div>
+    <p class="sub" style="margin-top:8px">Deposit at 0% is not "no deposit" -- it means the quote
+      page falls back to its own rule instead (round the total up to the next $100). Set a real
+      percentage here only if you want a fixed cut rather than that rule.</p>
+  </div>`;
+}
+async function swSaveRates(){
+  const payload = {
+    labor_rate: num($('sw_labor_rate').value), labor_flat_fee: num($('sw_labor_flat').value),
+    markup: num($('sw_markup').value), tax_rate: num($('sw_tax').value),
+    min_job_charge: num($('sw_min').value), gate_rate: num($('sw_gate_rate').value),
+    waste: num($('sw_waste').value), deposit_percent: num($('sw_deposit').value),
+  };
+  Object.assign(sw.settings, payload);
+  const { error } = await db.rpc('save_company_settings', { new_settings: payload });
+  if(error){ msg('swMsg', error.message, 'err'); return false; }
+  return true;
+}
+
+/* ---------- step: your standard build ---------- */
+
+function swApplyTemplateSpec(t){
+  sw.templateSyncId = t.sync_id;
+  sw.spec = {
+    fence_type:t.fence_type, color_or_finish:t.color_or_finish, panel_width_ft:t.panel_width_ft,
+    panel_height_ft:t.panel_height_ft, post_spacing_ft:t.post_spacing_ft,
+    concrete_bags_per_post:t.concrete_bags_per_post, aluminum_style:t.aluminum_style,
+    wood_style:t.wood_style, wood_rail_count:t.wood_rail_count, picket_width_in:t.picket_width_in,
+    picket_gap_in:t.picket_gap_in, fabric_height_ft:t.fabric_height_ft, include_top_rail:t.include_top_rail,
+    include_tension_wire:t.include_tension_wire, include_barbed_wire_arms:t.include_barbed_wire_arms,
+    include_privacy_slats:t.include_privacy_slats, split_rail_count:t.split_rail_count,
+    gate_width_ft:t.gate_width_ft, gate_mounting:t.gate_mounting,
+  };
+}
+function swPickTemplate(syncId){
+  const t = buildTemplates.find(x=>x.sync_id===syncId);
+  if(!t) return;
+  swApplyTemplateSpec(t);
+  swRenderStep();
+}
+
+function swBuildHtml(){
+  if(!Object.keys(sw.spec).length){
+    const start = buildTemplates.find(t=>t.is_default) || buildTemplates.find(t=>t.is_shipped) || buildTemplates[0];
+    if(start) swApplyTemplateSpec(start);
+  }
+  const g = tplGroups(buildTemplates);
+  const pickable = g.mine.concat(g.shipped);
+  const cards = pickable.map(t => `<button type="button" class="btn btn-sm wiz-tpl-btn ${sw.templateSyncId===t.sync_id?'':'btn-grey'}"
+      data-sw-tpl="${t.sync_id}">${esc(t.name)||wizFenceTypeLabel(t.fence_type)}</button>`).join('');
+  const s = sw.spec;
+  const locked = wizLockedSpacing(s.fence_type);
+  return `
+    <div class="panel"><h2>Start from</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${cards || '<div class="empty">No templates yet.</div>'}</div>
+    </div>
+    <div class="panel"><h2>Your standard build</h2>
+      <div class="wiz-row3">
+        <div><label>Fence type</label><select id="sw_fence_type">
+          ${WIZ_FENCE_TYPES.map(t=>`<option value="${t}" ${s.fence_type===t?'selected':''}>${esc(wizFenceTypeLabel(t))}</option>`).join('')}
+        </select></div>
+        <div><label>Colour / finish</label><input id="sw_color" value="${esc(s.color_or_finish||'')}"></div>
+        <div><label>Height (ft)</label><input id="sw_panel_h" type="number" step="0.5" value="${s.panel_height_ft??6}"></div>
+        <div><label>Panel width (ft)</label><input id="sw_panel_w" type="number" step="0.5" value="${s.panel_width_ft??6}"></div>
+        <div><label>Post spacing (ft)</label>
+          <input id="sw_spacing" type="number" step="0.5" value="${s.post_spacing_ft??6}" ${locked?'disabled':''}></div>
+        <div><label>Bags of concrete / post</label><input id="sw_bags" type="number" step="0.5" value="${s.concrete_bags_per_post??1}"></div>
+      </div>
+      ${locked ? '<p class="sub" style="margin-top:4px">Post spacing follows panel width on this fence type.</p>' : ''}
+      <div id="sw_type_block" style="margin-top:10px">${fenceTypeBlockHtml(s,'sw')}</div>
+    </div>
+    <button class="btn" type="button" id="sw_save_default">Save as my standard build</button>
+    <p class="sub" style="margin-top:8px">Sets this as your default template for ${esc(wizFenceTypeLabel(s.fence_type))} --
+      the New client wizard offers it first for every fence of this type. Next also saves it,
+      so pressing this button first is a way to see it confirmed, not a step you can skip past.</p>`;
+}
+
+function swSyncSpecFromDom(){
+  const s = sw.spec;
+  s.fence_type = $('sw_fence_type').value;
+  s.color_or_finish = $('sw_color').value;
+  s.panel_height_ft = num($('sw_panel_h').value);
+  s.panel_width_ft = num($('sw_panel_w').value);
+  s.post_spacing_ft = wizLockedSpacing(s.fence_type) ? s.panel_width_ft : num($('sw_spacing').value);
+  s.concrete_bags_per_post = num($('sw_bags').value);
+  readTypeBlockFields(s, 'sw');
+}
+
+function swWireBuild(){
+  document.querySelectorAll('[data-sw-tpl]').forEach(b =>
+    b.addEventListener('click', () => swPickTemplate(b.dataset.swTpl)));
+  $('sw_fence_type').addEventListener('change', () => { swSyncSpecFromDom(); swRenderStep(); });
+  $('sw_panel_w').addEventListener('input', () => {
+    if(wizLockedSpacing($('sw_fence_type').value)) $('sw_spacing').value = $('sw_panel_w').value;
+  });
+  $('sw_save_default').addEventListener('click', async () => {
+    const ok = await swSaveBuild();
+    if(ok) msg('swMsg', 'Saved as your standard build.', 'ok');
+  });
+}
+
+/** Saves the current spec as the company's default template for its fence
+    type -- editing the template step 3 arrived on if it is already one of
+    "Your templates", cloning it if step 3 arrived on a shipped row (a
+    shipped row has no update policy at all, the same "mustClone" situation
+    wizSaveBuild handles in the New client wizard), or creating one from
+    scratch if nothing was ever picked. Doubles as the Next handler for this
+    step and the explicit "Save as my standard build" button -- both must
+    leave the same row behind, so there is only one function that writes it. */
+async function swSaveBuild(){
+  swSyncSpecFromDom();
+  const t = buildTemplates.find(x=>x.sync_id===sw.templateSyncId);
+  const mine = t && !t.is_shipped;
+  const payload = Object.assign({}, sw.spec, {
+    name: mine ? t.name : (wizFenceTypeLabel(sw.spec.fence_type) + ' — mine'),
+    description: mine ? t.description : '',
+    is_default: true,
+    sync_id: mine ? t.sync_id : undefined,
+    derived_from_sync_id: mine ? (t.derived_from_sync_id || null) : (t ? t.sync_id : null),
+  });
+  const { data, error } = await db.rpc('save_build_template', { p: payload });
+  if(error){ msg('swMsg', 'Could not save your standard build: ' + error.message, 'err'); return false; }
+  sw.templateSyncId = data;
+  await db.rpc('save_company_settings', { new_settings: { default_build_template: data } });
+  await reloadTemplates();
+  return true;
+}
+
+/* ---------- step: supplier prices ---------- */
+
+function swSupplierHtml(){
+  return `<div class="panel"><h2>Supplier prices</h2>
+    <p class="sub" style="margin-top:0">What you actually pay for panels, posts, rails and
+      concrete -- every quote is priced off this list, never off a guess.</p>
+    <p style="margin:10px 0"><strong>${catalog.length}</strong> item${catalog.length===1?'':'s'} in your catalog right now.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" type="button" id="sw_import_prices">Import price list</button>
+      <button class="btn btn-sm btn-grey" type="button" id="sw_skip_supplier">Skip for now</button>
+    </div>
+    <p class="sub" style="margin-top:10px">Importing opens the same tool as Settings, on top of
+      this one -- close it when it is done and this count updates.</p>
+  </div>`;
+}
+function swWireSupplier(){
+  $('sw_import_prices').addEventListener('click', () => { $('impOverlay').classList.add('on'); });
+  $('sw_skip_supplier').addEventListener('click', swNext);
+}
+
+/** Called wherever the price-list import can finish while this wizard is
+    open behind it (a successful import, or the overlay just being closed) --
+    a no-op unless the wizard is actually sitting on this step, so the
+    catalog count on screen is never left saying what it said before. */
+function maybeRefreshSetupSupplierStep(){
+  if(sw && swCurrentKey()==='supplier') swRenderStep();
+}
+
+/* ---------- step: pricing tiers ---------- */
+
+function swTiersHtml(){
+  return `<div class="panel"><h2>Pricing tiers</h2>
+    <p class="sub" style="margin-top:0">Different rates for different kinds of work. Optional --
+      Next moves on with none at all if that is how you price.</p>
+    <div style="display:flex;gap:8px;margin:6px 0">
+      <button class="btn btn-sm" type="button" id="sw_tier_add">Add a tier</button>
+      ${!tiers.length ? '<button class="btn btn-sm btn-grey" type="button" id="sw_tier_starter">Add starter tiers</button>' : ''}
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Name</th><th>Labor $/ft</th><th>Markup %</th><th>Discount %</th><th></th></tr></thead>
+      <tbody id="sw_tierRows"></tbody></table></div>
+    <div class="empty" id="sw_tierEmpty" style="display:${tiers.length?'none':'block'}">No pricing tiers yet.</div>
+  </div>`;
+}
+function swWireTiers(){
+  $('sw_tier_add').addEventListener('click', () => openTierDialog(null));
+  const starter = $('sw_tier_starter');
+  if(starter) starter.addEventListener('click', addStarterTiers);
+}
+
+/* ---------- step: crew ---------- */
+
+function swCrewHtml(){
+  const rows = employees.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.role||'')}</td>
+    <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':''}</td></tr>`).join('');
+  return `<div class="panel"><h2>Crew</h2>
+    <p class="sub" style="margin-top:0">The people who work for you, so hours and job assignments have a name on them.</p>
+    <button class="btn btn-sm" type="button" id="sw_add_crew">Add a crew member</button>
+    <div class="scroll" style="margin-top:10px"><table>
+      <thead><tr><th>Name</th><th>Role</th><th>Rate</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="3" class="empty">Nobody added yet.</td></tr>'}</tbody></table></div>
+  </div>`;
+}
+function swWireCrew(){
+  $('sw_add_crew').addEventListener('click', () => showEmp(null));
+}
+
+/* ---------- step: done ---------- */
+
+async function swDoneHtml(){
+  const sp = await db.rpc('my_setup_progress');
+  setupSteps = sp.error ? [] : (sp.data || []);
+  renderSetup();
+  const rows = setupSteps.map(st => `
+    <div class="setup-row">
+      <span class="setup-mark ${st.done?'setup-done':'setup-todo'}">${st.done?'✓':''}</span>
+      <span><span class="setup-what">${esc(st.label)}</span>${st.essential?'':' <span style="font-size:12px;color:var(--muted)">— optional</span>'}
+        <div class="setup-why">${esc(st.detail)}</div></span>
+    </div>`).join('');
+  return `<div class="panel"><h2>You're set up</h2>
+      ${rows || '<p class="sub">Nothing left to check.</p>'}
+    </div>
+    <div class="panel">
+      <button class="btn" type="button" id="sw_first_client">Create your first client</button>
+      <button class="btn btn-grey" type="button" id="sw_done_close" style="margin-left:8px">Close</button>
+    </div>`;
+}
+function swWireDone(){
+  $('sw_first_client').addEventListener('click', () => { closeSetupWizard(); openWizard(null); });
+  $('sw_done_close').addEventListener('click', closeSetupWizard);
+}
+
+$('runSetupAgain').addEventListener('click', openSetupWizard);
+$('swClose').addEventListener('click', closeSetupWizard);
+$('swOverlay').addEventListener('click', e => { if(e.target.id==='swOverlay') closeSetupWizard(); });
+$('swBack').addEventListener('click', swBack);
+$('swNext').addEventListener('click', swNext);
+$('tierAdd').addEventListener('click', () => openTierDialog(null));
+$('tierAddStarter').addEventListener('click', addStarterTiers);
+$('tierDialogClose').addEventListener('click', () => $('tierOverlay').classList.remove('on'));
+$('tierOverlay').addEventListener('click', e => { if(e.target.id==='tierOverlay') $('tierOverlay').classList.remove('on'); });
+$('tierDialogSave').addEventListener('click', saveTierDialog);
+$('tierDialogRetire').addEventListener('click', () => { if(openTier) retireTierRow(openTier.sync_id, openTier.name); });
+$('tplNew').addEventListener('click', () => openTplDialog(null));
+$('tplDialogClose').addEventListener('click', () => $('tplOverlay').classList.remove('on'));
+$('tplOverlay').addEventListener('click', e => { if(e.target.id==='tplOverlay') $('tplOverlay').classList.remove('on'); });
+$('tpl_fence_type').addEventListener('change', () => { tplSyncSpecFromDom(); tplRefreshTypeBlock(); });
+// The spacing field is disabled (not editable) on a locked fence type, but
+// still shows a live number rather than whatever it happened to say when the
+// dialog opened -- the same mirroring wz_panel_w already does in the New
+// client wizard's own build step.
+$('tpl_panel_w').addEventListener('input', () => {
+  if(wizLockedSpacing($('tpl_fence_type').value)) $('tpl_spacing').value = $('tpl_panel_w').value;
+});
+$('tplDialogSave').addEventListener('click', saveTplDialog);
+$('tplDialogRetire').addEventListener('click', () => { if(openTpl) retireTemplate(openTpl.sync_id); });
+
 /* ===================== Customer import ===================================
    The conversion path. A company switching from another product arrives with
    a customer list, and typing it back in by hand is the tax that stops them
@@ -6194,6 +7199,10 @@ async function runImport(){
       +'Open the Catalog tab and correct any that landed in the wrong place before quoting from them.', 'ok');
     impReady=[]; impParsed=null;
     $('impPreviewBox').style.display='none'; $('impText').value='';
+    // The setup wizard's own Supplier prices step, if it is what opened this
+    // overlay, shows a running catalog count -- otherwise it would still say
+    // what it said before the import.
+    maybeRefreshSetupSupplierStep();
     return;
   }
 
@@ -6326,6 +7335,9 @@ async function saveEmp(){
     : await db.from('employees').insert({...patch,company_id:profile.company_id});
   if(res.error) return msg('empMsg',res.error.message,'err');
   $('empOverlay').classList.remove('on'); await loadAll();
+  // Same reason as the import hook above: the setup wizard's Crew step, if
+  // that is what opened this dialog, has its own copy of the crew list.
+  if(sw && swCurrentKey()==='crew') swRenderStep();
 }
 async function deleteEmp(){
   if(!openEmp||!canEdit()) return;
@@ -6342,6 +7354,7 @@ async function deleteEmp(){
     .eq('id',openEmp.id);
   if(error) return msg('empMsg',error.message,'err');
   $('empOverlay').classList.remove('on'); await loadAll();
+  if(sw && swCurrentKey()==='crew') swRenderStep();
 }
 
 /* ---------- settings ---------- */
@@ -6376,6 +7389,28 @@ async function saveSettings(){
   });
   const {error}=await db.rpc('save_company_settings',{new_settings:payload});
   if(error) return msg('setMsg',error.message,'err');
+
+  // The legacy post-spacing/panel-width/panel-height/bags boxes above also
+  // drive the company's default VINYL template now (OFFICE_SETUP_PLAN.md
+  // Phase C, item 3) -- the one thing that actually reads "what a new run
+  // starts as". The loose settings keys above are still written too (just
+  // did, in payload), so a phone that predates templates keeps the defaults
+  // it always had.
+  const fallbackVinyl = buildTemplates.find(t=>t.is_shipped && t.sync_id==='00000000-0000-4000-8000-000000000001');
+  if(fallbackVinyl){
+    const existingDefault = buildTemplates.find(t=>!t.is_shipped && t.is_default && t.fence_type==='VINYL');
+    const vinylPatch = vinylDefaultTemplatePayload(existingDefault, fallbackVinyl,
+      { spacing:$('s_spacing')?.value, pw:$('s_pw')?.value, ph:$('s_ph')?.value, bags:$('s_bags')?.value });
+    if(vinylPatch){
+      const {error:tplErr} = await db.rpc('save_build_template', {p: vinylPatch});
+      if(tplErr){
+        msg('setMsg', 'Settings saved, but your standard Vinyl build did not update: '+tplErr.message, 'err');
+        return;
+      }
+      await reloadTemplates();
+    }
+  }
+
   msg('setMsg','Saved. Phones pick these up on next sign-in or sync.','ok');
   // Setting a labour rate should clear the warning about not having one,
   // now, rather than on the next full page load.
