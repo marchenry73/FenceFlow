@@ -41,6 +41,13 @@ data class CloudJob(
     @SerialName("blocked_reason") val blockedReason: String = "",
     @SerialName("overrun_reason") val overrunReason: String = "",
     @SerialName("grid_extent_ft") val gridExtentFt: Float = 400f,
+    /**
+     * Where the property is, geocoded once by whichever side (office or
+     * phone) opens the satellite tool first. Nullable so "never geocoded" is
+     * a different value from a genuine 0,0 -- there is dry land at 0,0.
+     */
+    @SerialName("site_lat") val siteLat: Double? = null,
+    @SerialName("site_lon") val siteLon: Double? = null,
     @SerialName("locate_ticket_no") val locateTicketNo: String = "",
     @SerialName("locate_called_at") val locateCalledAt: String? = null,
     @SerialName("locate_dig_after") val locateDigAfter: String? = null,
@@ -652,6 +659,8 @@ private fun Job.toCloud(
     blockedReason = blockedReason,
     overrunReason = overrunReason,
     gridExtentFt = gridExtentFt,
+    siteLat = siteLat,
+    siteLon = siteLon,
     locateTicketNo = locateTicketNo,
     locateNotes = locateNotes,
     customerMustClear = customerMustClear,
@@ -749,6 +758,12 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
     blockedReason = blockedReason,
     overrunReason = overrunReason,
     gridExtentFt = gridExtentFt,
+    // Whichever side geocoded it first wins the field, same as any other
+    // shared column -- but never erase a known location with a null one,
+    // since "not yet geocoded on that device" must not un-place a job that
+    // has already been placed.
+    siteLat = siteLat ?: local.siteLat,
+    siteLon = siteLon ?: local.siteLon,
     locateTicketNo = locateTicketNo,
     locateNotes = locateNotes,
     customerMustClear = customerMustClear,
@@ -841,6 +856,8 @@ private fun CloudJob.toLocalJob() = Job(
     blockedReason = blockedReason,
     overrunReason = overrunReason,
     gridExtentFt = gridExtentFt,
+    siteLat = siteLat,
+    siteLon = siteLon,
     locateTicketNo = locateTicketNo,
     locateNotes = locateNotes,
     customerMustClear = customerMustClear,

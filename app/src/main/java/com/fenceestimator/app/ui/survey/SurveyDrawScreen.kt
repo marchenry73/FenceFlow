@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +25,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -66,6 +71,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -84,6 +90,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.cloud.Satellite
+import com.fenceestimator.app.cloud.SatelliteMath
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.SiteMarker
 import com.fenceestimator.app.data.SiteMarkerKind
@@ -103,6 +111,7 @@ import com.fenceestimator.app.ui.theme.SafetyOrange40
 import com.fenceestimator.app.ui.theme.Space
 import com.fenceestimator.app.ui.theme.SteelTeal20
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
@@ -147,6 +156,21 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // Satellite: an alternative background to the no-photo grid, for jobs
+    // where the office would otherwise be the only one who could trace a
+    // fence off aerial imagery. Never offered alongside an uploaded photo --
+    // toggled off automatically below the moment one exists -- because the
+    // office's own calibration rule (20 px/ft) only applies when there is
+    // nothing else to calibrate against.
+    var satelliteOn by rememberSaveable { mutableStateOf(false) }
+    var satelliteError by remember { mutableStateOf<String?>(null) }
+    // Tiles are cached in Satellite's own in-memory LRU (survives navigating
+    // away and back); this map is just which of those this SCREEN has
+    // already asked for, so the same tile is never requested twice from one
+    // sitting at the canvas.
+    val satelliteTiles = remember { mutableStateMapOf<String, Bitmap>() }
+    val online by app.connectivity.online.collectAsState()
     /** A gate the user tapped, held until they confirm taking it off. */
     var pendingGateRemoval by remember(selectedRunId) {
         mutableStateOf<com.fenceestimator.app.geometry.GateMarker?>(null)
@@ -174,6 +198,29 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     val usingGrid = bitmap == null
     LaunchedEffect(usingGrid) {
         if (usingGrid) viewModel.ensureGridCalibration()
+        // A photo appearing (upload, or another device's photo syncing down)
+        // must drop satellite mode -- the toggle to turn it back on
+        // disappears from the UI the same moment usingGrid goes false, but
+        // without this the state itself would linger and a stale set of
+        // tiles could keep drawing underneath the newly-uploaded photo.
+        else satelliteOn = false
+    }
+
+    // Turning satellite on needs the property placed on the map (geocoding
+    // the address once, if this job has never been placed before -- mirrors
+    // the office's openSatellite()) and needs the drawing pinned to exactly
+    // 20 px/ft before anything gets traced on it, so a point placed before
+    // the geocode lands doesn't end up measured against the wrong scale.
+    LaunchedEffect(satelliteOn) {
+        if (!satelliteOn) return@LaunchedEffect
+        satelliteError = null
+        when (val result = viewModel.ensureSiteLocation()) {
+            is SurveyViewModel.SiteLocationResult.Ready -> viewModel.ensureSatelliteCalibration()
+            is SurveyViewModel.SiteLocationResult.Failed -> {
+                satelliteError = result.message
+                satelliteOn = false
+            }
+        }
     }
 
     Scaffold(
@@ -210,18 +257,59 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(if (usingGrid) R.string.misc_survey_drawing_on_grid else R.string.misc_survey_drawing_on_photo),
+                        stringResource(
+                            when {
+                                usingGrid && satelliteOn -> R.string.misc_survey_drawing_on_satellite
+                                usingGrid -> R.string.misc_survey_drawing_on_grid
+                                else -> R.string.misc_survey_drawing_on_photo
+                            }
+                        ),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedButton(onClick = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = Alignment.CenterVertically) {
+                        // Only offered instead of the grid, never alongside an
+                        // uploaded photo -- the office's calibration rule is
+                        // "only when there is no survey photo", and offering
+                        // this button when a photo already exists would invite
+                        // exactly the case that rule excludes.
                         if (usingGrid) {
-                            imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        } else {
-                            viewModel.clearSurveyImage()
+                            FilterChip(
+                                selected = satelliteOn,
+                                onClick = { satelliteOn = !satelliteOn },
+                                label = { Text(stringResource(R.string.sat_toggle_label)) }
+                            )
                         }
-                    }) {
-                        Text(stringResource(if (usingGrid) R.string.survey_upload_photo else R.string.survey_use_grid))
+                        OutlinedButton(onClick = {
+                            if (usingGrid) {
+                                imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            } else {
+                                viewModel.clearSurveyImage()
+                            }
+                        }) {
+                            Text(stringResource(if (usingGrid) R.string.survey_upload_photo else R.string.survey_use_grid))
+                        }
                     }
+                }
+                satelliteError?.let { message ->
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = Space.sm)
+                    )
+                }
+                // Offline with nothing cached yet: the grid still draws (it
+                // always does, as the base layer -- see drawSurveyBackground)
+                // so tracing is never actually blocked, but silently showing
+                // the grid instead of the imagery someone asked for would look
+                // like the toggle did nothing.
+                if (satelliteOn && !online) {
+                    Text(
+                        stringResource(R.string.sat_offline_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Space.sm)
+                    )
                 }
 
                 if (usingGrid) {
@@ -318,6 +406,20 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 val points = draftPoints ?: committedPoints
                 val pxPerFt = job2.calibrationPixelsPerFoot
 
+                // The magnifier loupe (see MagnifierLoupe below): where to draw
+                // it (screen space), what ground it should be centered on
+                // (content space), and the length of whichever segment(s) touch
+                // the point currently being dragged -- set from inside the
+                // Adjust-mode drag gesture further down, read here so the
+                // overlay outside the Canvas can render it. Precision over
+                // imagery is the whole point of this: a finger covers the exact
+                // pixel it is placing, and satellite ground is the one
+                // background with nothing else (a doorway, a fence post
+                // already in the photo) to judge the placement against.
+                var loupeScreenPos by remember(activeRun.id) { mutableStateOf<Offset?>(null) }
+                var loupeContentPos by remember(activeRun.id) { mutableStateOf<FencePoint?>(null) }
+                var loupeSegmentFeet by remember(activeRun.id) { mutableStateOf<List<Float>>(emptyList()) }
+
                 // Running total ABOVE the drawing area, not on top of it. Put on
                 // the canvas it covered part of the very surface you tap to draw,
                 // and swallowed those taps.
@@ -364,6 +466,50 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 val otherRuns = runs.filter { it.id != activeRun.id }
                 val canvasContentSize = bitmap?.let { it.width to it.height }
                     ?: (SurveyViewModel.GRID_CANVAS_SIZE to SurveyViewModel.GRID_CANVAS_SIZE)
+
+                // Fixes the imagery to the app's own survey-pixel canvas: the
+                // content-space center is the job's site_lat/site_lon, at a
+                // zoom pinned to 20 (SATELLITE_TILE_Z) so it always agrees
+                // with the 20 px/ft calibration ensureSatelliteCalibration()
+                // sets. Recomputed only when the coordinates actually change,
+                // never when the user merely pans or zooms the SCREEN view --
+                // that is viewZoom/viewPan/FitTransform's job, layered on top.
+                val satelliteAnchor = remember(job2.siteLat, job2.siteLon) {
+                    val lat = job2.siteLat; val lon = job2.siteLon
+                    if (lat != null && lon != null) SatelliteAnchor(lat, lon) else null
+                }
+
+                // Which imagery tiles the current view needs, fetched (or
+                // pulled from Satellite's own cache) whenever the view moves
+                // far enough to matter. Bucketing viewZoom/viewPan into coarse
+                // steps keeps this from re-running on every single frame of a
+                // pinch or drag -- tile requests are already deduplicated
+                // (Satellite.fetchTile single-flights by tile key), but there
+                // is no reason to even recompute the visible range that often.
+                LaunchedEffect(
+                    satelliteOn, satelliteAnchor, canvasSize, online,
+                    (viewZoom * 10).toInt(), (viewPan.x / 24f).toInt(), (viewPan.y / 24f).toInt()
+                ) {
+                    val anchor = satelliteAnchor
+                    if (!satelliteOn || anchor == null || !online ||
+                        canvasSize.width == 0 || canvasSize.height == 0
+                    ) return@LaunchedEffect
+                    val transform = viewTransform(
+                        canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan
+                    )
+                    visibleSatelliteTiles(anchor, transform, canvasSize).forEach { (tx, ty) ->
+                        val key = satelliteTileKey(tx, ty)
+                        if (satelliteTiles.containsKey(key)) return@forEach
+                        val cached = Satellite.cachedTile(SATELLITE_TILE_Z, tx, ty)
+                        if (cached != null) {
+                            satelliteTiles[key] = cached
+                        } else {
+                            launch {
+                                Satellite.fetchTile(SATELLITE_TILE_Z, tx, ty)?.let { satelliteTiles[key] = it }
+                            }
+                        }
+                    }
+                }
 
                 Box(
                     modifier = Modifier
@@ -502,6 +648,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                                 draggingMarker = null
                                                 lastImagePoint = null
                                                 draftPoints = null
+                                                loupeScreenPos = null
+                                                loupeContentPos = null
+                                                loupeSegmentFeet = emptyList()
                                             },
                                             onDragCancel = {
                                                 draggingIndex = null
@@ -509,6 +658,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                                 draggingMarker = null
                                                 lastImagePoint = null
                                                 draftPoints = null
+                                                loupeScreenPos = null
+                                                loupeContentPos = null
+                                                loupeSegmentFeet = emptyList()
                                             }
                                         ) { change, _ ->
                                             if (draggingIndex == null && draggingGate == null && draggingMarker == null) {
@@ -517,9 +669,32 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                             val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan)
                                             val imgPoint = transform.toImage(change.position)
                                             lastImagePoint = imgPoint
+                                            // Precision aid: a magnified, crosshair-marked
+                                            // preview above the finger (MagnifierLoupe,
+                                            // rendered outside this Canvas) plus the length
+                                            // of whichever segment(s) touch the point being
+                                            // moved, live, in feet -- so a corner can be
+                                            // placed exactly rather than guessed at, which
+                                            // matters most on ground with nothing else in
+                                            // the picture to judge it against.
+                                            loupeScreenPos = change.position
+                                            loupeContentPos = imgPoint
                                             draggingIndex?.let { idx ->
                                                 draftPoints = committedPoints.toMutableList().also { it[idx] = imgPoint }
-                                            }
+                                                val feetPerPx = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
+                                                val neighbors = mutableListOf<FencePoint>()
+                                                if (idx > 0) neighbors += committedPoints[idx - 1]
+                                                if (idx < committedPoints.size - 1) neighbors += committedPoints[idx + 1]
+                                                if (activeRun.closedLoop && committedPoints.size > 2) {
+                                                    if (idx == 0) neighbors += committedPoints.last()
+                                                    if (idx == committedPoints.lastIndex) neighbors += committedPoints.first()
+                                                }
+                                                loupeSegmentFeet = neighbors.map { n ->
+                                                    kotlin.math.hypot(
+                                                        (imgPoint.x - n.x).toDouble(), (imgPoint.y - n.y).toDouble()
+                                                    ).toFloat() / feetPerPx
+                                                }
+                                            } ?: run { loupeSegmentFeet = emptyList() }
                                         }
                                     }
                                     else -> detectTapGestures { tapOffset ->
@@ -553,15 +728,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     ) {
                         val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, IntSize(size.width.toInt(), size.height.toInt()), viewZoom, viewPan)
 
-                        if (bmp != null) {
-                            drawImage(
-                                image = bmp.asImageBitmap(),
-                                dstOffset = androidx.compose.ui.unit.IntOffset(transform.offsetX.toInt(), transform.offsetY.toInt()),
-                                dstSize = IntSize((bmp.width * transform.scale).toInt(), (bmp.height * transform.scale).toInt())
-                            )
-                        } else {
-                            drawGrid(transform, canvasContentSize.first, canvasContentSize.second, job2.gridFeetPerSquare)
-                        }
+                        drawSurveyBackground(
+                            bmp, transform, canvasContentSize.first, canvasContentSize.second,
+                            job2.gridFeetPerSquare, satelliteOn, satelliteAnchor, satelliteTiles
+                        )
 
                         otherRuns.forEach { other ->
                             val otherPoints = FenceCodec.decodePoints(other.pointsEncoded)
@@ -788,6 +958,39 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         }
                     }
 
+                    // The magnifier loupe: shown only while an Adjust-mode
+                    // drag is actually moving a vertex, gate or marker (see
+                    // where loupeScreenPos is set/cleared above), positioned
+                    // above the finger so the finger itself never covers the
+                    // exact pixel being placed.
+                    loupeScreenPos?.let { pos ->
+                        val density = LocalDensity.current
+                        val loupeSizePx = with(density) { LOUPE_SIZE_DP.toPx() }
+                        Box(
+                            modifier = Modifier.offset {
+                                androidx.compose.ui.unit.IntOffset(
+                                    (pos.x - loupeSizePx / 2f).toInt(),
+                                    (pos.y - loupeSizePx - LOUPE_VERTICAL_GAP_PX).toInt()
+                                )
+                            }
+                        ) {
+                            MagnifierLoupe(
+                                centerContent = loupeContentPos ?: FencePoint(0f, 0f),
+                                bmp = bmp,
+                                contentW = canvasContentSize.first,
+                                contentH = canvasContentSize.second,
+                                gridFeetPerSquare = job2.gridFeetPerSquare,
+                                satelliteOn = satelliteOn,
+                                satelliteAnchor = satelliteAnchor,
+                                satelliteTiles = satelliteTiles,
+                                baseScale = viewTransform(
+                                    canvasContentSize.first, canvasContentSize.second,
+                                    canvasSize, viewZoom, viewPan
+                                ).scale,
+                                segmentFeet = loupeSegmentFeet
+                            )
+                        }
+                    }
                 }
 
                 val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
@@ -1322,6 +1525,232 @@ private fun NudgePad(
             }
             IconButton(onClick = { onNudge(0f, 1f) }) {
                 Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.misc_nudge_down))
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Satellite background
+//
+// The office can trace a fence over satellite imagery on the dashboard
+// (website/dashboard.html, openSatellite/satWorld/satUnworld/satFeetPerPx);
+// this section is the phone's equivalent background renderer. It draws INTO
+// the exact same survey-pixel content space every other background already
+// uses (bitmap photo, or the no-photo grid) so every gesture, every drawn
+// point, gate and marker, and every other run's faded line above keeps
+// working completely unchanged -- satellite only ever changes what gets
+// painted behind them.
+// ---------------------------------------------------------------------------
+
+/**
+ * The zoom satellite imagery is always fetched and placed at. Fixed, not the
+ * same thing as viewZoom (the on-screen pinch/+-/- zoom, which scales
+ * FitTransform and is free to change at any time): if this changed too,
+ * every already-placed point would need to be re-projected or it would
+ * drift relative to the ground under it. 20 is also the office's own
+ * starting zoom (SAT.z = 20 in openSatellite()) and the one satFeetPerPx
+ * needs to agree with SurveyViewModel.PIXELS_PER_FOOT_GRID (20) for the
+ * satellite-to-survey-pixel scale to come out to a clean 1.0 ratio budget --
+ * see SatelliteAnchor.
+ */
+private const val SATELLITE_TILE_Z = 20
+
+/** A hard ceiling on tiles fetched for one view -- an extreme zoom-out on a
+ *  slow connection must not queue hundreds of downloads at once. */
+private const val MAX_SATELLITE_TILES = 64
+
+private fun satelliteTileKey(x: Int, y: Int) = "$SATELLITE_TILE_Z/$x/$y"
+
+/**
+ * Fixes the satellite imagery to the app's own survey-pixel canvas.
+ *
+ * The content-space center (GRID_CANVAS_SIZE/2, GRID_CANVAS_SIZE/2) is
+ * pinned to the job's own site latitude/longitude; from there, converting
+ * between a Web Mercator pixel (what SatelliteMath and the tile grid speak)
+ * and a survey pixel (what every point, gate and marker on this screen is
+ * stored in) is one scale factor: how many survey pixels (20 per foot) one
+ * Web Mercator pixel covers at this latitude and zoom. That is exactly
+ * SatelliteMath.feetPerPx(lat, z) * PIXELS_PER_FOOT_GRID -- the same
+ * arithmetic satPointsToRunSpace in website/dashboard.html does when it
+ * converts a traced lat/lon point into the run's own pixel space.
+ */
+private class SatelliteAnchor(lat: Double, lon: Double) {
+    private val centerWorld = SatelliteMath.world(lat, lon, SATELLITE_TILE_Z)
+    private val surveyPxPerWorldPx =
+        SatelliteMath.feetPerPx(lat, SATELLITE_TILE_Z) * SurveyViewModel.PIXELS_PER_FOOT_GRID
+    private val centerContent = SurveyViewModel.GRID_CANVAS_SIZE / 2.0
+
+    /** A Web Mercator pixel coordinate (e.g. a tile corner) -> survey-pixel content space. */
+    fun worldToContent(wx: Double, wy: Double): Offset = Offset(
+        (centerContent + (wx - centerWorld.x) * surveyPxPerWorldPx).toFloat(),
+        (centerContent + (wy - centerWorld.y) * surveyPxPerWorldPx).toFloat()
+    )
+
+    /** The inverse of [worldToContent]. Returns a plain Pair -- Compose's Offset is Float-only and this needs Double precision. */
+    fun contentToWorld(cx: Double, cy: Double): Pair<Double, Double> = Pair(
+        centerWorld.x + (cx - centerContent) / surveyPxPerWorldPx,
+        centerWorld.y + (cy - centerContent) / surveyPxPerWorldPx
+    )
+
+    /** Side length, in survey-space pixels, of one 256x256 imagery tile. Always square: the scale above is isotropic. */
+    fun tileContentSpan(): Double = 256.0 * surveyPxPerWorldPx
+}
+
+/** Which z=20 imagery tiles are needed to cover what [transform] currently shows, clamped to the valid tile grid. */
+private fun visibleSatelliteTiles(anchor: SatelliteAnchor, transform: FitTransform, canvasSize: IntSize): List<Pair<Int, Int>> {
+    if (canvasSize.width <= 0 || canvasSize.height <= 0) return emptyList()
+    val topLeft = transform.toImage(Offset(0f, 0f))
+    val bottomRight = transform.toImage(Offset(canvasSize.width.toFloat(), canvasSize.height.toFloat()))
+    val (wx0, wy0) = anchor.contentToWorld(topLeft.x.toDouble(), topLeft.y.toDouble())
+    val (wx1, wy1) = anchor.contentToWorld(bottomRight.x.toDouble(), bottomRight.y.toDouble())
+    val maxIndex = (1 shl SATELLITE_TILE_Z) - 1
+    val tx0 = Math.floor(min(wx0, wx1) / 256.0).toInt().coerceIn(0, maxIndex)
+    val tx1 = Math.floor(max(wx0, wx1) / 256.0).toInt().coerceIn(0, maxIndex)
+    val ty0 = Math.floor(min(wy0, wy1) / 256.0).toInt().coerceIn(0, maxIndex)
+    val ty1 = Math.floor(max(wy0, wy1) / 256.0).toInt().coerceIn(0, maxIndex)
+    val tiles = mutableListOf<Pair<Int, Int>>()
+    for (tx in tx0..tx1) {
+        for (ty in ty0..ty1) {
+            tiles += tx to ty
+            if (tiles.size >= MAX_SATELLITE_TILES) return tiles
+        }
+    }
+    return tiles
+}
+
+/**
+ * The one place any background (photo, no-photo grid, or satellite) gets
+ * drawn -- used by both the main canvas and [MagnifierLoupe], so the loupe
+ * is provably showing the same picture at a tighter zoom rather than a
+ * separate rendering of anything.
+ *
+ * The grid is always drawn first when there is no photo, satellite tiles
+ * layered on top of it rather than instead of it: a tile that hasn't loaded
+ * yet (or a phone with no signal at all -- satelliteTiles is simply never
+ * populated when offline, see the fetch effect in SurveyDrawScreen) leaves
+ * the grid showing through instead of a blank void, which is what "offline
+ * shows the grid as today" means in practice.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSurveyBackground(
+    bmp: Bitmap?,
+    transform: FitTransform,
+    contentW: Int,
+    contentH: Int,
+    gridFeetPerSquare: Float,
+    satelliteOn: Boolean,
+    satelliteAnchor: SatelliteAnchor?,
+    satelliteTiles: Map<String, Bitmap>
+) {
+    if (bmp != null) {
+        drawImage(
+            image = bmp.asImageBitmap(),
+            dstOffset = androidx.compose.ui.unit.IntOffset(transform.offsetX.toInt(), transform.offsetY.toInt()),
+            dstSize = IntSize((bmp.width * transform.scale).toInt(), (bmp.height * transform.scale).toInt())
+        )
+        return
+    }
+    drawGrid(transform, contentW, contentH, gridFeetPerSquare)
+    if (satelliteOn && satelliteAnchor != null) {
+        val viewport = IntSize(size.width.toInt(), size.height.toInt())
+        visibleSatelliteTiles(satelliteAnchor, transform, viewport).forEach { (tx, ty) ->
+            val tileBmp = satelliteTiles[satelliteTileKey(tx, ty)] ?: return@forEach
+            val topLeftContent = satelliteAnchor.worldToContent(tx * 256.0, ty * 256.0)
+            val topLeftScreen = transform.toCanvas(FencePoint(topLeftContent.x, topLeftContent.y))
+            val span = (satelliteAnchor.tileContentSpan() * transform.scale).toInt().coerceAtLeast(1)
+            drawImage(
+                image = tileBmp.asImageBitmap(),
+                dstOffset = androidx.compose.ui.unit.IntOffset(topLeftScreen.x.toInt(), topLeftScreen.y.toInt()),
+                dstSize = IntSize(span, span)
+            )
+        }
+    }
+}
+
+/** How large the loupe circle is drawn on screen. */
+private val LOUPE_SIZE_DP = 130.dp
+
+/** How much closer than the current view the loupe zooms in. */
+private const val LOUPE_ZOOM_FACTOR = 3f
+
+/** Gap, in raw pixels, between the top of the loupe and the finger it hovers above. */
+private const val LOUPE_VERTICAL_GAP_PX = 28f
+
+/**
+ * A magnified, crosshair-marked preview of the ground directly under a
+ * dragging finger.
+ *
+ * A fingertip covers the exact pixel it is placing, which is guesswork on
+ * any background but is worst on satellite imagery -- a photo or the grid
+ * both carry other cues nearby (a printed dimension, a gridline count), a
+ * satellite tile often has nothing but open ground. Positioned above the
+ * touch point (see where this is placed in SurveyDrawScreen) so the finger
+ * never covers what it is showing, and it is not a separate rendering of
+ * anything -- [drawSurveyBackground] is the same function the main canvas
+ * uses, just handed a tighter, differently-centered transform, which is what
+ * makes it trustworthy: what lines up here is what lines up on the real
+ * drawing.
+ */
+@Composable
+private fun MagnifierLoupe(
+    centerContent: FencePoint,
+    bmp: Bitmap?,
+    contentW: Int,
+    contentH: Int,
+    gridFeetPerSquare: Float,
+    satelliteOn: Boolean,
+    satelliteAnchor: SatelliteAnchor?,
+    satelliteTiles: Map<String, Bitmap>,
+    baseScale: Float,
+    segmentFeet: List<Float>
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(LOUPE_SIZE_DP)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Color(0xFFF6F4EF))
+                .border(2.dp, MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape)
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                val scale = baseScale * LOUPE_ZOOM_FACTOR
+                val localTransform = FitTransform(
+                    scale = scale,
+                    offsetX = size.width / 2f - centerContent.x * scale,
+                    offsetY = size.height / 2f - centerContent.y * scale
+                )
+                drawSurveyBackground(
+                    bmp, localTransform, contentW, contentH, gridFeetPerSquare,
+                    satelliteOn, satelliteAnchor, satelliteTiles
+                )
+                // A crosshair at the loupe's exact centre -- always the point
+                // being dragged, by construction of localTransform above.
+                val c = Offset(size.width / 2f, size.height / 2f)
+                drawLine(SafetyOrange40, Offset(c.x - 16f, c.y), Offset(c.x + 16f, c.y), strokeWidth = 2.5f)
+                drawLine(SafetyOrange40, Offset(c.x, c.y - 16f), Offset(c.x, c.y + 16f), strokeWidth = 2.5f)
+                drawCircle(Color.White, radius = 4f, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
+            }
+        }
+        // Live length of whichever segment(s) touch the point being dragged --
+        // a corner shared by two segments shows both, since moving it changes
+        // both. Empty (nothing shown) while dragging a gate or a marker,
+        // neither of which is part of the fence line.
+        if (segmentFeet.isNotEmpty()) {
+            // Resolved once here (a @Composable context) rather than inside
+            // the joinToString transform below, which runs as a plain
+            // non-Composable lambda and cannot call stringResource itself.
+            val feetTemplate = stringResource(R.string.misc_feet_value)
+            Surface(
+                tonalElevation = 4.dp,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.sm),
+                modifier = Modifier.padding(top = Space.xs)
+            ) {
+                Text(
+                    segmentFeet.joinToString(" / ") { String.format(feetTemplate, String.format("%.1f", it)) },
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = Space.sm, vertical = 2.dp)
+                )
             }
         }
     }

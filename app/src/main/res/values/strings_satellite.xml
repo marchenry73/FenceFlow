@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- New strings introduced by: satellite tracing on the survey drawing
+         screen, and the crew-invite outcome dialogs on the Employees screen.
+         Kept out of strings.xml (which values-es/values-fr also carry, and
+         a StringResourceSanityTest checks all three stay in lockstep) so
+         this feature never has to touch either translation, and never has
+         to touch a file every other screen also edits. -->
+
+    <!-- Survey drawing screen: label shown above the canvas while satellite
+         imagery is the background, alongside the existing "on grid" / "on
+         photo" labels this sits next to. -->
+    <string name="misc_survey_drawing_on_satellite">Drawing on satellite imagery</string>
+
+    <!-- The toggle that swaps the no-photo grid for satellite imagery. Only
+         offered when there is no survey photo (see the office's calibration
+         rule: satellite sets 20 px/ft only when there is nothing else to
+         calibrate against). -->
+    <string name="sat_toggle_label">Satellite</string>
+
+    <!-- Shown while satellite is on but the phone has no connection. The
+         grid still draws underneath (it always does, as the base layer) so
+         tracing is never actually blocked; this just says why the imagery
+         itself isn't there. -->
+    <string name="sat_offline_note">No signal right now, so the grid is showing instead of the photo. Tracing still works; imagery fills back in once the phone reconnects.</string>
+
+    <!-- Employees screen: outcome of inviting a newly-added crew member by
+         email (invite-crew). -->
+    <string name="emp_invite_sent_title">Invite emailed</string>
+    <string name="emp_invite_emailed_body">They\'ll get an email with a link to join your team on FenceFlow.</string>
+
+    <!-- No mail path was configured on the server side; invite-crew handed
+         back a team code to pass along by hand instead. -->
+    <string name="emp_invite_needs_code_title">Couldn\'t email it -- here\'s the code instead</string>
+    <string name="emp_invite_needs_code_fallback">Share this code with them so they can join your team.</string>
+    <string name="emp_team_code_label">Team code</string>
+    <string name="emp_team_code_copied">Copied.</string>
+
+    <string name="emp_invite_failed_title">Couldn\'t send the invite</string>
+</resources>

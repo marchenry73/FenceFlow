@@ -17,6 +17,36 @@ class EmployeesViewModel(private val repository: Repository) : ViewModel() {
         viewModelScope.launch { repository.saveEmployee(employee) }
     }
 
+    /**
+     * Saves a brand-new crew member and, if they were given an email address
+     * and the phone is online, asks invite-crew to email them straight away
+     * -- "crew added from the phone should get the invite email", the same
+     * as adding someone from the office dashboard already does.
+     *
+     * Deliberately only for a NEW employee (never called from the edit
+     * dialog on an existing one): re-running this every time somebody edits
+     * a phone number or hourly rate would re-send the invitation on every
+     * save, which is spam, not a feature.
+     *
+     * @param online whether the phone currently has a usable connection
+     *   ([com.fenceestimator.app.cloud.ConnectivityWatcher]) -- checked by
+     *   the caller so this class doesn't need an Android Context to ask
+     *   itself.
+     * @param onOutcome null when no invite was attempted at all (no email
+     *   given, or offline); otherwise what invite-crew said.
+     */
+    fun addCrewMember(employee: Employee, online: Boolean, onOutcome: (InviteCrewApi.Result?) -> Unit) {
+        viewModelScope.launch {
+            repository.saveEmployee(employee)
+            val email = employee.email.trim()
+            if (email.isNotBlank() && online) {
+                onOutcome(InviteCrewApi.invite(employee.name.trim(), email, employee.role.trim()))
+            } else {
+                onOutcome(null)
+            }
+        }
+    }
+
     fun delete(employee: Employee) {
         viewModelScope.launch { repository.deleteEmployee(employee) }
     }
