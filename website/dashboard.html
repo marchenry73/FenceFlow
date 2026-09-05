@@ -4458,7 +4458,7 @@ async function saveJob(){
   const {error}=await db.from('jobs').update(patch).eq('id',openJob.id);
   if(error) return msg('jobMsg',error.message,'err');
   msg('jobMsg', repriced
-    ? 'Saved. The quote total is re-priced by the phone that holds this job's estimate '
+    ? "Saved. The quote total is re-priced by the phone that holds this job's estimate "
       + 'on its next sync, and the figure under Pricing updates once it has.'
     : 'Saved. Phones pick this up on their next sync.','ok');
   // Repainted from the row that was just written.
