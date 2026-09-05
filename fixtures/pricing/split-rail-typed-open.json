@@ -1,0 +1,422 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "split-rail-typed-open",
+  "note": "Split rail, 2 rails per bay at 8 ft spacing, one corner; no post caps for split rail.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 0.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000016-0000-4000-8000-000000000001",
+        "label": "split rail",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "points_encoded": "",
+        "gates_encoded": "",
+        "closed_loop": false,
+        "manual_linear_feet": 160.0,
+        "manual_corner_count": 1,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 6.0,
+        "post_spacing_ft": 8.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "670a87e1-0267-3002-8bd9-dc40bf2759e7",
+        "name": "8' Round Wood Split Rail",
+        "category": "RAIL",
+        "role": "WOOD_RAIL",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "7a0b22d1-d49c-3085-98d5-4c3454b2f4fc",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "d20d754e-4e14-34c6-bdb7-45e7f222aca7",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "END_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "2891ca8b-1d95-3c35-a2a0-87578cff4bf7",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "CORNER_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "924dc8b2-01c1-3d01-a331-0e296df6a59e",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "GATE_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "793c8768-f6cb-3ceb-b704-4a74793aa3f4",
+        "name": "Split-Rail Gate Frame Kit, 10'W",
+        "category": "GATE",
+        "role": "GATE_FRAME_KIT",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 95.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 10.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "f05ecc2e-44f8-33e2-a741-e0e0d1994d34",
+        "name": "Split-Rail Gate Hinge Set",
+        "category": "HARDWARE",
+        "role": "HINGE_SET",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "SET",
+        "unit_price": 12.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "15268df8-ac93-39a3-8c3f-5618318b5188",
+        "name": "Split-Rail Gate Latch",
+        "category": "HARDWARE",
+        "role": "LATCH",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 7.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 160.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 160.0,
+    "runs": [
+      {
+        "run_sync_id": "00000016-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 0,
+        "gross_feet": 160.0,
+        "gate_feet": 0.0,
+        "net_feet": 160.0,
+        "geometry": {
+          "corner_count": 1,
+          "end_count": 2,
+          "line_vertex_count": 0,
+          "segments": [],
+          "vertices": []
+        },
+        "posts": {
+          "line": 18,
+          "corner": 1,
+          "end": 2,
+          "gate": 0,
+          "terminal": 3,
+          "total": 21
+        },
+        "entries": [
+          {
+            "role": "WOOD_RAIL",
+            "quantity": 40.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 18.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 21.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 160.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 18.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Corner posts",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 21.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Rails",
+            "quantity": 40.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 21.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "791913bf-f1c2-3c3b-b8e8-b90bf4412502",
+        "fence_run_sync_id": "00000016-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "8' Round Wood Split Rail",
+        "quantity": 40.0,
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "WOOD_RAIL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "3ba72559-4b6e-3fa6-ab2f-2c53319df4b1",
+        "fence_run_sync_id": "00000016-0000-4000-8000-000000000001",
+        "sort_order": 1,
+        "description": "5\" Round Wood Post, 7'",
+        "quantity": 18.0,
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LINE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "3d966bb2-ebe2-3be4-b1b7-5de49c5605f6",
+        "fence_run_sync_id": "00000016-0000-4000-8000-000000000001",
+        "sort_order": 2,
+        "description": "5\" Round Wood Post, 7'",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CORNER_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "61abc6bd-268e-3b3b-b2a4-9e125e1ec2ee",
+        "fence_run_sync_id": "00000016-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "5\" Round Wood Post, 7'",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "6257b779-2393-3319-9bee-dc3b5b516d20",
+        "fence_run_sync_id": "00000016-0000-4000-8000-000000000001",
+        "sort_order": 4,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 21.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "791913bf-f1c2-3c3b-b8e8-b90bf4412502",
+      "3ba72559-4b6e-3fa6-ab2f-2c53319df4b1",
+      "3d966bb2-ebe2-3be4-b1b7-5de49c5605f6",
+      "61abc6bd-268e-3b3b-b2a4-9e125e1ec2ee",
+      "6257b779-2393-3319-9bee-dc3b5b516d20"
+    ],
+    "totals": {
+      "materials_subtotal": 773.75,
+      "taxable_subtotal": 773.75,
+      "tax": 54.16250000000001,
+      "labor_cost": 1280.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 0.0,
+      "gate_charge": 0.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 0.0,
+      "discount_amount": 0.0,
+      "pre_markup_total": 2107.9125,
+      "grand_total": 2110.0,
+      "billable_linear_feet": 160.0
+    }
+  }
+}

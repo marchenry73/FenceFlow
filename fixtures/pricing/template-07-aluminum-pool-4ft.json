@@ -1,0 +1,518 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "template-07-aluminum-pool-4ft",
+  "note": "Shipped template on a 100 ft open run. 4 ft Aluminum pool: 6x4, spacing 6, RACKABLE.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 15.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000047-0000-4000-8000-000000000001",
+        "label": "aluminum",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "",
+        "points_encoded": "",
+        "gates_encoded": "",
+        "closed_loop": false,
+        "manual_linear_feet": 100.0,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 4.0,
+        "post_spacing_ft": 6.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "31f874ac-f5ac-3f03-800f-1b9dca7240ef",
+        "name": "Aluminum Fence Panel 6'H x 6'W, Rackable, Black",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 95.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "640bf7d7-3e65-3560-baa0-6550087a786f",
+        "name": "Aluminum Fence Panel 6'H x 8'W, Rackable, Black",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 118.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 8.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "f33a9f3c-a790-3db6-91ea-661216cba118",
+        "name": "3\" Aluminum Post, 6', Black",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 22.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "b8f18a64-7643-3c2e-88a4-a9883fefba6b",
+        "name": "3\" Aluminum Post, 6', Black",
+        "category": "POST",
+        "role": "END_POST",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 22.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "59bbfeac-9058-384f-8723-159611efa1a6",
+        "name": "3\" Aluminum Post, 6', Black",
+        "category": "POST",
+        "role": "CORNER_POST",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 22.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "a40b74f2-33ce-3597-a551-921ddad68efd",
+        "name": "3\" Aluminum Post, 6', Black",
+        "category": "POST",
+        "role": "GATE_POST",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 22.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "97199018-a29f-3146-a115-809eeb35e222",
+        "name": "Aluminum Post Cap, Flat, Black",
+        "category": "CAP",
+        "role": "POST_CAP",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 3.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "4b35aa04-2b02-38c5-a5e1-b46c43c93e00",
+        "name": "Aluminum Walk Gate 6'H x 4'W, Black",
+        "category": "GATE",
+        "role": "GATE_PANEL",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 175.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 4.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3ae1229d-b313-3995-90dd-5b6e48975273",
+        "name": "Aluminum Gate Hinge Set, Self-Closing",
+        "category": "HARDWARE",
+        "role": "HINGE_SET",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "",
+        "unit": "SET",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "1f8029ed-c6cb-3ace-8008-e046e4673762",
+        "name": "Aluminum Gate Latch, Self-Latching",
+        "category": "HARDWARE",
+        "role": "LATCH",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 22.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "73e0ca94-842c-3032-8f9b-43c6128a99ef",
+        "name": "Aluminum Fence Panel 6'H x 6'W, Rackable, White",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 99.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "ab234f68-53f5-3611-9bf1-a370f8ef016e",
+        "name": "Aluminum Fence Panel 6'H x 6'W, Rackable, Bronze",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Bronze",
+        "unit": "EA",
+        "unit_price": 99.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "ac7a5538-86a7-34cb-8358-b1b7e800c3ac",
+        "name": "3\" Aluminum Post, 6', White",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 23.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "fd36173d-0d8d-3a8f-aba7-201f99e8ba0a",
+        "name": "3\" Aluminum Post, 6', Bronze",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "ALUMINUM",
+        "color_or_finish": "Bronze",
+        "unit": "EA",
+        "unit_price": 23.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 100.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 100.0,
+    "runs": [
+      {
+        "run_sync_id": "00000047-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 0,
+        "gross_feet": 100.0,
+        "gate_feet": 0.0,
+        "net_feet": 100.0,
+        "geometry": {
+          "corner_count": 0,
+          "end_count": 2,
+          "line_vertex_count": 0,
+          "segments": [],
+          "vertices": []
+        },
+        "posts": {
+          "line": 16,
+          "corner": 0,
+          "end": 2,
+          "gate": 0,
+          "terminal": 2,
+          "total": 18
+        },
+        "entries": [
+          {
+            "role": "PANEL",
+            "quantity": 17.0,
+            "prefer_covers_ft": 6.0,
+            "covers_linear_ft": 100.0
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 16.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 0.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "POST_CAP",
+            "quantity": 18.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 18.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 100.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 16.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 18.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Post caps",
+            "quantity": 18.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Panels",
+            "quantity": 17.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 18.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "f727652c-1d2e-3343-a4e6-f478d086a510",
+        "fence_run_sync_id": "00000047-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "Aluminum Fence Panel 6'H x 6'W, Rackable, Black",
+        "quantity": 17.0,
+        "unit": "EA",
+        "unit_price": 95.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "PANEL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "5b0b4b60-1cd5-38b4-a4cb-0cc7d10bbf9b",
+        "fence_run_sync_id": "00000047-0000-4000-8000-000000000001",
+        "sort_order": 1,
+        "description": "3\" Aluminum Post, 6', Black",
+        "quantity": 16.0,
+        "unit": "EA",
+        "unit_price": 22.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LINE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "c5bcd374-8ba9-3e2a-a9ce-bdecb0a8d7f9",
+        "fence_run_sync_id": "00000047-0000-4000-8000-000000000001",
+        "sort_order": 2,
+        "description": "3\" Aluminum Post, 6', Black",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 22.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "db831196-ebd8-3222-86ee-ee224a08cb00",
+        "fence_run_sync_id": "00000047-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "Aluminum Post Cap, Flat, Black",
+        "quantity": 18.0,
+        "unit": "EA",
+        "unit_price": 3.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "POST_CAP",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "110f21db-f8f8-30e6-bf8d-6a74aa9d3ae4",
+        "fence_run_sync_id": "00000047-0000-4000-8000-000000000001",
+        "sort_order": 4,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 18.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "f727652c-1d2e-3343-a4e6-f478d086a510",
+      "5b0b4b60-1cd5-38b4-a4cb-0cc7d10bbf9b",
+      "c5bcd374-8ba9-3e2a-a9ce-bdecb0a8d7f9",
+      "db831196-ebd8-3222-86ee-ee224a08cb00",
+      "110f21db-f8f8-30e6-bf8d-6a74aa9d3ae4"
+    ],
+    "totals": {
+      "materials_subtotal": 2159.5,
+      "taxable_subtotal": 2159.5,
+      "tax": 151.16500000000002,
+      "labor_cost": 800.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 0.0,
+      "gate_charge": 0.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 466.59975,
+      "discount_amount": 0.0,
+      "pre_markup_total": 3110.665,
+      "grand_total": 3580.0,
+      "billable_linear_feet": 100.0
+    }
+  }
+}

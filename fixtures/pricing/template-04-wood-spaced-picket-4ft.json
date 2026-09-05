@@ -1,0 +1,485 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "template-04-wood-spaced-picket-4ft",
+  "note": "Shipped template on a 100 ft open run. 4 ft Wood Spaced Picket: 2.5 in gap, the phone's other defaults.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 15.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000044-0000-4000-8000-000000000001",
+        "label": "wood",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "points_encoded": "",
+        "gates_encoded": "",
+        "closed_loop": false,
+        "manual_linear_feet": 100.0,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 4.0,
+        "post_spacing_ft": 8.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "SPACED_PICKET",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 2.5,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "d8eceb95-8bd4-3c38-8894-e44952cc2d11",
+        "name": "6' Dog-Ear Wood Picket, Pressure-Treated Pine",
+        "category": "PICKET",
+        "role": "WOOD_PICKET",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 3.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "9a1a6311-a5fe-38e6-bfb5-477a7d456300",
+        "name": "2x4x8' Pressure-Treated Rail",
+        "category": "RAIL",
+        "role": "WOOD_RAIL",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 6.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "6e46de6e-0713-384f-ad85-4c2d2af7b19b",
+        "name": "4x4x8' Pressure-Treated Post",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "edbd0dba-4d68-3e3c-835c-51922c7f45cd",
+        "name": "4x4x8' Pressure-Treated Post",
+        "category": "POST",
+        "role": "END_POST",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "6cd8e6f3-228a-3316-959a-8f1e2968934b",
+        "name": "4x4x8' Pressure-Treated Post",
+        "category": "POST",
+        "role": "CORNER_POST",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "11869080-1d2f-3bce-ad26-94494e60e834",
+        "name": "4x4x8' Pressure-Treated Post",
+        "category": "POST",
+        "role": "GATE_POST",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "0febff74-4967-3e49-a312-6f4d2305578f",
+        "name": "4x4 Wood Post Cap",
+        "category": "CAP",
+        "role": "POST_CAP",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 2.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "a280c764-8da0-3bbd-a2b8-a71c82eea412",
+        "name": "Wood Gate Frame Kit, Steel-Reinforced (up to 4'W)",
+        "category": "GATE",
+        "role": "GATE_FRAME_KIT",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 65.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 4.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "f510342a-208c-3853-a1ee-c6b5a7bcda91",
+        "name": "Heavy-Duty T-Hinge Pair",
+        "category": "HARDWARE",
+        "role": "HINGE_SET",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "PAIR",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "74c00494-dc6d-3aeb-9cab-ed19f22609bc",
+        "name": "Wood Gate Latch",
+        "category": "HARDWARE",
+        "role": "LATCH",
+        "fence_type": "WOOD",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 100.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 100.0,
+    "runs": [
+      {
+        "run_sync_id": "00000044-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 0,
+        "gross_feet": 100.0,
+        "gate_feet": 0.0,
+        "net_feet": 100.0,
+        "geometry": {
+          "corner_count": 0,
+          "end_count": 2,
+          "line_vertex_count": 0,
+          "segments": [],
+          "vertices": []
+        },
+        "posts": {
+          "line": 12,
+          "corner": 0,
+          "end": 2,
+          "gate": 0,
+          "terminal": 2,
+          "total": 14
+        },
+        "entries": [
+          {
+            "role": "WOOD_PICKET",
+            "quantity": 150.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "WOOD_RAIL",
+            "quantity": 39.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 12.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 0.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "POST_CAP",
+            "quantity": 14.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 14.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 100.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 12.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 14.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Post caps",
+            "quantity": 14.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Pickets",
+            "quantity": 150.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Rails",
+            "quantity": 39.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 14.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "56b8d602-3907-3adc-9f95-2709a5ab31b4",
+        "fence_run_sync_id": "00000044-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "6' Dog-Ear Wood Picket, Pressure-Treated Pine",
+        "quantity": 150.0,
+        "unit": "EA",
+        "unit_price": 3.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "WOOD_PICKET",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "7ef19ae0-2f00-383f-b3f7-20c699609e97",
+        "fence_run_sync_id": "00000044-0000-4000-8000-000000000001",
+        "sort_order": 1,
+        "description": "2x4x8' Pressure-Treated Rail",
+        "quantity": 39.0,
+        "unit": "EA",
+        "unit_price": 6.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "WOOD_RAIL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "7b50762a-c93a-3069-940d-4128fe141550",
+        "fence_run_sync_id": "00000044-0000-4000-8000-000000000001",
+        "sort_order": 2,
+        "description": "4x4x8' Pressure-Treated Post",
+        "quantity": 12.0,
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LINE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "6e863d48-f8ef-3fe5-abba-ba7b6e496741",
+        "fence_run_sync_id": "00000044-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "4x4x8' Pressure-Treated Post",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "65a2ea44-9a53-3e09-96e1-3803b9718fde",
+        "fence_run_sync_id": "00000044-0000-4000-8000-000000000001",
+        "sort_order": 4,
+        "description": "4x4 Wood Post Cap",
+        "quantity": 14.0,
+        "unit": "EA",
+        "unit_price": 2.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "POST_CAP",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "bbb06aef-16c8-3c07-977b-2e99c74b31bb",
+        "fence_run_sync_id": "00000044-0000-4000-8000-000000000001",
+        "sort_order": 5,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 14.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "56b8d602-3907-3adc-9f95-2709a5ab31b4",
+      "7ef19ae0-2f00-383f-b3f7-20c699609e97",
+      "7b50762a-c93a-3069-940d-4128fe141550",
+      "6e863d48-f8ef-3fe5-abba-ba7b6e496741",
+      "65a2ea44-9a53-3e09-96e1-3803b9718fde",
+      "bbb06aef-16c8-3c07-977b-2e99c74b31bb"
+    ],
+    "totals": {
+      "materials_subtotal": 972.0,
+      "taxable_subtotal": 972.0,
+      "tax": 68.04,
+      "labor_cost": 800.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 0.0,
+      "gate_charge": 0.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 276.006,
+      "discount_amount": 0.0,
+      "pre_markup_total": 1840.04,
+      "grand_total": 2120.0,
+      "billable_linear_feet": 100.0
+    }
+  }
+}

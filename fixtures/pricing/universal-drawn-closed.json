@@ -1,0 +1,248 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "universal-drawn-closed",
+  "note": "A UNIVERSAL closed loop with no gate: bays give concrete and nothing else.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 0.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "0000004d-0000-4000-8000-000000000001",
+        "label": "universal",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "points_encoded": "0.0:0.0,600.0:0.0,600.0:600.0,0.0:600.0",
+        "gates_encoded": "",
+        "closed_loop": true,
+        "manual_linear_feet": null,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 6.0,
+        "post_spacing_ft": 6.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 120.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 120.0,
+    "runs": [
+      {
+        "run_sync_id": "0000004d-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 0,
+        "gross_feet": 120.0,
+        "gate_feet": 0.0,
+        "net_feet": 120.0,
+        "geometry": {
+          "corner_count": 4,
+          "end_count": 0,
+          "line_vertex_count": 0,
+          "segments": [
+            {
+              "from_index": 0,
+              "to_index": 1,
+              "length_ft": 30.0
+            },
+            {
+              "from_index": 1,
+              "to_index": 2,
+              "length_ft": 30.0
+            },
+            {
+              "from_index": 2,
+              "to_index": 3,
+              "length_ft": 30.0
+            },
+            {
+              "from_index": 3,
+              "to_index": 0,
+              "length_ft": 30.0
+            }
+          ],
+          "vertices": [
+            {
+              "index": 0,
+              "kind": "CORNER",
+              "turn_degrees": 90.0
+            },
+            {
+              "index": 1,
+              "kind": "CORNER",
+              "turn_degrees": 90.0
+            },
+            {
+              "index": 2,
+              "kind": "CORNER",
+              "turn_degrees": 90.0
+            },
+            {
+              "index": 3,
+              "kind": "CORNER",
+              "turn_degrees": 90.0
+            }
+          ]
+        },
+        "posts": {
+          "line": 16,
+          "corner": 4,
+          "end": 0,
+          "gate": 0,
+          "terminal": 4,
+          "total": 20
+        },
+        "entries": [
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 20.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 120.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 16.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Corner posts",
+            "quantity": 4.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 20.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 20.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "189ef9d3-417c-34f3-898a-11347e5ef7d1",
+        "fence_run_sync_id": "0000004d-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 20.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "189ef9d3-417c-34f3-898a-11347e5ef7d1"
+    ],
+    "totals": {
+      "materials_subtotal": 95.0,
+      "taxable_subtotal": 95.0,
+      "tax": 6.65,
+      "labor_cost": 960.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 0.0,
+      "gate_charge": 0.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 0.0,
+      "discount_amount": 0.0,
+      "pre_markup_total": 1061.65,
+      "grand_total": 1070.0,
+      "billable_linear_feet": 120.0
+    }
+  }
+}

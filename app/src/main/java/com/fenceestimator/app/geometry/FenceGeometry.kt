@@ -2,8 +2,8 @@ package com.fenceestimator.app.geometry
 
 import kotlin.math.abs
 import kotlin.math.atan2
-import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /** A vertex of the drawn fence line, in survey-image pixel space. */
 data class FencePoint(val x: Float, val y: Float)
@@ -163,7 +163,12 @@ object FenceGeometryEngine {
         for (i in 0 until segmentCount) {
             val a = points[i]
             val b = points[(i + 1) % n]
-            total += hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
+            // sqrt(dx*dx + dy*dy), not hypot: the server port has to land on
+            // the same float, and hypot's extra-precision path is not
+            // something every runtime reproduces bit for bit.
+            val dx = (b.x - a.x).toDouble()
+            val dy = (b.y - a.y).toDouble()
+            total += sqrt(dx * dx + dy * dy).toFloat()
         }
         return total
     }
@@ -180,7 +185,10 @@ object FenceGeometryEngine {
         for (i in 0 until segmentCount) {
             val a = points[i]
             val b = points[(i + 1) % n]
-            val distPx = hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
+            // Same sqrt form as pixelLength, for the same reason.
+            val dx = (b.x - a.x).toDouble()
+            val dy = (b.y - a.y).toDouble()
+            val distPx = sqrt(dx * dx + dy * dy).toFloat()
             totalPixels += distPx
             segments.add(SegmentResult(i, (i + 1) % n, distPx / pixelsPerFoot))
         }
