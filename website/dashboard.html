@@ -1836,6 +1836,15 @@ function showServiceBanner(s){
     text = 'Your last payment did not go through.'
       + (until ? ` FenceFlow keeps working until ${until}.` : '')
       + (owner ? ' <a href="#" data-go-billing>Update your card</a>' : ' Ask the owner to update the card.');
+  } else if (typeof days === 'number' && days <= 7 && s.subscribed) {
+    // A plan is picked and a card is on file: nothing shuts off when the
+    // trial ends, the first charge happens. Saying "your trial ends" here
+    // read as a lockout warning to somebody who had already paid attention.
+    const plan = s.subscription_plan ? s.subscription_plan.charAt(0).toUpperCase() + s.subscription_plan.slice(1).toLowerCase() : 'Your';
+    cls = '';
+    text = days <= 0 ? `Your ${plan} plan starts today — your card is charged today.`
+         : days === 1 ? `Your ${plan} plan starts tomorrow — your card is charged then.`
+         : `Your ${plan} plan starts in ${days} days — your card is charged then.`;
   } else if (typeof days === 'number' && days <= 7) {
     cls = days <= 2 ? 'bad' : 'warn';
     text = days <= 0 ? 'Your free trial ends today.'
@@ -2100,7 +2109,9 @@ async function loadBilling(){
     const trial = row?.trial_ends_at ? d(row.trial_ends_at).toLocaleDateString() : '';
     state.textContent =
       status === 'active'   ? `Active${plan?' — '+plan:''}${ends?', renews '+ends:''}.` :
-      status === 'trialing' ? `Free trial${plan?' of '+plan:''}${trial?' until '+trial:''}${trial?' — your card is charged then.':'.'}` :
+      status === 'trialing' && row?.has_subscription
+                            ? `${plan || 'Your'} plan picked — it starts${trial ? ' on ' + trial : ' when the trial ends'} and your card is charged then. Until then everything is free.` :
+      status === 'trialing' ? `Free trial${plan?' of '+plan:''}${trial?' until '+trial:''}${trial ? ' — pick a plan before then to keep going.' : '.'}` :
       status === 'past_due' ? 'Last payment failed — update your card to stay active.' :
       status === 'canceled' ? 'Cancelled. Pick a plan below to start again.' :
                               'No plan yet. Pick one below.';
