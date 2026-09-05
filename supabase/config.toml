@@ -38,6 +38,15 @@ verify_jwt = false
 [functions.invite-company]
 verify_jwt = true
 
+# One door -- the signed-in office -- same shape as price-job just below, and
+# for the same reason: the function re-checks company, role and
+# company_allowed() itself, so the gateway checking a JWT first buys nothing
+# except rejecting the browser's own CORS preflight, which carries no bearer
+# token. That is exactly the "Failed to fetch" price-job and
+# create-payment-link both hit before this comment existed.
+[functions.invite-crew]
+verify_jwt = false
+
 # Only the signed-in office calls this, and it never will hold a homeowner's
 # link the way create-payment-link and quote-view do -- one door, so the
 # gateway can reject a missing or invalid JWT before the function ever runs.

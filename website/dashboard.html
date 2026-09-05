@@ -470,9 +470,17 @@
           <h2 style="margin:0">Crew &amp; Employees</h2><button class="btn btn-sm" id="newEmp">+ Add</button>
         </div>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Rate</th></tr></thead>
+          <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Rate</th><th></th></tr></thead>
           <tbody id="empRows"></tbody></table></div>
         <div class="empty" id="empEmpty" style="display:none">No crew members yet.</div>
+        <!-- Result of the last invite-crew call: "Invite emailed to X", or,
+             when MAIL_API_KEY isn't set yet, the code to hand over by hand
+             with a Copy button. Same .msg/.msg.ok/.msg.err classes as every
+             other status line on this page (so it inherits their
+             display:none-until-shown default), but filled with innerHTML in
+             JS below instead of the page's generic msg() helper, which only
+             ever sets textContent -- the 503 case needs an actual button. -->
+        <div id="crewInviteNotice" class="msg"></div>
       </div>
 
       <!-- Employees are people you pay; logins are seats you pay for. They are
@@ -2816,9 +2824,20 @@ function renderEmployees(){
       <td><strong>${esc(e.name)||'Unnamed'}</strong>${active(e)?''
         :' <span class="pill" style="font-size:11px">Off the crew</span>'}</td><td>${esc(e.role)||'—'}</td>
       <td>${esc(e.phone)||'—'}</td><td>${esc(e.email)||'—'}</td>
-      <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':'—'}</td></tr>`).join('');
+      <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':'—'}</td>
+      <td>${e.email?`<button class="btn btn-sm btn-grey resend-invite" data-id="${e.id}">Resend invite</button>`:''}</td>
+      </tr>`).join('');
   document.querySelectorAll('#empRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showEmp(tr.dataset.id)));
+  // Its own click handler, stopped from bubbling to the row above -- the row
+  // click opens the editor, and both firing at once would open the editor
+  // AND fire an email in the same tap.
+  document.querySelectorAll('#empRows .resend-invite').forEach(b=>
+    b.addEventListener('click',(ev)=>{
+      ev.stopPropagation();
+      const emp=employees.find(x=>String(x.id)===String(b.dataset.id));
+      if(emp) sendCrewInvite(emp);
+    }));
 }
 
 /* ---------- time ---------- */
@@ -7328,6 +7347,72 @@ async function deleteJob(){
   $('jobOverlay').classList.remove('on'); await loadAll();
 }
 
+/* ---------- crew invites ----------
+   invite-crew is the only door this page uses to reach it: built from the
+   caller's own session, never a service key, exactly like callPriceJob above
+   -- so RLS and company_allowed hold the same way they do for every other
+   request this page makes. */
+async function callInviteCrew(payload){
+  try{
+    const { data: sess } = await db.auth.getSession();
+    const res = await fetch(`${SUPA_URL}/functions/v1/invite-crew`, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        Authorization:`Bearer ${sess?.session?.access_token}`,
+        apikey: window.FENCEFLOW_CONFIG.SUPABASE_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(()=>({}));
+    return { status: res.status, body };
+  }catch(e){
+    return { status: 0, body: { error: String(e.message||e) } };
+  }
+}
+
+/* Shows what happened with the last invite, next to the crew table. Same
+   .msg classes as the rest of the page for colour, but filled with innerHTML
+   rather than through msg() -- the 503 case needs an actual Copy button next
+   to the sentence, not just the sentence. */
+function showCrewInviteNotice(html, kind){
+  const el = $('crewInviteNotice');
+  el.innerHTML = html;
+  el.className = 'msg ' + (kind||'info');
+}
+
+async function sendCrewInvite(emp){
+  if(!emp || !emp.email) return;
+  showCrewInviteNotice(`Emailing ${esc(emp.name||emp.email)}…`, 'working');
+  const { body, status } = await callInviteCrew({
+    employee_sync_id: emp.sync_id, name: emp.name, email: emp.email, role: emp.role,
+  });
+  if(status === 200 && body.sent){
+    showCrewInviteNotice(`Invite emailed to ${esc(emp.email)}.`, 'ok');
+    return;
+  }
+  if(status === 503 && body.code){
+    // Not configured yet, not a failure -- the code is the same value the
+    // app's own Account screen already shows under "Team invite code", so
+    // there is always something to hand over even with no mail provider.
+    showCrewInviteNotice(
+      `${esc(body.error||'Email is not set up yet. Give them the code by hand.')}
+       <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+         <code style="font-family:ui-monospace,monospace;background:#fff;border:1px solid var(--line);
+               padding:4px 8px;border-radius:6px">${esc(body.code)}</code>
+         <button class="btn btn-sm btn-grey" id="crewInviteCopyBtn" type="button">Copy code</button>
+       </div>`,
+      'err');
+    $('crewInviteCopyBtn')?.addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(body.code); }catch{ /* clipboard denied; code is still on screen to select */ }
+      const b=$('crewInviteCopyBtn');
+      if(b){ b.textContent='Copied'; setTimeout(()=>{ if($('crewInviteCopyBtn')) $('crewInviteCopyBtn').textContent='Copy code'; },1600); }
+    });
+    return;
+  }
+  showCrewInviteNotice(esc(body.error || 'Could not send the invite just now.'), 'err');
+}
+
 /* ---------- crew editor ---------- */
 function showEmp(id){
   openEmp = id ? employees.find(e=>String(e.id)===String(id)) : null;
@@ -7341,14 +7426,29 @@ async function saveEmp(){
   if(!canEdit()) return;
   const patch={name:$('e_name').value,role:$('e_role').value,phone:$('e_phone').value,
     email:$('e_email').value,notes:$('e_notes').value,hourly_rate:num($('e_hourly_rate').value)};
+  // The previous email, from before this save, decides whether an invite
+  // goes out below -- selected while openEmp still points at the old row.
+  const priorEmail = (openEmp?.email||'').trim();
   const res = openEmp
     ? await db.from('employees').update(patch).eq('id',openEmp.id)
-    : await db.from('employees').insert({...patch,company_id:profile.company_id});
+    // sync_id back, so a brand-new crew member can be invited by the same
+    // call below without a second round trip to find their row again.
+    : await db.from('employees').insert({...patch,company_id:profile.company_id}).select('sync_id');
   if(res.error) return msg('empMsg',res.error.message,'err');
+  const savedSyncId = openEmp ? openEmp.sync_id : res.data?.[0]?.sync_id;
   $('empOverlay').classList.remove('on'); await loadAll();
   // Same reason as the import hook above: the setup wizard's Crew step, if
   // that is what opened this dialog, has its own copy of the crew list.
   if(sw && swCurrentKey()==='crew') swRenderStep();
+  // Only when an email was just added or changed -- not on every unrelated
+  // edit (a phone number, an hourly rate) to someone who already has one on
+  // file. Sending a fresh "you've been added" email every time the owner
+  // touches Save would read as broken, not helpful; "Resend invite" on the
+  // row covers the case where they genuinely want it sent again.
+  const newEmail = patch.email.trim();
+  if(newEmail && newEmail !== priorEmail){
+    await sendCrewInvite({ sync_id: savedSyncId, name: patch.name, email: newEmail, role: patch.role });
+  }
 }
 async function deleteEmp(){
   if(!openEmp||!canEdit()) return;
