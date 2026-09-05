@@ -324,21 +324,24 @@ class MainActivity : FragmentActivity() {
                                             // instead, and it is not styled as a
                                             // warning because nothing here needs
                                             // deciding.
-                                            val planLabel = svc.plan.trim().lowercase()
-                                                .replaceFirstChar { c -> c.uppercase() }
-                                            val whenText = when (daysLeft) {
-                                                0 -> "today"
-                                                1 -> "tomorrow"
-                                                else -> "in $daysLeft days"
+                                            // Mirrors showServiceBanner() in website/dashboard.html
+                                            // word for word, including the one detail easy to
+                                            // miss: "today" is charged TODAY, not "then" -- the
+                                            // card is charged the moment the trial ends, and on
+                                            // day zero that moment is today, not some later "then".
+                                            val plan = svc.plan.trim()
+                                                .let { if (it.isBlank()) "Your" else it.lowercase().replaceFirstChar { c -> c.uppercase() } }
+                                            val bannerText = when {
+                                                daysLeft <= 0 -> "Your $plan plan starts today — your card is charged today."
+                                                daysLeft == 1 -> "Your $plan plan starts tomorrow — your card is charged then."
+                                                else -> "Your $plan plan starts in $daysLeft days — your card is charged then."
                                             }
                                             androidx.compose.material3.Surface(
                                                 color = MaterialTheme.colorScheme.secondaryContainer,
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Text(
-                                                    (if (planLabel.isNotBlank()) "Your $planLabel plan starts $whenText"
-                                                     else "Your plan starts $whenText") +
-                                                        " — your card is charged then.",
+                                                    bannerText,
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
