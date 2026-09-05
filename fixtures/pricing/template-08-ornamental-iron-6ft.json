@@ -1,0 +1,473 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "template-08-ornamental-iron-6ft",
+  "note": "Shipped template on a 100 ft open run. 6 ft Ornamental Iron: 6x6, spacing 6.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 15.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000048-0000-4000-8000-000000000001",
+        "label": "ornamental iron",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "",
+        "points_encoded": "",
+        "gates_encoded": "",
+        "closed_loop": false,
+        "manual_linear_feet": 100.0,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 6.0,
+        "post_spacing_ft": 6.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "202c2eae-950c-342e-964c-e433d05b9054",
+        "name": "Ornamental Steel Panel 4'H x 6'W, Black",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 135.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "97b4588a-4540-32b4-ade6-7b8c343f1c20",
+        "name": "Ornamental Steel Panel 4'H x 8'W, Black",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 165.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 8.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3b0eabf3-049d-34a5-8965-a4b9f145ab60",
+        "name": "Ornamental Steel Panel 6'H x 6'W, Black",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 175.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "cc1b23e9-6a70-346c-844a-c2ddfa200e07",
+        "name": "4\"x4\" Steel Post, 6', Black",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 32.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "fb6d0931-8ca5-3a78-82b1-8d03b39b5fb4",
+        "name": "4\"x4\" Steel Post, 6', Black",
+        "category": "POST",
+        "role": "END_POST",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 32.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "e79d8ce1-7131-3436-8e6f-98b4368c196a",
+        "name": "4\"x4\" Steel Post, 6', Black",
+        "category": "POST",
+        "role": "CORNER_POST",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 32.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3f95f019-7f19-35d5-8dd4-73d0fe426e66",
+        "name": "4\"x4\" Steel Post, 6', Black",
+        "category": "POST",
+        "role": "GATE_POST",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 32.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "a62e6e78-9ef4-30f3-a8b3-34135421cf0e",
+        "name": "Ornamental Post Cap, Black",
+        "category": "CAP",
+        "role": "POST_CAP",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 6.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "c569d466-00a1-31c8-b5fd-28ff4de70658",
+        "name": "Ornamental Steel Walk Gate 4'H x 4'W, Black",
+        "category": "GATE",
+        "role": "GATE_PANEL",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "Black",
+        "unit": "EA",
+        "unit_price": 210.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 4.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "24920f98-8631-36ae-b06e-14b2e4001bca",
+        "name": "Heavy Iron Gate Hinge Set",
+        "category": "HARDWARE",
+        "role": "HINGE_SET",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "",
+        "unit": "SET",
+        "unit_price": 24.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "62f76875-56a3-37c3-9d91-e8c958eeb4e8",
+        "name": "Self-Latching Iron Gate Latch",
+        "category": "HARDWARE",
+        "role": "LATCH",
+        "fence_type": "ORNAMENTAL_IRON",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 19.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 100.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 100.0,
+    "runs": [
+      {
+        "run_sync_id": "00000048-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 0,
+        "gross_feet": 100.0,
+        "gate_feet": 0.0,
+        "net_feet": 100.0,
+        "geometry": {
+          "corner_count": 0,
+          "end_count": 2,
+          "line_vertex_count": 0,
+          "segments": [],
+          "vertices": []
+        },
+        "posts": {
+          "line": 16,
+          "corner": 0,
+          "end": 2,
+          "gate": 0,
+          "terminal": 2,
+          "total": 18
+        },
+        "entries": [
+          {
+            "role": "PANEL",
+            "quantity": 17.0,
+            "prefer_covers_ft": 6.0,
+            "covers_linear_ft": 100.0
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 16.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 0.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "POST_CAP",
+            "quantity": 18.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 18.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 100.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 16.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 18.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Post caps",
+            "quantity": 18.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Panels",
+            "quantity": 17.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 18.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "c259e2f4-2ecb-3c20-9413-cf3c7033ec8b",
+        "fence_run_sync_id": "00000048-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "Ornamental Steel Panel 4'H x 6'W, Black",
+        "quantity": 17.0,
+        "unit": "EA",
+        "unit_price": 135.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "PANEL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "cf331cb9-24a8-3ac4-b5e4-d621d5efcf67",
+        "fence_run_sync_id": "00000048-0000-4000-8000-000000000001",
+        "sort_order": 1,
+        "description": "4\"x4\" Steel Post, 6', Black",
+        "quantity": 16.0,
+        "unit": "EA",
+        "unit_price": 32.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LINE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "807d1375-9498-3414-9a8e-ed2609c60964",
+        "fence_run_sync_id": "00000048-0000-4000-8000-000000000001",
+        "sort_order": 2,
+        "description": "4\"x4\" Steel Post, 6', Black",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 32.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "c97e54dc-5afe-300c-88d6-1a3d4929f032",
+        "fence_run_sync_id": "00000048-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "Ornamental Post Cap, Black",
+        "quantity": 18.0,
+        "unit": "EA",
+        "unit_price": 6.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "POST_CAP",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "142def06-e5dd-397b-b0bd-9e5d5376959a",
+        "fence_run_sync_id": "00000048-0000-4000-8000-000000000001",
+        "sort_order": 4,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 18.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "c259e2f4-2ecb-3c20-9413-cf3c7033ec8b",
+      "cf331cb9-24a8-3ac4-b5e4-d621d5efcf67",
+      "807d1375-9498-3414-9a8e-ed2609c60964",
+      "c97e54dc-5afe-300c-88d6-1a3d4929f032",
+      "142def06-e5dd-397b-b0bd-9e5d5376959a"
+    ],
+    "totals": {
+      "materials_subtotal": 3064.5,
+      "taxable_subtotal": 3064.5,
+      "tax": 214.51500000000001,
+      "labor_cost": 800.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 0.0,
+      "gate_charge": 0.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 611.8522499999999,
+      "discount_amount": 0.0,
+      "pre_markup_total": 4079.015,
+      "grand_total": 4700.0,
+      "billable_linear_feet": 100.0
+    }
+  }
+}

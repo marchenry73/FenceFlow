@@ -1,0 +1,603 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "split-rail-drawn-3-rail-wide-gate",
+  "note": "Split rail, 3 rails, drawn, one 10 ft line gate: frame kit 10 ft, second brace and hinge set.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 0.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000017-0000-4000-8000-000000000001",
+        "label": "split rail",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "points_encoded": "0.0:0.0,3200.0:0.0,3200.0:1600.0",
+        "gates_encoded": "800.0:0.0:10.0:LINE:IN",
+        "closed_loop": false,
+        "manual_linear_feet": null,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 6.0,
+        "post_spacing_ft": 8.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 3,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "670a87e1-0267-3002-8bd9-dc40bf2759e7",
+        "name": "8' Round Wood Split Rail",
+        "category": "RAIL",
+        "role": "WOOD_RAIL",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "7a0b22d1-d49c-3085-98d5-4c3454b2f4fc",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "d20d754e-4e14-34c6-bdb7-45e7f222aca7",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "END_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "2891ca8b-1d95-3c35-a2a0-87578cff4bf7",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "CORNER_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "924dc8b2-01c1-3d01-a331-0e296df6a59e",
+        "name": "5\" Round Wood Post, 7'",
+        "category": "POST",
+        "role": "GATE_POST",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "793c8768-f6cb-3ceb-b704-4a74793aa3f4",
+        "name": "Split-Rail Gate Frame Kit, 10'W",
+        "category": "GATE",
+        "role": "GATE_FRAME_KIT",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 95.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 10.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "f05ecc2e-44f8-33e2-a741-e0e0d1994d34",
+        "name": "Split-Rail Gate Hinge Set",
+        "category": "HARDWARE",
+        "role": "HINGE_SET",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "SET",
+        "unit_price": 12.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "15268df8-ac93-39a3-8c3f-5618318b5188",
+        "name": "Split-Rail Gate Latch",
+        "category": "HARDWARE",
+        "role": "LATCH",
+        "fence_type": "SPLIT_RAIL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 7.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 240.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 240.0,
+    "runs": [
+      {
+        "run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 1,
+        "gross_feet": 240.0,
+        "gate_feet": 10.0,
+        "net_feet": 230.0,
+        "geometry": {
+          "corner_count": 1,
+          "end_count": 2,
+          "line_vertex_count": 0,
+          "segments": [
+            {
+              "from_index": 0,
+              "to_index": 1,
+              "length_ft": 160.0
+            },
+            {
+              "from_index": 1,
+              "to_index": 2,
+              "length_ft": 80.0
+            }
+          ],
+          "vertices": [
+            {
+              "index": 0,
+              "kind": "END",
+              "turn_degrees": 0.0
+            },
+            {
+              "index": 1,
+              "kind": "CORNER",
+              "turn_degrees": 90.0
+            },
+            {
+              "index": 2,
+              "kind": "END",
+              "turn_degrees": 0.0
+            }
+          ]
+        },
+        "posts": {
+          "line": 26,
+          "corner": 1,
+          "end": 2,
+          "gate": 2,
+          "terminal": 5,
+          "total": 31
+        },
+        "entries": [
+          {
+            "role": "WOOD_RAIL",
+            "quantity": 87.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 26.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "GATE_FRAME_KIT",
+            "quantity": 1.0,
+            "prefer_covers_ft": 10.0,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HINGE_SET",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "LATCH",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HANDLE",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "BRACE",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "BRACE",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HINGE_SET",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "STIFFENER",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 32.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 240.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Gates",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 26.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Corner posts",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Gate posts (end posts + stiffener)",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 31.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Rails",
+            "quantity": 87.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 32.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          },
+          {
+            "label": "Hinge sets",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Latches",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Gate handles",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Gate braces",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Econo stiffeners",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "d6c3ea7a-9dca-3ff2-98fd-f3ec70fe3c41",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "8' Round Wood Split Rail",
+        "quantity": 87.0,
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "WOOD_RAIL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "3e2782ac-01bb-3986-97dd-c72a9227316c",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 1,
+        "description": "5\" Round Wood Post, 7'",
+        "quantity": 26.0,
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LINE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "c5f86061-ef11-325b-b66b-cc1ff5eb1be5",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 2,
+        "description": "5\" Round Wood Post, 7'",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CORNER_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "abe50093-eb38-3a9c-aa07-2245158b189c",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "5\" Round Wood Post, 7'",
+        "quantity": 4.0,
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "b16eb514-24e3-3f24-a3c2-cb225c70eae1",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 4,
+        "description": "Split-Rail Gate Frame Kit, 10'W",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 95.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_FRAME_KIT",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "bed8bf20-e83c-311c-bdf9-29b6fe1ea3db",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 5,
+        "description": "Split-Rail Gate Hinge Set",
+        "quantity": 2.0,
+        "unit": "SET",
+        "unit_price": 12.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HINGE_SET",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "71dc67d9-1ead-3c1e-a386-6e0170b2f6c1",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 6,
+        "description": "Split-Rail Gate Latch",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 7.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LATCH",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "7de83db1-0e0c-3c08-8f78-52fcdb7d3161",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 7,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 32.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [
+      {
+        "run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "role": "HANDLE"
+      },
+      {
+        "run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "role": "BRACE"
+      },
+      {
+        "run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "role": "STIFFENER"
+      }
+    ],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "d6c3ea7a-9dca-3ff2-98fd-f3ec70fe3c41",
+      "3e2782ac-01bb-3986-97dd-c72a9227316c",
+      "c5f86061-ef11-325b-b66b-cc1ff5eb1be5",
+      "abe50093-eb38-3a9c-aa07-2245158b189c",
+      "b16eb514-24e3-3f24-a3c2-cb225c70eae1",
+      "bed8bf20-e83c-311c-bdf9-29b6fe1ea3db",
+      "71dc67d9-1ead-3c1e-a386-6e0170b2f6c1",
+      "7de83db1-0e0c-3c08-8f78-52fcdb7d3161"
+    ],
+    "totals": {
+      "materials_subtotal": 1538.5,
+      "taxable_subtotal": 1538.5,
+      "tax": 107.69500000000001,
+      "labor_cost": 1840.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 10.0,
+      "gate_charge": 200.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 0.0,
+      "discount_amount": 0.0,
+      "pre_markup_total": 3686.1949999999997,
+      "grand_total": 3690.0,
+      "billable_linear_feet": 240.0
+    }
+  }
+}

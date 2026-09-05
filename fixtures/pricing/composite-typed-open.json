@@ -1,0 +1,485 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "composite-typed-open",
+  "note": "Composite privacy 6 ft, spacing 8, 3 rails.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 0.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000018-0000-4000-8000-000000000001",
+        "label": "composite",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "points_encoded": "",
+        "gates_encoded": "",
+        "closed_loop": false,
+        "manual_linear_feet": 100.0,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 6.0,
+        "post_spacing_ft": 8.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "9669bad2-641b-3340-8c0e-c4780f5316c9",
+        "name": "6' Composite Privacy Board",
+        "category": "PICKET",
+        "role": "WOOD_PICKET",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 9.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "6f2e1c08-4f06-35ee-8a14-c9904d900167",
+        "name": "Composite Rail, 8'",
+        "category": "RAIL",
+        "role": "WOOD_RAIL",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 16.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "10b6cf61-0b0d-30c8-98e7-d6f35cbad17e",
+        "name": "4x4 Composite Post w/ Aluminum Insert, 8'",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "7d6096d0-e638-3487-9e53-6aa735e47450",
+        "name": "4x4 Composite Post w/ Aluminum Insert, 8'",
+        "category": "POST",
+        "role": "END_POST",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "46bbabf1-f145-34e1-b0c7-85c7f490c213",
+        "name": "4x4 Composite Post w/ Aluminum Insert, 8'",
+        "category": "POST",
+        "role": "CORNER_POST",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "7877db8a-fee8-3d6a-821d-3fb4a564e0f9",
+        "name": "4x4 Composite Post w/ Aluminum Insert, 8'",
+        "category": "POST",
+        "role": "GATE_POST",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "e80a0454-b1b9-3f74-b7a1-f9f031fab83d",
+        "name": "Composite Post Cap",
+        "category": "CAP",
+        "role": "POST_CAP",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "e22756a3-36f5-3afb-ae0e-c4f56b7c5c04",
+        "name": "Composite Gate Frame Kit (up to 4'W)",
+        "category": "GATE",
+        "role": "GATE_FRAME_KIT",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 145.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 4.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "2204f831-2dea-389d-bbfd-f6bf283e3ac4",
+        "name": "Composite Gate Hinge Set",
+        "category": "HARDWARE",
+        "role": "HINGE_SET",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "SET",
+        "unit_price": 18.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "cd8617f1-cced-3791-b95a-14cc2b8df27f",
+        "name": "Composite Gate Latch",
+        "category": "HARDWARE",
+        "role": "LATCH",
+        "fence_type": "COMPOSITE",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 100.0,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 100.0,
+    "runs": [
+      {
+        "run_sync_id": "00000018-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 0,
+        "gross_feet": 100.0,
+        "gate_feet": 0.0,
+        "net_feet": 100.0,
+        "geometry": {
+          "corner_count": 0,
+          "end_count": 2,
+          "line_vertex_count": 0,
+          "segments": [],
+          "vertices": []
+        },
+        "posts": {
+          "line": 12,
+          "corner": 0,
+          "end": 2,
+          "gate": 0,
+          "terminal": 2,
+          "total": 14
+        },
+        "entries": [
+          {
+            "role": "WOOD_PICKET",
+            "quantity": 219.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "WOOD_RAIL",
+            "quantity": 39.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 12.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 0.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "POST_CAP",
+            "quantity": 14.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 14.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 100.0,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 12.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 14.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Post caps",
+            "quantity": 14.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Pickets",
+            "quantity": 219.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Rails",
+            "quantity": 39.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 14.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "1a4f4c45-431d-31ba-a9ee-c11ca576a4f7",
+        "fence_run_sync_id": "00000018-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "6' Composite Privacy Board",
+        "quantity": 219.0,
+        "unit": "EA",
+        "unit_price": 9.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "WOOD_PICKET",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "4ab63f14-2cf8-3470-b9c2-fe57bdc256c8",
+        "fence_run_sync_id": "00000018-0000-4000-8000-000000000001",
+        "sort_order": 1,
+        "description": "Composite Rail, 8'",
+        "quantity": 39.0,
+        "unit": "EA",
+        "unit_price": 16.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "WOOD_RAIL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "297f6c5b-b22c-3953-bd20-eeec226cb029",
+        "fence_run_sync_id": "00000018-0000-4000-8000-000000000001",
+        "sort_order": 2,
+        "description": "4x4 Composite Post w/ Aluminum Insert, 8'",
+        "quantity": 12.0,
+        "unit": "EA",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LINE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "057055c3-cea4-3950-bd06-04d6f6ef1b28",
+        "fence_run_sync_id": "00000018-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "4x4 Composite Post w/ Aluminum Insert, 8'",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "d651874d-6bac-31d2-b9ff-3dab40978375",
+        "fence_run_sync_id": "00000018-0000-4000-8000-000000000001",
+        "sort_order": 4,
+        "description": "Composite Post Cap",
+        "quantity": 14.0,
+        "unit": "EA",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "POST_CAP",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "9a1b0e1c-a7fa-3e7f-957a-040a05905ace",
+        "fence_run_sync_id": "00000018-0000-4000-8000-000000000001",
+        "sort_order": 5,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 14.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "1a4f4c45-431d-31ba-a9ee-c11ca576a4f7",
+      "4ab63f14-2cf8-3470-b9c2-fe57bdc256c8",
+      "297f6c5b-b22c-3953-bd20-eeec226cb029",
+      "057055c3-cea4-3950-bd06-04d6f6ef1b28",
+      "d651874d-6bac-31d2-b9ff-3dab40978375",
+      "9a1b0e1c-a7fa-3e7f-957a-040a05905ace"
+    ],
+    "totals": {
+      "materials_subtotal": 3287.75,
+      "taxable_subtotal": 3287.75,
+      "tax": 230.1425,
+      "labor_cost": 800.0,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 0.0,
+      "gate_charge": 0.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 0.0,
+      "discount_amount": 0.0,
+      "pre_markup_total": 4317.8925,
+      "grand_total": 4320.0,
+      "billable_linear_feet": 100.0
+    }
+  }
+}

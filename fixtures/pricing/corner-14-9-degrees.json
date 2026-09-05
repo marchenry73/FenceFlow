@@ -1,0 +1,620 @@
+{
+  "schema": 1,
+  "engine": {
+    "version": "2026.09.1",
+    "generated_at": "2026-09-05T12:20:05.317629100Z"
+  },
+  "case": "corner-14-9-degrees",
+  "note": "A 14.9-degree bend (atan(532/2000)) is a LINE vertex: no corner post.",
+  "input": {
+    "engine_version": "2026.09.1",
+    "pixels_per_foot": 20.0,
+    "job": {
+      "calibration_pixels_per_foot": 20.0,
+      "tax_rate_percent": 7.0,
+      "markup_percent": 0.0,
+      "discount_percent": 0.0,
+      "labor_rate_per_ft": 8.0,
+      "labor_flat_fee": 0.0,
+      "minimum_job_charge": 0.0,
+      "waste_percent": 0.0,
+      "gate_rate_per_ft": 20.0,
+      "trash_haul_fee": 0.0,
+      "teardown_enabled": false,
+      "teardown_flat_fee": 0.0,
+      "teardown_rate_per_ft": 0.0,
+      "teardown_feet": 0.0,
+      "preferred_manufacturer_sync_id": null
+    },
+    "runs": [
+      {
+        "sync_id": "00000007-0000-4000-8000-000000000001",
+        "label": "vinyl",
+        "fence_type": "VINYL",
+        "color_or_finish": "",
+        "points_encoded": "0.0:0.0,2000.0:0.0,4000.0:532.0",
+        "gates_encoded": "",
+        "closed_loop": false,
+        "manual_linear_feet": null,
+        "manual_corner_count": 0,
+        "panel_width_ft": 6.0,
+        "panel_height_ft": 6.0,
+        "post_spacing_ft": 6.0,
+        "concrete_bags_per_post": 1.0,
+        "aluminum_style": "RACKABLE",
+        "wood_style": "PRIVACY",
+        "wood_rail_count": 3,
+        "picket_width_in": 5.5,
+        "picket_gap_in": 0.0,
+        "fabric_height_ft": 4.0,
+        "include_top_rail": true,
+        "include_tension_wire": false,
+        "include_barbed_wire_arms": false,
+        "include_privacy_slats": false,
+        "split_rail_count": 2,
+        "suppressed_roles": "",
+        "is_teardown": false,
+        "sort_order": 0
+      }
+    ],
+    "catalog": [
+      {
+        "sync_id": "118e04ee-d806-32b9-a8ce-de3c048d3b23",
+        "name": "Panel T&G Vinyl Privacy 6'H x 6'W - White",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 52.35,
+        "supplier_unit_price": null,
+        "taxable": false,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "a5353025-fbad-3386-8d52-5b11c87b68c3",
+        "name": "Panel T&G Vinyl Privacy 6'H x 8'W - White",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 71.4,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 8.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "07e2b4d2-8ac8-3398-b417-aa78f381e7be",
+        "name": "5\"x5\" Co-Ex Line Post, White",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "270d47e3-ce53-3a5c-baec-74f597fab6a2",
+        "name": "5\"x5\" Co-Ex End Post, White",
+        "category": "POST",
+        "role": "END_POST",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "6ae8331c-07ab-34f9-b747-4dd0b2cb4a1d",
+        "name": "5\"x5\" Co-Ex Corner Post, White",
+        "category": "POST",
+        "role": "CORNER_POST",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "148313b0-b991-3a04-98fb-460deeddc528",
+        "name": "5\"x5\" Co-Ex Gate Post, White",
+        "category": "POST",
+        "role": "GATE_POST",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "412a6283-1eef-3503-8699-42c7d7d656bf",
+        "name": "5\" External Pyramid PVC Post Cap, White",
+        "category": "CAP",
+        "role": "POST_CAP",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.74,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "ef8f18d3-eb1b-3a4d-a07e-dcae59869a01",
+        "name": "Regular PVC Gate 6'H x 5'W, White",
+        "category": "GATE",
+        "role": "GATE_PANEL",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 145.05,
+        "supplier_unit_price": null,
+        "taxable": false,
+        "covers_ft": 5.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "960030e2-62ad-34a8-9cde-19bb39e4afa4",
+        "name": "Self-Closing Hinge Set (box, 12 pairs)",
+        "category": "HARDWARE",
+        "role": "HINGE_SET",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "BOX",
+        "unit_price": 32.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "92cc8094-79b1-3720-80ae-04fbc6a494d3",
+        "name": "Two-Way Latch (box of 20)",
+        "category": "HARDWARE",
+        "role": "LATCH",
+        "fence_type": "VINYL",
+        "color_or_finish": "Black",
+        "unit": "BOX",
+        "unit_price": 25.87,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "2f92872d-7084-399f-9f35-c837a1bccc5f",
+        "name": "7\" SS Gate Handle (box of 50)",
+        "category": "HARDWARE",
+        "role": "HANDLE",
+        "fence_type": "VINYL",
+        "color_or_finish": "Black",
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "f1a1061c-872d-3d81-8d49-82cee033f8d3",
+        "name": "Gate Support Brace, 8'",
+        "category": "HARDWARE",
+        "role": "BRACE",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 6.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "96b33a91-a6d7-3d73-b747-c050a911c8f0",
+        "name": "5\" Econo Stiffener x 8'(H)",
+        "category": "HARDWARE",
+        "role": "STIFFENER",
+        "fence_type": "VINYL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 52.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "4c7d2fd3-2878-36a9-8280-0447c4d7fe53",
+        "name": "7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White",
+        "category": "TRIM",
+        "role": "TRIM",
+        "fence_type": "VINYL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 2.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "d07f2e95-0564-3aa9-b25f-95ac7f2ecd16",
+        "name": "Panel T&G Vinyl Privacy 6'H x 6'W - Tan",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "VINYL",
+        "color_or_finish": "Tan",
+        "unit": "EA",
+        "unit_price": 54.5,
+        "supplier_unit_price": null,
+        "taxable": false,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "c9477bc0-686f-3023-b534-e53b60e1ea80",
+        "name": "Panel T&G Vinyl Privacy 6'H x 6'W - Gray",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "VINYL",
+        "color_or_finish": "Gray",
+        "unit": "EA",
+        "unit_price": 54.5,
+        "supplier_unit_price": null,
+        "taxable": false,
+        "covers_ft": 6.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "01ca9520-8253-39bf-b0c0-97353433a863",
+        "name": "Panel T&G Vinyl Privacy 6'H x 8'W - Tan",
+        "category": "PANEL",
+        "role": "PANEL",
+        "fence_type": "VINYL",
+        "color_or_finish": "Tan",
+        "unit": "EA",
+        "unit_price": 73.9,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": 8.0,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "231a6e95-a493-3d79-9233-c12efac93964",
+        "name": "5\"x5\" Co-Ex Line Post, Tan",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "VINYL",
+        "color_or_finish": "Tan",
+        "unit": "EA",
+        "unit_price": 17.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "8e0c9f53-3736-36eb-ba50-55c8f7c63ddd",
+        "name": "5\"x5\" Co-Ex Line Post, Gray",
+        "category": "POST",
+        "role": "LINE_POST",
+        "fence_type": "VINYL",
+        "color_or_finish": "Gray",
+        "unit": "EA",
+        "unit_price": 17.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "3014a627-4de7-3501-accf-c05da5cd7b3f",
+        "name": "Concrete Mix 60lb Bag",
+        "category": "CONCRETE",
+        "role": "CONCRETE_BAG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "",
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "72766a15-3e3b-35b8-8e01-71a678404461",
+        "name": "5/8\" Hole Plug, White",
+        "category": "MISC",
+        "role": "HOLE_PLUG",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "White",
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
+      }
+    ],
+    "manufacturers": [],
+    "change_orders": [],
+    "existing_items": []
+  },
+  "expected": {
+    "engine_version": "2026.09.1",
+    "linear_feet": 203.4773406982422,
+    "teardown_linear_feet": 0.0,
+    "billable_linear_feet": 203.4773406982422,
+    "runs": [
+      {
+        "run_sync_id": "00000007-0000-4000-8000-000000000001",
+        "is_teardown": false,
+        "gate_count": 0,
+        "gross_feet": 203.4773406982422,
+        "gate_feet": 0.0,
+        "net_feet": 203.4773406982422,
+        "geometry": {
+          "corner_count": 0,
+          "end_count": 2,
+          "line_vertex_count": 1,
+          "segments": [
+            {
+              "from_index": 0,
+              "to_index": 1,
+              "length_ft": 100.0
+            },
+            {
+              "from_index": 1,
+              "to_index": 2,
+              "length_ft": 103.47734069824219
+            }
+          ],
+          "vertices": [
+            {
+              "index": 0,
+              "kind": "END",
+              "turn_degrees": 0.0
+            },
+            {
+              "index": 1,
+              "kind": "LINE",
+              "turn_degrees": 14.895750045776367
+            },
+            {
+              "index": 2,
+              "kind": "END",
+              "turn_degrees": 0.0
+            }
+          ]
+        },
+        "posts": {
+          "line": 33,
+          "corner": 0,
+          "end": 2,
+          "gate": 0,
+          "terminal": 2,
+          "total": 35
+        },
+        "entries": [
+          {
+            "role": "PANEL",
+            "quantity": 34.0,
+            "prefer_covers_ft": 6.0,
+            "covers_linear_ft": 203.4773406982422
+          },
+          {
+            "role": "LINE_POST",
+            "quantity": 33.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CORNER_POST",
+            "quantity": 0.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "POST_CAP",
+            "quantity": 35.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "CONCRETE_BAG",
+            "quantity": 35.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          }
+        ],
+        "takeoff": [
+          {
+            "label": "Fence length",
+            "quantity": 203.4773406982422,
+            "unit": "ft",
+            "group": "SITE"
+          },
+          {
+            "label": "Line posts",
+            "quantity": 33.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "End posts",
+            "quantity": 2.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Total posts",
+            "quantity": 35.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Post caps",
+            "quantity": 35.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Panels",
+            "quantity": 34.0,
+            "unit": "",
+            "group": "PANELS"
+          },
+          {
+            "label": "Concrete",
+            "quantity": 35.0,
+            "unit": "bags",
+            "group": "CONCRETE"
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "sync_id": "30b9285d-d619-36fb-a22e-4579f7759399",
+        "fence_run_sync_id": "00000007-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "Panel T&G Vinyl Privacy 6'H x 6'W - White",
+        "quantity": 34.0,
+        "unit": "EA",
+        "unit_price": 52.35,
+        "supplier_unit_price": null,
+        "taxable": false,
+        "role": "PANEL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "17a35ea9-f501-304a-8e13-d55177442ffd",
+        "fence_run_sync_id": "00000007-0000-4000-8000-000000000001",
+        "sort_order": 1,
+        "description": "5\"x5\" Co-Ex Line Post, White",
+        "quantity": 33.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LINE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "f3891f9e-213d-3bac-b06a-eeaa535d2874",
+        "fence_run_sync_id": "00000007-0000-4000-8000-000000000001",
+        "sort_order": 2,
+        "description": "5\"x5\" Co-Ex End Post, White",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "eed12d86-5653-3fc0-b49f-2611cc8759cb",
+        "fence_run_sync_id": "00000007-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "5\" External Pyramid PVC Post Cap, White",
+        "quantity": 35.0,
+        "unit": "EA",
+        "unit_price": 0.74,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "POST_CAP",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "bf7b7ac7-7df3-35b3-abac-0494ea992124",
+        "fence_run_sync_id": "00000007-0000-4000-8000-000000000001",
+        "sort_order": 4,
+        "description": "Concrete Mix 60lb Bag",
+        "quantity": 35.0,
+        "unit": "EA",
+        "unit_price": 4.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "CONCRETE_BAG",
+        "auto_generated": true,
+        "category": null
+      }
+    ],
+    "unmatched_roles": [],
+    "zero_priced": [],
+    "zero_priced_names": [],
+    "totals_items": [
+      "30b9285d-d619-36fb-a22e-4579f7759399",
+      "17a35ea9-f501-304a-8e13-d55177442ffd",
+      "f3891f9e-213d-3bac-b06a-eeaa535d2874",
+      "eed12d86-5653-3fc0-b49f-2611cc8759cb",
+      "bf7b7ac7-7df3-35b3-abac-0494ea992124"
+    ],
+    "totals": {
+      "materials_subtotal": 2551.65,
+      "taxable_subtotal": 771.7499999999999,
+      "tax": 54.022499999999994,
+      "labor_cost": 1627.8187255859375,
+      "teardown_cost": 0.0,
+      "trash_haul_fee": 0.0,
+      "gate_feet": 0.0,
+      "gate_charge": 0.0,
+      "change_order_cost": 0.0,
+      "change_order_feet": 0.0,
+      "markup_amount": 0.0,
+      "discount_amount": 0.0,
+      "pre_markup_total": 4233.491225585938,
+      "grand_total": 4240.0,
+      "billable_linear_feet": 203.4773406982422
+    }
+  }
+}
