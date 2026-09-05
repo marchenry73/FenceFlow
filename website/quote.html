@@ -144,7 +144,7 @@
       <div id="mapCred" style="display:none;position:absolute;left:8px;bottom:28px;
            font-size:9.5px;color:rgba(15,24,38,.65);background:rgba(255,255,255,.55);
            padding:1px 6px;border-radius:4px">
-        Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</div>
+        <span id="imageryCredit">Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</span></div>
       <div id="viewCtl" style="position:absolute;right:10px;bottom:10px;
            display:flex;gap:6px">
         <button id="walkBtn" style="background:rgba(15,24,38,.82);border:none;color:#fff;
@@ -193,6 +193,13 @@ const API=window.FENCEFLOW_CONFIG.SUPABASE_URL+'/functions/v1';
 // The person reading this page is a homeowner with a link, not a developer.
 // A dropped connection surfaces as a TypeError whose message is 'Failed to
 // fetch'; anything else is a sentence the server wrote for them.
+// The credit follows whichever source actually served the tiles. It was a
+// fixed string naming the free provider, and stayed wrong the day the map
+// function started serving the county's own aerials.
+fetch(API+'/quote-map?meta=1',{headers:{apikey:window.FENCEFLOW_CONFIG.SUPABASE_KEY}})
+  .then(r=>r.ok?r.json():null)
+  .then(m=>{ if(m&&m.attribution){ const el=document.getElementById('imageryCredit'); if(el) el.textContent='Imagery © '+m.attribution+(m.imagery_note?' · '+m.imagery_note:''); } })
+  .catch(()=>{});
 const friendly=e=>(e instanceof TypeError)
   ? 'Could not reach the server — check your connection and try again.'
   : (e && e.message) || 'Something went wrong. Please try again in a moment.';
