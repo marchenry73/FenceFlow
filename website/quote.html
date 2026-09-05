@@ -145,6 +145,17 @@
            font-size:9.5px;color:rgba(15,24,38,.65);background:rgba(255,255,255,.55);
            padding:1px 6px;border-radius:4px">
         Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</div>
+      <div id="viewCtl" style="position:absolute;right:10px;bottom:10px;
+           display:flex;gap:6px">
+        <button id="walkBtn" style="background:rgba(15,24,38,.82);border:none;color:#fff;
+                border-radius:8px;padding:8px 12px;cursor:pointer;
+                font:600 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
+                text-transform:uppercase">Walk it</button>
+        <button id="topBtn" style="background:rgba(15,24,38,.82);border:none;color:#fff;
+                border-radius:8px;padding:8px 12px;cursor:pointer;
+                font:600 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
+                text-transform:uppercase">Top view</button>
+      </div>
     </div>
 
     <div id="approvedBox" class="done" style="display:none"></div>
@@ -329,7 +340,805 @@ $('payBtn').addEventListener('click', async ()=>{
    survey canvas in pixels; the true scale is only known when the contractor
    typed the measured length, so when it is absent the drawing is scaled by
    the app's working default (4px per foot) — the proportions, post rhythm
-   and gates are exact either way, which is what the eye reads. */
+   and gates are exact either way, which is what the eye reads.
+
+   The geometry math below is deliberately split from the THREE.js drawing:
+   every function down through scenePlanRun() takes plain numbers and
+   strings and returns plain objects/arrays -- no THREE, no DOM. That is
+   what tests/quote-scene.test.mjs pulls out and runs standalone, the same
+   grab()/new Function() idiom as tests/wizard-encoding.test.mjs. Everything
+   after that point is a mechanical translation of a plan into meshes, and
+   is not unit-tested for the same reason build3D() itself never was: there
+   is no WebGL in the test runner. */
+
+/** Deterministic 0..1 generator (mulberry32) so every texture and the old
+ * fence's wobble look the same on every render of the same job, instead of
+ * reshuffling on each reload. */
+function sceneMulberry32(seed){
+  let s = seed >>> 0;
+  return function(){
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function sceneHexToRgb(hex){ return [(hex>>16)&255, (hex>>8)&255, hex&255]; }
+function sceneShade(rgb, amt){
+  return rgb.map(v=>Math.max(0, Math.min(255, Math.round(v + amt*255))));
+}
+function sceneHexCss(hex){ return '#'+((hex>>>0)&0xFFFFFF).toString(16).padStart(6,'0'); }
+
+/**
+ * A run's fence type + colour/finish text -> a believable base material
+ * colour. Finish is free text typed into the catalog, not a fixed enum (the
+ * pricing engine narrows the same way for colour matching), so this matches
+ * on keywords rather than exact strings.
+ */
+function sceneFinishColor(type, finish){
+  const f=String(finish||'').toUpperCase();
+  const has=(...words)=>words.some(w=>f.includes(w));
+  if(has('WHITE')) return 0xF2F1EA;
+  if(has('ALMOND','IVORY','CREAM')) return 0xE9DFC6;
+  if(has('TAN','BEIGE','CLAY','KHAKI','SAND')) return 0xC9B48C;
+  if(has('BRONZE')) return 0x4A3C2E;
+  if(has('BLACK','CHARCOAL')) return 0x24262B;
+  if(has('BROWN','CEDAR','REDWOOD','WALNUT')) return 0x7A4B2A;
+  if(has('GRAY','GREY','GALVANIZED','SILVER','STEEL')) return 0x9AA3AA;
+  if(has('GREEN','FOREST','HUNTER')) return 0x33502F;
+  if(has('PURPLE')) return 0x5B4A73; // an actual catalog value on file
+  // No finish typed: fall back to the material's own natural colour.
+  const t=String(type||'').toUpperCase();
+  if(t.includes('VINYL')) return 0xF2F1EA;
+  if(t.includes('COMPOSITE')) return 0x6E5A46;
+  if(t.includes('CHAIN')) return 0x9AA3AA;
+  if(t.includes('ALUMIN')) return 0x2b2f33;
+  if(t.includes('ORNAMENT')||t.includes('IRON')) return 0x1c1e21;
+  if(t.includes('SPLIT')) return 0x8a6a44;
+  if(t.includes('WOOD')) return 0xA9744A;
+  return 0xB9B2A4;
+}
+
+/**
+ * END / LINE / CORNER for every drawn vertex, exactly mirroring
+ * FenceGeometryEngine.analyze() in
+ * app/src/main/java/com/fenceestimator/app/geometry/FenceGeometry.kt --
+ * same 15-degree threshold, same open/closed modulo indexing -- so a corner
+ * that gets a heavier post in the estimate gets a heavier post here too.
+ */
+const SCENE_CORNER_ANGLE_THRESHOLD_DEGREES = 15;
+function sceneClassifyVertices(points, closedLoop){
+  const n=points.length;
+  if(n<2) return points.map(()=>'END');
+  const kinds=[];
+  for(let i=0;i<n;i++){
+    const isEndpoint = !closedLoop && (i===0 || i===n-1);
+    if(isEndpoint){ kinds.push('END'); continue; }
+    const prevIdx=(i-1+n)%n, nextIdx=(i+1)%n;
+    const prev=points[prevIdx], curr=points[i], next=points[nextIdx];
+    const angleIn=Math.atan2(curr.y-prev.y, curr.x-prev.x);
+    const angleOut=Math.atan2(next.y-curr.y, next.x-curr.x);
+    let turn=angleOut-angleIn;
+    while(turn>Math.PI) turn-=2*Math.PI;
+    while(turn<-Math.PI) turn+=2*Math.PI;
+    const turnDeg=Math.abs(turn*180/Math.PI);
+    kinds.push(turnDeg>=SCENE_CORNER_ANGLE_THRESHOLD_DEGREES ? 'CORNER' : 'LINE');
+  }
+  return kinds;
+}
+
+/** "x:y,x:y,..." -> [{x,y}], dropping any pair that doesn't parse. Mirrors
+ * FenceCodec.decodePoints's tolerance, not its exact rejection rule. */
+function sceneParsePoints(raw){
+  return String(raw||'').split(',').map(p=>{
+    const q=p.split(':');
+    return {x:parseFloat(q[0]), y:parseFloat(q[1])};
+  }).filter(p=>isFinite(p.x)&&isFinite(p.y));
+}
+
+/** "x:y:w[:MOUNTING:SWING]" -> [{x,y,w,mounting,swing}]. Mounting/swing are
+ * carried for the leaf's hinge side and swing direction; older 3-part gates
+ * default the same way FenceCodec.decodeGates does (LINE, IN). */
+function sceneParseGates(raw){
+  return String(raw||'').split(',').map(g=>{
+    const q=g.split(':');
+    return { x:parseFloat(q[0]), y:parseFloat(q[1]), w:parseFloat(q[2])||4,
+      mounting:q[3]||'LINE', swing:q[4]||'IN' };
+  }).filter(g=>isFinite(g.x));
+}
+
+/** Which mesh layout a run needs. Wood is the only type whose layout depends
+ * on a style field rather than the type string itself. */
+function scenePanelKind(type, woodStyle){
+  const t=String(type||'').toUpperCase();
+  if(t.includes('CHAIN')) return 'chain';
+  if(t.includes('ALUMIN')||t.includes('ORNAMENT')||t.includes('STEEL')||t.includes('IRON')) return 'picket';
+  if(t.includes('SPLIT')) return 'split';
+  if(t.includes('COMPOSITE')) return 'board';
+  if(t.includes('WOOD')) return String(woodStyle||'').toUpperCase()==='SPACED_PICKET' ? 'picket' : 'board';
+  return 'panel'; // vinyl + anything unrecognised
+}
+
+/** Which texture/material family a run needs. Separate from scenePanelKind
+ * because wood privacy and composite share a mesh layout ('board') but
+ * must never share a texture -- composite is flatter and more uniform. */
+function sceneMaterialKind(type){
+  const t=String(type||'').toUpperCase();
+  if(t.includes('CHAIN')) return 'chain';
+  if(t.includes('ALUMIN')) return 'aluminum';
+  if(t.includes('ORNAMENT')||t.includes('IRON')) return 'iron';
+  if(t.includes('SPLIT')) return 'rail';
+  if(t.includes('COMPOSITE')) return 'composite';
+  if(t.includes('WOOD')) return 'wood';
+  return 'vinyl';
+}
+
+/** Board count/width for a bay of a wood-privacy or composite run. Wider
+ * boards on a very long straight segment keep the rhythm without asking a
+ * phone to build thousands of individual meshes for a long backyard run. */
+function sceneBoardLayout(bayLenFt, segLenFt){
+  const boardW = segLenFt>200 ? 1.1 : 0.52;
+  const count=Math.max(1, Math.round((bayLenFt-.4)/boardW));
+  const width=(bayLenFt-.5)/count;
+  return {count, width};
+}
+
+/** Picket count for a bay of a spaced-picket wood run, or an aluminum/iron run. */
+function scenePicketLayout(bayLenFt){
+  return { count: Math.max(2, Math.round(bayLenFt/0.35)), width: 0.09 };
+}
+
+/**
+ * All the geometry and material decisions for one fence run, resolved down
+ * to plain numbers: post positions and which ones are heavy (corner, end or
+ * flanking a gate -- same corner rule the estimate itself uses), bay
+ * centres, and for board runs, every individual board's offset, size and
+ * (for a torn-down run) whether it survived and how it sags. Nothing past
+ * this function makes a randomness or business-rule decision; it only
+ * turns these numbers into meshes.
+ *
+ * seedIn/nextSeed thread a tiny PRNG state across runs so the old fence's
+ * missing boards and leaning posts are deterministic for a given job (same
+ * quote always looks the same) without any function here reaching for
+ * hidden module state.
+ */
+function scenePlanRun(run, pxPerFoot, seedIn){
+  const rawPts = sceneParsePoints(run.points);
+  let P = rawPts;
+  if(P.length<2){
+    // No drawing (measured by hand): stand up a straight run of the
+    // measured length so every quote still gets its fence, not a blank lawn.
+    const ft = run.manualFeet>0 ? run.manualFeet : 40;
+    P = [{x:0,y:0},{x:ft*(pxPerFoot||20),y:0}];
+  }
+  const closedLoop = !!run.closed && P.length>2;
+  const kinds = sceneClassifyVertices(P, closedLoop);
+  const n = P.length;
+  const segCount = closedLoop ? n : n-1;
+
+  let totalPx=0;
+  for(let i=0;i<segCount;i++){
+    const a=P[i], b=P[(i+1)%n];
+    totalPx += Math.hypot(b.x-a.x, b.y-a.y);
+  }
+  // The typed measurement wins; otherwise the job's own canvas scale.
+  const ftPerPx = (run.manualFeet>0 && totalPx>0) ? run.manualFeet/totalPx : 1/(pxPerFoot||20);
+  const worldPts = P.map(p=>({x:p.x*ftPerPx, z:p.y*ftPerPx}));
+
+  const gates = sceneParseGates(run.gates).map(g=>({
+    x:g.x*ftPerPx, z:g.y*ftPerPx, w:g.w||4, mounting:g.mounting, swing:g.swing,
+  }));
+
+  const teardown = !!run.teardown;
+  // The old fence renders as generic weathered wood boards regardless of
+  // what it actually was -- the drawing does not record the old material,
+  // and "weathered wood, whatever it used to be" is the honest answer.
+  const geomKind = teardown ? 'board' : scenePanelKind(run.type, run.woodStyle);
+  const materialKind = teardown ? 'weathered' : sceneMaterialKind(run.type);
+  const heightFt = Math.max(2, Number(run.heightFt)||6);
+  const spacing = Math.max(4, Number(run.postSpacingFt)||8);
+
+  let railYs;
+  if(geomKind==='board') railYs=[0.55, heightFt*0.52, Math.max(0.6, heightFt-0.35)];
+  else if(geomKind==='picket') railYs = heightFt>=5.5 ? [0.5, heightFt*0.5, heightFt-0.28] : [0.5, heightFt-0.28];
+  else if(geomKind==='split'){
+    const rc=Math.max(2, Number(run.splitRails)||2);
+    railYs=Array.from({length:rc}, (_,i)=>0.8+(heightFt-1.2)*(i/Math.max(1,rc-1)));
+  } else railYs=[];
+
+  const posts=[]; const postIndex=new Map();
+  const postKey=(x,z)=>Math.round(x*20)+'_'+Math.round(z*20);
+  let seed = seedIn || 1;
+  const step=()=>{ seed=(seed*16807)%2147483647; return (seed/2147483647)-0.5; };
+  const addPost=(x,z,angle,thick)=>{
+    const key=postKey(x,z);
+    if(postIndex.has(key)){ if(thick) posts[postIndex.get(key)].thick=true; return; }
+    // A deterministic lean: the same run always tilts the same way, so the
+    // old fence does not reshuffle itself on every reload.
+    const lean = teardown ? step()*0.12 : 0;
+    postIndex.set(key, posts.length);
+    posts.push({x,z,angle,thick,lean});
+  };
+
+  const bays=[];
+  for(let i=0;i<segCount;i++){
+    const a=worldPts[i], b=worldPts[(i+1)%n];
+    const len=Math.hypot(b.x-a.x,b.z-a.z);
+    if(len<0.5) continue;
+    const ux=(b.x-a.x)/len, uz=(b.z-a.z)/len;
+    const angle=Math.atan2(-(b.z-a.z), b.x-a.x);
+    const bayCount=Math.max(1, Math.round(len/spacing));
+    const bayLen=len/bayCount;
+    const aKind=kinds[i%kinds.length], bKind=kinds[(i+1)%kinds.length];
+
+    // Posts every post_spacing along the line. The two ends of each
+    // segment are the drawn vertices themselves -- END or CORNER get a
+    // heavier post; everything interpolated between them is a plain line
+    // post. Shared vertices (segment N's end is segment N+1's start, and a
+    // closed loop's last point is its first) collapse to one post via the
+    // key map, upgraded to heavy if either side calls for it.
+    for(let k=0;k<=bayCount;k++){
+      const x=a.x+ux*bayLen*k, z=a.z+uz*bayLen*k;
+      if(k===0) addPost(x,z,angle, aKind!=='LINE');
+      else if(k===bayCount) addPost(x,z,angle, bKind!=='LINE');
+      else addPost(x,z,angle,false);
+    }
+
+    for(let k=0;k<bayCount;k++){
+      const sx=a.x+ux*bayLen*k, sz=a.z+uz*bayLen*k;
+      const ex=sx+ux*bayLen, ez=sz+uz*bayLen;
+      const cx=(sx+ex)/2, cz=(sz+ez)/2;
+      const gate = gates.find(g=>Math.hypot(g.x-cx,g.z-cz)<bayLen*0.6) || null;
+      if(gate){
+        // A gate hangs off heavier posts, wherever it lands on a straight run.
+        const p1=postIndex.get(postKey(sx,sz)); if(p1!=null) posts[p1].thick=true;
+        const p2=postIndex.get(postKey(ex,ez)); if(p2!=null) posts[p2].thick=true;
+      }
+      const bay={cx,cz,angle,bayLen,ux,uz,sx,sz,gate,boards:null};
+      if(geomKind==='board' && !gate){
+        const {count,width}=sceneBoardLayout(bayLen, len);
+        const boards=[];
+        for(let bi=0;bi<count;bi++){
+          // Age reads as absence and disorder: roughly one board in eight
+          // is gone, the rest sag and tilt a little.
+          const skip = teardown && Math.abs(step())>0.44;
+          const sag = teardown ? step()*0.22 : 0;
+          const tilt = teardown ? step()*0.06 : 0;
+          const offset=(bi+.5)*width+(bayLen-count*width)/2-bayLen/2;
+          boards.push({ offset, width:width*0.92, height:heightFt-0.15-Math.abs(sag), sag, tilt, skip });
+        }
+        bay.boards=boards;
+      }
+      bays.push(bay);
+    }
+  }
+
+  return {
+    geomKind, materialKind, color: sceneFinishColor(run.type, run.finish),
+    heightFt, teardown, railYs, closedLoop,
+    // Ornamental iron gets finials; aluminum (flat-top or rackable) does
+    // not -- the one visual cue between two otherwise similar picket runs.
+    finials: !teardown && materialKind==='iron',
+    // No independent "has a cap" flag reaches this page (WOOD_STYLES is
+    // only PRIVACY/SPACED_PICKET), so a privacy run is given the cap trim a
+    // real privacy fence usually ships with; composite stays capless.
+    capBoard: !teardown && geomKind==='board' && materialKind==='wood',
+    posts, bays, worldPts,
+    type: String(run.type||'').toUpperCase(), label: run.label||'',
+    nextSeed: seed,
+  };
+}
+
+/** Cumulative distance at each point of a polyline, for walking it at a
+ * steady pace regardless of how the drawing's vertices are spaced. */
+function scenePathLengths(pts){
+  const cum=[0];
+  for(let i=1;i<pts.length;i++){
+    cum.push(cum[i-1]+Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z));
+  }
+  return cum;
+}
+
+/** A point at a given distance along the polyline, wrapping past the end so
+ * a walk-through can loop. Degenerates to the only point available when
+ * there is nothing to walk. */
+function scenePointAtDistance(pts, cum, dist){
+  if(pts.length===0) return {x:0,z:0};
+  if(pts.length===1) return {x:pts[0].x, z:pts[0].z};
+  const total=cum[cum.length-1];
+  if(total<=0) return {x:pts[0].x, z:pts[0].z};
+  const d=((dist%total)+total)%total;
+  let i=1; while(i<cum.length-1 && cum[i]<d) i++;
+  const segLen=(cum[i]-cum[i-1])||1;
+  const t=(d-cum[i-1])/segLen;
+  return { x: pts[i-1].x+(pts[i].x-pts[i-1].x)*t, z: pts[i-1].z+(pts[i].z-pts[i-1].z)*t };
+}
+
+/**
+ * The 2D fallback: a plain schematic (no textures, no camera) for a browser
+ * that cannot do WebGL. Deliberately ignores the feet conversion and draws
+ * straight off the drawing's own pixel coordinates -- the shape and
+ * relative proportions are all this view promises. No text is embedded so
+ * this stays a self-contained pure function (no esc() dependency) for the
+ * grab()/new Function() test harness.
+ */
+function sceneFlatPlanSVG(runs, w, h){
+  const allPts=[];
+  const lines=(runs||[]).map(r=>{
+    const pts=sceneParsePoints(r.points);
+    if(pts.length<2) return null;
+    const closed = !!r.closed && pts.length>2;
+    const full = closed ? pts.concat([pts[0]]) : pts;
+    full.forEach(p=>allPts.push(p));
+    return { pts:full, teardown:!!r.teardown, color:sceneFinishColor(r.type, r.finish) };
+  }).filter(Boolean);
+  if(!allPts.length){
+    return '<svg viewBox="0 0 '+w+' '+h+'" xmlns="http://www.w3.org/2000/svg"></svg>';
+  }
+  const minX=Math.min(...allPts.map(p=>p.x)), maxX=Math.max(...allPts.map(p=>p.x));
+  const minY=Math.min(...allPts.map(p=>p.y)), maxY=Math.max(...allPts.map(p=>p.y));
+  const pad=24;
+  const spanX=Math.max(1,maxX-minX), spanY=Math.max(1,maxY-minY);
+  const scale=Math.min((w-pad*2)/spanX,(h-pad*2)/spanY);
+  const toXY=(p)=>[ pad+(p.x-minX)*scale, pad+(p.y-minY)*scale ];
+  const polys=lines.map(l=>{
+    const d=l.pts.map(toXY).map(xy=>xy[0].toFixed(1)+','+xy[1].toFixed(1)).join(' ');
+    const dash = l.teardown ? ' stroke-dasharray="6,5"' : '';
+    return '<polyline points="'+d+'" fill="none" stroke="'+sceneHexCss(l.color)
+      +'" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"'+dash+'/>';
+  }).join('');
+  return '<svg viewBox="0 0 '+w+' '+h+'" xmlns="http://www.w3.org/2000/svg" '
+    +'style="width:100%;height:auto;display:block;background:#EAF1E6;border-radius:10px">'+polys+'</svg>';
+}
+
+function sceneWebglAvailable(){
+  try{
+    const c=document.createElement('canvas');
+    return !!(window.WebGLRenderingContext
+      && (c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl')));
+  }catch(e){ return false; }
+}
+
+function renderFlatPlan(runs, stageEl){
+  stageEl.style.height='auto';
+  stageEl.style.background='transparent';
+  stageEl.innerHTML =
+    '<div style="padding:16px">'
+    +'<p style="font-size:13px;color:var(--muted);margin-bottom:10px">'
+    +'This browser can’t show the 3D preview, so here is the plan.</p>'
+    +sceneFlatPlanSVG(runs, 720, 380)
+    +'</div>';
+}
+
+/* --------------------------------------------------------------------
+   Texture generation. Every one of these draws once to a canvas at page
+   load and hands THREE a CanvasTexture -- capped at 256px (512 for grass,
+   which tiles across the whole yard and shows the most repetition
+   otherwise) so nothing is shipped and nothing is heavy on a phone. */
+
+function sceneMakeCanvas(size){
+  const c=document.createElement('canvas'); c.width=c.height=size;
+  return {c, g:c.getContext('2d')};
+}
+
+function sceneWoodTexture(colorHex, weathered){
+  const size=256;
+  const {c,g}=sceneMakeCanvas(size);
+  const rnd=sceneMulberry32(((colorHex>>>0)+(weathered?7777:1))>>>0);
+  const base=sceneHexToRgb(colorHex);
+  g.fillStyle='rgb('+base.join(',')+')'; g.fillRect(0,0,size,size);
+  const streaks=weathered?60:85;
+  for(let i=0;i<streaks;i++){
+    const x=rnd()*size, lw=1+rnd()*3, amt=(rnd()-0.5)*(weathered?0.32:0.15);
+    const rgb=sceneShade(base,amt);
+    g.strokeStyle='rgba('+rgb.join(',')+','+(0.3+rnd()*0.35).toFixed(2)+')';
+    g.lineWidth=lw;
+    g.beginPath(); g.moveTo(x,0);
+    const wob=(rnd()-0.5)*12;
+    g.quadraticCurveTo(x+wob, size*0.5, x+wob*0.4, size);
+    g.stroke();
+  }
+  const knots=weathered?5:2;
+  for(let i=0;i<knots;i++){
+    const x=rnd()*size,y=rnd()*size,rw=6+rnd()*9;
+    const rgb=sceneShade(base,-0.3);
+    g.fillStyle='rgba('+rgb.join(',')+',0.5)';
+    g.beginPath(); g.ellipse(x,y,rw*0.4,rw*0.8,0,0,Math.PI*2); g.fill();
+  }
+  if(weathered){
+    for(let i=0;i<36;i++){
+      const x=rnd()*size,y=rnd()*size,rr=4+rnd()*14;
+      const rgb=sceneShade(base,(rnd()-0.5)*0.4);
+      g.fillStyle='rgba('+rgb.join(',')+',0.2)';
+      g.beginPath(); g.arc(x,y,rr,0,Math.PI*2); g.fill();
+    }
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function sceneCompositeTexture(colorHex){
+  const size=256;
+  const {c,g}=sceneMakeCanvas(size);
+  const rnd=sceneMulberry32(((colorHex>>>0)+42)>>>0);
+  const base=sceneHexToRgb(colorHex);
+  g.fillStyle='rgb('+base.join(',')+')'; g.fillRect(0,0,size,size);
+  for(let i=0;i<40;i++){
+    const x=rnd()*size, amt=(rnd()-0.5)*0.08;
+    const rgb=sceneShade(base,amt);
+    g.strokeStyle='rgba('+rgb.join(',')+',0.22)'; g.lineWidth=1+rnd();
+    g.beginPath(); g.moveTo(x,0); g.lineTo(x,size); g.stroke();
+  }
+  for(let s=1;s<4;s++){
+    const y=size*(s/4);
+    g.strokeStyle='rgba(0,0,0,0.16)'; g.lineWidth=2; g.beginPath(); g.moveTo(0,y); g.lineTo(size,y); g.stroke();
+    g.strokeStyle='rgba(255,255,255,0.10)'; g.beginPath(); g.moveTo(0,y+2); g.lineTo(size,y+2); g.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function sceneVinylTexture(colorHex){
+  const size=256;
+  const {c,g}=sceneMakeCanvas(size);
+  const base=sceneHexToRgb(colorHex);
+  g.fillStyle='rgb('+base.join(',')+')'; g.fillRect(0,0,size,size);
+  const grad=g.createLinearGradient(0,0,size,0);
+  grad.addColorStop(0,'rgba(255,255,255,0)');
+  grad.addColorStop(0.42,'rgba(255,255,255,0.14)');
+  grad.addColorStop(0.5,'rgba(255,255,255,0.26)');
+  grad.addColorStop(0.58,'rgba(255,255,255,0.14)');
+  grad.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=grad; g.fillRect(0,0,size,size);
+  for(let s=1;s<3;s++){
+    const y=size*(s/3);
+    g.strokeStyle='rgba(0,0,0,0.10)'; g.lineWidth=1.5;
+    g.beginPath(); g.moveTo(0,y); g.lineTo(size,y); g.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function sceneMetalTexture(colorHex){
+  const size=256;
+  const {c,g}=sceneMakeCanvas(size);
+  const rnd=sceneMulberry32(((colorHex>>>0)+909)>>>0);
+  const base=sceneHexToRgb(colorHex);
+  g.fillStyle='rgb('+base.join(',')+')'; g.fillRect(0,0,size,size);
+  for(let i=0;i<140;i++){
+    const x=rnd()*size, amt=(rnd()-0.5)*0.22;
+    const rgb=sceneShade(base,amt);
+    g.strokeStyle='rgba('+rgb.join(',')+','+(0.15+rnd()*0.25).toFixed(2)+')';
+    g.lineWidth=0.6+rnd()*0.8;
+    g.beginPath(); g.moveTo(x,0); g.lineTo(x,size); g.stroke();
+  }
+  for(let i=0;i<10;i++){
+    const x=rnd()*size, y=rnd()*size;
+    g.fillStyle='rgba(255,255,255,0.35)';
+    g.fillRect(x,y,1+rnd()*10,0.8);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function sceneBarkTexture(colorHex){
+  const size=256;
+  const {c,g}=sceneMakeCanvas(size);
+  const rnd=sceneMulberry32(((colorHex>>>0)+55)>>>0);
+  const base=sceneHexToRgb(colorHex);
+  g.fillStyle='rgb('+base.join(',')+')'; g.fillRect(0,0,size,size);
+  for(let i=0;i<90;i++){
+    const x=rnd()*size,y=rnd()*size,rr=3+rnd()*16;
+    const rgb=sceneShade(base,(rnd()-0.5)*0.4);
+    g.fillStyle='rgba('+rgb.join(',')+',0.35)';
+    g.beginPath(); g.ellipse(x,y,rr,rr*(0.4+rnd()*0.6),rnd()*Math.PI,0,Math.PI*2); g.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+let __sceneChainBase=null;
+function sceneChainLinkBase(){
+  if(__sceneChainBase) return __sceneChainBase;
+  const size=128;
+  const {c,g}=sceneMakeCanvas(size);
+  g.clearRect(0,0,size,size);
+  g.strokeStyle='#ffffff'; g.lineWidth=2.2;
+  const step=size/4;
+  for(let x=-size;x<size*2;x+=step){
+    g.beginPath(); g.moveTo(x,0); g.lineTo(x+size,size); g.stroke();
+    g.beginPath(); g.moveTo(x,size); g.lineTo(x+size,0); g.stroke();
+  }
+  __sceneChainBase=new THREE.CanvasTexture(c);
+  return __sceneChainBase;
+}
+
+function sceneGrassTexture(){
+  const size=512;
+  const {c,g}=sceneMakeCanvas(size);
+  const rnd=sceneMulberry32(20260905);
+  const base=[0x5b,0x8a,0x45];
+  g.fillStyle='rgb('+base.join(',')+')'; g.fillRect(0,0,size,size);
+  for(let i=0;i<9000;i++){
+    const x=rnd()*size, y=rnd()*size;
+    const shade=(rnd()-0.5)*0.28 + (rnd()<0.12?0.12:0);
+    const rgb=sceneShade(base, shade);
+    g.strokeStyle='rgba('+rgb.join(',')+','+(0.35+rnd()*0.4).toFixed(2)+')';
+    g.lineWidth=1+rnd();
+    const len=3+rnd()*6;
+    const ang=(rnd()-0.5)*0.7-Math.PI/2;
+    g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.cos(ang)*len, y+Math.sin(ang)*len); g.stroke();
+  }
+  for(let i=0;i<70;i++){
+    const x=rnd()*size,y=rnd()*size,rr=10+rnd()*40;
+    const rgb=sceneShade(base, (rnd()-0.5)*0.18);
+    g.fillStyle='rgba('+rgb.join(',')+',0.18)';
+    g.beginPath(); g.arc(x,y,rr,0,Math.PI*2); g.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+/** Large-scale colour drift across the ground so a tightly tiled texture
+ * does not read as a grid -- vertex colour multiplies the map per pixel. */
+function sceneTintGroundVertices(geometry){
+  const pos=geometry.attributes.position;
+  const colors=new Float32Array(pos.count*3);
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i), y=pos.getY(i);
+    const n=(Math.sin(x*0.015)+Math.cos(y*0.021))*0.05;
+    const v=0.92+n;
+    colors[i*3]=v; colors[i*3+1]=Math.min(1,v+0.03); colors[i*3+2]=v*0.94;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors,3));
+}
+
+/** A soft gradient sky dome (vertex-coloured, no texture) so the horizon
+ * looks the same from any angle the camera orbits to. */
+function sceneMakeSkyDome(){
+  const geo=new THREE.SphereGeometry(1, 24, 16, 0, Math.PI*2, 0, Math.PI/1.9);
+  const pos=geo.attributes.position;
+  const colors=new Float32Array(pos.count*3);
+  const top=new THREE.Color(0x6fa3d9), horizon=new THREE.Color(0xdcf0f8);
+  for(let i=0;i<pos.count;i++){
+    const y=pos.getY(i);
+    const h=Math.max(0, Math.min(1, y));
+    const col=horizon.clone().lerp(top, Math.pow(h,0.7));
+    colors[i*3]=col.r; colors[i*3+1]=col.g; colors[i*3+2]=col.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  const mat=new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide, fog:false, depthWrite:false});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.renderOrder=-10;
+  return mesh;
+}
+
+function sceneBuildMaterial(materialKind, colorHex, maxAniso){
+  const tex=(t)=>{ t.anisotropy=maxAniso||1; t.encoding=THREE.sRGBEncoding; return t; };
+  switch(materialKind){
+    case 'wood': return new THREE.MeshStandardMaterial({map:tex(sceneWoodTexture(colorHex,false)), roughness:0.9, metalness:0.03});
+    case 'weathered': return new THREE.MeshStandardMaterial({map:tex(sceneWoodTexture(colorHex,true)), roughness:0.97, metalness:0});
+    case 'composite': return new THREE.MeshStandardMaterial({map:tex(sceneCompositeTexture(colorHex)), roughness:0.82, metalness:0.04});
+    case 'vinyl': return new THREE.MeshStandardMaterial({map:tex(sceneVinylTexture(colorHex)), roughness:0.36, metalness:0.06});
+    case 'aluminum': return new THREE.MeshStandardMaterial({map:tex(sceneMetalTexture(colorHex)), roughness:0.4, metalness:0.6});
+    case 'iron': return new THREE.MeshStandardMaterial({map:tex(sceneMetalTexture(colorHex)), roughness:0.48, metalness:0.4});
+    case 'rail': return new THREE.MeshStandardMaterial({map:tex(sceneBarkTexture(colorHex)), roughness:0.95, metalness:0});
+    default: return new THREE.MeshStandardMaterial({color:colorHex, roughness:0.7, metalness:0.1});
+  }
+}
+
+/**
+ * Mechanically turns one scenePlanRun() plan into meshes. Every repeating
+ * element -- posts, rails, boards, pickets, chain fabric -- is one
+ * InstancedMesh regardless of how many instances it holds, which is what
+ * keeps draw calls flat whether a run is 40ft or 1200ft: more boards means
+ * a bigger instance buffer, not another draw call.
+ */
+function buildRunMeshes(plan, ctx){
+  const {group, unitBox, unitCone, unitCyl, dummy}=ctx;
+  const isSplit = plan.geomKind==='split';
+  const structColor = plan.teardown ? 0x6E675B : plan.color;
+  const structKind = plan.teardown ? 'weathered' : (isSplit ? 'rail' : plan.materialKind);
+  const postGeo = isSplit ? unitCyl : unitBox;
+  const postMat = ctx.getMaterial(structKind, structColor);
+
+  if(plan.posts.length){
+    const postIM=new THREE.InstancedMesh(postGeo, postMat, plan.posts.length);
+    postIM.castShadow=true; postIM.receiveShadow=true;
+    plan.posts.forEach((p,i)=>{
+      const w=p.thick?0.46:0.33;
+      dummy.position.set(p.x, (plan.heightFt+0.5)/2, p.z);
+      dummy.rotation.set(0, p.angle, p.lean||0);
+      dummy.scale.set(w, plan.heightFt+0.5, w);
+      dummy.updateMatrix();
+      postIM.setMatrixAt(i, dummy.matrix);
+    });
+    postIM.instanceMatrix.needsUpdate=true;
+    group.add(postIM);
+
+    // Caps: not on split rail (rustic posts don't get one) or chain link
+    // (the fitting is implied by the top rail).
+    if(!isSplit && plan.geomKind!=='chain'){
+      const capIM=new THREE.InstancedMesh(unitBox, postMat, plan.posts.length);
+      plan.posts.forEach((p,i)=>{
+        const w=(p.thick?0.46:0.33)+0.14;
+        dummy.position.set(p.x, plan.heightFt+0.56, p.z);
+        dummy.rotation.set(0,p.angle,0);
+        dummy.scale.set(w,0.14,w);
+        dummy.updateMatrix();
+        capIM.setMatrixAt(i,dummy.matrix);
+      });
+      capIM.instanceMatrix.needsUpdate=true;
+      capIM.castShadow=true;
+      group.add(capIM);
+    }
+  }
+
+  const bodyBays=plan.bays.filter(b=>!b.gate);
+  const structMat = ctx.getMaterial(structKind, structColor);
+
+  if(plan.railYs.length && bodyBays.length){
+    const count=bodyBays.length*plan.railYs.length;
+    const railIM=new THREE.InstancedMesh(unitBox, structMat, count);
+    railIM.castShadow=true; railIM.receiveShadow=true;
+    let idx=0;
+    bodyBays.forEach(b=>{
+      plan.railYs.forEach(y=>{
+        dummy.position.set(b.cx, y, b.cz);
+        dummy.rotation.set(0,b.angle,0);
+        dummy.scale.set(b.bayLen-0.2, 0.26, isSplit?0.24:0.16);
+        dummy.updateMatrix();
+        railIM.setMatrixAt(idx++, dummy.matrix);
+      });
+    });
+    railIM.instanceMatrix.needsUpdate=true;
+    group.add(railIM);
+  }
+
+  if(plan.capBoard && bodyBays.length){
+    const woodMat=ctx.getMaterial(plan.materialKind, plan.color);
+    const capBoardIM=new THREE.InstancedMesh(unitBox, woodMat, bodyBays.length);
+    bodyBays.forEach((b,i)=>{
+      dummy.position.set(b.cx, plan.heightFt+0.08, b.cz);
+      dummy.rotation.set(0,b.angle,0);
+      dummy.scale.set(b.bayLen-0.05, 0.18, 0.55);
+      dummy.updateMatrix();
+      capBoardIM.setMatrixAt(i,dummy.matrix);
+    });
+    capBoardIM.instanceMatrix.needsUpdate=true;
+    capBoardIM.castShadow=true;
+    group.add(capBoardIM);
+  }
+
+  if(plan.geomKind==='board'){
+    let total=0;
+    bodyBays.forEach(b=>{ total += (b.boards||[]).filter(x=>!x.skip).length; });
+    if(total){
+      const mat=ctx.getMaterial(structKind, structColor);
+      const boardIM=new THREE.InstancedMesh(unitBox, mat, total);
+      boardIM.castShadow=true; boardIM.receiveShadow=true;
+      let idx=0;
+      bodyBays.forEach(b=>{
+        (b.boards||[]).forEach(bd=>{
+          if(bd.skip) return;
+          const cx=b.cx+b.ux*bd.offset, cz=b.cz+b.uz*bd.offset;
+          dummy.position.set(cx, bd.height/2+0.1, cz);
+          dummy.rotation.set(0,b.angle,bd.tilt||0);
+          dummy.scale.set(bd.width, bd.height, 0.1);
+          dummy.updateMatrix();
+          boardIM.setMatrixAt(idx++, dummy.matrix);
+        });
+      });
+      boardIM.instanceMatrix.needsUpdate=true;
+      group.add(boardIM);
+    }
+  } else if(plan.geomKind==='picket'){
+    let total=0;
+    bodyBays.forEach(b=>{ total+=scenePicketLayout(b.bayLen).count; });
+    if(total){
+      const mat=ctx.getMaterial(plan.materialKind, plan.color);
+      const picketIM=new THREE.InstancedMesh(unitBox, mat, total);
+      picketIM.castShadow=true; picketIM.receiveShadow=true;
+      const coneIM = plan.finials ? new THREE.InstancedMesh(unitCone, mat, total) : null;
+      if(coneIM) coneIM.castShadow=true;
+      let idx=0;
+      bodyBays.forEach(b=>{
+        const {count}=scenePicketLayout(b.bayLen);
+        for(let bi=0; bi<count; bi++){
+          const t=(bi+.5)*(b.bayLen-.4)/count - (b.bayLen-.4)/2;
+          const cx=b.cx+b.ux*t, cz=b.cz+b.uz*t;
+          dummy.position.set(cx,(plan.heightFt-.25)/2+.1,cz);
+          dummy.rotation.set(0,b.angle,0);
+          dummy.scale.set(0.09, plan.heightFt-.25, 0.09);
+          dummy.updateMatrix();
+          picketIM.setMatrixAt(idx,dummy.matrix);
+          if(coneIM){
+            dummy.position.set(cx, plan.heightFt-.05, cz);
+            dummy.scale.set(0.16,0.28,0.16);
+            dummy.updateMatrix();
+            coneIM.setMatrixAt(idx,dummy.matrix);
+          }
+          idx++;
+        }
+      });
+      picketIM.instanceMatrix.needsUpdate=true;
+      group.add(picketIM);
+      if(coneIM){ coneIM.instanceMatrix.needsUpdate=true; group.add(coneIM); }
+    }
+  } else if(plan.geomKind==='panel'){
+    if(bodyBays.length){
+      const mat=ctx.getMaterial(plan.materialKind, plan.color);
+      const panelIM=new THREE.InstancedMesh(unitBox, mat, bodyBays.length);
+      panelIM.castShadow=true; panelIM.receiveShadow=true;
+      bodyBays.forEach((b,i)=>{
+        dummy.position.set(b.cx,(plan.heightFt-.2)/2+.1,b.cz);
+        dummy.rotation.set(0,b.angle,0);
+        dummy.scale.set(b.bayLen-0.3, plan.heightFt-0.2, 0.13);
+        dummy.updateMatrix();
+        panelIM.setMatrixAt(i,dummy.matrix);
+      });
+      panelIM.instanceMatrix.needsUpdate=true;
+      group.add(panelIM);
+    }
+  } else if(plan.geomKind==='chain'){
+    if(bodyBays.length){
+      const fabricMat=ctx.getChainMaterial(plan.color, bodyBays[0].bayLen, plan.heightFt);
+      const fabricIM=new THREE.InstancedMesh(unitBox, fabricMat, bodyBays.length);
+      const topRailIM=new THREE.InstancedMesh(unitBox, postMat, bodyBays.length);
+      bodyBays.forEach((b,i)=>{
+        dummy.position.set(b.cx,(plan.heightFt-.35)/2+.2,b.cz);
+        dummy.rotation.set(0,b.angle,0);
+        dummy.scale.set(b.bayLen-0.25, plan.heightFt-0.35, 0.045);
+        dummy.updateMatrix();
+        fabricIM.setMatrixAt(i,dummy.matrix);
+
+        dummy.position.set(b.cx, plan.heightFt+0.08, b.cz);
+        dummy.scale.set(b.bayLen, 0.09, 0.09);
+        dummy.updateMatrix();
+        topRailIM.setMatrixAt(i,dummy.matrix);
+      });
+      fabricIM.instanceMatrix.needsUpdate=true;
+      topRailIM.instanceMatrix.needsUpdate=true;
+      fabricIM.receiveShadow=true;
+      topRailIM.castShadow=true;
+      group.add(fabricIM); group.add(topRailIM);
+    }
+  }
+  // split rail: posts + rails above already cover it -- no per-bay extra.
+
+  // Gates: always few, so plain (non-instanced) meshes are fine.
+  plan.bays.forEach(b=>{
+    if(!b.gate) return;
+    const g=b.gate;
+    const leafW=Math.min(g.w, b.bayLen-0.5);
+    const mat = plan.geomKind==='chain'
+      ? ctx.getChainMaterial(plan.color, b.bayLen, plan.heightFt)
+      : ctx.getMaterial(plan.materialKind, plan.color);
+    const leaf=new THREE.Group();
+    const frame=new THREE.Mesh(unitBox, mat);
+    frame.scale.set(leafW, plan.heightFt-0.3, 0.15);
+    frame.position.set(leafW/2, 0, 0);
+    frame.castShadow=true;
+    leaf.add(frame);
+    const brace=new THREE.Mesh(unitBox, mat);
+    const braceLen=Math.hypot(leafW, plan.heightFt-0.4);
+    brace.scale.set(braceLen, 0.12, 0.18);
+    brace.position.set(leafW/2, 0, 0.02);
+    brace.rotation.z=Math.atan2(plan.heightFt-.4, leafW);
+    leaf.add(brace);
+    // Hinge plates on the post the leaf actually hangs from.
+    const hingeMat=ctx.getMaterial('iron', 0x2b2f33);
+    [0.3, plan.heightFt-0.5].forEach(hy=>{
+      const hinge=new THREE.Mesh(unitBox, hingeMat);
+      hinge.scale.set(0.1,0.14,0.2);
+      hinge.position.set(0.05, hy-(plan.heightFt-0.3)/2, 0);
+      leaf.add(hinge);
+    });
+    // Hinged at the bay's start post; IN swings toward the fence's own
+    // turn direction, OUT swings the other way.
+    const swingSign = g.swing==='OUT' ? -1 : 1;
+    leaf.position.set(b.sx, (plan.heightFt-0.3)/2+0.15, b.sz);
+    leaf.rotation.y=b.angle+0.4*swingSign;
+    leaf.traverse(o=>{o.castShadow=true;});
+    group.add(leaf);
+  });
+}
+
 function build3D(runs,attempt){
   const stage=$('stage');
   // The stage was display:none a moment ago and layout may not have settled,
@@ -343,201 +1152,71 @@ function build3D(runs,attempt){
     if((attempt||0)<60) setTimeout(()=>build3D(runs,(attempt||0)+1),50);
     return;
   }
+
+  if(!sceneWebglAvailable()){ renderFlatPlan(runs, stage); return; }
+
   const H=Math.max(300,Math.min(430,Math.round(W*0.62)));
   stage.style.height=H+'px';
 
+  const HORIZON=0xDCF0F8;
   const scene=new THREE.Scene();
-  scene.background=new THREE.Color(0xBFD9EA);
-  scene.fog=new THREE.Fog(0xBFD9EA, 120, 420);
+  scene.background=new THREE.Color(HORIZON);
+  scene.fog=new THREE.Fog(HORIZON, 120, 420);
 
   const renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
   renderer.setSize(W,H);
   renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.05;
   stage.insertBefore(renderer.domElement,stage.firstChild);
+  const maxAniso=Math.min(8, renderer.capabilities.getMaxAnisotropy()||1);
 
-  const sun=new THREE.DirectionalLight(0xfff4e0,1.3);
-  sun.position.set(60,90,40); sun.castShadow=true;
-  sun.shadow.mapSize.set(2048,2048);
-  sun.shadow.camera.left=-120; sun.shadow.camera.right=120;
-  sun.shadow.camera.top=120; sun.shadow.camera.bottom=-120;
-  scene.add(sun);
-  scene.add(new THREE.AmbientLight(0xdde8f0,.55));
-  scene.add(new THREE.HemisphereLight(0xbfd9ea,0x4c7a3f,.35));
-
-  const grass=new THREE.Mesh(
-    new THREE.CircleGeometry(400,48),
-    new THREE.MeshLambertMaterial({color:0x5E8C4A}));
-  grass.rotation.x=-Math.PI/2; grass.receiveShadow=true;
-  scene.add(grass);
-
-  const M={
-    // The old fence's palette: sun-bleached gray-brown, the colour every
-    // customer already hates. Nothing in the new-fence palette gets near it,
-    // so old and new never read as the same fence.
-    oldWood:new THREE.MeshLambertMaterial({color:0x8B8272}),
-    oldPost:new THREE.MeshLambertMaterial({color:0x6E675B}),
-    wood:new THREE.MeshLambertMaterial({color:0xA97B4F}),
-    woodDark:new THREE.MeshLambertMaterial({color:0x8a6238}),
-    vinyl:new THREE.MeshLambertMaterial({color:0xF2F1EC}),
-    metal:new THREE.MeshLambertMaterial({color:0x2b2f33}),
-    galv:new THREE.MeshLambertMaterial({color:0x9aa4ab}),
-    mesh:new THREE.MeshLambertMaterial({color:0x8f9aa1,transparent:true,opacity:.34,side:THREE.DoubleSide}),
-    rail:new THREE.MeshLambertMaterial({color:0x9b7546}),
-  };
-  const paletteFor=t=>{
-    t=String(t||'').toUpperCase();
-    if(t.includes('CHAIN')) return {post:M.galv,board:M.mesh,rail:M.galv,kind:'chain'};
-    if(t.includes('ALUMIN')||t.includes('ORNAMENT')||t.includes('STEEL')||t.includes('IRON'))
-      return {post:M.metal,board:M.metal,rail:M.metal,kind:'picket'};
-    if(t.includes('SPLIT')) return {post:M.woodDark,board:null,rail:M.rail,kind:'split'};
-    if(t.includes('WOOD')) return {post:M.woodDark,board:M.wood,rail:M.wood,kind:'board'};
-    return {post:M.vinyl,board:M.vinyl,rail:M.vinyl,kind:'panel'};   // vinyl + default
-  };
+  const matCache={};
+  function getMaterial(materialKind, colorHex){
+    const key=materialKind+'_'+colorHex;
+    if(!matCache[key]) matCache[key]=sceneBuildMaterial(materialKind, colorHex, maxAniso);
+    return matCache[key];
+  }
+  const chainMatCache={};
+  function getChainMaterial(colorHex, spacingFt, heightFt){
+    const key=colorHex+'_'+spacingFt.toFixed(1)+'_'+heightFt.toFixed(1);
+    if(chainMatCache[key]) return chainMatCache[key];
+    const t=sceneChainLinkBase().clone();
+    t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping;
+    t.repeat.set(Math.max(1,spacingFt/1.2), Math.max(1,heightFt/1.2));
+    const mat=new THREE.MeshStandardMaterial({ color:colorHex, map:t, alphaMap:t,
+      transparent:true, alphaTest:0.35, side:THREE.DoubleSide, roughness:0.55, metalness:0.35 });
+    chainMatCache[key]=mat; return mat;
+  }
 
   // Every fence piece lives in one group so the whole fence can be turned
   // and slid as a unit over the aerial photo -- the drawing knows its own
   // shape and size exactly, but nothing about which way the yard faces.
   const fence=new THREE.Group();
   const oldFence=new THREE.Group();
-  scene.add(fence);
-  // Which group a piece lands in follows which run is being built, so the
-  // whole old fence can vanish with one visibility flip.
-  let target=fence;
-  const box=(w,h,d,mat,x,y,z)=>{
-    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
-    m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
-    target.add(m); return m;
-  };
-  // A deterministic wobble: the same run always leans the same way, so the
-  // old fence does not reshuffle itself on every reload.
-  let wob=1;
-  const wobble=()=>{ wob=(wob*16807)%2147483647; return (wob/2147483647)-0.5; };
+  const unitBox=new THREE.BoxGeometry(1,1,1);
+  const unitCyl=new THREE.CylinderGeometry(0.5,0.5,1,10);
+  const unitCone=new THREE.ConeGeometry(0.5,1,8);
+  const dummy=new THREE.Object3D();
 
-  const all=[]; // world-space points for camera fit
+  const all=[]; const plans=[];
+  let seed=1;
   runs.forEach(run=>{
-    // The old fence: weathered wood whatever it used to be, posts leaning,
-    // the odd board missing -- age you can read at a glance, standing right
-    // where the drawing says it stands.
-    const isOld=!!run.teardown;
-    target=isOld?oldFence:fence;
-    let pts=String(run.points||'').split(',').map(p=>{
-      const q=p.split(':'); return {x:parseFloat(q[0]),y:parseFloat(q[1])};
-    }).filter(p=>isFinite(p.x)&&isFinite(p.y));
-
-    // No drawing (measured by hand): stand up a straight run of the measured
-    // length so every quote still gets its fence, not a blank lawn.
-    if(pts.length<2){
-      const ft=run.manualFeet>0?run.manualFeet:40;
-      pts=[{x:0,y:0},{x:ft*(quote.pxPerFoot||20),y:0}];
-    }
-    if(run.closed && pts.length>2) pts=pts.concat([pts[0]]);
-
-    let px=0;
-    for(let i=1;i<pts.length;i++) px+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
-    // The typed measurement wins; otherwise the job’s own canvas scale.
-    const ftPerPx=run.manualFeet>0 ? run.manualFeet/px : 1/(quote.pxPerFoot||20);
-
-    const P=pts.map(p=>({x:p.x*ftPerPx,z:p.y*ftPerPx}));
-    P.forEach(p=>all.push(p));
-    const hgt=run.heightFt;
-    const pal=isOld
-      ? {post:M.oldPost,board:M.oldWood,rail:M.oldWood,kind:'board'}
-      : paletteFor(run.type);
-    const spacing=Math.max(4,run.postSpacingFt);
-
-    // Gates: cut a hole in the panels where each one sits, then hang it.
-    const gates=String(run.gates||'').split(',').map(g=>{
-      const q=g.split(':');
-      return {x:parseFloat(q[0])*ftPerPx,z:parseFloat(q[1])*ftPerPx,w:parseFloat(q[2])||4};
-    }).filter(g=>isFinite(g.x));
-
-    for(let i=1;i<P.length;i++){
-      const a=P[i-1],b=P[i];
-      const len=Math.hypot(b.x-a.x,b.z-a.z);
-      if(len<0.5) continue;
-      const ux=(b.x-a.x)/len, uz=(b.z-a.z)/len;
-      const ang=Math.atan2(-(b.z-a.z),b.x-a.x);
-      const bays=Math.max(1,Math.round(len/spacing));
-      const bay=len/bays;
-
-      for(let k=0;k<=bays;k++){
-        const x=a.x+ux*bay*k, z=a.z+uz*bay*k;
-        const post=box(.33,hgt+.5,.33,pal.post,x,(hgt+.5)/2,z);
-        post.rotation.y=ang;
-        if(isOld) post.rotation.z=wobble()*0.12;
-        if(pal.kind==='chain'){ box(.12,.12,.12,pal.post,x,hgt+.55,z); }
-        else { box(.45,.12,.45,pal.post,x,hgt+.56,z); }
-      }
-
-      for(let k=0;k<bays;k++){
-        const cx=a.x+ux*bay*(k+.5), cz=a.z+uz*bay*(k+.5);
-        // A bay containing a gate is left open; the gate leaf hangs there.
-        const g=gates.find(g=>Math.hypot(g.x-cx,g.z-cz)<bay*0.6);
-        if(g){
-          const leafW=Math.min(g.w,bay-0.5);
-          const leaf=new THREE.Group();
-          const lm=pal.kind==='chain'?M.galv:pal.board||pal.rail;
-          const frame=new THREE.Mesh(new THREE.BoxGeometry(leafW,hgt-.3,.15),
-            pal.kind==='chain'?M.mesh:lm);
-          frame.position.set(leafW/2,0,0); frame.castShadow=true; leaf.add(frame);
-          const brace=new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(leafW,hgt-.4),.12,.18),lm);
-          brace.position.set(leafW/2,0,0.02);
-          brace.rotation.z=Math.atan2(hgt-.4,leafW); leaf.add(brace);
-          // Hinged at the bay's start post, swung 20 degrees for life.
-          leaf.position.set(a.x+ux*bay*k,(hgt-.3)/2+.15,a.z+uz*bay*k);
-          leaf.rotation.y=ang+0.35;
-          leaf.traverse(o=>{o.castShadow=true;});
-          fence.add(leaf);
-          continue;
-        }
-        if(pal.kind==='panel'){
-          const pn=box(bay-.3,hgt-.2,.12,pal.board,cx,(hgt-.2)/2+.1,cz); pn.rotation.y=ang;
-          const r1=box(bay-.2,.32,.2,pal.rail,cx,hgt-.25,cz); r1.rotation.y=ang;
-          const r2=box(bay-.2,.32,.2,pal.rail,cx,.45,cz); r2.rotation.y=ang;
-        } else if(pal.kind==='board'){
-          // Boards read as wood only up close; past a point they are just
-          // draw calls. Wider boards on a very long run keeps the rhythm
-          // without asking a phone for thousands of meshes.
-          const boardW=len>200?1.1:0.52;
-          const boards=Math.max(1,Math.round((bay-.4)/boardW));
-          const bw=(bay-.5)/boards;
-          for(let bi=0;bi<boards;bi++){
-            // Age reads as absence and disorder: roughly one board in eight
-            // is gone, the rest tilt and sag a little.
-            if(isOld && Math.abs(wobble())>0.44) continue;
-            const t2=(bi+.5)*bw+(bay-boards*bw)/2 - bay/2;
-            const sag=isOld?wobble()*0.22:0;
-            const m=box(bw*.92,hgt-.15-Math.abs(sag),.1,pal.board,
-              cx+ux*t2,(hgt-.15)/2+.1-Math.abs(sag)/2,cz+uz*t2);
-            m.rotation.y=ang;
-            if(isOld) m.rotation.z=wobble()*0.06;
-          }
-          const r1=box(bay-.3,.3,.16,pal.rail,cx,hgt-.35,cz); r1.rotation.y=ang;
-          const r2=box(bay-.3,.3,.16,pal.rail,cx,.55,cz); r2.rotation.y=ang;
-        } else if(pal.kind==='picket'){
-          const n=Math.max(2,Math.round(bay/0.35));
-          for(let bi=0;bi<n;bi++){
-            const t2=(bi+.5)*(bay-.4)/n - (bay-.4)/2;
-            const m=box(.07,hgt-.25,.07,pal.board,cx+ux*t2,(hgt-.25)/2+.1,cz+uz*t2);
-            m.rotation.y=ang;
-          }
-          [hgt-.28,hgt*.5,.5].forEach(ry=>{
-            const r=box(bay-.2,.1,.1,pal.rail,cx,ry,cz); r.rotation.y=ang;
-          });
-        } else if(pal.kind==='split'){
-          const rails=Math.max(2,run.splitRails);
-          for(let ri=0;ri<rails;ri++){
-            const ry=.8+(hgt-1.2)*(ri/(Math.max(1,rails-1)));
-            const r=box(bay+.2,.28,.22,pal.rail,cx,ry,cz); r.rotation.y=ang;
-          }
-        } else { // chain link
-          const p2=box(bay-.25,hgt-.35,.04,M.mesh,cx,(hgt-.35)/2+.2,cz); p2.rotation.y=ang;
-          const tr=box(bay,.09,.09,pal.rail,cx,hgt+.1,cz); tr.rotation.y=ang;
-        }
-      }
-    }
+    try{
+      const plan=scenePlanRun(run, quote.pxPerFoot||20, seed);
+      seed=plan.nextSeed;
+      plan.worldPts.forEach(p=>all.push(p));
+      plans.push(plan);
+      buildRunMeshes(plan, {
+        group: plan.teardown?oldFence:fence,
+        unitBox, unitCyl, unitCone, dummy, getMaterial, getChainMaterial,
+      });
+    }catch(e){ /* one bad run should not blank the whole yard */ }
   });
+  scene.add(fence);
 
   // Camera: orbit the fence's own centre, sized to fit it.
   let cx=0,cz=0,r=20;
@@ -546,6 +1225,43 @@ function build3D(runs,attempt){
     cz=all.reduce((s,p)=>s+p.z,0)/all.length;
     r=Math.max(14,...all.map(p=>Math.hypot(p.x-cx,p.z-cz)))*1.35+8;
   }
+
+  // Ground, sky and sun are all sized off the job's own footprint -- a
+  // 40ft backyard fence and a 1200ft property line need very different
+  // yards around them.
+  const groundSize=Math.max(300, r*3.2);
+  const groundTex=sceneGrassTexture();
+  groundTex.wrapS=groundTex.wrapT=THREE.RepeatWrapping;
+  groundTex.repeat.set(groundSize/14, groundSize/14);
+  groundTex.anisotropy=maxAniso;
+  const groundGeo=new THREE.PlaneGeometry(groundSize,groundSize,24,24);
+  sceneTintGroundVertices(groundGeo);
+  const grass=new THREE.Mesh(groundGeo,
+    new THREE.MeshStandardMaterial({map:groundTex, vertexColors:true, roughness:0.95}));
+  grass.rotation.x=-Math.PI/2; grass.receiveShadow=true;
+  scene.add(grass);
+
+  const sky=sceneMakeSkyDome();
+  sky.scale.setScalar(Math.max(700, r*3.6+150));
+  scene.add(sky);
+  scene.fog.near=Math.max(80, r*0.9);
+  scene.fog.far=Math.max(420, r*2.6+120);
+
+  const sun=new THREE.DirectionalLight(0xfff2df,1.5);
+  sun.position.set(cx+70,95,cz+45);
+  sun.target.position.set(cx,0,cz);
+  sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);
+  const sB=Math.max(90, r*1.15);
+  sun.shadow.camera.left=-sB; sun.shadow.camera.right=sB;
+  sun.shadow.camera.top=sB; sun.shadow.camera.bottom=-sB;
+  sun.shadow.camera.near=10; sun.shadow.camera.far=300+r*2;
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.bias=-0.0015;
+  scene.add(sun); scene.add(sun.target);
+  scene.add(new THREE.HemisphereLight(0xBFD9EA,0x4c7a3f,0.55));
+  scene.add(new THREE.AmbientLight(0xffffff,0.28));
+
   // Re-hang the fence from a pivot at its own centroid, so "turn it" and
   // "slide it" are each one line on the pivot instead of trigonometry in
   // every handler.
@@ -557,12 +1273,16 @@ function build3D(runs,attempt){
   pivot.add(fence);
   pivot.add(oldFence);
   scene.add(pivot);
+
   // The far plane follows the scene: a fixed 900 once culled an entire fence
   // whose scale guess was 5x off, and the page showed nothing but sky.
   const cam=new THREE.PerspectiveCamera(50,W/H,0.1,Math.max(900,r*4+100));
+
+  let mode='orbit'; // 'orbit' | 'walk' | 'top'
   // Opens near eye level, close enough to read the boards -- a fence seen
   // from a drone reads as a diagram; seen from the lawn it reads as REAL.
   let yaw=0.7,pitch=0.16,dist=r,auto=true,slideMode=false;
+  let savedPitch=pitch, savedDist=dist;
   // The camera's target can travel: tx/tz start on the fence but pan moves
   // them anywhere on the ground -- walking the neighbourhood, not circling a
   // post. panLimit keeps the walk on the photo once one exists.
@@ -585,13 +1305,25 @@ function build3D(runs,attempt){
     tz += Math.cos(yaw)*dx + Math.sin(yaw)*-dz;
   }
 
+  const hintEl=document.getElementById('stageHint');
+  const defaultHint=hintEl.textContent;
+  const walkBtn=document.getElementById('walkBtn');
+  const topBtn=document.getElementById('topBtn');
+  function exitSpecialModes(){
+    if(mode==='top'){ pitch=savedPitch; dist=savedDist; topBtn.textContent='Top view'; }
+    if(mode==='walk'){ walkBtn.textContent='Walk it'; }
+    if(mode!=='orbit') hintEl.textContent=defaultHint;
+    mode='orbit';
+  }
+
   // A hand-rolled orbit: drag turns, wheel and pinch zoom. The moment a
-  // finger lands, the slow show-off spin stops and the person is in charge.
+  // finger lands, the slow show-off spin -- and any walk-it or top-view
+  // mode -- stops and the person is in charge.
   const el=renderer.domElement;
   const touches=new Map();
   let pinchD=0, pinchMid=null;
   el.addEventListener('contextmenu',e=>e.preventDefault());
-  el.addEventListener('pointerdown',e=>{auto=false;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});el.setPointerCapture(e.pointerId);});
+  el.addEventListener('pointerdown',e=>{auto=false;exitSpecialModes();touches.set(e.pointerId,{x:e.clientX,y:e.clientY});el.setPointerCapture(e.pointerId);});
   el.addEventListener('pointerup',e=>{touches.delete(e.pointerId);pinchD=0;pinchMid=null;});
   el.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);pinchD=0;pinchMid=null;});
   el.addEventListener('pointermove',e=>{
@@ -628,15 +1360,70 @@ function build3D(runs,attempt){
     yaw+=(e.clientX-prev.x)*0.008;
     pitch=Math.min(1.35,Math.max(0.08,pitch+(e.clientY-prev.y)*0.005));
   });
-  el.addEventListener('wheel',e=>{e.preventDefault();auto=false;
+  el.addEventListener('wheel',e=>{e.preventDefault();auto=false;exitSpecialModes();
     dist=Math.min(r*3,Math.max(8,dist*(e.deltaY>0?1.08:0.93)));},{passive:false});
 
+  // ------------------------------------------------------- walk it -----
+  // Walks along the new fence only (the point of the tour is the fence
+  // being quoted); falls back to the old one if that's all there is.
+  const newPts=plans.filter(p=>!p.teardown).reduce((acc,p)=>acc.concat(p.worldPts),[]);
+  const walkPts = newPts.length>=2 ? newPts : plans.reduce((acc,p)=>acc.concat(p.worldPts),[]);
+  const walkCum=scenePathLengths(walkPts);
+  const walkTotal=walkCum[walkCum.length-1]||0;
+  const WALK_DURATION=Math.min(42, Math.max(10, walkTotal/11));
+  let walkT0=0;
+  // toWorld: a path point is stored in the fence group's own local space
+  // (pre-centring). This applies the pivot's current rotation and position
+  // -- which the rotate slider and slide-into-place drag both change -- so
+  // the walk-it path always follows where the fence actually is right now.
+  function toWorld(p){
+    const lx=p.x-cx, lz=p.z-cz;
+    const cr=Math.cos(pivot.rotation.y), sr=Math.sin(pivot.rotation.y);
+    return { x: pivot.position.x + lx*cr - lz*sr, z: pivot.position.z + lx*sr + lz*cr };
+  }
+
+  if(walkTotal<4){
+    walkBtn.style.display='none';
+  } else {
+    walkBtn.addEventListener('click',()=>{
+      if(mode==='walk'){ exitSpecialModes(); return; }
+      exitSpecialModes();
+      mode='walk'; auto=false; walkT0=performance.now();
+      walkBtn.textContent='Stop walking';
+      hintEl.textContent='Walking the fence line — drag to take over';
+    });
+  }
+  topBtn.addEventListener('click',()=>{
+    if(mode==='top'){ exitSpecialModes(); return; }
+    exitSpecialModes();
+    savedPitch=pitch; savedDist=dist;
+    mode='top'; auto=false;
+    pitch=1.47; dist=r*1.55+14;
+    tx=pivot.position.x; tz=pivot.position.z;
+    topBtn.textContent='Ground view';
+    hintEl.textContent='Looking straight down — drag to look around';
+  });
+
   function tick(){
-    if(auto) yaw+=0.0022;
-    place();
+    if(mode==='walk' && walkPts.length>=2){
+      const elapsed=(performance.now()-walkT0)/1000;
+      const t=(elapsed/WALK_DURATION)%1;
+      const d=t*walkTotal;
+      const p0=scenePointAtDistance(walkPts,walkCum,d);
+      const p1=scenePointAtDistance(walkPts,walkCum,d+2.5);
+      const w0=toWorld(p0), w1=toWorld(p1);
+      let tvx=w1.x-w0.x, tvz=w1.z-w0.z;
+      const tl=Math.hypot(tvx,tvz)||1; tvx/=tl; tvz/=tl;
+      cam.position.set(w0.x - tvz*8, 5.3, w0.z + tvx*8);
+      cam.lookAt(w0.x+tvx*9, 4.0, w0.z+tvz*9);
+    } else {
+      if(auto) yaw+=0.0022;
+      place();
+    }
     renderer.render(scene,cam);
     requestAnimationFrame(tick);
   }
+
   // The before-and-after: the customer looks at the weathered thing they
   // hate, taps once, and it is gone -- new fence alone in the yard.
   if(oldFence.children.length){
@@ -705,10 +1492,10 @@ function build3D(runs,attempt){
     const pz=((t.y-cyT)/N - .5)*sideFt;
 
     const tex=new THREE.CanvasTexture(cvs);
-    tex.anisotropy=renderer.capabilities.getMaxAnisotropy();
+    tex.anisotropy=maxAniso;
     const plane=new THREE.Mesh(
       new THREE.PlaneGeometry(sideFt,sideFt),
-      new THREE.MeshLambertMaterial({map:tex}));
+      new THREE.MeshStandardMaterial({map:tex, roughness:0.95}));
     plane.rotation.x=-Math.PI/2;
     plane.position.set(cx-px, 0.02, cz-pz);
     plane.receiveShadow=true;
@@ -725,9 +1512,9 @@ function build3D(runs,attempt){
     slideBtn.addEventListener('click',()=>{
       slideMode=!slideMode;
       slideBtn.style.background=slideMode?'var(--orange)':'transparent';
-      document.getElementById('stageHint').textContent=slideMode
+      hintEl.textContent=slideMode
         ? 'Drag to slide the fence into place'
-        : 'Drag to walk around · pinch or scroll to zoom';
+        : defaultHint;
     });
     panLimit=sideFt*0.48;
     // The haze was the blur. Scene fog starts at 120ft for the grass look,
@@ -742,7 +1529,7 @@ function build3D(runs,attempt){
     renderer.render(scene,cam);
     return true;
   };
-  window.__fence.renderOnce=()=>{place();renderer.render(scene,cam);};
+  window.__fence.renderOnce=()=>{ if(mode!=='walk'){ place(); } renderer.render(scene,cam); };
   // One eager frame before the loop: a tab restored from the background, or
   // any context where animation frames are throttled, still shows the fence
   // immediately instead of sky until the first rAF lands.
