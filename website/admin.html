@@ -1,212 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FenceFlow Admin</title>
+<!-- Nothing here should end up in a search index -- it is one person's console
+     over every paying customer's account. -->
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-  :root {
-    --bg: #f6f7f9; --surface: #ffffff; --ink: #14181d; --muted: #5c6672;
-    --line: #e3e7ec; --brand: #2a78d6; --good: #1baf7a; --warn: #eda100; --bad: #d64545;
+  /* Same house identity as the dashboard -- graphite, safety orange, steel
+     teal, Barlow Condensed for headings, IBM Plex Sans for running text --
+     just denser, because this page is read by one person who opens it fifteen
+     times a day rather than a customer who opens it once. */
+  :root{
+    --graphite:#0F1826; --graphite2:#1E2A3D;
+    --orange:#FF5A1F; --orange-dk:#B23800;
+    --teal:#0E8C7B; --red:#E5484D;
+    --paper:#F7F8FA; --surface:#ffffff; --line:#E3E7ED;
+    --text:#12151A; --muted:#5A6472;
+    --display:"Barlow Condensed","Arial Narrow",sans-serif;
   }
-  :root:not([data-theme="light"]) { }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #14181d; --surface: #1c2128; --ink: #eef1f5; --muted: #97a2b0;
-      --line: #2a313a;
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0B121C; --surface:#141C29; --line:#243044; --text:#EDF1F6; --muted:#93A0B4;
     }
   }
-  :root[data-theme="dark"] {
-    --bg: #14181d; --surface: #1c2128; --ink: #eef1f5; --muted: #97a2b0; --line: #2a313a;
+  :root[data-theme="dark"]{
+    --paper:#0B121C; --surface:#141C29; --line:#243044; --text:#EDF1F6; --muted:#93A0B4;
   }
 
-  body { background: var(--bg); color: var(--ink);
-         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
-  header { background: var(--surface); border-bottom: 1px solid var(--line);
-           padding: 16px 20px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  header h1 { font-size: 18px; margin: 0; }
-  header .sub { color: var(--muted); font-size: 13px; }
-  main { max-width: 1200px; margin: 0 auto; padding: 20px; }
-  .panel { background: var(--surface); border: 1px solid var(--line);
-           border-radius: 12px; padding: 18px; margin-bottom: 18px; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-  .stat { background: var(--surface); border: 1px solid var(--line);
-          border-radius: 12px; padding: 14px; }
-  .stat b { display: block; font-size: 26px; }
-  .stat span { color: var(--muted); font-size: 13px; }
-  .scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px;
-          font-size: 12px; font-weight: 600; }
-  .pill.ok    { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
-  .pill.warn  { background: color-mix(in srgb, var(--warn) 20%, transparent); color: #8a6100; }
-  .pill.bad   { background: color-mix(in srgb, var(--bad) 14%, transparent);  color: var(--bad); }
-  .pill.muted { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
-  button { font: inherit; border-radius: 8px; border: 1px solid var(--line);
-           background: var(--surface); color: var(--ink); padding: 7px 12px; cursor: pointer; }
-  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-  button.danger  { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
-  button:disabled { opacity: .5; cursor: default; }
-  input, textarea { font: inherit; width: 100%; box-sizing: border-box; padding: 8px 10px;
-                    border: 1px solid var(--line); border-radius: 8px;
-                    background: var(--bg); color: var(--ink); }
-  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
-  .row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-  .msg { color: var(--muted); font-size: 13px; min-height: 18px; }
-  .gate { max-width: 420px; margin: 60px auto; }
-  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
-           color: var(--ink); max-width: 520px; width: 92%; padding: 20px; }
-  dialog::backdrop { background: rgba(0,0,0,.45); }
-  /* The wordmark is a link home now. It still has to read as a wordmark. */
-  header h1 a{text-decoration:none;color:inherit;cursor:pointer}
-  header h1 a:hover{opacity:.75}
-  header h1 a:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--text);
+       font:400 15px/1.55 "IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+       -webkit-font-smoothing:antialiased}
+
+  header{background:linear-gradient(180deg,var(--graphite2),var(--graphite));color:#fff;
+         padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+         border-top:3px solid var(--orange)}
+  .logo{font:700 22px/1 var(--display);letter-spacing:.02em;text-transform:uppercase;
+        text-decoration:none;color:#fff;flex:none}
+  .logo span{color:var(--orange)}
+  .logo small{font:400 12px/1 "IBM Plex Sans",sans-serif;color:#8A93A3;
+              text-transform:none;letter-spacing:0;margin-left:6px}
+  .logo:hover{opacity:.85}
+  .logo:focus-visible{outline:2px solid #fff;outline-offset:3px;border-radius:3px}
+
+  .search-wrap{flex:1;min-width:170px;max-width:420px;position:relative}
+  .search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.6;pointer-events:none}
+  .search-wrap input{width:100%;padding:8px 10px 8px 32px;border-radius:8px;
+        border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);
+        color:#fff;font-size:13.5px}
+  .search-wrap input::placeholder{color:#9AA4B4}
+  .search-wrap input:focus{outline:2px solid var(--orange);outline-offset:1px;background:rgba(255,255,255,.14)}
+  .who{font-size:12.5px;color:#AEB8C6;white-space:nowrap}
+
+  button{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--surface);
+         color:var(--text);padding:8px 13px;cursor:pointer}
+  button.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:600}
+  button.primary:hover{background:var(--orange-dk);border-color:var(--orange-dk)}
+  button.danger{color:var(--red);border-color:color-mix(in srgb, var(--red) 45%, var(--line))}
+  button.danger:hover{background:color-mix(in srgb, var(--red) 10%, transparent)}
+  button.ghost{background:transparent;border-color:rgba(255,255,255,.3);color:#fff}
+  button.ghost:hover{background:rgba(255,255,255,.12)}
+  button.small{padding:5px 10px;font-size:12.5px}
+  button.linklike{background:none;border:none;padding:0;color:var(--orange);
+        text-decoration:underline;cursor:pointer;font-size:12.5px}
+  button:disabled{opacity:.5;cursor:default}
+  button:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+
+  input, textarea, select{font:inherit;width:100%;box-sizing:border-box;padding:8px 10px;
+        border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--text)}
+  label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin:12px 0 4px;
+        text-transform:uppercase;letter-spacing:.04em}
+  .row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .msg{color:var(--muted);font-size:13px;min-height:18px}
+  .code-input{max-width:150px;letter-spacing:.3em;font:600 18px ui-monospace,monospace;text-align:center}
+
+  dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);
+         color:var(--text);max-width:560px;width:92%;padding:20px}
+  dialog::backdrop{background:rgba(10,15,22,.55)}
+  dialog h3{font:600 17px/1.2 var(--display);text-transform:uppercase;letter-spacing:.02em;margin:0 0 8px}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .panel h2{font:600 18px/1.2 var(--display);text-transform:uppercase;letter-spacing:.02em;margin:0 0 4px}
+  .panel .sub{color:var(--muted);font-size:13.5px;margin:0 0 12px;max-width:70ch}
+  .gate{max-width:420px;margin:60px auto}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px;margin-bottom:18px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat b{display:block;font:700 27px/1.15 var(--display);font-variant-numeric:tabular-nums}
+  .stat span{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  .stat .note{display:block;font-size:11px;color:var(--orange-dk);margin-top:3px;text-transform:none;letter-spacing:0}
+
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  /* Deliberately NOT a blanket white-space:nowrap on every cell the way this
+     table used to be styled. That rule is what made the crash list overlap:
+     a long, unbroken crash message could not wrap, so the browser either
+     stretched the column far past the panel or let the text run straight over
+     whatever sat next to it. Cells wrap by default now; the handful of columns
+     that are always short (dates, counts, pills) opt into .nowrap by name. */
+  th, td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+     white-space:nowrap;cursor:default;user-select:none}
+  th[data-sort]{cursor:pointer}
+  th[data-sort]:hover{color:var(--text)}
+  th.sort-on{color:var(--text)}
+  th .arrow{font-size:9px;margin-left:3px}
+  .nowrap{white-space:nowrap}
+
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+  .pill.ok    { background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal); }
+  .pill.warn  { background: color-mix(in srgb, #C98A00 18%, transparent);     color: #8A5A00; }
+  .pill.bad   { background: color-mix(in srgb, var(--red) 14%, transparent);  color: var(--red); }
+  .pill.muted { background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--muted); }
+
+  /* ---------------------------------------------------------- shell ---- */
+  .shell{display:flex;align-items:flex-start}
+  .rail{width:184px;flex:none;padding:16px 10px;display:flex;flex-direction:column;gap:2px;
+        position:sticky;top:0;align-self:flex-start}
+  .rail button{text-align:left;background:none;border:none;border-radius:8px;padding:10px 12px;
+        color:var(--muted);font-weight:600;font-size:13.5px}
+  .rail button:hover{background:var(--surface);color:var(--text)}
+  .rail button.on{background:var(--surface);color:var(--text);box-shadow:inset 3px 0 0 var(--orange)}
+  .content{flex:1;min-width:0;padding:18px 20px 44px}
+  @media (max-width:820px){
+    .shell{flex-direction:column}
+    .rail{position:static;width:100%;flex-direction:row;overflow-x:auto;gap:4px;
+          padding:10px 14px;border-bottom:1px solid var(--line)}
+    .rail button{white-space:nowrap;flex:none}
+    .rail button.on{box-shadow:inset 0 -3px 0 var(--orange)}
+    .content{padding:14px}
+    .row2{grid-template-columns:1fr}
+  }
+
+  /* -------------------------------------------------------- crashes ---- */
+  /* A stacked list of grid rows, not a <table>. A table's column widths are
+     shared across every row, so one crash with a very long message forced
+     every row in the column wide; a plain flex/grid list lets each row take
+     exactly the height its own content needs and never touches its neighbour. */
+  .crash-list{display:flex;flex-direction:column}
+  .crash-row{display:grid;
+        grid-template-columns:minmax(200px,1.6fr) 110px 64px 64px 90px 96px 96px 84px;
+        gap:6px 14px;align-items:start;padding:13px 2px;border-bottom:1px solid var(--line)}
+  .crash-row:last-child{border-bottom:none}
+  .crash-row.handled{opacity:.55}
+  /* Grid items default to min-width:auto, which means their content's own
+     minimum size wins over the track width -- an unbroken screen name like
+     "SomeVeryLongComposableScreenName" quietly overflowed its 110px column
+     and spilled into the next one, which is the same shape of bug the message
+     column had before it got word-break, just a column over. min-width:0
+     lets the assigned track width actually win, and the value itself
+     truncates with an ellipsis rather than spilling. */
+  .crash-row > div{min-width:0}
+  .crash-row .lbl{display:none;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .crash-msg b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+        overflow:hidden;word-break:break-word;font-size:13.5px;font-weight:600}
+  .crash-msg button{display:block;margin-top:4px}
+  .crash-row .truncate{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media (max-width:900px){
+    .crash-row{grid-template-columns:1fr 1fr 1fr;row-gap:8px}
+    .crash-row .lbl{display:block}
+  }
+  @media (max-width:560px){
+    .crash-row{grid-template-columns:1fr 1fr}
+  }
+  /* The stack trace itself wraps inside its dialog instead of forcing a wide
+     horizontal scrollbar -- long unbroken tokens (a fully-qualified class name,
+     a URL) still break rather than pushing the box wider than the viewport. */
+  #stackBody{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;
+        overflow:auto;max-height:56vh;font-size:12px;line-height:1.45;background:var(--paper);
+        border:1px solid var(--line);padding:12px;border-radius:8px;margin:0}
+
+  /* --------------------------------------------------------- account --- */
+  .mfa-status{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .qr-box{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin:14px 0}
+  .qr-box img{width:172px;height:172px;border:1px solid var(--line);border-radius:8px;
+        background:#fff;padding:8px}
+  .secret{font:600 13px/1.5 ui-monospace,monospace;background:var(--paper);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;word-break:break-all;max-width:280px}
+
+  /* --------------------------------------------------------- drawer ---- */
+  .qa-row{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px;padding-bottom:14px;
+        border-bottom:1px solid var(--line)}
+  .qa-row:empty{display:none}
 </style>
+</head>
+<body>
 
 <header>
-  <h1><a href="index.html" title="Back to the FenceFlow home page">FenceFlow</a> Admin</h1>
-  <span class="sub">Your clients, not theirs — who's paying, who isn't, and what to do about it.</span>
+  <a class="logo" href="index.html" title="Back to the FenceFlow home page">Fence<span>Flow</span><small>Admin</small></a>
+  <div class="search-wrap" id="searchWrap" style="display:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="search" type="search" placeholder="Search companies — name, email, plan, status">
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
+    <span class="who" id="who" style="display:none"></span>
+    <button class="ghost small" id="signOut" style="display:none">Sign out</button>
+  </div>
 </header>
 
-<main>
-  <!-- Sign in -->
-  <div id="gate" class="panel gate">
-    <h2 style="margin-top:0">Sign in</h2>
+<main id="gate">
+  <!-- Ordinary sign-in. -->
+  <div id="signInPanel" class="panel gate">
+    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit">Sign in</h2>
     <div class="msg" id="gateMsg"></div>
     <label>Email</label><input id="email" type="email" autocomplete="username">
     <label>Password</label><input id="password" type="password" autocomplete="current-password">
-    <div style="margin-top:14px"><button class="primary" id="signIn">Sign in</button></div>
-    <p style="font-size:12px;color:var(--muted)">
+    <div style="margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <button class="primary" id="signIn">Sign in</button>
+      <a href="#" id="forgotLink" style="font-size:13px;color:var(--muted)">Forgot your password?</a>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:18px">
       Only an account flagged as a platform admin can see anything here. That flag is set
       by hand in the database and nothing in the app can grant it.
     </p>
   </div>
 
-  <div id="app" style="display:none">
-    <div class="stats" id="stats"></div>
+  <!-- Reached only from the link in a password-reset email: Supabase drops a
+       recovery session in the URL, this page notices before it ever asks for
+       a sign-in, and the account gets a new password before anything else
+       loads. -->
+  <div id="recoveryPanel" class="panel gate" style="display:none">
+    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit">Set a new password</h2>
+    <div class="msg" id="recoveryMsg"></div>
+    <label>New password</label><input id="newPassword" type="password" autocomplete="new-password">
+    <label>Confirm password</label><input id="newPassword2" type="password" autocomplete="new-password">
+    <div style="margin-top:14px"><button class="primary" id="setPassword">Set password and continue</button></div>
+  </div>
 
-    <div class="panel">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <h2 style="margin:0">Client companies</h2>
-        <div>
-          <button class="primary" id="addCompany">Add a company</button>
-          <button id="refresh">Refresh</button>
-          <button id="exportCsv">Export CSV</button>
-          <button id="signOut">Sign out</button>
-        </div>
-      </div>
-      <div class="msg" id="msg"></div>
-      <div class="scroll">
-        <table>
-          <thead><tr>
-            <th>Company</th><th>Status</th><th>Onboarding</th><th>Plan</th><th>$/mo</th>
-            <th>Users</th><th>Jobs</th><th>Last active</th><th>Renews / ends</th><th></th>
-          </tr></thead>
-          <tbody id="rows"></tbody>
-        </table>
-      </div>
-      <div class="msg" id="empty" style="display:none">No client companies yet.</div>
-    </div>
-
-    <div class="panel">
-      <h2 style="margin-top:0">Crashes</h2>
-      <p style="color:var(--muted);font-size:14px;margin:0 0 10px">
-        Grouped, newest first, last 14 days. Unhandled ones sit at the top.
-        Nobody reports a crash &mdash; they just stop using the app &mdash; so this
-        is the only place you find out.
-      </p>
-      <div class="scroll">
-        <table>
-          <thead><tr>
-            <th>What broke</th><th>Screen</th><th>Times</th>
-            <th>Phones</th><th>Companies</th><th>Version</th><th>Last seen</th><th></th>
-          </tr></thead>
-          <tbody id="errRows"></tbody>
-        </table>
-      </div>
-      <div class="msg" id="errNote"></div>
-    </div>
-
-    <div class="panel">
-      <h2 style="margin-top:0">How suspension works</h2>
-      <p style="color:var(--muted);font-size:14px;margin:0">
-        Stripe reports a failed payment and the company moves to <b>past due</b>. They keep
-        working through the grace period — cutting a crew off mid-installation over a failed
-        card punishes the customer standing in the yard, not the person who owes you.
-        When the grace period runs out, <b>Suspend</b> stops the service. Suspension is
-        always yours to press; nothing here suspends anyone automatically.
-      </p>
-    </div>
+  <!-- The step-up gate: an account with two-factor turned on lands here
+       before the companies list, the crash reports, or anything else this
+       page knows is ever asked for. -->
+  <div id="mfaChallengePanel" class="panel gate" style="display:none">
+    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit">Enter your code</h2>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 10px">
+      Two-factor is on for this account. Open your authenticator app and type the
+      current 6-digit code.
+    </p>
+    <div class="msg" id="mfaChallengeMsg"></div>
+    <label>Code</label>
+    <input id="mfaChallengeCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+    <div style="margin-top:14px"><button class="primary" id="mfaChallengeSubmit">Verify and continue</button></div>
   </div>
 </main>
 
+<div id="app" class="shell" style="display:none">
+  <nav class="rail">
+    <button data-view="overview" class="on" type="button">Overview</button>
+    <button data-view="companies" type="button">Companies</button>
+    <button data-view="crashes" type="button">Crashes</button>
+    <button data-view="releases" type="button">Releases</button>
+    <button data-view="drift" type="button">Pricing drift</button>
+    <button data-view="account" type="button">Account</button>
+  </nav>
+
+  <div class="content">
+
+    <section id="view-overview">
+      <div class="panel">
+        <h2 style="margin-top:0">Overview</h2>
+        <p class="sub">Your clients, not theirs — who's paying, who isn't, and what to do about it.</p>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-top:0">How suspension works</h2>
+        <p style="color:var(--muted);font-size:14px;margin:0">
+          Stripe reports a failed payment and the company moves to <b>past due</b>. They keep
+          working through the grace period — cutting a crew off mid-installation over a failed
+          card punishes the customer standing in the yard, not the person who owes you.
+          When the grace period runs out, <b>Suspend</b> stops the service. Suspension is
+          always yours to press; nothing here suspends anyone automatically.
+        </p>
+      </div>
+    </section>
+
+    <section id="view-companies" style="display:none">
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <h2 style="margin:0">Client companies</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="primary" id="addCompany" type="button">Add a company</button>
+            <button id="refresh" type="button">Refresh</button>
+            <button id="exportCsv" type="button">Export CSV</button>
+          </div>
+        </div>
+        <div class="msg" id="msg"></div>
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th data-sort="name">Company</th>
+              <th data-sort="subscription_status">Status</th>
+              <th>Onboarding</th>
+              <th data-sort="subscription_plan">Plan</th>
+              <th data-sort="monthly_price">$/mo</th>
+              <th data-sort="people">Seats</th>
+              <th data-sort="jobs">Jobs</th>
+              <th data-sort="last_seen">Last seen</th>
+              <th>Version</th>
+              <th>Renews / ends</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div class="msg" id="empty" style="display:none">No client companies yet.</div>
+      </div>
+    </section>
+
+    <section id="view-crashes" style="display:none">
+      <div class="panel">
+        <h2 style="margin-top:0">Crashes</h2>
+        <p class="sub">
+          Grouped, newest first, last 14 days. Unhandled ones sit at the top.
+          Nobody reports a crash — they just stop using the app — so this
+          is the only place you find out.
+        </p>
+        <div class="crash-list" id="errRows"></div>
+        <div class="msg" id="errNote"></div>
+      </div>
+    </section>
+
+    <section id="view-releases" style="display:none">
+      <div class="panel">
+        <h2 style="margin-top:0">Releases</h2>
+        <p class="sub">What has shipped, read-only — publish a new one from the dashboard, not here.</p>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Version</th><th>Notes</th><th>Update</th><th class="nowrap">Published</th><th></th></tr></thead>
+            <tbody id="releaseRows"></tbody>
+          </table>
+        </div>
+        <div class="msg" id="releaseNote"></div>
+      </div>
+    </section>
+
+    <section id="view-drift" style="display:none">
+      <div class="panel">
+        <h2 style="margin-top:0">Pricing drift</h2>
+        <p class="sub">Where the office's price and the phone's on-site price disagreed on the same job.</p>
+        <div class="msg" id="driftNote" style="margin-bottom:10px"></div>
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th>Company</th><th>Job</th><th>Office total</th><th>Phone total</th>
+              <th>Engines</th><th class="nowrap">Noted</th><th></th>
+            </tr></thead>
+            <tbody id="driftRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-account" style="display:none">
+      <div class="panel">
+        <h2 style="margin-top:0">Account</h2>
+        <p class="sub">Your own sign-in to this console — password and two-factor.</p>
+
+        <div class="mfa-status">
+          <span class="pill muted" id="mfaPill">Checking…</span>
+          <span id="mfaText" style="color:var(--muted);font-size:13.5px"></span>
+        </div>
+
+        <div id="mfaOff">
+          <button class="primary" id="mfaTurnOn" type="button">Turn on two-factor</button>
+        </div>
+
+        <div id="mfaEnrollBox" style="display:none">
+          <p style="font-size:13.5px;color:var(--muted)">
+            Scan this with an authenticator app (Google Authenticator, 1Password, Authy…),
+            or type the secret in by hand.
+          </p>
+          <div class="qr-box">
+            <img id="mfaQr" alt="Two-factor QR code">
+            <div>
+              <div class="secret" id="mfaSecret"></div>
+              <label>Enter the 6-digit code it shows</label>
+              <input id="mfaEnrollCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+              <div style="margin-top:10px;display:flex;gap:8px">
+                <button class="primary" id="mfaVerifyEnroll" type="button">Verify and turn on</button>
+                <button id="mfaCancelEnroll" type="button">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <div class="msg" id="mfaEnrollMsg"></div>
+        </div>
+
+        <div id="mfaOn" style="display:none">
+          <p style="font-size:13.5px;color:var(--muted);margin-bottom:6px">
+            Two-factor is on. Turning it off needs one more code from your app, so a stolen
+            or left-open session alone cannot switch it off.
+          </p>
+          <label>Current 6-digit code</label>
+          <input id="mfaOffCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+          <div style="margin-top:10px"><button class="danger" id="mfaTurnOff" type="button">Turn off two-factor</button></div>
+        </div>
+
+        <div class="msg" id="mfaMsg"></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
 <dialog id="stackDialog" style="max-width:min(760px,92vw)">
-  <h3 style="margin-top:0;font-size:15px" id="stackTitle"></h3>
-  <pre id="stackBody" style="white-space:pre;overflow:auto;max-height:56vh;
-    font-size:12px;line-height:1.45;background:var(--bg);border:1px solid var(--line);
-    padding:12px;border-radius:8px;margin:0"></pre>
+  <h3 id="stackTitle"></h3>
+  <pre id="stackBody"></pre>
   <div style="margin-top:12px;text-align:right">
-    <button onclick="document.getElementById('stackDialog').close()">Close</button>
+    <button id="stackClose" type="button">Close</button>
   </div>
 </dialog>
 
 <dialog id="askDialog" style="max-width:min(440px,92vw)">
-  <h3 style="margin-top:0" id="askTitle"></h3>
+  <h3 id="askTitle"></h3>
   <p style="color:var(--muted);font-size:14px;margin:0 0 6px;line-height:1.5" id="askBody"></p>
   <div id="askExtra" style="display:none;margin-top:10px">
-    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;cursor:pointer">
-      <input type="checkbox" id="askHold" style="margin-top:3px">
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;cursor:pointer;
+           text-transform:none;letter-spacing:0;font-weight:400;color:var(--text)">
+      <input type="checkbox" id="askHold" style="width:auto;margin-top:3px">
       <span>Hold this one — <b>do not</b> lift it automatically when they pay.
         Use for a dispute or misuse, not for an unpaid invoice.</span>
     </label>
   </div>
   <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
-    <button id="askNo">Cancel</button>
-    <button id="askYes" class="primary"></button>
+    <button id="askNo" type="button">Cancel</button>
+    <button id="askYes" class="primary" type="button"></button>
   </div>
 </dialog>
 
 <dialog id="newDialog" style="max-width:min(430px,92vw)">
-  <h3 style="margin-top:0">Bring a company on</h3>
+  <h3>Bring a company on</h3>
   <p style="color:var(--muted);font-size:14px;margin:0 0 4px">
     They get an email with a link that signs them in and walks them through
     their details, the agreement and choosing a plan. You can follow how far
     they get from this list.
   </p>
-  <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);
-         text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px">Company name</label>
-  <input id="newName" style="width:100%" placeholder="Coastal Fence &amp; Gate">
-  <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);
-         text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px">Owner's email</label>
-  <input id="newEmail" type="email" style="width:100%" placeholder="name@theircompany.com">
+  <label>Company name</label>
+  <input id="newName" placeholder="Coastal Fence &amp; Gate">
+  <label>Owner's email</label>
+  <input id="newEmail" type="email" placeholder="name@theircompany.com">
   <p style="color:var(--muted);font-size:12.5px;margin:8px 0 0">
     Leave the email blank to create the company without inviting anyone — you
     can send the invitation later.
   </p>
-  <div class="msg" id="newMsg" style="font-size:13.5px;min-height:1.2em;margin-top:8px"></div>
+  <div class="msg" id="newMsg" style="min-height:1.2em;margin-top:8px"></div>
   <div style="margin-top:12px;text-align:right;display:flex;gap:8px;justify-content:flex-end">
-    <button id="newCancel">Cancel</button>
-    <button class="primary" id="newCreate">Create &amp; invite</button>
+    <button id="newCancel" type="button">Cancel</button>
+    <button class="primary" id="newCreate" type="button">Create &amp; invite</button>
   </div>
 </dialog>
 
 <dialog id="setupDialog">
-  <h3 style="margin-top:0">Send them this code</h3>
+  <h3>Send them this code</h3>
   <p style="color:var(--muted);font-size:14px;margin:0 0 10px">
     <b id="setupFor"></b> has been created. They sign up in the app themselves,
     then enter this code to become the owner of their company.
   </p>
   <div id="setupCode" style="font:600 26px/1.3 ui-monospace,monospace;letter-spacing:.08em;
-       padding:14px;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:6px"></div>
+       padding:14px;text-align:center;background:var(--paper);border:1px solid var(--line);border-radius:6px"></div>
   <p style="color:var(--muted);font-size:13px;margin:10px 0 0">
     It works once, and it is not shown again. If it goes astray, delete the
     company and make a new one. Their trial does not start until you press
     <b>Start trial</b>.
   </p>
   <div style="margin-top:14px;text-align:right">
-    <button class="primary" id="setupDone">Done</button>
+    <button class="primary" id="setupDone" type="button">Done</button>
   </div>
 </dialog>
 
 <dialog id="editDialog">
-  <h3 style="margin-top:0" id="editTitle">Client</h3>
+  <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span id="editTitle">Client</span>
+    <button class="small" id="copyId" type="button" title="Copy this company's id">Copy id</button>
+  </h3>
+  <!-- Populated per company: reinstate/suspend, start or extend a trial, grant
+       open access, copy the setup code -- the handful of things you actually
+       come here to do, using the same admin_* RPCs as the row buttons. -->
+  <div class="qa-row" id="qaRow"></div>
   <div class="row2">
     <div><label>Plan</label>
       <select id="e_plan">
@@ -227,9 +500,9 @@
   <label>Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
   <div class="msg" id="editMsg"></div>
   <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-    <button id="e_cancel">Cancel</button>
-    <button class="danger" id="e_suspend">Suspend</button>
-    <button class="primary" id="e_save">Save</button>
+    <button id="e_cancel" type="button">Cancel</button>
+    <button class="danger" id="e_suspend" type="button">Suspend</button>
+    <button class="primary" id="e_save" type="button">Save</button>
   </div>
 </dialog>
 
@@ -246,25 +519,118 @@ const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n || 0).toFixed(0);
 const d = v => v ? new Date(v) : null;
 const day = v => { const x = d(v); return x ? x.toLocaleDateString() : '—'; };
+const esc = s => String(s ?? '').replace(/[&<>"]/g, m =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 
 let clients = [];
 let crashes = [];
+let crashes7d = [];
+let releases = [];
+let releaseError = '';
+let drift = [];
 let editing = null;
+let pendingFactorId = null;
+let mfaFactor = null;
+let sortKey = 'name', sortDir = 1;
 
-/* ---------- auth ---------- */
+/* ---------------------------------------------------------- auth ---- */
+
+// A password-reset email lands the visitor back on this exact page with a
+// recovery session already tucked into the URL's hash. Checking the hash
+// synchronously, before any async call, means the ordinary sign-in form
+// never flashes on screen first -- it used to, for the length of one round
+// trip, which is long enough to start typing an email into a form that is
+// about to be replaced.
+let inRecovery = /type=recovery/.test(location.hash);
+
+function showGate(which) {
+  $('app').style.display = 'none';
+  ['signInPanel', 'recoveryPanel', 'mfaChallengePanel'].forEach(id =>
+    $(id).style.display = (id === which) ? '' : 'none');
+}
+if (inRecovery) showGate('recoveryPanel');
+
+// A second, asynchronous confirmation of the same thing. The hash check above
+// covers the normal case; this covers Supabase's own signal in case the link
+// shape ever changes underneath it, so recovery is never mistaken for an
+// ordinary already-signed-in session.
+db.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    inRecovery = true;
+    showGate('recoveryPanel');
+  }
+});
+
 async function signIn() {
   $('gateMsg').textContent = 'Signing in…';
   const { error } = await db.auth.signInWithPassword({
     email: $('email').value.trim(), password: $('password').value
   });
   if (error) { $('gateMsg').textContent = error.message; return; }
-  boot();
+  await boot();
+}
+
+async function requestPasswordReset() {
+  const email = $('email').value.trim();
+  if (!email) { $('gateMsg').textContent = 'Type your email above first, then press this.'; return; }
+  $('gateMsg').textContent = 'Sending…';
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: location.origin + '/admin.html'
+  });
+  if (error) { $('gateMsg').textContent = error.message; return; }
+  $('gateMsg').textContent = 'Check your email for a link to set a new password.';
+}
+
+async function submitNewPassword() {
+  const p1 = $('newPassword').value, p2 = $('newPassword2').value;
+  if (p1.length < 8) { $('recoveryMsg').textContent = 'At least 8 characters.'; return; }
+  if (p1 !== p2) { $('recoveryMsg').textContent = 'Those two do not match.'; return; }
+  $('recoveryMsg').textContent = 'Saving…';
+  const { error } = await db.auth.updateUser({ password: p1 });
+  if (error) { $('recoveryMsg').textContent = error.message; return; }
+  // The recovery link's session is a real, signed-in session for this user --
+  // there is no separate "now sign in again" step, and asking for the
+  // password a second time right after typing a new one would only annoy.
+  inRecovery = false;
+  history.replaceState(null, '', location.pathname); // drop the recovery tokens from the visible URL
+  $('newPassword').value = ''; $('newPassword2').value = '';
+  await boot();
+}
+
+async function submitMfaChallenge() {
+  const code = $('mfaChallengeCode').value.trim();
+  if (!/^\d{6}$/.test(code)) { $('mfaChallengeMsg').textContent = 'Enter the 6-digit code.'; return; }
+  $('mfaChallengeMsg').textContent = 'Checking…';
+  const { data: factors, error: fErr } = await db.auth.mfa.listFactors();
+  if (fErr) { $('mfaChallengeMsg').textContent = fErr.message; return; }
+  const factor = (factors?.totp || []).find(f => f.status === 'verified');
+  if (!factor) { $('mfaChallengeMsg').textContent = 'No two-factor method found on this account.'; return; }
+  const { error } = await db.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+  if (error) { $('mfaChallengeMsg').textContent = error.message; return; }
+  $('mfaChallengeMsg').textContent = '';
+  $('mfaChallengeCode').value = '';
+  await boot();
 }
 
 async function boot() {
+  if (inRecovery) return; // the recovery panel owns the screen until a new password is set
   const { data: { session } } = await db.auth.getSession();
-  if (!session) { $('gate').style.display = ''; $('app').style.display = 'none'; return; }
+  if (!session) { showGate('signInPanel'); return; }
 
+  // Two-factor is enforced right here, once per session, before anything this
+  // page can show is even asked for. getAuthenticatorAssuranceLevel is cheap
+  // and harmless to call on an account with no factor enrolled at all --
+  // currentLevel and nextLevel simply match and this falls straight through.
+  const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+    showGate('mfaChallengePanel');
+    return;
+  }
+
+  await afterSignedIn(session);
+}
+
+async function afterSignedIn(session) {
   // The policy decides. An ordinary company owner signing in here sees their
   // own row and nothing else, which is exactly what should happen -- but it
   // would be confusing, so say plainly that this page is not for them.
@@ -274,13 +640,12 @@ async function boot() {
   if (!me?.is_platform_admin) {
     // Shown the door, not thrown out of the building.
     //
-    // This used to sign them out — and it is the same session the dashboard
+    // This used to sign them out -- and it is the same session the dashboard
     // uses, so a contractor who clicked the wrong link lost their sign-in
     // everywhere and had to log back in with no idea why. Nothing here needs
     // that: every admin function checks is_platform_admin on the server, and
     // RLS refuses the data regardless of what this page believes.
-    $('gate').style.display = '';
-    $('app').style.display = 'none';
+    showGate('signInPanel');
     $('gateMsg').innerHTML =
       'This page is for the owner of FenceFlow, not for a fencing company. ' +
       'Your own jobs and customers are on the ' +
@@ -290,62 +655,159 @@ async function boot() {
 
   $('gate').style.display = 'none';
   $('app').style.display = '';
-  await load();
+  $('searchWrap').style.display = '';
+  $('who').style.display = '';
+  $('who').textContent = session.user.email || '';
+  $('signOut').style.display = '';
+  await loadAll();
 }
 
-/* ---------- data ---------- */
-async function load() {
+/* -------------------------------------------------------------- nav ---- */
+const VIEWS = ['overview', 'companies', 'crashes', 'releases', 'drift', 'account'];
+function switchView(name) {
+  VIEWS.forEach(v => { $('view-' + v).style.display = (v === name) ? '' : 'none'; });
+  document.querySelectorAll('.rail button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
+}
+
+/* ---------------------------------------------------------------- data ---- */
+async function loadAll() {
   $('msg').textContent = 'Loading…';
   // admin_companies() rather than the platform_clients view: it carries the
   // computed 'allowed' the app itself gates on, plus days left on trial, so
   // this page and the phone can never disagree about who has access.
   const { data, error } = await db.rpc('admin_companies');
-
   if (error) { $('msg').textContent = error.message; return; }
   clients = data || [];
+  $('msg').textContent = '';
 
   // A failure here must not blank the companies table: crash reporting is a
   // convenience, and the billing view is the reason this page exists.
-  const errs = await db.rpc('admin_error_summary', { days: 14 });
-  crashes = errs.error ? [] : (errs.data || []);
+  const errs14 = await db.rpc('admin_error_summary', { days: 14 });
+  crashes = errs14.error ? [] : (errs14.data || []);
+  const errs7 = await db.rpc('admin_error_summary', { days: 7 });
+  crashes7d = errs7.error ? [] : (errs7.data || []);
 
-  $('msg').textContent = '';
-  render();
+  // app_releases has no admin RPC because it needs none: the read policy is
+  // "using (true)" for anyone at all, the same as the phone itself uses to
+  // check for an update.
+  const rel = await db.from('app_releases').select('*').order('released_at', { ascending: false });
+  releases = rel.error ? [] : (rel.data || []);
+  releaseError = rel.error ? rel.error.message : '';
+
+  await loadDrift();
+  await loadMfaStatus();
+
+  renderKpis();
+  renderCompaniesTable();
   renderCrashes();
+  renderReleases();
+  renderDrift();
 }
 
-/**
- * How far a company has got, as four beads you can read at a glance.
- *
- * A list where every new company looks identical from the first minute to the
- * last tells you nothing about who needs chasing. These are the four things
- * that actually have to happen -- invited, signed in, agreement signed, plan
- * chosen -- and the label underneath names the first one still outstanding,
- * because that is the thing you would pick up the phone about.
- */
+async function loadDrift() {
+  // pricing_drift's own policy reads "company_id = current_company_id() and
+  // your role is OWNER or MANAGER" -- built for a fencing company looking at
+  // its own drift, with no is_platform_admin() clause the way companies,
+  // app_errors and the setup codes all have. So this can only ever return
+  // rows this admin account's own company (if it has one) is allowed to see,
+  // never the whole platform's. That gap is named for what it is in the
+  // panel itself rather than papered over with a query that looks complete
+  // and is not.
+  const { data, error } = await db.from('pricing_drift')
+    .select('id, company_id, job_sync_id, office_total, phone_total, office_engine, phone_engine, noted_at, seen_at')
+    .is('seen_at', null)
+    .order('noted_at', { ascending: false });
+  drift = error ? [] : (data || []);
+}
+
+let mfaListError = '';
+async function loadMfaStatus() {
+  const { data, error } = await db.auth.mfa.listFactors();
+  if (error) { mfaListError = error.message; mfaFactor = null; return; }
+  mfaListError = '';
+  mfaFactor = (data?.totp || []).find(f => f.status === 'verified') || null;
+  renderMfaStatus();
+}
+
+/* -------------------------------------------------------- overview ---- */
+function renderKpis() {
+  const onTrial = c => c.subscription_status === 'trialing' ||
+    (c.trial_ends_at && new Date(c.trial_ends_at) > new Date());
+  const trialing = clients.filter(c => !c.suspended && onTrial(c));
+  // "Paying" means Stripe is charging them money, today -- active, not
+  // suspended, not still inside a trial, and with a price actually on file.
+  // A hand-granted open-ended account can carry 'active' with no price at
+  // all; counting that as revenue is the flattering-direction bug this page
+  // exists to avoid.
+  const paying = clients.filter(c =>
+    c.subscription_status === 'active' && !c.suspended && !onTrial(c) &&
+    Number(c.monthly_price || 0) > 0);
+  const suspended = clients.filter(c => c.suspended);
+
+  // The published list price, not the monthly_price column: that column is
+  // what a specific company is actually billed today, including any
+  // hand-typed or legacy figure, and it is honestly zero for someone not yet
+  // billed by Stripe. This tile answers a different question -- "if every
+  // active plan billed at list price, what would that add up to" -- which is
+  // why it is built from the fixed Solo/Crew/Pro numbers instead.
+  const PLAN_PRICE = { solo: 99, crew: 199, pro: 349 };
+  const activeNow = clients.filter(c => c.subscription_status === 'active' && !c.suspended);
+  const mrr = activeNow.reduce((s, c) => s + (PLAN_PRICE[(c.subscription_plan || '').toLowerCase()] || 0), 0);
+  // An active company with no recognised plan name -- a legacy hand-grant, or
+  // one Stripe has not labelled the way this list expects -- contributes
+  // nothing to the sum above. Silently. Saying so here is the same lesson as
+  // the "priceless" company this tile used to warn about before it was
+  // rebuilt on the fixed price list instead of the monthly_price column.
+  const unpriced = activeNow.filter(c => !PLAN_PRICE[(c.subscription_plan || '').toLowerCase()]).length;
+
+  const crashCount7 = crashes7d.reduce((s, c) => s + Number(c.occurrences || 0), 0);
+
+  // admin_companies() hands back the oldest and newest version NAME seen on
+  // each company's phones -- it does not hand back a raw list of every
+  // profiles.app_version_code, because no policy lets this admin read every
+  // company's profiles directly, only this one aggregate RPC. Counting the
+  // distinct names across every company is the closest honest answer to "how
+  // many builds are out in the field right now" that the data actually
+  // reachable here supports.
+  const versions = new Set();
+  clients.forEach(c => {
+    if (c.oldest_app_version) versions.add(c.oldest_app_version);
+    if (c.newest_app_version) versions.add(c.newest_app_version);
+  });
+
+  $('stats').innerHTML = `
+    <div class="stat"><b>${clients.length}</b><span>Companies</span></div>
+    <div class="stat"><b>${trialing.length}</b><span>On trial</span></div>
+    <div class="stat"><b>${paying.length}</b><span>Paying</span></div>
+    <div class="stat"><b>${suspended.length}</b><span>Suspended</span></div>
+    <div class="stat"><b>${money(mrr)}</b><span>MRR at list price</span>${
+      unpriced ? `<span class="note">${unpriced} active with no recognised plan, not counted</span>` : ''
+    }</div>
+    <div class="stat"><b>${crashCount7}</b><span>Crashes, 7 days</span></div>
+    <div class="stat"><b>${versions.size || '—'}</b><span>App versions in the field</span></div>`;
+}
+
+/* -------------------------------------------------------- companies ---- */
 function onboardingTrack(c) {
   const steps = [
-    { on: !!c.invited_at,            label: 'Invited' },
-    { on: !!c.joined_at,             label: 'Signed in' },
-    { on: !!c.agreement_signed_at,   label: 'Agreement signed' },
+    { on: !!c.invited_at,          label: 'Invited' },
+    { on: !!c.joined_at,           label: 'Signed in' },
+    { on: !!c.agreement_signed_at, label: 'Agreement signed' },
     { on: ['active', 'trialing'].includes(c.subscription_status), label: 'Plan chosen' },
   ];
   const beads = steps.map(s =>
     `<span title="${esc(s.label)}" style="width:9px;height:9px;border-radius:50%;display:inline-block;
-      background:${s.on ? 'var(--good,#0E8C7B)' : 'var(--line,#d6dbe3)'}"></span>`).join('');
+      background:${s.on ? 'var(--teal)' : 'var(--line)'}"></span>`).join('');
   const next = steps.find(s => !s.on);
   const done = steps.every(s => s.on);
   const caption = done
     ? 'Up and running'
     : (steps[0].on ? 'Waiting: ' : 'Not started — ') + (next ? next.label.toLowerCase() : '');
   return `<div style="display:flex;gap:4px;align-items:center">${beads}</div>
-    <span style="font-size:11.5px;color:${done ? 'var(--good,#0E8C7B)' : 'var(--muted)'}">${esc(caption)}</span>`;
+    <span style="font-size:11.5px;color:${done ? 'var(--teal)' : 'var(--muted)'}">${esc(caption)}</span>`;
 }
 
 function statusPill(c) {
-  // Why a company is suspended decides what happens next: an unpaid one comes
-  // back by itself the moment they pay, a held one waits for you. A single
-  // word saying only "Suspended" hides the difference that matters.
   if (c.suspended) {
     const held = c.suspended_reason === 'HOLD';
     return `<span class="pill bad">Suspended</span>` +
@@ -365,14 +827,21 @@ function statusPill(c) {
   }
 }
 
-/**
- * The one action this company most likely needs next.
- *
- * A row of five buttons on every line is a row nobody reads. A company that
- * has never been switched on needs starting; one on trial needs more time or
- * turning into a customer; one that is live needs suspending. Everything else
- * is behind Manage.
- */
+function seatsLabel(c) {
+  const cap = { solo: 1, crew: 6 }[(c.subscription_plan || '').toLowerCase()];
+  return cap ? `${c.people} / ${cap}` : `${c.people}`;
+}
+
+function versionCell(c) {
+  if (!c.newest_app_version) return '<span style="color:var(--muted)">—</span>';
+  const behind = c.oldest_app_version && c.oldest_app_version !== c.newest_app_version;
+  const spread = behind
+    ? `${esc(c.oldest_app_version)}–${esc(c.newest_app_version)}`
+    : esc(c.newest_app_version);
+  return `<span style="font-size:12.5px;color:${behind ? 'var(--red)' : 'inherit'}"
+    title="App version on their phones">v${spread}</span>`;
+}
+
 function accessButton(c) {
   // Reinstate lifts the suspension and nothing else.
   //
@@ -384,257 +853,57 @@ function accessButton(c) {
   // nothing, with no trial clock and no plan, and no sign on the row that it
   // had happened.
   if (c.suspended) {
-    return `<button class="primary" data-unsuspend="${c.id}">Reinstate</button>`;
+    return `<button class="primary" data-unsuspend="${c.id}" type="button">Reinstate</button>`;
   }
   if (c.subscription_status === 'pending' || (!c.allowed && !c.trial_ends_at)) {
-    return `<button class="primary" data-start="${c.id}">Start trial</button>`;
+    return `<button class="primary" data-start="${c.id}" type="button">Start trial</button>`;
   }
   if (c.subscription_status === 'trialing') {
-    return `<button data-extend="${c.id}">+14 days</button>
-            <button class="primary" data-grant="${c.id}">Make customer</button>`;
+    return `<button data-extend="${c.id}" type="button">+14 days</button>
+            <button class="primary" data-grant="${c.id}" type="button">Make customer</button>`;
   }
   // Past due is the one status with something to say before something to do.
   if (c.subscription_status === 'past_due') {
-    return `<button data-chase="${c.id}">Chase payment</button>
-            <button class="danger" data-suspend="${c.id}">Suspend</button>`;
+    return `<button data-chase="${c.id}" type="button">Chase payment</button>
+            <button class="danger" data-suspend="${c.id}" type="button">Suspend</button>`;
   }
-  return `<button class="danger" data-suspend="${c.id}">Suspend</button>`;
+  return `<button class="danger" data-suspend="${c.id}" type="button">Suspend</button>`;
 }
 
-/**
- * Asks before doing something that affects a customer.
- *
- * A browser confirm() cannot say what the consequence is beyond one line, has
- * no room for an option, is styled by the operating system rather than by this
- * product, and looks to most people like the page has malfunctioned. This is
- * the same question asked properly, and it can carry a choice with it.
- *
- * Resolves to false when cancelled, or the (possibly empty) options object.
- */
-function ask({ title, body, confirmLabel = 'Confirm', danger = false, withHold = false }) {
-  return new Promise(resolve => {
-    $('askTitle').textContent = title;
-    $('askBody').textContent = body;
-    $('askYes').textContent = confirmLabel;
-    $('askYes').className = danger ? 'danger' : 'primary';
-    $('askExtra').style.display = withHold ? 'block' : 'none';
-    $('askHold').checked = false;
-
-    const done = value => {
-      $('askYes').removeEventListener('click', onYes);
-      $('askNo').removeEventListener('click', onNo);
-      $('askDialog').removeEventListener('close', onNo);
-      $('askDialog').close();
-      resolve(value);
-    };
-    const onYes = () => done({ hold: withHold && $('askHold').checked });
-    const onNo = () => done(false);
-
-    $('askYes').addEventListener('click', onYes);
-    $('askNo').addEventListener('click', onNo);
-    $('askDialog').addEventListener('close', onNo);
-    $('askDialog').showModal();
-  });
+function compareClients(a, b) {
+  let av = a[sortKey], bv = b[sortKey];
+  if (typeof av === 'string' || typeof bv === 'string') { av = (av ?? '').toString().toLowerCase(); bv = (bv ?? '').toString().toLowerCase(); }
+  else { av = av ?? -Infinity; bv = bv ?? -Infinity; }
+  if (av < bv) return -1 * sortDir;
+  if (av > bv) return 1 * sortDir;
+  return 0;
 }
 
-/** Runs one admin action and reloads, reporting anything that went wrong. */
-async function adminAction(fn, args, confirmOpts, btn) {
-  let call = args;
-  if (confirmOpts) {
-    const answer = await ask(confirmOpts);
-    if (!answer) return;
-    // A choice made in the dialog travels with the action it belongs to.
-    if (confirmOpts.withHold) call = { ...args, hold: !!answer.hold };
-  }
-  // Held down for the round trip.
-  //
-  // Nothing used to change on the button, and the only feedback was the word
-  // "Working…" in small grey text at the very top of the panel -- off screen
-  // if the row is far down the list. On a slow connection the button looks
-  // dead, so it gets pressed again, and +14 days hands out a month.
-  if (btn) { btn.disabled = true; btn.dataset.was = btn.textContent; btn.textContent = 'Working…'; }
-  $('msg').textContent = 'Working…';
-  let error;
-  try {
-    ({ error } = await db.rpc(fn, call));
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.was || btn.textContent; }
-  }
-  if (error) { $('msg').textContent = error.message; return; }
-  $('msg').textContent = '';
-  await load();
-}
+function renderCompaniesTable() {
+  const q = ($('search').value || '').trim().toLowerCase();
+  const filtered = !q ? clients.slice() : clients.filter(c =>
+    (c.name || '').toLowerCase().includes(q) ||
+    (c.email || '').toLowerCase().includes(q) ||
+    (c.subscription_plan || '').toLowerCase().includes(q) ||
+    (c.subscription_status || '').toLowerCase().includes(q));
+  filtered.sort(compareClients);
 
-/**
- * Creates the company and shows the code to send them.
- *
- * Their account is never created here: that would mean handling somebody
- * else's password. They sign up themselves and claim the company with this
- * code, which works exactly once.
- */
-function createCompany() {
-  // A real form rather than two browser prompts. Prompts cannot be corrected
-  // once you have moved past them, cannot say what a field is for, and look
-  // like something has gone wrong rather than like a product.
-  $('newName').value = '';
-  $('newEmail').value = '';
-  $('newMsg').textContent = '';
-  $('newDialog').showModal();
-  $('newName').focus();
-}
+  $('empty').style.display = filtered.length ? 'none' : 'block';
+  $('empty').textContent = q ? `No company matches "${$('search').value.trim()}".` : 'No client companies yet.';
 
-async function submitNewCompany() {
-  const name = $('newName').value.trim();
-  const email = $('newEmail').value.trim();
-  if (!name) { $('newMsg').textContent = 'Give the company a name.'; return; }
-
-  $('newCreate').disabled = true;
-  $('newMsg').textContent = email ? 'Creating and sending the invitation…' : 'Creating…';
-
-  const { data, error } = await db.rpc('admin_create_company', {
-    company_name: name, contact_email: email || null
-  });
-  if (error) { $('newMsg').textContent = error.message; $('newCreate').disabled = false; return; }
-
-  const row = Array.isArray(data) ? data[0] : data;
-  const companyId = row && row.company_id;
-  const code = row && row.setup_code;
-
-  // The invitation is what makes this a process the client can finish on
-  // their own. The setup code stays as the fallback for somebody who cannot
-  // receive the email.
-  let invited = false;
-  if (email && companyId) {
-    const { data: sess } = await db.auth.getSession();
-    try {
-      const res = await fetch(`${SUPA_URL}/functions/v1/invite-company`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
-        body: JSON.stringify({ companyId, email, companyName: name })
-      });
-      const body = await res.json();
-      if (body.sent) invited = true;
-      else $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (body.error || 'unknown');
-    } catch (e) {
-      $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (e.message || e);
-    }
-  }
-
-  $('newCreate').disabled = false;
-  await load();
-
-  if (invited) {
-    $('newDialog').close();
-    $('msg').textContent = `Invitation sent to ${email}.`;
-    setTimeout(() => { $('msg').textContent = ''; }, 4000);
-    return;
-  }
-  if (!email && code) {
-    // No email given, so the code is the only way in. Shown once, by design.
-    $('newDialog').close();
-    $('setupCode').textContent = code;
-    $('setupFor').textContent = name;
-    $('setupDialog').showModal();
-  }
-}
-
-/** Sends (or re-sends) the invitation for a company already on the list. */
-async function inviteCompany(id, name, existingEmail) {
-  const email = (existingEmail || '').trim();
-  if (!email) {
-    $('msg').textContent = 'Add a contact email in Manage first, then invite.';
-    setTimeout(() => { $('msg').textContent = ''; }, 4000);
-    return;
-  }
-  $('msg').textContent = `Sending to ${email}…`;
-  const { data: sess } = await db.auth.getSession();
-
-  // The outcome is held until after the refresh.
-  //
-  // It used to be written straight into #msg and then load() ran, and load()
-  // opens by writing "Loading…" over it and closes by clearing it. So both
-  // answers looked identical: a blank line. A mail provider refusing the
-  // address read exactly like a successful send.
-  let note;
-  try {
-    const res = await fetch(`${SUPA_URL}/functions/v1/invite-company`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
-      body: JSON.stringify({ companyId: id, email, companyName: name })
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) note = body.error || `The mail server refused it (${res.status}).`;
-    else if (body.warning) note = body.warning;
-    else note = body.sent ? `Invitation sent to ${email}.` : (body.error || 'Could not send it.');
-  } catch (e) {
-    note = 'Could not reach the mail server: ' + String(e.message || e);
-  }
-  await load();
-  $('msg').textContent = note;
-  setTimeout(() => { $('msg').textContent = ''; }, 8000);
-}
-
-function render() {
-  // "Paying" means Stripe is charging them money, today.
-  //
-  // It used to be subscription_status === 'active', which is three different
-  // things wearing the same word. A company inside its free trial can carry
-  // 'active' -- every one that checked out before the webhook hardcode was
-  // fixed does. A company on a hand-granted open-ended free ride is set to
-  // 'active' too, with no plan and no price. Both were counted as customers,
-  // so the one number this page exists to answer was wrong in the flattering
-  // direction, and a trial showed up as revenue that had never been charged.
-  //
-  // A trial is still a real thing worth seeing, so it gets its own tile rather
-  // than being hidden.
-  const onTrial = c => c.subscription_status === 'trialing' ||
-    (c.trial_ends_at && new Date(c.trial_ends_at) > new Date());
-  const paying = clients.filter(c =>
-    c.subscription_status === 'active' && !c.suspended &&
-    !onTrial(c) && Number(c.monthly_price || 0) > 0);
-  const trialing = clients.filter(c => !c.suspended && onTrial(c));
-  const owing  = clients.filter(c => c.subscription_status === 'past_due' && !c.suspended);
-  const mrr    = paying.reduce((s, c) => s + Number(c.monthly_price || 0), 0);
-  // A company Stripe is charging but whose price we never recorded would
-  // silently drag MRR down, so say so rather than quietly under-count.
-  const priceless = clients.filter(c =>
-    c.subscription_status === 'active' && !c.suspended && !onTrial(c) &&
-    !(Number(c.monthly_price || 0) > 0)).length;
-
-  $('stats').innerHTML = `
-    <div class="stat"><b>${clients.length}</b><span>Companies</span></div>
-    <div class="stat"><b>${paying.length}</b><span>Paying</span></div>
-    <div class="stat"><b>${trialing.length}</b><span>On trial</span></div>
-    <div class="stat"><b>${money(mrr)}</b><span>Monthly recurring</span>${
-      priceless ? `<span style="font-size:11px;color:var(--warn,#b26a00)">${priceless} with no price recorded</span>` : ''
-    }</div>
-    <div class="stat"><b>${owing.length}</b><span>Behind on payment</span></div>`;
-
-  $('empty').style.display = clients.length ? 'none' : 'block';
-  // The build their phones are on. Both ends when they differ, because one
-  // phone left behind on an old version is the thing worth seeing -- it is
-  // usually the reason somebody is describing a bug that was fixed weeks ago.
-  const appVersion = c => {
-    if (!c.newest_app_version) return '';
-    const spread = c.oldest_app_version && c.oldest_app_version !== c.newest_app_version
-      ? `${esc(c.oldest_app_version)}–${esc(c.newest_app_version)}`
-      : esc(c.newest_app_version);
-    const behind = c.oldest_app_version && c.oldest_app_version !== c.newest_app_version;
-    return `<br><span style="font-size:11px;color:${behind ? 'var(--bad,#b3261e)' : 'var(--muted)'}"
-      title="App version on their phones">v${spread}</span>`;
-  };
-  $('rows').innerHTML = clients.map(c => `
+  $('rows').innerHTML = filtered.map(c => `
     <tr>
       <td><b>${esc(c.name || 'Unnamed')}</b><br>
           <span style="color:var(--muted);font-size:12px">${esc(c.email || '')}</span></td>
       <td>${statusPill(c)}</td>
       <td>${onboardingTrack(c)}</td>
       <td>${esc(c.subscription_plan || '—')}</td>
-      <td>${money(c.monthly_price)}</td>
-      <td>${c.people}${appVersion(c)}</td>
-      <td>${c.jobs}</td>
-      <td>${day(c.last_active)}</td>
-      <td>${c.days_left != null ? c.days_left + ' days'
+      <td class="nowrap">${money(c.monthly_price)}</td>
+      <td class="nowrap">${seatsLabel(c)}</td>
+      <td class="nowrap">${c.jobs}</td>
+      <td class="nowrap">${day(c.last_seen)}</td>
+      <td>${versionCell(c)}</td>
+      <td class="nowrap">${c.days_left != null ? c.days_left + ' days'
              : c.subscription_ends_at ? day(c.subscription_ends_at)
              : c.trial_ends_at ? `<span style="color:var(--muted)">trial ended ${day(c.trial_ends_at)}</span>`
              : '—'}</td>
@@ -642,8 +911,8 @@ function render() {
         ${accessButton(c)}
         ${c.joined_at ? '' :
           `<button data-invite="${c.id}" data-email="${esc(c.invited_email || c.email || c.billing_email || '')}"
-             data-name="${esc(c.name || '')}">${c.invited_at ? 'Re-invite' : 'Invite'}</button>`}
-        <button data-edit="${c.id}">Manage</button>
+             data-name="${esc(c.name || '')}" type="button">${c.invited_at ? 'Re-invite' : 'Invite'}</button>`}
+        <button data-edit="${c.id}" type="button">Manage</button>
       </td>
     </tr>`).join('');
 
@@ -712,15 +981,182 @@ function render() {
         danger: true,
         withHold: true
       }, b)));
+
   document.querySelectorAll('[data-chase]').forEach(b =>
     b.addEventListener('click', () => chase(b.dataset.chase)));
 }
 
 /**
+ * Asks before doing something that affects a customer.
+ *
+ * A browser confirm() cannot say what the consequence is beyond one line, has
+ * no room for an option, is styled by the operating system rather than by this
+ * product, and looks to most people like the page has malfunctioned. This is
+ * the same question asked properly, and it can carry a choice with it.
+ *
+ * Resolves to false when cancelled, or the (possibly empty) options object.
+ */
+function ask({ title, body, confirmLabel = 'Confirm', danger = false, withHold = false }) {
+  return new Promise(resolve => {
+    $('askTitle').textContent = title;
+    $('askBody').textContent = body;
+    $('askYes').textContent = confirmLabel;
+    $('askYes').className = danger ? 'danger' : 'primary';
+    $('askExtra').style.display = withHold ? 'block' : 'none';
+    $('askHold').checked = false;
+
+    const done = value => {
+      $('askYes').removeEventListener('click', onYes);
+      $('askNo').removeEventListener('click', onNo);
+      $('askDialog').removeEventListener('close', onNo);
+      $('askDialog').close();
+      resolve(value);
+    };
+    const onYes = () => done({ hold: withHold && $('askHold').checked });
+    const onNo = () => done(false);
+
+    $('askYes').addEventListener('click', onYes);
+    $('askNo').addEventListener('click', onNo);
+    $('askDialog').addEventListener('close', onNo);
+    $('askDialog').showModal();
+  });
+}
+
+/**
+ * Runs one admin action and reloads, reporting anything that went wrong.
+ * Returns whether it actually ran, so a caller in the drawer knows whether to
+ * close it (a cancelled confirmation or a failed call should leave it open).
+ */
+async function adminAction(fn, args, confirmOpts, btn) {
+  let call = args;
+  if (confirmOpts) {
+    const answer = await ask(confirmOpts);
+    if (!answer) return false;
+    // A choice made in the dialog travels with the action it belongs to.
+    if (confirmOpts.withHold) call = { ...args, hold: !!answer.hold };
+  }
+  // Held down for the round trip.
+  //
+  // Nothing used to change on the button, and the only feedback was the word
+  // "Working…" in small grey text at the very top of the panel -- off screen
+  // if the row is far down the list. On a slow connection the button looks
+  // dead, so it gets pressed again, and +14 days hands out a month.
+  if (btn) { btn.disabled = true; btn.dataset.was = btn.textContent; btn.textContent = 'Working…'; }
+  $('msg').textContent = 'Working…';
+  let error;
+  try {
+    ({ error } = await db.rpc(fn, call));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.was || btn.textContent; }
+  }
+  if (error) { $('msg').textContent = error.message; return false; }
+  $('msg').textContent = '';
+  await loadAll();
+  return true;
+}
+
+/**
+ * Creates the company and shows the code to send them.
+ *
+ * Their account is never created here: that would mean handling somebody
+ * else's password. They sign up themselves and claim the company with this
+ * code, which works exactly once.
+ */
+function createCompany() {
+  $('newName').value = '';
+  $('newEmail').value = '';
+  $('newMsg').textContent = '';
+  $('newDialog').showModal();
+  $('newName').focus();
+}
+
+async function submitNewCompany() {
+  const name = $('newName').value.trim();
+  const email = $('newEmail').value.trim();
+  if (!name) { $('newMsg').textContent = 'Give the company a name.'; return; }
+
+  $('newCreate').disabled = true;
+  $('newMsg').textContent = email ? 'Creating and sending the invitation…' : 'Creating…';
+
+  const { data, error } = await db.rpc('admin_create_company', {
+    company_name: name, contact_email: email || null
+  });
+  if (error) { $('newMsg').textContent = error.message; $('newCreate').disabled = false; return; }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  const companyId = row && row.company_id;
+  const code = row && row.setup_code;
+
+  let invited = false;
+  if (email && companyId) {
+    const { data: sess } = await db.auth.getSession();
+    try {
+      const res = await fetch(`${SUPA_URL}/functions/v1/invite-company`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
+        body: JSON.stringify({ companyId, email, companyName: name })
+      });
+      const body = await res.json();
+      if (body.sent) invited = true;
+      else $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (body.error || 'unknown');
+    } catch (e) {
+      $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (e.message || e);
+    }
+  }
+
+  $('newCreate').disabled = false;
+  await loadAll();
+
+  if (invited) {
+    $('newDialog').close();
+    $('msg').textContent = `Invitation sent to ${email}.`;
+    setTimeout(() => { $('msg').textContent = ''; }, 4000);
+    return;
+  }
+  if (!email && code) {
+    $('newDialog').close();
+    $('setupCode').textContent = code;
+    $('setupFor').textContent = name;
+    $('setupDialog').showModal();
+  }
+}
+
+/** Sends (or re-sends) the invitation for a company already on the list. */
+async function inviteCompany(id, name, existingEmail) {
+  const email = (existingEmail || '').trim();
+  if (!email) {
+    $('msg').textContent = 'Add a contact email in Manage first, then invite.';
+    setTimeout(() => { $('msg').textContent = ''; }, 4000);
+    return;
+  }
+  $('msg').textContent = `Sending to ${email}…`;
+  const { data: sess } = await db.auth.getSession();
+
+  let note;
+  try {
+    const res = await fetch(`${SUPA_URL}/functions/v1/invite-company`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.session?.access_token}` },
+      body: JSON.stringify({ companyId: id, email, companyName: name })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) note = body.error || `The mail server refused it (${res.status}).`;
+    else if (body.warning) note = body.warning;
+    else note = body.sent ? `Invitation sent to ${email}.` : (body.error || 'Could not send it.');
+  } catch (e) {
+    note = 'Could not reach the mail server: ' + String(e.message || e);
+  }
+  await loadAll();
+  $('msg').textContent = note;
+  setTimeout(() => { $('msg').textContent = ''; }, 8000);
+}
+
+/* ---------------------------------------------------------- crashes ---- */
+/**
  * One row per distinct bug, not per crash. Twenty copies of one broken screen
  * is one thing to fix, and a flat list would bury every other bug under it.
  */
-function renderCrashes(){
+function renderCrashes() {
   if (!crashes.length) {
     $('errRows').innerHTML = '';
     $('errNote').textContent = 'No crashes in the last 14 days.';
@@ -730,24 +1166,26 @@ function renderCrashes(){
 
   $('errRows').innerHTML = crashes.map((c, i) => {
     const open = c.any_unseen;
-    return `<tr style="${open ? '' : 'opacity:.55'}">
-      <td style="max-width:320px">
-        <b>${esc(c.message || '(no message)')}</b>
-        <br><a href="#" data-stack="${i}" style="font-size:12px">stack trace</a>
-      </td>
-      <td style="color:var(--muted)">${esc(c.where_at || '—')}</td>
-      <td><b>${c.occurrences}</b></td>
-      <td>${c.devices}</td>
-      <td>${c.companies}</td>
-      <td>${esc(c.latest_version || '—')}</td>
-      <td>${day(c.last_seen)}</td>
-      <td>${open ? `<button data-seen="${i}">Handled</button>` : '<span class="pill muted">Handled</span>'}</td>
-    </tr>`;
+    const message = c.message || '(no message)';
+    return `<div class="crash-row${open ? '' : ' handled'}">
+      <div class="crash-msg">
+        <b title="${esc(message)}">${esc(message)}</b>
+        <button class="linklike" data-stack="${i}" type="button">View stack trace</button>
+      </div>
+      <div><span class="lbl">Screen</span><span class="truncate" title="${esc(c.where_at || '—')}">${esc(c.where_at || '—')}</span></div>
+      <div><span class="lbl">Count</span><b>${c.occurrences}</b></div>
+      <div><span class="lbl">Phones</span>${c.devices}</div>
+      <div><span class="lbl">Version</span><span class="truncate" title="${esc(c.latest_version || '—')}">${esc(c.latest_version || '—')}</span></div>
+      <div><span class="lbl">First seen</span>${day(c.first_seen)}</div>
+      <div><span class="lbl">Last seen</span>${day(c.last_seen)}</div>
+      <div>${open
+        ? `<button class="small" data-seen="${i}" type="button">Mark seen</button>`
+        : '<span class="pill muted">Handled</span>'}</div>
+    </div>`;
   }).join('');
 
   document.querySelectorAll('[data-stack]').forEach(a =>
-    a.addEventListener('click', e => {
-      e.preventDefault();
+    a.addEventListener('click', () => {
       const c = crashes[a.dataset.stack];
       $('stackTitle').textContent = c.message || '(no message)';
       $('stackBody').textContent = c.sample_stack || '(none recorded)';
@@ -757,18 +1195,162 @@ function renderCrashes(){
   document.querySelectorAll('[data-seen]').forEach(b =>
     b.addEventListener('click', () => {
       const c = crashes[b.dataset.seen];
-      adminAction('admin_mark_errors_seen', { msg: c.message, wh: c.where_at }, null);
+      adminAction('admin_mark_errors_seen', { msg: c.message, wh: c.where_at }, null, b);
     }));
 }
 
-const esc = s => String(s ?? '').replace(/[&<>"]/g, m =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+/* --------------------------------------------------------- releases ---- */
+function renderReleases() {
+  if (releaseError) {
+    $('releaseRows').innerHTML = '';
+    $('releaseNote').textContent = releaseError;
+    return;
+  }
+  if (!releases.length) {
+    $('releaseRows').innerHTML = '';
+    $('releaseNote').textContent = 'No releases recorded yet.';
+    return;
+  }
+  $('releaseNote').textContent = '';
+  $('releaseRows').innerHTML = releases.map(r => `
+    <tr>
+      <td><b>${esc(r.version_name)}</b><br><span style="color:var(--muted);font-size:11.5px">build ${esc(r.version_code)}</span></td>
+      <td style="white-space:normal;max-width:420px">${esc(r.notes || '—')}</td>
+      <td>${r.is_mandatory ? '<span class="pill bad">Required</span>' : '<span class="pill muted">Optional</span>'}</td>
+      <td class="nowrap">${day(r.released_at)}</td>
+      <td>${r.download_url ? `<a href="${esc(r.download_url)}" target="_blank" rel="noopener">Download</a>` : '—'}</td>
+    </tr>`).join('');
+}
 
-/* ---------- manage one client ---------- */
+/* ----------------------------------------------------- pricing drift ---- */
+function renderDrift() {
+  $('driftNote').innerHTML =
+    'Full cross-company visibility needs a platform-admin read policy on <code>pricing_drift</code> ' +
+    '(something like <code>using (is_platform_admin())</code>, the same shape as the one on ' +
+    '<code>companies</code>), or a SECURITY DEFINER <code>admin_pricing_drift()</code> RPC the way crashes ' +
+    'and companies already have. Neither exists yet -- <code>pricing_drift_read</code> is scoped to ' +
+    '<code>company_id = current_company_id()</code>, so this table can only ever show rows your own ' +
+    'account happens to be allowed to see, typically none.';
+
+  if (!drift.length) {
+    $('driftRows').innerHTML = `<tr><td colspan="7" style="color:var(--muted)">Nothing visible to this account.</td></tr>`;
+    return;
+  }
+  $('driftRows').innerHTML = drift.map(r => `
+    <tr>
+      <td class="nowrap" title="${esc(r.company_id)}">${esc((r.company_id || '').slice(0, 8))}…</td>
+      <td class="nowrap" title="${esc(r.job_sync_id)}">${esc((r.job_sync_id || '').slice(0, 8))}…</td>
+      <td>${money(r.office_total)}</td>
+      <td>${money(r.phone_total)}</td>
+      <td>${esc(r.office_engine)} / ${esc(r.phone_engine)}</td>
+      <td class="nowrap">${day(r.noted_at)}</td>
+      <td><button class="small" data-drift-seen="${r.id}" type="button">Mark seen</button></td>
+    </tr>`).join('');
+
+  document.querySelectorAll('[data-drift-seen]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const { error } = await db.from('pricing_drift')
+        .update({ seen_at: new Date().toISOString() }).eq('id', b.dataset.driftSeen);
+      if (!error) { await loadDrift(); renderDrift(); }
+    }));
+}
+
+/* --------------------------------------------------- manage one client ---- */
+function drawerButton(label, handler, cls) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = label;
+  if (cls) b.className = cls;
+  b.addEventListener('click', handler);
+  return b;
+}
+
+async function drawerAction(fn, args, confirmOpts) {
+  const ok = await adminAction(fn, args, confirmOpts, null);
+  if (ok) $('editDialog').close();
+}
+
+async function copySetupCode() {
+  if (!editing) return;
+  $('editMsg').textContent = 'Looking it up…';
+  const { data, error } = await db.from('company_setup_codes')
+    .select('code').eq('company_id', editing.id).is('used_at', null)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) { $('editMsg').textContent = error.message; return; }
+  if (!data) {
+    $('editMsg').textContent = 'No unused setup code on file -- invite by email instead, or add a company again.';
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(data.code);
+    $('editMsg').textContent = 'Setup code copied.';
+  } catch {
+    $('editMsg').textContent = 'Code: ' + data.code;
+  }
+}
+
+function buildQuickActions(c) {
+  const row = $('qaRow');
+  row.innerHTML = '';
+  const named = c.name || 'this company';
+
+  if (c.suspended) {
+    row.appendChild(drawerButton('Reinstate', () => drawerAction(
+      'admin_unsuspend', { target: c.id }, {
+        title: `Reinstate ${named}?`,
+        body: 'Their crews get access back straight away. The plan, the price and the ' +
+              'billing state are left exactly as they are — this only lifts the suspension.',
+        confirmLabel: 'Reinstate'
+      }), 'primary'));
+    return;
+  }
+
+  if (c.subscription_status === 'pending' || (!c.allowed && !c.trial_ends_at)) {
+    row.appendChild(drawerButton('Start trial', () => drawerAction(
+      'admin_start_trial', { target: c.id, days: 14 }, {
+        title: 'Start the trial?',
+        body: `${named} gets fourteen days from now. They are not charged anything.`,
+        confirmLabel: 'Start 14 days'
+      }), 'primary'));
+  }
+  if (c.subscription_status === 'trialing') {
+    const from = c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? new Date(c.trial_ends_at) : new Date();
+    const to = new Date(from.getTime() + 14 * 86400000);
+    row.appendChild(drawerButton('+14 days', () => drawerAction(
+      'admin_extend_trial', { target: c.id, days: 14 }, {
+        title: 'Add another fortnight?',
+        body: `${named} would run free until ${day(to.toISOString())}.`,
+        confirmLabel: 'Extend to ' + day(to.toISOString())
+      })));
+    row.appendChild(drawerButton('Make customer', () => drawerAction(
+      'admin_grant_access', { target: c.id, note: null }, {
+        title: 'Give open-ended access?',
+        body: `${named} keeps working with no trial clock and no plan required.`,
+        confirmLabel: 'Grant access'
+      }), 'primary'));
+  } else {
+    row.appendChild(drawerButton('Grant open access', () => drawerAction(
+      'admin_grant_access', { target: c.id, note: null }, {
+        title: 'Give open-ended access?',
+        body: `${named} keeps working with no trial clock and no plan required. Use this for ` +
+              `someone you are carrying deliberately, not as a way to fix a billing problem.`,
+        confirmLabel: 'Grant access'
+      })));
+  }
+  if (c.subscription_status === 'past_due') {
+    row.appendChild(drawerButton('Chase payment', () => chase(c.id)));
+  }
+  if (!c.joined_at) {
+    row.appendChild(drawerButton('Copy setup code', copySetupCode));
+  }
+}
+
 function openEdit(id) {
   editing = clients.find(c => c.id === id);
   if (!editing) return;
   $('editTitle').textContent = editing.name || 'Unnamed company';
+  buildQuickActions(editing);
+
   // Only what the server understands. Anything already in the column that is
   // not one of these -- a company set up before the box became a list -- is
   // kept as its own option rather than silently rewritten to something else.
@@ -789,14 +1371,6 @@ function openEdit(id) {
   $('e_planNote').style.display = editing.stripe_subscription_id ? 'inline' : 'none';
   $('e_contact').value = editing.email || '';
   $('e_price').value = editing.monthly_price || 0;
-  // Locked for the same reason the plan above it is.
-  //
-  // Since the webhook started writing monthly_price from the real Stripe
-  // price, anything typed here is overwritten on the next billing event. That
-  // is worse than refusing it: the number looks saved, the table shows it, the
-  // MRR tile adds it up, and days later it silently reverts. The note on the
-  // plan field made it read worse still -- saying Stripe owns THAT one implied
-  // nothing owned this one.
   $('e_price').disabled = !!editing.stripe_subscription_id;
   $('e_priceNote').style.display = editing.stripe_subscription_id ? 'inline' : 'none';
   $('e_email').value = editing.billing_email || editing.email || '';
@@ -815,15 +1389,11 @@ async function saveEdit() {
     // with a '' default, so "|| null" made Save changes fail outright on any
     // company created without an email -- which is every company made with the
     // setup-code path, and exactly the ones most likely to be edited next.
-    // Third time this same shape has bitten: the onboarding step, creating a
-    // company, and now saving one.
     email: $('e_contact').value.trim(),
     billing_email: $('e_email').value.trim(),
     grace_ends_at: $('e_grace').value ? new Date($('e_grace').value).toISOString() : null,
     admin_notes: $('e_notes').value
   };
-  // Left out entirely when Stripe owns them, rather than writing the disabled
-  // controls' values back over what the webhook put there.
   if (!editing.stripe_subscription_id) {
     patch.subscription_plan = $('e_plan').value.trim();
     patch.monthly_price = Number($('e_price').value || 0);
@@ -832,17 +1402,13 @@ async function saveEdit() {
 
   if (error) { $('editMsg').textContent = error.message; return; }
   $('editDialog').close();
-  await load();
+  await loadAll();
 }
 
 async function toggleSuspend() {
   if (!editing) return;
   const turningOn = !editing.suspended;
 
-  // Through the RPCs rather than writing the column directly. A direct update
-  // left suspended_reason still reading UNPAID on a company that was no longer
-  // suspended, and meant the one action that restores somebody's access had no
-  // check of its own on the server.
   let args = { target: editing.id };
   if (turningOn) {
     const answer = await ask({
@@ -861,10 +1427,21 @@ async function toggleSuspend() {
   if (error) { $('editMsg').textContent = error.message; return; }
   $('editMsg').textContent = '';
   $('editDialog').close();
-  await load();
+  await loadAll();
 }
 
-/* ---------- chasing payment ---------- */
+async function copyCompanyId() {
+  if (!editing) return;
+  try {
+    await navigator.clipboard.writeText(editing.id);
+    $('copyId').textContent = 'Copied';
+  } catch {
+    $('copyId').textContent = 'Copy failed';
+  }
+  setTimeout(() => { $('copyId').textContent = 'Copy id'; }, 1400);
+}
+
+/* ----------------------------------------------------- chasing payment ---- */
 function chase(id) {
   const c = clients.find(x => x.id === id);
   if (!c) return;
@@ -883,10 +1460,10 @@ function chase(id) {
 }
 
 function exportCsv() {
-  const head = ['Company','Status','Plan','MonthlyPrice','Users','Jobs','LastActive','Suspended','BillingEmail'];
+  const head = ['CompanyId', 'Company', 'Status', 'Plan', 'MonthlyPrice', 'Seats', 'Jobs', 'LastSeen', 'Suspended', 'BillingEmail'];
   const rows = clients.map(c => [
-    c.name, c.subscription_status, c.subscription_plan, c.monthly_price,
-    c.people, c.jobs, day(c.last_active), c.suspended ? 'yes' : 'no',
+    c.id, c.name, c.subscription_status, c.subscription_plan, c.monthly_price,
+    c.people, c.jobs, day(c.last_seen), c.suspended ? 'yes' : 'no',
     c.billing_email || c.email || ''
   ]);
   const csv = [head, ...rows]
@@ -894,14 +1471,106 @@ function exportCsv() {
   // A blob download, because the file is generated here and never leaves the browser.
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `fenceflow-clients-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `fenceflow-clients-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
 }
 
-/* ---------- wiring ---------- */
+/* ------------------------------------------------------------- account ---- */
+function renderMfaStatus() {
+  const on = !!mfaFactor;
+  $('mfaPill').textContent = mfaListError ? 'Unknown' : (on ? 'ON' : 'OFF');
+  $('mfaPill').className = 'pill ' + (mfaListError ? 'muted' : (on ? 'ok' : 'muted'));
+  $('mfaText').textContent = mfaListError ? mfaListError : (on
+    ? 'Two-factor is required on every sign-in to this account.'
+    : 'Anyone with this password alone can sign in. Turning two-factor on asks for a code from your phone too.');
+  $('mfaOff').style.display = on ? 'none' : '';
+  $('mfaOn').style.display = on ? '' : 'none';
+  $('mfaEnrollBox').style.display = 'none';
+  $('mfaMsg').textContent = '';
+}
+
+async function startMfaEnroll() {
+  $('mfaEnrollMsg').textContent = 'Preparing…';
+  // A second attempt at enrolling before finishing the first leaves an
+  // unverified factor behind, and Supabase refuses a new TOTP enrollment
+  // while one already exists. Clearing any stale, never-verified attempt
+  // first means "Turn on" always works, not just the first time it is tried.
+  const { data: existing } = await db.auth.mfa.listFactors();
+  const stale = (existing?.totp || []).find(f => f.status === 'unverified');
+  if (stale) await db.auth.mfa.unenroll({ factorId: stale.id });
+
+  const { data, error } = await db.auth.mfa.enroll({ factorType: 'totp' });
+  if (error) { $('mfaEnrollMsg').textContent = error.message; return; }
+  pendingFactorId = data.id;
+  $('mfaQr').src = data.totp.qr_code;
+  $('mfaSecret').textContent = data.totp.secret;
+  $('mfaEnrollCode').value = '';
+  $('mfaEnrollMsg').textContent = '';
+  $('mfaEnrollBox').style.display = '';
+}
+
+async function verifyMfaEnroll() {
+  const code = $('mfaEnrollCode').value.trim();
+  if (!/^\d{6}$/.test(code)) { $('mfaEnrollMsg').textContent = 'Enter the 6-digit code.'; return; }
+  $('mfaEnrollMsg').textContent = 'Checking…';
+  const { error } = await db.auth.mfa.challengeAndVerify({ factorId: pendingFactorId, code });
+  if (error) { $('mfaEnrollMsg').textContent = error.message; return; }
+  pendingFactorId = null;
+  await loadMfaStatus();
+}
+
+function cancelMfaEnroll() {
+  // The unverified factor is left in place for the next "Turn on" to clean up
+  // rather than unenrolled right here -- doing both raced the enroll call
+  // above during testing and tore down whichever attempt lost the race.
+  pendingFactorId = null;
+  $('mfaEnrollBox').style.display = 'none';
+}
+
+async function turnOffMfa() {
+  const code = $('mfaOffCode').value.trim();
+  if (!mfaFactor) return;
+  if (!/^\d{6}$/.test(code)) { $('mfaMsg').textContent = 'Enter the current 6-digit code first.'; return; }
+  $('mfaMsg').textContent = 'Checking…';
+  const { error: vErr } = await db.auth.mfa.challengeAndVerify({ factorId: mfaFactor.id, code });
+  if (vErr) { $('mfaMsg').textContent = vErr.message; return; }
+  const { error } = await db.auth.mfa.unenroll({ factorId: mfaFactor.id });
+  if (error) { $('mfaMsg').textContent = error.message; return; }
+  $('mfaOffCode').value = '';
+  await loadMfaStatus();
+}
+
+/* ------------------------------------------------------------- wiring ---- */
+document.querySelectorAll('.rail button').forEach(b =>
+  b.addEventListener('click', () => switchView(b.dataset.view)));
+
+document.querySelectorAll('#view-companies th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    sortDir = (sortKey === key) ? -sortDir : 1;
+    sortKey = key;
+    document.querySelectorAll('#view-companies th[data-sort]').forEach(t => {
+      t.classList.remove('sort-on');
+      const arrow = t.querySelector('.arrow');
+      if (arrow) arrow.remove();
+    });
+    th.classList.add('sort-on');
+    th.insertAdjacentHTML('beforeend', `<span class="arrow">${sortDir > 0 ? '▲' : '▼'}</span>`);
+    renderCompaniesTable();
+  });
+});
+
+$('search').addEventListener('input', renderCompaniesTable);
+
 $('signIn').addEventListener('click', signIn);
 $('password').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
-$('refresh').addEventListener('click', load);
+$('forgotLink').addEventListener('click', e => { e.preventDefault(); requestPasswordReset(); });
+$('setPassword').addEventListener('click', submitNewPassword);
+$('newPassword2').addEventListener('keydown', e => { if (e.key === 'Enter') submitNewPassword(); });
+$('mfaChallengeSubmit').addEventListener('click', submitMfaChallenge);
+$('mfaChallengeCode').addEventListener('keydown', e => { if (e.key === 'Enter') submitMfaChallenge(); });
+
+$('refresh').addEventListener('click', loadAll);
 $('addCompany').addEventListener('click', createCompany);
 $('newCancel').addEventListener('click', () => $('newDialog').close());
 $('newCreate').addEventListener('click', submitNewCompany);
@@ -910,9 +1579,21 @@ $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newEma
 $('setupDone').addEventListener('click', () => $('setupDialog').close());
 $('exportCsv').addEventListener('click', exportCsv);
 $('signOut').addEventListener('click', async () => { await db.auth.signOut(); location.reload(); });
+$('stackClose').addEventListener('click', () => $('stackDialog').close());
+
 $('e_cancel').addEventListener('click', () => $('editDialog').close());
 $('e_save').addEventListener('click', saveEdit);
 $('e_suspend').addEventListener('click', toggleSuspend);
+$('copyId').addEventListener('click', copyCompanyId);
+
+$('mfaTurnOn').addEventListener('click', startMfaEnroll);
+$('mfaVerifyEnroll').addEventListener('click', verifyMfaEnroll);
+$('mfaCancelEnroll').addEventListener('click', cancelMfaEnroll);
+$('mfaEnrollCode').addEventListener('keydown', e => { if (e.key === 'Enter') verifyMfaEnroll(); });
+$('mfaTurnOff').addEventListener('click', turnOffMfa);
+$('mfaOffCode').addEventListener('keydown', e => { if (e.key === 'Enter') turnOffMfa(); });
 
 boot();
 </script>
+</body>
+</html>
