@@ -104,4 +104,12 @@ supabase_can_see_pay_patch.sql
 supabase_time_entry_rate_patch.sql
 supabase_job_totals_authority_patch.sql
 supabase_quote_link_patch.sql
+supabase_leads_map_patch.sql
+supabase_join_company_guard.sql
+supabase_money_report_guard.sql
+supabase_rpc_grants_tighten.sql
+supabase_job_payments_unique_external.sql
+supabase_companies_no_delete_patch.sql
+supabase_quiet_touch_patch.sql
+supabase_job_sync_id_uuid_patch.sql
 supabase_build_templates_patch.sql
