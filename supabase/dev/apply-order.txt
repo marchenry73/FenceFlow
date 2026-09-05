@@ -115,3 +115,4 @@ supabase_job_sync_id_uuid_patch.sql
 supabase_build_templates_patch.sql
 supabase_crew_money_shield_patch.sql
 supabase_plan_starts_patch.sql
+supabase_admin_drift_read_patch.sql
