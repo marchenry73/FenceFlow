@@ -64,6 +64,7 @@ class Repository(private val db: AppDatabase) {
     private val pendingDeletionDao = db.pendingDeletionDao()
     private val syncMaintenanceDao = db.syncMaintenanceDao()
     private val paymentRecordDao = db.paymentRecordDao()
+    private val buildTemplateDao = db.buildTemplateDao()
 
     fun observeJobs(): Flow<List<Job>> = jobDao.observeAll()
     fun observeJob(id: Long): Flow<Job?> = jobDao.observeById(id)
@@ -314,6 +315,15 @@ class Repository(private val db: AppDatabase) {
     suspend fun createFenceRun(run: FenceRun): Long = fenceRunDao.insert(run)
     suspend fun updateFenceRun(run: FenceRun) = fenceRunDao.update(run)
     suspend fun deleteFenceRun(run: FenceRun) = deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
+
+    // ---- Build templates (pull-only; see EntitySync.pullBuildTemplates) ----
+
+    /** Shipped rows plus this company's own, for the Add Fence Run template picker. */
+    fun observeBuildTemplates(): Flow<List<BuildTemplate>> = buildTemplateDao.observeAllLive()
+    suspend fun getAllBuildTemplates(): List<BuildTemplate> = buildTemplateDao.getAllLive()
+    suspend fun getBuildTemplate(syncId: String): BuildTemplate? = buildTemplateDao.getBySyncId(syncId)
+    /** Lands a page of the cloud pull. Replace, not merge -- the cloud row is always the whole template. */
+    suspend fun saveBuildTemplatesFromCloud(templates: List<BuildTemplate>) = buildTemplateDao.upsertAll(templates)
 
     fun observeCatalog(): Flow<List<MaterialItem>> = materialDao.observeAllActive()
     fun observeFullCatalog(): Flow<List<MaterialItem>> = materialDao.observeAll()

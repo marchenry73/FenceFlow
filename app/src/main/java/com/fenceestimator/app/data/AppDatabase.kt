@@ -18,9 +18,9 @@ import kotlinx.coroutines.withContext
         Manufacturer::class, PricingTier::class, JobPhoto::class, InventoryChecklistItem::class,
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
-        PaymentRecord::class
+        PaymentRecord::class, BuildTemplate::class
     ],
-    version = 32,
+    version = 33,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -44,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun fieldChangeDao(): FieldChangeDao
     abstract fun syncMaintenanceDao(): SyncMaintenanceDao
     abstract fun paymentRecordDao(): PaymentRecordDao
+    abstract fun buildTemplateDao(): BuildTemplateDao
 
     /** Flushes the write-ahead log into the main .db file so a raw file copy is complete and consistent. */
     suspend fun checkpoint() = withContext(Dispatchers.IO) {
@@ -500,13 +501,68 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Office pricing parity: build templates, and the four columns that
+         * say who priced a job last and how it got there.
+         *
+         * All additive with defaults matching current behaviour -- an
+         * existing job has priced_by = '' (neither side has claimed it yet,
+         * so JobSync's decision table falls through to "push as before"),
+         * and an existing run has no template, which is exactly true.
+         *
+         * build_templates is pull-only, so the migration only has to create
+         * somewhere for the pull to land -- there is no local data to
+         * backfill, unlike pricing_tiers' updatedAt above.
+         */
+        private val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `buildTemplateSyncId` TEXT")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `pricedBy` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `pricedAt` INTEGER")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `pricingEngineVersion` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `jobs` ADD COLUMN `quoteSentAt` INTEGER")
+                db.execSQL("ALTER TABLE `fence_runs` ADD COLUMN `buildTemplateSyncId` TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `build_templates` (" +
+                        "`syncId` TEXT PRIMARY KEY NOT NULL, " +
+                        "`companyId` TEXT, " +
+                        "`name` TEXT NOT NULL DEFAULT '', " +
+                        "`description` TEXT NOT NULL DEFAULT '', " +
+                        "`isDefault` INTEGER NOT NULL DEFAULT 0, " +
+                        "`derivedFromSyncId` TEXT, " +
+                        "`sortOrder` INTEGER NOT NULL DEFAULT 0, " +
+                        "`fenceType` TEXT NOT NULL DEFAULT 'VINYL', " +
+                        "`colorOrFinish` TEXT NOT NULL DEFAULT '', " +
+                        "`panelWidthFt` REAL NOT NULL DEFAULT 6, " +
+                        "`panelHeightFt` REAL NOT NULL DEFAULT 6, " +
+                        "`postSpacingFt` REAL NOT NULL DEFAULT 6, " +
+                        "`concreteBagsPerPost` REAL NOT NULL DEFAULT 1, " +
+                        "`aluminumStyle` TEXT NOT NULL DEFAULT 'RACKABLE', " +
+                        "`woodStyle` TEXT NOT NULL DEFAULT 'PRIVACY', " +
+                        "`woodRailCount` INTEGER NOT NULL DEFAULT 3, " +
+                        "`picketWidthIn` REAL NOT NULL DEFAULT 5.5, " +
+                        "`picketGapIn` REAL NOT NULL DEFAULT 0, " +
+                        "`fabricHeightFt` REAL NOT NULL DEFAULT 4, " +
+                        "`includeTopRail` INTEGER NOT NULL DEFAULT 1, " +
+                        "`includeTensionWire` INTEGER NOT NULL DEFAULT 0, " +
+                        "`includeBarbedWireArms` INTEGER NOT NULL DEFAULT 0, " +
+                        "`includePrivacySlats` INTEGER NOT NULL DEFAULT 0, " +
+                        "`splitRailCount` INTEGER NOT NULL DEFAULT 2, " +
+                        "`gateWidthFt` REAL NOT NULL DEFAULT 4, " +
+                        "`gateMounting` TEXT NOT NULL DEFAULT 'LINE', " +
+                        "`updatedAt` INTEGER NOT NULL DEFAULT 0, " +
+                        "`deletedAt` INTEGER)"
+                )
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a

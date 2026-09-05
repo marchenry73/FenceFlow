@@ -508,9 +508,11 @@ fun JobDetailScreen(
     }
 
     if (showAddRunDialog) {
+        val templates by runsViewModel.templates.collectAsState()
         AddRunDialog(
-            onConfirm = { label, type ->
-                runsViewModel.addRun(label, type, profile) { id -> onOpenRun(id) }
+            templates = templates,
+            onConfirm = { label, type, template ->
+                runsViewModel.addRun(label, type, profile, template) { id -> onOpenRun(id) }
                 showAddRunDialog = false
             },
             onDismiss = { showAddRunDialog = false }
@@ -617,11 +619,27 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> U
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -> Unit) {
+private fun AddRunDialog(
+    templates: List<com.fenceestimator.app.data.BuildTemplate>,
+    onConfirm: (String, FenceType, com.fenceestimator.app.data.BuildTemplate?) -> Unit,
+    onDismiss: () -> Unit
+) {
     val context = LocalContext.current
     var label by remember { mutableStateOf("") }
     var type by remember { mutableStateOf(FenceType.VINYL) }
     var expanded by remember { mutableStateOf(false) }
+    var selectedTemplate by remember { mutableStateOf<com.fenceestimator.app.data.BuildTemplate?>(null) }
+    var templateExpanded by remember { mutableStateOf(false) }
+
+    // Narrowed to the chosen fence type, and cleared when the type changes --
+    // a Wood template offered under Chain Link would silently overwrite the
+    // run's spec with the wrong fence's numbers the moment it was picked.
+    val templatesForType = remember(templates, type) { templates.filter { it.fenceType == type } }
+    androidx.compose.runtime.LaunchedEffect(type) { selectedTemplate = null }
+
+    val yourDefault = templatesForType.firstOrNull { it.companyId != null && it.isDefault }
+    val yourTemplates = templatesForType.filter { it.companyId != null && it.syncId != yourDefault?.syncId }
+    val shippedTemplates = templatesForType.filter { it.companyId == null }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -650,12 +668,69 @@ private fun AddRunDialog(onConfirm: (String, FenceType) -> Unit, onDismiss: () -
                         }
                     }
                 }
+                if (templatesForType.isNotEmpty()) {
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                    ExposedDropdownMenuBox(expanded = templateExpanded, onExpandedChange = { templateExpanded = it }) {
+                        OutlinedTextField(
+                            value = selectedTemplate?.name?.ifBlank { stringResource(R.string.jd_template_untitled) }
+                                ?: stringResource(R.string.jd_template_none),
+                            onValueChange = {}, readOnly = true,
+                            label = { Text(stringResource(R.string.jd_build_template)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = templateExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        DropdownMenu(expanded = templateExpanded, onDismissRequest = { templateExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.jd_template_none)) },
+                                onClick = { selectedTemplate = null; templateExpanded = false }
+                            )
+                            if (yourDefault != null) {
+                                TemplateGroupLabel(stringResource(R.string.jd_template_group_your_default))
+                                TemplateMenuItem(yourDefault) { selectedTemplate = it; templateExpanded = false }
+                            }
+                            if (yourTemplates.isNotEmpty()) {
+                                TemplateGroupLabel(stringResource(R.string.jd_template_group_yours))
+                                yourTemplates.forEach { t -> TemplateMenuItem(t) { selectedTemplate = it; templateExpanded = false } }
+                            }
+                            if (shippedTemplates.isNotEmpty()) {
+                                TemplateGroupLabel(stringResource(R.string.jd_template_group_shipped))
+                                shippedTemplates.forEach { t -> TemplateMenuItem(t) { selectedTemplate = it; templateExpanded = false } }
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(label.ifBlank { context.getString(type.labelRes()) }, type) }) { Text(stringResource(R.string.action_add)) }
+            Button(onClick = {
+                // The template's own fence type wins over the dropdown above
+                // when one is chosen -- the two are always the same value in
+                // practice, since the picker only ever offers templates of
+                // the currently selected type, but the template is the more
+                // trustworthy source of the two once it exists.
+                val effectiveType = selectedTemplate?.fenceType ?: type
+                onConfirm(label.ifBlank { context.getString(effectiveType.labelRes()) }, effectiveType, selectedTemplate)
+            }) { Text(stringResource(R.string.action_add)) }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+    )
+}
+
+@Composable
+private fun TemplateGroupLabel(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+    )
+}
+
+@Composable
+private fun TemplateMenuItem(template: com.fenceestimator.app.data.BuildTemplate, onClick: (com.fenceestimator.app.data.BuildTemplate) -> Unit) {
+    DropdownMenuItem(
+        text = { Text(template.name.ifBlank { stringResource(R.string.jd_template_untitled) }) },
+        onClick = { onClick(template) }
     )
 }
 

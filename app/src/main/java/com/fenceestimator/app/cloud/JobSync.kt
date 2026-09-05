@@ -6,6 +6,7 @@ import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.PermitStatus
 import com.fenceestimator.app.data.Repository
+import com.fenceestimator.app.estimate.EstimateEngine
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -112,7 +113,23 @@ data class CloudJob(
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     /** Set when this record was deleted. The row stays so every device learns of it. */
-    @SerialName("deleted_at") val deletedAt: String? = null
+    @SerialName("deleted_at") val deletedAt: String? = null,
+
+    // ---- Office pricing parity (see JobSync's contract_total push block) --
+    /** Which template the job's build came from, if the office wizard started it. Provenance only. */
+    @SerialName("build_template_sync_id") val buildTemplateSyncId: String? = null,
+    /** Which engine wrote [contractTotal] last: '' | 'APP' | 'OFFICE'. */
+    @SerialName("priced_by") val pricedBy: String = "",
+    @SerialName("priced_at") val pricedAt: String? = null,
+    @SerialName("pricing_engine_version") val pricingEngineVersion: String = "",
+    /**
+     * Set once the office has sent this quote to the customer. From then on
+     * the number the customer saw is the number that stands -- the phone
+     * only ever records a pricing_drift row if it disagrees, never
+     * overwrites. Never sent by the phone: nothing on the phone marks a
+     * quote sent, this column only ever arrives FROM the cloud.
+     */
+    @SerialName("quote_sent_at") val quoteSentAt: String? = null
 ) {
     /**
      * Falls back to 0 so a genuinely absent value never beats real local work.
@@ -257,6 +274,34 @@ object JobSync {
         }
     }
 
+    /**
+     * The only place allowed to write priced_by, priced_at and
+     * pricing_engine_version -- see the long comment on [Job.toCloud] for
+     * why an ordinary row push must never touch them. A small targeted
+     * patch, the same shape as [pushLedgerTotals]'s amount_paid/
+     * refunded_amount write above, rather than the whole [CloudJob] object:
+     * nothing else on the row is at risk from a stale local copy this way.
+     * Never bumps updated_at -- all four columns it writes are on the
+     * server's quiet list.
+     */
+    private suspend fun pushContractTotal(companyId: String, jobSyncId: String, total: Double) {
+        runCatching {
+            SupabaseModule.client.postgrest.from("jobs").update(
+                buildJsonObject {
+                    put("contract_total", total)
+                    put("priced_by", "APP")
+                    put("priced_at", Instant.now().toString())
+                    put("pricing_engine_version", EstimateEngine.PRICING_ENGINE_VERSION)
+                }
+            ) {
+                filter {
+                    eq("company_id", companyId)
+                    eq("sync_id", jobSyncId)
+                }
+            }
+        }
+    }
+
     suspend fun sync(repository: Repository, companyId: String): Result<SyncResult> = withContext(Dispatchers.IO) {
         runCatching {
             // Deletions first, always. If a pull ran before them, the rows we
@@ -370,15 +415,70 @@ object JobSync {
                 if (hasWorking && cloudJob != null && cloudJob.deletedAt == null &&
                     (cloudJob.contractTotal == null || kotlin.math.abs(cloudJob.contractTotal - freshTotal) > 0.005)
                 ) {
-                    runCatching {
-                        SupabaseModule.client.postgrest.from("jobs").update(
-                            buildJsonObject { put("contract_total", freshTotal) }
-                        ) {
-                            filter {
-                                eq("company_id", companyId)
-                                eq("sync_id", job.syncId)
+                    // The office can price a job now too (price-job, the New
+                    // Client wizard), so a phone recompute that disagrees
+                    // with an OFFICE price is no longer automatically this
+                    // phone's to win outright. See docs/OFFICE_SETUP_PLAN.md,
+                    // open question 1, and the JobSync rules section.
+                    val officePriced = cloudJob.pricedBy == "OFFICE"
+                    val officeEngineIsNewer = officePriced &&
+                        cloudJob.pricingEngineVersion.isNotBlank() &&
+                        cloudJob.pricingEngineVersion > EstimateEngine.PRICING_ENGINE_VERSION
+                    when {
+                        // (a) The office priced this job on engine logic
+                        // newer than the one this build carries. Overwriting
+                        // would replace a price computed by rules this phone
+                        // has not caught up to with one from rules that are
+                        // already behind -- so the phone backs off and files
+                        // a report instead of quietly winning an argument it
+                        // cannot actually win. app_errors is its own table,
+                        // so this never touches the job row at all.
+                        officeEngineIsNewer -> runCatching {
+                            SupabaseModule.client.postgrest.from("app_errors").insert(
+                                CloudError(
+                                    companyId = companyId,
+                                    fatal = false,
+                                    whereAt = "pricing_parity",
+                                    message = "job ${job.syncId}: office total ${cloudJob.contractTotal} " +
+                                        "(engine ${cloudJob.pricingEngineVersion}) vs phone total $freshTotal " +
+                                        "(engine ${EstimateEngine.PRICING_ENGINE_VERSION})"
+                                )
+                            )
+                        }
+                        // (b) The office priced this job, on an engine this
+                        // phone is caught up to or ahead of, and the two
+                        // totals disagree. That disagreement is worth a
+                        // permanent record even when the phone goes on to
+                        // win it.
+                        officePriced -> {
+                            // recordPricingDrift already swallows its own
+                            // failure -- a missed drift note must never
+                            // block the rest of this sync.
+                            recordPricingDrift(
+                                CloudPricingDrift(
+                                    companyId = companyId,
+                                    jobSyncId = job.syncId,
+                                    officeTotal = cloudJob.contractTotal,
+                                    phoneTotal = freshTotal,
+                                    officeEngine = cloudJob.pricingEngineVersion,
+                                    phoneEngine = EstimateEngine.PRICING_ENGINE_VERSION,
+                                    detail = buildDriftDetail(companyId, job.syncId, itemsByJob[job.id].orEmpty())
+                                )
+                            )
+                            // Once a quote has been sent, the number the
+                            // customer saw and agreed to is the number that
+                            // stands -- the phone only ever records the
+                            // disagreement from here on. Before that, the
+                            // phone's fresher figure still wins, same as
+                            // always.
+                            if (cloudJob.quoteSentAt == null) {
+                                pushContractTotal(companyId, job.syncId, freshTotal)
                             }
                         }
+                        // (c) Nobody has priced this from the office, or the
+                        // last price on it was the phone's own -- unchanged
+                        // from before this feature existed.
+                        else -> pushContractTotal(companyId, job.syncId, freshTotal)
                     }
                 }
 
@@ -395,12 +495,27 @@ object JobSync {
                     // disappeared. Payment fields are never pushed downward:
                     // the higher figure survives whichever side is newer.
                     val payload = job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }, job.preferredManufacturerId?.let { manufacturerSyncById[it] }).let { local ->
-                        if (cloudJob.amountPaid > local.amountPaid) {
+                        val withPayment = if (cloudJob.amountPaid > local.amountPaid) {
                             local.copy(
                                 amountPaid = cloudJob.amountPaid,
                                 paymentStatus = cloudJob.paymentStatus
                             )
                         } else local
+                        // Pricing-parity bookkeeping belongs to the
+                        // contract_total push block above and nowhere else.
+                        // job.toCloud() leaves these four at CloudJob's bare
+                        // defaults on purpose (see the comment there), so an
+                        // ordinary edit here -- a phone number, a note --
+                        // must have them filled back in with whatever the
+                        // cloud currently holds, or this update would stamp
+                        // blank pricing metadata straight over a real office
+                        // price the moment it serializes the whole row.
+                        withPayment.copy(
+                            pricedBy = cloudJob.pricedBy,
+                            pricedAt = cloudJob.pricedAt,
+                            pricingEngineVersion = cloudJob.pricingEngineVersion,
+                            quoteSentAt = cloudJob.quoteSentAt
+                        )
                     }
                     SupabaseModule.client.postgrest.from("jobs").update(payload) {
                         filter {
@@ -583,7 +698,22 @@ private fun Job.toCloud(
     hoaEmail = hoaEmail,
     hoaApprovalStatus = hoaApprovalStatus.name,
     permitNumber = permitNumber,
-    permitStatus = permitStatus.name
+    permitStatus = permitStatus.name,
+    // buildTemplateSyncId is a real edit (LOUD server-side), so it travels
+    // like every other field above: whichever side is newer wins.
+    //
+    // priced_by / priced_at / pricing_engine_version / quote_sent_at are
+    // deliberately NOT wired in here -- they stay at CloudJob's defaults on
+    // this object. Those four are quiet-clock bookkeeping the OFFICE writes;
+    // this function backs every ordinary row push (a phone number, a note,
+    // a new job), and if it sent this phone's cached copy of them, an
+    // unrelated edit would stamp blank/APP-shaped values over a real office
+    // price the moment `encodeDefaults = true` serialized this whole object.
+    // The one place allowed to touch them is the contract_total push block
+    // in JobSync.sync(), which either omits them (a brand new job, correctly
+    // blank) or explicitly carries the cloud's own current values forward on
+    // an ordinary update (see the `payload` build there).
+    buildTemplateSyncId = buildTemplateSyncId
 )
 
 /**
@@ -673,6 +803,20 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
         .getOrDefault(local.hoaApprovalStatus),
     permitNumber = permitNumber,
     permitStatus = runCatching { PermitStatus.valueOf(permitStatus) }.getOrDefault(local.permitStatus),
+    // buildTemplateSyncId is LOUD, so it takes the cloud's value outright,
+    // the same as every other field in this merge -- this branch only runs
+    // when the cloud row is already established as newer.
+    buildTemplateSyncId = buildTemplateSyncId ?: local.buildTemplateSyncId,
+    // These four are quiet-clock bookkeeping (see the comment on Job.toCloud
+    // for why they are never pushed from here). On the way DOWN there is no
+    // such danger -- the cloud is the only writer of a real value, so taking
+    // it is always at least as correct as whatever this phone is holding.
+    // Not dropped, so a job pulled fresh after the office prices it actually
+    // shows that on this phone instead of resetting to blank forever.
+    pricedBy = pricedBy.ifBlank { local.pricedBy },
+    pricedAt = CloudTime.parseMillis(pricedAt) ?: local.pricedAt,
+    pricingEngineVersion = pricingEngineVersion.ifBlank { local.pricingEngineVersion },
+    quoteSentAt = CloudTime.parseMillis(quoteSentAt) ?: local.quoteSentAt,
     updatedAt = updatedAtMillis()
 )
 
@@ -743,5 +887,10 @@ private fun CloudJob.toLocalJob() = Job(
     hoaApprovalStatus = runCatching { HoaApprovalStatus.valueOf(hoaApprovalStatus) }.getOrDefault(HoaApprovalStatus.NOT_REQUIRED),
     permitNumber = permitNumber,
     permitStatus = runCatching { PermitStatus.valueOf(permitStatus) }.getOrDefault(PermitStatus.NOT_REQUIRED),
+    buildTemplateSyncId = buildTemplateSyncId,
+    pricedBy = pricedBy,
+    pricedAt = CloudTime.parseMillis(pricedAt),
+    pricingEngineVersion = pricingEngineVersion,
+    quoteSentAt = CloudTime.parseMillis(quoteSentAt),
     updatedAt = updatedAtMillis()
 )
