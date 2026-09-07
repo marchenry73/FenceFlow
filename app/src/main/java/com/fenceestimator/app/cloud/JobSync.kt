@@ -12,7 +12,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
 
@@ -246,9 +249,14 @@ object JobSync {
      */
     suspend fun pushLedgerTotals(
         repository: Repository,
-        companyId: String
+        companyId: String,
+        scope: MoneyScope
     ): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
+            // Nothing here is safe to ask about, let alone send, from a phone
+            // that isn't confirmed ALLOWED -- including UNKNOWN, which is
+            // "couldn't ask" rather than "no."
+            if (scope != MoneyScope.ALLOWED) return@runCatching 0
             val jobs = repository.getAllJobs()
             if (jobs.isEmpty()) return@runCatching 0
             val cloudBySyncId = SupabaseModule.client.postgrest.from("jobs")
@@ -309,36 +317,53 @@ object JobSync {
         }
     }
 
-    suspend fun sync(repository: Repository, companyId: String): Result<SyncResult> = withContext(Dispatchers.IO) {
+    suspend fun sync(repository: Repository, companyId: String, scope: MoneyScope): Result<SyncResult> = withContext(Dispatchers.IO) {
+        // Could not ask, so nothing here is trusted -- not a read, not a
+        // write. Collapsing this into DENIED would scrub real prices off a
+        // phone that was ALLOWED all along; collapsing it into ALLOWED would
+        // push a crew phone's payload straight at a door that just refuses
+        // money quietly and does not know it failed.
+        if (scope == MoneyScope.UNKNOWN) {
+            android.util.Log.i("JobSync", "money scope: UNKNOWN; skipping job sync this pass")
+            return@withContext Result.success(SyncResult(0, 0))
+        }
         runCatching {
             // Deletions first, always. If a pull ran before them, the rows we
             // just deleted locally would still be in the cloud and would come
             // straight back down.
-            repository.pendingDeletions().forEach { deletion ->
-                // Stamped, not removed.
-                //
-                // A hard delete is invisible to every other device: they read
-                // "on my phone but not in the cloud" as "not uploaded yet" and
-                // upload it again, so the record came straight back and the
-                // deleting device pulled it down as brand new. A tombstone
-                // makes the deletion itself a thing that syncs, and makes it
-                // recoverable from the trash.
-                val removed = runCatching {
-                    SupabaseModule.client.postgrest.from(deletion.tableName).update(
-                        buildJsonObject {
-                            put("deleted_at", Instant.now().toString())
-                            put("deleted_by", deletion.deletedBy)
-                        }
-                    ) {
-                        filter {
-                            eq("company_id", companyId)
-                            eq("sync_id", deletion.syncId)
+            //
+            // Skipped entirely on a DENIED phone: crew have no DELETE_RECORDS
+            // by default, and once the base tables are gated, an UPDATE this
+            // phone is not allowed to make matches zero rows, comes back a
+            // quiet 200, and `removed.isSuccess` would clear the local marker
+            // as though the delete had actually reached the cloud.
+            if (scope == MoneyScope.ALLOWED) {
+                repository.pendingDeletions().forEach { deletion ->
+                    // Stamped, not removed.
+                    //
+                    // A hard delete is invisible to every other device: they read
+                    // "on my phone but not in the cloud" as "not uploaded yet" and
+                    // upload it again, so the record came straight back and the
+                    // deleting device pulled it down as brand new. A tombstone
+                    // makes the deletion itself a thing that syncs, and makes it
+                    // recoverable from the trash.
+                    val removed = runCatching {
+                        SupabaseModule.client.postgrest.from(deletion.tableName).update(
+                            buildJsonObject {
+                                put("deleted_at", Instant.now().toString())
+                                put("deleted_by", deletion.deletedBy)
+                            }
+                        ) {
+                            filter {
+                                eq("company_id", companyId)
+                                eq("sync_id", deletion.syncId)
+                            }
                         }
                     }
+                    // Only clear the local marker once the cloud actually accepted
+                    // it, so an offline delete retries instead of being forgotten.
+                    if (removed.isSuccess) repository.clearPendingDeletion(deletion.syncId)
                 }
-                // Only clear the local marker once the cloud actually accepted
-                // it, so an offline delete retries instead of being forgotten.
-                if (removed.isSuccess) repository.clearPendingDeletion(deletion.syncId)
             }
 
             val localJobs = repository.getAllJobs()
@@ -366,9 +391,17 @@ object JobSync {
                 ).grandTotal
             }
 
-            val cloudJobs = SupabaseModule.client.postgrest.from("jobs")
-                .select { filter { eq("company_id", companyId) } }
-                .decodeList<CloudJob>()
+            // ALLOWED reads the real table; anything else reads the door
+            // without money on it -- same filter, same shape, absent keys
+            // decoding to CloudJob's own defaults.
+            val cloudJobs = if (scope == MoneyScope.ALLOWED)
+                SupabaseModule.client.postgrest.from("jobs")
+                    .select { filter { eq("company_id", companyId) } }
+                    .decodeList<CloudJob>()
+            else
+                SupabaseModule.client.postgrest.from("jobs_crew")
+                    .select { filter { eq("company_id", companyId) } }
+                    .decodeList<CloudJob>()
 
             val cloudBySyncId = cloudJobs.associateBy { it.syncId }
             var uploaded = 0
@@ -415,10 +448,6 @@ object JobSync {
                 // sync, with nobody touching anything, and the office, the
                 // ageing report and the homeowner's quote page all agreed on
                 // the wrong number.
-                val hasWorking = itemsByJob[job.id].orEmpty().isNotEmpty() ||
-                    runsByJob[job.id].orEmpty().isNotEmpty() ||
-                    ordersByJob[job.id].orEmpty().isNotEmpty()
-                val freshTotal = totalFor(job)
                 // What the block below decided contract_total should be, if it
                 // decided anything. The ordinary row push further down must
                 // carry exactly this -- or, when the block chose not to push,
@@ -427,86 +456,164 @@ object JobSync {
                 // edit (a phone number, opening satellite mode) quietly put the
                 // phone's number over an office price the customer had already
                 // been sent. The block was the only authority on paper.
+                //
+                // Runs only when ALLOWED. contract_total is itself one of
+                // MONEY_KEYS, and cloudJob's copy of it is real only when this
+                // pull came from the actual "jobs" table -- from jobs_crew it
+                // is always CloudJob's bare default, which would otherwise
+                // read as "nobody has priced this" on every single pass.
                 var decidedTotal: Double? = null
-                if (hasWorking && cloudJob != null && cloudJob.deletedAt == null &&
-                    (cloudJob.contractTotal == null || kotlin.math.abs(cloudJob.contractTotal - freshTotal) > 0.005)
-                ) {
-                    // The office can price a job now too (price-job, the New
-                    // Client wizard), so a phone recompute that disagrees
-                    // with an OFFICE price is no longer automatically this
-                    // phone's to win outright. See docs/OFFICE_SETUP_PLAN.md,
-                    // open question 1, and the JobSync rules section.
-                    val officePriced = cloudJob.pricedBy == "OFFICE"
-                    val officeEngineIsNewer = officePriced &&
-                        cloudJob.pricingEngineVersion.isNotBlank() &&
-                        engineVersionIsNewer(cloudJob.pricingEngineVersion, EstimateEngine.PRICING_ENGINE_VERSION)
-                    when {
-                        // (a) The office priced this job on engine logic
-                        // newer than the one this build carries. Overwriting
-                        // would replace a price computed by rules this phone
-                        // has not caught up to with one from rules that are
-                        // already behind -- so the phone backs off and files
-                        // a report instead of quietly winning an argument it
-                        // cannot actually win. app_errors is its own table,
-                        // so this never touches the job row at all.
-                        officeEngineIsNewer -> runCatching {
-                            SupabaseModule.client.postgrest.from("app_errors").insert(
-                                CloudError(
-                                    companyId = companyId,
-                                    fatal = false,
-                                    whereAt = "pricing_parity",
-                                    message = "job ${job.syncId}: office total ${cloudJob.contractTotal} " +
-                                        "(engine ${cloudJob.pricingEngineVersion}) vs phone total $freshTotal " +
-                                        "(engine ${EstimateEngine.PRICING_ENGINE_VERSION})"
+                if (scope == MoneyScope.ALLOWED) {
+                    // A job nobody has touched still needs its total sent once.
+                    //
+                    // The push below only fires when this phone's copy is newer,
+                    // so contract_total would fill in for new and edited jobs and
+                    // stay blank on every existing one -- leaving the website
+                    // wrong on exactly the old jobs with money outstanding.
+                    //
+                    // Only the one column is written. Pushing the whole row to
+                    // backfill a single field would send this phone's untouched
+                    // copy over a cloud row that may be newer, and quietly undo an
+                    // edit made somewhere else.
+                    // Sent whenever it differs, not only when missing: change orders,
+                    // line-item and run edits and dashboard price edits all move the
+                    // price without touching the job row, and the website showed the
+                    // old figure until something else happened to save the job.
+                    // ...but only for a job this phone can actually price.
+                    //
+                    // A job with nothing on it to work from -- no line items, no
+                    // runs, no change orders -- computes to the bare minimum job
+                    // charge, which is not a price anybody quoted. An imported job
+                    // is exactly that shape: it carries a total from the old
+                    // system and none of the working behind it. Without this guard
+                    // a $12,400 imported job became $200 on the next background
+                    // sync, with nobody touching anything, and the office, the
+                    // ageing report and the homeowner's quote page all agreed on
+                    // the wrong number.
+                    val hasWorking = itemsByJob[job.id].orEmpty().isNotEmpty() ||
+                        runsByJob[job.id].orEmpty().isNotEmpty() ||
+                        ordersByJob[job.id].orEmpty().isNotEmpty()
+                    val freshTotal = totalFor(job)
+                    if (hasWorking && cloudJob != null && cloudJob.deletedAt == null &&
+                        (cloudJob.contractTotal == null || kotlin.math.abs(cloudJob.contractTotal - freshTotal) > 0.005)
+                    ) {
+                        // The office can price a job now too (price-job, the New
+                        // Client wizard), so a phone recompute that disagrees
+                        // with an OFFICE price is no longer automatically this
+                        // phone's to win outright. See docs/OFFICE_SETUP_PLAN.md,
+                        // open question 1, and the JobSync rules section.
+                        val officePriced = cloudJob.pricedBy == "OFFICE"
+                        val officeEngineIsNewer = officePriced &&
+                            cloudJob.pricingEngineVersion.isNotBlank() &&
+                            engineVersionIsNewer(cloudJob.pricingEngineVersion, EstimateEngine.PRICING_ENGINE_VERSION)
+                        when {
+                            // (a) The office priced this job on engine logic
+                            // newer than the one this build carries. Overwriting
+                            // would replace a price computed by rules this phone
+                            // has not caught up to with one from rules that are
+                            // already behind -- so the phone backs off and files
+                            // a report instead of quietly winning an argument it
+                            // cannot actually win. app_errors is its own table,
+                            // so this never touches the job row at all.
+                            officeEngineIsNewer -> runCatching {
+                                SupabaseModule.client.postgrest.from("app_errors").insert(
+                                    CloudError(
+                                        companyId = companyId,
+                                        fatal = false,
+                                        whereAt = "pricing_parity",
+                                        message = "job ${job.syncId}: office total ${cloudJob.contractTotal} " +
+                                            "(engine ${cloudJob.pricingEngineVersion}) vs phone total $freshTotal " +
+                                            "(engine ${EstimateEngine.PRICING_ENGINE_VERSION})"
+                                    )
                                 )
-                            )
-                        }
-                        // (b) The office priced this job, on an engine this
-                        // phone is caught up to or ahead of, and the two
-                        // totals disagree. That disagreement is worth a
-                        // permanent record even when the phone goes on to
-                        // win it.
-                        officePriced -> {
-                            // recordPricingDrift already swallows its own
-                            // failure -- a missed drift note must never
-                            // block the rest of this sync.
-                            recordPricingDrift(
-                                CloudPricingDrift(
-                                    companyId = companyId,
-                                    jobSyncId = job.syncId,
-                                    officeTotal = cloudJob.contractTotal,
-                                    phoneTotal = freshTotal,
-                                    officeEngine = cloudJob.pricingEngineVersion,
-                                    phoneEngine = EstimateEngine.PRICING_ENGINE_VERSION,
-                                    detail = buildDriftDetail(companyId, job.syncId, itemsByJob[job.id].orEmpty())
+                            }
+                            // (b) The office priced this job, on an engine this
+                            // phone is caught up to or ahead of, and the two
+                            // totals disagree. That disagreement is worth a
+                            // permanent record even when the phone goes on to
+                            // win it.
+                            officePriced -> {
+                                // recordPricingDrift already swallows its own
+                                // failure -- a missed drift note must never
+                                // block the rest of this sync.
+                                recordPricingDrift(
+                                    CloudPricingDrift(
+                                        companyId = companyId,
+                                        jobSyncId = job.syncId,
+                                        officeTotal = cloudJob.contractTotal,
+                                        phoneTotal = freshTotal,
+                                        officeEngine = cloudJob.pricingEngineVersion,
+                                        phoneEngine = EstimateEngine.PRICING_ENGINE_VERSION,
+                                        detail = buildDriftDetail(companyId, job.syncId, itemsByJob[job.id].orEmpty())
+                                    )
                                 )
-                            )
-                            // Once a quote has been sent, the number the
-                            // customer saw and agreed to is the number that
-                            // stands -- the phone only ever records the
-                            // disagreement from here on. Before that, the
-                            // phone's fresher figure still wins, same as
-                            // always.
-                            if (cloudJob.quoteSentAt == null) {
+                                // Once a quote has been sent, the number the
+                                // customer saw and agreed to is the number that
+                                // stands -- the phone only ever records the
+                                // disagreement from here on. Before that, the
+                                // phone's fresher figure still wins, same as
+                                // always.
+                                if (cloudJob.quoteSentAt == null) {
+                                    pushContractTotal(companyId, job.syncId, freshTotal)
+                                    decidedTotal = freshTotal
+                                }
+                            }
+                            // (c) Nobody has priced this from the office, or the
+                            // last price on it was the phone's own -- unchanged
+                            // from before this feature existed.
+                            else -> {
                                 pushContractTotal(companyId, job.syncId, freshTotal)
                                 decidedTotal = freshTotal
                             }
-                        }
-                        // (c) Nobody has priced this from the office, or the
-                        // last price on it was the phone's own -- unchanged
-                        // from before this feature existed.
-                        else -> {
-                            pushContractTotal(companyId, job.syncId, freshTotal)
-                            decidedTotal = freshTotal
                         }
                     }
                 }
 
                 if (cloudJob == null) {
-                    SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }, job.preferredManufacturerId?.let { manufacturerSyncById[it] }))
-                    repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
-                    uploaded++
+                    // DENIED never inserts. There is no crew insert path on
+                    // the server either (crew_save_job is UPDATE-only) -- a
+                    // job this phone has never seen from the cloud is either
+                    // one this phone created (and it will appear once ALLOWED
+                    // pushes it, or once the office adds it) or one this
+                    // account is not supposed to see at all. Either way,
+                    // guessing by inserting a duplicate is worse than waiting.
+                    if (scope == MoneyScope.DENIED) {
+                        android.util.Log.i(
+                            "JobSync",
+                            "job ${job.syncId} unknown to the cloud on a crew phone; left alone"
+                        )
+                    } else {
+                        SupabaseModule.client.postgrest.from("jobs").insert(job.toCloud(companyId, totalFor(job), job.assignedEmployeeId?.let { employeeSyncById[it] }, job.preferredManufacturerId?.let { manufacturerSyncById[it] }))
+                        repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
+                        uploaded++
+                    }
                 } else if (job.updatedAt > cloudJob.updatedAtMillis()) {
+                    if (scope == MoneyScope.DENIED) {
+                        // The base table refuses this phone's write outright
+                        // once the policy flips, so it never lands there at
+                        // all -- crew_save_job is the only door, it is
+                        // UPDATE-only, and it drops every MONEY_KEYS key on
+                        // the server regardless of what is sent. The filter
+                        // here is belt-and-suspenders: this phone's own JSON
+                        // should never assert a price in the first place.
+                        val payload = job.toCloud(
+                            companyId, null,
+                            job.assignedEmployeeId?.let { employeeSyncById[it] },
+                            job.preferredManufacturerId?.let { manufacturerSyncById[it] }
+                        )
+                        val accepted = SupabaseModule.client.postgrest.rpc(
+                            "crew_save_job",
+                            buildJsonObject { put("row_in", buildCrewSaveJobPayload(payload)) }
+                        ).decodeAs<Boolean>()
+                        // false means the row didn't match (deleted, wrong
+                        // company, or this account lost RECORD_FIELD_WORK) --
+                        // leave the local sync stamp untouched so this job is
+                        // retried rather than silently marked "sent."
+                        if (accepted) {
+                            repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
+                            uploaded++
+                        }
+                    } else {
                     // Money that cleared is a fact, not an opinion.
                     //
                     // Last-edit-wins on the whole row meant a job open on screen
@@ -562,6 +669,7 @@ object JobSync {
                     }
                     repository.updateJobSyncStamp(job.id, System.currentTimeMillis())
                     uploaded++
+                    }
                 }
             }
 
@@ -626,7 +734,7 @@ object JobSync {
                     // the damage was latent rather than absent; fixing the
                     // parsing without fixing this would have armed it.
                     repository.updateJobFromCloud(
-                        cloudJob.mergeOnto(local).let { merged ->
+                        cloudJob.mergeOnto(local, keepMoney = scope != MoneyScope.ALLOWED).let { merged ->
                             val withEmployee = cloudJob.assignedEmployeeSyncId
                                 ?.let { es -> employeeIdBySync[es] }
                                 ?.let { merged.copy(assignedEmployeeId = it) } ?: merged
@@ -754,8 +862,15 @@ private fun Job.toCloud(
  * Written as an explicit field list rather than `toLocalJob().copy(...)` so
  * that adding a column to [CloudJob] without adding it here is a compile error
  * in the mapper below, not a silent reset here.
+ *
+ * @param keepMoney True when [cloudJob][this] arrived through the money-free
+ *   door (`jobs_crew`): every [MONEY_KEYS] field decoded onto it is that
+ *   view's absent-column default, not a real answer, and taking it here would
+ *   be the exact 25-to-0 shape of loss this whole feature exists to stop.
+ *   [local]'s own value is kept instead for every one of them; everything
+ *   else in the row still comes down as usual.
  */
-internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
+internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = local.copy(
     customerName = customerName,
     address = address,
     phone = phone,
@@ -766,12 +881,12 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
     createdAt = CloudTime.parseMillis(createdAt) ?: System.currentTimeMillis(),
     scheduledDate = CloudTime.parseMillis(scheduledDate),
     estimatedDurationHours = estimatedDurationHours,
-    taxRatePercent = taxRatePercent,
-    markupPercent = markupPercent,
-    discountPercent = discountPercent,
-    laborRatePerFt = laborRatePerFt,
-    laborFlatFee = laborFlatFee,
-    minimumJobCharge = minimumJobCharge ?: local.minimumJobCharge,
+    taxRatePercent = if (keepMoney) local.taxRatePercent else taxRatePercent,
+    markupPercent = if (keepMoney) local.markupPercent else markupPercent,
+    discountPercent = if (keepMoney) local.discountPercent else discountPercent,
+    laborRatePerFt = if (keepMoney) local.laborRatePerFt else laborRatePerFt,
+    laborFlatFee = if (keepMoney) local.laborFlatFee else laborFlatFee,
+    minimumJobCharge = if (keepMoney) local.minimumJobCharge else (minimumJobCharge ?: local.minimumJobCharge),
     wastePercent = wastePercent,
     blockedReason = blockedReason,
     overrunReason = overrunReason,
@@ -786,32 +901,37 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
     locateNotes = locateNotes,
     customerMustClear = customerMustClear,
     teardownEnabled = teardownEnabled,
-    teardownFlatFee = teardownFlatFee,
-    teardownRatePerFt = teardownRatePerFt,
+    teardownFlatFee = if (keepMoney) local.teardownFlatFee else teardownFlatFee,
+    teardownRatePerFt = if (keepMoney) local.teardownRatePerFt else teardownRatePerFt,
     teardownFeet = teardownFeet,
-    gateRatePerFt = gateRatePerFt ?: local.gateRatePerFt,
-    trashHaulFee = trashHaulFee ?: local.trashHaulFee,
-    pricingTierName = pricingTierName.ifBlank { local.pricingTierName },
-    tipAmount = tipAmount ?: local.tipAmount,
+    gateRatePerFt = if (keepMoney) local.gateRatePerFt else (gateRatePerFt ?: local.gateRatePerFt),
+    trashHaulFee = if (keepMoney) local.trashHaulFee else (trashHaulFee ?: local.trashHaulFee),
+    pricingTierName = if (keepMoney) local.pricingTierName else pricingTierName.ifBlank { local.pricingTierName },
+    tipAmount = if (keepMoney) local.tipAmount else (tipAmount ?: local.tipAmount),
     gridFeetPerSquare = if (gridFeetPerSquare > 0f) gridFeetPerSquare else local.gridFeetPerSquare,
     calibrationPixelsPerFoot = calibrationPixelsPerFoot ?: local.calibrationPixelsPerFoot,
     calibrationKnownFeet = calibrationKnownFeet ?: local.calibrationKnownFeet,
-    supplierQuoteReference = supplierQuoteReference.ifBlank { local.supplierQuoteReference },
+    supplierQuoteReference = if (keepMoney) local.supplierQuoteReference else supplierQuoteReference.ifBlank { local.supplierQuoteReference },
     durationManuallySet = durationManuallySet,
-    paymentLinkUrl = paymentLinkUrl.ifBlank { local.paymentLinkUrl },
-    paymentLinkAmount = if (paymentLinkAmount > 0.0) paymentLinkAmount else local.paymentLinkAmount,
+    paymentLinkUrl = if (keepMoney) local.paymentLinkUrl else paymentLinkUrl.ifBlank { local.paymentLinkUrl },
+    paymentLinkAmount = if (keepMoney) local.paymentLinkAmount else (if (paymentLinkAmount > 0.0) paymentLinkAmount else local.paymentLinkAmount),
     surveyStoragePath = surveyStoragePath ?: local.surveyStoragePath,
     signatureStoragePath = signatureStoragePath ?: local.signatureStoragePath,
     finalSignOffStoragePath = finalSignOffStoragePath ?: local.finalSignOffStoragePath,
-    depositAmount = depositAmount,
+    depositAmount = if (keepMoney) local.depositAmount else depositAmount,
     // Money that cleared is still never allowed to go backwards, even on a
     // branch where the cloud row is unambiguously newer.
     // Both are caches of the ledger, so the cloud value is taken as-is and
     // then recomputed from the rows after the ledger syncs. Keeping the larger
     // of the two is what pinned a stale figure permanently high.
-    amountPaid = JobSync.ledgerBackedAmountPaid(amountPaid),
-    refundedAmount = JobSync.ledgerBackedAmountPaid(refundedAmount),
-    refundedAt = CloudTime.parseMillis(refundedAt) ?: local.refundedAt,
+    //
+    // Through the money-free door these two decode to CloudJob's bare zero,
+    // which is not "the ledger says zero" -- it is "this door carries no
+    // ledger figure at all" -- so keepMoney holds the phone's own cache
+    // instead of letting a real paid amount read as refunded to nothing.
+    amountPaid = if (keepMoney) local.amountPaid else JobSync.ledgerBackedAmountPaid(amountPaid),
+    refundedAmount = if (keepMoney) local.refundedAmount else JobSync.ledgerBackedAmountPaid(refundedAmount),
+    refundedAt = if (keepMoney) local.refundedAt else (CloudTime.parseMillis(refundedAt) ?: local.refundedAt),
     signedAt = CloudTime.parseMillis(signedAt) ?: local.signedAt,
     quoteApprovedAt = CloudTime.parseMillis(quoteApprovedAt) ?: local.quoteApprovedAt,
     quoteApprovedName = quoteApprovedName.ifBlank { local.quoteApprovedName },
@@ -822,14 +942,16 @@ internal fun CloudJob.mergeOnto(local: Job): Job = local.copy(
     locateCalledAt = CloudTime.parseMillis(locateCalledAt) ?: local.locateCalledAt,
     locateDigAfter = CloudTime.parseMillis(locateDigAfter) ?: local.locateDigAfter,
     locateExpiresAt = CloudTime.parseMillis(locateExpiresAt) ?: local.locateExpiresAt,
-    refundReason = refundReason.ifBlank { local.refundReason },
+    refundReason = if (keepMoney) local.refundReason else refundReason.ifBlank { local.refundReason },
     // Latches on. Once a processor has reported money, hand-editing the figure
-    // stays shut off even if an older row says otherwise.
-    paymentsFromProcessor = paymentsFromProcessor || local.paymentsFromProcessor,
-    signedContractTotal = signedContractTotal,
+    // stays shut off even if an older row says otherwise. keepMoney holds the
+    // local value too -- the door carrying no answer must not silently
+    // unlatch something a real payment already locked.
+    paymentsFromProcessor = if (keepMoney) local.paymentsFromProcessor else (paymentsFromProcessor || local.paymentsFromProcessor),
+    signedContractTotal = if (keepMoney) local.signedContractTotal else signedContractTotal,
     signedLinearFeet = signedLinearFeet,
-    paymentStatus = runCatching { PaymentStatus.valueOf(paymentStatus) }.getOrDefault(local.paymentStatus),
-    isInvoiced = isInvoiced,
+    paymentStatus = if (keepMoney) local.paymentStatus else runCatching { PaymentStatus.valueOf(paymentStatus) }.getOrDefault(local.paymentStatus),
+    isInvoiced = if (keepMoney) local.isInvoiced else isInvoiced,
     hoaName = hoaName,
     hoaEmail = hoaEmail,
     hoaApprovalStatus = runCatching { HoaApprovalStatus.valueOf(hoaApprovalStatus) }
@@ -929,6 +1051,23 @@ private fun CloudJob.toLocalJob() = Job(
     quoteSentAt = CloudTime.parseMillis(quoteSentAt),
     updatedAt = updatedAtMillis()
 )
+
+/**
+ * What `crew_save_job`'s `row_in` should carry: [cloudJob]'s fields minus
+ * every [MONEY_KEYS] key.
+ *
+ * A pure function on purpose, so a test can assert the one thing that
+ * actually matters here -- no key in [MONEY_KEYS] ever survives into the
+ * payload -- without a Supabase client or a coroutine in sight. The server's
+ * own `crew_save_job` drops the same keys again (`drop_keys` in
+ * supabase_crew_money_shield_patch.sql's A8), so this is belt-and-suspenders:
+ * this phone's own JSON should never assert a price in the first place, even
+ * before the RPC gets a chance to say no.
+ */
+internal fun buildCrewSaveJobPayload(cloudJob: CloudJob): JsonObject {
+    val full = SyncJson.encodeToJsonElement(CloudJob.serializer(), cloudJob).jsonObject
+    return JsonObject(full.filterKeys { it !in MONEY_KEYS })
+}
 
 /**
  * "2026.09.10" is newer than "2026.09.9", which a string comparison denies

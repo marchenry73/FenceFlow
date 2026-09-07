@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- New strings introduced while giving a non-SEE_MONEY phone (CREW,
+         FOREMAN) its own money-free sync door. Kept out of strings.xml so
+         this pass never has to touch the file every other screen also
+         edits. -->
+
+    <!-- Routes.TRASH's AccessGuard permission name. Restoring a deleted
+         record needs the same permission that manages who is on the team,
+         same as the Access screen this trash sits behind. -->
+    <string name="access_manage_access_permission_name">Manage access</string>
+</resources>

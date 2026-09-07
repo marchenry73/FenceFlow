@@ -6,6 +6,7 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.CloudProfile
 import com.fenceestimator.app.cloud.JobSync
 import com.fenceestimator.app.cloud.PaymentLedgerSync
+import com.fenceestimator.app.cloud.askMoneyScope
 import io.github.jan.supabase.postgrest.postgrest
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.UserRole
@@ -142,8 +143,12 @@ class AccountViewModel(
         val repo = repository ?: throw UiMessageException(UiMessage(R.string.vm_something_went_wrong))
         val companyId = _state.value.profile?.companyId
             ?: throw UiMessageException(UiMessage(R.string.vm_something_went_wrong))
-        JobSync.sync(repo, companyId).getOrThrow()
-        PaymentLedgerSync.sync(repo, companyId).getOrThrow()
+        // recalculate_my_job_totals already no-ops for a non-SEE_MONEY caller
+        // server-side; asked here too so JobSync/PaymentLedgerSync route the
+        // same way a manual tap on this button as the background sync does.
+        val scope = askMoneyScope()
+        JobSync.sync(repo, companyId, scope).getOrThrow()
+        PaymentLedgerSync.sync(repo, companyId, scope).getOrThrow()
         Unit
     }
 
@@ -152,7 +157,7 @@ class AccountViewModel(
         val companyId = _state.value.profile?.companyId ?: return
         viewModelScope.launch {
             _state.value = _state.value.copy(busy = true, message = null)
-            val result = JobSync.sync(repo, companyId)
+            val result = JobSync.sync(repo, companyId, askMoneyScope())
             _state.value = _state.value.copy(
                 busy = false,
                 message = result.fold(

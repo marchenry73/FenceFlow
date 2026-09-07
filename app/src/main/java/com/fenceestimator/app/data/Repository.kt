@@ -1,5 +1,6 @@
 package com.fenceestimator.app.data
 
+import androidx.room.withTransaction
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
@@ -223,17 +224,64 @@ class Repository(private val db: AppDatabase) {
         if (kotlin.math.abs(job.amountPaid - paid) < 0.005 &&
             kotlin.math.abs(job.refundedAmount - refunded) < 0.005
         ) return
+        // Bookkeeping, not an edit -- must not move the edit clock. Bumping
+        // updatedAt here made every job with a ledger row look "newer
+        // locally" than the cloud on the very next sync pass, which pushed
+        // this phone's stale copy of the whole row over office edits that
+        // had happened in between (offline-sync-edit-clock).
         jobDao.update(
             job.copy(
                 amountPaid = paid,
-                refundedAmount = refunded,
-                updatedAt = System.currentTimeMillis()
+                refundedAmount = refunded
             )
         )
     }
 
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
     suspend fun clearPendingDeletion(syncId: String) = pendingDeletionDao.clear(syncId)
+
+    /**
+     * Scrubs every money-shaped field this phone is holding, the moment a
+     * DENIED answer says this account may not see them any more.
+     *
+     * One Room transaction, and every write goes through a DAO update that
+     * does NOT touch a row's own edit clock (`updatedAt` / `lastUpdated`) --
+     * this is the phone doing bookkeeping to itself, not a user edit, and
+     * bumping a clock here would make every job and catalog item look
+     * "newer locally" on the very next sync pass and push the bare scrub
+     * straight over real office data (offline-sync-edit-clock).
+     *
+     * `pricing_tiers` and `payment_records` are deleted outright rather than
+     * zeroed: both are local caches of a company-wide, still-money-shaped
+     * list this phone has no business holding at all once DENIED. Nothing is
+     * lost -- the cloud keeps every row, and the next pass this phone is
+     * ALLOWED again pulls them straight back.
+     *
+     * @param keepPayForProfileId the current signed-in user's own profile id.
+     *   If an employee row is linked to it, that one row's own pay fields are
+     *   left alone -- `is_my_shift()` is already prepared server-side for a
+     *   future "your own rate" screen that would need this even without
+     *   SEE_MONEY. Pass null (or leave it out) to scrub every employee,
+     *   including ones with no linked profile at all.
+     */
+    suspend fun forgetMoney(keepPayForProfileId: String? = null) {
+        val protectedProfileId = keepPayForProfileId?.takeIf { it.isNotBlank() }
+            // Matches no real employee row, so passing nothing here scrubs
+            // every employee -- blank-profileId ones included -- rather than
+            // accidentally exempting every unlinked row via profileId == "".
+            ?: " -no-employee-profile- "
+        db.withTransaction {
+            jobDao.scrubMoney()
+            lineItemDao.scrubMoney()
+            materialDao.scrubMoney()
+            changeOrderDao.scrubMoney()
+            expenseDao.scrubMoney()
+            pricingTierDao.deleteAll()
+            paymentRecordDao.deleteAll()
+            employeeDao.scrubMoneyExcept(protectedProfileId)
+            timeEntryDao.scrubMoney()
+        }
+    }
 
     /**
      * Counts what a wipe would actually destroy, using the same signals the
