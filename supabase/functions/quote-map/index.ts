@@ -50,7 +50,7 @@
  */
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {

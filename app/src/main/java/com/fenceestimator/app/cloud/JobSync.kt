@@ -419,6 +419,15 @@ object JobSync {
                     runsByJob[job.id].orEmpty().isNotEmpty() ||
                     ordersByJob[job.id].orEmpty().isNotEmpty()
                 val freshTotal = totalFor(job)
+                // What the block below decided contract_total should be, if it
+                // decided anything. The ordinary row push further down must
+                // carry exactly this -- or, when the block chose not to push,
+                // the cloud's current figure -- never its own fresh recompute.
+                // It used to send totalFor(job) regardless, so an unrelated
+                // edit (a phone number, opening satellite mode) quietly put the
+                // phone's number over an office price the customer had already
+                // been sent. The block was the only authority on paper.
+                var decidedTotal: Double? = null
                 if (hasWorking && cloudJob != null && cloudJob.deletedAt == null &&
                     (cloudJob.contractTotal == null || kotlin.math.abs(cloudJob.contractTotal - freshTotal) > 0.005)
                 ) {
@@ -430,7 +439,7 @@ object JobSync {
                     val officePriced = cloudJob.pricedBy == "OFFICE"
                     val officeEngineIsNewer = officePriced &&
                         cloudJob.pricingEngineVersion.isNotBlank() &&
-                        cloudJob.pricingEngineVersion > EstimateEngine.PRICING_ENGINE_VERSION
+                        engineVersionIsNewer(cloudJob.pricingEngineVersion, EstimateEngine.PRICING_ENGINE_VERSION)
                     when {
                         // (a) The office priced this job on engine logic
                         // newer than the one this build carries. Overwriting
@@ -480,12 +489,16 @@ object JobSync {
                             // always.
                             if (cloudJob.quoteSentAt == null) {
                                 pushContractTotal(companyId, job.syncId, freshTotal)
+                                decidedTotal = freshTotal
                             }
                         }
                         // (c) Nobody has priced this from the office, or the
                         // last price on it was the phone's own -- unchanged
                         // from before this feature existed.
-                        else -> pushContractTotal(companyId, job.syncId, freshTotal)
+                        else -> {
+                            pushContractTotal(companyId, job.syncId, freshTotal)
+                            decidedTotal = freshTotal
+                        }
                     }
                 }
 
@@ -518,6 +531,11 @@ object JobSync {
                         // blank pricing metadata straight over a real office
                         // price the moment it serializes the whole row.
                         withPayment.copy(
+                            // And the total itself: whatever the block above
+                            // pushed, else whatever the cloud already holds.
+                            // The office's number, once sent, survives an
+                            // edit to the notes.
+                            contractTotal = decidedTotal ?: cloudJob.contractTotal,
                             pricedBy = cloudJob.pricedBy,
                             pricedAt = cloudJob.pricedAt,
                             pricingEngineVersion = cloudJob.pricingEngineVersion,
@@ -911,3 +929,20 @@ private fun CloudJob.toLocalJob() = Job(
     quoteSentAt = CloudTime.parseMillis(quoteSentAt),
     updatedAt = updatedAtMillis()
 )
+
+/**
+ * "2026.09.10" is newer than "2026.09.9", which a string comparison denies
+ * the moment a patch number reaches two digits. Compared component by
+ * component as integers; a missing component counts as zero, and anything
+ * that is not a number sorts as zero rather than throwing on a phone.
+ */
+internal fun engineVersionIsNewer(candidate: String, baseline: String): Boolean {
+    val a = candidate.trim().split('.').map { it.toIntOrNull() ?: 0 }
+    val b = baseline.trim().split('.').map { it.toIntOrNull() ?: 0 }
+    for (i in 0 until maxOf(a.size, b.size)) {
+        val x = a.getOrElse(i) { 0 }
+        val y = b.getOrElse(i) { 0 }
+        if (x != y) return x > y
+    }
+    return false
+}

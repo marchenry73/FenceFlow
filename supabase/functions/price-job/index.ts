@@ -19,10 +19,11 @@
  * can leak at most what that person's own login already reaches.
  *
  * dry_run and sample never write. commit is the only mode that touches the
- * database, and it does so in the order TakeoffRefresher.replaceGeneratedForRun
- * uses on the phone: write the new lines, THEN tombstone what they replaced,
- * THEN stamp the job's total -- so a crash between steps leaves stray old
- * rows rather than a total with nothing behind it.
+ * database: tombstone the lines being replaced, THEN write the new lines,
+ * THEN stamp the job's total. Old before new on purpose -- a crash between
+ * the first two steps leaves a job briefly without an estimate, which is
+ * visible and fixed by pressing the button again; new before old would have
+ * left both sets of lines counting, which is invisible and wrong.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { PRICING_ENGINE_VERSION, priceJob } from "../_shared/pricing/index.ts";
