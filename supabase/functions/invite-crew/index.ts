@@ -172,6 +172,19 @@ Deno.serve(async (req) => {
       }, 503);
     }
 
+    // Twenty invitations an hour per company. Real mail leaves the business's
+    // own domain, so a stolen office session must not become a relay. The
+    // ledger is written by the RPC alone and the count comes back with this
+    // send included, so the twenty-first is refused before anything goes out.
+    const { data: sendsThisHour, error: capError } = await supabase.rpc("note_invite_send", { p_email: email });
+    if (capError) {
+      console.error("invite-crew: note_invite_send", capError.message);
+      return json({ error: "Could not record the invitation. Try again in a moment." }, 500);
+    }
+    if (Number(sendsThisHour) > 20) {
+      return json({ error: "That is more than twenty invitations in an hour. Try again later." }, 429);
+    }
+
     const inviterName = String(profile.full_name ?? "").trim();
     const { subject, html, text } = buildInviteCrewEmail({
       companyName: company?.name ?? "",

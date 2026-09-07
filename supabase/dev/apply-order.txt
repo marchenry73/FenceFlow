@@ -116,3 +116,4 @@ supabase_build_templates_patch.sql
 supabase_crew_money_shield_patch.sql
 supabase_plan_starts_patch.sql
 supabase_admin_drift_read_patch.sql
+supabase_invite_sends_patch.sql
