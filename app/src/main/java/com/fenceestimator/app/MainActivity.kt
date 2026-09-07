@@ -584,7 +584,13 @@ fun FenceEstimatorNavHost() {
             }
         }
         composable(Routes.TRASH) {
-            com.fenceestimator.app.ui.account.TrashScreen(onBack = { navController.popBackStack() })
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canManageAccess,
+                permissionName = androidx.compose.ui.res.stringResource(R.string.access_manage_access_permission_name),
+                onLeave = { navController.popBackStack() }
+            ) {
+                com.fenceestimator.app.ui.account.TrashScreen(onBack = { navController.popBackStack() })
+            }
         }
         composable(Routes.ACCESS) {
             com.fenceestimator.app.ui.account.AccessScreen(onBack = { navController.popBackStack() })

@@ -35,6 +35,31 @@ interface JobDao {
 
     @Delete
     suspend fun delete(job: Job)
+
+    /**
+     * Resets every MONEY_KEYS-mapped column to [Job]'s own default, for every
+     * job on this phone, without touching updatedAt.
+     *
+     * This is bookkeeping the phone is doing to itself the moment a DENIED
+     * answer says this account may not hold real money any more -- not a
+     * user edit -- so bumping the clock here would make every job look
+     * "newer locally" on the very next sync pass and push a bare scrub
+     * straight over real office data (offline-sync-edit-clock). See
+     * [com.fenceestimator.app.cloud.MONEY_KEYS] for the column list this
+     * mirrors; the two lists are meant to be read side by side.
+     */
+    @Query(
+        "UPDATE jobs SET " +
+            "taxRatePercent = 7.0, markupPercent = 0.0, discountPercent = 0.0, " +
+            "laborRatePerFt = 0.0, laborFlatFee = 0.0, minimumJobCharge = 0.0, " +
+            "teardownFlatFee = 0.0, teardownRatePerFt = 0.0, gateRatePerFt = 20.0, trashHaulFee = 0.0, " +
+            "depositAmount = 0.0, amountPaid = 0.0, refundedAmount = 0.0, refundedAt = NULL, refundReason = '', " +
+            "paymentStatus = 'UNPAID', isInvoiced = 0, paymentsFromProcessor = 0, " +
+            "signedContractTotal = 0.0, tipAmount = 0.0, " +
+            "paymentLinkUrl = '', paymentLinkAmount = 0.0, " +
+            "pricingTierName = '', supplierQuoteReference = '', quoteSentAt = NULL"
+    )
+    suspend fun scrubMoney(): Int
 }
 
 @Dao
@@ -113,6 +138,10 @@ interface MaterialItemDao {
 
     @Delete
     suspend fun delete(item: MaterialItem)
+
+    /** See [JobDao.scrubMoney] -- same reasoning, does not touch lastUpdated. */
+    @Query("UPDATE material_items SET unitPrice = 0.0")
+    suspend fun scrubMoney(): Int
 }
 
 @Dao
@@ -188,6 +217,10 @@ interface EstimateLineItemDao {
     /** The orphans, so their cloud copies can be tombstoned before they are removed. */
     @Query("SELECT * FROM estimate_line_items WHERE fenceRunId IS NULL AND role != 'NONE'")
     suspend fun orphanedGenerated(): List<EstimateLineItem>
+
+    /** See [JobDao.scrubMoney] -- same reasoning. EstimateLineItem carries no edit clock to protect. */
+    @Query("UPDATE estimate_line_items SET unitPrice = 0.0, supplierUnitPrice = NULL")
+    suspend fun scrubMoney(): Int
 }
 
 @Dao
@@ -236,6 +269,16 @@ interface PricingTierDao {
 
     @Delete
     suspend fun delete(tier: PricingTier)
+
+    /**
+     * Wipes the local cache of every tier. Used only when this phone is
+     * confirmed DENIED: pricing tiers are money end to end, so there is no
+     * field to zero, only a company-wide list this phone has no business
+     * holding -- the cloud keeps every row, and the next ALLOWED pass pulls
+     * them straight back.
+     */
+    @Query("DELETE FROM pricing_tiers")
+    suspend fun deleteAll(): Int
 }
 
 @Dao
@@ -328,6 +371,10 @@ interface TimeEntryDao {
 
     @Delete
     suspend fun delete(entry: TimeEntry)
+
+    /** See [JobDao.scrubMoney] -- same reasoning. TimeEntry carries no edit clock to protect. */
+    @Query("UPDATE time_entries SET hourlyRate = 0.0")
+    suspend fun scrubMoney(): Int
 }
 
 @Dao
@@ -365,6 +412,10 @@ interface ChangeOrderDao {
 
     @Delete
     suspend fun delete(order: ChangeOrder)
+
+    /** See [JobDao.scrubMoney] -- same reasoning. ChangeOrder carries no edit clock to protect. */
+    @Query("UPDATE change_orders SET additionalCost = 0.0, materialCost = 0.0")
+    suspend fun scrubMoney(): Int
 }
 
 @Dao
@@ -406,6 +457,19 @@ interface EmployeeDao {
 
     @Delete
     suspend fun delete(employee: Employee)
+
+    /**
+     * See [JobDao.scrubMoney] -- same reasoning. Employee carries no edit
+     * clock to protect.
+     *
+     * [keepProfileId] is excepted so a future "your own rate" screen
+     * (is_my_shift() is already prepared server-side for exactly this) is
+     * not scrubbed along with everyone else's pay. Callers with no employee
+     * row to protect pass a value that matches no real profileId, so every
+     * row -- including ones with a blank profileId -- is scrubbed.
+     */
+    @Query("UPDATE employees SET hourlyRate = 0.0, perFootRate = 0.0 WHERE profileId != :keepProfileId")
+    suspend fun scrubMoneyExcept(keepProfileId: String): Int
 }
 
 @Dao
@@ -427,6 +491,10 @@ interface ExpenseDao {
 
     @Delete
     suspend fun delete(expense: Expense)
+
+    /** See [JobDao.scrubMoney] -- same reasoning. Expense carries no edit clock to protect. */
+    @Query("UPDATE expenses SET amount = 0.0")
+    suspend fun scrubMoney(): Int
 }
 
 @Dao
@@ -561,4 +629,8 @@ interface PaymentRecordDao {
 
     @Query("DELETE FROM payment_records WHERE syncId IN (:syncIds)")
     suspend fun deleteBySyncIds(syncIds: List<String>): Int
+
+    /** See [PricingTierDao.deleteAll] -- same reasoning: a local cache this phone must not hold while DENIED. */
+    @Query("DELETE FROM payment_records")
+    suspend fun deleteAll(): Int
 }

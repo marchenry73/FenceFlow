@@ -45,7 +45,15 @@ data class SyncState(
     val message: String
         get() = when (phase) {
             SyncPhase.SYNCING -> "Syncing..."
-            SyncPhase.OK -> "Everything is backed up"
+            // hasUnsyncedWork can be true even on a clean pass -- a table the
+            // server refused, or a money scope this phone could not ask
+            // about this time. Saying "everything is backed up" over that is
+            // exactly the empty-answer-reads-as-good-news shape of bug this
+            // flag exists to prevent noticing.
+            SyncPhase.OK ->
+                if (hasUnsyncedWork)
+                    "Some of this phone's work has not reached the cloud yet. It will go up on the next sync."
+                else "Everything is backed up"
             SyncPhase.WAITING_FOR_SIGNAL ->
                 "No signal. Your work is saved on this phone and will upload by itself."
             // Never "it uploads on its own" here. It does not, and cannot: the
@@ -380,9 +388,36 @@ class AutoSync(
         mutex.withLock {
             _state.value = _state.value.copy(phase = SyncPhase.SYNCING, lastError = null)
 
+            // Asked once, first, inside the lock -- every step below is
+            // handed this same answer rather than asking can_see_pay() again
+            // on its own, which is what let one table's transient failure
+            // read as "not allowed" while another read the real rows in the
+            // same pass.
+            val scope = askMoneyScope()
+            val uid = SupabaseModule.currentUserId()
+            val lastScope = uid?.let { id -> runCatching { MoneyScopeMemory.last(context, id) }.getOrNull() }
+
+            // A promotion -- DENIED last time, ALLOWED now -- has to pull the
+            // real prices and rates down before anything pushes, or this
+            // phone's zero-priced local copies (cached from the money-free
+            // door) go straight through the now-open owner door ahead of the
+            // pull that would have restored them. keepMoney protects the job
+            // row itself; this protects everything hanging off it.
+            val promoted = lastScope == MoneyScope.DENIED && scope == MoneyScope.ALLOWED
+
+            // A demotion, or the first DENIED answer this account has ever
+            // had on this device (a fresh install, or one handed to somebody
+            // new), scrubs local money before anything else runs. Once
+            // recorded below, a DENIED phone that stays DENIED never scrubs
+            // again on its own -- see MoneyScopeMemory.
+            if (scope == MoneyScope.DENIED && lastScope != MoneyScope.DENIED) {
+                runCatching { repository.forgetMoney(uid) }
+            }
+            if (uid != null) runCatching { MoneyScopeMemory.remember(context, uid, scope) }
+
             // Jobs first: fence runs and time entries reference their job by
             // syncId, so pulling children before their parent would orphan them.
-            val result = JobSync.sync(repository, companyId)
+            val result = JobSync.sync(repository, companyId, scope)
 
             // Everything else. Failures here are swallowed on purpose -- a
             // problem syncing the crew list should not report the whole sync as
@@ -399,21 +434,35 @@ class AutoSync(
             // socket is down.
             session.refresh()
 
-            val reaped = DeletionReaper.reap(repository, companyId)
+            val reaped = DeletionReaper.reap(repository, companyId, scope)
 
             // After jobs, because a payment attaches to its job by syncId and
             // cannot land on a phone that has not pulled the job yet.
-            val ledgerResult = PaymentLedgerSync.sync(repository, companyId)
+            val ledgerResult = PaymentLedgerSync.sync(repository, companyId, scope)
 
             // The ledger has just been reconciled both ways and every job's
             // cached total rebuilt from it, so this is the one moment the local
             // figure is authoritative -- including when it went DOWN, which the
             // ordinary job push refuses to send. Without this, deleting a
             // duplicate payment was undone by the next pull, every time.
-            runCatching { JobSync.pushLedgerTotals(repository, companyId) }
+            //
+            // Skipped outright on the promotion pass -- see pushAll below.
+            if (!promoted) {
+                runCatching { JobSync.pushLedgerTotals(repository, companyId, scope) }
+            }
 
-            val pushResult = EntitySync.pushAll(repository, companyId)
-            val pullResult = EntitySync.pullAll(repository, companyId)
+            // Pull before push, and the money-sensitive pushes skipped
+            // outright, ONLY on the one pass where the door just opened. Every
+            // other pass keeps today's push-then-pull order.
+            val pushResult: Result<Int>
+            val pullResult: Result<Int>
+            if (promoted) {
+                pullResult = EntitySync.pullAll(repository, companyId, scope)
+                pushResult = EntitySync.pushAll(repository, companyId, scope, skipMoneySensitivePushes = true)
+            } else {
+                pushResult = EntitySync.pushAll(repository, companyId, scope)
+                pullResult = EntitySync.pullAll(repository, companyId, scope)
+            }
 
             // Files last, and never allowed to fail the sync. A signature that
             // hasn't uploaded yet is a retry; a job list that didn't sync is a
@@ -478,7 +527,12 @@ class AutoSync(
                     // Saying "everything is backed up" when a table was
                     // refused is how a crew member's plan-change requests
                     // disappeared with nothing on screen to notice.
-                    val somethingHeldBack = (pushResult.getOrNull() ?: 0) < 0
+                    //
+                    // UNKNOWN counts too, even when every step above reports
+                    // a clean zero: "couldn't ask" is never "nothing to
+                    // report," and this is the one place that distinction
+                    // reaches the person holding the phone.
+                    val somethingHeldBack = (pushResult.getOrNull() ?: 0) < 0 || scope == MoneyScope.UNKNOWN
                     SyncState(
                         phase = SyncPhase.OK,
                         lastSyncedAt = System.currentTimeMillis(),

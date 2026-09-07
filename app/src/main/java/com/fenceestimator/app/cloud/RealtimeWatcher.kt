@@ -141,7 +141,15 @@ class RealtimeWatcher(
             "payment_records", "fence_runs", "estimate_line_items", "job_steps",
             "time_entries", "field_changes", "change_orders", "site_markers",
             "punch_list_items", "expenses", "employees", "material_items",
-            "pricing_tiers"
+            "pricing_tiers",
+            // A crew phone loses its own realtime feed on "jobs" and
+            // "estimate_line_items" once it reads the money-free views instead
+            // (Realtime applies the SELECT policy per subscriber, and the crew
+            // views are not what this channel names). sync_signals is the
+            // parity table the SQL patch writes to on every jobs/line-item
+            // change -- table name, sync id, timestamp, never a figure -- so a
+            // crew phone still hears "something changed" and comes to look.
+            "sync_signals"
         )
 
         const val INITIAL_BACKOFF_MS = 2_000L

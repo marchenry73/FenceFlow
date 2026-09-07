@@ -32,6 +32,10 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.put
 import java.time.Instant
 
 /**
@@ -444,7 +448,17 @@ object EntitySync {
      * about. Anything else is collected and reported once, after everything
      * that CAN go up has gone up.
      */
-    suspend fun pushAll(repository: Repository, companyId: String): Result<Int> =
+    suspend fun pushAll(
+        repository: Repository,
+        companyId: String,
+        scope: MoneyScope,
+        // True on the one pass right after a DENIED->ALLOWED promotion: pull
+        // has to restore real prices and rates before push runs at all, or
+        // this phone's zero-priced local copies -- cached from the money-free
+        // door -- go straight through the now-open owner door ahead of the
+        // pull that would have fixed them. See AutoSync.runSync.
+        skipMoneySensitivePushes: Boolean = false
+    ): Result<Int> =
         withContext(Dispatchers.IO) {
             var pushed = 0
             var skipped = 0
@@ -471,13 +485,96 @@ object EntitySync {
                 }
             }
 
-            step("employees")      { pushEmployees(repository, companyId) }
+            step("employees")      { pushEmployees(repository, companyId, scope) }
             step("manufacturers")  { pushManufacturers(repository, companyId) }
             step("fence runs")     { pushFenceRuns(repository, companyId) }
             step("time entries")   { pushTimeEntries(repository, companyId) }
-            step("catalog")        { pushCatalog(repository, companyId) }
-            step("pricing tiers")  { pushPricingTiers(repository, companyId) }
-            step("job children")   { pushJobChildren(repository, companyId) }
+
+            // A DENIED phone holds zero prices for everything in the catalog
+            // and every tier; pushing them would be refused at best (1 + up
+            // to 200 requests per table for nothing) and would assert a false
+            // zero at worst. Skipped outright rather than attempted and
+            // swallowed, so this is not counted against the phone at all.
+            if (scope == MoneyScope.ALLOWED && !skipMoneySensitivePushes) {
+                step("catalog")        { pushCatalog(repository, companyId) }
+                step("pricing tiers")  { pushPricingTiers(repository, companyId) }
+            }
+
+            // Each child table is its OWN step, deliberately -- see
+            // [collectJobChildRows]'s doc for the bug this fixes: the six
+            // upserts used to run inside one function and one throw from the
+            // first (say, a DENIED phone's line items) meant punch list,
+            // steps, markers and plan-change requests never went up either,
+            // on every build old enough to still hit that door. Splitting
+            // them holds for every scope, not only the money-gated one.
+            if (!skipMoneySensitivePushes) {
+                val rows = collectJobChildRows(repository, companyId, scope)
+
+                step("line items") {
+                    when (scope) {
+                        MoneyScope.ALLOWED -> upsert("estimate_line_items", rows.lineItems)
+                        // The base table refuses this once the policy flips;
+                        // crew_push_line_items is the only door, and it drops
+                        // unit_price/supplier_unit_price server-side
+                        // regardless of what this phone sends.
+                        MoneyScope.DENIED -> pushLineItemsThroughCrewPen(rows.lineItems)
+                        MoneyScope.UNKNOWN -> 0
+                    }
+                }
+                step("expenses") {
+                    // Deliberately app-level, not a server refusal: the
+                    // expenses READ policy is unchanged by this feature (the
+                    // 26-Aug decision), but an amount is still money, and a
+                    // DENIED or unresolved phone does not push one.
+                    if (scope == MoneyScope.ALLOWED) upsert("expenses", rows.expenses) else 0
+                }
+                step("punch list") { upsert("punch_list_items", rows.punch) }
+                step("change orders") {
+                    when (scope) {
+                        MoneyScope.ALLOWED -> upsert("change_orders", rows.orders)
+                        // The hold trigger zeroes these for an untrusted
+                        // caller regardless, but this phone's own payload
+                        // should not assert a real cost either.
+                        MoneyScope.DENIED -> upsert(
+                            "change_orders",
+                            rows.orders.map { it.copy(additionalCost = 0.0, materialCost = 0.0) }
+                        )
+                        MoneyScope.UNKNOWN -> 0
+                    }
+                }
+                step("job steps")     { upsert("job_steps", rows.steps) }
+                step("site markers")  { upsert("site_markers", rows.markers) }
+                // Insert-only, for two reasons that point the same way.
+                //
+                // A field change is the crew asking the office a question -- move the
+                // gate, the ground is rock, the neighbour objected. The office answers
+                // it. A phone re-uploading its stale copy would overwrite that answer,
+                // which it should never do.
+                //
+                // And an ordinary upsert is INSERT ... ON CONFLICT DO UPDATE, so it
+                // needs UPDATE permission on the table. field_changes_update is
+                // OWNER, MANAGER and FOREMAN only, so a CREW phone was refused -- and
+                // because the whole batch goes up in one statement, ONE already-
+                // uploaded row took every new request down with it. Proved against
+                // production: sending the batch, 1 of 2 requests arrived; sending the
+                // new request alone, it arrived.
+                //
+                // So the crew member taps "can we move the gate?", nothing reaches the
+                // office, and it never recovers -- every later request from that phone
+                // dies the same way.
+                // But insert-only cannot be the whole answer, because ANSWERING a
+                // request is an update to a row that already exists -- and
+                // ignoreDuplicates makes the server skip exactly that. So the office
+                // approved the gate move, the approval never left the phone, and the
+                // next pull brought the unanswered copy back down. The request
+                // reappeared as still waiting, every single sync, which is precisely
+                // what was reported.
+                //
+                // The two needs are not in conflict once the phone stops guessing:
+                // send the real upsert, and drop to insert-only only for a phone the
+                // server actually refuses.
+                step("field changes") { pushFieldChanges(rows.changes) }
+            }
 
             // A negative count carries "some of this did not go up" back to the
             // caller without inventing a new return type for one fact. The
@@ -486,16 +583,38 @@ object EntitySync {
                 ?: Result.success(if (skipped > 0) -pushed - 1 else pushed)
         }
 
+    /** Everything [collectJobChildRows] gathers for the jobs eligible to push this pass. */
+    private data class JobChildRows(
+        val lineItems: List<CloudLineItem> = emptyList(),
+        val expenses: List<CloudExpense> = emptyList(),
+        val punch: List<CloudPunchItem> = emptyList(),
+        val orders: List<CloudChangeOrder> = emptyList(),
+        val steps: List<CloudJobStep> = emptyList(),
+        val markers: List<CloudSiteMarker> = emptyList(),
+        val changes: List<CloudFieldChange> = emptyList()
+    )
+
     /**
      * Everything that hangs off a job: line items, expenses, punch list,
-     * change orders, checklists and site markers.
+     * change orders, checklists, site markers and field changes.
      *
-     * Collected in one pass over the jobs so the whole set is pushed with one
-     * request per table, rather than one per job.
+     * Collected in one pass over the jobs so the whole set costs one request
+     * per table rather than one per job. Building the rows is kept separate
+     * from pushing them (see [pushAll]) -- these used to be six upserts plus
+     * the field_changes push run back to back inside one function, all under
+     * one try: the first refusal (a DENIED phone's line items, once the
+     * policy flips) threw before punch list, steps, markers or plan-change
+     * requests ever got a turn, and a crew member's whole day of field work
+     * sat on their handset over a table they were never sending in the first
+     * place.
      */
-    private suspend fun pushJobChildren(repository: Repository, companyId: String): Int {
+    private suspend fun collectJobChildRows(
+        repository: Repository,
+        companyId: String,
+        scope: MoneyScope
+    ): JobChildRows {
         val allJobs = repository.getAllJobs()
-        if (allJobs.isEmpty()) return 0
+        if (allJobs.isEmpty()) return JobChildRows()
 
         // Don't write this phone's copy of a job whose cloud row is newer.
         //
@@ -509,23 +628,36 @@ object EntitySync {
         //
         // A job this phone edited most recently is still pushed, so ordinary
         // work -- including a week of it done offline -- goes up as before.
+        //
+        // ALLOWED reads "jobs"; anything else reads "jobs_crew" -- readable by
+        // any signed-in company member regardless of SEE_MONEY, so this stays
+        // accurate rather than silently empty even under UNKNOWN.
         val cloudTouchedAt = runCatching {
-            SupabaseModule.client.postgrest.from("jobs")
-                // sees-tombstones: this reads WHEN each job last changed, not
-                // what it contains. A job deleted elsewhere has a very recent
-                // timestamp, and its children are exactly the ones this phone
-                // must not push back up -- so hiding the tombstone here would
-                // resurrect them through the side door.
-                .select { filter { eq("company_id", companyId) } }
-                .decodeList<CloudJob>()
-                .associate { it.syncId to it.updatedAtMillis() }
+            val rows = if (scope == MoneyScope.ALLOWED)
+                SupabaseModule.client.postgrest.from("jobs")
+                    // sees-tombstones: this reads WHEN each job last changed, not
+                    // what it contains. A job deleted elsewhere has a very recent
+                    // timestamp, and its children are exactly the ones this phone
+                    // must not push back up -- so hiding the tombstone here would
+                    // resurrect them through the side door.
+                    .select { filter { eq("company_id", companyId) } }
+                    .decodeList<CloudJob>()
+            else
+                SupabaseModule.client.postgrest.from("jobs_crew")
+                    // sees-tombstones: same reasoning as the "jobs" branch --
+                    // a job tombstoned elsewhere still has to stop this phone
+                    // pushing its children back up, and the view carries
+                    // deleted_at same as the base table.
+                    .select { filter { eq("company_id", companyId) } }
+                    .decodeList<CloudJob>()
+            rows.associate { it.syncId to it.updatedAtMillis() }
         }.getOrDefault(emptyMap())
 
         val jobs = allJobs.filter { job ->
             val cloudAt = cloudTouchedAt[job.syncId] ?: return@filter true
             cloudAt <= job.updatedAt
         }
-        if (jobs.isEmpty()) return 0
+        if (jobs.isEmpty()) return JobChildRows()
 
         val lineItems = mutableListOf<CloudLineItem>()
         val expenses = mutableListOf<CloudExpense>()
@@ -592,44 +724,24 @@ object EntitySync {
             }
         }
 
-        var pushed = 0
-        pushed += upsert("estimate_line_items", lineItems)
-        pushed += upsert("expenses", expenses)
-        pushed += upsert("punch_list_items", punch)
-        pushed += upsert("change_orders", orders)
-        pushed += upsert("job_steps", steps)
-        pushed += upsert("site_markers", markers)
-        // Insert-only, for two reasons that point the same way.
-        //
-        // A field change is the crew asking the office a question -- move the
-        // gate, the ground is rock, the neighbour objected. The office answers
-        // it. A phone re-uploading its stale copy would overwrite that answer,
-        // which it should never do.
-        //
-        // And an ordinary upsert is INSERT ... ON CONFLICT DO UPDATE, so it
-        // needs UPDATE permission on the table. field_changes_update is
-        // OWNER, MANAGER and FOREMAN only, so a CREW phone was refused -- and
-        // because the whole batch goes up in one statement, ONE already-
-        // uploaded row took every new request down with it. Proved against
-        // production: sending the batch, 1 of 2 requests arrived; sending the
-        // new request alone, it arrived.
-        //
-        // So the crew member taps "can we move the gate?", nothing reaches the
-        // office, and it never recovers -- every later request from that phone
-        // dies the same way.
-        // But insert-only cannot be the whole answer, because ANSWERING a
-        // request is an update to a row that already exists -- and
-        // ignoreDuplicates makes the server skip exactly that. So the office
-        // approved the gate move, the approval never left the phone, and the
-        // next pull brought the unanswered copy back down. The request
-        // reappeared as still waiting, every single sync, which is precisely
-        // what was reported.
-        //
-        // The two needs are not in conflict once the phone stops guessing:
-        // send the real upsert, and drop to insert-only only for a phone the
-        // server actually refuses.
-        pushed += pushFieldChanges(changes)
-        return pushed
+        return JobChildRows(lineItems, expenses, punch, orders, steps, markers, changes)
+    }
+
+    /**
+     * The crew door for line items: quantities, descriptions, runs and sort
+     * order still reach the office; prices are stripped server-side
+     * regardless of what this phone sends (crew_push_line_items' drop_keys).
+     */
+    private suspend fun pushLineItemsThroughCrewPen(lineItems: List<CloudLineItem>): Int {
+        if (lineItems.isEmpty()) return 0
+        return lineItems.chunked(200).sumOf { chunk ->
+            SupabaseModule.client.postgrest.rpc(
+                "crew_push_line_items",
+                buildJsonObject {
+                    put("rows", SyncJson.encodeToJsonElement(ListSerializer(CloudLineItem.serializer()), chunk))
+                }
+            ).decodeAs<Int>()
+        }
     }
 
     /**
@@ -841,7 +953,7 @@ object EntitySync {
      * been working offline keeps its own version until a proper two-way merge
      * exists for these tables.
      */
-    suspend fun pullAll(repository: Repository, companyId: String): Result<Int> =
+    suspend fun pullAll(repository: Repository, companyId: String, scope: MoneyScope): Result<Int> =
         withContext(Dispatchers.IO) {
             // In flight together rather than one after another. Each pull
             // reads its own cloud table and writes its own local one, so
@@ -856,12 +968,29 @@ object EntitySync {
             // push side had, arriving from the other direction.
             val results = kotlinx.coroutines.coroutineScope {
                 listOf(
-                    async { runCatching { netGate.withPermit { pullEmployees(repository, companyId) } } },
+                    async { runCatching { netGate.withPermit { pullEmployees(repository, companyId, scope) } } },
                     async { runCatching { netGate.withPermit { pullManufacturers(repository, companyId) } } },
-                    async { runCatching { netGate.withPermit { pullPricingTiers(repository, companyId) } } },
-                    async { runCatching { netGate.withPermit { pullCatalog(repository, companyId) } } },
+                    // Tiers are SEE_MONEY-gated at the base table; asking
+                    // while not confirmed ALLOWED would read an empty answer
+                    // as "the office cleared every tier," which is exactly
+                    // the class of bug this whole feature exists to close.
+                    async { runCatching { netGate.withPermit {
+                        if (scope == MoneyScope.ALLOWED) pullPricingTiers(repository, companyId) else 0
+                    } } },
+                    // UNKNOWN skips the catalog outright -- unlike job
+                    // children below, there is no non-money remainder of
+                    // pullCatalog worth preserving; unitPrice is most of what
+                    // it carries.
+                    async { runCatching { netGate.withPermit {
+                        if (scope == MoneyScope.UNKNOWN) 0 else pullCatalog(repository, companyId, scope)
+                    } } },
                     async { runCatching { netGate.withPermit { pullFenceRuns(repository, companyId) } } },
-                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId) } } },
+                    // Called for every scope, UNKNOWN included: punch list,
+                    // job steps, site markers and field changes carry no
+                    // money and must keep arriving even when the door itself
+                    // could not be asked about. Only its internal line-item,
+                    // expense and change-order blocks gate on scope.
+                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId, scope) } } },
                     async { runCatching { netGate.withPermit { pullBuildTemplates(repository, companyId) } } }
                 ).awaitAll()
             }
@@ -1001,10 +1130,15 @@ object EntitySync {
         return toUpsert.size
     }
 
-    private suspend fun pullCatalog(repository: Repository, companyId: String): Int {
-        val cloud = SupabaseModule.client.postgrest.from("material_items")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudMaterialItem>()
+    private suspend fun pullCatalog(repository: Repository, companyId: String, scope: MoneyScope): Int {
+        val cloud = if (scope == MoneyScope.DENIED)
+            SupabaseModule.client.postgrest.from("material_items_crew")
+                .select { filter { eq("company_id", companyId); notDeleted() } }
+                .decodeList<CloudMaterialItem>()
+        else
+            SupabaseModule.client.postgrest.from("material_items")
+                .select { filter { eq("company_id", companyId); notDeleted() } }
+                .decodeList<CloudMaterialItem>()
         // Same seeded-identity problem as pricing tiers: a catalog item is the
         // same item if its name, role, fence type and colour match, whatever
         // sync id the phone that seeded it happened to generate.
@@ -1052,7 +1186,11 @@ object EntitySync {
                             fenceType = fenceType,
                             colorOrFinish = row.colorOrFinish,
                             unit = row.unit,
-                            unitPrice = row.unitPrice,
+                            // material_items_crew carries no unit_price column
+                            // at all, so a DENIED pull would otherwise decode
+                            // CloudMaterialItem's bare 0.0 and wipe the real
+                            // price this phone already has cached.
+                            unitPrice = if (scope == MoneyScope.ALLOWED) row.unitPrice else existing.unitPrice,
                             taxable = row.taxable,
                             coversFt = row.coversFt,
                             isActive = row.isActive,
@@ -1091,7 +1229,7 @@ object EntitySync {
                         syncId = row.syncId,
                         category = category,
                         unit = row.unit,
-                        unitPrice = row.unitPrice,
+                        unitPrice = if (scope == MoneyScope.ALLOWED) row.unitPrice else sameThing.unitPrice,
                         taxable = row.taxable,
                         coversFt = row.coversFt,
                         isActive = row.isActive,
@@ -1130,87 +1268,106 @@ object EntitySync {
      * device yet is skipped rather than orphaned -- the next pass picks it up
      * once the job itself has come down.
      */
-    private suspend fun pullJobChildren(repository: Repository, companyId: String): Int {
+    private suspend fun pullJobChildren(repository: Repository, companyId: String, scope: MoneyScope): Int {
         val jobIdBySyncId = repository.getAllJobs().associateBy({ it.syncId }, { it.id })
         if (jobIdBySyncId.isEmpty()) return 0
         var added = 0
 
-        // Clears out orphans left by the old pull, which dropped every line item
-        // into "Other Items" because it discarded the run. Only auto-generated,
-        // role-bearing lines are removed -- anything typed by hand has no role
-        // and is left exactly where it is.
-        repository.deleteOrphanedGeneratedLineItems()
+        // Line items, gated on scope: UNKNOWN cannot tell which table is safe
+        // to trust and skips both the read and the merge entirely. DENIED
+        // reads the money-free view and the merge below never lets a price
+        // move.
+        if (scope != MoneyScope.UNKNOWN) {
+            // Clears out orphans left by the old pull, which dropped every line item
+            // into "Other Items" because it discarded the run. Only auto-generated,
+            // role-bearing lines are removed -- anything typed by hand has no role
+            // and is left exactly where it is.
+            repository.deleteOrphanedGeneratedLineItems()
 
-        val lineItems = SupabaseModule.client.postgrest.from("estimate_line_items")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudLineItem>()
-        val runIdBySyncId = jobIdBySyncId.values
-            .flatMap { repository.getFenceRuns(it) }.associate { it.syncId to it.id }
-        val localItemsBySyncId = jobIdBySyncId.values
-            .flatMap { repository.getLineItems(it) }.associateBy { it.syncId }
+            val lineItems = if (scope == MoneyScope.DENIED)
+                SupabaseModule.client.postgrest.from("estimate_line_items_crew")
+                    .select { filter { eq("company_id", companyId); notDeleted() } }
+                    .decodeList<CloudLineItem>()
+            else
+                SupabaseModule.client.postgrest.from("estimate_line_items")
+                    .select { filter { eq("company_id", companyId); notDeleted() } }
+                    .decodeList<CloudLineItem>()
+            val runIdBySyncId = jobIdBySyncId.values
+                .flatMap { repository.getFenceRuns(it) }.associate { it.syncId to it.id }
+            val localItemsBySyncId = jobIdBySyncId.values
+                .flatMap { repository.getLineItems(it) }.associateBy { it.syncId }
 
-        // Refuse legacy orphans outright rather than pulling them and cleaning
-        // up afterwards. A row with a real material role but no run was pushed
-        // before line items carried their run; re-inserting it just recreates
-        // the stray item, and the cleanup and the pull chase each other forever.
-        // Hand-typed extras have role NONE or none at all, and still come down.
-        val (legacyOrphans, usable) = lineItems.partition { row ->
-            row.fenceRunSyncId == null && row.role != null && row.role != "NONE"
-        }
-        legacyOrphans.forEach { row ->
-            repository.queueDeletion(row.syncId, "estimate_line_items")
-        }
+            // Refuse legacy orphans outright rather than pulling them and cleaning
+            // up afterwards. A row with a real material role but no run was pushed
+            // before line items carried their run; re-inserting it just recreates
+            // the stray item, and the cleanup and the pull chase each other forever.
+            // Hand-typed extras have role NONE or none at all, and still come down.
+            val (legacyOrphans, usable) = lineItems.partition { row ->
+                row.fenceRunSyncId == null && row.role != null && row.role != "NONE"
+            }
+            legacyOrphans.forEach { row ->
+                repository.queueDeletion(row.syncId, "estimate_line_items")
+            }
 
-        usable.forEach { row ->
-            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            val role = row.role?.let { r -> runCatching { MaterialRole.valueOf(r) }.getOrNull() }
-                ?: MaterialRole.NONE
-            val existing = localItemsBySyncId[row.syncId]
-            if (existing == null) {
-                repository.saveLineItem(
-                    EstimateLineItem(
-                        syncId = row.syncId, jobId = jobId,
-                        fenceRunId = row.fenceRunSyncId?.let { runIdBySyncId[it] },
-                        sortOrder = row.sortOrder, description = row.description,
-                        quantity = row.quantity, unit = row.unit, unitPrice = row.unitPrice,
+            usable.forEach { row ->
+                val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+                val role = row.role?.let { r -> runCatching { MaterialRole.valueOf(r) }.getOrNull() }
+                    ?: MaterialRole.NONE
+                val existing = localItemsBySyncId[row.syncId]
+                if (existing == null) {
+                    repository.saveLineItem(
+                        EstimateLineItem(
+                            syncId = row.syncId, jobId = jobId,
+                            fenceRunId = row.fenceRunSyncId?.let { runIdBySyncId[it] },
+                            sortOrder = row.sortOrder, description = row.description,
+                            quantity = row.quantity, unit = row.unit, unitPrice = row.unitPrice,
+                            taxable = row.taxable,
+                            role = role,
+                            isAutoGenerated = row.autoGenerated,
+                            supplierUnitPrice = row.supplierUnitPrice
+                        )
+                    )
+                    added++
+                } else {
+                    // Quantities and prices are the estimate. Not applying a change
+                    // meant one phone quoting a job at a price the other phone had
+                    // already corrected.
+                    //
+                    // supplierUnitPrice is carried now, so a supplier quote entered
+                    // on one phone reaches the other. It stays nullable: null means
+                    // not quoted separately, which is not the same as quoted at zero.
+                    //
+                    // fenceRunId is only overwritten when the cloud names a run this
+                    // device can resolve. Otherwise the local grouping stands, since
+                    // clearing it would drop the line into "Other Items".
+                    //
+                    // unitPrice/supplierUnitPrice never move under DENIED: the
+                    // crew view carries neither column, so row.unitPrice here
+                    // is CloudLineItem's bare 0.0/null, not a real answer.
+                    val merged = existing.copy(
+                        fenceRunId = row.fenceRunSyncId?.let { runIdBySyncId[it] } ?: existing.fenceRunId,
+                        sortOrder = row.sortOrder,
+                        description = row.description,
+                        quantity = row.quantity,
+                        unit = row.unit,
+                        unitPrice = if (scope == MoneyScope.ALLOWED) row.unitPrice else existing.unitPrice,
                         taxable = row.taxable,
                         role = role,
                         isAutoGenerated = row.autoGenerated,
-                        supplierUnitPrice = row.supplierUnitPrice
+                        supplierUnitPrice = if (scope == MoneyScope.ALLOWED) row.supplierUnitPrice else existing.supplierUnitPrice
                     )
-                )
-                added++
-            } else {
-                // Quantities and prices are the estimate. Not applying a change
-                // meant one phone quoting a job at a price the other phone had
-                // already corrected.
-                //
-                // supplierUnitPrice is carried now, so a supplier quote entered
-                // on one phone reaches the other. It stays nullable: null means
-                // not quoted separately, which is not the same as quoted at zero.
-                //
-                // fenceRunId is only overwritten when the cloud names a run this
-                // device can resolve. Otherwise the local grouping stands, since
-                // clearing it would drop the line into "Other Items".
-                val merged = existing.copy(
-                    fenceRunId = row.fenceRunSyncId?.let { runIdBySyncId[it] } ?: existing.fenceRunId,
-                    sortOrder = row.sortOrder,
-                    description = row.description,
-                    quantity = row.quantity,
-                    unit = row.unit,
-                    unitPrice = row.unitPrice,
-                    taxable = row.taxable,
-                    role = role,
-                    isAutoGenerated = row.autoGenerated,
-                    supplierUnitPrice = row.supplierUnitPrice
-                )
-                if (merged != existing) {
-                    repository.updateLineItem(merged)
-                    added++
+                    if (merged != existing) {
+                        repository.updateLineItem(merged)
+                        added++
+                    }
                 }
             }
         }
 
+        // Deliberately app-level, same as the push side: the expenses READ
+        // policy is unchanged by this feature, but an amount is still money,
+        // and only a confirmed ALLOWED phone pulls it down.
+        if (scope == MoneyScope.ALLOWED) {
         val expenses = SupabaseModule.client.postgrest.from("expenses")
             .select { filter { eq("company_id", companyId); notDeleted() } }
             .decodeList<CloudExpense>()
@@ -1241,6 +1398,7 @@ object EntitySync {
                 )
                 if (merged != existing) { repository.updateExpense(merged); added++ }
             }
+        }
         }
 
         val punch = SupabaseModule.client.postgrest.from("punch_list_items")
@@ -1315,9 +1473,18 @@ object EntitySync {
         // signed change orders and clocked hours -- money and payroll records --
         // along with job checklists and site markers.
 
-        val orders = SupabaseModule.client.postgrest.from("change_orders")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudChangeOrder>()
+        // Change orders, gated the same way as line items above: UNKNOWN
+        // skips outright, DENIED reads the money-free view and never moves a
+        // cost.
+        if (scope != MoneyScope.UNKNOWN) {
+        val orders = if (scope == MoneyScope.DENIED)
+            SupabaseModule.client.postgrest.from("change_orders_crew")
+                .select { filter { eq("company_id", companyId); notDeleted() } }
+                .decodeList<CloudChangeOrder>()
+        else
+            SupabaseModule.client.postgrest.from("change_orders")
+                .select { filter { eq("company_id", companyId); notDeleted() } }
+                .decodeList<CloudChangeOrder>()
         val localOrdersBySyncId = jobIdBySyncId.values
             .flatMap { repository.getChangeOrders(it) }.associateBy { it.syncId }
         orders.forEach { row ->
@@ -1343,11 +1510,15 @@ object EntitySync {
                 // reach the other phone or two people quote the same job
                 // differently. copy() keeps createdAt and the local signature
                 // file path, which the cloud does not carry.
+                //
+                // Costs are left alone under DENIED: change_orders_crew
+                // carries neither column, so row.additionalCost/materialCost
+                // here are CloudChangeOrder's bare 0.0, not a real answer.
                 val merged = existing.copy(
                     description = row.description,
                     additionalFeet = row.additionalFeet,
-                    additionalCost = row.additionalCost,
-                    materialCost = row.materialCost,
+                    additionalCost = if (scope == MoneyScope.ALLOWED) row.additionalCost else existing.additionalCost,
+                    materialCost = if (scope == MoneyScope.ALLOWED) row.materialCost else existing.materialCost,
                     signedAt = signedAt
                 )
                 if (merged != existing) {
@@ -1355,6 +1526,7 @@ object EntitySync {
                     added++
                 }
             }
+        }
         }
 
         val times = SupabaseModule.client.postgrest.from("time_entries")
@@ -1531,34 +1703,18 @@ object EntitySync {
      * still arrive. The rate is not missed: the server stamps it onto a shift
      * when the phone clocks in, rather than believing whatever the phone sent.
      */
-    private suspend fun pullEmployees(repository: Repository, companyId: String): Int {
-        // Asks the server rather than the session.
-        //
-        // Whether this phone may see pay is the server's decision, and it
-        // already makes it: the employees table hands back nothing at all to
-        // anyone without SEE_MONEY. So an empty answer here means "not
-        // allowed", and the roster -- the same people with no pay attached --
-        // is what this phone should use. An office phone gets the full rows on
-        // the first call and never reaches the second.
-        //
-        // Reading it this way rather than from the local session keeps the two
-        // in step: if the rule changes server-side the phone follows, with no
-        // release needed.
-        // ASKED, not inferred.
-        //
-        // This decided with withPay.isEmpty() -- treating no rows as "not
-        // allowed to see pay". Empty also means the request came back with
-        // nothing for any other reason, and when that happened the phone
-        // replaced its local rates with the roster's zeros and pushed them
-        // back over the real ones. A real hourly rate on this database went
-        // from 25 to 0 that way, and payroll would have been silently wrong.
-        //
-        // A failure to ask leaves it false, which costs a crew phone nothing
-        // -- it uses the roster it was going to use anyway -- and costs an
-        // office phone one stale sync rather than its pay data.
-        val maySeePay = runCatching {
-            SupabaseModule.client.postgrest.rpc("can_see_pay").decodeAs<Boolean>()
-        }.getOrDefault(false)
+    private suspend fun pullEmployees(repository: Repository, companyId: String, scope: MoneyScope): Int {
+        // The scope this whole pass already asked once, rather than a second,
+        // separate can_see_pay() call here. This used to ask again on its own
+        // and fold ANY failure into "not allowed" -- so a dead spot on an
+        // owner's phone read as "not allowed to see pay," replaced every
+        // cached rate with the roster's zeros, and the very next push sent
+        // those zeros back up. A real hourly rate on this database went from
+        // 25 to 0 that way. UNKNOWN here skips the pull entirely instead:
+        // neither the real rows nor the roster's zeros are safe to apply when
+        // the door itself could not be asked about.
+        if (scope == MoneyScope.UNKNOWN) return 0
+        val maySeePay = scope == MoneyScope.ALLOWED
 
         val fromRoster = !maySeePay
         val cloud = if (maySeePay)
@@ -1755,19 +1911,15 @@ object EntitySync {
         return added
     }
 
-    private suspend fun pushEmployees(repository: Repository, companyId: String): Int {
-        // A phone that cannot see pay must not send employee rows at all.
-        //
-        // Its local copy came from the roster, which carries no rates, so
-        // pushing it writes zeros over the office's figures. RLS already
-        // refuses this for crew, but the owner's phone is allowed -- and the
-        // owner's phone is exactly the one that did the damage when the
-        // fallback misfired. Two independent things now have to fail before
-        // pay can be overwritten.
-        val maySeePay = runCatching {
-            SupabaseModule.client.postgrest.rpc("can_see_pay").decodeAs<Boolean>()
-        }.getOrDefault(false)
-        if (!maySeePay) return 0
+    private suspend fun pushEmployees(repository: Repository, companyId: String, scope: MoneyScope): Int {
+        // A phone that isn't confirmed ALLOWED must not send employee rows at
+        // all -- UNKNOWN included. Its local copy may have come from the
+        // roster, which carries no rates, so pushing it writes zeros over the
+        // office's figures; the one call this used to make on its own folded
+        // any failure into "not allowed to push," which is the right answer
+        // for THIS direction but is no longer asked twice now that the pass
+        // already has scope in hand.
+        if (scope != MoneyScope.ALLOWED) return 0
 
         val rows = repository.getAllEmployees().map { it.toCloud(companyId) }
         return upsert("employees", rows)
@@ -1866,12 +2018,25 @@ object DeletionReaper {
     @kotlinx.serialization.Serializable
     private data class TombstonedRow(@kotlinx.serialization.SerialName("sync_id") val syncId: String)
 
-    suspend fun reap(repository: com.fenceestimator.app.data.Repository, companyId: String): Result<Int> =
+    suspend fun reap(repository: com.fenceestimator.app.data.Repository, companyId: String, scope: MoneyScope): Result<Int> =
         runCatching {
-            // All thirteen sweeps at once; each touches only its own table.
+            // All thirteen sweeps at once, ordinarily; each touches only its
+            // own table. Two of them are conditional on scope:
+            // pricing_tiers' base read is SEE_MONEY-gated, so asking while
+            // not confirmed ALLOWED would read an empty answer as "the office
+            // cleared every tier" -- exactly the class of bug this feature
+            // exists to close -- and is skipped instead. estimate_line_items
+            // is gated the same way once the policy flips: DENIED reads the
+            // money-free view for the same tombstoned sync ids, and UNKNOWN
+            // cannot tell which door is open, so it asks neither.
             kotlinx.coroutines.coroutineScope {
-            com.fenceestimator.app.data.SyncTables.ALL.map { table -> async { netGate.withPermit {
-                val deletedIds = SupabaseModule.client.postgrest.from(table)
+            com.fenceestimator.app.data.SyncTables.ALL.mapNotNull { table ->
+                if (table == "pricing_tiers" && scope != MoneyScope.ALLOWED) return@mapNotNull null
+                if (table == "estimate_line_items" && scope == MoneyScope.UNKNOWN) return@mapNotNull null
+                val source = if (table == "estimate_line_items" && scope == MoneyScope.DENIED)
+                    "estimate_line_items_crew" else table
+                async { netGate.withPermit {
+                val deletedIds = SupabaseModule.client.postgrest.from(source)
                     .select(io.github.jan.supabase.postgrest.query.Columns.list("sync_id")) {
                         filter {
                             eq("company_id", companyId)
@@ -1885,6 +2050,7 @@ object DeletionReaper {
                     .map { it.syncId }
 
                 if (deletedIds.isNotEmpty()) {
+                    // The local table name, always -- Room has no "_crew" table.
                     repository.deleteLocalRowsBySyncId(table, deletedIds)
                 } else 0
             } } }.awaitAll().sum()
@@ -1948,9 +2114,16 @@ object PaymentLedgerSync {
 
     suspend fun sync(
         repository: com.fenceestimator.app.data.Repository,
-        companyId: String
+        companyId: String,
+        scope: MoneyScope
     ): Result<Int> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         runCatching {
+            // payment_records is already gated to SEE_MONEY; asking while not
+            // confirmed ALLOWED (UNKNOWN included) would read an empty answer
+            // as "every payment was deleted" and start reconciling this
+            // phone's ledger against nothing. Before any read, not just the
+            // payment_records one.
+            if (scope != MoneyScope.ALLOWED) return@runCatching 0
             val jobs = repository.getAllJobs()
             val jobIdBySyncId = jobs.associate { it.syncId to it.id }
             val jobSyncIdById = jobs.associate { it.id to it.syncId }
