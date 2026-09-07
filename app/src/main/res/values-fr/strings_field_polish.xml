@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- New strings introduced by the field-polish pass on the survey, crew,
+         estimate and run-edit screens. Kept out of strings.xml so this pass
+         never has to touch the file every other screen also edits. -->
+
+    <!-- Survey drawing screen: shown as a persistent banner when a drawing
+         change couldn't be re-priced, so materials and the total are stale
+         until the estimate is reopened. -->
+    <string name="field_polish_reprice_failed">Les matériaux et le prix ne se sont pas mis à jour à partir de ce dessin — ouvrez le devis pour recalculer.</string>
+</resources>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- New strings for the jobs/schedule polish pass. -->
+    <!-- JobDetailScreen: card payments, gated behind Crew (see task 1). -->
+    <string name="jobpolish_feature_card_payments">Pagos con tarjeta</string>
+
+    <!-- HomeDashboard: stat tiles locked by plan (see task 2). -->
+    <string name="jobpolish_feature_pipeline">Embudo de ventas</string>
+    <string name="jobpolish_feature_reports">Informes</string>
+    <string name="jobpolish_feature_time_crew">Horas y cuadrilla</string>
+
+    <!-- HomeDashboard: This Week card's empty state (see task 5). -->
+    <string name="jobpolish_nothing_scheduled">Todavía no hay nada agendado esta semana.</string>
+
+    <!-- JobsListScreen: browser fallback for the update dialog (see task 8). -->
+    <string name="jobpolish_no_browser">Ningún navegador pudo abrir el enlace.</string>
+
+    <!-- JobsListScreen: JobRow's owner-only delete icon (see task 4). -->
+    <string name="jobpolish_delete_job">Eliminar trabajo</string>
+</resources>
