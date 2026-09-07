@@ -175,7 +175,14 @@ enum class ChangeKind {
 data class SyncResult(
     val uploaded: Int,
     val downloaded: Int,
-    val incoming: List<IncomingChange> = emptyList()
+    val incoming: List<IncomingChange> = emptyList(),
+    /**
+     * Jobs the server refused to take from this phone (a crew door that said
+     * no). Not failures -- the work stays here and is retried -- but not
+     * nothing either: "everything is backed up" must not be said while any
+     * of these exist. See AutoSync's somethingHeldBack.
+     */
+    val heldBack: Int = 0
 ) {
     val changed: Boolean get() = uploaded > 0 || downloaded > 0
 }
@@ -406,6 +413,7 @@ object JobSync {
             val cloudBySyncId = cloudJobs.associateBy { it.syncId }
             var uploaded = 0
             var downloaded = 0
+            var heldBack = 0
 
             for (job in localJobs) {
                 val cloudJob = cloudBySyncId[job.syncId]
@@ -601,10 +609,29 @@ object JobSync {
                             job.assignedEmployeeId?.let { employeeSyncById[it] },
                             job.preferredManufacturerId?.let { manufacturerSyncById[it] }
                         )
-                        val accepted = SupabaseModule.client.postgrest.rpc(
-                            "crew_save_job",
-                            buildJsonObject { put("row_in", buildCrewSaveJobPayload(payload)) }
-                        ).decodeAs<Boolean>()
+                        // The pen raises 42501 when this account may not
+                        // write jobs at all (not signed in, company
+                        // suspended, RECORD_FIELD_WORK gone). Left uncaught
+                        // that one refusal threw out of the loop, so every
+                        // job after it was skipped and the pull never ran --
+                        // and the raw policy text reached the screen, which
+                        // is exactly the sentence isNotOursToSync exists to
+                        // keep off it. A refusal is this job held back for
+                        // retry; anything else is still a real failure.
+                        val accepted = runCatching {
+                            SupabaseModule.client.postgrest.rpc(
+                                "crew_save_job",
+                                buildJsonObject { put("row_in", buildCrewSaveJobPayload(payload)) }
+                            ).decodeAs<Boolean>()
+                        }.getOrElse { e ->
+                            if (!isNotOursToSync(e)) throw e
+                            android.util.Log.i(
+                                "JobSync",
+                                "job ${job.syncId} refused by crew_save_job; kept on this phone for retry"
+                            )
+                            heldBack++
+                            false
+                        }
                         // false means the row didn't match (deleted, wrong
                         // company, or this account lost RECORD_FIELD_WORK) --
                         // leave the local sync stamp untouched so this job is
@@ -752,7 +779,7 @@ object JobSync {
                 }
             }
 
-            SyncResult(uploaded, downloaded, incoming)
+            SyncResult(uploaded, downloaded, incoming, heldBack)
         }
     }
 }

@@ -532,7 +532,9 @@ class AutoSync(
                     // a clean zero: "couldn't ask" is never "nothing to
                     // report," and this is the one place that distinction
                     // reaches the person holding the phone.
-                    val somethingHeldBack = (pushResult.getOrNull() ?: 0) < 0 || scope == MoneyScope.UNKNOWN
+                    val somethingHeldBack = (pushResult.getOrNull() ?: 0) < 0 ||
+                        syncResult.heldBack > 0 ||
+                        scope == MoneyScope.UNKNOWN
                     SyncState(
                         phase = SyncPhase.OK,
                         lastSyncedAt = System.currentTimeMillis(),
@@ -544,7 +546,9 @@ class AutoSync(
                     _state.value.copy(
                         phase = if (looksLikeNoSignal(it)) SyncPhase.WAITING_FOR_SIGNAL
                         else SyncPhase.FAILED,
-                        lastError = it.message ?: context.getString(R.string.sync_failed),
+                        // Same rule as entityError above: never the
+                        // database's own words. This branch showed them raw.
+                        lastError = plainWords(it),
                         hasUnsyncedWork = true
                     )
                 }

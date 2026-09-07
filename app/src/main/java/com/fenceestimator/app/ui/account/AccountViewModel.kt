@@ -7,6 +7,7 @@ import com.fenceestimator.app.cloud.CloudProfile
 import com.fenceestimator.app.cloud.JobSync
 import com.fenceestimator.app.cloud.PaymentLedgerSync
 import com.fenceestimator.app.cloud.askMoneyScope
+import com.fenceestimator.app.cloud.isNotOursToSync
 import io.github.jan.supabase.postgrest.postgrest
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.UserRole
@@ -162,7 +163,12 @@ class AccountViewModel(
                 busy = false,
                 message = result.fold(
                     onSuccess = { UiMessage(R.string.vm_synced_up_down, listOf(it.uploaded, it.downloaded)) },
-                    onFailure = { UiMessage(R.string.vm_sync_failed_with, listOf(it.message.orEmpty())) }
+                    onFailure = {
+                        // A policy refusal is written for whoever wrote the
+                        // policy, not for the person holding the phone.
+                        if (isNotOursToSync(it)) UiMessage(R.string.sync_plain_unknown, emptyList())
+                        else UiMessage(R.string.vm_sync_failed_with, listOf(it.message.orEmpty()))
+                    }
                 )
             )
         }
