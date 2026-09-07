@@ -512,8 +512,24 @@ function scenePicketLayout(bayLenFt){
  */
 function scenePlanRun(run, pxPerFoot, seedIn){
   const rawPts = sceneParsePoints(run.points);
+  const rawGates = sceneParseGates(run.gates);
   let P = rawPts;
-  if(P.length<2){
+  // A run can be genuinely zero feet of fence and still be real: a gate
+  // dropped on the survey photo with no line at all gets a run of its own
+  // (SurveyViewModel.addGate), and fixtures/pricing/gate-only-run.json prices
+  // that shape -- 0ft of fence, the gate charge stands. That gate's x/y is
+  // wherever the user tapped on the photo, not a distance along a fence line,
+  // so the synthetic line can't start at the drawing's origin the way the
+  // "measured by hand" fallback below does -- it has to wrap tightly around
+  // the gate(s) themselves, or the tap position leaks in as a phantom fence
+  // stretching from the corner of the photo out to wherever that was.
+  const gateOnly = P.length<2 && !(run.manualFeet>0) && rawGates.length>0;
+  if(gateOnly){
+    const margin = 1.5*(pxPerFoot||20);
+    const left = Math.min(...rawGates.map(g=>g.x)) - margin;
+    const right = Math.max(...rawGates.map(g=>g.x+(g.w||4)*(pxPerFoot||20))) + margin;
+    P = [{x:left,y:0},{x:right,y:0}];
+  } else if(P.length<2){
     // No drawing (measured by hand): stand up a straight run of the
     // measured length so every quote still gets its fence, not a blank lawn.
     const ft = run.manualFeet>0 ? run.manualFeet : 40;
@@ -603,7 +619,7 @@ function scenePlanRun(run, pxPerFoot, seedIn){
         const p2=postIndex.get(postKey(ex,ez)); if(p2!=null) posts[p2].thick=true;
       }
       const bay={cx,cz,angle,bayLen,ux,uz,sx,sz,gate,boards:null};
-      if(geomKind==='board' && !gate){
+      if(geomKind==='board' && !gate && !gateOnly){
         const {count,width}=sceneBoardLayout(bayLen, len);
         const boards=[];
         for(let bi=0;bi<count;bi++){
@@ -631,6 +647,10 @@ function scenePlanRun(run, pxPerFoot, seedIn){
     // only PRIVACY/SPACED_PICKET), so a privacy run is given the cap trim a
     // real privacy fence usually ships with; composite stays capless.
     capBoard: !teardown && geomKind==='board' && materialKind==='wood',
+    // Genuinely zero feet of fence, gate(s) only: buildRunMeshes must skip
+    // every body bay (panels, pickets, rails, boards) even ones spacing
+    // happened not to match to a gate, and render only the gate(s) and posts.
+    gateOnly,
     posts, bays, worldPts,
     type: String(run.type||'').toUpperCase(), label: run.label||'',
     nextSeed: seed,
@@ -660,6 +680,48 @@ function scenePointAtDistance(pts, cum, dist){
   const segLen=(cum[i]-cum[i-1])||1;
   const t=(d-cum[i-1])/segLen;
   return { x: pts[i-1].x+(pts[i].x-pts[i-1].x)*t, z: pts[i-1].z+(pts[i].z-pts[i-1].z)*t };
+}
+
+/**
+ * Lays out a "walk it" tour across several runs, each keeping its own point
+ * list and cumulative-length table. Two disjoint runs (a front yard and a
+ * back yard) are not one polyline -- there is no fence between them -- so
+ * each run's own length is what the walk spends distance on, laid end to
+ * end; the empty space between two runs is not a distance anyone walks and
+ * contributes nothing to the total. A run too short to have a length of its
+ * own (fewer than two points, or its points collapse to one spot) is
+ * dropped rather than walked as a zero-length stop.
+ */
+function sceneWalkSegments(pointLists){
+  const segments=[];
+  let offset=0;
+  for(const pts of pointLists){
+    if(!pts || pts.length<2) continue;
+    const cum=scenePathLengths(pts);
+    const total=cum[cum.length-1]||0;
+    if(total<=0) continue;
+    segments.push({pts, cum, total, offset});
+    offset+=total;
+  }
+  return {segments, total:offset};
+}
+
+/** A point at a given distance into a sceneWalkSegments() plan. Distance is
+ * spent run by run, in order; once one run's own length is used up the next
+ * distance unit is the next run's own first point -- a cut, not a straight
+ * line through whatever real-world gap separates the two runs. Wraps past
+ * the last run back to the first run's start, same as scenePointAtDistance
+ * wraps within a single run. */
+function sceneWalkPointAt(walkPlan, dist){
+  const segments=walkPlan.segments, total=walkPlan.total;
+  if(!segments.length || total<=0) return {x:0,z:0};
+  let d=((dist%total)+total)%total;
+  for(let i=0;i<segments.length;i++){
+    const s=segments[i];
+    if(d<s.total || i===segments.length-1) return scenePointAtDistance(s.pts, s.cum, Math.min(d,s.total));
+    d-=s.total;
+  }
+  return {x:0,z:0};
 }
 
 /**
@@ -976,7 +1038,9 @@ function buildRunMeshes(plan, ctx){
     }
   }
 
-  const bodyBays=plan.bays.filter(b=>!b.gate);
+  // Gate-only run: no fence body exists to draw, even for a bay that spacing
+  // didn't happen to match to the gate -- only the gate(s) and posts render.
+  const bodyBays=plan.gateOnly ? [] : plan.bays.filter(b=>!b.gate);
   const structMat = ctx.getMaterial(structKind, structColor);
 
   if(plan.railYs.length && bodyBays.length){
@@ -1372,11 +1436,14 @@ function build3D(runs,attempt){
 
   // ------------------------------------------------------- walk it -----
   // Walks along the new fence only (the point of the tour is the fence
-  // being quoted); falls back to the old one if that's all there is.
-  const newPts=plans.filter(p=>!p.teardown).reduce((acc,p)=>acc.concat(p.worldPts),[]);
-  const walkPts = newPts.length>=2 ? newPts : plans.reduce((acc,p)=>acc.concat(p.worldPts),[]);
-  const walkCum=scenePathLengths(walkPts);
-  const walkTotal=walkCum[walkCum.length-1]||0;
+  // being quoted); falls back to the old one if that's all there is. Each
+  // run keeps its own path (sceneWalkSegments) rather than being flattened
+  // into one polyline -- two disjoint runs (front yard, back yard) have no
+  // fence between them, so the walk must not fly a straight line across
+  // that gap and count it toward the tour's length or duration.
+  const newPlans=plans.filter(p=>!p.teardown);
+  const walkPlan = sceneWalkSegments((newPlans.length ? newPlans : plans).map(p=>p.worldPts));
+  const walkTotal=walkPlan.total;
   const WALK_DURATION=Math.min(42, Math.max(10, walkTotal/11));
   let walkT0=0;
   // toWorld: a path point is stored in the fence group's own local space
@@ -1412,12 +1479,12 @@ function build3D(runs,attempt){
   });
 
   function tick(){
-    if(mode==='walk' && walkPts.length>=2){
+    if(mode==='walk' && walkPlan.segments.length){
       const elapsed=(performance.now()-walkT0)/1000;
       const t=(elapsed/WALK_DURATION)%1;
       const d=t*walkTotal;
-      const p0=scenePointAtDistance(walkPts,walkCum,d);
-      const p1=scenePointAtDistance(walkPts,walkCum,d+2.5);
+      const p0=sceneWalkPointAt(walkPlan,d);
+      const p1=sceneWalkPointAt(walkPlan,d+2.5);
       const w0=toWorld(p0), w1=toWorld(p1);
       let tvx=w1.x-w0.x, tvz=w1.z-w0.z;
       const tl=Math.hypot(tvx,tvz)||1; tvx/=tl; tvz/=tl;

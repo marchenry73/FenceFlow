@@ -33,14 +33,16 @@ const code = [
     'sceneMulberry32', 'sceneHexToRgb', 'sceneShade', 'sceneHexCss',
     'sceneFinishColor', 'sceneClassifyVertices', 'sceneParsePoints', 'sceneParseGates',
     'scenePanelKind', 'sceneMaterialKind', 'sceneBoardLayout', 'scenePicketLayout',
-    'scenePlanRun', 'scenePathLengths', 'scenePointAtDistance', 'sceneFlatPlanSVG',
+    'scenePlanRun', 'scenePathLengths', 'scenePointAtDistance', 'sceneWalkSegments',
+    'sceneWalkPointAt', 'sceneFlatPlanSVG',
   ].map(grab),
 ].join('\n\n');
 const M = new Function(code + `
   return { sceneMulberry32, sceneHexToRgb, sceneShade, sceneHexCss,
     sceneFinishColor, sceneClassifyVertices, sceneParsePoints, sceneParseGates,
     scenePanelKind, sceneMaterialKind, sceneBoardLayout, scenePicketLayout,
-    scenePlanRun, scenePathLengths, scenePointAtDistance, sceneFlatPlanSVG };
+    scenePlanRun, scenePathLengths, scenePointAtDistance, sceneWalkSegments,
+    sceneWalkPointAt, sceneFlatPlanSVG };
 `)();
 
 let pass = 0, fail = 0;
@@ -249,6 +251,55 @@ ok('a picket bay always has at least 2 pickets', M.scenePicketLayout(0.1).count 
     Math.hypot(plan.worldPts[1].x-plan.worldPts[0].x, plan.worldPts[1].z-plan.worldPts[0].z), 80, 0.01);
 }
 
+/* ---------- scenePlanRun: gate-only run (fixtures/pricing/gate-only-run.json) ---------- */
+
+{
+  // No drawing, no typed footage, one gate at px (500,0) w=4ft, 20px/ft --
+  // the same shape as fixtures/pricing/gate-only-run.json (0ft of fence, the
+  // gate charge stands). The old code fabricated a 40ft fence line here;
+  // it must now be bounded tightly to the gate instead.
+  const plan = M.scenePlanRun({ type:'VINYL', finish:'White', points:'', gates:'500:0:4:LINE:IN',
+    closed:false, heightFt:6, postSpacingFt:6, manualFeet:0 }, 20, 1);
+  ok('a genuinely-zero-feet run with a gate is flagged gate-only', plan.gateOnly === true);
+  const runLen = Math.hypot(plan.worldPts[1].x-plan.worldPts[0].x, plan.worldPts[1].z-plan.worldPts[0].z);
+  ok('the synthetic line is bounded to the gate, nowhere near the old 40ft default', runLen < 10);
+  eq('exactly one bay -- the gate\'s own', plan.bays.length, 1);
+  ok('that bay is matched to the gate', !!plan.bays[0].gate);
+  eq('only the gate\'s two flanking posts exist, no extra line posts', plan.posts.length, 2);
+  ok('both of the gate\'s posts are heavy', plan.posts.every(p=>p.thick));
+}
+{
+  // Tight spacing forces more than one bay across the bounded line -- the
+  // bays the gate doesn't reach must still get no boards, even though
+  // scenePlanRun's ordinary rule only withholds boards from the bay a gate
+  // actually lands on.
+  const plan = M.scenePlanRun({ type:'WOOD', woodStyle:'PRIVACY', finish:'', points:'',
+    gates:'500:0:4:LINE:IN', closed:false, heightFt:6, postSpacingFt:2, manualFeet:0 }, 20, 1);
+  ok('more than one bay is produced', plan.bays.length > 1);
+  const gateBays = plan.bays.filter(b=>b.gate);
+  eq('still only one bay matched to the gate', gateBays.length, 1);
+  ok('no bay -- gate or not -- has boards on a gate-only run',
+    plan.bays.every(b=>b.boards===null));
+}
+{
+  // Nothing measured at all and no gate: unchanged from before this fix --
+  // still the flat 40ft placeholder line, not gate-only.
+  const plan = M.scenePlanRun({ type:'VINYL', finish:'White', points:'', gates:'',
+    closed:false, heightFt:6, postSpacingFt:8, manualFeet:0 }, 20, 1);
+  eq('no gates means this is not the gate-only case', plan.gateOnly, false);
+  near('the old flat 40ft placeholder line is untouched',
+    Math.hypot(plan.worldPts[1].x-plan.worldPts[0].x, plan.worldPts[1].z-plan.worldPts[0].z), 40, 0.01);
+}
+{
+  // Measured by hand (manualFeet>0) with a gate and no drawing: the typed
+  // footage still wins, same as before -- this is not the gate-only case.
+  const plan = M.scenePlanRun({ type:'VINYL', finish:'White', points:'', gates:'500:0:4:LINE:IN',
+    closed:false, heightFt:6, postSpacingFt:8, manualFeet:32 }, 20, 1);
+  eq('typed footage beats gate-only handling', plan.gateOnly, false);
+  near('the typed 32ft measurement still produces a 32ft line',
+    Math.hypot(plan.worldPts[1].x-plan.worldPts[0].x, plan.worldPts[1].z-plan.worldPts[0].z), 32, 0.01);
+}
+
 /* ---------- scenePathLengths / scenePointAtDistance: the walk-it path ---------- */
 
 {
@@ -262,6 +313,34 @@ ok('a picket bay always has at least 2 pickets', M.scenePicketLayout(0.1).count 
 }
 eq('a single point never divides by zero', M.scenePointAtDistance([{x:5,z:5}], [0], 40), {x:5,z:5});
 eq('no points at all is still safe', M.scenePointAtDistance([], [], 10), {x:0,z:0});
+
+/* ---------- sceneWalkSegments / sceneWalkPointAt: two disjoint runs ---------- */
+
+{
+  // A front-yard run and a back-yard run, nowhere near each other. The old
+  // concatenate-everything approach would insert a 1400+ft "flight" between
+  // them into the walk; it must contribute nothing here.
+  const runA=[{x:0,z:0},{x:10,z:0}];        // 10ft
+  const runB=[{x:1000,z:1000},{x:1010,z:1000}]; // 10ft, far away
+  const plan=M.sceneWalkSegments([runA, runB]);
+  eq('the gap between the two runs is not part of the walk total', plan.total, 20);
+  eq('the second run starts right where the first run\'s own length ends', plan.segments[1].offset, 10);
+
+  eq('partway through the first run', M.sceneWalkPointAt(plan, 5), {x:5,z:0});
+  eq('exactly at the boundary, it cuts to the second run\'s start, not a point in between',
+    M.sceneWalkPointAt(plan, 10), {x:1000,z:1000});
+  eq('partway through the second run', M.sceneWalkPointAt(plan, 15), {x:1005,z:1000});
+  eq('past the end wraps back to the first run\'s start', M.sceneWalkPointAt(plan, 20), {x:0,z:0});
+}
+{
+  // A run with fewer than two points, or whose points collapse to one spot,
+  // has no length of its own and must not be walked as a zero-length stop.
+  const plan=M.sceneWalkSegments([[{x:9,z:9}], [{x:5,z:5},{x:5,z:5}], [{x:0,z:0},{x:4,z:0}]]);
+  eq('only the one run with real length is kept', plan.segments.length, 1);
+  eq('its length is the whole walk total', plan.total, 4);
+}
+eq('no runs at all is still safe', M.sceneWalkSegments([]).total, 0);
+eq('a point on an empty walk plan is still safe', M.sceneWalkPointAt({segments:[],total:0}, 10), {x:0,z:0});
 
 /* ---------- sceneFlatPlanSVG: the WebGL-unavailable fallback ---------- */
 
