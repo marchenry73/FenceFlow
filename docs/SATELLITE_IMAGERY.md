@@ -82,3 +82,21 @@ missed.
 - Azure Maps pricing (`azure.microsoft.com/en-us/pricing/details/azure-maps/`) and the Bing-to-Azure imagery migration note (`learn.microsoft.com/.../migrate-get-imagery-metadata`)
 - Apple Maps Server API docs (`developer.apple.com/documentation/applemapsserverapi`) and Apple Maps terms of use
 - Hillsborough County ArcGIS REST services directory (`maps.hillsboroughcounty.org/arcgis/rest/services/Aerials` and `.../AerialsNew/Aerials2025_3_inch_MrSid/ImageServer?f=json`) for the live service metadata (capture window, pixel size, tiling scheme, capabilities), cross-checked against the county's public ArcGIS Online items (Aerial Imagery Viewer / "1938-2025 Aerial Imagery" web map) for the January 2025 flight date
+
+## Before adding a paid key (Google or Mapbox)
+
+The tile proxy in `quote-map` has no authentication, no rate limit and no
+binding to the quote being viewed: anyone holding the function URL (it is in
+quote.html's source) can walk every z/x/y in range. With the free sources
+that costs nothing but bandwidth. With a metered key it is somebody else's
+bill on your card. So, before `GOOGLE_MAPS_TILES_KEY` or `MAPBOX_TOKEN` is
+set in production, add one of:
+
+- a short-lived signed token minted by `quote-view` for the quote being
+  viewed (and by the office for a signed-in session), checked by `quote-map`
+  on every tile; or
+- a per-token / per-IP daily tile cap kept in a small table, refused with
+  429 past the cap; or
+- both.
+
+Until then the county aerials and the free world imagery are the sources.
