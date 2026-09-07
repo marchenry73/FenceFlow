@@ -549,6 +549,14 @@ function showGate(which) {
     $(id).style.display = (id === which) ? '' : 'none');
 }
 if (inRecovery) showGate('recoveryPanel');
+// An expired or already-used reset link redirects here too, but as
+// #error=access_denied&error_code=otp_expired rather than type=recovery, so
+// without this it fell through to boot()'s plain sign-in gate with nothing
+// on screen explaining why the password form never showed up.
+else if (/error=/.test(location.hash)) {
+  showGate('signInPanel');
+  $('gateMsg').textContent = 'That link has expired or was already used — request a new one.';
+}
 
 // A second, asynchronous confirmation of the same thing. The hash check above
 // covers the normal case; this covers Supabase's own signal in case the link
@@ -1459,6 +1467,16 @@ function chase(id) {
     `&body=${encodeURIComponent(body)}`;
 }
 
+/** OWASP CSV-injection guard: a cell that opens with =, +, -, @ or a tab/CR
+    is read as a formula (or worse) by the spreadsheet app that opens this
+    file, not as the plain text it looks like here. A leading apostrophe
+    forces plain-text reading without changing what a person sees in the
+    cell. Pure so it can be tested without exportCsv's DOM/download side effects. */
+function csvSafeCell(v) {
+  const s = String(v ?? '');
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 function exportCsv() {
   const head = ['CompanyId', 'Company', 'Status', 'Plan', 'MonthlyPrice', 'Seats', 'Jobs', 'LastSeen', 'Suspended', 'BillingEmail'];
   const rows = clients.map(c => [
@@ -1467,7 +1485,7 @@ function exportCsv() {
     c.billing_email || c.email || ''
   ]);
   const csv = [head, ...rows]
-    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    .map(r => r.map(v => `"${csvSafeCell(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   // A blob download, because the file is generated here and never leaves the browser.
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));

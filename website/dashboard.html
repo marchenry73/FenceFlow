@@ -5868,7 +5868,6 @@ async function saveSatelliteRun(){
     include_privacy_slats: false,
     split_rail_count: 2,
     is_teardown: false,
-    updated_at: new Date().toISOString(),
   };
   const { error } = await db.from('fence_runs').insert(row);
   if(error){
@@ -5956,13 +5955,23 @@ function renderOfficePricingResult(output){
       + `${(r.posts&&r.posts.total)||0} posts${gates}</div>`;
   }).join('');
 
-  const itemRows = items.length ? items.map(i=>`<tr>
+  // Mirrors effectiveUnitPrice/lineTotal in
+  // supabase/functions/_shared/pricing/types.ts: totals.grand_total is built
+  // from the supplier quote once one exists, not the catalog's unit_price,
+  // so the rows have to price the same way or they stop reconciling with
+  // the totals shown just below them.
+  const itemRows = items.length ? items.map(i=>{
+    const hasSupplierPrice = i.supplier_unit_price !== null && i.supplier_unit_price !== undefined;
+    const effectivePrice = hasSupplierPrice ? i.supplier_unit_price : (i.unit_price||0);
+    return `<tr>
       <td>${esc(i.description)}${i.auto_generated===false
-        ? ' <span class="pill" style="background:#EEF2F7;color:#25313F;font-size:10px;font-weight:700">edited</span>' : ''}</td>
+        ? ' <span class="pill" style="background:#EEF2F7;color:#25313F;font-size:10px;font-weight:700">edited</span>' : ''}${hasSupplierPrice
+        ? ' <span class="pill" style="background:#E7F5EC;color:#1E6B3C;font-size:10px;font-weight:700">supplier</span>' : ''}</td>
       <td>${i.quantity}</td><td>${esc(i.unit||'')}</td>
-      <td>${money(i.unit_price)}</td>
-      <td>${money((i.quantity||0)*(i.unit_price||0))}</td>
-    </tr>`).join('') : '<tr><td colspan="5" class="empty">No line items.</td></tr>';
+      <td>${money(effectivePrice)}</td>
+      <td>${money((i.quantity||0)*effectivePrice)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" class="empty">No line items.</td></tr>';
 
   const warnings = [
     ...unmatched.map(u=>'No catalog match for '+esc(u.role)+' on '+esc(runLabel(u.run_sync_id))+'.'),
@@ -7272,10 +7281,13 @@ function wizUseSatelliteTrace(){
   // Owner ask #4: gates placed directly on the trace replace the position-
   // less rows wz_add_gate creates -- marked `placed` so wizAddRun knows not
   // to run autoPlaceGateMarkers over them and throw the exact spot away.
-  if(SAT.gates.length){
-    wiz.currentRun.gates = satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z)
-      .map(g => ({ x:g.x, y:g.y, widthFt:g.widthFt, mounting:g.mounting, swing:g.swing, placed:true }));
-  }
+  // Always replace, even with an empty list: a re-trace's gates are encoded
+  // relative to *this* trace's first point, so leaving a prior trace's gates
+  // in place when the new one has none would strand them at the wrong spot.
+  wiz.currentRun.gates = SAT.gates.length
+    ? satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z)
+        .map(g => ({ x:g.x, y:g.y, widthFt:g.widthFt, mounting:g.mounting, swing:g.swing, placed:true }))
+    : [];
   if(!(wiz.currentRun.label||'').trim() && ($('satLabel').value||'').trim())
     wiz.currentRun.label = $('satLabel').value.trim();
   $('satOverlay').classList.remove('on');
@@ -7353,6 +7365,10 @@ async function wizRemoveRun(id, label){
 }
 
 async function wizSaveRunsStep(){
+  // Same style as wizSaveWho's missing-name check: a job with no fence runs
+  // has nothing for step 4 (pricing) to price, so refuse to move past it.
+  const jr = wiz.job ? runs.filter(r=>r.job_sync_id===wiz.job.sync_id) : [];
+  if(!jr.length){ msg('wizMsg','Add at least one fence run before continuing.','err'); return false; }
   if(wiz.revisit) return true; // runs are written as they are added, not on Next
   const {error} = await wizPatchJob({ wizard_step: 4 });
   if(error){ msg('wizMsg', error.message, 'err'); return false; }
@@ -7467,7 +7483,7 @@ async function wizAddCatalogItem(i, role, fenceType){
   const row = {
     company_id: profile.company_id, sync_id: crypto.randomUUID(),
     name, role, fence_type: fenceType, unit, unit_price: price,
-    taxable: true, is_active: true, updated_at: new Date().toISOString(),
+    taxable: true, is_active: true,
   };
   const {error} = await db.from('material_items').insert(row);
   if(error){ msg('wizEstMsg', error.message, 'err'); return; }
@@ -7495,7 +7511,13 @@ async function wizCommitEstimate(){
   wizRefreshJob();
   wiz.officePricing = null;
   if(wiz.revisit){ wiz.step = 7; wiz.revisit = false; }
-  else wiz.step = 6;
+  else {
+    // Same bookkeeping every other step does via wizPatchJob(wizard_step) --
+    // without it, a wizard closed right after committing the estimate
+    // reopens back at step 5 (the estimate) instead of resuming past it.
+    await wizPatchJob({ wizard_step: 6 });
+    wiz.step = 6;
+  }
   await wizRenderStep();
 }
 
