@@ -1550,7 +1550,8 @@ function build3D(runs,attempt){
         img.crossOrigin='anonymous';
         img.onload=()=>{ g2.drawImage(img,dx*256,dy*256); res(true); };
         img.onerror=()=>res(false);
-        img.src=API+'/quote-map?action=tile&z='+Z+'&y='+(cyT+dy)+'&x='+(cxT+dx);
+        img.src=API+'/quote-map?action=tile&z='+Z+'&y='+(cyT+dy)+'&x='+(cxT+dx)
+          +'&apikey='+encodeURIComponent(window.FENCEFLOW_CONFIG.SUPABASE_KEY);
       }));
     }
     const got=(await Promise.all(loads)).filter(Boolean).length;

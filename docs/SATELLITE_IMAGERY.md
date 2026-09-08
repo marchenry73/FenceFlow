@@ -83,20 +83,42 @@ missed.
 - Apple Maps Server API docs (`developer.apple.com/documentation/applemapsserverapi`) and Apple Maps terms of use
 - Hillsborough County ArcGIS REST services directory (`maps.hillsboroughcounty.org/arcgis/rest/services/Aerials` and `.../AerialsNew/Aerials2025_3_inch_MrSid/ImageServer?f=json`) for the live service metadata (capture window, pixel size, tiling scheme, capabilities), cross-checked against the county's public ArcGIS Online items (Aerial Imagery Viewer / "1938-2025 Aerial Imagery" web map) for the January 2025 flight date
 
-## Before adding a paid key (Google or Mapbox)
+## The money guard (added 2026-09-07)
 
-The tile proxy in `quote-map` has no authentication, no rate limit and no
-binding to the quote being viewed: anyone holding the function URL (it is in
-quote.html's source) can walk every z/x/y in range. With the free sources
-that costs nothing but bandwidth. With a metered key it is somebody else's
-bill on your card. So, before `GOOGLE_MAPS_TILES_KEY` or `MAPBOX_TOKEN` is
-set in production, add one of:
+Two layers now sit in front of the tile proxy, and it is worth being precise
+about what each is worth.
 
-- a short-lived signed token minted by `quote-view` for the quote being
-  viewed (and by the office for a signed-in session), checked by `quote-map`
-  on every tile; or
-- a per-token / per-IP daily tile cap kept in a small table, refused with
-  429 past the cap; or
-- both.
+**A per-IP ceiling** (1,200 tiles / 60 geocodes / 120 meta calls per ten
+minutes, counted in the isolate) exists and is close to worthless on its own.
+Measured, not assumed: 600 requests fired at the deployed function produced
+zero refusals, because Supabase spreads them across enough isolates that no
+single counter ever reaches its limit. It stops a naive single-threaded
+scraper and nothing else. Do not raise the numbers expecting them to mean
+more, and do not treat this as protection for a metered key.
 
-Until then the county aerials and the free world imagery are the sources.
+**The paid-provider gate** is what actually protects money. `buildProviders`
+now takes a flag, and Google and Mapbox are only offered to a caller that
+presents the project anon key, in the `apikey` header or query string. The
+free chain (county aerials, then Esri) stays open to everybody, because the
+homeowner opening a quote link holds no login and the 3D fence has to render
+for them. A stranger who pastes the bare URL still gets a fence; they cannot
+get a metered tile.
+
+All four real callers were updated to send the key: `quote.html`, the two
+tile loaders in `dashboard.html`, and `Satellite.kt`. Tiles are loaded as
+image textures, which cannot carry headers, so the key rides in the query
+string. It is not a secret; it already ships in the page source.
+
+**Verifying it the day a key goes in.** `?meta=1` reports `paid_available`.
+Ask it twice, once with `&apikey=<anon>` and once without. Before a key is
+set both answer `false`. After one is set they must differ: keyed `true`,
+unkeyed `false`. If they do not, the gate is not working and the key should
+come straight back out.
+
+**If that is ever not enough**, the stronger version is a short-lived signed
+ticket: one authenticated call mints an HMAC-signed ticket, every tile
+carries it, and verification is pure CPU with no shared state, which is the
+property the per-IP counter lacks. Not built, because the anon-key gate
+already binds the guard to the thing worth guarding.
+
+

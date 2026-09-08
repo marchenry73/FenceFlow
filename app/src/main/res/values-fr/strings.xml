@@ -743,6 +743,10 @@
     <string name="contract_legal_gap_banner">Avis d\'annulation non rempli</string>
     <string name="contract_legal_gap_send">Envoyer quand même</string>
     <string name="contract_legal_gap_fix">Ouvrir les conditions du contrat</string>
+    <string name="presend_title">Avant que cela parte chez le client</string>
+    <string name="presend_unverified_body">%1$d prix de matériaux sur ce chantier sont encore les chiffres de départ de FenceFlow, pas ceux de votre fournisseur.</string>
+    <string name="presend_and_more">et %1$d de plus</string>
+    <string name="est_unverified_banner">%1$d prix ici ne sont pas encore les vôtres : vérifiez-les avant d\'envoyer</string>
     <string name="est2_material_list_hint">Quantités seulement, sans prix : ils vous font un devis.</string>
     <string name="est2_locked_until_signed">Verrouillé jusqu\'à la signature du contrat par le client.</string>
     <string name="est2_invoice_hint">Ce qui a été convenu, ce qui est payé, ce qui reste.</string>

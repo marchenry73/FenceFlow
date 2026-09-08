@@ -142,7 +142,38 @@ interface ImageryProvider {
 // app is actually used in today -- it is newer than anything money buys
 // here. Esri is always last so the feature never depends on any of these
 // being configured at all.
-function buildProviders(): ImageryProvider[] {
+/**
+ * Whether this request may spend money.
+ *
+ * The free providers stay open to anybody, because a homeowner opening a
+ * quote link holds no login and the whole point of the 3D fence is that it
+ * renders for them. The PAID providers are a different matter: an open
+ * proxy in front of a metered key is a bill a stranger gets to run up, and
+ * a per-IP counter demonstrably does not stop that here.
+ *
+ * So the guard binds to the thing worth guarding rather than to the door.
+ * A caller who presents the project's anon key -- which every real caller
+ * already sends, because the office, the app and the quote page all talk to
+ * Supabase -- gets the paid chain. A stranger who found the bare URL gets
+ * the free chain, and still sees a fence. Nothing breaks today, and the
+ * moment GOOGLE_MAPS_TILES_KEY or MAPBOX_TOKEN goes into the environment it
+ * is protected by construction rather than by a promise to come back later.
+ *
+ * This is not a strong secret -- the anon key ships inside the web page --
+ * and it is not meant to be. It raises the cost of abuse from "paste a URL"
+ * to "read our JavaScript", which is the right amount of friction for a
+ * layer whose worst case is imagery quota. A signed short-lived ticket is
+ * the stronger version and is described in docs/SATELLITE_IMAGERY.md.
+ */
+function paidProvidersAllowed(req: Request, url: URL): boolean {
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!anon) return true; // Nothing to check against; fail open rather than break imagery.
+  const header = req.headers.get("apikey") ??
+    (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  return header === anon || url.searchParams.get("apikey") === anon;
+}
+
+function buildProviders(paidAllowed = true): ImageryProvider[] {
   const providers: ImageryProvider[] = [];
 
   if (Deno.env.get("HILLSBOROUGH_ORTHO") === "1") {
@@ -155,7 +186,7 @@ function buildProviders(): ImageryProvider[] {
     });
   }
 
-  const googleKey = Deno.env.get("GOOGLE_MAPS_TILES_KEY");
+  const googleKey = paidAllowed ? Deno.env.get("GOOGLE_MAPS_TILES_KEY") : null;
   if (googleKey) {
     providers.push({
       name: "Google",
@@ -166,7 +197,7 @@ function buildProviders(): ImageryProvider[] {
     });
   }
 
-  const mapboxToken = Deno.env.get("MAPBOX_TOKEN");
+  const mapboxToken = paidAllowed ? Deno.env.get("MAPBOX_TOKEN") : null;
   if (mapboxToken) {
     providers.push({
       name: "Mapbox",
@@ -189,21 +220,113 @@ function buildProviders(): ImageryProvider[] {
   return providers;
 }
 
+/* ----------------------------------------------------------------- *
+ * A ceiling, so that finding this URL is not the same as spending our
+ * money.
+ *
+ * This door is deliberately open: the homeowner looking at a quote holds
+ * no login, and requiring one would mean the 3D fence only renders for
+ * people with an account. What it must not be is unbounded. Today every
+ * provider in the chain is free and keyless, so the worst an abuser could
+ * do is waste our compute; the moment a Google or Mapbox key goes into the
+ * environment, an open proxy is a bill somebody else gets to run up.
+ *
+ * Counted per caller IP in this isolate's memory, and MEASURED rather than
+ * assumed: 600 requests fired at the deployed function produced not one
+ * refusal, because Supabase spreads them across so many isolates that no
+ * single counter ever reached its limit. So this is a speed bump against a
+ * naive single-threaded scraper and nothing more. It is kept because it
+ * costs nothing and catches the laziest case, and it is NOT what protects
+ * the money -- `paidProvidersAllowed` below is. Do not raise these numbers
+ * expecting them to mean anything, and do not rely on them when adding a
+ * key.
+ *
+ * Tiles are generous because one satellite view is dozens of tiles and a
+ * day of caching sits in front of this. Geocoding is tight because it is
+ * one call per job, and it is the endpoint that spends somebody else's
+ * quota (Census, then Esri) rather than ours.
+ */
+const WINDOW_MS = 10 * 60 * 1000;
+const LIMITS: Record<string, number> = { tile: 1200, geocode: 60, meta: 120 };
+const MAX_TRACKED_IPS = 5000;
+
+const seen = new Map<string, { count: number; windowStart: number }>();
+
+function overLimit(ip: string, action: string): boolean {
+  const limit = LIMITS[action];
+  if (limit === undefined) return false;
+  const now = Date.now();
+  const key = `${action}:${ip}`;
+  const entry = seen.get(key);
+
+  if (!entry || now - entry.windowStart >= WINDOW_MS) {
+    // Sweep before growing. Without this the map is a slow memory leak on a
+    // long-lived isolate: every IP that ever called stays for ever.
+    if (seen.size >= MAX_TRACKED_IPS) {
+      for (const [k, v] of seen) {
+        if (now - v.windowStart >= WINDOW_MS) seen.delete(k);
+      }
+      // Still full means the traffic is real and current, not stale entries.
+      // Drop the whole thing rather than refuse service to everybody: the
+      // limiter forgetting a window is a smaller harm than a map that cannot
+      // grow turning into a hard outage.
+      if (seen.size >= MAX_TRACKED_IPS) seen.clear();
+    }
+    seen.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > limit;
+}
+
+/** Deno Deploy sets x-forwarded-for; the first hop is the real caller. */
+function callerIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for") ?? "";
+  return fwd.split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const url = new URL(req.url);
+
+  // Which bucket this request draws on, decided before anything expensive
+  // happens.
+  const bucket = url.searchParams.get("meta") === "1"
+    ? "meta"
+    : (url.searchParams.get("action") ?? "");
+  if (overLimit(callerIp(req), bucket)) {
+    // Said in words a person could read, because this can reach a homeowner
+    // whose kitchen-table wifi shares an address with something noisy.
+    return new Response(
+      JSON.stringify({ error: "Too many map requests just now. Wait a minute and try again." }),
+      {
+        status: 429,
+        headers: { ...cors, "Content-Type": "application/json", "Retry-After": "60" },
+      },
+    );
+  }
 
   // Lets the office show "Imagery: Google, up to zoom 20" next to the
   // satellite tool without hard-coding whichever provider happens to be
   // configured -- reports whichever provider would actually serve the next
   // tile request, i.e. the first one in the chain.
   if (url.searchParams.get("meta") === "1") {
-    const primary = buildProviders()[0];
+    // Reports the chain THIS caller would actually get, so the credit line
+    // the page shows matches the tiles it will receive.
+    const paidAllowed = paidProvidersAllowed(req, url);
+    const primary = buildProviders(paidAllowed)[0];
     return json({
       provider: primary.name,
       max_zoom: primary.maxZoom,
       attribution: primary.attribution,
       imagery_note: primary.note,
+      // A handle for checking the money guard the day a metered key goes in:
+      // ask ?meta=1 with the product key and without it. Once a key exists,
+      // these two answers must differ. While every provider is free they are
+      // both false, which is itself the correct answer.
+      paid_available: paidAllowed &&
+        Boolean(Deno.env.get("GOOGLE_MAPS_TILES_KEY") || Deno.env.get("MAPBOX_TOKEN")),
     });
   }
 
@@ -250,7 +373,7 @@ Deno.serve(async (req) => {
       return json({ error: "Bad tile." }, 400);
     }
 
-    const providers = buildProviders();
+    const providers = buildProviders(paidProvidersAllowed(req, url));
     const failed: string[] = [];
     for (const provider of providers) {
       const r = await provider.fetchTile(z, y, x).catch(() => null);

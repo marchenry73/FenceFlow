@@ -537,7 +537,16 @@ private fun ExportSection(
     val context = androidx.compose.ui.platform.LocalContext.current
     val totals by viewModel.totals.collectAsState()
     var showSignaturePad by remember { mutableStateOf(false) }
-    var showLegalGap by remember { mutableStateOf(false) }
+    var showPreSendCheck by remember { mutableStateOf(false) }
+    val unverified by viewModel.unverifiedPriceNames.collectAsState()
+    // Two different ways this document can be wrong in front of a customer.
+    // Computed once at the top of the section, because both the button that
+    // is gated by them and the dialog that explains them need to see them.
+    val legalGap = com.fenceestimator.app.data.contractTermsNeedLegalReview(profile.contractTerms)
+    val sendBlockers = buildList {
+        if (legalGap) add(SendBlocker.LEGAL)
+        if (unverified.isNotEmpty()) add(SendBlocker.UNVERIFIED_PRICES)
+    }
 
     fun shareDocument(document: com.fenceestimator.app.estimate.JobDocument) {
         viewModel.exportDocument(context, profile, document) { file ->
@@ -656,10 +665,9 @@ private fun ExportSection(
         // of letting it go quietly. It asks rather than refuses: an owner may
         // have had this reviewed, or be sending a copy to themselves, and
         // this app does not know which.
-        val legalGap = com.fenceestimator.app.data.contractTermsNeedLegalReview(profile.contractTerms)
         Button(
             onClick = {
-                if (legalGap) showLegalGap = true
+                if (sendBlockers.isNotEmpty()) showPreSendCheck = true
                 else shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_CONTRACT)
             },
             enabled = !needsResign,
@@ -674,13 +682,15 @@ private fun ExportSection(
         Text(
             when {
                 needsResign -> stringResource(R.string.est2_locked_price_changed)
+                unverified.isNotEmpty() ->
+                    stringResource(R.string.est_unverified_banner, unverified.size)
                 legalGap -> stringResource(R.string.contract_legal_gap_banner)
                 else -> stringResource(R.string.est2_contract_hint)
             },
             style = MaterialTheme.typography.bodySmall,
             color = when {
                 needsResign -> MaterialTheme.colorScheme.error
-                legalGap -> MaterialTheme.semantic.warning
+                unverified.isNotEmpty() || legalGap -> MaterialTheme.semantic.warning
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             }
         )
@@ -768,29 +778,60 @@ private fun ExportSection(
             onDismiss = { showSignaturePad = false }
         )
     }
-    if (showLegalGap) {
+    if (showPreSendCheck) {
         AlertDialog(
-            onDismissRequest = { showLegalGap = false },
-            title = { Text(stringResource(R.string.contract_legal_gap_title)) },
-            text = { Text(stringResource(R.string.contract_legal_gap_body)) },
+            onDismissRequest = { showPreSendCheck = false },
+            title = { Text(stringResource(R.string.presend_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
+                    // One paragraph per problem, in the order they would hurt:
+                    // a price the customer will hold you to, then paperwork
+                    // that may not hold up.
+                    if (SendBlocker.UNVERIFIED_PRICES in sendBlockers) {
+                        Text(
+                            stringResource(R.string.presend_unverified_body, unverified.size),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        // Named, not counted. "Three prices are guesses" is a
+                        // number to dismiss; "6x6 white privacy panel" is a
+                        // thing to go and check.
+                        Text(
+                            unverified.take(6).joinToString("\n") { "  •  " + it } +
+                                if (unverified.size > 6)
+                                    "\n  " + stringResource(R.string.presend_and_more, unverified.size - 6)
+                                else "",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    if (SendBlocker.LEGAL in sendBlockers) {
+                        Text(
+                            stringResource(R.string.contract_legal_gap_title),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            stringResource(R.string.contract_legal_gap_body),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
             confirmButton = {
-                // The safe choice is the plain one, and it is on the right
-                // where the confirm button lives, because reading the terms
-                // is what this dialog is for. Sending anyway stays available
-                // and stays quiet.
                 Button(onClick = {
-                    showLegalGap = false
+                    showPreSendCheck = false
                     shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_CONTRACT)
                 }) { Text(stringResource(R.string.contract_legal_gap_send)) }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showLegalGap = false }) {
+                OutlinedButton(onClick = { showPreSendCheck = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             }
         )
     }
 }
+
+/** What a document can be carrying that a customer should not receive quietly. */
+private enum class SendBlocker { LEGAL, UNVERIFIED_PRICES }
 
 @Composable
 private fun EditLineItemDialog(

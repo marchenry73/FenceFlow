@@ -757,6 +757,10 @@
     <string name="contract_legal_gap_banner">Cancellation notice not filled in yet</string>
     <string name="contract_legal_gap_send">Send anyway</string>
     <string name="contract_legal_gap_fix">Open contract terms</string>
+    <string name="presend_title">Before this goes to the customer</string>
+    <string name="presend_unverified_body">%1$d material prices on this job are still FenceFlow\'s starting figures, not your supplier\'s.</string>
+    <string name="presend_and_more">and %1$d more</string>
+    <string name="est_unverified_banner">%1$d prices here are not yours yet — check them before you send</string>
     <string name="est2_material_list_hint">Quantities only, no prices -- they quote it back to you.</string>
     <string name="est2_locked_until_signed">Locked until the customer signs the contract.</string>
     <string name="est2_invoice_hint">What was agreed, what is paid, what is left.</string>

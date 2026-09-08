@@ -184,7 +184,12 @@ object Satellite {
     private suspend fun downloadTile(z: Int, x: Int, y: Int, key: String): Bitmap? =
         withContext(Dispatchers.IO) {
             try {
-                val url = "${BuildConfig.SUPABASE_URL}/functions/v1/quote-map?action=tile&z=$z&y=$y&x=$x"
+                // The key says "this is the FenceFlow app", which is what
+                // lets the proxy serve a metered provider rather than falling
+                // back to the free chain. Not a secret: it is the same anon
+                // key every request from this app already carries.
+                val url = "${BuildConfig.SUPABASE_URL}/functions/v1/quote-map" +
+                    "?action=tile&z=$z&y=$y&x=$x&apikey=${BuildConfig.SUPABASE_KEY}"
                 val response = client.get(url)
                 if (!response.status.isSuccess()) return@withContext null
                 val bytes: ByteArray = response.body()
