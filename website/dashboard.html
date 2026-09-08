@@ -304,6 +304,17 @@
   th.sortable .arw{opacity:0;margin-left:4px;font-size:10px}
   th.sortable[aria-sort]:not([aria-sort=none]){color:var(--text)}
   th.sortable[aria-sort]:not([aria-sort=none]) .arw{opacity:1;color:var(--orange)}
+
+  /* ---- Batch bar: appears only when something is selected -------------- */
+  .jb{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 12px;
+      padding:10px 12px;border:1px solid var(--orange);border-radius:9px;
+      background:var(--surface)}
+  .jb-n{font-weight:700;white-space:nowrap}
+  .jb-hidden{font-size:12.5px;color:var(--muted)}
+  .jb select,.jb input[type=date]{width:auto;padding:6px 9px;font-size:13px}
+  .jb .spacer{margin-left:auto}
+  td.selcol,th.selcol{width:34px;padding-right:0}
+  td.selcol input,th.selcol input{width:auto;cursor:pointer;margin:0}
   .range-label{margin-top:9px;font-size:12px;color:var(--muted)}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
   .panel .sub{font-size:12px;color:var(--muted);margin:-6px 0 12px}
@@ -599,8 +610,19 @@
           <span class="jt-count" id="jobsCount"></span>
           <button class="jt-clear" id="jobsClear" style="display:none">Clear</button>
         </div>
+        <div class="jb" id="jobBatch" style="display:none">
+          <span class="jb-n" id="jobSelN"></span>
+          <span class="jb-hidden" id="jobSelHidden"></span>
+          <span id="jobBatchWrite" style="display:none;gap:10px;align-items:center;flex-wrap:wrap">
+            <select id="jobBatchCrew" aria-label="Assign the selected jobs to a crew member"></select>
+            <input type="date" id="jobBatchDate" aria-label="Schedule the selected jobs">
+          </span>
+          <button class="btn btn-sm btn-grey" id="jobBatchCsv">Export these</button>
+          <button class="jt-clear spacer" id="jobSelClear">Clear selection</button>
+        </div>
         <div class="scroll"><table>
           <thead><tr>
+            <th class="selcol"><input type="checkbox" id="jobSelAll" aria-label="Select every job shown"></th>
             <th class="sortable" data-sort="customer" tabindex="0" aria-sort="none">Customer<span class="arw"></span></th>
             <th class="sortable" data-sort="address" tabindex="0" aria-sort="none">Address<span class="arw"></span></th>
             <th class="sortable" data-sort="status" tabindex="0" aria-sort="none">Status<span class="arw"></span></th>
@@ -2806,6 +2828,31 @@ function jobsSorted(list){
   return copy;
 }
 
+/* Which jobs are ticked, by id, so the selection survives sorting and
+   filtering rather than being an accident of row position. */
+const jobSel = new Set();
+
+function selectedJobs(){ return jobs.filter(j=>jobSel.has(String(j.id))); }
+
+function renderJobBatch(shown){
+  const n = jobSel.size;
+  $('jobBatch').style.display = n ? 'flex' : 'none';
+  if(!n) return;
+  $('jobSelN').textContent = n + (n===1?' job selected':' jobs selected');
+  // Said out loud, because acting on jobs a filter is currently hiding is
+  // exactly the surprise a batch action must not spring on anybody.
+  const hidden = n - shown.filter(j=>jobSel.has(String(j.id))).length;
+  $('jobSelHidden').textContent = hidden ? '(' + hidden + ' not shown by this filter)' : '';
+  $('jobBatchWrite').style.display = canEdit() ? 'flex' : 'none';
+
+  const crew = $('jobBatchCrew');
+  const keep = crew.value;
+  crew.innerHTML = '<option value="">Assign crew…</option><option value="__none__">Unassigned</option>'
+    + employees.filter(e=>e.is_active !== false)
+        .map(e=>'<option value="'+esc(e.sync_id)+'">'+ (esc(e.name)||'Unnamed') +'</option>').join('');
+  crew.value = keep;
+}
+
 function renderJobStatusChips(){
   // Built from the data, so a filter that could only ever return nothing is
   // never offered. Counts ride along because "Draft 5" answers the question
@@ -2828,9 +2875,12 @@ function renderJobSortHeaders(){
   });
 }
 
+let jobShown = [];
+
 function renderJobs(){
   const matching = jobsMatching();
   const shown = jobsSorted(matching);
+  jobShown = shown;
   const filtering = jobView.q.trim() !== '' || jobView.status !== 'ALL';
 
   // Three different nothings, said differently. "No jobs yet" in front of a
@@ -2850,8 +2900,12 @@ function renderJobs(){
   renderJobStatusChips();
   renderJobSortHeaders();
 
+  renderJobBatch(shown);
+
   $('jobRows').innerHTML=shown.map(j=>`
     <tr class="click" data-id="${j.id}">
+      <td class="selcol"><input type="checkbox" class="jobtick" data-id="${j.id}"
+          ${jobSel.has(String(j.id))?'checked':''} aria-label="Select this job"></td>
       <td><strong>${esc(j.customer_name)||'Untitled'}</strong></td>
       <td>${esc(j.address)||'—'}</td>
       <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span>
@@ -2860,6 +2914,26 @@ function renderJobs(){
       <td>${money(netPaid(j))}</td></tr>`).join('');
   document.querySelectorAll('#jobRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showJob(tr.dataset.id)));
+  // The tick is not a way into the job. Without this, selecting a row opened
+  // it, which is the opposite of what a checkbox means.
+  document.querySelectorAll('#jobRows .jobtick').forEach(cb=>{
+    cb.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(cb.checked) jobSel.add(cb.dataset.id); else jobSel.delete(cb.dataset.id);
+      renderJobBatch(shown);
+      syncSelAll(shown);
+    });
+  });
+  syncSelAll(shown);
+}
+
+/* The header box reflects the rows in front of you: all, none, or some. */
+function syncSelAll(shown){
+  const box = $('jobSelAll');
+  const ids = shown.map(j=>String(j.id));
+  const picked = ids.filter(id=>jobSel.has(id)).length;
+  box.checked = ids.length > 0 && picked === ids.length;
+  box.indeterminate = picked > 0 && picked < ids.length;
 }
 
 /* Wired once against the static markup. The chips are redrawn on every
@@ -2878,6 +2952,83 @@ function toggleJobSort(key){
   else { jobView.sort = key; jobView.dir = (key === 'paid' || key === 'scheduled') ? 'asc' : 'asc'; }
   renderJobs();
 }
+$('jobSelAll').addEventListener('change', e=>{
+  // Acts on what is in front of you, not on every job in the company. A
+  // "select all" that quietly picks up rows a filter is hiding is how a batch
+  // action reaches jobs nobody meant to touch.
+  jobShown.forEach(j=>{
+    if(e.target.checked) jobSel.add(String(j.id)); else jobSel.delete(String(j.id));
+  });
+  renderJobs();
+});
+$('jobSelClear').addEventListener('click', ()=>{ jobSel.clear(); renderJobs(); });
+
+$('jobBatchCsv').addEventListener('click', ()=>{
+  const picked = selectedJobs();
+  if(!picked.length) return;
+  downloadCsv('fenceflow-jobs.csv',
+    ['Customer','Address','Status','Scheduled','Paid'],
+    picked.map(j=>[
+      j.customer_name||'', j.address||'', j.status||'',
+      j.scheduled_date ? d(j.scheduled_date).toLocaleDateString() : '',
+      netPaid(j).toFixed(2)
+    ]));
+  msg('jobsMsg', picked.length + (picked.length===1?' job exported.':' jobs exported.'), 'ok');
+});
+
+/* One write path for every batch change: confirm with the count in the
+   question, apply in a single statement, then reload so the table shows what
+   the database actually holds rather than what we hoped it would.
+   Deliberately no bulk status change and no bulk delete -- a status carries
+   downstream meaning (a quote counted as sent, a job counted as finished)
+   and nothing on this page deletes anything. */
+async function applyJobBatch(patch, question, done){
+  const ids = [...jobSel];
+  if(!ids.length || !canEdit()) return false;
+  const ok = await ask({
+    title: question,
+    body: 'This changes ' + ids.length + (ids.length===1?' job.':' jobs.') +
+          ' You can change them back the same way.',
+    confirmLabel: 'Change ' + ids.length,
+  });
+  if(!ok) return false;
+  const { error } = await db.from('jobs').update(patch).in('id', ids);
+  if(error){ msg('jobsMsg', error.message, 'err'); return false; }
+  msg('jobsMsg', done, 'ok');
+  await loadAll();
+  return true;
+}
+
+$('jobBatchCrew').addEventListener('change', async e=>{
+  const v = e.target.value;
+  if(!v) return;
+  const syncId = v === '__none__' ? null : v;
+  const who = v === '__none__' ? 'Unassigned'
+    : (employees.find(x=>x.sync_id===v)?.name || 'that crew member');
+  const n = jobSel.size;
+  await applyJobBatch(
+    { assigned_employee_sync_id: syncId },
+    'Assign ' + n + (n===1?' job':' jobs') + ' to ' + who + '?',
+    n + (n===1?' job assigned to ':' jobs assigned to ') + who + '.');
+  e.target.value = '';
+});
+
+$('jobBatchDate').addEventListener('change', async e=>{
+  const v = e.target.value;
+  if(!v) return;
+  // Eight in the morning, the same hour a single job's date is saved with, so
+  // a batch-scheduled job and a hand-scheduled one land on the same day in
+  // every calendar that reads them.
+  const iso = new Date(v + 'T08:00:00').toISOString();
+  const n = jobSel.size;
+  const shownDate = new Date(v + 'T08:00:00').toLocaleDateString();
+  await applyJobBatch(
+    { scheduled_date: iso },
+    'Schedule ' + n + (n===1?' job':' jobs') + ' for ' + shownDate + '?',
+    n + (n===1?' job scheduled for ':' jobs scheduled for ') + shownDate + '.');
+  e.target.value = '';
+});
+
 document.querySelectorAll('#tab-jobs th.sortable').forEach(th=>{
   th.addEventListener('click', ()=>toggleJobSort(th.dataset.sort));
   // Reachable without a mouse: the office is a keyboard place.
@@ -5055,7 +5206,14 @@ function renderReports(){
 
 /* Downloads a table as CSV. Values are quoted so commas in names survive. */
 function downloadCsv(name,header,rows){
-  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const q=v=>{
+    let t=String(v??'');
+    // Neutralised, not stripped: the value still reads correctly to a person,
+    // it just cannot be evaluated. Excel and Sheets both treat a leading
+    // apostrophe as "this is text".
+    if(/^[=+\-@\t\r]/.test(t)) t="'"+t;
+    return `"${t.replace(/"/g,'""')}"`;
+  };
   const csv=[header.map(q).join(','),...rows.map(r=>r.map(q).join(','))].join('\n');
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   const a=document.createElement('a');
