@@ -109,6 +109,9 @@
     .wrap{padding:16px 13px 60px}
     .panel,.approve{padding:18px}
     .totals .grand{font-size:34px}
+    /* Clear of the view controls in the corner, rather than under them. */
+    #stageHint{bottom:48px;font-size:11.5px}
+    #mapCred{bottom:48px}
   }
   @media (prefers-reduced-motion:reduce){
     .btn:hover{transform:none}
@@ -283,7 +286,7 @@ function render(){
       // One press. Saying yes and paying the deposit are the same decision,
       // and splitting them into two buttons meant a homeowner approved, saw
       // a thank-you, and never noticed the second one.
-      $('approveBtn').textContent='Approve and pay the '+money(dueNow())+' deposit';
+      $('approveBtn').textContent='Approve and pay '+money(dueNow());
       $('approveOnlyBtn').style.display='';
       $('approveLead').innerHTML='Type your name to approve. We&rsquo;ll take you '
         +'straight to the deposit payment, and you&rsquo;ll get a copy of everything.';
