@@ -281,6 +281,29 @@
   .chip:hover{border-color:var(--orange)}
   .chip.on{background:var(--brand-ink);border-color:var(--brand-ink);color:#fff}
   .range{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+
+  /* ---- Jobs toolbar: search, status filters, result count ------------- */
+  .jt{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+  .jt input[type=search]{width:auto;flex:1 1 240px;min-width:180px;padding:8px 11px}
+  .jt .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .jt .chip{padding:5px 11px;font-size:12.5px}
+  /* The count is the only proof a filter did anything when the result set
+     still looks plausible. Without it, a search that quietly matched nothing
+     and a company with no jobs look identical. */
+  .jt-count{font-size:12.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
+  .jt-clear{font-size:12.5px;color:var(--orange);background:none;border:none;
+            cursor:pointer;font-family:inherit;font-weight:600;padding:4px}
+  .jt-clear:focus-visible{outline:2px solid var(--orange);outline-offset:2px;border-radius:4px}
+
+  /* Sortable headers. The arrow is the only thing that says which column is
+     doing the sorting -- a header that merely looks bold could just be a
+     header. */
+  th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+  th.sortable:hover{color:var(--text)}
+  th.sortable:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
+  th.sortable .arw{opacity:0;margin-left:4px;font-size:10px}
+  th.sortable[aria-sort]:not([aria-sort=none]){color:var(--text)}
+  th.sortable[aria-sort]:not([aria-sort=none]) .arw{opacity:1;color:var(--orange)}
   .range-label{margin-top:9px;font-size:12px;color:var(--muted)}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
   .panel .sub{font-size:12px;color:var(--muted);margin:-6px 0 12px}
@@ -569,8 +592,21 @@
           </div>
         </div>
         <div class="msg" id="jobsMsg"></div>
+        <div class="jt">
+          <input type="search" id="jobSearch" placeholder="Search a customer or address"
+                 autocomplete="off" aria-label="Search jobs">
+          <div class="chips" id="jobStatusChips"></div>
+          <span class="jt-count" id="jobsCount"></span>
+          <button class="jt-clear" id="jobsClear" style="display:none">Clear</button>
+        </div>
         <div class="scroll"><table>
-          <thead><tr><th>Customer</th><th>Address</th><th>Status</th><th>Scheduled</th><th>Paid</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" data-sort="customer" tabindex="0" aria-sort="none">Customer<span class="arw"></span></th>
+            <th class="sortable" data-sort="address" tabindex="0" aria-sort="none">Address<span class="arw"></span></th>
+            <th class="sortable" data-sort="status" tabindex="0" aria-sort="none">Status<span class="arw"></span></th>
+            <th class="sortable" data-sort="scheduled" tabindex="0" aria-sort="none">Scheduled<span class="arw"></span></th>
+            <th class="sortable" data-sort="paid" tabindex="0" aria-sort="none">Paid<span class="arw"></span></th>
+          </tr></thead>
           <tbody id="jobRows"></tbody></table></div>
         <div class="empty" id="jobsEmpty" style="display:none">No jobs yet.</div>
       </div>
@@ -2722,9 +2758,99 @@ function renderDash(){
 }
 
 /* ---------- jobs ---------- */
+/* How the jobs list is being looked at. Sorting defaults to what is coming
+   up rather than to the order Postgres happened to return, which was
+   arbitrary -- there was no ORDER BY, so "the top of the list" meant
+   nothing. Unscheduled jobs sort last whichever direction is chosen: they
+   have no date, so putting them at either end by pretending they do is a
+   lie about the data. */
+const jobView = { q:'', status:'ALL', sort:'scheduled', dir:'asc' };
+
+/* The order the pipeline moves in, so sorting by status walks a job's life
+   rather than the alphabet. */
+const JOB_STATUS_ORDER = ['DRAFT','SENT','ACCEPTED','COMPLETED','DECLINED'];
+
+function jobsMatching(){
+  const q = jobView.q.trim().toLowerCase();
+  return jobs.filter(j=>{
+    if (jobView.status !== 'ALL' && j.status !== jobView.status) return false;
+    if (!q) return true;
+    return ((j.customer_name||'') + ' ' + (j.address||'')).toLowerCase().includes(q);
+  });
+}
+
+function jobsSorted(list){
+  const dir = jobView.dir === 'desc' ? -1 : 1;
+  const txt = v => (v||'').toString().toLowerCase();
+  const copy = list.slice();
+  copy.sort((a,b)=>{
+    switch(jobView.sort){
+      case 'customer': return txt(a.customer_name).localeCompare(txt(b.customer_name)) * dir;
+      case 'address':  return txt(a.address).localeCompare(txt(b.address)) * dir;
+      case 'status':   return (JOB_STATUS_ORDER.indexOf(a.status) - JOB_STATUS_ORDER.indexOf(b.status)) * dir;
+      case 'paid':     return (netPaid(a) - netPaid(b)) * dir;
+      case 'scheduled':
+      default: {
+        // Never scheduled is not "the earliest date" and not "the latest".
+        // It goes to the bottom either way, so flipping the arrow never
+        // buries the jobs that are actually booked.
+        const av = a.scheduled_date ? d(a.scheduled_date).getTime() : null;
+        const bv = b.scheduled_date ? d(b.scheduled_date).getTime() : null;
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        return (av - bv) * dir;
+      }
+    }
+  });
+  return copy;
+}
+
+function renderJobStatusChips(){
+  // Built from the data, so a filter that could only ever return nothing is
+  // never offered. Counts ride along because "Draft 5" answers the question
+  // most people were about to ask by clicking it.
+  const counts = {};
+  jobs.forEach(j=>{ counts[j.status] = (counts[j.status]||0) + 1; });
+  const present = JOB_STATUS_ORDER.filter(st=>counts[st]);
+  const chip = (st,label,n)=>
+    '<button class="chip'+(jobView.status===st?' on':'')+'" data-st="'+st+'">'+
+    esc(label)+' <span style="opacity:.65">'+n+'</span></button>';
+  $('jobStatusChips').innerHTML =
+    chip('ALL','All',jobs.length) + present.map(st=>chip(st,st.charAt(0)+st.slice(1).toLowerCase(),counts[st])).join('');
+}
+
+function renderJobSortHeaders(){
+  document.querySelectorAll('#tab-jobs th.sortable').forEach(th=>{
+    const on = th.dataset.sort === jobView.sort;
+    th.setAttribute('aria-sort', on ? (jobView.dir==='asc'?'ascending':'descending') : 'none');
+    th.querySelector('.arw').textContent = on ? (jobView.dir==='asc'?'▲':'▼') : '';
+  });
+}
+
 function renderJobs(){
-  $('jobsEmpty').style.display=jobs.length?'none':'block';
-  $('jobRows').innerHTML=jobs.map(j=>`
+  const matching = jobsMatching();
+  const shown = jobsSorted(matching);
+  const filtering = jobView.q.trim() !== '' || jobView.status !== 'ALL';
+
+  // Three different nothings, said differently. "No jobs yet" in front of a
+  // company with forty jobs and a typo in the search box is how somebody
+  // concludes the page is broken.
+  const empty = $('jobsEmpty');
+  empty.style.display = shown.length ? 'none' : 'block';
+  empty.textContent = jobs.length === 0
+    ? 'No jobs yet.'
+    : 'No jobs match that. Clear the search or pick a different status.';
+
+  $('jobsCount').textContent = filtering
+    ? shown.length + ' of ' + jobs.length + (jobs.length === 1 ? ' job' : ' jobs')
+    : jobs.length + (jobs.length === 1 ? ' job' : ' jobs');
+  $('jobsClear').style.display = filtering ? '' : 'none';
+
+  renderJobStatusChips();
+  renderJobSortHeaders();
+
+  $('jobRows').innerHTML=shown.map(j=>`
     <tr class="click" data-id="${j.id}">
       <td><strong>${esc(j.customer_name)||'Untitled'}</strong></td>
       <td>${esc(j.address)||'—'}</td>
@@ -2735,6 +2861,30 @@ function renderJobs(){
   document.querySelectorAll('#jobRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showJob(tr.dataset.id)));
 }
+
+/* Wired once against the static markup. The chips are redrawn on every
+   render, so their handler lives on the container rather than on buttons
+   that stop existing. */
+$('jobSearch').addEventListener('input', e=>{ jobView.q = e.target.value; renderJobs(); });
+$('jobStatusChips').addEventListener('click', e=>{
+  const b = e.target.closest('.chip'); if(!b) return;
+  jobView.status = b.dataset.st; renderJobs();
+});
+$('jobsClear').addEventListener('click', ()=>{
+  jobView.q=''; jobView.status='ALL'; $('jobSearch').value=''; renderJobs();
+});
+function toggleJobSort(key){
+  if (jobView.sort === key) jobView.dir = (jobView.dir === 'asc' ? 'desc' : 'asc');
+  else { jobView.sort = key; jobView.dir = (key === 'paid' || key === 'scheduled') ? 'asc' : 'asc'; }
+  renderJobs();
+}
+document.querySelectorAll('#tab-jobs th.sortable').forEach(th=>{
+  th.addEventListener('click', ()=>toggleJobSort(th.dataset.sort));
+  // Reachable without a mouse: the office is a keyboard place.
+  th.addEventListener('keydown', e=>{
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleJobSort(th.dataset.sort); }
+  });
+});
 
 /* ---------- calendar ---------- */
 /* Colour carries the job's stage, and only its stage — the same palette the
