@@ -9,9 +9,37 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
 <style>
   :root{--graphite:#0F1826;--graphite2:#1E2A3D;--orange:#FF5A1F;--orange-dk:#B23800;
-        --teal:#0E8C7B;--paper:#F7F8FA;--line:#E3E7ED;--text:#12151A;--muted:#5A6472;--red:#E5484D}
+        --teal:#0E8C7B;--paper:#F7F8FA;--line:#E3E7ED;--text:#12151A;--muted:#5A6472;--red:#E5484D;
+        --text-primary:#12151A;--text-secondary:#5A6472;--grid:#EDF0F4;
+        --bg:#F7F8FA;--surface:#ffffff;--surface-2:#ffffff;
+        --ok:#0B6B4F;--ok-bg:#E6F6F3;--ok-fg:#07473D;
+        --warn:#8A5200;--warn-bg:#FFF4E5;--warn-fg:#7A4B00;
+        --bad:#8C1114;--bad-bg:#FDECEC;--bad-fg:#8C1114;
+        --info:#14508F;--info-bg:#EEF2F7;--info-fg:#25313F}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0B111C;--paper:#1A2433;--surface:#131C2B;--surface-2:#1A2433;
+      --line:#2B3646;--grid:#223044;
+      --text:#EEF0F4;--muted:#93A1B5;--text-primary:#EEF0F4;--text-secondary:#93A1B5;
+      --graphite:#AEBBCC;--orange:#FF7A45;--orange-dk:#FFA077;--teal:#3FB9A6;
+      --ok:#4FD1B0;--ok-bg:#123029;--ok-fg:#8FE7D0;
+      --warn:#F2B544;--warn-bg:#3A2B12;--warn-fg:#FAD79A;
+      --bad:#FF8A80;--bad-bg:#3E1A1A;--bad-fg:#FFBDB6;
+      --info:#7FB6F0;--info-bg:#12263D;--info-fg:#B6D6F7;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0B111C;--paper:#1A2433;--surface:#131C2B;--surface-2:#1A2433;
+    --line:#2B3646;--grid:#223044;
+    --text:#EEF0F4;--muted:#93A1B5;--text-primary:#EEF0F4;--text-secondary:#93A1B5;
+    --graphite:#AEBBCC;--orange:#FF7A45;--orange-dk:#FFA077;--teal:#3FB9A6;
+    --ok:#4FD1B0;--ok-bg:#123029;--ok-fg:#8FE7D0;
+    --warn:#F2B544;--warn-bg:#3A2B12;--warn-fg:#FAD79A;
+    --bad:#FF8A80;--bad-bg:#3E1A1A;--bad-fg:#FFBDB6;
+    --info:#7FB6F0;--info-bg:#12263D;--info-fg:#B6D6F7;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--text)}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
   /* The header carries the brand: graphite steel with the safety-orange
      hairline along the top — the one loud element, kept to three pixels. */
   header{background:linear-gradient(180deg,var(--graphite2),var(--graphite));color:#fff;
@@ -27,8 +55,8 @@
   .btn:focus-visible,.btn-grey:focus-visible{outline:2px solid var(--graphite);outline-offset:2px}
   .btn-sm{padding:6px 12px;font-size:13px}
   .btn-ghost{background:transparent;border:1px solid #48566B;color:#fff}
-  .btn-grey{background:#fff;border:1px solid var(--line);color:var(--text)}
-  input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background:#fff}
+  .btn-grey{background:var(--surface);border:1px solid var(--line);color:var(--text)}
+  input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background:var(--surface)}
   textarea{min-height:70px;resize:vertical}
   label{display:block;font-size:11px;font-weight:600;margin:10px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
   /* Headings speak in the display face; running text stays system. */
@@ -36,15 +64,15 @@
      letter-spacing:.02em;text-transform:uppercase}
   .sheet-head b{font:600 18px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;
      letter-spacing:.02em;text-transform:uppercase}
-  .auth{max-width:380px;margin:60px auto;background:#fff;padding:28px;border-radius:12px;border:1px solid var(--line)}
+  .auth{max-width:380px;margin:60px auto;background:var(--surface);padding:28px;border-radius:12px;border:1px solid var(--line)}
   .msg{padding:10px;border-radius:8px;font-size:13px;margin:10px 0;display:none}
-  .msg.err{background:#FDECEC;color:#8C1114;display:block}
-  .msg.ok{background:#E6F6F3;color:#07473D;display:block}
+  .msg.err{background:var(--bad-bg);color:var(--bad-fg);display:block}
+  .msg.ok{background:var(--ok-bg);color:var(--ok-fg);display:block}
   /* Neutral, and it stays put. Anything written into .msg without one of
      these classes is invisible -- which is how "Opening secure checkout…"
      and "Confirm the email we just sent you" were being shown to nobody. */
-  .msg.info{background:#EEF2F7;color:#25313F;display:block}
-  .msg.working{background:#EEF2F7;color:#25313F;display:block}
+  .msg.info{background:var(--info-bg);color:var(--info-fg);display:block}
+  .msg.working{background:var(--info-bg);color:var(--info-fg);display:block}
   .tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin-bottom:18px;overflow-x:auto}
   .tab{background:none;border:none;padding:11px 15px;font-size:13.5px;font-weight:600;color:var(--muted);
        cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit;
@@ -54,13 +82,74 @@
   /* Active is ink, not orange: the orange underline alone marks it, so the
      accent stays an accent instead of becoming a text colour. */
   .tab.on{color:var(--text);border-bottom-color:var(--orange)}
+
+  /* --- Desktop: the tab strip becomes a sidebar -----------------------
+     Ten tabs in a horizontal strip is a phone pattern. On a wide monitor it
+     spends the whole width on navigation, leaves the eye no fixed home, and
+     pushes every table into a single narrow column underneath -- which is
+     exactly the "stretched mobile app" the office is not supposed to be.
+
+     Above 1024px the same buttons stack into a column on the left and stay
+     put while a long jobs table scrolls past them. Below that the strip is
+     right and is left alone.
+
+     Pure CSS on purpose. The markup, the ids, the click handlers and
+     switchTab are untouched -- this file has taken the office down before,
+     and a layout change is not worth reopening that door. .wrap has exactly
+     eleven children (the strip and ten panels) and nine of the panels are
+     display:none at any moment, so a two-column grid puts the strip in the
+     first column and whichever panel is showing in the second. */
+  @media (min-width:1024px){
+    .wrap{
+      max-width:1580px;
+      display:grid;
+      grid-template-columns:206px minmax(0,1fr);
+      gap:0 28px;
+      align-items:start;
+    }
+    .tabs{
+      display:block;
+      border-bottom:none;
+      margin-bottom:0;
+      overflow:visible;
+      /* Follows a long table down the page. */
+      position:sticky;
+      top:16px;
+      border-right:1px solid var(--line);
+      padding-right:12px;
+    }
+    .tab{
+      display:block;
+      width:100%;
+      text-align:left;
+      padding:9px 12px;
+      margin-bottom:1px;
+      border-bottom:none;
+      /* The marker moves from under the label to beside it, so the active
+         row reads as a place you are in rather than a heading you passed. */
+      border-left:3px solid transparent;
+      border-radius:0 7px 7px 0;
+    }
+    .tab.on{
+      border-bottom-color:transparent;
+      border-left-color:var(--orange);
+      background:var(--surface,#fff);
+    }
+    .tab:hover{background:var(--surface,#fff)}
+  }
+
+  /* Between a phone and a laptop the strip stays, but the page can still use
+     the width it has. */
+  @media (min-width:1024px) and (max-width:1400px){
+    .wrap{max-width:1340px}
+  }
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
-  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px}
   .stat.click{cursor:pointer}.stat.click:hover{border-color:var(--orange)}
   .stat .n{font:700 27px/1.15 "Barlow Condensed","Arial Narrow",sans-serif;
            font-variant-numeric:tabular-nums;letter-spacing:.01em}
   .stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
   .panel h2{font-size:16px;margin-bottom:10px}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
@@ -86,32 +175,24 @@
   .setup-row:first-child{border-top:none}
   .setup-mark{flex:none;width:20px;height:20px;border-radius:4px;display:flex;align-items:center;
     justify-content:center;font-size:12px;font-weight:700;margin-top:1px}
-  .setup-todo{background:#FFF4E5;color:#7A4B00;border:1px solid #E5C08A}
-  .setup-done{background:#E6F6F3;color:#07473D;border:1px solid #A6D9CE}
+  .setup-todo{background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn)}
+  .setup-done{background:var(--ok-bg);color:var(--ok-fg);border:1px solid var(--ok)}
   .setup-what{font-weight:600}
   .setup-why{font-size:13.5px;color:var(--muted);margin-top:2px}
   .setup-go{margin-left:auto;flex:none}
-  @media (prefers-color-scheme: dark){
-    .setup-todo{background:#3A2A0A;color:#FFD79A;border-color:#5C4415}
-    .setup-done{background:#12312B;color:#8FD9C7;border-color:#1F4A41}
-  }
   #serviceBanner{padding:12px 16px;font-size:14px;border-bottom:1px solid var(--line);
     display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
-  #serviceBanner.warn{background:#FFF4E5;color:#7A4B00}
-  #serviceBanner.bad{background:#FDECEC;color:#8C1114}
+  #serviceBanner.warn{background:var(--warn-bg);color:var(--warn-fg)}
+  #serviceBanner.bad{background:var(--bad-bg);color:var(--bad-fg)}
   #serviceBanner a{color:inherit;font-weight:600}
-  @media (prefers-color-scheme: dark){
-    #serviceBanner.warn{background:#3A2A0A;color:#FFD79A}
-    #serviceBanner.bad{background:#3A1414;color:#FFB4B4}
-  }
   #booting{display:flex;align-items:center;justify-content:center;gap:10px;
     padding:60px 20px;color:var(--muted);font-size:14px}
   .overlay{position:fixed;inset:0;background:rgba(15,24,38,.6);display:none;z-index:50;overflow-y:auto;padding:16px}
   .overlay.on{display:block}
-  .sheet{max-width:900px;margin:0 auto;background:var(--paper);border-radius:12px;overflow:hidden}
+  .sheet{max-width:900px;margin:0 auto;background:var(--surface-2);border-radius:12px;overflow:hidden}
   .sheet-head{background:var(--graphite);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}
   .sheet-body{padding:16px}
-  .sheet-foot{padding:12px 16px;background:#fff;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0}
+  .sheet-foot{padding:12px 16px;background:var(--surface);border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0}
   /* New client wizard: its own row grid rather than reusing .row2/.row3,
      because the office asked this page keep working at 1100px (three columns
      of spec fields fit) and fall to one column below 720px specifically --
@@ -127,19 +208,19 @@
   .wiz-rail .seg.done{background:var(--teal)}
   .wiz-rail .seg.now{background:var(--orange)}
   .wiz-tpl-btn{white-space:normal;text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis}
-  .note{background:#FFF4E5;border:1px solid #FFD9A8;color:#7A4A00;padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px}
+  .note{background:var(--warn-bg);border:1px solid var(--warn);color:var(--warn-fg);padding:10px;border-radius:8px;font-size:13px;margin-bottom:12px}
   /* Calendar */
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}
   .cal-head .nav{display:flex;gap:6px}
   /* The month in one line before the grid: how much work is booked, how many
      hours actually happened, what money landed. */
   .cal-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
-  .cal-sum div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 13px}
+  .cal-sum div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 13px}
   .cal-sum b{display:block;font:700 22px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;font-variant-numeric:tabular-nums}
   .cal-sum span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .cal .dow{font-size:11px;font-weight:700;color:var(--muted);text-align:center;padding:5px 0 7px;text-transform:uppercase;letter-spacing:.5px}
-  .cal .day{background:#fff;border:1px solid var(--line);border-radius:8px;min-height:96px;padding:5px 6px;font-size:12px;position:relative}
+  .cal .day{background:var(--surface);border:1px solid var(--line);border-radius:8px;min-height:96px;padding:5px 6px;font-size:12px;position:relative}
   /* Weekends recede; the working week is what the calendar is for. */
   .cal .day.wkend{background:var(--paper)}
   .cal .day.out{opacity:.45}
@@ -163,7 +244,7 @@
   .pipe{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
   .col{min-width:230px;flex:0 0 230px}
   .col h3{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between}
-  .card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:7px;cursor:pointer;font-size:13px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:7px;cursor:pointer;font-size:13px}
   .card:hover{border-color:var(--orange)}
   @media(max-width:700px){.row2,.row3{grid-template-columns:1fr}.cal .day{min-height:64px}}
 
@@ -172,10 +253,7 @@
      white surface). Two of them sit under 3:1 contrast, so every chart here
      ships visible direct labels and a table view — the relief rule. */
   .viz-root{
-    --surface-1:#ffffff;
-    --text-primary:#12151A;
-    --text-secondary:#5A6472;
-    --grid:#EDF0F4;
+    --surface-1:var(--surface);
     --series-1:#2a78d6;
     --series-2:#eb6834;
     --series-3:#1baf7a;
@@ -183,7 +261,7 @@
   }
   .filters{position:sticky;top:0;z-index:5}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-  .chip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 13px;
+  .chip{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:6px 13px;
         font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit}
   .chip:hover{border-color:var(--orange)}
   .chip.on{background:var(--graphite);border-color:var(--graphite);color:#fff}
@@ -206,9 +284,9 @@
   .hero-band svg{display:block}
   .delta{display:inline-block;font-size:11.5px;font-weight:700;border-radius:12px;
          padding:2px 9px;margin-top:6px;font-variant-numeric:tabular-nums}
-  .delta.up{background:#E6F6F1;color:#0B6B4F}
-  .delta.down{background:#FDECEC;color:#8C1114}
-  .delta.flat{background:#EEF2F7;color:#5A6472}
+  .delta.up{background:var(--ok-bg);color:var(--ok-fg)}
+  .delta.down{background:var(--bad-bg);color:var(--bad-fg)}
+  .delta.flat{background:var(--info-bg);color:var(--muted)}
   .hero-band .delta.up{background:rgba(27,175,122,.18);color:#7DE0B9}
   .hero-band .delta.down{background:rgba(229,72,77,.2);color:#F1A1A4}
   .hero-band .delta.flat{background:rgba(255,255,255,.12);color:#AEBBCC}
@@ -217,7 +295,7 @@
      the things that cost money by sitting still, found automatically, each
      one openable to the rows behind it. */
   .attn{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-bottom:18px}
-  .attn .a{background:#fff;border:1px solid var(--line);border-left:4px solid var(--orange);
+  .attn .a{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--orange);
            border-radius:10px;padding:12px 14px;cursor:pointer;transition:border-color .1s}
   .attn .a:hover{border-color:var(--orange)}
   .attn .a b{font:700 21px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;
@@ -225,7 +303,7 @@
   .attn .a span{font-size:12.5px;color:var(--ink-2,#454F49);color:var(--text)}
   .attn .a .why{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
   .attn .clear{border-left-color:#1baf7a;cursor:default}
-  .attn .clear b{color:#0B6B4F}
+  .attn .clear b{color:var(--ok-fg)}
   .chart{width:100%;overflow:visible;display:block}
   .chart .grid-line{stroke:var(--grid);stroke-width:1}
   .chart .axis-label{fill:var(--text-secondary);font-size:11px}
@@ -255,7 +333,7 @@
      column under 720px, the same breakpoint the wizards already use. */
   .cat-editor{max-width:1100px}
   .mcat{margin-bottom:14px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  .mcat-head{width:100%;text-align:left;background:#fff;border:none;padding:12px 14px;
+  .mcat-head{width:100%;text-align:left;background:var(--surface);border:none;padding:12px 14px;
              font-size:15px;font-weight:700;color:var(--text);cursor:pointer;font-family:inherit;
              display:flex;align-items:baseline;gap:8px}
   .mcat-head:hover{color:var(--orange)}
@@ -264,13 +342,9 @@
   .mcat.closed .mcat-body{display:none}
   .mcat-count{font-size:12px;font-weight:400;color:var(--muted);margin-left:auto}
   .mcat-body{padding:0 14px 14px}
-  .mcat-missing{background:#FFF4E5;border:1px solid #E5C08A;color:#7A4B00;border-radius:8px;
+  .mcat-missing{background:var(--warn-bg);border:1px solid var(--warn);color:var(--warn-fg);border-radius:8px;
                 padding:8px 11px;font-size:12.5px;margin:0 0 10px}
-  .mcat-missing.ok{background:#E6F6F3;border-color:#A6D9CE;color:#07473D}
-  @media(prefers-color-scheme:dark){
-    .mcat-missing{background:#3A2A0A;color:#FFD79A;border-color:#5C4415}
-    .mcat-missing.ok{background:#12312B;color:#8FD9C7;border-color:#1F4A41}
-  }
+  .mcat-missing.ok{background:var(--ok-bg);border-color:var(--ok);color:var(--ok-fg)}
   .mcat-cat-head td{background:var(--paper);font-size:11px;font-weight:700;text-transform:uppercase;
                     letter-spacing:.5px;color:var(--muted);padding:7px 6px}
   tr.mcat-inactive td{color:var(--muted)}
@@ -284,11 +358,10 @@
      about what a colour on the drawing means. */
   .run-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;max-width:1100px}
   .run-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
-  .run-canvas{display:block;width:100%;height:auto;background:#EEF1F5;border-radius:8px;margin:8px 0 4px}
-  @media(prefers-color-scheme:dark){.run-canvas{background:#1a2433}}
+  .run-canvas{display:block;width:100%;height:auto;background:var(--grid);border-radius:8px;margin:8px 0 4px}
 
   /* ---- Satellite tool: gate placement popover + precision loupe -------- */
-  .sat-gate-pop{position:absolute;background:#fff;color:var(--text);border:1px solid var(--line);
+  .sat-gate-pop{position:absolute;background:var(--surface-2);color:var(--text);border:1px solid var(--line);
                 border-radius:10px;padding:11px;box-shadow:0 6px 18px rgba(0,0,0,.22);z-index:6;width:180px}
   .sat-gate-pop label{margin:6px 0 3px}
   .sat-gate-pop label:first-child{margin-top:0}
@@ -300,7 +373,7 @@
      tabular-nums: proportional digits make 11.5 and 8.75 fail to line up and
      the eye can no longer scan the column. */
   .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
-  .person{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+  .person{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 14px;
           cursor:pointer;text-align:left;font-family:inherit;transition:border-color .12s,box-shadow .12s}
   .person:hover{border-color:var(--orange)}
   .person.on{border-color:var(--graphite);box-shadow:inset 0 0 0 1px var(--graphite)}
@@ -313,7 +386,7 @@
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
   .dot.act{background:var(--series-3)}.dot.ina{background:#B9C0CA}
 
-  .scorecard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+  .scorecard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
   .sc-head{background:var(--graphite);color:#fff;padding:16px 18px;display:flex;
            justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
   .sc-head h3{font-size:19px;font-weight:800;margin:0}
@@ -333,9 +406,9 @@
   /* State is a shape and a word as well as a colour. */
   .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;
         border:1px solid transparent;white-space:nowrap}
-  .pill.ok{background:#E6F6F1;color:#0B6B4F;border-color:#BFE6D8}
-  .pill.wait{background:#FFF4E0;color:#8A5A00;border-color:#F3DDB0}
-  .pill.no{background:#FDECEC;color:#8C1114;border-color:#F3C9C9}
+  .pill.ok{background:var(--ok-bg);color:var(--ok-fg);border-color:var(--ok)}
+  .pill.wait{background:var(--warn-bg);color:var(--warn-fg);border-color:var(--warn)}
+  .pill.no{background:var(--bad-bg);color:var(--bad-fg);border-color:var(--bad)}
   .bar-mini{height:6px;border-radius:4px;background:var(--grid);overflow:hidden;display:flex}
   .bar-mini i{display:block;height:100%}
   .heat{display:grid;grid-template-columns:repeat(auto-fill,14px);gap:3px}
@@ -350,8 +423,8 @@
   .chart .pick:hover .bar,.chart .pick:hover path,.chart .pick:hover rect{opacity:.72}
   .stat.askable:hover,.person:hover{border-color:var(--orange)}
   .hint{font-size:11px;color:var(--muted);margin-top:6px}
-  .xp-how{background:#EEF2F7;border-radius:10px;padding:13px 15px;font-size:14px;line-height:1.5}
-  .xp-math{margin:14px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .xp-how{background:var(--info-bg);border-radius:10px;padding:13px 15px;font-size:14px;line-height:1.5}
+  .xp-math{margin:14px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
   .xp-math div{display:flex;justify-content:space-between;gap:16px;padding:9px 14px;
                border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
   .xp-math div:last-child{border-bottom:none}
@@ -428,12 +501,12 @@
   <p style="margin-top:8px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
 </div>
 
-<dialog id="askDialog" style="border:1px solid var(--line);border-radius:14px;background:#fff;
+<dialog id="askDialog" style="border:1px solid var(--line);border-radius:14px;background:var(--surface-2);
   color:var(--text);max-width:min(440px,92vw);width:92%;padding:20px">
   <h3 style="margin:0 0 6px;font-size:17px" id="askTitle"></h3>
   <p style="color:var(--muted);font-size:14px;margin:0;line-height:1.5" id="askBody"></p>
   <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
-    <button id="askNo" class="btn" style="background:#fff;color:var(--text);border:1px solid var(--line)">Cancel</button>
+    <button id="askNo" class="btn" style="background:var(--surface);color:var(--text);border:1px solid var(--line)">Cancel</button>
     <button id="askYes" class="btn"></button>
   </div>
 </dialog>
@@ -2641,7 +2714,7 @@ function renderJobs(){
       <td><strong>${esc(j.customer_name)||'Untitled'}</strong></td>
       <td>${esc(j.address)||'—'}</td>
       <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span>
-        ${j.wizard_step ? '<span class="pill" style="background:#FFF4E5;color:#7A4B00;margin-left:4px;white-space:nowrap">Finish setting up</span>' : ''}</td>
+        ${j.wizard_step ? '<span class="pill" style="background:var(--warn-bg);color:var(--warn-fg);margin-left:4px;white-space:nowrap">Finish setting up</span>' : ''}</td>
       <td>${j.scheduled_date?d(j.scheduled_date).toLocaleDateString():'—'}</td>
       <td>${money(netPaid(j))}</td></tr>`).join('');
   document.querySelectorAll('#jobRows tr').forEach(tr=>
@@ -5967,8 +6040,8 @@ function renderOfficePricingResult(output){
     const effectivePrice = hasSupplierPrice ? i.supplier_unit_price : (i.unit_price||0);
     return `<tr>
       <td>${esc(i.description)}${i.auto_generated===false
-        ? ' <span class="pill" style="background:#EEF2F7;color:#25313F;font-size:10px;font-weight:700">edited</span>' : ''}${hasSupplierPrice
-        ? ' <span class="pill" style="background:#E7F5EC;color:#1E6B3C;font-size:10px;font-weight:700">supplier</span>' : ''}</td>
+        ? ' <span class="pill" style="background:var(--info-bg);color:var(--info-fg);font-size:10px;font-weight:700">edited</span>' : ''}${hasSupplierPrice
+        ? ' <span class="pill" style="background:var(--ok-bg);color:var(--ok-fg);font-size:10px;font-weight:700">supplier</span>' : ''}</td>
       <td>${i.quantity}</td><td>${esc(i.unit||'')}</td>
       <td>${money(effectivePrice)}</td>
       <td>${money((i.quantity||0)*effectivePrice)}</td>
@@ -5980,7 +6053,7 @@ function renderOfficePricingResult(output){
     ...zeroNamed.map(z=>esc(z.name)+' on '+esc(runLabel(z.run_sync_id))+' is priced at $0.'),
   ];
   const warnBlock = warnings.length
-    ? `<div style="margin:10px 0;padding:10px;background:#FFF4E5;border-radius:8px;color:#7A4B00;font-size:13px">
+    ? `<div style="margin:10px 0;padding:10px;background:var(--warn-bg);border-radius:8px;color:var(--warn-fg);font-size:13px">
          ${warnings.map(w=>`<div>${w}</div>`).join('')}
        </div>` : '';
 
@@ -7453,7 +7526,7 @@ function wizRenderEstimateResult(){
   const addForms = unmatched.map((u,i) => {
     const run = runs.find(r=>r.sync_id===u.run_sync_id);
     const ft = run ? run.fence_type : 'UNIVERSAL';
-    return `<div class="panel" style="background:var(--paper)">
+    return `<div class="panel" style="background:var(--surface)">
       <div class="sub" style="margin-bottom:6px">No catalog match for <b>${esc(u.role)}</b> on
         ${esc(run ? (run.label||'Untitled run') : 'a run')} (${esc(wizFenceTypeLabel(ft))}).</div>
       <div class="wiz-row3">
@@ -7967,7 +8040,7 @@ function swRenderCatalogCheck(){
       ? `<div><strong>${esc(catFenceTypeLabel(t))}:</strong> missing ${esc(missing.map(r=>r.replace(/_/g,' ')).join(', '))}</div>`
       : `<div><strong>${esc(catFenceTypeLabel(t))}:</strong> every role covered.</div>`;
   }).join('');
-  el.innerHTML = `<div class="panel" style="background:var(--paper)">
+  el.innerHTML = `<div class="panel" style="background:var(--surface)">
     <strong style="display:block;margin-bottom:4px">Check my catalog</strong>${lines}
   </div>`;
 }
@@ -8613,7 +8686,7 @@ async function sendCrewInvite(emp){
     showCrewInviteNotice(
       `${esc(body.error||'Email is not set up yet. Give them the code by hand.')}
        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-         <code style="font-family:ui-monospace,monospace;background:#fff;border:1px solid var(--line);
+         <code style="font-family:ui-monospace,monospace;background:var(--surface);border:1px solid var(--line);
                padding:4px 8px;border-radius:6px">${esc(body.code)}</code>
          <button class="btn btn-sm btn-grey" id="crewInviteCopyBtn" type="button">Copy code</button>
        </div>`,
