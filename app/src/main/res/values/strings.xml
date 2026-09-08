@@ -196,6 +196,14 @@
     <string name="draw_grid_size_ft">%1$d ft</string>
     <string name="draw_closed_perimeter">Closed perimeter (no open ends)</string>
     <string name="draw_undo">Undo</string>
+    <string name="seg_len_title">Set this length</string>
+    <string name="seg_len_row_title">Segment lengths — tap one to set it exactly</string>
+    <string name="seg_len_chip">%1$d: %2$s</string>
+    <string name="seg_len_current">Drawn as %1$s</string>
+    <string name="seg_len_label">Length</string>
+    <string name="seg_len_hint">Type it how you\'d say it: 47\' 6" or 47.5</string>
+    <string name="seg_len_unreadable">Couldn\'t read that as a length</string>
+    <string name="seg_len_explains">The rest of the run moves with it, keeping its shape. Materials and price follow.</string>
     <string name="draw_clear">Clear</string>
     <string name="draw_to_estimate">To Estimate</string>
     <string name="draw_remove_gate_title">Remove this gate?</string>

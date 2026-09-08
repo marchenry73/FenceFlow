@@ -182,6 +182,14 @@
     <string name="draw_grid_size_ft">%1$d ft</string>
     <string name="draw_closed_perimeter">Perímetro cerrado (sin extremos abiertos)</string>
     <string name="draw_undo">Deshacer</string>
+    <string name="seg_len_title">Fijar esta longitud</string>
+    <string name="seg_len_row_title">Longitudes de tramo: toque una para fijarla exactamente</string>
+    <string name="seg_len_chip">%1$d: %2$s</string>
+    <string name="seg_len_current">Dibujado como %1$s</string>
+    <string name="seg_len_label">Longitud</string>
+    <string name="seg_len_hint">Escríbalo como lo diría: 47\' 6" o 47.5</string>
+    <string name="seg_len_unreadable">No se pudo leer como una longitud</string>
+    <string name="seg_len_explains">El resto del tramo se mueve con él y mantiene su forma. Los materiales y el precio se ajustan.</string>
     <string name="draw_clear">Borrar todo</string>
     <string name="draw_to_estimate">Al presupuesto</string>
     <string name="draw_remove_gate_title">¿Quitar este portón?</string>

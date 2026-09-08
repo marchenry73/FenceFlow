@@ -1,5 +1,8 @@
 package com.fenceestimator.app.ui.survey
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -100,6 +103,7 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.VertexKind
+import com.fenceestimator.app.ui.components.FeetInches
 import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
@@ -181,6 +185,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     var fullScreenDrawing by rememberSaveable { mutableStateOf(false) }
     var calibrationDialogPoints by remember { mutableStateOf<Pair<FencePoint, FencePoint>?>(null) }
     var gateDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
+    // Which segment's dimension is open for typing, if any. Lives out here
+    // beside the other dialog state so the dialog itself can sit with them.
+    var editingSegment by remember { mutableStateOf<Int?>(null) }
     var markerDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     val siteMarkers by viewModel.siteMarkers.collectAsState()
 
@@ -600,9 +607,15 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                         var draggingGate: Int? = null
                                         var draggingMarker: SiteMarker? = null
                                         var lastImagePoint: FencePoint? = null
+                                        // Where the finger went down. A tap that
+                                        // grabs nothing is not nothing: near a
+                                        // segment it means "let me type this
+                                        // length".
+                                        var tapStart: Offset? = null
 
                                         detectDragGestures(
                                             onDragStart = { startOffset ->
+                                                tapStart = startOffset
                                                 val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan)
                                                 fun distTo(x: Float, y: Float) =
                                                     (transform.toCanvas(FencePoint(x, y)) - startOffset).getDistance()
@@ -634,6 +647,35 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                                 // it: that's a tap, so select it
                                                 // for the arrow pad.
                                                 if (idx != null && finalPoint == null) selectedPoint = idx
+                                                // Grabbed nothing and never
+                                                // moved: if that tap was on a
+                                                // segment's dimension, open it
+                                                // for editing. Checked last, so
+                                                // a vertex, gate or marker
+                                                // always wins.
+                                                if (idx == null && draggingGate == null && draggingMarker == null &&
+                                                    finalPoint == null
+                                                ) {
+                                                    val at = tapStart
+                                                    if (at != null && committedPoints.size >= 2) {
+                                                        val transform = viewTransform(
+                                                            canvasContentSize.first, canvasContentSize.second,
+                                                            canvasSize, viewZoom, viewPan
+                                                        )
+                                                        val segs = if (activeRun.closedLoop)
+                                                            committedPoints.size else committedPoints.size - 1
+                                                        var best: Int? = null
+                                                        var bestDist = SEGMENT_LABEL_HIT_RADIUS_PX
+                                                        for (i in 0 until max(0, segs)) {
+                                                            val a = transform.toCanvas(committedPoints[i])
+                                                            val b = transform.toCanvas(committedPoints[(i + 1) % committedPoints.size])
+                                                            val mid = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
+                                                            val d = (mid - at).getDistance()
+                                                            if (d < bestDist) { bestDist = d; best = i }
+                                                        }
+                                                        if (best != null) editingSegment = best
+                                                    }
+                                                }
                                                 if (finalPoint != null) {
                                                     when {
                                                         idx != null -> viewModel.movePoint(idx, finalPoint)
@@ -787,6 +829,57 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                     transform.toCanvas(from),
                                     transform.toCanvas(to),
                                     strokeWidth = 4f
+                                )
+                            }
+                        }
+
+                        // Every segment says how long it is.
+                        //
+                        // A fence plan without dimensions on it is a picture;
+                        // with them it is a drawing somebody can build from,
+                        // and it is the only way a person can see that the
+                        // traced run reads 46' when the tape said 47' 6".
+                        // Skipped where the segment is too short on screen to
+                        // hold the text, which declutters a zoomed-out loop
+                        // without needing a rule about how many to show.
+                        if (pxPerFt != null && pxPerFt > 0f) {
+                            for (i in 0 until max(0, segCount)) {
+                                val a = transform.toCanvas(points[i])
+                                val b = transform.toCanvas(points[(i + 1) % points.size])
+                                val onScreenLen = kotlin.math.hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
+                                if (onScreenLen < 56f) continue
+                                val feet = com.fenceestimator.app.geometry.segmentLengthPx(points, i)
+                                    ?.div(pxPerFt) ?: continue
+                                val label = FeetInches.formatCompact(feet)
+                                val mx = (a.x + b.x) / 2f
+                                val my = (a.y + b.y) / 2f
+                                // Offset off the line, on the side the line is
+                                // not, so the text never sits on the fence it
+                                // is measuring.
+                                val nx = -(b.y - a.y) / onScreenLen
+                                val ny = (b.x - a.x) / onScreenLen
+                                val lx = mx + nx * 20f
+                                val ly = my + ny * 20f
+                                val paint = android.graphics.Paint().apply {
+                                    textSize = 27f
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                    isAntiAlias = true
+                                    isFakeBoldText = true
+                                }
+                                // A disc behind it, because this text lands on
+                                // satellite imagery of grass, driveway and roof
+                                // and has to stay readable on all three.
+                                val halfWidth = paint.measureText(label) / 2f + 7f
+                                drawContext.canvas.nativeCanvas.drawRoundRect(
+                                    lx - halfWidth, ly - 20f, lx + halfWidth, ly + 9f, 7f, 7f,
+                                    android.graphics.Paint().apply {
+                                        color = android.graphics.Color.argb(214, 255, 255, 255)
+                                        isAntiAlias = true
+                                    }
+                                )
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    label, lx, ly,
+                                    paint.apply { color = activeLineColor.toArgb() }
                                 )
                             }
                         }
@@ -1013,6 +1106,47 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
+                        // Every segment, tappable, in order.
+                        //
+                        // The dimensions on the canvas can be tapped too, but
+                        // a label on a zoomed-out drawing is a small target for
+                        // somebody standing in a yard holding a tape in the
+                        // other hand. This row is the reliable way in: it does
+                        // not need aim, it works one-handed, and it makes the
+                        // feature findable at all -- a tap-the-drawing gesture
+                        // nobody is told about is a feature nobody has.
+                        if (committedPoints.size >= 2 && pxPerFt != null && pxPerFt > 0f) {
+                            val segs = if (activeRun.closedLoop) committedPoints.size
+                                       else committedPoints.size - 1
+                            Text(
+                                stringResource(R.string.seg_len_row_title),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(Space.sm)
+                            ) {
+                                for (i in 0 until max(0, segs)) {
+                                    val feet = com.fenceestimator.app.geometry
+                                        .segmentLengthPx(committedPoints, i)?.div(pxPerFt) ?: continue
+                                    AssistChip(
+                                        onClick = { editingSegment = i },
+                                        label = {
+                                            Text(
+                                                stringResource(
+                                                    R.string.seg_len_chip,
+                                                    i + 1,
+                                                    FeetInches.formatCompact(feet)
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = activeRun.closedLoop, onCheckedChange = { viewModel.toggleClosedLoop(it) })
                             Text(stringResource(R.string.draw_closed_perimeter))
@@ -1036,6 +1170,22 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     }
                 }
             }
+        }
+    }
+
+    editingSegment?.let { index ->
+        val current = viewModel.segmentFeet(index)
+        if (current == null) {
+            editingSegment = null
+        } else {
+            SegmentLengthDialog(
+                currentFeet = current,
+                onConfirm = { feet ->
+                    viewModel.setSegmentLengthFeet(index, feet)
+                    editingSegment = null
+                },
+                onDismiss = { editingSegment = null }
+            )
         }
     }
 
@@ -1385,6 +1535,14 @@ private const val OTHER_RUN_ALPHA = 0.4f
 
 /** Screen-space tap tolerance for grabbing a vertex in Adjust mode, independent of zoom level. */
 private const val VERTEX_HIT_RADIUS_PX = 40f
+
+/**
+ * How near a segment's midpoint a tap has to land to mean "edit this
+ * length". Wider than a vertex's radius because the target is a small label
+ * rather than a dot, and because missing it costs nothing: the tap does
+ * nothing, where missing a vertex would have dragged it.
+ */
+private const val SEGMENT_LABEL_HIT_RADIUS_PX = 56f
 
 /** How near a tap has to land to count as hitting a gate, in screen pixels. */
 private const val GATE_TAP_SLOP = 48f
@@ -1754,4 +1912,67 @@ private fun MagnifierLoupe(
             }
         }
     }
+}
+
+/**
+ * Type the measurement the tape actually gave.
+ *
+ * Opens already holding the segment's current length, selected, so the
+ * common case is: tap the dimension, type the real number, done. The field
+ * takes feet and inches in whatever form comes out of a person's head --
+ * `47' 6"`, `47 6`, `47.5` -- because a drawing tool that only accepts one
+ * punctuation is a drawing tool that makes its user do arithmetic first.
+ *
+ * The hint is a worked example rather than an instruction. Nobody reads
+ * "enter a length in decimal feet"; everybody understands `47' 6"`.
+ */
+@Composable
+private fun SegmentLengthDialog(
+    currentFeet: Float,
+    onConfirm: (Float) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(FeetInches.format(currentFeet)) }
+    val parsed = FeetInches.parse(text)
+    // Refused rather than guessed at: a length the parser could not read
+    // must not become a silent zero in the middle of somebody's fence.
+    val valid = parsed != null && parsed > 0f
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.seg_len_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Text(
+                    stringResource(R.string.seg_len_current, FeetInches.format(currentFeet)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    isError = text.isNotBlank() && !valid,
+                    label = { Text(stringResource(R.string.seg_len_label)) },
+                    supportingText = {
+                        Text(
+                            if (text.isNotBlank() && !valid) stringResource(R.string.seg_len_unreadable)
+                            else stringResource(R.string.seg_len_hint)
+                        )
+                    }
+                )
+                Text(
+                    stringResource(R.string.seg_len_explains),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(enabled = valid, onClick = { parsed?.let(onConfirm) }) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+    )
 }

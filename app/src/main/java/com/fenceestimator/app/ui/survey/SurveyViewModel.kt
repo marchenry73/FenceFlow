@@ -170,6 +170,50 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         persistPoints(run, points)
     }
 
+    /**
+     * Sets one segment to the length the tape actually says.
+     *
+     * A finger on a satellite tile is not a measuring instrument: a run
+     * traced at arm's length is a few feet out, every time, and until now
+     * the only correction was to drag the corner and watch a number until
+     * it looked right. This is the other half of the tool -- the drawing is
+     * told the measurement rather than asked to approximate it.
+     *
+     * The end of the segment slides along its existing heading and the rest
+     * of the run travels with it, so correcting the first leg of an L does
+     * not silently change the second leg the user never touched. Everything
+     * downstream follows from the persisted points: the takeoff, the
+     * materials and the price all recompute off this one edit, which is the
+     * whole reason the drawing is worth being exact about.
+     *
+     * Returns false when the request has no answer -- a segment with no
+     * heading, a length of zero -- so the caller can say so instead of
+     * writing something arbitrary into the plan.
+     */
+    fun setSegmentLengthFeet(index: Int, feet: Float): Boolean {
+        val run = selectedRun() ?: return false
+        if (!feet.isFinite() || feet <= 0f) return false
+        val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
+        if (pxPerFt <= 0f) return false
+        val points = FenceCodec.decodePoints(run.pointsEncoded)
+        val moved = com.fenceestimator.app.geometry.stretchSegment(
+            points, index, feet * pxPerFt
+        ) ?: return false
+        persistPoints(run, moved)
+        return true
+    }
+
+    /** How long segment [index] currently is, in feet, or null if there isn't one. */
+    fun segmentFeet(index: Int): Float? {
+        val run = selectedRun() ?: return null
+        val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
+        if (pxPerFt <= 0f) return null
+        val px = com.fenceestimator.app.geometry.segmentLengthPx(
+            FenceCodec.decodePoints(run.pointsEncoded), index
+        ) ?: return null
+        return px / pxPerFt
+    }
+
     /** Moves a single already-placed vertex -- for fixing a point without redrawing the whole run. */
     fun movePoint(index: Int, point: FencePoint) {
         val run = selectedRun() ?: return

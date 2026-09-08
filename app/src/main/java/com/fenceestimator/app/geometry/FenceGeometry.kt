@@ -230,3 +230,62 @@ object FenceGeometryEngine {
 
     fun roundFeet(feet: Float): Float = (feet * 10f).roundToInt() / 10f
 }
+
+/**
+ * Sets one segment to an exact length by sliding the rest of the run.
+ *
+ * The tape says 47' 6" and the drawing says 46-ish, because a finger on a
+ * satellite tile is not a measuring instrument. This is how the drawing is
+ * told the real number.
+ *
+ * Segment [index] runs from `points[index]` to `points[index+1]`. Its END
+ * point moves along the segment's existing direction until the length is
+ * [newLengthPx], and every point after it moves by exactly the same offset.
+ * The rest of the run therefore keeps its shape: a corrected first segment
+ * carries the whole fence with it rather than distorting the corner beyond
+ * it, which is the behaviour anyone who has used a CAD tool expects and the
+ * only one that does not quietly change a second measurement the user never
+ * touched.
+ *
+ * Returns null rather than guessing when the request has no answer:
+ *  - an index that is not a real segment,
+ *  - a segment whose two ends sit on top of each other, so there is no
+ *    direction to stretch along,
+ *  - a length that is zero or negative.
+ *
+ * A closed loop's implied closing segment is not editable here: its length
+ * is whatever the other segments leave over, and pretending otherwise would
+ * move the run's start point out from under everything.
+ */
+fun stretchSegment(
+    points: List<FencePoint>,
+    index: Int,
+    newLengthPx: Float,
+): List<FencePoint>? {
+    if (index < 0 || index + 1 >= points.size) return null
+    if (!newLengthPx.isFinite() || newLengthPx <= 0f) return null
+
+    val a = points[index]
+    val b = points[index + 1]
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    val current = sqrt(dx * dx + dy * dy)
+    if (current <= 0.0001f) return null
+
+    val ux = dx / current
+    val uy = dy / current
+    val shiftX = ux * newLengthPx - dx
+    val shiftY = uy * newLengthPx - dy
+
+    return points.mapIndexed { i, p ->
+        if (i <= index) p else FencePoint(p.x + shiftX, p.y + shiftY)
+    }
+}
+
+/** The straight-line length of segment [index], in pixels, or null if there isn't one. */
+fun segmentLengthPx(points: List<FencePoint>, index: Int): Float? {
+    if (index < 0 || index + 1 >= points.size) return null
+    val a = points[index]
+    val b = points[index + 1]
+    return sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y))
+}
