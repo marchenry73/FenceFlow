@@ -183,6 +183,12 @@
     <string name="draw_closed_perimeter">Périmètre fermé (sans extrémités ouvertes)</string>
     <string name="draw_undo">Annuler</string>
     <string name="seg_len_title">Définir cette longueur</string>
+    <string name="snap_toggle">Aimantation</string>
+    <string name="snap_help">Angles, équerres et pieds entiers</string>
+    <string name="snap_joined">Relié à un angle</string>
+    <string name="snap_angle">%1$d° verrouillé</string>
+    <string name="snap_length">Arrondi à %1$s</string>
+    <string name="snap_both">%1$s · %2$s</string>
     <string name="seg_len_row_title">Longueurs de section : touchez-en une pour la fixer</string>
     <string name="seg_len_chip">%1$d : %2$s</string>
     <string name="seg_len_current">Dessiné comme %1$s</string>

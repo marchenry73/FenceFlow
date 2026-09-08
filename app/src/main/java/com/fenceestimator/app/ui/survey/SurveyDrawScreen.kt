@@ -117,6 +117,8 @@ import com.fenceestimator.app.ui.theme.SteelTeal20
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.fenceestimator.app.ui.theme.semantic
+import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.min
 
@@ -188,6 +190,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     // Which segment's dimension is open for typing, if any. Lives out here
     // beside the other dialog state so the dialog itself can sit with them.
     var editingSegment by remember { mutableStateOf<Int?>(null) }
+    /**
+     * Snapping, on by default.
+     *
+     * Safe as a default because nothing here is forced: a point only moves
+     * when it was already within a few degrees or a few inches of what it
+     * was plainly aiming at. Aim at thirty degrees and you get thirty
+     * degrees. The switch exists anyway, because a lot with no square corner
+     * in it is a real thing and being argued with by a tool is worse than
+     * tracing freehand.
+     */
+    var snapOn by rememberSaveable { mutableStateOf(true) }
+    /** What the last placed point was pulled onto, so the screen can say so. */
+    var lastSnap by remember { mutableStateOf<com.fenceestimator.app.geometry.SnapResult?>(null) }
     var markerDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     val siteMarkers by viewModel.siteMarkers.collectAsState()
 
@@ -678,7 +693,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                                 }
                                                 if (finalPoint != null) {
                                                     when {
-                                                        idx != null -> viewModel.movePoint(idx, finalPoint)
+                                                        idx != null -> {
+                                                            val snap = viewModel.snapForMove(idx, finalPoint, snapOn)
+                                                            lastSnap = snap.takeIf { it.snapped }
+                                                            viewModel.movePoint(idx, snap.point)
+                                                        }
                                                         draggingGate != null ->
                                                             viewModel.moveGate(draggingGate!!, finalPoint.x, finalPoint.y)
                                                         draggingMarker != null ->
@@ -743,7 +762,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                         val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan)
                                         val imgPoint = transform.toImage(tapOffset)
                                         when (mode) {
-                                            SurveyMode.DRAW -> viewModel.addDrawPoint(imgPoint)
+                                            SurveyMode.DRAW -> {
+                                                val snap = viewModel.snapForDraw(imgPoint, snapOn)
+                                                lastSnap = snap.takeIf { it.snapped }
+                                                viewModel.addDrawPoint(snap.point)
+                                            }
                                             SurveyMode.CALIBRATE -> viewModel.tapCalibrationPoint(imgPoint) { p1, p2 ->
                                                 calibrationDialogPoints = p1 to p2
                                             }
@@ -1145,6 +1168,23 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                         }
                                     )
                                 }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = snapOn, onCheckedChange = { snapOn = it; lastSnap = null })
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.snap_toggle))
+                                // Says what the last point was pulled onto, so
+                                // a point that moved under the finger is
+                                // explained rather than mysterious. Falls back
+                                // to what snapping does, so the switch is not a
+                                // word with no meaning attached.
+                                Text(
+                                    lastSnap?.let { snapWords(it) } ?: stringResource(R.string.snap_help),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (lastSnap != null) MaterialTheme.semantic.success
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1975,4 +2015,30 @@ private fun SegmentLengthDialog(
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
+}
+
+/**
+ * What just happened to a point, in a few words.
+ *
+ * A point that jumps under the finger with no explanation reads as the app
+ * misbehaving. The same jump with "90° locked" beside it reads as the tool
+ * doing its job, and it also teaches the feature: nobody reads the manual,
+ * but everybody reads the line that appeared when the thing moved.
+ */
+@Composable
+private fun snapWords(result: com.fenceestimator.app.geometry.SnapResult): String {
+    val angle = result.lockedAngleDeg?.let {
+        stringResource(R.string.snap_angle, it.roundToInt())
+    }
+    val length = result.lengthFt?.let {
+        stringResource(R.string.snap_length, FeetInches.formatCompact(it))
+    }
+    return when (result.kind) {
+        com.fenceestimator.app.geometry.SnapKind.VERTEX -> stringResource(R.string.snap_joined)
+        com.fenceestimator.app.geometry.SnapKind.ANGLE -> angle.orEmpty()
+        com.fenceestimator.app.geometry.SnapKind.LENGTH -> length.orEmpty()
+        com.fenceestimator.app.geometry.SnapKind.ANGLE_AND_LENGTH ->
+            stringResource(R.string.snap_both, angle.orEmpty(), length.orEmpty())
+        com.fenceestimator.app.geometry.SnapKind.NONE -> ""
+    }
 }

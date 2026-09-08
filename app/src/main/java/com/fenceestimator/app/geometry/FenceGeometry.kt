@@ -289,3 +289,149 @@ fun segmentLengthPx(points: List<FencePoint>, index: Int): Float? {
     val b = points[index + 1]
     return sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y))
 }
+
+/** What, if anything, a placed point was pulled onto. */
+enum class SnapKind { NONE, VERTEX, ANGLE, LENGTH, ANGLE_AND_LENGTH }
+
+/**
+ * A placed point after snapping, and what it was snapped to.
+ *
+ * The kind travels with the point so the screen can say WHY it moved. A
+ * point that silently jumps is a bug; a point that jumps and says "90°" is
+ * a tool.
+ */
+data class SnapResult(
+    val point: FencePoint,
+    val kind: SnapKind,
+    /** Degrees clockwise from east, when an angle was locked. */
+    val lockedAngleDeg: Float? = null,
+    /** The segment's length in feet after snapping, when a length was rounded. */
+    val lengthFt: Float? = null,
+) {
+    val snapped: Boolean get() = kind != SnapKind.NONE
+}
+
+/**
+ * Pulls a point being placed onto whatever it was obviously aiming at.
+ *
+ * Three things, in the order they matter:
+ *
+ * 1. **An existing corner.** Within reach of a vertex -- this run's or any
+ *    other run's on the job -- the point lands exactly on it. Two runs that
+ *    meet at a corner have to meet at ONE point, or the takeoff counts two
+ *    posts where the crew will set one.
+ *
+ * 2. **A sensible angle.** Fences are square far more often than not.
+ *    Candidate headings are multiples of 45 degrees on the screen's own axes
+ *    -- which is what a north-up satellite tile of a subdivision gives you --
+ *    AND multiples of 45 relative to the previous segment, which is what a
+ *    property line running at some arbitrary bearing gives you. The nearer of
+ *    the two wins.
+ *
+ * 3. **A whole foot.** Once the heading is fixed, a length within a few
+ *    inches of a round number becomes that number. Fences get built to whole
+ *    feet; 46.97' is a tracing artifact, not a measurement.
+ *
+ * Everything here snaps only when the point is ALREADY close to the target.
+ * Nothing is forced: aim at 30 degrees and you get 30 degrees. That is what
+ * makes it safe to leave switched on, and it is the difference between a
+ * tool that helps and one you have to keep turning off.
+ */
+fun snapDrawPoint(
+    candidate: FencePoint,
+    previous: FencePoint?,
+    beforePrevious: FencePoint?,
+    otherVertices: List<FencePoint>,
+    pxPerFt: Float,
+    vertexSnapPx: Float = 26f,
+    angleToleranceDeg: Float = 7f,
+    lengthSnapFt: Float = 0.35f,
+): SnapResult {
+    // 1. An existing corner wins outright.
+    val nearestVertex = otherVertices.minByOrNull { v ->
+        val dx = v.x - candidate.x
+        val dy = v.y - candidate.y
+        dx * dx + dy * dy
+    }
+    if (nearestVertex != null) {
+        val dx = nearestVertex.x - candidate.x
+        val dy = nearestVertex.y - candidate.y
+        if (sqrt(dx * dx + dy * dy) <= vertexSnapPx) {
+            return SnapResult(nearestVertex, SnapKind.VERTEX)
+        }
+    }
+
+    if (previous == null || pxPerFt <= 0f) return SnapResult(candidate, SnapKind.NONE)
+
+    val vx = candidate.x - previous.x
+    val vy = candidate.y - previous.y
+    val distPx = sqrt(vx * vx + vy * vy)
+    // Nowhere to point: a zero-length segment has no heading to correct.
+    if (distPx < 0.001f) return SnapResult(candidate, SnapKind.NONE)
+
+    val headingDeg = Math.toDegrees(atan2(vy.toDouble(), vx.toDouble())).toFloat()
+
+    // 2. Candidate headings: the screen's axes, and the previous segment's.
+    val candidates = mutableListOf<Float>()
+    for (k in 0 until 8) candidates += k * 45f
+    if (beforePrevious != null) {
+        val px = previous.x - beforePrevious.x
+        val py = previous.y - beforePrevious.y
+        if (sqrt(px * px + py * py) > 0.001f) {
+            val prevHeading = Math.toDegrees(atan2(py.toDouble(), px.toDouble())).toFloat()
+            for (k in 0 until 8) candidates += prevHeading + k * 45f
+        }
+    }
+
+    var lockedAngle: Float? = null
+    var bestDelta = angleToleranceDeg
+    for (c in candidates) {
+        val delta = abs(angleDifference(headingDeg, c))
+        if (delta <= bestDelta) {
+            bestDelta = delta
+            lockedAngle = c
+        }
+    }
+
+    val finalHeadingDeg = lockedAngle ?: headingDeg
+
+    // 3. A whole foot, measured along whatever heading we ended up with.
+    val distFt = distPx / pxPerFt
+    val roundedFt = kotlin.math.round(distFt)
+    val lengthLocked = roundedFt >= 1f && abs(distFt - roundedFt) <= lengthSnapFt
+    val finalDistPx = if (lengthLocked) roundedFt * pxPerFt else distPx
+
+    if (lockedAngle == null && !lengthLocked) return SnapResult(candidate, SnapKind.NONE)
+
+    val rad = Math.toRadians(finalHeadingDeg.toDouble())
+    val point = FencePoint(
+        previous.x + (kotlin.math.cos(rad) * finalDistPx).toFloat(),
+        previous.y + (kotlin.math.sin(rad) * finalDistPx).toFloat(),
+    )
+    val kind = when {
+        lockedAngle != null && lengthLocked -> SnapKind.ANGLE_AND_LENGTH
+        lockedAngle != null -> SnapKind.ANGLE
+        else -> SnapKind.LENGTH
+    }
+    return SnapResult(
+        point = point,
+        kind = kind,
+        lockedAngleDeg = lockedAngle?.let { normaliseDeg(it) },
+        lengthFt = if (lengthLocked) roundedFt else null,
+    )
+}
+
+/** Signed smallest difference between two headings, in the range (-180, 180]. */
+private fun angleDifference(a: Float, b: Float): Float {
+    var d = (a - b) % 360f
+    if (d > 180f) d -= 360f
+    if (d <= -180f) d += 360f
+    return d
+}
+
+/** Any heading expressed in [0, 360). */
+private fun normaliseDeg(d: Float): Float {
+    var v = d % 360f
+    if (v < 0f) v += 360f
+    return v
+}

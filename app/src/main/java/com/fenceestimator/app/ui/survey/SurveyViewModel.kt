@@ -163,6 +163,61 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
 
     private fun selectedRun(): FenceRun? = runs.value.firstOrNull { it.id == _selectedRunId.value }
 
+    /**
+     * Every corner already on this job, from every run, so a point being
+     * placed can land exactly on one.
+     *
+     * Across runs on purpose. A back fence and a side fence that meet share
+     * one corner post; if the two runs each keep their own corner a few
+     * inches apart, the takeoff sets two posts and the crew arrives with a
+     * spare. [exceptRunId] and [exceptIndex] leave out the point currently
+     * being dragged, which must not snap to where it already is.
+     */
+    private fun snapTargets(exceptRunId: Long?, exceptIndex: Int?): List<FencePoint> =
+        runs.value.flatMap { r ->
+            val pts = FenceCodec.decodePoints(r.pointsEncoded)
+            if (r.id == exceptRunId && exceptIndex != null)
+                pts.filterIndexed { i, _ -> i != exceptIndex }
+            else pts
+        }
+
+    /**
+     * Where a newly drawn point should go: on a corner it was aiming at, on
+     * a square heading, on a whole foot, or exactly where the finger was.
+     */
+    fun snapForDraw(candidate: FencePoint, enabled: Boolean): com.fenceestimator.app.geometry.SnapResult {
+        val run = selectedRun()
+            ?: return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
+        if (!enabled) return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
+        val pts = FenceCodec.decodePoints(run.pointsEncoded)
+        return com.fenceestimator.app.geometry.snapDrawPoint(
+            candidate = candidate,
+            previous = pts.lastOrNull(),
+            beforePrevious = pts.getOrNull(pts.size - 2),
+            otherVertices = snapTargets(run.id, pts.size),
+            pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID,
+        )
+    }
+
+    /**
+     * The same rules for a vertex being dragged rather than added. The
+     * heading is judged against the segment arriving at this point, which is
+     * the one the person can see moving under their finger.
+     */
+    fun snapForMove(index: Int, candidate: FencePoint, enabled: Boolean): com.fenceestimator.app.geometry.SnapResult {
+        val run = selectedRun()
+            ?: return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
+        if (!enabled) return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
+        val pts = FenceCodec.decodePoints(run.pointsEncoded)
+        return com.fenceestimator.app.geometry.snapDrawPoint(
+            candidate = candidate,
+            previous = pts.getOrNull(index - 1),
+            beforePrevious = pts.getOrNull(index - 2),
+            otherVertices = snapTargets(run.id, index),
+            pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID,
+        )
+    }
+
     fun addDrawPoint(point: FencePoint) {
         val run = selectedRun() ?: return
         val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()

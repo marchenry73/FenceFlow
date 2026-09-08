@@ -183,6 +183,12 @@
     <string name="draw_closed_perimeter">Perímetro cerrado (sin extremos abiertos)</string>
     <string name="draw_undo">Deshacer</string>
     <string name="seg_len_title">Fijar esta longitud</string>
+    <string name="snap_toggle">Ajuste</string>
+    <string name="snap_help">Esquinas, ángulos rectos y pies enteros</string>
+    <string name="snap_joined">Unido a una esquina</string>
+    <string name="snap_angle">%1$d° fijado</string>
+    <string name="snap_length">Redondeado a %1$s</string>
+    <string name="snap_both">%1$s · %2$s</string>
     <string name="seg_len_row_title">Longitudes de tramo: toque una para fijarla exactamente</string>
     <string name="seg_len_chip">%1$d: %2$s</string>
     <string name="seg_len_current">Dibujado como %1$s</string>
