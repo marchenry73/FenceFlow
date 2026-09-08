@@ -91,6 +91,9 @@
   .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
   .btn.pay{background:var(--ok);margin-top:12px}
   .btn.pay:hover{background:var(--ok-dk)}
+  .btn.quiet{background:none;color:#AEBBCC;border:1px solid #3A4A63;font-size:15px;
+             padding:13px;margin-top:10px;font-weight:500}
+  .btn.quiet:hover{background:#22314A;color:#fff;transform:none}
 
   .done{background:var(--ok-soft);border:1px solid var(--ok-line);color:var(--ok-dk);
         border-radius:14px;padding:20px;margin-bottom:16px;font-size:16px}
@@ -169,10 +172,11 @@
 
     <div class="approve" id="approveBox" style="display:none">
       <h2>Ready to go ahead?</h2>
-      <p style="font-size:14px;color:#AEBBCC">Type your name and press approve &mdash; that tells
+      <p style="font-size:14px;color:#AEBBCC" id="approveLead">Type your name and press approve &mdash; that tells
         us to put you on the schedule. You&rsquo;ll get a copy of everything.</p>
       <input id="signName" placeholder="Your full name" autocomplete="name">
       <button class="btn" id="approveBtn">Approve this quote</button>
+      <button class="btn quiet" id="approveOnlyBtn" style="display:none">Approve without paying now</button>
       <div class="err" id="approveErr"></div>
     </div>
 
@@ -270,13 +274,20 @@ function render(){
     $('approvedBox').textContent='Approved by '+q.approvedBy+' on '
       +new Date(q.approvedAt).toLocaleDateString()+'. '
       +(q.company.name||'Your contractor')+' has been told — thank you!';
+    // Already approved on an earlier visit: the deposit is the only thing
+    // left, so it stands on its own.
+    if(dueNow()) showPayButton();
   } else {
     $('approveBox').style.display='';
-  }
-
-  if(q.paymentsReady && q.deposit>0.005){
-    $('payBtn').style.display='';
-    $('payBtn').textContent='Pay the '+money(q.deposit)+' deposit';
+    if(dueNow()){
+      // One press. Saying yes and paying the deposit are the same decision,
+      // and splitting them into two buttons meant a homeowner approved, saw
+      // a thank-you, and never noticed the second one.
+      $('approveBtn').textContent='Approve and pay the '+money(dueNow())+' deposit';
+      $('approveOnlyBtn').style.display='';
+      $('approveLead').innerHTML='Type your name to approve. We&rsquo;ll take you '
+        +'straight to the deposit payment, and you&rsquo;ll get a copy of everything.';
+    }
   }
 
   $('loading').style.display='none';
@@ -307,39 +318,89 @@ function render(){
   }
 }
 
-$('approveBtn').addEventListener('click', async ()=>{
+/* What pressing the button would actually collect, or 0 if nothing.
+   depositDue comes from the same rule create-payment-link charges by, so
+   the figure on the button is the figure on the card. The fallback to
+   q.deposit is for a page cached from before that field existed. */
+function dueNow(){
+  if(!quote || !quote.paymentsReady) return 0;
+  if(quote.depositPayable === false) return 0;
+  const due = (quote.depositDue != null) ? quote.depositDue : quote.deposit;
+  return (due > 0.005) ? due : 0;
+}
+
+function showPayButton(){
+  const due = dueNow();
+  if(!due) return;
+  $('payBtn').style.display='';
+  $('payBtn').disabled=false;
+  $('payBtn').textContent='Pay the '+money(due)+' deposit';
+}
+
+function markApproved(name){
+  quote.approvedAt=new Date().toISOString(); quote.approvedBy=name;
+  $('approveBox').style.display='none';
+  $('approvedBox').style.display='';
+  $('approvedBox').textContent='Approved — thank you, '+name
+    +'! '+(quote.company.name||'Your contractor')+' has been told.';
+}
+
+async function openPaymentPage(){
+  const r=await fetch(API+'/create-payment-link',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({quoteToken:token,kind:'deposit'})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.url) throw new Error(j.error||'Could not open the payment page.');
+  location.href=j.url;
+}
+
+/* Approving and paying are one decision, taken in that order.
+   The order matters and so does the failure: if the approval lands and the
+   payment page does not open, the approval STAYS landed and the page has to
+   say so. A homeowner who pressed a button called "approve and pay" and saw
+   only an error would reasonably assume neither happened, ring their
+   contractor, and approve again. */
+async function doApprove(thenPay){
   const name=$('signName').value.trim();
   const err=$('approveErr'); err.style.display='none';
   if(name.length<2){ err.textContent='Type your name first.'; err.style.display='block'; return; }
-  $('approveBtn').disabled=true;
+  $('approveBtn').disabled=true; $('approveOnlyBtn').disabled=true;
   try{
     const r=await fetch(API+'/quote-view?t='+encodeURIComponent(token),{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({action:'approve',name})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||'Could not record the approval.');
-    quote.approvedAt=new Date().toISOString(); quote.approvedBy=j.approvedBy||name;
-    $('approveBox').style.display='none';
-    $('approvedBox').style.display='';
-    $('approvedBox').textContent='Approved — thank you, '+(j.approvedBy||name)
-      +'! '+(quote.company.name||'Your contractor')+' has been told.';
+    markApproved(j.approvedBy||name);
   }catch(e){
-    err.textContent=friendly(e); err.style.display='block'; $('approveBtn').disabled=false;
+    err.textContent=friendly(e); err.style.display='block';
+    $('approveBtn').disabled=false; $('approveOnlyBtn').disabled=false;
+    return;
   }
-});
+
+  if(thenPay){
+    try{
+      await openPaymentPage();
+      return;                       // the browser is leaving; nothing follows
+    }catch(e){
+      const perr=$('payErr');
+      perr.textContent='Your approval is saved. We could not open the payment page — '
+        +friendly(e)+' You can try again below, or your contractor will send a link.';
+      perr.style.display='block';
+    }
+  }
+  // Approved but not paid, either by choice or because the link failed: the
+  // deposit is still owed, so leave a way to pay it.
+  showPayButton();
+}
+
+$('approveBtn').addEventListener('click', ()=>doApprove(dueNow()>0));
+$('approveOnlyBtn').addEventListener('click', ()=>doApprove(false));
 
 $('payBtn').addEventListener('click', async ()=>{
   $('payBtn').disabled=true; const err=$('payErr'); err.style.display='none';
-  try{
-    const r=await fetch(API+'/create-payment-link',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({quoteToken:token,kind:'deposit'})});
-    const j=await r.json().catch(()=>({}));
-    if(!r.ok||!j.url) throw new Error(j.error||'Could not open the payment page.');
-    location.href=j.url;
-  }catch(e){
-    err.textContent=friendly(e); err.style.display='block'; $('payBtn').disabled=false;
-  }
+  try{ await openPaymentPage(); }
+  catch(e){ err.textContent=friendly(e); err.style.display='block'; $('payBtn').disabled=false; }
 });
 
 /* ===================== the 3D fence ======================================

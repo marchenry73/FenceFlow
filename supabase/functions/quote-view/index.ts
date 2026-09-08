@@ -17,6 +17,7 @@
  * whole rows and hoping.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { depositFigures } from "../_shared/quote-deposit.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +46,8 @@ Deno.serve(async (req) => {
   const { data: job } = await admin
     .from("jobs")
     .select("id, sync_id, company_id, customer_name, address, status, deleted_at, " +
-      "contract_total, deposit_amount, tax_rate_percent, discount_percent, " +
+      "contract_total, deposit_amount, amount_paid, refunded_amount, " +
+      "tax_rate_percent, discount_percent, " +
       "quote_viewed_at, quote_approved_at, quote_approved_name, calibration_pixels_per_foot")
     .eq("quote_token", token)
     .maybeSingle();
@@ -192,14 +194,22 @@ Deno.serve(async (req) => {
   // ten -- the number on the page always covers the buy.
   const total = Math.ceil((Number(job.contract_total) || (subtotal + tax)) / 10) * 10;
   // The deposit exists so the materials can be bought before labour starts.
-  // When the contractor has not set one it is derived from the material cost
-  // -- but rounded up to the next HUNDRED rather than the next ten, because a
-  // deposit derived to the dollar from the materials IS the materials figure,
-  // and this number is shown to the person being quoted. Coarse enough to
-  // cover the buy, blunt enough not to hand over the cost basis.
-  const deposit = Number(job.deposit_amount) > 0
-    ? Math.min(total, Number(job.deposit_amount))
-    : Math.min(total, Math.ceil((subtotal + tax) / 100) * 100);
+  //
+  // This used to invent one from the material cost when the contractor had
+  // not set any -- rounded up to the next hundred -- and print it on the
+  // page. create-payment-link knew nothing about that invented figure and
+  // refused to charge it, so the page asked for a deposit the product would
+  // not take. Worse, it put a number in front of a customer that their
+  // contractor had never agreed to. Both functions now read one rule
+  // (_shared/quote-deposit.ts): a deposit is a thing the contractor asks
+  // for, and what is shown is what is still owed on it.
+  const money = depositFigures({
+    depositAmount: job.deposit_amount,
+    contractTotal: job.contract_total,
+    amountPaid: job.amount_paid,
+    refundedAmount: job.refunded_amount,
+  });
+  const deposit = money.asked;
 
   // Whether the deposit button can do anything. A connected processor means
   // create-payment-link's token path will produce a real checkout.
@@ -226,6 +236,11 @@ Deno.serve(async (req) => {
     // right rule; the line under it was breaking it.
     total,
     deposit,
+    // What pressing the button would actually collect. Differs from
+    // [deposit] once part of it has been paid, and the page needs both: the
+    // deposit is what was agreed, the amount due is what is left.
+    depositDue: money.due,
+    depositPayable: money.payable,
     approvedAt: job.quote_approved_at,
     // The survey canvas draws on a 20px/ft grid unless the job was calibrated
     // against a known measurement; the 3D view must use the same number or

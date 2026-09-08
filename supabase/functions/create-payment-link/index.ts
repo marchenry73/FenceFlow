@@ -6,6 +6,7 @@
 //
 // Secrets: STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { depositFigures } from "../_shared/quote-deposit.ts";
 
 const STRIPE = "https://api.stripe.com/v1";
 
@@ -78,11 +79,18 @@ Deno.serve(async (req) => {
       // same thing. A deposit is a part of the price, not a separate fee, so
       // it is reduced by what has come in exactly as the balance is, and can
       // never exceed the total of the job.
+      // The deposit half of this is the shared rule, so what the quote page
+      // shows and what this charges cannot come apart again.
       const netPaid = (Number(qjob.amount_paid) || 0) - (Number(qjob.refunded_amount) || 0);
       const total = Number(qjob.contract_total) || 0;
-      const askedDeposit = Math.min(Number(qjob.deposit_amount) || 0, total || Infinity);
+      const deposit = depositFigures({
+        depositAmount: qjob.deposit_amount,
+        contractTotal: qjob.contract_total,
+        amountPaid: qjob.amount_paid,
+        refundedAmount: qjob.refunded_amount,
+      });
       const dollars = kindWanted === "deposit"
-        ? Math.max(0, askedDeposit - netPaid)
+        ? deposit.due
         : Math.max(0, total - netPaid);
       const cents = Math.round(dollars * 100);
       if (cents < 50) return json({ error: "There is nothing to pay on this quote yet." }, 400);
