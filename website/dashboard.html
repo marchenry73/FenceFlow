@@ -3002,6 +3002,11 @@ async function applyJobBatch(patch, question, done){
 $('jobBatchCrew').addEventListener('change', async e=>{
   const v = e.target.value;
   if(!v) return;
+  // Put the control back to its placeholder BEFORE the write. The reload at
+  // the end redraws this bar and restores whatever it was showing, so
+  // clearing it afterwards was immediately undone -- the dropdown sat there
+  // claiming a choice that had already been applied.
+  e.target.value = '';
   const syncId = v === '__none__' ? null : v;
   const who = v === '__none__' ? 'Unassigned'
     : (employees.find(x=>x.sync_id===v)?.name || 'that crew member');
@@ -3010,12 +3015,12 @@ $('jobBatchCrew').addEventListener('change', async e=>{
     { assigned_employee_sync_id: syncId },
     'Assign ' + n + (n===1?' job':' jobs') + ' to ' + who + '?',
     n + (n===1?' job assigned to ':' jobs assigned to ') + who + '.');
-  e.target.value = '';
 });
 
 $('jobBatchDate').addEventListener('change', async e=>{
   const v = e.target.value;
   if(!v) return;
+  e.target.value = '';
   // Eight in the morning, the same hour a single job's date is saved with, so
   // a batch-scheduled job and a hand-scheduled one land on the same day in
   // every calendar that reads them.
@@ -3026,7 +3031,6 @@ $('jobBatchDate').addEventListener('change', async e=>{
     { scheduled_date: iso },
     'Schedule ' + n + (n===1?' job':' jobs') + ' for ' + shownDate + '?',
     n + (n===1?' job scheduled for ':' jobs scheduled for ') + shownDate + '.');
-  e.target.value = '';
 });
 
 document.querySelectorAll('#tab-jobs th.sortable').forEach(th=>{
