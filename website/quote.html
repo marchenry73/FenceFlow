@@ -112,8 +112,11 @@
     .wrap{padding:16px 13px 60px}
     .panel,.approve{padding:18px}
     .totals .grand{font-size:34px}
-    /* Clear of the view controls in the corner, rather than under them. */
-    #stageHint{bottom:48px;font-size:11.5px}
+    /* Three things live along the bottom of the stage: the drag hint, the
+       imagery credit, and the view buttons. At phone width they were all
+       piled into the same strip. Stacked instead: buttons in the corner,
+       credit above them, hint above that. */
+    #stageHint{bottom:70px;font-size:11.5px}
     #mapCred{bottom:48px;max-width:100%}
   }
   @media (prefers-reduced-motion:reduce){
