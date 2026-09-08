@@ -8,7 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
 <style>
-  :root{--graphite:#0F1826;--graphite2:#1E2A3D;--orange:#FF5A1F;--orange-dk:#B23800;
+  :root{--graphite:#0F1826;--graphite2:#1E2A3D;
+        /* Fixed in both themes: the header, sheet headers and hero bands are
+           always this dark, and always carry white text. */
+        --brand-ink:#0F1826;--brand-ink-2:#1E2A3D;--orange:#FF5A1F;--orange-dk:#B23800;
         --teal:#0E8C7B;--paper:#F7F8FA;--line:#E3E7ED;--text:#12151A;--muted:#5A6472;--red:#E5484D;
         --text-primary:#12151A;--text-secondary:#5A6472;--grid:#EDF0F4;
         --bg:#F7F8FA;--surface:#ffffff;--surface-2:#ffffff;
@@ -42,7 +45,7 @@
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
   /* The header carries the brand: graphite steel with the safety-orange
      hairline along the top — the one loud element, kept to three pixels. */
-  header{background:linear-gradient(180deg,var(--graphite2),var(--graphite));color:#fff;
+  header{background:linear-gradient(180deg,var(--brand-ink-2),var(--brand-ink));color:#fff;
          padding:12px 20px;display:flex;align-items:center;justify-content:space-between;
          flex-wrap:wrap;gap:10px;border-top:3px solid var(--orange)}
   .logo{font:700 24px/1 "Barlow Condensed","Arial Narrow",sans-serif;
@@ -163,6 +166,18 @@
   .pill.ACCEPTED{background:#A9EEE1;color:#07473D}
   .pill.COMPLETED{background:#D7DEE8;color:#1E2A3D}
   .pill.DECLINED{background:#FBD3D4;color:#8C1114}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .pill.DRAFT{background:#232B36;color:#AEBBCC}
+    :root:not([data-theme="light"]) .pill.SENT{background:#3A2412;color:#FFC49A}
+    :root:not([data-theme="light"]) .pill.ACCEPTED{background:#123029;color:#8FE7D0}
+    :root:not([data-theme="light"]) .pill.COMPLETED{background:#1E2A3D;color:#D7DEE8}
+    :root:not([data-theme="light"]) .pill.DECLINED{background:#3E1A1A;color:#FFBDB6}
+  }
+  :root[data-theme="dark"] .pill.DRAFT{background:#232B36;color:#AEBBCC}
+  :root[data-theme="dark"] .pill.SENT{background:#3A2412;color:#FFC49A}
+  :root[data-theme="dark"] .pill.ACCEPTED{background:#123029;color:#8FE7D0}
+  :root[data-theme="dark"] .pill.COMPLETED{background:#1E2A3D;color:#D7DEE8}
+  :root[data-theme="dark"] .pill.DECLINED{background:#3E1A1A;color:#FFBDB6}
   .empty{color:var(--muted);font-size:14px;padding:16px 0}
   .scroll{overflow-x:auto}
   #app{display:none}
@@ -190,7 +205,7 @@
   .overlay{position:fixed;inset:0;background:rgba(15,24,38,.6);display:none;z-index:50;overflow-y:auto;padding:16px}
   .overlay.on{display:block}
   .sheet{max-width:900px;margin:0 auto;background:var(--surface-2);border-radius:12px;overflow:hidden}
-  .sheet-head{background:var(--graphite);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}
+  .sheet-head{background:var(--brand-ink);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}
   .sheet-body{padding:16px}
   .sheet-foot{padding:12px 16px;background:var(--surface);border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0}
   /* New client wizard: its own row grid rather than reusing .row2/.row3,
@@ -264,7 +279,7 @@
   .chip{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:6px 13px;
         font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit}
   .chip:hover{border-color:var(--orange)}
-  .chip.on{background:var(--graphite);border-color:var(--graphite);color:#fff}
+  .chip.on{background:var(--brand-ink);border-color:var(--brand-ink);color:#fff}
   .range{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
   .range-label{margin-top:9px;font-size:12px;color:var(--muted)}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
@@ -274,7 +289,7 @@
      in the brand's own steel. Everything else on the page is white cards;
      this is deliberately the only dark surface, so it reads as the headline
      rather than one tile among eight. */
-  .hero-band{background:linear-gradient(135deg,var(--graphite2),var(--graphite));color:#fff;
+  .hero-band{background:linear-gradient(135deg,var(--brand-ink-2),var(--brand-ink));color:#fff;
              border-radius:14px;padding:20px 24px;margin-bottom:14px;display:flex;
              justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;
              cursor:pointer;border-top:3px solid var(--orange)}
@@ -387,7 +402,7 @@
   .dot.act{background:var(--series-3)}.dot.ina{background:#B9C0CA}
 
   .scorecard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
-  .sc-head{background:var(--graphite);color:#fff;padding:16px 18px;display:flex;
+  .sc-head{background:var(--brand-ink);color:#fff;padding:16px 18px;display:flex;
            justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
   .sc-head h3{font-size:19px;font-weight:800;margin:0}
   .sc-head .meta{font-size:12px;color:#9AA4B4;margin-top:3px}
