@@ -27,7 +27,9 @@
     <string name="status_accepted">Aceptado</string>
     <string name="status_declined">Rechazado</string>
 
-    <string name="section_progress">Progreso del proyecto</string>
+    <string name="section_progress">Avance del trabajo</string>
+    <string name="cat_import_no_items">No se reconoció ningún precio en ese PDF. Puede que sea un escaneo y no texto. Aún puede escribir los precios a mano.</string>
+    <string name="cat_import_failed">No se pudo leer ese PDF. Puede que sea un escaneo y no texto, o que el archivo esté dañado. Aún puede escribir los precios a mano.</string>
     <string name="section_customer">Cliente</string>
     <string name="section_fence_runs">Tramos de cerca</string>
     <string name="section_pricing">Precios</string>
@@ -610,6 +612,10 @@
     <string name="cat_unpriced_many">%1$d artículos no tienen precio</string>
     <string name="cat_unpriced_showing_only">Mostrando solo esos. Toca para ver todo otra vez.</string>
     <string name="cat_unpriced_explain">Cuentan como $0.00 en un presupuesto, así que cualquier cotización que los use sale por debajo del costo. Toca para ver solo esos.</string>
+    <string name="cat_placeholder_one">1 precio sigue siendo la cifra inicial de FenceFlow</string>
+    <string name="cat_placeholder_many">%1$d precios siguen siendo cifras iniciales de FenceFlow</string>
+    <string name="cat_placeholder_showing_only">Mostrando solo esos. Toque para volver a mostrar todo.</string>
+    <string name="cat_placeholder_explain">Son tarifas típicas del mercado, no las de su proveedor. Las cotizaciones basadas en ellas se acercarán, pero no serán las suyas. Toque para ver solo esos.</string>
     <string name="cat_add_custom_item">Agregar artículo personalizado</string>
     <string name="cat_reading_pdf">Leyendo PDF…</string>
     <string name="cat_nothing_matches">Nada coincide con “%1$s”.</string>
@@ -732,6 +738,11 @@
     <string name="est2_provisional_pricing_body">Los materiales se cotizan con tu catálogo, no con una cotización del proveedor. Envía la lista de materiales y luego ingresa lo que te respondan.</string>
     <string name="est2_locked_price_changed">Bloqueado: el precio cambió después de la firma.</string>
     <string name="est2_contract_hint">Alcance, precio y tus condiciones. Sin desglose de materiales.</string>
+    <string name="contract_legal_gap_title">A su contrato le falta el aviso de cancelación</string>
+    <string name="contract_legal_gap_body">Las condiciones todavía contienen el bloque marcado para reemplazar. La mayoría de los estados exigen que un contrato de mejoras del hogar indique, con palabras concretas, que el cliente puede cancelar en un plazo de tres días hábiles, y un contrato firmado en casa del cliente tiene además su propia norma federal. Sin ese texto el acuerdo puede ser inexigible. Pida a su abogado la redacción de su estado y péguela en Ajustes, Condiciones del contrato.</string>
+    <string name="contract_legal_gap_banner">Falta el aviso de cancelación</string>
+    <string name="contract_legal_gap_send">Enviar de todos modos</string>
+    <string name="contract_legal_gap_fix">Abrir condiciones del contrato</string>
     <string name="est2_material_list_hint">Solo cantidades, sin precios: ellos te lo cotizan.</string>
     <string name="est2_locked_until_signed">Bloqueado hasta que el cliente firme el contrato.</string>
     <string name="est2_invoice_hint">Lo acordado, lo pagado y lo que falta.</string>
@@ -766,6 +777,9 @@
     <string name="est2_concrete_bags_per_post">Bolsas de concreto/poste</string>
     <string name="est2_post_spacing_follows_panel">Para este tipo de cerca, la separación de postes sigue automáticamente el ancho del panel.</string>
     <string name="est2_delete_this_run">Eliminar este tramo</string>
+    <string name="run_delete_title">¿Eliminar este tramo?</string>
+    <string name="run_delete_body">Se eliminará «%1$s» y todo lo dibujado en él: la línea de cerca, sus puertas y los materiales que calculó. Esto no se puede deshacer.</string>
+    <string name="run_untitled">Este tramo</string>
     <string name="est2_fence_type">Tipo de cerca</string>
     <string name="est2_panel_width_ft">Ancho del panel (pies)</string>
     <string name="est2_panel_height_ft">Alto del panel (pies)</string>

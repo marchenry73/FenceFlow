@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -65,6 +66,7 @@ import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.theme.Radius
+import com.fenceestimator.app.ui.theme.semantic
 import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -535,6 +537,7 @@ private fun ExportSection(
     val context = androidx.compose.ui.platform.LocalContext.current
     val totals by viewModel.totals.collectAsState()
     var showSignaturePad by remember { mutableStateOf(false) }
+    var showLegalGap by remember { mutableStateOf(false) }
 
     fun shareDocument(document: com.fenceestimator.app.estimate.JobDocument) {
         viewModel.exportDocument(context, profile, document) { file ->
@@ -646,8 +649,19 @@ private fun ExportSection(
         // the "invoice" was that same page again under another heading. Neither
         // reader was served -- the customer agreed a price for a finished
         // fence, and the supplier is the one who sends prices back.
+        // The contract is the one document with legal weight, and the terms
+        // it prints still carry a block the owner is meant to replace with
+        // their state's right-to-cancel wording. Sending it without that can
+        // make the whole agreement unenforceable, so this asks once instead
+        // of letting it go quietly. It asks rather than refuses: an owner may
+        // have had this reviewed, or be sending a copy to themselves, and
+        // this app does not know which.
+        val legalGap = com.fenceestimator.app.data.contractTermsNeedLegalReview(profile.contractTerms)
         Button(
-            onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_CONTRACT) },
+            onClick = {
+                if (legalGap) showLegalGap = true
+                else shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_CONTRACT)
+            },
             enabled = !needsResign,
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -658,11 +672,17 @@ private fun ExportSection(
         // The banner above says why, but it scrolls away on a long estimate and
         // the button is what the eye lands on.
         Text(
-            if (needsResign) stringResource(R.string.est2_locked_price_changed)
-            else stringResource(R.string.est2_contract_hint),
+            when {
+                needsResign -> stringResource(R.string.est2_locked_price_changed)
+                legalGap -> stringResource(R.string.contract_legal_gap_banner)
+                else -> stringResource(R.string.est2_contract_hint)
+            },
             style = MaterialTheme.typography.bodySmall,
-            color = if (needsResign) MaterialTheme.colorScheme.error
-            else MaterialTheme.colorScheme.onSurfaceVariant
+            color = when {
+                needsResign -> MaterialTheme.colorScheme.error
+                legalGap -> MaterialTheme.semantic.warning
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
         )
         Spacer(Modifier.height(Space.sm))
 
@@ -746,6 +766,28 @@ private fun ExportSection(
         com.fenceestimator.app.ui.components.SignaturePadDialog(
             onSave = { path -> viewModel.captureSignature(path); showSignaturePad = false },
             onDismiss = { showSignaturePad = false }
+        )
+    }
+    if (showLegalGap) {
+        AlertDialog(
+            onDismissRequest = { showLegalGap = false },
+            title = { Text(stringResource(R.string.contract_legal_gap_title)) },
+            text = { Text(stringResource(R.string.contract_legal_gap_body)) },
+            confirmButton = {
+                // The safe choice is the plain one, and it is on the right
+                // where the confirm button lives, because reading the terms
+                // is what this dialog is for. Sending anyway stays available
+                // and stays quiet.
+                Button(onClick = {
+                    showLegalGap = false
+                    shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_CONTRACT)
+                }) { Text(stringResource(R.string.contract_legal_gap_send)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showLegalGap = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
         )
     }
 }

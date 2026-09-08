@@ -77,6 +77,7 @@ import com.fenceestimator.app.ui.theme.Graphite40
 import com.fenceestimator.app.ui.theme.Graphite80
 import com.fenceestimator.app.ui.theme.SafetyOrange40
 import com.fenceestimator.app.ui.theme.Space
+import com.fenceestimator.app.ui.theme.semantic
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -88,10 +89,10 @@ import java.util.TimeZone
  * contrast against a white card; green and amber sit low enough on contrast
  * that every bar carries a printed value beside it rather than relying on hue.
  */
-private val MoneyBlue = Color(0xFF2A78D6)
-private val CostOrange = Color(0xFFEB6834)
-private val SalesGreen = Color(0xFF1BAF7A)
-private val CrewAmber = Color(0xFFEDA100)
+private val MoneyBlue: Color @Composable get() = MaterialTheme.semantic.chartMoney
+private val CostOrange: Color @Composable get() = MaterialTheme.semantic.chartCost
+private val SalesGreen: Color @Composable get() = MaterialTheme.semantic.chartSales
+private val CrewAmber: Color @Composable get() = MaterialTheme.semantic.chartCrew
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1112,14 +1113,15 @@ private fun deltaOf(now: Double, prev: Double, comparable: Boolean): Delta? {
 
 @Composable
 private fun DeltaChip(d: Delta) {
+    val semantic = MaterialTheme.semantic
     val bg = when (d.up) {
-        true -> Color(0xFFE6F6F1)
-        false -> Color(0xFFFDECEC)
+        true -> semantic.successContainer
+        false -> semantic.dangerContainer
         null -> MaterialTheme.colorScheme.surfaceVariant
     }
     val fg = when (d.up) {
-        true -> Color(0xFF0B6B4F)
-        false -> Color(0xFF8C1114)
+        true -> semantic.onSuccessContainer
+        false -> semantic.onDangerContainer
         null -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     Text(

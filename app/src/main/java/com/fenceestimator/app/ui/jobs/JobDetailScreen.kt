@@ -3,6 +3,8 @@ package com.fenceestimator.app.ui.jobs
 import android.app.DatePickerDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -2397,8 +2399,35 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
                             modifier = Modifier.size(90.dp).clip(RoundedCornerShape(8.dp))
                         )
                         if (canDelete) {
-                            IconButton(onClick = { viewModel.deletePhoto(photo) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_photo), tint = MaterialTheme.colorScheme.error)
+                            // Was a 24dp target sitting over the top-left of
+                            // the photo: too small to hit reliably with a work
+                            // glove, and placed where it covered the picture
+                            // it was attached to. Now a full 44dp target in
+                            // the corner where a remove control belongs, with
+                            // the icon itself still small and a dark disc
+                            // behind it so it stays visible on a bright photo
+                            // of a driveway.
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(44.dp)
+                                    .clickable { viewModel.deletePhoto(photo) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.55f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = stringResource(R.string.jd_remove_photo),
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }

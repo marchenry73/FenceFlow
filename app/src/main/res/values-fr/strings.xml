@@ -27,7 +27,9 @@
     <string name="status_accepted">Accepté</string>
     <string name="status_declined">Refusé</string>
 
-    <string name="section_progress">Avancement du projet</string>
+    <string name="section_progress">Avancement du chantier</string>
+    <string name="cat_import_no_items">Aucun prix n\'a été reconnu dans ce PDF. Il s\'agit peut-être d\'un scan et non de texte. Vous pouvez toujours saisir les prix à la main.</string>
+    <string name="cat_import_failed">Ce PDF n\'a pas pu être lu. Il s\'agit peut-être d\'un scan et non de texte, ou le fichier est endommagé. Vous pouvez toujours saisir les prix à la main.</string>
     <string name="section_customer">Client</string>
     <string name="section_fence_runs">Sections de clôture</string>
     <string name="section_pricing">Tarifs</string>
@@ -610,6 +612,10 @@
     <string name="cat_unpriced_many">%1$d articles n\'ont pas de prix</string>
     <string name="cat_unpriced_showing_only">Seuls ceux-ci sont affichés. Touchez pour tout afficher à nouveau.</string>
     <string name="cat_unpriced_explain">Ils comptent pour 0,00 $ dans un devis, donc tout devis qui les utilise sort sous le coût. Touchez pour ne voir que ceux-ci.</string>
+    <string name="cat_placeholder_one">1 prix est encore le chiffre de départ de FenceFlow</string>
+    <string name="cat_placeholder_many">%1$d prix sont encore des chiffres de départ de FenceFlow</string>
+    <string name="cat_placeholder_showing_only">Affichage de ceux-là seulement. Touchez pour tout réafficher.</string>
+    <string name="cat_placeholder_explain">Ce sont des tarifs courants du marché, pas ceux de votre fournisseur. Les devis fondés dessus seront proches mais pas les vôtres. Touchez pour voir uniquement ceux-là.</string>
     <string name="cat_add_custom_item">Ajouter un article personnalisé</string>
     <string name="cat_reading_pdf">Lecture du PDF…</string>
     <string name="cat_nothing_matches">Aucun résultat pour « %1$s ».</string>
@@ -732,6 +738,11 @@
     <string name="est2_provisional_pricing_body">Les matériaux sont chiffrés d\'après votre catalogue, pas d\'après un devis fournisseur. Envoyez la liste de matériaux, puis saisissez ce qu\'ils vous renvoient.</string>
     <string name="est2_locked_price_changed">Verrouillé : le prix a changé après la signature.</string>
     <string name="est2_contract_hint">Portée, prix et vos conditions. Sans détail des matériaux.</string>
+    <string name="contract_legal_gap_title">Votre contrat n\'a pas d\'avis d\'annulation</string>
+    <string name="contract_legal_gap_body">Les conditions contiennent encore le bloc à remplacer. La plupart des États exigent qu\'un contrat de rénovation indique, dans des termes précis, que le client peut annuler sous trois jours ouvrables, et un contrat signé au domicile du client relève en plus d\'une règle fédérale. Sans ce texte, l\'accord peut être inapplicable. Demandez à votre avocat la formulation de votre État et collez-la dans Réglages, Conditions du contrat.</string>
+    <string name="contract_legal_gap_banner">Avis d\'annulation non rempli</string>
+    <string name="contract_legal_gap_send">Envoyer quand même</string>
+    <string name="contract_legal_gap_fix">Ouvrir les conditions du contrat</string>
     <string name="est2_material_list_hint">Quantités seulement, sans prix : ils vous font un devis.</string>
     <string name="est2_locked_until_signed">Verrouillé jusqu\'à la signature du contrat par le client.</string>
     <string name="est2_invoice_hint">Ce qui a été convenu, ce qui est payé, ce qui reste.</string>
@@ -766,6 +777,9 @@
     <string name="est2_concrete_bags_per_post">Sacs de béton/poteau</string>
     <string name="est2_post_spacing_follows_panel">Pour ce type de clôture, l\'espacement des poteaux suit automatiquement la largeur du panneau.</string>
     <string name="est2_delete_this_run">Supprimer cette section</string>
+    <string name="run_delete_title">Supprimer cette section ?</string>
+    <string name="run_delete_body">« %1$s » et tout ce qui y est dessiné — la ligne de clôture, ses portails et les matériaux chiffrés — seront supprimés. Cette action est irréversible.</string>
+    <string name="run_untitled">Cette section</string>
     <string name="est2_fence_type">Type de clôture</string>
     <string name="est2_panel_width_ft">Largeur du panneau (pi)</string>
     <string name="est2_panel_height_ft">Hauteur du panneau (pi)</string>

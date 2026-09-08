@@ -7,7 +7,18 @@ package com.fenceestimator.app.data
 // prices came off genuine supplier documents, placeholders are typical market
 // rates that must be checked before anyone quotes off them.
 private const val REAL = "From a real supplier quote"
-private const val PLACEHOLDER = "Placeholder — verify with your supplier"
+internal const val PLACEHOLDER = "Placeholder — verify with your supplier"
+
+/**
+ * True for a catalog item still carrying the price FenceFlow shipped rather
+ * than one this company checked.
+ *
+ * Eighty-one of the ninety-one seeded items are typical market rates, not
+ * quotes: they exist so a brand-new company has a working estimate on day
+ * one, not so anybody sells off them. The label was already on every row --
+ * it was simply never shown anywhere a person would look before quoting.
+ */
+fun isPlaceholderPrice(sourceDoc: String): Boolean = sourceDoc == PLACEHOLDER
 
 /**
  * Starting catalog. VINYL prices are pulled from the user's real FloriFence

@@ -11,6 +11,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,6 +61,7 @@ fun RunEditScreen(
     onDrawRun: (Long) -> Unit
 ) {
     val app = currentApp()
+    var pendingDelete by remember { mutableStateOf(false) }
     val viewModel: RunEditViewModel = viewModel(
         key = "run_edit_$runId",
         factory = GenericViewModelFactory { RunEditViewModel(app.repository, runId) }
@@ -180,12 +184,50 @@ fun RunEditScreen(
                 }
             }
             item {
-                OutlinedButton(onClick = { viewModel.delete(onDeleted) }, modifier = Modifier.fillMaxWidth()) {
+                // Asked, not assumed.
+                //
+                // This button used to delete the run the instant it was
+                // touched -- no dialog, no undo -- while deleting the JOB
+                // that contains it asks you to type the customer's name.
+                // The run is where the drawing lives: the fence line, every
+                // gate on it, and the takeoff priced from it. Losing that to
+                // one mis-tap in a truck is the exact accident this product
+                // is supposed to make impossible.
+                OutlinedButton(
+                    onClick = { pendingDelete = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Icon(Icons.Filled.Delete, contentDescription = null)
                     Text("  " + stringResource(R.string.est2_delete_this_run))
                 }
             }
         }
+    }
+    if (pendingDelete) {
+        val name = currentRun.label.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.run_untitled)
+        AlertDialog(
+            onDismissRequest = { pendingDelete = false },
+            title = { Text(stringResource(R.string.run_delete_title)) },
+            text = { Text(stringResource(R.string.run_delete_body, name)) },
+            confirmButton = {
+                // Red is spent only on the button that cannot be undone --
+                // the same rule the job list follows, so the colour keeps
+                // meaning one thing across the app.
+                Button(
+                    onClick = { pendingDelete = false; viewModel.delete(onDeleted) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingDelete = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
     }
 }
 

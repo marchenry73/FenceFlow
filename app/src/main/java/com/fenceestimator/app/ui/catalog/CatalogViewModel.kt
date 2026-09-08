@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.data.MaterialItem
 import com.fenceestimator.app.data.Repository
@@ -54,11 +55,18 @@ class CatalogViewModel(private val repository: Repository) : ViewModel() {
                 }
                 val parsed = InvoiceParser.parseLineItems(text)
                 if (parsed.isEmpty()) {
-                    _importError.value = "No line items were recognized in that PDF. You can still add prices manually."
+                    _importError.value = context.getString(R.string.cat_import_no_items)
                 }
                 _importMatches.value = InvoiceParser.matchAgainstCatalog(parsed, catalog.value)
             } catch (e: Exception) {
-                _importError.value = "Couldn't read that PDF: ${e.message}"
+                // Never the library's own words.
+                //
+                // This printed the raw exception -- a stack-trace sentence
+                // about streams and parsers -- to somebody holding a supplier
+                // invoice. What they need to know is whether it is worth
+                // trying another file, and that the manual path still exists.
+                android.util.Log.w("CatalogImport", "PDF import failed", e)
+                _importError.value = context.getString(R.string.cat_import_failed)
             } finally {
                 _isImporting.value = false
             }

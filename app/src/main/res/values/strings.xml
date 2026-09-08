@@ -33,7 +33,9 @@
     <string name="status_declined">Declined</string>
 
     <!-- Job detail sections -->
-    <string name="section_progress">Project Progress</string>
+    <string name="section_progress">Job progress</string>
+    <string name="cat_import_no_items">No prices were recognised in that PDF. It may be a scan rather than text. You can still type prices in by hand.</string>
+    <string name="cat_import_failed">That PDF could not be read. It may be a scan rather than text, or the file may be damaged. You can still type prices in by hand.</string>
     <string name="section_customer">Customer</string>
     <string name="section_fence_runs">Fence Runs</string>
     <string name="section_pricing">Pricing</string>
@@ -624,6 +626,10 @@
     <string name="cat_unpriced_many">%1$d items have no price set</string>
     <string name="cat_unpriced_showing_only">Showing only those. Tap to show everything again.</string>
     <string name="cat_unpriced_explain">They count as $0.00 in an estimate, so any quote using one comes out under cost. Tap to see just those.</string>
+    <string name="cat_placeholder_one">1 price is still FenceFlow\'s starting figure</string>
+    <string name="cat_placeholder_many">%1$d prices are still FenceFlow\'s starting figures</string>
+    <string name="cat_placeholder_showing_only">Showing only those. Tap to show everything again.</string>
+    <string name="cat_placeholder_explain">They are typical market rates, not your supplier\'s. Quotes built on them will be close but not yours. Tap to see just those.</string>
     <string name="cat_add_custom_item">Add Custom Item</string>
     <string name="cat_reading_pdf">Reading PDF…</string>
     <string name="cat_nothing_matches">Nothing matches “%1$s”.</string>
@@ -746,6 +752,11 @@
     <string name="est2_provisional_pricing_body">Materials are costed from your catalog, not from a supplier quote. Send the material list, then enter what they come back with.</string>
     <string name="est2_locked_price_changed">Locked: the price changed after this was signed.</string>
     <string name="est2_contract_hint">Scope, price and your terms. No material breakdown.</string>
+    <string name="contract_legal_gap_title">Your contract is missing the cancellation notice</string>
+    <string name="contract_legal_gap_body">The terms still contain the block marked for replacement. Most states require a home-improvement contract to tell the customer, in specific wording, that they can cancel within three business days — and a contract signed at the customer\'s home has a federal rule of its own. Without it the agreement can be unenforceable. Ask your attorney for your state\'s wording and paste it into Settings, Contract terms.</string>
+    <string name="contract_legal_gap_banner">Cancellation notice not filled in yet</string>
+    <string name="contract_legal_gap_send">Send anyway</string>
+    <string name="contract_legal_gap_fix">Open contract terms</string>
     <string name="est2_material_list_hint">Quantities only, no prices -- they quote it back to you.</string>
     <string name="est2_locked_until_signed">Locked until the customer signs the contract.</string>
     <string name="est2_invoice_hint">What was agreed, what is paid, what is left.</string>
@@ -780,6 +791,9 @@
     <string name="est2_concrete_bags_per_post">Concrete bags/post</string>
     <string name="est2_post_spacing_follows_panel">Post spacing follows panel width automatically for this fence type.</string>
     <string name="est2_delete_this_run">Delete This Run</string>
+    <string name="run_delete_title">Delete this run?</string>
+    <string name="run_delete_body">"%1$s" and everything drawn on it — the fence line, its gates and the materials it priced — will be deleted. This can\'t be undone.</string>
+    <string name="run_untitled">This run</string>
     <string name="est2_fence_type">Fence type</string>
     <string name="est2_panel_width_ft">Panel width (ft)</string>
     <string name="est2_panel_height_ft">Panel height (ft)</string>

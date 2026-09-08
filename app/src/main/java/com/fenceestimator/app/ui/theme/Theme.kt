@@ -12,6 +12,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -104,10 +105,20 @@ fun FenceEstimatorTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = AppTypography,
-        shapes = AppShapes,
-        content = content
-    )
+    // The meanings Material has no word for -- good, warning, serious, and the
+    // four chart series -- follow the same light/dark switch as everything
+    // else, so a status chip stops being a pale patch on a dark card. Keyed
+    // off darkTheme rather than off the scheme, because a dynamic-colour
+    // scheme still needs OUR reds and greens: "paid" must not become whatever
+    // the wallpaper suggested.
+    CompositionLocalProvider(
+        LocalSemanticColors provides if (darkTheme) DarkSemantics else LightSemantics
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content
+        )
+    }
 }

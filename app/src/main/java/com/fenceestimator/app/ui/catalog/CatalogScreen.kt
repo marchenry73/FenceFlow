@@ -70,6 +70,7 @@ import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.labelRes
 import com.fenceestimator.app.ui.theme.Space
+import com.fenceestimator.app.ui.theme.semantic
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -90,13 +91,14 @@ fun CatalogScreen(onBack: () -> Unit) {
     var selectedTab by remember { mutableStateOf(FenceType.VINYL) }
     var search by remember { mutableStateOf("") }
     var showOnlyUnpriced by remember { mutableStateOf(false) }
+    var showOnlyPlaceholder by remember { mutableStateOf(false) }
 
     // Searching looks across every fence type, not just the open tab. With
     // hundreds of items, someone typing "cedar" wants the cedar, and having to
     // guess which tab it was filed under is the whole problem with tabs.
     val searching = search.isNotBlank()
     val context = LocalContext.current
-    val visibleItems = remember(catalog, selectedTab, search, showOnlyUnpriced) {
+    val visibleItems = remember(catalog, selectedTab, search, showOnlyUnpriced, showOnlyPlaceholder) {
         val base = when {
             searching -> {
                 val needle = search.trim().lowercase()
@@ -110,16 +112,31 @@ fun CatalogScreen(onBack: () -> Unit) {
             // Unpriced items are a whole-catalog problem, so this filter
             // deliberately ignores the open tab -- they need finding wherever
             // they are, not one fence type at a time.
+            showOnlyPlaceholder -> catalog
             showOnlyUnpriced -> catalog
             else -> catalog.filter { it.fenceType == selectedTab }
         }
-        if (showOnlyUnpriced) base.filter { it.unitPrice <= 0.0 } else base
+        when {
+            showOnlyUnpriced -> base.filter { it.unitPrice <= 0.0 }
+            showOnlyPlaceholder -> base.filter {
+                it.unitPrice > 0.0 && com.fenceestimator.app.data.isPlaceholderPrice(it.sourceDoc)
+            }
+            else -> base
+        }
     }
 
     // An item priced at zero is not free, it is unfilled -- and it silently
     // drags every estimate using it below cost. Worth surfacing before it is
     // quoted rather than after.
     val unpricedCount = remember(catalog) { catalog.count { it.unitPrice <= 0.0 } }
+    // Priced, but with OUR number rather than this company's. A quote built
+    // on these is not wrong so much as unowned: it will be close to the Tampa
+    // market and nowhere near a particular supplier's account pricing.
+    val placeholderCount = remember(catalog) {
+        catalog.count {
+            it.unitPrice > 0.0 && com.fenceestimator.app.data.isPlaceholderPrice(it.sourceDoc)
+        }
+    }
 
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) viewModel.importPdf(app, uri)
@@ -207,6 +224,39 @@ fun CatalogScreen(onBack: () -> Unit) {
                                             stringResource(R.string.cat_unpriced_explain),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (placeholderCount > 0) {
+                        item {
+                            Card(
+                                onClick = {
+                                    showOnlyPlaceholder = !showOnlyPlaceholder
+                                    if (showOnlyPlaceholder) showOnlyUnpriced = false
+                                },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.semantic.warningContainer
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(Space.md)) {
+                                    Text(
+                                        if (placeholderCount == 1)
+                                            stringResource(R.string.cat_placeholder_one)
+                                        else
+                                            stringResource(R.string.cat_placeholder_many, placeholderCount),
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.semantic.onWarningContainer
+                                    )
+                                    Text(
+                                        if (showOnlyPlaceholder)
+                                            stringResource(R.string.cat_placeholder_showing_only)
+                                        else
+                                            stringResource(R.string.cat_placeholder_explain),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.semantic.onWarningContainer
                                     )
                                 }
                             }

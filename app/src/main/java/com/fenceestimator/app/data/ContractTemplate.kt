@@ -252,6 +252,24 @@ fun defaultContractTermsFor(language: AppLanguage): String = when (language) {
     else -> DEFAULT_CONTRACT_TERMS
 }
 
+/**
+ * True when the terms still carry the unresolved right-to-cancel block.
+ *
+ * Stricter than [isDefaultContractTerms] on purpose: an owner who edited the
+ * warranty wording and left this block alone has terms that are no longer
+ * "the default" but are still missing the one clause whose absence can void
+ * the whole agreement. Most states require a home-improvement contract to
+ * state, in particular words and often at a particular size, that the
+ * customer may cancel within three business days; the federal cooling-off
+ * rule adds its own requirement for anything signed away from the seller's
+ * usual place of business, which is nearly every fence job. Matched on the
+ * marker in all three shipped languages.
+ */
+fun contractTermsNeedLegalReview(terms: String): Boolean =
+    terms.contains("[REPLACE THIS BLOCK", ignoreCase = true) ||
+        terms.contains("[REEMPLACE ESTE BLOQUE", ignoreCase = true) ||
+        terms.contains("[REMPLACEZ CE BLOC", ignoreCase = true)
+
 /** True when [terms] is one of the shipped defaults in any language. */
 fun isDefaultContractTerms(terms: String): Boolean {
     val t = terms.trim()
