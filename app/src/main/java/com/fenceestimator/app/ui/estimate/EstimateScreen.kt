@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.estimate
 
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -86,6 +87,8 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     val currentJob = job ?: return
 
     var editingItem by remember { mutableStateOf<EstimateLineItem?>(null) }
+    /** The run whose post count is being explained, if somebody asked. */
+    var explainingRun by remember { mutableStateOf<FenceRun?>(null) }
     val itemsByRun = remember(lineItems) { lineItems.groupBy { it.fenceRunId } }
     val warnings = remember(currentJob, runs, lineItems, totals) {
         EstimateEngine.estimateWarnings(currentJob, runs, lineItems, totals)
@@ -129,6 +132,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                     wasDrawn = viewModel.canRecalibrateFrom(run),
                     onFixScaleFromFeet = { feet -> viewModel.recalibrateFromRun(run, feet) },
                     onRestoreRemoved = { viewModel.restoreRemovedItems(run) },
+                    onExplainPosts = { explainingRun = run },
                     onItemClick = { editingItem = it }
                 )
             }
@@ -159,6 +163,12 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
         }
     }
 
+    explainingRun?.let { run ->
+        val workings = viewModel.postWorkings(run)
+        if (workings == null) explainingRun = null
+        else PostWorkingsDialog(workings) { explainingRun = null }
+    }
+
     editingItem?.let { item ->
         EditLineItemDialog(
             item = item,
@@ -182,6 +192,8 @@ private fun RunSection(
     /** Sets the drawing scale so this run measures the length typed above. */
     onFixScaleFromFeet: (Float) -> Unit,
     onRestoreRemoved: () -> Unit,
+    /** Asked when somebody taps the post count wanting to know where it came from. */
+    onExplainPosts: () -> Unit,
     onItemClick: (EstimateLineItem) -> Unit
 ) {
     val subtotal = items.sumOf { it.lineTotal }
@@ -273,7 +285,7 @@ private fun RunSection(
 
             if (takeoff.isNotEmpty()) {
                 Spacer(Modifier.height(Space.md))
-                TakeoffBlock(takeoff)
+                TakeoffBlock(takeoff, onExplainPosts)
             } else {
                 val summary = quantitySummary(items)
                 if (summary.isNotBlank()) {
@@ -307,7 +319,7 @@ private fun RunSection(
 
 /** The counts a contractor reads off before calling the supply house. */
 @Composable
-private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
+private fun TakeoffBlock(takeoff: List<TakeoffLine>, onExplainPosts: () -> Unit) {
     Column(
         Modifier.fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(Radius.sm))
@@ -338,12 +350,33 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>) {
                 // The total is the one line worth setting apart, since it is
                 // what gets counted against the delivery.
                 val isTotal = line.label.startsWith("Total")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(
-                        line.label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal
-                    )
+                val isPostTotal = isTotal && group == com.fenceestimator.app.estimate.TakeoffGroup.POSTS
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .then(if (isPostTotal) Modifier.clickable { onExplainPosts() } else Modifier)
+                        .padding(vertical = if (isPostTotal) Space.xs else 0.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Text(
+                            line.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal
+                        )
+                        // The question every contractor asks first, answered
+                        // where they ask it. Without this the only way to check
+                        // a post count was to count the drawing by hand.
+                        if (isPostTotal) {
+                            Spacer(Modifier.width(Space.sm))
+                            Text(
+                                stringResource(R.string.posts_why_link),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     Text(
                         "$qty ${line.unit}".trim(),
                         style = MaterialTheme.typography.bodyMedium,
@@ -433,8 +466,62 @@ private fun LineItemRow(item: EstimateLineItem, onClick: () -> Unit) {
 
 @Composable
 private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
+    val session by com.fenceestimator.app.ui.components.currentApp().session.state.collectAsState()
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Space.card)) {
+            // Tax is a passthrough and belongs to neither side, so it comes
+            // out of both before anything is compared. Materials are what the
+            // supply house charges; everything else on the price is the
+            // contractor's own work, which is why what is left over still has
+            // wages to pay out of it -- said plainly under the figure rather
+            // than left for somebody to discover on payday.
+            val priceExTax = totals.grandTotal - totals.tax
+            val kept = priceExTax - totals.materialsSubtotal
+            val keptPct = if (priceExTax > 0.005) kept / priceExTax * 100.0 else 0.0
+            val thin = keptPct < 35.0
+
+            if (session.canSeeMoney && priceExTax > 0.005) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Space.sm)
+                ) {
+                    HeadlineFigure(
+                        label = stringResource(R.string.est_headline_price),
+                        value = Money.format(totals.grandTotal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    HeadlineFigure(
+                        label = stringResource(R.string.est_headline_materials),
+                        value = Money.format(totals.materialsSubtotal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    HeadlineFigure(
+                        label = stringResource(R.string.est_headline_kept),
+                        value = Money.format(kept),
+                        // The only colour on the strip, and only when it means
+                        // something. A margin that is fine says so by being
+                        // the same colour as everything else.
+                        tint = if (thin) MaterialTheme.semantic.warning else null,
+                        footnote = "%.0f%%".format(keptPct),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Text(
+                    stringResource(R.string.est_headline_kept_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (thin) MaterialTheme.semantic.warning
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Space.sm)
+                )
+                Spacer(Modifier.height(Space.md))
+                Text(
+                    stringResource(R.string.est_how_built),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(Space.sm))
+            }
+
             TotalRow(stringResource(R.string.estimate_materials_subtotal), Money.format(totals.materialsSubtotal))
             TotalRow(stringResource(R.string.est2_tax_pct, "${job?.taxRatePercent ?: 0}"), Money.format(totals.tax))
             if (totals.laborCost > 0.0) TotalRow(stringResource(R.string.estimate_labor), Money.format(totals.laborCost))
@@ -467,24 +554,6 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
             Divider(modifier = Modifier.padding(vertical = Space.sm))
             TotalRow(stringResource(R.string.estimate_total), Money.format(totals.grandTotal), bold = true)
 
-            // What the job keeps, shown every time rather than only when it is
-            // bad. The warning below fires under 35%; the owner asked to see
-            // the figure itself, not just be told when it is low. Tax is a
-            // passthrough and is out on both sides; labor and teardown are the
-            // contractor's own charges, so they stay in.
-            val keptSession by com.fenceestimator.app.ui.components.currentApp().session.state.collectAsState()
-            val priceExTax = totals.grandTotal - totals.tax
-            if (keptSession.canSeeMoney && priceExTax > 0.005) {
-                val kept = priceExTax - totals.materialsSubtotal
-                val keptPct = kept / priceExTax * 100.0
-                Text(
-                    stringResource(R.string.est2_stays_with_you, Money.format(kept), "%.0f".format(keptPct)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (keptPct < 35.0) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Space.sm)
-                )
-            }
             if (job != null && totals.grandTotal <= job!!.minimumJobCharge && job!!.minimumJobCharge > 0.0) {
                 Text(
                     stringResource(R.string.est2_minimum_charge_applied, Money.format(job!!.minimumJobCharge)),
@@ -890,4 +959,132 @@ private fun EditLineItemDialog(
             }
         }
     )
+}
+
+/**
+ * Where a post count came from, line by line.
+ *
+ * "Why does it say thirty-three posts?" is the first thing a contractor asks
+ * of any estimating tool, and the answer decides whether they trust the rest
+ * of the number. Shown as the arithmetic in the order it happens, with the
+ * same words the takeoff uses, so it reads as a derivation rather than a
+ * justification. The figures come from the engine that built the takeoff --
+ * not from a second copy of the rules -- so the explanation cannot drift
+ * away from the count it explains.
+ */
+@Composable
+private fun PostWorkingsDialog(
+    w: com.fenceestimator.app.estimate.PostWorkings,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.posts_why_title, w.totalPosts)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                WorkingRow(
+                    stringResource(R.string.posts_why_fence),
+                    stringResource(R.string.posts_why_feet, String.format("%.1f", w.fenceFeet))
+                )
+                if (w.gateFeet > 0.005f) {
+                    WorkingRow(
+                        stringResource(R.string.posts_why_gates_out),
+                        "-" + stringResource(R.string.posts_why_feet, String.format("%.1f", w.gateFeet))
+                    )
+                    WorkingRow(
+                        stringResource(R.string.posts_why_net),
+                        stringResource(R.string.posts_why_feet, String.format("%.1f", w.netFeet))
+                    )
+                }
+                Divider(Modifier.padding(vertical = Space.xs))
+                WorkingRow(
+                    stringResource(R.string.posts_why_spacing, String.format("%.1f", w.spacingFt)),
+                    stringResource(R.string.posts_why_bays, w.bays)
+                )
+                if (w.openRun) WorkingRow(stringResource(R.string.posts_why_open_end), "+1")
+                if (w.gateCount > 0) {
+                    WorkingRow(stringResource(R.string.posts_why_gate_split), "-${w.gateCount}")
+                }
+                WorkingRow(stringResource(R.string.posts_why_along_line), "${w.standardEstimate}", bold = true)
+                Divider(Modifier.padding(vertical = Space.xs))
+                // Corners and ends are not extra posts -- they are posts the
+                // line already counted, standing in particular places. Saying
+                // so stops the next question, which is always "then why are
+                // corners listed separately?"
+                if (w.cornerPosts > 0) WorkingRow(stringResource(R.string.posts_why_corners), "${w.cornerPosts}")
+                if (w.endPosts > 0) WorkingRow(stringResource(R.string.posts_why_ends), "${w.endPosts}")
+                WorkingRow(stringResource(R.string.posts_why_line), "${w.linePosts}")
+                if (w.gatePosts > 0) WorkingRow(stringResource(R.string.posts_why_gate_posts), "+${w.gatePosts}")
+                Divider(Modifier.padding(vertical = Space.xs))
+                WorkingRow(stringResource(R.string.posts_why_total), "${w.totalPosts}", bold = true)
+                Text(
+                    stringResource(R.string.posts_why_footer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Space.sm)
+                )
+            }
+        },
+        confirmButton = { Button(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
+    )
+}
+
+@Composable
+private fun WorkingRow(label: String, value: String, bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium
+        )
+    }
+}
+
+/**
+ * One of the three figures a contractor has to be able to tell apart at a
+ * glance: what the customer pays, what the materials cost, what is left.
+ *
+ * Big enough to read from arm's length in a truck, and set in tabular
+ * figures so three of them side by side line up on the decimal instead of
+ * dancing about as the numbers change. The label sits above the figure
+ * rather than beside it: the eye should land on the money.
+ */
+@Composable
+private fun HeadlineFigure(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    tint: androidx.compose.ui.graphics.Color? = null,
+    footnote: String? = null,
+) {
+    Column(modifier) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFeatureSettings = "tnum"
+            ),
+            color = tint ?: MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
+        )
+        if (footnote != null) {
+            Text(
+                footnote,
+                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                color = tint ?: MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }

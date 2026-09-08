@@ -41,6 +41,31 @@ data class EstimateSuggestions(
     val takeoff: List<TakeoffLine> = emptyList()
 )
 
+/**
+ * Where a post count came from, in the order the arithmetic happens.
+ *
+ * Deliberately NOT a field on [TakeoffLine]: that type is part of the
+ * pricing contract, mirrored by the TypeScript engine and pinned by 77
+ * golden fixtures, and widening it to carry a display concern would mean
+ * regenerating all of them to say nothing new about price.
+ */
+data class PostWorkings(
+    val fenceFeet: Float,
+    val gateFeet: Float,
+    val netFeet: Float,
+    val spacingFt: Float,
+    val bays: Int,
+    /** An open run needs a post to finish on; a closed loop lands back on its first. */
+    val openRun: Boolean,
+    val gateCount: Int,
+    val standardEstimate: Int,
+    val linePosts: Int,
+    val cornerPosts: Int,
+    val endPosts: Int,
+    val gatePosts: Int,
+    val totalPosts: Int,
+)
+
 /** One "8 line posts" style readout for the takeoff summary. */
 data class TakeoffLine(
     val label: String,
@@ -92,7 +117,11 @@ object EstimateEngine {
         val endPosts: Int,
         val gatePosts: Int,
         val terminalPosts: Int,
-        val totalPosts: Int
+        val totalPosts: Int,
+        /** Bays the run divides into at the chosen spacing, before any adjustment. */
+        val bays: Int = 0,
+        /** Posts the run length alone calls for, once ends and gates are accounted for. */
+        val standardEstimate: Int = 0
     )
 
     /**
@@ -265,6 +294,39 @@ object EstimateEngine {
         ).filter { it.quantity > 0.0 }
     }
 
+    /**
+     * The arithmetic behind the post count, so the screen can answer the
+     * question every contractor asks the first time they use this: "why does
+     * it say thirty-three posts?"
+     *
+     * Reads the same [computePostCounts] the takeoff itself is built from
+     * rather than restating the rules, because an explanation that can drift
+     * from the number it explains is worse than no explanation -- it teaches
+     * somebody a formula the product does not actually use.
+     */
+    fun explainPosts(run: FenceRun, pixelsPerFoot: Float): PostWorkings {
+        val gates = FenceCodec.decodeGates(run.gatesEncoded)
+        val geometry = resolveGeometry(run, pixelsPerFoot)
+        val gateWidthTotal = gates.sumOf { it.widthFt.toDouble() }.toFloat()
+        val netFt = (geometry.totalLinearFeet - gateWidthTotal).coerceAtLeast(0f)
+        val c = computePostCounts(geometry, gates, run.postSpacingFt, netFt)
+        return PostWorkings(
+            fenceFeet = geometry.totalLinearFeet,
+            gateFeet = gateWidthTotal,
+            netFeet = netFt,
+            spacingFt = run.postSpacingFt,
+            bays = c.bays,
+            openRun = c.endPosts > 0,
+            gateCount = gates.size,
+            standardEstimate = c.standardEstimate,
+            linePosts = c.linePosts,
+            cornerPosts = c.cornerPosts,
+            endPosts = c.endPosts,
+            gatePosts = c.gatePosts,
+            totalPosts = c.totalPosts,
+        )
+    }
+
     private fun computePostCounts(
         geometry: FenceGeometryResult,
         gates: List<GateMarker>,
@@ -298,7 +360,11 @@ object EstimateEngine {
         val linePosts = (standardPostEstimate - cornerPosts - endPosts).coerceAtLeast(0)
         val totalPosts = linePosts + cornerPosts + endPosts + gatePosts
 
-        return PostCounts(linePosts, cornerPosts, endPosts, gatePosts, cornerPosts + endPosts + gatePosts, totalPosts)
+        return PostCounts(
+            linePosts, cornerPosts, endPosts, gatePosts,
+            cornerPosts + endPosts + gatePosts, totalPosts,
+            bays = bays, standardEstimate = standardPostEstimate
+        )
     }
 
     /** Vinyl, aluminum, ornamental iron: fence built from discrete panels. */
