@@ -101,7 +101,7 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "Read only. If the line needs to move, ask -- do not build it different.",
+                    stringResource(R.string.crew_plan_read_only),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -140,9 +140,7 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
 
             item {
                 Text(
-                    "Leaves and loose debris are ours to clear. Anything needing a tool — " +
-                        "bushes, planters, sheds, limbs, old posts — is the customer's, or it " +
-                        "goes on a change order. Don't remove it without checking.",
+                    stringResource(R.string.crew_plan_debris_rule),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -276,8 +274,8 @@ private fun Legend(runs: List<FenceRun>, markers: List<SiteMarker>) {
 
     Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
-            if (hasBuildLine) LegendDot(PlanColors.fenceLine, "Fence line & posts")
-            if (hasTeardownLine) LegendDot(PlanColors.teardownLine, "Fence coming out")
+            if (hasBuildLine) LegendDot(PlanColors.fenceLine, stringResource(R.string.crew_plan_legend_build))
+            if (hasTeardownLine) LegendDot(PlanColors.teardownLine, stringResource(R.string.crew_plan_legend_teardown))
             LegendDot(PlanColors.gate, "Gate")
         }
         // Two per row rather than one long row, so this stays legible on a
@@ -320,29 +318,41 @@ private fun RunCard(job: Job, run: FenceRun) {
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-            Text(run.label.ifBlank { "Fence run" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(run.label.ifBlank { stringResource(R.string.crew_plan_run_untitled) }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
 
             if (feet <= 0.0) {
                 Text(
-                    "Nothing measured for this run yet — check with the office before starting.",
+                    stringResource(R.string.crew_plan_not_measured),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error
                 )
                 return@Column
             }
 
-            SpecRow("Type", run.fenceType.label())
-            SpecRow("Length", "${"%.0f".format(feet)} ft" + if (usingManual) "  (measured on site)" else "")
-            SpecRow("Height", "${run.panelHeightFt.toInt()} ft")
-            if (run.colorOrFinish.isNotBlank()) SpecRow("Color", run.colorOrFinish)
-            SpecRow("Post spacing", "${run.postSpacingFt.toInt()} ft")
-            SpecRow("Concrete", "${run.concreteBagsPerPost} bag(s) per post")
-            SpecRow("Corners", corners.toString())
-            if (geometry != null) SpecRow("Ends", geometry.endCount.toString())
-            SpecRow("Gates", gates.size.toString())
+            SpecRow(stringResource(R.string.crew_plan_spec_type), run.fenceType.label())
+            SpecRow(
+                stringResource(R.string.crew_plan_spec_length),
+                "${"%.0f".format(feet)} ft" +
+                    if (usingManual) stringResource(R.string.crew_plan_measured_on_site) else ""
+            )
+            SpecRow(stringResource(R.string.crew_plan_spec_height), "${run.panelHeightFt.toInt()} ft")
+            if (run.colorOrFinish.isNotBlank())
+                SpecRow(stringResource(R.string.crew_plan_spec_color), run.colorOrFinish)
+            SpecRow(stringResource(R.string.crew_plan_spec_spacing), "${run.postSpacingFt.toInt()} ft")
+            SpecRow(
+                stringResource(R.string.crew_plan_spec_concrete),
+                stringResource(R.string.crew_plan_bags_per_post, run.concreteBagsPerPost.toString())
+            )
+            SpecRow(stringResource(R.string.crew_plan_spec_corners), corners.toString())
+            if (geometry != null)
+                SpecRow(stringResource(R.string.crew_plan_spec_ends), geometry.endCount.toString())
+            SpecRow(stringResource(R.string.crew_plan_spec_gates), gates.size.toString())
             if (gates.isNotEmpty()) {
                 Text(
-                    "Gate widths: " + gates.joinToString(", ") { "${"%.0f".format(it.widthFt)} ft" },
+                    stringResource(
+                        R.string.crew_plan_gate_widths,
+                        gates.joinToString(", ") { "${"%.0f".format(it.widthFt)} ft" }
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -367,7 +377,7 @@ private fun MarkersCard(markers: List<SiteMarker>) {
     ) {
         Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(
-                "Watch out on site",
+                stringResource(R.string.crew_plan_watch_out),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onErrorContainer
@@ -410,15 +420,18 @@ private fun RequestChangeCard(jobId: Long) {
     ) {
         Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text(
-                if (sent) "Change requested" else "Something not right?",
+                stringResource(
+                    if (sent) R.string.crew_plan_change_requested
+                    else R.string.crew_plan_something_wrong
+                ),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Text(
-                if (sent)
-                    "The office has it. Carry on with the rest of the job while you wait."
-                else
-                    "Ask the office before building it different. They will see it straight away.",
+                stringResource(
+                    if (sent) R.string.crew_plan_office_has_it
+                    else R.string.crew_plan_ask_office
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )

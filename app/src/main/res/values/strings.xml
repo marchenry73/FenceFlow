@@ -1568,4 +1568,30 @@
     <string name="evm_saved_some_catalog">Saved. Some lines still use the catalog estimate.</string>
     <string name="evm_replaced_lines">Replaced with %1$d line items.</string>
     <string name="evm_replaced_lines_check">Replaced with %1$d line items. Check: %2$s</string>
+
+    <!-- Crew fence plan. The crew screen carries the site rules, so it is
+         the last place that should have been English only. -->
+    <string name="crew_plan_read_only">Read only. If the line needs to move, ask — do not build it different.</string>
+    <string name="crew_plan_debris_rule">Leaves and loose debris are ours to clear. Anything needing a tool — bushes, planters, sheds, limbs, old posts — is the customer\'s, or it goes on a change order. Don\'t remove it without checking.</string>
+    <string name="crew_plan_legend_build">Fence line &amp; posts</string>
+    <string name="crew_plan_legend_teardown">Fence coming out</string>
+    <string name="crew_plan_run_untitled">Fence run</string>
+    <string name="crew_plan_not_measured">Nothing measured for this run yet — check with the office before starting.</string>
+    <string name="crew_plan_spec_type">Type</string>
+    <string name="crew_plan_spec_length">Length</string>
+    <string name="crew_plan_spec_height">Height</string>
+    <string name="crew_plan_spec_color">Color</string>
+    <string name="crew_plan_spec_spacing">Post spacing</string>
+    <string name="crew_plan_spec_concrete">Concrete</string>
+    <string name="crew_plan_spec_corners">Corners</string>
+    <string name="crew_plan_spec_ends">Ends</string>
+    <string name="crew_plan_spec_gates">Gates</string>
+    <string name="crew_plan_measured_on_site">  (measured on site)</string>
+    <string name="crew_plan_bags_per_post">%1$s bag(s) per post</string>
+    <string name="crew_plan_gate_widths">Gate widths: %1$s</string>
+    <string name="crew_plan_watch_out">Watch out on site</string>
+    <string name="crew_plan_change_requested">Change requested</string>
+    <string name="crew_plan_something_wrong">Something not right?</string>
+    <string name="crew_plan_office_has_it">The office has it. Carry on with the rest of the job while you wait.</string>
+    <string name="crew_plan_ask_office">Ask the office before building it different. They will see it straight away.</string>
 </resources>

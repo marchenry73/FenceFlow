@@ -1547,4 +1547,30 @@
     <string name="evm_saved_some_catalog">Enregistré. Certaines lignes utilisent encore l\'estimation du catalogue.</string>
     <string name="evm_replaced_lines">Remplacé par %1$d lignes.</string>
     <string name="evm_replaced_lines_check">Remplacé par %1$d lignes. À vérifier : %2$s</string>
+
+    <!-- Crew fence plan. The crew screen carries the site rules, so it is
+         the last place that should have been English only. -->
+    <string name="crew_plan_read_only">Lecture seule. Si la ligne doit bouger, demandez — ne la construisez pas autrement.</string>
+    <string name="crew_plan_debris_rule">Les feuilles et les débris libres sont à nous. Tout ce qui demande un outil — arbustes, jardinières, cabanons, branches, vieux poteaux — appartient au client, ou passe en avenant. Ne l\'enlevez pas sans demander.</string>
+    <string name="crew_plan_legend_build">Ligne de clôture et poteaux</string>
+    <string name="crew_plan_legend_teardown">Clôture à déposer</string>
+    <string name="crew_plan_run_untitled">Tronçon de clôture</string>
+    <string name="crew_plan_not_measured">Ce tronçon n\'a pas encore de mesures — voyez avec le bureau avant de commencer.</string>
+    <string name="crew_plan_spec_type">Type</string>
+    <string name="crew_plan_spec_length">Longueur</string>
+    <string name="crew_plan_spec_height">Hauteur</string>
+    <string name="crew_plan_spec_color">Couleur</string>
+    <string name="crew_plan_spec_spacing">Espacement des poteaux</string>
+    <string name="crew_plan_spec_concrete">Béton</string>
+    <string name="crew_plan_spec_corners">Angles</string>
+    <string name="crew_plan_spec_ends">Extrémités</string>
+    <string name="crew_plan_spec_gates">Portails</string>
+    <string name="crew_plan_measured_on_site">  (mesuré sur place)</string>
+    <string name="crew_plan_bags_per_post">%1$s sac(s) par poteau</string>
+    <string name="crew_plan_gate_widths">Largeur des portails : %1$s</string>
+    <string name="crew_plan_watch_out">Attention sur le chantier</string>
+    <string name="crew_plan_change_requested">Modification demandée</string>
+    <string name="crew_plan_something_wrong">Quelque chose ne va pas ?</string>
+    <string name="crew_plan_office_has_it">Le bureau l\'a reçu. Continuez le reste du travail en attendant.</string>
+    <string name="crew_plan_ask_office">Demandez au bureau avant de construire autrement. Ils le verront tout de suite.</string>
 </resources>
