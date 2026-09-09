@@ -115,6 +115,7 @@ function tr(key) {
 
 function applyStaticText() {
   document.documentElement.lang = LANG;
+  document.title = tr('title');
   document.querySelectorAll('[data-t]').forEach(el => {
     const k = el.getAttribute('data-t');
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = tr(k);
