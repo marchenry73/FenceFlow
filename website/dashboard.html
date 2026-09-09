@@ -708,14 +708,41 @@
       </div>
     </div>
 
+    <!-- Correcting a clock. The original is kept by the database, not by
+         this page: a trigger on time_entries copies the old time into
+         original_started_at the first time it moves, and refuses to let a
+         second edit overwrite it. -->
+    <div class="sheet" id="fixTimeSheet" style="display:none">
+      <div class="sheet-head"><h2>Correct this shift</h2>
+        <button class="jt-clear" id="fixTimeClose">Close</button></div>
+      <div class="sheet-body">
+        <p class="sub" id="fixTimeWho"></p>
+        <p class="sub" id="fixTimeWasOriginal" style="display:none"></p>
+        <div class="row2">
+          <div><label>Started</label><input type="datetime-local" id="fixTimeStart"></div>
+          <div><label>Ended</label><input type="datetime-local" id="fixTimeEnd"></div>
+        </div>
+        <label>Why is it being changed?</label>
+        <input id="fixTimeReason" placeholder="Forgot to clock in, was on site at 8:30" maxlength="200">
+        <p class="sub">The clock's own times are kept. This records what you changed and why,
+          and it will show on the shift from now on.</p>
+        <div class="msg" id="fixTimeMsg"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn" id="fixTimeSave">Save correction</button>
+          <button class="btn btn-grey" id="fixTimeCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <div id="tab-time" style="display:none">
       <div class="panel">
         <h2>Clock In / Out</h2>
         <div class="scroll"><table>
-          <thead><tr><th>Job</th><th>Started</th><th>Ended</th><th>Hours</th><th>Labor cost</th></tr></thead>
+          <thead><tr><th>Who</th><th>Job</th><th>Started</th><th>Ended</th><th>Hours</th><th>Labor cost</th><th></th></tr></thead>
           <tbody id="timeRows"></tbody></table></div>
         <div class="empty" id="timeEmpty" style="display:none">No time logged yet. Crews clock in from the phone app.</div>
         <div id="timeTotals" style="margin-top:12px;font-weight:600"></div>
+        <div class="msg" id="timeMsg"></div>
       </div>
     </div>
 
@@ -3005,6 +3032,10 @@ function toggleJobSort(key){
   else { jobView.sort = key; jobView.dir = (key === 'paid' || key === 'scheduled') ? 'asc' : 'asc'; }
   renderJobs();
 }
+$('fixTimeClose').addEventListener('click', closeFixTime);
+$('fixTimeCancel').addEventListener('click', closeFixTime);
+$('fixTimeSave').addEventListener('click', saveFixTime);
+
 $('jobSelAll').addEventListener('change', e=>{
   // Acts on what is in front of you, not on every job in the company. A
   // "select all" that quietly picks up rows a filter is hiding is how a batch
@@ -3443,20 +3474,94 @@ function hoursOf(t){
   return (d(t.ended_at)-d(t.started_at))/3600000;
 }
 function jobBySync(sid){ return jobs.find(j=>j.sync_id===sid); }
+/* A shift shows the corrected time, with the clock's own time underneath when
+   the two differ. Hiding the original would make the correction invisible to
+   the person it affects, which is the whole thing this is meant to prevent. */
+function shiftWhoName(t){
+  return (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Unknown';
+}
+
 function renderTime(){
   const done=times.filter(t=>t.ended_at);
   $('timeEmpty').style.display=done.length?'none':'block';
   $('timeRows').innerHTML=done.map(t=>{
     const j=jobBySync(t.job_sync_id), h=hoursOf(t);
-    return `<tr><td>${esc(j?.customer_name)||'—'}</td>
-      <td>${d(t.started_at).toLocaleString()}</td>
-      <td>${d(t.ended_at).toLocaleString()}</td>
-      <td>${h.toFixed(2)}</td><td>${money(h*(t.hourly_rate||0))}</td></tr>`;
+    const wasStart = t.original_started_at && t.original_started_at !== t.started_at
+      ? '<div class="sub">clock said ' + d(t.original_started_at).toLocaleTimeString() + '</div>' : '';
+    const wasEnd = t.original_ended_at && t.original_ended_at !== t.ended_at
+      ? '<div class="sub">clock said ' + d(t.original_ended_at).toLocaleTimeString() + '</div>' : '';
+    const why = t.correction_reason
+      ? '<div class="sub" style="font-style:italic">' + esc(t.correction_reason) + '</div>' : '';
+    return `<tr><td>${esc(shiftWhoName(t))}${why}</td>
+      <td>${esc(j?.customer_name)||'—'}</td>
+      <td>${d(t.started_at).toLocaleString()}${wasStart}</td>
+      <td>${d(t.ended_at).toLocaleString()}${wasEnd}</td>
+      <td>${h.toFixed(2)}</td><td>${money(h*(t.hourly_rate||0))}</td>
+      <td><button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">Correct</button></td></tr>`;
   }).join('');
+  document.querySelectorAll('#timeRows .fixtime').forEach(b =>
+    b.addEventListener('click', () => openFixTime(b.dataset.id)));
   const th=done.reduce((s,t)=>s+hoursOf(t),0);
   const tc=done.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
   $('timeTotals').textContent = done.length
     ? `Total: ${th.toFixed(1)} hours · ${money(tc)} labor` : '';
+}
+
+/* ---- correcting a shift ------------------------------------------------ */
+let fixingShift = null;
+
+// datetime-local wants local wall-clock with no zone. Feeding it an ISO string
+// with a Z on the end silently shifts the time by the offset, which on a
+// timesheet is a correction nobody made.
+function forLocalInput(iso){
+  const t = new Date(iso), p = n => String(n).padStart(2,'0');
+  return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate())+'T'+p(t.getHours())+':'+p(t.getMinutes());
+}
+
+function openFixTime(id){
+  const t = times.find(x => String(x.id) === String(id));
+  if (!t || !canEdit()) return;
+  fixingShift = t;
+  $('fixTimeWho').textContent = shiftWhoName(t) + ' · ' +
+    (jobBySync(t.job_sync_id)?.customer_name || 'no job');
+  const orig = [];
+  if (t.original_started_at) orig.push('started ' + d(t.original_started_at).toLocaleString());
+  if (t.original_ended_at)   orig.push('ended ' + d(t.original_ended_at).toLocaleString());
+  $('fixTimeWasOriginal').style.display = orig.length ? 'block' : 'none';
+  $('fixTimeWasOriginal').textContent = orig.length
+    ? 'The clock originally said: ' + orig.join(', ') + '. That does not change.' : '';
+  $('fixTimeStart').value = forLocalInput(t.started_at);
+  $('fixTimeEnd').value   = t.ended_at ? forLocalInput(t.ended_at) : '';
+  $('fixTimeReason').value = '';
+  msg('fixTimeMsg','','');
+  $('fixTimeSheet').style.display = 'block';
+}
+
+function closeFixTime(){ fixingShift = null; $('fixTimeSheet').style.display = 'none'; }
+
+async function saveFixTime(){
+  const t = fixingShift;
+  if (!t) return;
+  const reason = $('fixTimeReason').value.trim();
+  // Required, and not as box-ticking: this line is what the employee reads
+  // when their hours change, and what settles it if they disagree.
+  if (reason.length < 4) return msg('fixTimeMsg','Say why it is changing.','err');
+  const startVal = $('fixTimeStart').value, endVal = $('fixTimeEnd').value;
+  if (!startVal || !endVal) return msg('fixTimeMsg','Both times are needed.','err');
+  const start = new Date(startVal), end = new Date(endVal);
+  if (!(end > start)) return msg('fixTimeMsg','The end has to come after the start.','err');
+  // Twenty hours. Longer than any real shift, short enough to catch the
+  // slipped date that turns eight hours into two hundred.
+  if ((end - start) > 20*36e5) return msg('fixTimeMsg','That is over twenty hours. Check the dates.','err');
+
+  const { error } = await db.from('time_entries')
+    .update({ started_at: start.toISOString(), ended_at: end.toISOString(),
+              correction_reason: reason })
+    .eq('id', t.id);
+  if (error) return msg('fixTimeMsg', error.message, 'err');
+  closeFixTime();
+  msg('timeMsg','Shift corrected. The clock\'s own times are kept on the record.','ok');
+  await loadAll();
 }
 
 /* ===================== Materials catalog ==================================
