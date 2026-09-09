@@ -753,8 +753,8 @@
         <div class="scroll"><table>
           <thead><tr><th>Who</th><th>Week of</th><th>Regular</th><th>Overtime</th>
             <th>Rate</th><th>Estimated gross</th></tr></thead>
-          <tbody id="payRows"></tbody></table></div>
-        <div class="empty" id="payEmpty" style="display:none">No finished shifts yet.</div>
+          <tbody id="payWeekRows"></tbody></table></div>
+        <div class="empty" id="payWeekEmpty" style="display:none">No finished shifts yet.</div>
         <p class="sub" id="payAssumption" style="margin-top:10px"></p>
       </div>
     </div>
@@ -3543,7 +3543,7 @@ function weekStart(iso){
 }
 
 function renderPay(){
-  if (!$('payRows')) return;
+  if (!$('payWeekRows')) return;
   const done = times.filter(t => t.ended_at);
   const buckets = new Map();
   for (const t of done) {
@@ -3568,8 +3568,8 @@ function renderPay(){
     })
     .sort((a, b) => b.ws - a.ws || a.who.localeCompare(b.who));
 
-  $('payEmpty').style.display = rows.length ? 'none' : 'block';
-  $('payRows').innerHTML = rows.map(r => `<tr>
+  $('payWeekEmpty').style.display = rows.length ? 'none' : 'block';
+  $('payWeekRows').innerHTML = rows.map(r => `<tr>
       <td>${esc(r.who)}</td>
       <td>${r.ws.toLocaleDateString()}</td>
       <td>${r.reg.toFixed(2)}</td>
