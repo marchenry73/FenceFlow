@@ -168,11 +168,11 @@ const L = {
     you: 'you',
     yourContractor: 'Your contractor',
     approvedOn: 'Approved by %s on %s. %s has been told — thank you!',
-    approvedThanks: 'Approved — thank you, %s',
+    approvedThanks: 'Approved — thank you, %s! %s has been told.',
     typeName: 'Type your name first.',
     linkMissing: 'This link is missing its key. Ask for a fresh one.',
     noServer: 'Could not reach the server. Check your connection and reload.',
-    paidButNoPage: 'Your approval is saved. We could not open the payment page — ',
+    paidButNoPage: 'Your approval is saved. We could not open the payment page — %s You can try again below, or your contractor will send you a link.',
     imagery: 'Imagery © ',
     gate: 'gate', gates: 'gates',
   },
@@ -203,11 +203,11 @@ const L = {
     you: 'usted',
     yourContractor: 'Su contratista',
     approvedOn: 'Aprobado por %s el %s. %s ya está avisado — ¡gracias!',
-    approvedThanks: 'Aprobado — gracias, %s',
+    approvedThanks: '¡Aprobado — gracias, %s! %s ya está avisado.',
     typeName: 'Escriba primero su nombre.',
     linkMissing: 'A este enlace le falta su clave. Pida uno nuevo.',
     noServer: 'No se pudo contactar con el servidor. Revise su conexión y recargue.',
-    paidButNoPage: 'Su aprobación está guardada. No pudimos abrir la página de pago — ',
+    paidButNoPage: 'Su aprobación está guardada. No pudimos abrir la página de pago — %s Puede intentarlo de nuevo abajo, o su contratista le enviará un enlace.',
     imagery: 'Imágenes © ',
     gate: 'portón', gates: 'portones',
   },
@@ -238,11 +238,11 @@ const L = {
     you: 'vous',
     yourContractor: 'Votre entreprise',
     approvedOn: 'Validé par %s le %s. %s a été prévenu — merci !',
-    approvedThanks: 'Validé — merci, %s',
+    approvedThanks: 'Validé — merci, %s ! %s a été prévenu.',
     typeName: 'Saisissez d’abord votre nom.',
     linkMissing: 'Il manque la clé de ce lien. Demandez-en un nouveau.',
     noServer: 'Impossible de joindre le serveur. Vérifiez votre connexion et rechargez.',
-    paidButNoPage: 'Votre validation est enregistrée. Nous n’avons pas pu ouvrir la page de paiement — ',
+    paidButNoPage: 'Votre validation est enregistrée. Nous n’avons pas pu ouvrir la page de paiement — %s Vous pouvez réessayer ci-dessous, ou votre entreprise vous enverra un lien.',
     imagery: 'Images © ',
     gate: 'portail', gates: 'portails',
   },
@@ -517,8 +517,8 @@ function markApproved(name){
   quote.approvedAt=new Date().toISOString(); quote.approvedBy=name;
   $('approveBox').style.display='none';
   $('approvedBox').style.display='';
-  $('approvedBox').textContent=tr('approvedThanks', name)
-    +'! '+(quote.company.name||'Your contractor')+' has been told.';
+  $('approvedBox').textContent=tr('approvedThanks', name,
+    quote.company.name||tr('yourContractor'));
 }
 
 async function openPaymentPage(){
@@ -560,8 +560,7 @@ async function doApprove(thenPay){
       return;                       // the browser is leaving; nothing follows
     }catch(e){
       const perr=$('payErr');
-      perr.textContent=tr('paidButNoPage')
-        +friendly(e)+' You can try again below, or your contractor will send a link.';
+      perr.textContent=tr('paidButNoPage', friendly(e));
       perr.style.display='block';
     }
   }
