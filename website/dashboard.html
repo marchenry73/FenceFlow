@@ -1242,6 +1242,13 @@
       <p class="sub" id="q_provisional" style="display:none;margin-top:9px"></p>
     </div>
 
+    <!-- Ready to install, or blocked, and exactly what by. -->
+    <div class="panel"><h2>Ready for installation</h2>
+      <div id="readyVerdict" style="font-weight:700;margin-bottom:8px"></div>
+      <div id="readyList"></div>
+      <p class="sub" id="readyNote" style="margin-top:9px"></p>
+    </div>
+
     <div class="panel"><h2>HOA &amp; Permits</h2>
       <div class="row3">
         <div><label>HOA name</label><input id="j_hoa_name"></div>
@@ -5940,6 +5947,85 @@ function unverifiedPricesOn(job){
   return [...names];
 }
 
+/* What has to be true before a crew is sent to a job.
+
+   Each line is read from something the product already records, so nothing
+   here is a box somebody ticks to make the light go green -- that would make
+   the indicator worse than useless, because it would look like a check while
+   being a wish.
+
+   Where the product does not track a thing yet, the line says "not tracked"
+   rather than passing. Materials are the obvious one: there is no procurement
+   in FenceFlow, so a job can be READY here and still have no posts on the
+   truck, and the note underneath says exactly that. */
+function jobReadiness(j){
+  if (!j) return { ready:false, items:[], untracked:[] };
+  const paid = netPaid(j);
+  const dep  = Number(j.deposit_amount || 0);
+  const runsFor = runs.filter(r => r.job_sync_id === j.sync_id && !r.deleted_at);
+
+  const items = [
+    { label: 'Customer approved the quote',
+      ok: !!j.quote_approved_at,
+      why: 'Nobody has approved it yet.' },
+    { label: 'Contract signed',
+      ok: !!j.signed_at,
+      why: 'No signature on file.' },
+    { label: 'Deposit collected',
+      // No deposit asked for is not a failure: some jobs do not take one.
+      ok: dep <= 0.005 || paid >= dep - 0.005,
+      why: dep > 0 ? 'Asked ' + money(dep) + ', collected ' + money(paid) + '.' : '' },
+    { label: 'Measured',
+      ok: runsFor.length > 0,
+      why: 'No fence runs drawn, so there is nothing to build from.' },
+    { label: 'Prices confirmed with a supplier',
+      ok: !!j.material_prices_confirmed_at,
+      why: 'The estimate still uses prices nobody checked.' },
+    { label: 'Crew assigned',
+      ok: !!j.assigned_employee_sync_id,
+      why: 'Nobody is assigned to it.' },
+    { label: 'Scheduled',
+      ok: !!j.scheduled_date,
+      why: 'No date set.' },
+    { label: 'Permit',
+      ok: !j.permit_status || ['NOT_REQUIRED','APPROVED'].includes(j.permit_status),
+      why: 'Permit is ' + String(j.permit_status || '').toLowerCase().replace(/_/g,' ') + '.' },
+    { label: 'HOA approval',
+      ok: !j.hoa_approval_status || ['NOT_REQUIRED','APPROVED'].includes(j.hoa_approval_status),
+      why: 'HOA is ' + String(j.hoa_approval_status || '').toLowerCase().replace(/_/g,' ') + '.' },
+    { label: '811 locate valid',
+      // Called and not expired. A locate that ran out is worse than one never
+      // called, because everybody assumes it is still good.
+      ok: !j.locate_called_at || !j.locate_expires_at || d(j.locate_expires_at) > new Date(),
+      why: j.locate_expires_at ? 'Locate expired ' + d(j.locate_expires_at).toLocaleDateString() + '.' : '' },
+  ];
+
+  return {
+    ready: items.every(i => i.ok),
+    items,
+    untracked: ['Materials ordered and received — FenceFlow does not track procurement yet.'],
+  };
+}
+
+function renderReadiness(){
+  const j = openJob;
+  if (!j || !$('readyList')) return;
+  const r = jobReadiness(j);
+  const blocked = r.items.filter(i => !i.ok);
+  $('readyVerdict').textContent = r.ready ? 'READY' : 'BLOCKED — ' + blocked.length +
+    (blocked.length === 1 ? ' thing outstanding' : ' things outstanding');
+  $('readyVerdict').style.color = r.ready ? 'var(--good,#2e6b4e)' : 'var(--bad,#b3261e)';
+  $('readyList').innerHTML = r.items.map(i =>
+    '<div style="display:flex;gap:9px;padding:5px 0;border-bottom:1px solid var(--line-soft,transparent)">' +
+      '<span style="width:16px;flex:none">' + (i.ok ? '&#10003;' : '&#10007;') + '</span>' +
+      '<span style="flex:1' + (i.ok ? '' : ';font-weight:600') + '">' + esc(i.label) +
+        (i.ok || !i.why ? '' : '<div class="sub" style="font-weight:400">' + esc(i.why) + '</div>') +
+      '</span></div>').join('');
+  // Said every time, not only when green: the danger is a READY badge being
+  // read as "everything is on the truck".
+  $('readyNote').textContent = 'Not checked here: ' + r.untracked.join(' ');
+}
+
 function renderQuoteBlock(){
   const j = openJob;
   if (!j || !$('q_link')) return;
@@ -7030,7 +7116,7 @@ function showJob(id){
   const target = jobs.find(j=>String(j.id)===String(id));
   if(target && target.wizard_step && canEdit()){ openWizard(id); return; }
   openJob=jobs.find(j=>String(j.id)===String(id));
-  renderQuoteBlock();
+  renderQuoteBlock(); renderReadiness();
   if(!openJob) return;
   // A preview left over from whichever job was open before this one is not
   // this job's price -- "Keep this price" must never commit a stranger's
@@ -9539,7 +9625,7 @@ $('q_copy').addEventListener('click', async ()=>{
     const now=new Date().toISOString();
     await db.from('jobs').update({quote_sent_at:now}).eq('id',openJob.id);
     openJob.quote_sent_at=now;
-    renderQuoteBlock();
+    renderQuoteBlock(); renderReadiness();
   }
 });
 $('q_open').addEventListener('click',()=>{ if(openJob) window.open(quoteLinkFor(openJob),'_blank'); });
