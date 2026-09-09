@@ -2809,9 +2809,15 @@ function renderDash(){
 
   // Nobody has phoned them back. First on the list because it is the cheapest
   // thing in this whole product to fix and the most expensive to ignore.
+  // Only while it is still a speed-to-lead question. Past a week it is a stale
+  // lead, which the draft and quiet-quote rules below already cover, and an
+  // alert that can never be cleared is an alert everyone learns to scroll past.
+  // Without this, every job that existed before the column did would sit here
+  // forever saying nobody had phoned somebody who was served months ago.
   jobs.filter(j => !j.first_contact_at
                    && ['DRAFT','SENT'].includes(j.status)
-                   && (nowMs - d(j.created_at).getTime()) > 4 * 36e5)
+                   && (nowMs - d(j.created_at).getTime()) > 4 * 36e5
+                   && (nowMs - d(j.created_at).getTime()) < 7 * 864e5)
     .forEach(j => {
       const waited = Math.round((nowMs - d(j.created_at).getTime()) / 36e5);
       items.push({ urgent: waited >= 24,
