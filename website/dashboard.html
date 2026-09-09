@@ -917,6 +917,14 @@
         <button class="cat-head"><span class="caret">▾</span> Work &amp; Crew <span class="cat-sub">Hours, fence types built</span></button>
         <div class="cat-body"><div class="grid2">
           <div class="panel">
+            <h2>How long things take</h2>
+            <p class="sub">Median, not average: one job that sat for a year would drag
+              an average somewhere no real job has ever been.</p>
+            <div id="cycleRows"></div>
+            <p class="sub" id="cycleNote" style="margin-top:9px"></p>
+          </div></div>
+
+          <div class="card"><div class="card-body">
             <h2>Hours by crew member</h2><p class="sub">Clocked hours in this period</p>
             <div id="chartCrew"></div>
           </div>
@@ -2418,7 +2426,7 @@ async function loadAll(){
   } else arAging = [];
 
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
-  renderTime(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();
+  renderTime(); renderCycles(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();
   await loadSettings();
   await loadBilling();
 }
@@ -4557,6 +4565,56 @@ function renderAudit(){
       <td><b>${a.new_value == null ? '—' : esc(String(a.new_value))}</b></td>
     </tr>`;
   }).join('');
+}
+
+/* Median, because these distributions have a long tail by nature: the job
+   that stalled for a year is real, and an average that includes it describes
+   nothing anybody experiences. */
+function medianDays(pairs){
+  const days = pairs
+    .filter(p => p[0] && p[1])
+    .map(p => (new Date(p[1]) - new Date(p[0])) / 864e5)
+    .filter(n => n >= 0)
+    .sort((a, b) => a - b);
+  if (!days.length) return null;
+  const m = Math.floor(days.length / 2);
+  return { value: days.length % 2 ? days[m] : (days[m-1] + days[m]) / 2, n: days.length };
+}
+
+function renderCycles(){
+  if (!$('cycleRows')) return;
+  const live = jobs.filter(j => !j.deleted_at);
+  const lastPaymentFor = j => {
+    const ps = payments.filter(p => p.job_sync_id === j.sync_id && !p.deleted_at)
+      .map(p => p.received_at || p.created_at).filter(Boolean).sort();
+    return ps.length ? ps[ps.length - 1] : null;
+  };
+
+  const measures = [
+    ['Enquiry to first contact', live.map(j => [j.created_at, j.first_contact_at])],
+    ['Quote sent to approved',   live.map(j => [j.quote_sent_at, j.quote_approved_at])],
+    ['Approved to signed',       live.map(j => [j.quote_approved_at, j.signed_at])],
+    ['Enquiry to finished',      live.map(j => [j.created_at, j.final_sign_off_at])],
+    ['Finished to last payment', live.map(j => [j.final_sign_off_at, lastPaymentFor(j)])],
+  ];
+
+  $('cycleRows').innerHTML = measures.map(([label, pairs]) => {
+    const m = medianDays(pairs);
+    // "Not enough data" rather than a zero. A zero here would read as instant.
+    const right = m
+      ? '<b>' + (m.value < 1 ? Math.round(m.value * 24) + ' hours' : m.value.toFixed(1) + ' days') +
+        '</b> <span class="sub">from ' + m.n + (m.n === 1 ? ' job' : ' jobs') + '</span>'
+      : '<span class="sub">not enough data yet</span>';
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;' +
+           'border-bottom:1px solid var(--line-soft,transparent)"><span>' + label +
+           '</span><span>' + right + '</span></div>';
+  }).join('');
+
+  // The questions the brief asks that this product cannot answer, named rather
+  // than quietly missing from the page.
+  $('cycleNote').textContent =
+    'Not shown, because FenceFlow does not record it: revenue and close rate by ' +
+    'salesperson. A job has a crew member assigned but nobody marked as having sold it.';
 }
 
 function renderCosting(){
