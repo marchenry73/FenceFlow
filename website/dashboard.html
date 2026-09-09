@@ -2743,6 +2743,57 @@ function renderDash(){
   // Drafts that never went out.
   jobs.filter(j=>j.status==='DRAFT' && d(j.updated_at||j.created_at) < new Date(weekAgo))
     .forEach(j=>items.push({ urgent:false, text:'Draft never sent: '+name(j), id:j.id }));
+  /* ---- exceptions the system should find before a person does -----------
+
+     Everything above answers "something happened, deal with it". These four
+     answer the harder question: nothing happened, and that is the problem.
+     A quote nobody chased, a deposit nobody asked for, a clock nobody
+     stopped, a price nobody checked. Each one costs money quietly, which is
+     exactly why none of them ever announces itself. */
+
+  // A quote that went out and went quiet. The most expensive thing on this
+  // page: a sale nobody said no to.
+  jobs.filter(j => j.status === 'SENT' && j.quote_sent_at
+                   && !j.quote_approved_at
+                   && d(j.quote_sent_at) < new Date(weekAgo))
+    .forEach(j => {
+      const days = Math.floor((nowMs - d(j.quote_sent_at).getTime()) / 864e5);
+      // Opened and still silent is a different conversation from never opened,
+      // so the alert says which.
+      const seen = j.quote_viewed_at ? 'opened it but has not approved' : 'has not opened it';
+      items.push({ urgent:false,
+        text: 'Quote sent ' + days + ' days ago, customer ' + seen + ': ' + name(j),
+        id: j.id });
+    });
+
+  // Approved, deposit agreed, nothing collected. The work is scheduled against
+  // money that never arrived.
+  jobs.filter(j => j.quote_approved_at
+                   && Number(j.deposit_amount) > 0
+                   && netPaid(j) < 0.005)
+    .forEach(j => items.push({ urgent:true,
+      text: 'Approved, no deposit taken: ' + name(j), id: j.id }));
+
+  // Still clocked in long after any shift would have ended. Sixteen hours
+  // rather than eight, because a long day on a fence line is a real thing and
+  // crying wolf at 5pm teaches people to ignore the panel.
+  times.filter(t => t.started_at && !t.ended_at
+                    && (nowMs - d(t.started_at).getTime()) > 16 * 36e5)
+    .forEach(t => {
+      const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Someone';
+      const hrs = Math.floor((nowMs - d(t.started_at).getTime()) / 36e5);
+      items.push({ urgent:true,
+        text: who + ' has been clocked in for ' + hrs + ' hours',
+        go: 'time' });
+    });
+
+  // A quote whose price still rests on catalog rows nobody confirmed. The
+  // quote panel already blocks sending one; this is so the owner learns about
+  // it before opening the job rather than after.
+  jobs.filter(j => ['DRAFT','SENT'].includes(j.status) && unverifiedPricesOn(j).length)
+    .forEach(j => items.push({ urgent:false,
+      text: 'Priced on catalog prices nobody has confirmed: ' + name(j), id: j.id }));
+
   // Open punch-list items, by job.
   const openBy = {};
   punch.filter(p=>!p.resolved).forEach(p=>{ openBy[p.job_sync_id]=(openBy[p.job_sync_id]||0)+1; });
