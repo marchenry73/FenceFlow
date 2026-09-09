@@ -1242,6 +1242,15 @@
       <p class="sub" id="q_provisional" style="display:none;margin-top:9px"></p>
     </div>
 
+    <div class="panel"><h2>First contact</h2>
+      <div id="contactState" style="font-weight:600"></div>
+      <p class="sub">Speed to lead is the number a contractor sales operation lives on.
+        An enquiry answered within the hour converts several times better than the same
+        one answered tomorrow.</p>
+      <button class="btn btn-sm" id="markContacted" style="display:none">I have contacted them</button>
+      <div class="msg" id="contactMsg"></div>
+    </div>
+
     <!-- Ready to install, or blocked, and exactly what by. -->
     <div class="panel"><h2>Ready for installation</h2>
       <div id="readyVerdict" style="font-weight:700;margin-bottom:8px"></div>
@@ -2798,6 +2807,18 @@ function renderDash(){
      stopped, a price nobody checked. Each one costs money quietly, which is
      exactly why none of them ever announces itself. */
 
+  // Nobody has phoned them back. First on the list because it is the cheapest
+  // thing in this whole product to fix and the most expensive to ignore.
+  jobs.filter(j => !j.first_contact_at
+                   && ['DRAFT','SENT'].includes(j.status)
+                   && (nowMs - d(j.created_at).getTime()) > 4 * 36e5)
+    .forEach(j => {
+      const waited = Math.round((nowMs - d(j.created_at).getTime()) / 36e5);
+      items.push({ urgent: waited >= 24,
+        text: 'Nobody has contacted ' + name(j) + ' yet \u2014 ' + waited + ' hours since the enquiry',
+        id: j.id });
+    });
+
   // A quote that went out and went quiet. The most expensive thing on this
   // page: a sale nobody said no to.
   jobs.filter(j => j.status === 'SENT' && j.quote_sent_at
@@ -3052,6 +3073,7 @@ function toggleJobSort(key){
   else { jobView.sort = key; jobView.dir = (key === 'paid' || key === 'scheduled') ? 'asc' : 'asc'; }
   renderJobs();
 }
+$('markContacted').addEventListener('click', markContactedNow);
 $('fixTimeClose').addEventListener('click', closeFixTime);
 $('fixTimeCancel').addEventListener('click', closeFixTime);
 $('fixTimeSave').addEventListener('click', saveFixTime);
@@ -6007,6 +6029,47 @@ function jobReadiness(j){
   };
 }
 
+/* How long it took somebody to get back to them, in words a person uses. */
+function sinceWords(from, to){
+  const mins = Math.max(0, Math.round((new Date(to) - new Date(from)) / 60000));
+  if (mins < 60) return mins + (mins === 1 ? ' minute' : ' minutes');
+  const hrs = Math.round(mins / 6) / 10;
+  if (hrs < 48) return hrs + (hrs === 1 ? ' hour' : ' hours');
+  return Math.round(hrs / 24) + ' days';
+}
+
+function renderContact(){
+  const j = openJob;
+  if (!j || !$('contactState')) return;
+  if (j.first_contact_at) {
+    $('contactState').textContent = 'Contacted ' + d(j.first_contact_at).toLocaleString() +
+      ' \u2014 ' + sinceWords(j.created_at, j.first_contact_at) + ' after the enquiry came in.';
+    $('contactState').style.color = '';
+    $('markContacted').style.display = 'none';
+  } else {
+    const waited = sinceWords(j.created_at, new Date());
+    $('contactState').textContent = 'Not contacted yet \u2014 waiting ' + waited + '.';
+    // Four hours. Long enough not to nag over lunch, short enough that a
+    // morning enquiry cannot go cold before anyone notices.
+    const cold = (Date.now() - new Date(j.created_at)) > 4 * 36e5;
+    $('contactState').style.color = cold ? 'var(--bad,#b3261e)' : '';
+    $('markContacted').style.display = canEdit() ? '' : 'none';
+  }
+  msg('contactMsg','','');
+}
+
+async function markContactedNow(){
+  const j = openJob;
+  if (!j) return;
+  // Recorded as now, not as a time somebody types. A field you can backdate is
+  // a field that always says one hour.
+  const { error } = await db.from('jobs')
+    .update({ first_contact_at: new Date().toISOString() }).eq('id', j.id);
+  if (error) return msg('contactMsg', error.message, 'err');
+  msg('contactMsg','Recorded. This cannot be changed afterwards.','ok');
+  await loadAll();
+}
+
 function renderReadiness(){
   const j = openJob;
   if (!j || !$('readyList')) return;
@@ -7116,7 +7179,7 @@ function showJob(id){
   const target = jobs.find(j=>String(j.id)===String(id));
   if(target && target.wizard_step && canEdit()){ openWizard(id); return; }
   openJob=jobs.find(j=>String(j.id)===String(id));
-  renderQuoteBlock(); renderReadiness();
+  renderQuoteBlock(); renderReadiness(); renderContact();
   if(!openJob) return;
   // A preview left over from whichever job was open before this one is not
   // this job's price -- "Keep this price" must never commit a stranger's
@@ -9625,7 +9688,7 @@ $('q_copy').addEventListener('click', async ()=>{
     const now=new Date().toISOString();
     await db.from('jobs').update({quote_sent_at:now}).eq('id',openJob.id);
     openJob.quote_sent_at=now;
-    renderQuoteBlock(); renderReadiness();
+    renderQuoteBlock(); renderReadiness(); renderContact();
   }
 });
 $('q_open').addEventListener('click',()=>{ if(openJob) window.open(quoteLinkFor(openJob),'_blank'); });
