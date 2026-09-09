@@ -274,7 +274,7 @@ function applyStaticText() {
   document.documentElement.lang = LANG;
   document.querySelectorAll('[data-t]').forEach(el => {
     const k = el.getAttribute('data-t');
-    if (el.tagName === 'INPUT') el.placeholder = t(k); else el.textContent = t(k);
+    if (el.tagName === 'INPUT') el.placeholder = tr(k); else el.textContent = tr(k);
   });
 }
 
