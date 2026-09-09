@@ -1198,6 +1198,8 @@
         <button class="btn btn-sm btn-grey" id="q_open">Preview it</button>
       </div>
       <p class="sub" id="q_status" style="margin-top:9px"></p>
+      <div class="msg err" id="q_block" style="display:none"></div>
+      <p class="sub" id="q_provisional" style="display:none;margin-top:9px"></p>
     </div>
 
     <div class="panel"><h2>HOA &amp; Permits</h2>
@@ -5664,10 +5666,60 @@ function quoteLinkFor(j){
   return location.origin + location.pathname.replace(/[^/]*$/,'') + 'quote.html?t=' + j.quote_token;
 }
 
+/* The phone refuses to send a quote priced off catalog rows nobody has
+   checked. The office did not, so the same job could be sent from a desk with
+   the guard skipped -- a gate on one door only. Same rule, same join: an
+   auto-generated line matched back to the catalog item it came from, kept if
+   that item still carries the price FenceFlow shipped rather than one this
+   company confirmed. */
+function unverifiedPricesOn(job){
+  if (!job || !Array.isArray(catalog) || !Array.isArray(items)) return [];
+  const seeded = new Set(catalog
+    .filter(m => /^(Starting price|Placeholder)/.test(String(m.source_doc || '')))
+    .map(m => String(m.name || '').trim().toLowerCase()));
+  if (!seeded.size) return [];
+  const names = new Set();
+  for (const li of items) {
+    if (li.job_sync_id !== job.sync_id) continue;
+    if (li.auto_generated === false) continue;
+    const d = String(li.description || '').trim().toLowerCase();
+    if (d && seeded.has(d)) names.add(String(li.description).trim());
+  }
+  return [...names];
+}
+
 function renderQuoteBlock(){
   const j = openJob;
   if (!j || !$('q_link')) return;
   $('q_link').textContent = quoteLinkFor(j);
+
+  // Blocked, not merely warned. A quote is a number a customer holds you to,
+  // and the difference between a market estimate and this company's real
+  // supplier cost is the whole margin.
+  const unchecked = unverifiedPricesOn(j);
+  const shown = unchecked.slice(0, 5).join(', ');
+  $('q_block').style.display = unchecked.length ? 'block' : 'none';
+  $('q_block').textContent = unchecked.length
+    ? 'Not ready to send. ' + unchecked.length +
+      (unchecked.length === 1 ? ' price on this quote is still the one FenceFlow shipped'
+                              : ' prices on this quote are still the ones FenceFlow shipped') +
+      ' rather than yours: ' + shown + (unchecked.length > 5 ? ', and more.' : '.') +
+      ' Confirm them in Catalog first.'
+    : '';
+  ['q_copy','q_open'].forEach(id => {
+    const b = $(id); if (!b) return;
+    b.disabled = unchecked.length > 0;
+    b.style.opacity = unchecked.length ? .5 : 1;
+    b.title = unchecked.length ? 'Confirm the catalog prices on this quote first' : '';
+  });
+
+  // Separate from the block above: the catalog may be checked while this
+  // particular job was never priced against a live supplier quote.
+  const prov = !j.material_prices_confirmed_at;
+  $('q_provisional').style.display = prov && !unchecked.length ? 'block' : 'none';
+  $('q_provisional').textContent = prov
+    ? 'Material prices on this job have not been confirmed with a supplier. The total is close enough to quote from, not close enough to bank on.'
+    : '';
   const bits = [];
   if (j.quote_approved_at)
     bits.push('Approved by ' + (j.quote_approved_name || 'the customer') + ' on '
