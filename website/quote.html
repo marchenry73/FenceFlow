@@ -263,7 +263,7 @@ let LANG = 'en';
 
 /* %s in order. Deliberately not a template engine -- every string here is one
    sentence with at most three holes in it. */
-function t(key) {
+function tr(key) {
   const args = [].slice.call(arguments, 1);
   let out = (L[LANG] && L[LANG][key]) || L.en[key] || '';
   args.forEach(a => { out = out.replace('%s', a); });
@@ -371,7 +371,7 @@ const API=window.FENCEFLOW_CONFIG.SUPABASE_URL+'/functions/v1';
 // function started serving the county's own aerials.
 fetch(API+'/quote-map?meta=1',{headers:{apikey:window.FENCEFLOW_CONFIG.SUPABASE_KEY}})
   .then(r=>r.ok?r.json():null)
-  .then(m=>{ if(m&&m.attribution){ const el=document.getElementById('imageryCredit'); if(el) el.textContent=t('imagery')+m.attribution+(m.imagery_note?' · '+m.imagery_note:''); } })
+  .then(m=>{ if(m&&m.attribution){ const el=document.getElementById('imageryCredit'); if(el) el.textContent=tr('imagery')+m.attribution+(m.imagery_note?' · '+m.imagery_note:''); } })
   .catch(()=>{});
 const friendly=e=>(e instanceof TypeError)
   ? 'Could not reach the server — check your connection and try again.'
@@ -389,10 +389,10 @@ async function load(){
   $('langPick').querySelectorAll('a[data-lang]').forEach(a =>
     a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
 
-  if(!token){ $('loading').textContent=t('linkMissing'); return; }
+  if(!token){ $('loading').textContent=tr('linkMissing'); return; }
   let r;
   try{ r=await fetch(API+'/quote-view?t='+encodeURIComponent(token)); }
-  catch(e){ $('loading').textContent=t('noServer'); return; }
+  catch(e){ $('loading').textContent=tr('noServer'); return; }
   const j=await r.json().catch(()=>({}));
   if(!r.ok){ $('loading').textContent=j.error||'That quote is no longer available.'; return; }
   quote=j;
@@ -403,7 +403,7 @@ function render(){
   const q=quote;
   $('coName').textContent=q.company.name||'Your contractor';
   $('coContact').textContent=[q.company.phone,q.company.email].filter(Boolean).join(' · ');
-  $('quoteTitle').textContent=t('quoteFor', q.customerName||t('you'));
+  $('quoteTitle').textContent=tr('quoteFor', q.customerName||tr('you'));
   $('quoteAddr').textContent=q.address||'';
 
   // The scope in the customer's language: what fence, how much of it, how
@@ -431,26 +431,26 @@ function render(){
           +'<span><strong>'+(r.teardown?'Remove old ':'')+esc(label(r.type))+' fence</strong>'
           +(r.finish?', '+esc(r.finish):'')
           +' — '+esc(r.heightFt)+' ft tall'
-          +(gates?' · '+gates+' '+(gates===1?t('gate'):t('gates')):'')
+          +(gates?' · '+gates+' '+(gates===1?tr('gate'):tr('gates')):'')
           +(r.label?'<span class="sub" style="display:block">'+esc(r.label)+'</span>':'')
           +'</span>'
           +'<span class="num" style="white-space:nowrap">'+(ft?Math.round(ft)+' ft':'')+'</span>'
           +'</div>';
       }).join('')
-    : '<p class="sub">'+t('scopeSoon')+'</p>';
+    : '<p class="sub">'+tr('scopeSoon')+'</p>';
 
   // Two numbers only. Subtotals and tax lines are the office's arithmetic;
   // the customer needs what it costs and what starts the work.
-  const t=[];
-  t.push('<div class="grand"><span>'+t('total')+'</span><span>'+money(q.total)+'</span></div>');
-  if(q.deposit>0.005) t.push('<div><span>'+t('depositToBegin')+'</span><span>'+money(q.deposit)+'</span></div>');
-  $('totals').innerHTML=t.join('');
+  const rows=[];
+  rows.push('<div class="grand"><span>'+tr('total')+'</span><span>'+money(q.total)+'</span></div>');
+  if(q.deposit>0.005) rows.push('<div><span>'+tr('depositToBegin')+'</span><span>'+money(q.deposit)+'</span></div>');
+  $('totals').innerHTML=rows.join('');
 
   if(q.approvedAt){
     $('approvedBox').style.display='';
-    $('approvedBox').textContent=t('approvedOn', q.approvedBy,
+    $('approvedBox').textContent=tr('approvedOn', q.approvedBy,
       new Date(q.approvedAt).toLocaleDateString(LANG),
-      q.company.name||t('yourContractor'));
+      q.company.name||tr('yourContractor'));
     // Already approved on an earlier visit: the deposit is the only thing
     // left, so it stands on its own.
     if(dueNow()) showPayButton();
@@ -460,9 +460,9 @@ function render(){
       // One press. Saying yes and paying the deposit are the same decision,
       // and splitting them into two buttons meant a homeowner approved, saw
       // a thank-you, and never noticed the second one.
-      $('approveBtn').textContent=t('approveAndPay', money(dueNow()));
+      $('approveBtn').textContent=tr('approveAndPay', money(dueNow()));
       $('approveOnlyBtn').style.display='';
-      $('approveLead').textContent=t('leadPay');
+      $('approveLead').textContent=tr('leadPay');
     }
   }
 
@@ -510,14 +510,14 @@ function showPayButton(){
   if(!due) return;
   $('payBtn').style.display='';
   $('payBtn').disabled=false;
-  $('payBtn').textContent=t('payDeposit', money(due));
+  $('payBtn').textContent=tr('payDeposit', money(due));
 }
 
 function markApproved(name){
   quote.approvedAt=new Date().toISOString(); quote.approvedBy=name;
   $('approveBox').style.display='none';
   $('approvedBox').style.display='';
-  $('approvedBox').textContent=t('approvedThanks', name)
+  $('approvedBox').textContent=tr('approvedThanks', name)
     +'! '+(quote.company.name||'Your contractor')+' has been told.';
 }
 
@@ -539,7 +539,7 @@ async function openPaymentPage(){
 async function doApprove(thenPay){
   const name=$('signName').value.trim();
   const err=$('approveErr'); err.style.display='none';
-  if(name.length<2){ err.textContent=t('typeName'); err.style.display='block'; return; }
+  if(name.length<2){ err.textContent=tr('typeName'); err.style.display='block'; return; }
   $('approveBtn').disabled=true; $('approveOnlyBtn').disabled=true;
   try{
     const r=await fetch(API+'/quote-view?t='+encodeURIComponent(token),{
@@ -560,7 +560,7 @@ async function doApprove(thenPay){
       return;                       // the browser is leaving; nothing follows
     }catch(e){
       const perr=$('payErr');
-      perr.textContent=t('paidButNoPage')
+      perr.textContent=tr('paidButNoPage')
         +friendly(e)+' You can try again below, or your contractor will send a link.';
       perr.style.display='block';
     }
@@ -1618,8 +1618,8 @@ function build3D(runs,attempt){
   const walkBtn=document.getElementById('walkBtn');
   const topBtn=document.getElementById('topBtn');
   function exitSpecialModes(){
-    if(mode==='top'){ pitch=savedPitch; dist=savedDist; topBtn.textContent=t('topView'); }
-    if(mode==='walk'){ walkBtn.textContent=t('walkIt'); }
+    if(mode==='top'){ pitch=savedPitch; dist=savedDist; topBtn.textContent=tr('topView'); }
+    if(mode==='walk'){ walkBtn.textContent=tr('walkIt'); }
     if(mode!=='orbit') hintEl.textContent=defaultHint;
     mode='orbit';
   }
@@ -1700,8 +1700,8 @@ function build3D(runs,attempt){
       if(mode==='walk'){ exitSpecialModes(); return; }
       exitSpecialModes();
       mode='walk'; auto=false; walkT0=performance.now();
-      walkBtn.textContent=t('stopWalk');
-      hintEl.textContent=t('walkHint');
+      walkBtn.textContent=tr('stopWalk');
+      hintEl.textContent=tr('walkHint');
     });
   }
   topBtn.addEventListener('click',()=>{
@@ -1711,8 +1711,8 @@ function build3D(runs,attempt){
     mode='top'; auto=false;
     pitch=1.47; dist=r*1.55+14;
     tx=pivot.position.x; tz=pivot.position.z;
-    topBtn.textContent=t('groundView');
-    hintEl.textContent=t('topHint');
+    topBtn.textContent=tr('groundView');
+    hintEl.textContent=tr('topHint');
   });
 
   function tick(){
