@@ -2323,7 +2323,43 @@ async function loadAll(){
   // other phones learn about it -- and this page read the rows straight back,
   // tombstones and all. Deleted jobs stayed listed, and the duplicate pricing
   // tiers that were cleaned up in the app were still showing here.
-  const q = t => db.from(t).select('*').is('deleted_at', null);
+  /* Paged, because the API returns at most a thousand rows per request and
+     does not say that it did.
+
+     Measured rather than assumed: a throwaway view of three thousand rows
+     answered one plain request with exactly a thousand, and the header read
+     "Content-Range: 0-999/*" -- the star meaning the total is unknown. So a
+     client that asks once and counts what it gets has no way to tell a
+     complete answer from a truncated one.
+
+     This page asked once, for every table. It works today on a hundred line
+     items. The first company to pass a thousand -- roughly forty jobs' worth --
+     would have seen its revenue, its hours and its profit quietly computed
+     from the first thousand rows, with no error anywhere, and every total on
+     every screen would simply have been wrong.
+
+     A short page means the end. A full page means ask again. */
+  const PAGE = 1000;
+  const q = async (t) => {
+    const all = [];
+    for (let from = 0; ; from += PAGE) {
+      const res = await db.from(t).select('*').is('deleted_at', null)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (res.error) return res;                  // caller already handles .error
+      const got = res.data || [];
+      all.push(...got);
+      if (got.length < PAGE) break;
+      // A runaway guard, not a limit anybody should hit: fifty pages is fifty
+      // thousand rows, and if a company is there this page needs a rethink
+      // rather than a bigger loop.
+      if (all.length >= PAGE * 50) {
+        console.warn('loadAll: stopped at ' + all.length + ' rows of ' + t);
+        break;
+      }
+    }
+    return { data: all, error: null };
+  };
   const [j,e,r,i,x,p,o,tm,c,ti,pay,fc] = await Promise.all([
     q('jobs'), q('employees'), q('fence_runs'), q('estimate_line_items'),
     q('expenses'), q('punch_list_items'), q('change_orders'), q('time_entries'),
