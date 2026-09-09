@@ -249,11 +249,17 @@ const L = {
 };
 
 let LANG = 'en';
-try {
-  const saved = localStorage.getItem('ff_lang');
-  const guess = saved || (navigator.language || 'en').slice(0, 2).toLowerCase();
-  if (L[guess]) LANG = guess;
-} catch (e) { /* private window: English is a fine answer */ }
+(function () {
+  let asked = '';
+  try {
+    asked = (new URLSearchParams(location.search).get('lang') || '').slice(0, 2).toLowerCase();
+  } catch (e) { /* no URL API: fall through to the browser's own answer */ }
+  let saved = '';
+  try { saved = localStorage.getItem('ff_lang') || ''; } catch (e) { /* private window */ }
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const pick = [asked, saved, browser].find(c => c && L[c]);
+  if (pick) LANG = pick;
+})();
 
 /* %s in order. Deliberately not a template engine -- every string here is one
    sentence with at most three holes in it. */
@@ -274,8 +280,13 @@ function applyStaticText() {
 
 function setLang(code) {
   if (!L[code]) return;
-  LANG = code;
   try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('lang', code);
+    location.href = u.toString();
+    return;
+  } catch (e) { /* older browser: the stored value still carries it */ }
   location.reload();
 }
 </script>
