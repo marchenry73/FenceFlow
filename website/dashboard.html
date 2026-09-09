@@ -4575,6 +4575,22 @@ function renderCosting(){
     ? `Labour counts approved hours only. There are ${pendingHours.toFixed(1)} hours ` +
       `still waiting for approval, so some of these jobs will look better than they are.`
     : 'Labour counts approved hours only.';
+  /* Hours worked, nothing charged for them. Every job on this page currently
+     reports a margin with no labour in it, because nobody has an hourly rate
+     on file -- so a fence that took a week of two men shows the same profit as
+     one that built itself. A margin that quietly omits its largest cost is
+     worse than no margin at all, because somebody will price the next job off
+     it. */
+  const workedFree = jobCosting.filter(r =>
+    Number(r.hours_worked || 0) > 0.05 && Number(r.labour_cost || 0) < 0.005);
+  if (workedFree.length) {
+    const hrs = workedFree.reduce((n, r) => n + Number(r.hours_worked || 0), 0);
+    $('costingNote').textContent += ' \u2022 ' + hrs.toFixed(1) + ' hours on ' +
+      workedFree.length + (workedFree.length === 1 ? ' job carry' : ' jobs carry') +
+      ' no cost at all, because nobody has an hourly rate on file. Those margins ' +
+      'are overstated by the whole labour bill \u2014 set rates under Crew.';
+  }
+
   if (jobCosting.some(r=>r.costs_are_sell_prices === true)) {
     $('costingNote').textContent += ' * No supplier prices recorded on this job yet, so its costs are your sell prices and the margin reads low.';
   }
