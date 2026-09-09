@@ -744,6 +744,19 @@
         <div id="timeTotals" style="margin-top:12px;font-weight:600"></div>
         <div class="msg" id="timeMsg"></div>
       </div>
+
+      <div class="panel">
+        <h2>Estimated pay</h2>
+        <p class="sub">What these hours come to, by person and by week. This is an
+          estimate from the hours in FenceFlow &mdash; it is not payroll, nothing is
+          filed, and nobody is paid from this screen.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Who</th><th>Week of</th><th>Regular</th><th>Overtime</th>
+            <th>Rate</th><th>Estimated gross</th></tr></thead>
+          <tbody id="payRows"></tbody></table></div>
+        <div class="empty" id="payEmpty" style="display:none">No finished shifts yet.</div>
+        <p class="sub" id="payAssumption" style="margin-top:10px"></p>
+      </div>
     </div>
 
     <div id="tab-catalog" style="display:none">
@@ -3505,6 +3518,73 @@ function renderTime(){
   const tc=done.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
   $('timeTotals').textContent = done.length
     ? `Total: ${th.toFixed(1)} hours · ${money(tc)} labor` : '';
+  renderPay();
+}
+
+/* ---- estimated pay -----------------------------------------------------
+
+   Deliberately called ESTIMATED everywhere it appears. FenceFlow is not a
+   payroll processor: it does not withhold, does not file, and does not know
+   about a garnishment or a benefit deduction. Presenting this as pay would
+   invite somebody to write a cheque from it.
+
+   Overtime is an assumption, not a setting, and the page says so on screen.
+   Over forty hours in a week at one and a half times is the federal default;
+   a company on a different rule needs a setting, which does not exist yet.
+   Guessing silently would be worse than guessing out loud. */
+const OT_AFTER_HOURS = 40;
+const OT_MULTIPLIER  = 1.5;
+
+// Weeks run Sunday to Saturday, which is what most US payroll periods use.
+function weekStart(iso){
+  const t = new Date(iso);
+  const w = new Date(t.getFullYear(), t.getMonth(), t.getDate() - t.getDay());
+  return w;
+}
+
+function renderPay(){
+  if (!$('payRows')) return;
+  const done = times.filter(t => t.ended_at);
+  const buckets = new Map();
+  for (const t of done) {
+    const who = shiftWhoName(t);
+    const ws  = weekStart(t.started_at);
+    const key = who + '|' + ws.toISOString().slice(0,10);
+    const b = buckets.get(key) || { who, ws, hours: 0, rate: 0, rated: 0 };
+    const h = hoursOf(t);
+    b.hours += h;
+    // Rate can differ between shifts. Weight it by hours rather than taking
+    // the last one, so a single short shift at a different rate cannot swing
+    // the whole week.
+    if (t.hourly_rate) { b.rated += h; b.rate += h * Number(t.hourly_rate); }
+    buckets.set(key, b);
+  }
+  const rows = [...buckets.values()]
+    .map(b => {
+      const rate = b.rated > 0 ? b.rate / b.rated : 0;
+      const reg  = Math.min(b.hours, OT_AFTER_HOURS);
+      const ot   = Math.max(0, b.hours - OT_AFTER_HOURS);
+      return { ...b, rate, reg, ot, gross: reg * rate + ot * rate * OT_MULTIPLIER };
+    })
+    .sort((a, b) => b.ws - a.ws || a.who.localeCompare(b.who));
+
+  $('payEmpty').style.display = rows.length ? 'none' : 'block';
+  $('payRows').innerHTML = rows.map(r => `<tr>
+      <td>${esc(r.who)}</td>
+      <td>${r.ws.toLocaleDateString()}</td>
+      <td>${r.reg.toFixed(2)}</td>
+      <td>${r.ot > 0 ? r.ot.toFixed(2) : '—'}</td>
+      <td>${r.rate ? money(r.rate) : '<span class="sub">no rate set</span>'}</td>
+      <td>${r.rate ? money(r.gross) : '—'}</td>
+    </tr>`).join('');
+
+  const noRate = rows.filter(r => !r.rate).length;
+  $('payAssumption').innerHTML =
+    'Assumes overtime after ' + OT_AFTER_HOURS + ' hours in a week at ' +
+    OT_MULTIPLIER + '&times; the rate. There is no setting for this yet, so if your ' +
+    'rule differs these figures do too.' +
+    (noRate ? ' <b>' + noRate + ' week' + (noRate===1?'':'s') +
+      ' cannot be costed because that person has no hourly rate on file.</b>' : '');
 }
 
 /* ---- correcting a shift ------------------------------------------------ */
