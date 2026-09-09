@@ -131,27 +131,175 @@
 </header>
 
 <div class="wrap">
-  <div id="loading">Opening your quote&hellip;</div>
+
+<script>
+/* The homeowner is the one person in this system who never chose to use it.
+   The app has spoken Spanish and French for months; the page the customer
+   actually opens did not, which is the wrong way round.
+
+   Language comes from the browser, because nobody wants to hunt for a picker
+   before reading their own quote. The picker exists for the case the browser
+   is wrong -- a shared laptop, a phone set up by somebody else. */
+const L = {
+  en: {
+    loading: 'Opening your quote…',
+    badge: 'Your fence · 3D preview',
+    removeOld: 'Remove the old fence',
+    turnFence: 'Turn the fence to match',
+    slideIn: 'Slide into place',
+    topView: 'Top view',
+    groundView: 'Ground view',
+    walkIt: 'Walk it',
+    stopWalk: 'Stop walking',
+    walkHint: 'Walking the fence line — drag to take over',
+    topHint: 'Looking straight down — drag to look around',
+    scopeSoon: 'Full details of the work to follow.',
+    total: 'Total',
+    depositToBegin: 'Deposit to begin',
+    readyHead: 'Ready to go ahead?',
+    leadPlain: 'Type your name and press approve — that tells us to put you on the schedule. You’ll get a copy of everything.',
+    leadPay: 'Type your name to approve. We’ll take you straight to the deposit payment, and you’ll get a copy of everything.',
+    namePlaceholder: 'Your full name',
+    approve: 'Approve this quote',
+    approveAndPay: 'Approve and pay %s',
+    approveOnly: 'Approve without paying now',
+    payDeposit: 'Pay the %s deposit',
+    quoteFor: 'Quote for %s',
+    you: 'you',
+    yourContractor: 'Your contractor',
+    approvedOn: 'Approved by %s on %s. %s has been told — thank you!',
+    approvedThanks: 'Approved — thank you, %s',
+    typeName: 'Type your name first.',
+    linkMissing: 'This link is missing its key. Ask for a fresh one.',
+    noServer: 'Could not reach the server. Check your connection and reload.',
+    paidButNoPage: 'Your approval is saved. We could not open the payment page — ',
+    imagery: 'Imagery © ',
+    gate: 'gate', gates: 'gates',
+  },
+  es: {
+    loading: 'Abriendo su presupuesto…',
+    badge: 'Su cerca · vista 3D',
+    removeOld: 'Quitar la cerca vieja',
+    turnFence: 'Girar la cerca',
+    slideIn: 'Colocar en su sitio',
+    topView: 'Vista desde arriba',
+    groundView: 'Vista a pie de obra',
+    walkIt: 'Recorrerla',
+    stopWalk: 'Detener el recorrido',
+    walkHint: 'Recorriendo la línea de la cerca — arrastre para tomar el control',
+    topHint: 'Vista cenital — arrastre para mirar alrededor',
+    scopeSoon: 'El detalle completo del trabajo se enviará a continuación.',
+    total: 'Total',
+    depositToBegin: 'Depósito para empezar',
+    readyHead: '¿Listo para seguir adelante?',
+    leadPlain: 'Escriba su nombre y pulse aprobar — con eso le ponemos en el calendario. Recibirá copia de todo.',
+    leadPay: 'Escriba su nombre para aprobar. Le llevamos directo al pago del depósito y recibirá copia de todo.',
+    namePlaceholder: 'Su nombre completo',
+    approve: 'Aprobar este presupuesto',
+    approveAndPay: 'Aprobar y pagar %s',
+    approveOnly: 'Aprobar sin pagar ahora',
+    payDeposit: 'Pagar el depósito de %s',
+    quoteFor: 'Presupuesto para %s',
+    you: 'usted',
+    yourContractor: 'Su contratista',
+    approvedOn: 'Aprobado por %s el %s. %s ya está avisado — ¡gracias!',
+    approvedThanks: 'Aprobado — gracias, %s',
+    typeName: 'Escriba primero su nombre.',
+    linkMissing: 'A este enlace le falta su clave. Pida uno nuevo.',
+    noServer: 'No se pudo contactar con el servidor. Revise su conexión y recargue.',
+    paidButNoPage: 'Su aprobación está guardada. No pudimos abrir la página de pago — ',
+    imagery: 'Imágenes © ',
+    gate: 'portón', gates: 'portones',
+  },
+  fr: {
+    loading: 'Ouverture de votre devis…',
+    badge: 'Votre clôture · aperçu 3D',
+    removeOld: 'Retirer l’ancienne clôture',
+    turnFence: 'Faire pivoter la clôture',
+    slideIn: 'Mettre en place',
+    topView: 'Vue de dessus',
+    groundView: 'Vue au sol',
+    walkIt: 'La parcourir',
+    stopWalk: 'Arrêter le parcours',
+    walkHint: 'Parcours le long de la clôture — faites glisser pour reprendre la main',
+    topHint: 'Vue plongeante — faites glisser pour regarder autour',
+    scopeSoon: 'Le détail complet des travaux suivra.',
+    total: 'Total',
+    depositToBegin: 'Acompte pour démarrer',
+    readyHead: 'Prêt à lancer les travaux ?',
+    leadPlain: 'Saisissez votre nom et validez — cela nous dit de vous mettre au planning. Vous recevrez une copie de tout.',
+    leadPay: 'Saisissez votre nom pour valider. Nous vous emmenons directement au paiement de l’acompte, et vous recevrez une copie de tout.',
+    namePlaceholder: 'Votre nom complet',
+    approve: 'Valider ce devis',
+    approveAndPay: 'Valider et payer %s',
+    approveOnly: 'Valider sans payer maintenant',
+    payDeposit: 'Payer l’acompte de %s',
+    quoteFor: 'Devis pour %s',
+    you: 'vous',
+    yourContractor: 'Votre entreprise',
+    approvedOn: 'Validé par %s le %s. %s a été prévenu — merci !',
+    approvedThanks: 'Validé — merci, %s',
+    typeName: 'Saisissez d’abord votre nom.',
+    linkMissing: 'Il manque la clé de ce lien. Demandez-en un nouveau.',
+    noServer: 'Impossible de joindre le serveur. Vérifiez votre connexion et rechargez.',
+    paidButNoPage: 'Votre validation est enregistrée. Nous n’avons pas pu ouvrir la page de paiement — ',
+    imagery: 'Images © ',
+    gate: 'portail', gates: 'portails',
+  },
+};
+
+let LANG = 'en';
+try {
+  const saved = localStorage.getItem('ff_lang');
+  const guess = saved || (navigator.language || 'en').slice(0, 2).toLowerCase();
+  if (L[guess]) LANG = guess;
+} catch (e) { /* private window: English is a fine answer */ }
+
+/* %s in order. Deliberately not a template engine -- every string here is one
+   sentence with at most three holes in it. */
+function t(key) {
+  const args = [].slice.call(arguments, 1);
+  let out = (L[LANG] && L[LANG][key]) || L.en[key] || '';
+  args.forEach(a => { out = out.replace('%s', a); });
+  return out;
+}
+
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.getAttribute('data-t');
+    if (el.tagName === 'INPUT') el.placeholder = t(k); else el.textContent = t(k);
+  });
+}
+
+function setLang(code) {
+  if (!L[code]) return;
+  LANG = code;
+  try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  location.reload();
+}
+</script>
+  <div id="loading" data-t="loading">Opening your quote&hellip;</div>
 
   <div id="content" style="display:none">
     <div id="stage" style="display:none">
-      <div id="stageBadge">Your fence &middot; 3D preview</div>
+      <div id="stageBadge" data-t="badge">Your fence &middot; 3D preview</div>
       <div id="stageHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
       <button id="oldFenceBtn" style="display:none;position:absolute;top:10px;left:10px;
               margin-top:34px;background:rgba(15,24,38,.82);border:none;color:#fff;
               border-radius:8px;padding:8px 12px;cursor:pointer;
               font:600 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-              text-transform:uppercase">Remove the old fence</button>
+              text-transform:uppercase" data-t="removeOld">Remove the old fence</button>
       <div id="rotCtl" style="display:none;position:absolute;top:10px;right:10px;
            background:rgba(15,24,38,.82);border-radius:8px;padding:8px 12px;color:#fff">
         <div style="font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-             text-transform:uppercase;margin-bottom:5px">Turn the fence to match</div>
+             text-transform:uppercase;margin-bottom:5px" data-t="turnFence">Turn the fence to match</div>
         <input id="rotSlider" type="range" min="0" max="360" value="0" step="1"
                style="width:150px;margin:0">
         <button id="slideBtn" style="display:none;margin-top:7px;width:100%;background:transparent;
                 border:1px solid #48566B;color:#fff;border-radius:6px;padding:5px;
                 font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-                text-transform:uppercase;cursor:pointer">Slide into place</button>
+                text-transform:uppercase;cursor:pointer" data-t="slideIn">Slide into place</button>
       </div>
       <div id="mapCred" style="display:none">
         <span id="imageryCredit">Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</span></div>
@@ -178,12 +326,12 @@
     </div>
 
     <div class="approve" id="approveBox" style="display:none">
-      <h2>Ready to go ahead?</h2>
-      <p style="font-size:14px;color:#AEBBCC" id="approveLead">Type your name and press approve &mdash; that tells
+      <h2 data-t="readyHead">Ready to go ahead?</h2>
+      <p style="font-size:14px;color:#AEBBCC" id="approveLead" data-t="leadPlain">Type your name and press approve &mdash; that tells
         us to put you on the schedule. You&rsquo;ll get a copy of everything.</p>
-      <input id="signName" placeholder="Your full name" autocomplete="name">
-      <button class="btn" id="approveBtn">Approve this quote</button>
-      <button class="btn quiet" id="approveOnlyBtn" style="display:none">Approve without paying now</button>
+      <input id="signName" placeholder="Your full name" data-t="namePlaceholder" autocomplete="name">
+      <button class="btn" id="approveBtn" data-t="approve">Approve this quote</button>
+      <button class="btn quiet" id="approveOnlyBtn" style="display:none" data-t="approveOnly">Approve without paying now</button>
       <div class="err" id="approveErr"></div>
     </div>
 
@@ -191,7 +339,10 @@
     <div class="err" id="payErr"></div>
   </div>
 
-  <p class="foot">Powered by <b>Fence<span>Flow</span></b></p>
+  <p class="foot" style="display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap">
+    <span>Powered by <b>Fence<span>Flow</span></b></span>
+    <span id="langPick" style="opacity:.75"></span>
+  </p>
 </div>
 
 <script src="config.js"></script>
@@ -209,7 +360,7 @@ const API=window.FENCEFLOW_CONFIG.SUPABASE_URL+'/functions/v1';
 // function started serving the county's own aerials.
 fetch(API+'/quote-map?meta=1',{headers:{apikey:window.FENCEFLOW_CONFIG.SUPABASE_KEY}})
   .then(r=>r.ok?r.json():null)
-  .then(m=>{ if(m&&m.attribution){ const el=document.getElementById('imageryCredit'); if(el) el.textContent='Imagery © '+m.attribution+(m.imagery_note?' · '+m.imagery_note:''); } })
+  .then(m=>{ if(m&&m.attribution){ const el=document.getElementById('imageryCredit'); if(el) el.textContent=t('imagery')+m.attribution+(m.imagery_note?' · '+m.imagery_note:''); } })
   .catch(()=>{});
 const friendly=e=>(e instanceof TypeError)
   ? 'Could not reach the server — check your connection and try again.'
@@ -219,10 +370,18 @@ const token=new URLSearchParams(location.search).get('t')||'';
 let quote=null;
 
 async function load(){
-  if(!token){ $('loading').textContent='This link is missing its key. Ask for a fresh one.'; return; }
+  applyStaticText();
+  $('langPick').innerHTML = ['en','es','fr'].map(c =>
+    c === LANG ? '<b>'+c.toUpperCase()+'</b>'
+               : '<a href="#" data-lang="'+c+'" style="color:inherit">'+c.toUpperCase()+'</a>'
+  ).join(' · ');
+  $('langPick').querySelectorAll('a[data-lang]').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
+
+  if(!token){ $('loading').textContent=t('linkMissing'); return; }
   let r;
   try{ r=await fetch(API+'/quote-view?t='+encodeURIComponent(token)); }
-  catch(e){ $('loading').textContent='Could not reach the server. Check your connection and reload.'; return; }
+  catch(e){ $('loading').textContent=t('noServer'); return; }
   const j=await r.json().catch(()=>({}));
   if(!r.ok){ $('loading').textContent=j.error||'That quote is no longer available.'; return; }
   quote=j;
@@ -233,7 +392,7 @@ function render(){
   const q=quote;
   $('coName').textContent=q.company.name||'Your contractor';
   $('coContact').textContent=[q.company.phone,q.company.email].filter(Boolean).join(' · ');
-  $('quoteTitle').textContent='Quote for '+(q.customerName||'you');
+  $('quoteTitle').textContent=t('quoteFor', q.customerName||t('you'));
   $('quoteAddr').textContent=q.address||'';
 
   // The scope in the customer's language: what fence, how much of it, how
@@ -261,26 +420,26 @@ function render(){
           +'<span><strong>'+(r.teardown?'Remove old ':'')+esc(label(r.type))+' fence</strong>'
           +(r.finish?', '+esc(r.finish):'')
           +' — '+esc(r.heightFt)+' ft tall'
-          +(gates?' · '+gates+' gate'+(gates===1?'':'s'):'')
+          +(gates?' · '+gates+' '+(gates===1?t('gate'):t('gates')):'')
           +(r.label?'<span class="sub" style="display:block">'+esc(r.label)+'</span>':'')
           +'</span>'
           +'<span class="num" style="white-space:nowrap">'+(ft?Math.round(ft)+' ft':'')+'</span>'
           +'</div>';
       }).join('')
-    : '<p class="sub">Full details of the work to follow.</p>';
+    : '<p class="sub">'+t('scopeSoon')+'</p>';
 
   // Two numbers only. Subtotals and tax lines are the office's arithmetic;
   // the customer needs what it costs and what starts the work.
   const t=[];
-  t.push('<div class="grand"><span>Total</span><span>'+money(q.total)+'</span></div>');
-  if(q.deposit>0.005) t.push('<div><span>Deposit to begin</span><span>'+money(q.deposit)+'</span></div>');
+  t.push('<div class="grand"><span>'+t('total')+'</span><span>'+money(q.total)+'</span></div>');
+  if(q.deposit>0.005) t.push('<div><span>'+t('depositToBegin')+'</span><span>'+money(q.deposit)+'</span></div>');
   $('totals').innerHTML=t.join('');
 
   if(q.approvedAt){
     $('approvedBox').style.display='';
-    $('approvedBox').textContent='Approved by '+q.approvedBy+' on '
-      +new Date(q.approvedAt).toLocaleDateString()+'. '
-      +(q.company.name||'Your contractor')+' has been told — thank you!';
+    $('approvedBox').textContent=t('approvedOn', q.approvedBy,
+      new Date(q.approvedAt).toLocaleDateString(LANG),
+      q.company.name||t('yourContractor'));
     // Already approved on an earlier visit: the deposit is the only thing
     // left, so it stands on its own.
     if(dueNow()) showPayButton();
@@ -290,10 +449,9 @@ function render(){
       // One press. Saying yes and paying the deposit are the same decision,
       // and splitting them into two buttons meant a homeowner approved, saw
       // a thank-you, and never noticed the second one.
-      $('approveBtn').textContent='Approve and pay '+money(dueNow());
+      $('approveBtn').textContent=t('approveAndPay', money(dueNow()));
       $('approveOnlyBtn').style.display='';
-      $('approveLead').innerHTML='Type your name to approve. We&rsquo;ll take you '
-        +'straight to the deposit payment, and you&rsquo;ll get a copy of everything.';
+      $('approveLead').textContent=t('leadPay');
     }
   }
 
@@ -341,14 +499,14 @@ function showPayButton(){
   if(!due) return;
   $('payBtn').style.display='';
   $('payBtn').disabled=false;
-  $('payBtn').textContent='Pay the '+money(due)+' deposit';
+  $('payBtn').textContent=t('payDeposit', money(due));
 }
 
 function markApproved(name){
   quote.approvedAt=new Date().toISOString(); quote.approvedBy=name;
   $('approveBox').style.display='none';
   $('approvedBox').style.display='';
-  $('approvedBox').textContent='Approved — thank you, '+name
+  $('approvedBox').textContent=t('approvedThanks', name)
     +'! '+(quote.company.name||'Your contractor')+' has been told.';
 }
 
@@ -370,7 +528,7 @@ async function openPaymentPage(){
 async function doApprove(thenPay){
   const name=$('signName').value.trim();
   const err=$('approveErr'); err.style.display='none';
-  if(name.length<2){ err.textContent='Type your name first.'; err.style.display='block'; return; }
+  if(name.length<2){ err.textContent=t('typeName'); err.style.display='block'; return; }
   $('approveBtn').disabled=true; $('approveOnlyBtn').disabled=true;
   try{
     const r=await fetch(API+'/quote-view?t='+encodeURIComponent(token),{
@@ -391,7 +549,7 @@ async function doApprove(thenPay){
       return;                       // the browser is leaving; nothing follows
     }catch(e){
       const perr=$('payErr');
-      perr.textContent='Your approval is saved. We could not open the payment page — '
+      perr.textContent=t('paidButNoPage')
         +friendly(e)+' You can try again below, or your contractor will send a link.';
       perr.style.display='block';
     }
@@ -1449,8 +1607,8 @@ function build3D(runs,attempt){
   const walkBtn=document.getElementById('walkBtn');
   const topBtn=document.getElementById('topBtn');
   function exitSpecialModes(){
-    if(mode==='top'){ pitch=savedPitch; dist=savedDist; topBtn.textContent='Top view'; }
-    if(mode==='walk'){ walkBtn.textContent='Walk it'; }
+    if(mode==='top'){ pitch=savedPitch; dist=savedDist; topBtn.textContent=t('topView'); }
+    if(mode==='walk'){ walkBtn.textContent=t('walkIt'); }
     if(mode!=='orbit') hintEl.textContent=defaultHint;
     mode='orbit';
   }
@@ -1531,8 +1689,8 @@ function build3D(runs,attempt){
       if(mode==='walk'){ exitSpecialModes(); return; }
       exitSpecialModes();
       mode='walk'; auto=false; walkT0=performance.now();
-      walkBtn.textContent='Stop walking';
-      hintEl.textContent='Walking the fence line — drag to take over';
+      walkBtn.textContent=t('stopWalk');
+      hintEl.textContent=t('walkHint');
     });
   }
   topBtn.addEventListener('click',()=>{
@@ -1542,8 +1700,8 @@ function build3D(runs,attempt){
     mode='top'; auto=false;
     pitch=1.47; dist=r*1.55+14;
     tx=pivot.position.x; tz=pivot.position.z;
-    topBtn.textContent='Ground view';
-    hintEl.textContent='Looking straight down — drag to look around';
+    topBtn.textContent=t('groundView');
+    hintEl.textContent=t('topHint');
   });
 
   function tick(){
