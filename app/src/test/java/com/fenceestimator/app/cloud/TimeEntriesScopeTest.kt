@@ -21,13 +21,16 @@ class TimeEntriesScopeTest {
 
     private fun timeEntriesSection(): String {
         val source = File("src/main/java/com/fenceestimator/app/cloud/EntitySync.kt").readText()
-        val start = source.indexOf("from(\"time_entries_crew\")")
+        // Anchored on the table NAME, not on the call shape. The read used to
+        // be a chained from("time_entries_crew"); it is now that same name
+        // handed to the paged reader. Anchoring on the name survives either.
+        val start = source.indexOf("\"time_entries_crew\"")
         assertTrue(
             "pullJobChildren no longer reads time_entries_crew for a DENIED phone -- " +
                 "the base table carries every colleague's pay rate",
             start >= 0
         )
-        val end = source.indexOf("from(\"job_steps\")", start)
+        val end = source.indexOf("\"job_steps\"", start)
         assertTrue("could not find the job_steps read that follows time entries", end > start)
         // Back up to the guard that opens the block.
         val guard = source.lastIndexOf("if (scope != MoneyScope.UNKNOWN)", start)
@@ -44,7 +47,7 @@ class TimeEntriesScopeTest {
         assertFalse(
             "another table's read sits between the UNKNOWN guard and the time_entries read; " +
                 "time entries have lost their own guard",
-            between.contains("from(\"change_orders") || between.contains("from(\"estimate_line_items")
+            between.contains("\"change_orders") || between.contains("\"estimate_line_items")
         )
     }
 
@@ -52,7 +55,9 @@ class TimeEntriesScopeTest {
     fun `a DENIED phone reads the view and an ALLOWED phone the table`() {
         val section = timeEntriesSection()
         assertTrue(section.contains("if (scope == MoneyScope.DENIED)"))
-        assertTrue(section.contains("from(\"time_entries\")"))
+        // The base table is still the ALLOWED branch. Written as an else on the
+        // table name now rather than a second from(), so match the name.
+        assertTrue(section.contains("\"time_entries\""))
     }
 
     @Test

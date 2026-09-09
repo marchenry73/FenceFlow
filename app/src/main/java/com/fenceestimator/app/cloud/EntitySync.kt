@@ -55,6 +55,48 @@ import java.time.Instant
 /** At most this many sync requests in flight at once; see the reap and pullAll. */
 private val netGate = kotlinx.coroutines.sync.Semaphore(4)
 
+/**
+ * Reads a whole table a page at a time.
+ *
+ * PostgREST answers at most 1000 rows and reports the total as unknown
+ * (the Content-Range header ends in a star, not a count), so a caller that asks once and counts what came
+ * back cannot tell a complete answer from a truncated one. Measured against
+ * this project: a view of 3000 rows returned exactly 1000 to a plain request.
+ *
+ * Every read here asked once. A company with more than a thousand estimate
+ * lines -- roughly forty jobs -- would have had the phone pull the first
+ * thousand and then reconcile against them as if that were everything. On a
+ * sync, "the cloud does not have this row" is not a harmless gap: it decides
+ * what gets pushed, and in places what gets tombstoned.
+ *
+ * Ordered by sync_id so the pages cannot overlap or skip. A short page ends
+ * the loop; a full one means ask again. The cap is a runaway stop rather than
+ * a limit: fifty pages is fifty thousand rows, and a company there needs a
+ * delta sync, not a longer loop.
+ */
+internal suspend inline fun <reified T : Any> pagedList(
+    table: String,
+    crossinline filters: io.github.jan.supabase.postgrest.query.filter.PostgrestFilterBuilder.() -> Unit,
+): List<T> {
+    val page = 1000
+    val all = ArrayList<T>()
+    var from = 0L
+    while (true) {
+        val batch = SupabaseModule.client.postgrest.from(table)
+            .select {
+                filter { filters() }
+                order("sync_id", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
+                range(from, from + page - 1)
+            }
+            .decodeList<T>()
+        all += batch
+        if (batch.size < page) break
+        from += page
+        if (all.size >= page * 50) break
+    }
+    return all
+}
+
 private fun io.github.jan.supabase.postgrest.query.filter.PostgrestFilterBuilder.notDeleted() =
     filter("deleted_at", io.github.jan.supabase.postgrest.query.filter.FilterOperator.IS, "null")
 
@@ -1284,14 +1326,11 @@ object EntitySync {
             // and is left exactly where it is.
             repository.deleteOrphanedGeneratedLineItems()
 
-            val lineItems = if (scope == MoneyScope.DENIED)
-                SupabaseModule.client.postgrest.from("estimate_line_items_crew")
-                    .select { filter { eq("company_id", companyId); notDeleted() } }
-                    .decodeList<CloudLineItem>()
-            else
-                SupabaseModule.client.postgrest.from("estimate_line_items")
-                    .select { filter { eq("company_id", companyId); notDeleted() } }
-                    .decodeList<CloudLineItem>()
+            // Paged. This is the table that reaches a thousand first: about
+            // twenty-five lines a job, so roughly forty jobs in.
+            val lineItems = pagedList<CloudLineItem>(
+                if (scope == MoneyScope.DENIED) "estimate_line_items_crew" else "estimate_line_items"
+            ) { eq("company_id", companyId); notDeleted() }
             val runIdBySyncId = jobIdBySyncId.values
                 .flatMap { repository.getFenceRuns(it) }.associate { it.syncId to it.id }
             val localItemsBySyncId = jobIdBySyncId.values
@@ -1539,14 +1578,11 @@ object EntitySync {
         // time_entries_crew, which has no hourly_rate column at all, and the
         // merge below never lets a rate move unless this phone is ALLOWED.
         if (scope != MoneyScope.UNKNOWN) {
-        val times = if (scope == MoneyScope.DENIED)
-            SupabaseModule.client.postgrest.from("time_entries_crew")
-                .select { filter { eq("company_id", companyId); notDeleted() } }
-                .decodeList<CloudTimeEntry>()
-        else
-            SupabaseModule.client.postgrest.from("time_entries")
-                .select { filter { eq("company_id", companyId); notDeleted() } }
-                .decodeList<CloudTimeEntry>()
+        // Paged. Two shifts a day for two crew is a thousand rows inside a
+        // year, and this one never stops growing.
+        val times = pagedList<CloudTimeEntry>(
+            if (scope == MoneyScope.DENIED) "time_entries_crew" else "time_entries"
+        ) { eq("company_id", companyId); notDeleted() }
         // Keyed by sync id, not a set of ids, because rows that already exist
         // have to be updated rather than skipped. Skipping them is what made an
         // approved shift show as still pending on the crew's phone forever: the
@@ -1829,9 +1865,11 @@ object EntitySync {
     }
 
     private suspend fun pullFenceRuns(repository: Repository, companyId: String): Int {
-        val cloud = SupabaseModule.client.postgrest.from("fence_runs")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudFenceRun>()
+        // Paged: three or four runs a job puts this past a thousand at a few
+        // hundred jobs, and a missing run is a fence nobody builds.
+        val cloud = pagedList<CloudFenceRun>("fence_runs") {
+            eq("company_id", companyId); notDeleted()
+        }
 
         // Runs belong to a job, so a run whose job hasn't synced down yet is
         // skipped rather than orphaned; the next pass picks it up.
