@@ -167,8 +167,15 @@ data class CloudFenceRun(
     @SerialName("include_tension_wire") val includeTensionWire: Boolean = false,
     @SerialName("include_barbed_wire_arms") val includeBarbedWireArms: Boolean = false,
     @SerialName("include_privacy_slats") val includePrivacySlats: Boolean = false,
-    @SerialName("split_rail_count") val splitRailCount: Int = 2
-)
+    @SerialName("split_rail_count") val splitRailCount: Int = 2,
+    // Never set on push -- the touch_updated_at trigger owns this column, the
+    // same as pricing_tiers.updated_at. Only read, on pull, to arbitrate which
+    // side of an edit is newer.
+    @SerialName("updated_at") val updatedAt: String? = null
+) {
+    /** See [CloudJob.updatedAtMillis]: falls back to 0 so an absent value never outranks real local work. */
+    fun updatedAtMillis(): Long = CloudTime.parseMillis(updatedAt) ?: 0L
+}
 
 /**
  * The fence a company usually builds, as data. Pull-only -- see
@@ -1884,7 +1891,7 @@ object EntitySync {
                 .getOrDefault(FenceType.VINYL)
             val existing = localBySyncId[row.syncId]
             if (existing == null) {
-                repository.createFenceRun(
+                repository.createFenceRunFromCloud(
                     FenceRun(
                         syncId = row.syncId,
                         jobId = localJobId,
@@ -1915,14 +1922,19 @@ object EntitySync {
                         includeTensionWire = row.includeTensionWire,
                         includeBarbedWireArms = row.includeBarbedWireArms,
                         includePrivacySlats = row.includePrivacySlats,
-                        splitRailCount = row.splitRailCount
+                        splitRailCount = row.splitRailCount,
+                        updatedAt = row.updatedAtMillis()
                     )
                 )
                 added++
-            } else {
+            } else if (row.updatedAtMillis() > existing.updatedAt) {
                 // Redrawing a fence line, or correcting its footage, has to
                 // reach the crew -- otherwise they build to an older drawing
                 // than the one the customer was quoted from.
+                //
+                // Gated last-edit-wins: a run redrawn on this phone and not
+                // yet pushed must survive a pull landing in between, or the
+                // scope the crew is about to build from reverts under them.
                 //
                 // copy() names only what the cloud carries, which is now the
                 // whole specification. It used to carry the outline and nothing
@@ -1930,7 +1942,10 @@ object EntitySync {
                 // fence type and the two phones computed different takeoffs.
                 //
                 // jobId is still not named: the run stays attached to the job
-                // this device resolved it to.
+                // this device resolved it to. updatedAt is stamped to the
+                // cloud's own clock, not to now -- otherwise the very next
+                // push would see its own just-pulled copy as newer and send
+                // it straight back up.
                 val merged = existing.copy(
                     label = row.label,
                     fenceType = fenceType,
@@ -1958,9 +1973,10 @@ object EntitySync {
                     includeTensionWire = row.includeTensionWire,
                     includeBarbedWireArms = row.includeBarbedWireArms,
                     includePrivacySlats = row.includePrivacySlats,
-                    splitRailCount = row.splitRailCount
+                    splitRailCount = row.splitRailCount,
+                    updatedAt = row.updatedAtMillis()
                 )
-                if (merged != existing) { repository.updateFenceRun(merged); added++ }
+                if (merged != existing) { repository.updateFenceRunFromCloud(merged); added++ }
             }
         }
         return added
@@ -1987,9 +2003,30 @@ object EntitySync {
 
     private suspend fun pushFenceRuns(repository: Repository, companyId: String): Int {
         val jobs = repository.getAllJobs()
-        val rows = jobs.flatMap { job ->
-            repository.getFenceRuns(job.id).map { it.toCloud(companyId, job.syncId) }
+        val local = jobs.flatMap { job ->
+            repository.getFenceRuns(job.id).map { it to job.syncId }
         }
+        if (local.isEmpty()) return 0
+
+        // Points, post spacing and panel height drive the takeoff and the
+        // price, so whichever phone happened to sync last must not be able to
+        // silently overwrite a run just redrawn on another. Only push when
+        // this phone's copy is actually newer than the cloud's; a phone that
+        // only pulled the run re-pushes its now-stale copy every sync
+        // otherwise and clobbers an edit made elsewhere in between.
+        val cloudBySyncId = SupabaseModule.client.postgrest.from("fence_runs")
+            // sees-tombstones: a run this phone deleted must still compare
+            // against the cloud's last known clock for it, or a tombstoned
+            // row looks like "no cloud copy" and a stale local push
+            // resurrects it.
+            .select { filter { eq("company_id", companyId) } }
+            .decodeList<CloudFenceRun>()
+            .associateBy { it.syncId }
+
+        val rows = local.filter { (run, _) ->
+            val claimed = cloudBySyncId[run.syncId]
+            claimed == null || run.updatedAt > claimed.updatedAtMillis()
+        }.map { (run, jobSyncId) -> run.toCloud(companyId, jobSyncId) }
         return upsert("fence_runs", rows)
     }
 

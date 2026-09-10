@@ -492,7 +492,15 @@ data class FenceRun(
      * hardcoded defaults instead, which stays the fallback for a fence type
      * with no template chosen or none synced down yet.
      */
-    val buildTemplateSyncId: String? = null
+    val buildTemplateSyncId: String? = null,
+
+    /**
+     * This phone's last-edit-wins clock for sync, same idea as [Job.updatedAt].
+     * Bumped on every user edit (see Repository.saveFenceRun); a pull
+     * stores the cloud's own clock here instead of bumping it, so the next
+     * push doesn't mistake a just-downloaded row for a fresh local edit.
+     */
+    val updatedAt: Long = System.currentTimeMillis()
 ) {
     val suppressedRoles: Set<MaterialRole>
         get() = suppressedRolesCsv.split(",")

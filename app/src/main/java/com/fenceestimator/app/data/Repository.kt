@@ -360,8 +360,22 @@ class Repository(private val db: AppDatabase) {
         fenceRunDao.getAll().groupBy { it.jobId }
     fun observeFenceRun(id: Long): Flow<FenceRun?> = fenceRunDao.observeById(id)
     suspend fun getFenceRun(id: Long): FenceRun? = fenceRunDao.getById(id)
-    suspend fun createFenceRun(run: FenceRun): Long = fenceRunDao.insert(run)
-    suspend fun updateFenceRun(run: FenceRun) = fenceRunDao.update(run)
+    /** A user edit (including the initial creation of a new run), so this phone's clock moves. */
+    suspend fun createFenceRun(run: FenceRun): Long =
+        fenceRunDao.insert(run.copy(updatedAt = System.currentTimeMillis()))
+    /** A user edit, so this phone's clock moves. */
+    suspend fun updateFenceRun(run: FenceRun) =
+        fenceRunDao.update(run.copy(updatedAt = System.currentTimeMillis()))
+    /**
+     * The pull half of fence-run sync. Stores the row exactly as handed in --
+     * including its `updatedAt`, which the caller has already set to the
+     * cloud's own clock -- rather than bumping it to now. Bumping here would
+     * make a run this phone just downloaded look like a fresh local edit, and
+     * the very next push would send it straight back up as though someone had
+     * just redrawn it.
+     */
+    suspend fun createFenceRunFromCloud(run: FenceRun): Long = fenceRunDao.insert(run)
+    suspend fun updateFenceRunFromCloud(run: FenceRun) = fenceRunDao.update(run)
     suspend fun deleteFenceRun(run: FenceRun) = deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
 
     // ---- Build templates (pull-only; see EntitySync.pullBuildTemplates) ----

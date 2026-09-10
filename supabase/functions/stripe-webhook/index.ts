@@ -298,6 +298,41 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
   }
 }
 
+/**
+ * Tells the company's phones a customer's card did not go through.
+ *
+ * Reuses the same channel as an arrival or a dispute rather than a quieter
+ * one, for the reason above the case that calls this: silence is what a
+ * failed deposit used to produce, and silence reads as nobody having asked
+ * for money at all.
+ */
+async function notifyPaymentFailed(admin: any, companyId: string, amount: number) {
+  const headline = "A customer's card was declined";
+  const body = "$" + amount.toFixed(2) + " did not go through. Open the job in FenceFlow to try again.";
+
+  const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
+  if (!raw) return;
+  const { data: devices } = await admin.from("device_tokens")
+    .select("token").eq("company_id", companyId);
+  if (!devices?.length) return;
+
+  const sa = JSON.parse(raw);
+  const token = await fcmAccessToken(sa);
+  for (const d of devices) {
+    await fetch("https://fcm.googleapis.com/v1/projects/" + sa.project_id + "/messages:send", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          token: d.token,
+          data: { title: headline, body },
+          android: { priority: "HIGH" },
+        },
+      }),
+    }).catch(() => {});
+  }
+}
+
 /** Tells the company's phones that money arrived, and how much. */
 async function notifyPaid(admin: any, job: any, justPaid: number, totalPaid: number) {
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
@@ -451,6 +486,61 @@ Deno.serve(async (req) => {
           // non-payment comes straight back rather than waiting on a human.
           await admin.rpc("release_for_payment", { cid: companyId });
         }
+        break;
+      }
+
+      // ---- The card did not go through ----
+      //
+      // Before this, a failed deposit produced nothing at all: no ledger row
+      // (correct, no money moved) but also no record of the attempt anywhere
+      // -- so a deposit that never arrived looked exactly like one nobody had
+      // ever asked for. The ledger and amount_paid stay untouched here; only
+      // the request itself is marked, and the office is told, so a declined
+      // card reads as "try again" rather than silence.
+      case "checkout.session.async_payment_failed": {
+        const session = event.data.object;
+        if (session.mode === "payment") {
+          const linkId = session.payment_link;
+          if (linkId) {
+            const { data: pending } = await admin.from("job_payments")
+              .select("id, company_id, amount_cents, status")
+              .eq("stripe_id", linkId).maybeSingle();
+            // Never overwrite a request that already cleared -- a delayed
+            // async-failure notification arriving after the payment
+            // succeeded some other way must not relabel it failed.
+            if (pending && pending.status !== "paid") {
+              await admin.from("job_payments")
+                .update({ status: "failed" })
+                .eq("id", pending.id);
+              await notifyPaymentFailed(admin, pending.company_id,
+                Number(pending.amount_cents || 0) / 100);
+            }
+          }
+        }
+        break;
+      }
+
+      // Best-effort only. create-payment-link never sets
+      // payment_intent_data.metadata when it creates the Payment Link, so the
+      // PaymentIntent Stripe raises this event for carries none of our ids by
+      // default -- most of these cannot be placed today. Tried anyway for the
+      // day that changes; broken out rather than guessed at otherwise, the
+      // same rule an unmatched refund follows.
+      case "payment_intent.payment_failed": {
+        const intent = event.data.object;
+        const jobSyncId = intent?.metadata?.job_sync_id;
+        const companyId = intent?.metadata?.company_id;
+        if (!jobSyncId || !companyId) break;
+
+        const { data: rows } = await admin.from("job_payments")
+          .select("id, status")
+          .eq("job_sync_id", jobSyncId).eq("company_id", companyId)
+          .order("created_at", { ascending: false }).limit(1);
+        const row = rows?.[0];
+        if (!row || row.status === "paid") break;
+
+        await admin.from("job_payments").update({ status: "failed" }).eq("id", row.id);
+        await notifyPaymentFailed(admin, companyId, Number(intent.amount ?? 0) / 100);
         break;
       }
 
