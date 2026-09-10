@@ -2909,6 +2909,29 @@ function renderDash(){
         id: j.id });
     });
 
+  // Approved but never signed. The approval is a click on a web page; the
+  // signature is the contract. A job worked from an approval with no signature
+  // is a job with nothing to point at if the customer changes their mind.
+  jobs.filter(j => j.quote_approved_at && !j.signed_at
+                   && !['COMPLETED','DECLINED'].includes(j.status))
+    .forEach(j => items.push({ urgent:false,
+      text: 'Approved but not signed: ' + name(j), id: j.id }));
+
+  // Labour has already cost more than it was priced at. Not a warning about
+  // the future -- the money is spent. Only when there is a real rate behind
+  // it, because a zero cost is not an underspend.
+  jobCosting.filter(r => Number(r.labour_cost || 0) > 0.005).forEach(r => {
+    const j = jobs.find(x => x.sync_id === r.job_sync_id);
+    if (!j) return;
+    const quoted = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
+                 + Number(j.labor_flat_fee || 0);
+    if (quoted > 0.005 && Number(r.labour_cost) > quoted) {
+      items.push({ urgent:true,
+        text: 'Labour is over what it was priced at by ' +
+              money(Number(r.labour_cost) - quoted) + ': ' + name(j), id: j.id });
+    }
+  });
+
   // Scheduled, and nothing ordered. This one is why materials got a column:
   // a crew driving to a job with no posts on the truck is a wasted day for two
   // people plus an apology to a customer who took the morning off.

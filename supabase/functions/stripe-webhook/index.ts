@@ -10,6 +10,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { recordRefund, minorToMajor } from "../_shared/record-payment.ts";
 
 /**
+ * A money write that is allowed to fail loudly.
+ *
+ * supabase-js does not throw when a write fails -- it returns { error } -- so
+ * awaiting the builder succeeded no matter what the database said. Every money
+ * write here discarded that. A ledger row that failed on a constraint, an
+ * outage or a policy therefore returned 200 to Stripe, Stripe never retried,
+ * and a cleared payment existed only in Stripe own dashboard while the books
+ * here said nothing had arrived.
+ *
+ * Throwing reaches the catch at the bottom, which already answers 500, and
+ * Stripe already retries a 500 with backoff for hours. Retrying is safe
+ * because every write is an upsert keyed on the processor own id.
+ */
+async function mustWrite(what: string, p: PromiseLike<{ error: unknown }>): Promise<void> {
+  const { error } = await p;
+  if (error) {
+    const detail = typeof error === "object" && error && "message" in error
+      ? String((error as { message: unknown }).message)
+      : String(error);
+    console.error("payment write failed:", what, detail);
+    throw new Error("could not " + what + ": " + detail);
+  }
+}
+
+/**
  * Verifies Stripe's signature header over the RAW body.
  *
  * Without this, anyone who learns the URL could POST "subscription active" or
@@ -182,7 +207,8 @@ async function applyPaymentToJob(admin: any, payment: any) {
   // ledger itself -- cash, check and card together, the same rule the app
   // uses. Summing job_payments here counted Stripe alone and stamped a
   // Stripe-only figure over a job that also had cash on it.
-  await admin.from("payment_records").upsert({
+  await mustWrite("record the payment in the ledger",
+    admin.from("payment_records").upsert({
     sync_id: "stripe-" + payment.id,
     company_id: payment.company_id,
     job_sync_id: payment.job_sync_id,
@@ -192,7 +218,7 @@ async function applyPaymentToJob(admin: any, payment: any) {
     reference: String(payment.stripe_id ?? ""),
     note: "",
     recorded_by: "Stripe",
-  }, { onConflict: "company_id,sync_id" });
+  }, { onConflict: "company_id,sync_id" }));
 
   const { data: ledger } = await admin.from("payment_records")
     .select("amount")
@@ -210,7 +236,8 @@ async function applyPaymentToJob(admin: any, payment: any) {
   // No job row yet -- the ledger above is the record until it syncs.
   if (!job) return;
 
-  await admin.from("jobs").update({
+  await mustWrite("mark the job paid",
+    admin.from("jobs").update({
     amount_paid: paidDollars,
     payment_status: "DEPOSIT_PAID",
     // Latches the paid figure read-only in the app. What the processor reports
@@ -220,7 +247,7 @@ async function applyPaymentToJob(admin: any, payment: any) {
     // No updated_at: that is the edit clock last-edit-wins compares, and
     // money arriving is not an edit. The shared recorder stopped sending it
     // this morning; this copy had kept on.
-  }).eq("id", job.id);
+  }).eq("id", job.id));
 
 
   await notifyPaid(admin, job, Number(payment.amount_cents || 0) / 100, paidDollars);
