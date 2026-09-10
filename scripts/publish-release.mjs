@@ -56,12 +56,43 @@ if (!notes) {
 // that disagrees with the other is the office quoting a different number
 // from the phone. There is deliberately no flag to skip this.
 {
-  const gate = spawnSync(process.execPath, [join(REPO_ROOT, "scripts", "check-parity.mjs")], {
-    cwd: REPO_ROOT, stdio: "inherit",
-  });
-  if (gate.status !== 0) {
-    console.error("\nRefusing to publish: the pricing parity gate is red (see above).");
-    process.exit(1);
+  // Every gate runs before a byte is uploaded, and none of them has a flag to
+  // skip it. A gate you can wave through is a suggestion.
+  //
+  // These are the checks that have each already caught a real break:
+  //
+  //   parity       the phone and the server carrying pricing engines that
+  //                disagree, so the office quotes a different number
+  //   web pages    a stray apostrophe left the office on "Loading your
+  //                office…" for a day and a half, and a duplicate element id
+  //                made one panel write its rows into another's table
+  //   app tests    the crew money boundary is guarded by a test that reads the
+  //                source; a refactor slipped past it once already
+  //
+  // The app tests are the slow one, about ninety seconds. That is the point:
+  // it is cheaper than a release that loses a crew's hours.
+  const gates = [
+    ["pricing parity", [join(REPO_ROOT, "scripts", "check-parity.mjs")]],
+    ["web pages", [join(REPO_ROOT, "tests", "dashboard-syntax.test.mjs")]],
+  ];
+  for (const [name, argv] of gates) {
+    const gate = spawnSync(process.execPath, argv, { cwd: REPO_ROOT, stdio: "inherit" });
+    if (gate.status !== 0) {
+      console.error(`\nRefusing to publish: the ${name} gate is red (see above).`);
+      process.exit(1);
+    }
+  }
+
+  // Gradle, so it needs the wrapper rather than node.
+  {
+    const wrapper = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+    const tests = spawnSync(wrapper, ["testDebugUnitTest", "-q"], {
+      cwd: REPO_ROOT, stdio: "inherit", shell: process.platform === "win32",
+    });
+    if (tests.status !== 0) {
+      console.error("\nRefusing to publish: the app unit tests are red (see above).");
+      process.exit(1);
+    }
   }
 }
 
