@@ -2898,6 +2898,19 @@ function renderDash(){
         id: j.id });
     });
 
+  // Scheduled, and nothing ordered. This one is why materials got a column:
+  // a crew driving to a job with no posts on the truck is a wasted day for two
+  // people plus an apology to a customer who took the morning off.
+  jobs.filter(j => j.scheduled_date
+                   && d(j.scheduled_date) >= new Date(nowMs)
+                   && d(j.scheduled_date) < new Date(nowMs + 7*864e5)
+                   && !['RECEIVED','NOT_NEEDED'].includes(j.materials_status || 'NOT_ORDERED'))
+    .forEach(j => items.push({ urgent: true,
+      text: 'Scheduled ' + d(j.scheduled_date).toLocaleDateString() +
+            ' with materials ' + ((j.materials_status === 'ORDERED') ? 'ordered but not received' : 'not ordered') +
+            ': ' + name(j),
+      id: j.id }));
+
   // A quote that went out and went quiet. The most expensive thing on this
   // page: a sale nobody said no to.
   jobs.filter(j => j.status === 'SENT' && j.quote_sent_at
