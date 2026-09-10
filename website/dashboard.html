@@ -3572,6 +3572,22 @@ function renderPipe(){
 }
 
 /* ---------- crew ---------- */
+/* Right now, not this month. The crew list said who exists; it could not say
+   who is on a roof at eleven on a Tuesday, which is the question a manager
+   actually walks into the office with.
+
+   Built from the open shift rather than from the job's assignee: a job's
+   assignee is who was meant to go, and on a two-man job it credits both men's
+   work to one name. The clock knows who actually turned up. */
+function workingNow(e){
+  const shift = times.find(t => t.employee_sync_id === e.sync_id && t.started_at && !t.ended_at);
+  if (!shift) return '';
+  const job = jobBySync(shift.job_sync_id);
+  const hrs = Math.max(0, (Date.now() - d(shift.started_at).getTime()) / 36e5);
+  return '<div class="sub" style="color:var(--good,#2e6b4e)">On the clock ' +
+    hrs.toFixed(1) + 'h' + (job ? ' &middot; ' + esc(job.customer_name || 'a job') : '') + '</div>';
+}
+
 function renderEmployees(){
   $('empEmpty').style.display=employees.length?'none':'block';
   // Somebody marked inactive on the phone is off the crew there -- gone from
@@ -3584,7 +3600,7 @@ function renderEmployees(){
   $('empRows').innerHTML=employees.map(e=>`
     <tr class="click" data-id="${e.id}"${active(e)?'':' style="opacity:.55"'}>
       <td><strong>${esc(e.name)||'Unnamed'}</strong>${active(e)?''
-        :' <span class="pill" style="font-size:11px">Off the crew</span>'}</td><td>${esc(e.role)||'—'}</td>
+        :' <span class="pill" style="font-size:11px">Off the crew</span>'}${workingNow(e)}</td><td>${esc(e.role)||'—'}</td>
       <td>${esc(e.phone)||'—'}</td><td>${esc(e.email)||'—'}</td>
       <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':'—'}</td>
       <td>${e.email?`<button class="btn btn-sm btn-grey resend-invite" data-id="${e.id}">Resend invite</button>`:''}</td>
