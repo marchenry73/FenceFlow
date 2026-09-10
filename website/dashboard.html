@@ -2788,7 +2788,23 @@ function renderDash(){
     return `<div class="stat${to ? ' click' : ''}"${to ? ` data-go="${to}"` : ''}>` +
            `<div class="n">${n}</div><div class="l">${label}</div></div>`;
   };
+  /* The two a manager checks before anything else, and neither was anywhere on
+     this page: what is happening today, and who is actually on the clock.
+
+     "On the clock" counts open shifts -- started, not ended. It is the only
+     number here that answers a question about right now rather than about a
+     period, which is exactly why it is the one worth walking to the window
+     over. Nobody clocked in on a working morning is a phone call, not a
+     report. */
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const endOfToday = new Date(startOfToday.getTime() + 864e5);
+  const todaysJobs = jobs.filter(j => j.scheduled_date
+    && d(j.scheduled_date) >= startOfToday && d(j.scheduled_date) < endOfToday);
+  const onTheClock = times.filter(t => t.started_at && !t.ended_at);
+
   $('stats').innerHTML=
+    tile('cal', todaysJobs.length, todaysJobs.length === 1 ? 'Job today' : 'Jobs today') +
+    tile('time', onTheClock.length, onTheClock.length === 1 ? 'On the clock now' : 'On the clock now') +
     tile('cal', soon.length, 'Scheduled next 7 days') +
     tile('pipe', won, 'Jobs won this month') +
     tile('reports', money(collected), 'Collected this month') +
