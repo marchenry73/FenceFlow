@@ -53,6 +53,9 @@
     <!-- Job detail sections -->
     <string name="section_progress">Job progress</string>
     <string name="cat_import_no_items">No prices were recognised in that PDF. It may be a scan rather than text. You can still type prices in by hand.</string>
+    <string name="cat_delete_item_title">Delete this catalog item?</string>
+    <string name="cat_delete_item_body">Deletes “%1$s”. Any estimate already using it keeps its price, but you won’t be able to add it again until you restore it from Deleted Items in Account settings.</string>
+    <string name="cat_this_item">this item</string>
     <string name="cat_import_failed">That PDF could not be read. It may be a scan rather than text, or the file may be damaged. You can still type prices in by hand.</string>
     <string name="section_customer">Customer</string>
     <string name="section_fence_runs">Fence Runs</string>
@@ -278,6 +281,9 @@
     <string name="est_send_invoice">Send Invoice</string>
     <string name="est_working_copy">Your Working Copy</string>
     <string name="est_edit_line_item">Edit Line Item</string>
+    <string name="est_delete_line_item_title">Delete this line item?</string>
+    <string name="est_delete_line_item_body">Deletes “%1$s” from the estimate. There is no Deleted Items entry for a line item, so this cannot be undone.</string>
+    <string name="est_this_line_item">this line item</string>
     <string name="est_description">Description</string>
     <string name="est_qty">Qty</string>
     <string name="est_unit">Unit</string>
@@ -380,6 +386,9 @@
     <string name="set_tier_labor_flat">Labor flat fee</string>
     <string name="set_tier_markup">Markup %</string>
     <string name="set_tier_discount">Discount %</string>
+    <string name="set_delete_tier_title">Delete this pricing tier?</string>
+    <string name="set_delete_tier_body">Deletes “%1$s”. Jobs already priced with it keep their numbers, but the tier itself does not go to Deleted Items, so there is no way to bring it back.</string>
+    <string name="set_this_tier">this tier</string>
     <string name="acct_cloud_not_configured">Cloud accounts aren\'t configured in this build. The app still works fully offline on this device.</string>
     <string name="acct_create_account">Create Account</string>
     <string name="acct_sign_in_explain">Signing in lets your crew share one set of jobs. Without an account the app keeps working offline on this phone only.</string>
@@ -576,6 +585,8 @@
     <string name="jd_invoice_hint">Use “Generate &amp; Share Invoice” on the Estimate screen once the job is complete.</string>
     <string name="jd_no_expenses">No expenses logged for this job yet (fuel, equipment rental, permit fees, etc).</string>
     <string name="jd_remove_expense">Remove expense</string>
+    <string name="jd_delete_expense_title">Delete this expense?</string>
+    <string name="jd_delete_expense_body">Deletes “%2$s” ($%1$s). It feeds this job’s profit — you can bring it back from Deleted Items in Account settings.</string>
     <string name="jd_total_expenses">Total expenses: $%1$s</string>
     <string name="jd_add_expense">Add Expense</string>
     <string name="jd_category">Category</string>
@@ -606,6 +617,9 @@
     <string name="jd_plus_feet">+%1$s ft</string>
     <string name="jd_edit_change_order">Edit change order</string>
     <string name="jd_remove_change_order">Remove change order</string>
+    <string name="jd_delete_change_order_title">Delete this change order?</string>
+    <string name="jd_delete_change_order_body">Deletes the $%1$s in extra work it authorized. You can bring it back from Deleted Items in Account settings.</string>
+    <string name="jd_delete_change_order_signed_body">The customer signed for this $%1$s in extra work — that signature goes with it. You can bring it back from Deleted Items in Account settings.</string>
     <string name="jd_includes_materials">Includes $%1$s of materials</string>
     <string name="jd_signed_on">Signed %1$s</string>
     <string name="jd_get_signature">Get Customer Signature</string>
@@ -622,6 +636,8 @@
     <string name="jd_signature_clears">Changing the feet, the cost, or the materials clears the customer\'s signature -- they signed for the old figures, so it has to be signed again.</string>
     <string name="jd_no_punch_items">No punch-list items. Track anything the customer wants fixed after the install here.</string>
     <string name="jd_remove_item">Remove item</string>
+    <string name="jd_delete_punch_item_title">Delete this punch-list item?</string>
+    <string name="jd_delete_punch_item_body">Deletes “%1$s”. You can bring it back from Deleted Items in Account settings.</string>
     <string name="jd_new_callback_item">New callback item</string>
     <string name="jd_review_send_when">Send once the job is finished and the customer is happy.</string>
     <string name="jd_which_message">Which message?</string>
@@ -633,6 +649,8 @@
     <string name="jd_camera">Camera</string>
     <string name="jd_gallery">Gallery</string>
     <string name="jd_remove_photo">Remove photo</string>
+    <string name="jd_delete_photo_title">Delete this photo?</string>
+    <string name="jd_delete_photo_body">This photo is deleted for good — before/after, damage, whatever it shows. It does not go to Deleted Items, so there is no way to bring it back.</string>
     <string name="jd_record_refund">Record a refund</string>
     <string name="jd_collected_so_far">Collected so far: $%1$s</string>
     <string name="jd_refund_amount">Refund amount ($)</string>
@@ -738,6 +756,8 @@
     <string name="mfr_unnamed">Unnamed</string>
     <string name="mfr_new_manufacturer">New Manufacturer</string>
     <string name="mfr_edit_manufacturer">Edit Manufacturer</string>
+    <string name="mfr_delete_title">Delete this manufacturer?</string>
+    <string name="mfr_delete_body">Deletes “%1$s”. Catalog items priced against it stay, but lose the link to it. This does not go to Deleted Items, so there is no way to bring it back.</string>
     <string name="mfr_name">Name</string>
     <string name="mfr_order_email">Order email</string>
     <string name="mfr_address">Address</string>
@@ -1500,6 +1520,16 @@
     <string name="vm_saved_their_access">Saved their access.</string>
     <string name="vm_couldnt_save_with">Couldn\'t save: %1$s</string>
     <string name="vm_couldnt_save_refused">Couldn\'t save: the server refused the change</string>
+    <string name="vm_couldnt_save_employee">Couldn’t save this crew member: %1$s</string>
+    <string name="vm_couldnt_delete_employee">Couldn’t delete this crew member: %1$s. Nothing was removed.</string>
+    <string name="vm_couldnt_deactivate_employee">Couldn’t take them off the crew: %1$s. They’re still active.</string>
+    <string name="vm_couldnt_reactivate_employee">Couldn’t put them back on the crew: %1$s</string>
+    <string name="vm_couldnt_update_item">Couldn’t save that check: %1$s</string>
+    <string name="vm_couldnt_attach_photo">Couldn’t attach the photo: %1$s</string>
+    <string name="vm_couldnt_delete_item">Couldn’t remove the item: %1$s</string>
+    <string name="vm_couldnt_save_catalog_item">Couldn’t save the catalog item: %1$s. Estimates using it still show the old price.</string>
+    <string name="vm_couldnt_delete_catalog_item">Couldn’t delete the catalog item: %1$s</string>
+    <string name="vm_couldnt_create_job">Couldn’t create a job for this customer: %1$s</string>
     <string name="vm_waiting_sign_back_in">Waiting to sign back in</string>
     <string name="vm_signed_out_sign_in_again">Signed out — sign in again to upload</string>
     <string name="acct_sync_signed_out">Signed out</string>

@@ -74,6 +74,9 @@ const L = {
     wantPh: 'Around 120 ft of wood privacy fence, one gate…',
     submit: 'Request my quote',
     thanks: 'Got it — ',
+    thanksTail: ' will call you back to set up your free quote. Thank you!',
+    team: 'the team',
+    sendError: 'Could not send just now.',
   },
   es: {
     title: 'Pida un presupuesto de cerca',
@@ -84,6 +87,9 @@ const L = {
     wantPh: 'Unos 120 pies de cerca de madera de privacidad, un portón…',
     submit: 'Pedir mi presupuesto',
     thanks: 'Recibido — ',
+    thanksTail: ' le llamará para concretar su presupuesto gratis. ¡Gracias!',
+    team: 'el equipo',
+    sendError: 'No se pudo enviar en este momento.',
   },
   fr: {
     title: 'Demandez un devis de clôture',
@@ -94,6 +100,9 @@ const L = {
     wantPh: 'Environ 120 pieds de clôture bois pleine, un portail…',
     submit: 'Demander mon devis',
     thanks: 'Bien reçu — ',
+    thanksTail: ' vous rappellera pour organiser votre devis gratuit. Merci !',
+    team: 'l’équipe',
+    sendError: 'Impossible d’envoyer pour le moment.',
   },
 };
 
@@ -156,11 +165,10 @@ $('form').addEventListener('submit', async e=>{
       body:JSON.stringify({name:$('f_name').value,phone:$('f_phone').value,
         email:$('f_email').value,address:$('f_addr').value,notes:$('f_notes').value})});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(j.error||'Could not send just now.');
+    if(!r.ok) throw new Error(j.error||tr('sendError'));
     $('form').style.display='none';
     $('done').style.display='block';
-    $('done').textContent=tr('thanks')+(j.company||'the team')
-      +' will call you back to set up your free quote. Thank you!';
+    $('done').textContent=tr('thanks')+(j.company||tr('team'))+tr('thanksTail');
     if(j.company) $('coName').textContent=j.company;
   }catch(ex){ err.textContent=ex.message; err.classList.add('on'); $('go').disabled=false; }
 });

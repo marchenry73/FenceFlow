@@ -33,6 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -58,6 +60,7 @@ import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.InventoryChecklistItem
 import com.fenceestimator.app.data.InventoryKind
 import com.fenceestimator.app.ui.components.EmptyState
+import com.fenceestimator.app.ui.components.resolve
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.PhotoFiles
 import com.fenceestimator.app.ui.components.currentApp
@@ -82,13 +85,19 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
         viewModel.ensureToolsSeeded(app.settingsStore.profile.first().defaultToolsListCsv)
     }
 
+    val message by viewModel.message.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val messageText = message?.resolve()
+    LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.inv_title)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(padding),

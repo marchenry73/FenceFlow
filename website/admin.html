@@ -264,6 +264,8 @@
       <div class="panel">
         <h2 style="margin-top:0">Overview</h2>
         <p class="sub">Your clients, not theirs — who's paying, who isn't, and what to do about it.</p>
+        <div id="companiesFloorNote" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;
+          background:color-mix(in srgb, #C98A00 18%, transparent);color:#8A5A00;font-size:13px"></div>
         <div class="stats" id="stats"></div>
       </div>
       <div class="panel">
@@ -523,6 +525,12 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, m =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 
 let clients = [];
+// Set by loadAll() when admin_companies_count disagrees with the number of
+// rows admin_companies actually returned -- i.e. the request was truncated
+// (the API caps a single call at a thousand rows and admin_companies has no
+// way to page). Null means either they agreed or the count could not be
+// checked; in both cases the page must look exactly as it always has.
+let companiesTruncated = null;
 let crashes = [];
 let crashes7d = [];
 let releases = [];
@@ -688,6 +696,20 @@ async function loadAll() {
   clients = data || [];
   $('msg').textContent = '';
 
+  // admin_companies_count answers the question admin_companies cannot: is
+  // this really every company, or just the first thousand rows the API will
+  // hand back in one call? A failure here (older database, RPC not deployed
+  // yet, network blip) is not itself news -- it just means this page cannot
+  // make a claim about completeness one way or the other, so it says nothing
+  // and behaves exactly as it always has.
+  companiesTruncated = null;
+  try {
+    const countRes = await db.rpc('admin_companies_count');
+    if (!countRes.error && typeof countRes.data === 'number') {
+      companiesTruncated = countRes.data > clients.length ? countRes.data : null;
+    }
+  } catch (e) { /* count is a nicety; its absence changes nothing */ }
+
   // A failure here must not blank the companies table: crash reporting is a
   // convenience, and the billing view is the reason this page exists.
   const errs14 = await db.rpc('admin_error_summary', { days: 14 });
@@ -786,12 +808,26 @@ function renderKpis() {
     if (c.newest_app_version) versions.add(c.newest_app_version);
   });
 
+  // When admin_companies was truncated, every tile below is a count of what
+  // this one request happened to return, not of every company that exists --
+  // so it is a floor, not a figure, and has to say so right where it's read,
+  // not in a tooltip or the console.
+  const truncated = typeof companiesTruncated === 'number';
+  const floorMark = truncated ? ' <span class="note">at least</span>' : '';
+
+  $('companiesFloorNote').style.display = truncated ? '' : 'none';
+  if (truncated) {
+    $('companiesFloorNote').textContent =
+      `Showing the first ${clients.length.toLocaleString()} of ${companiesTruncated.toLocaleString()} companies — ` +
+      `every number below is at least this many, not the full count.`;
+  }
+
   $('stats').innerHTML = `
-    <div class="stat"><b>${clients.length}</b><span>Companies</span></div>
-    <div class="stat"><b>${trialing.length}</b><span>On trial</span></div>
-    <div class="stat"><b>${paying.length}</b><span>Paying</span></div>
-    <div class="stat"><b>${suspended.length}</b><span>Suspended</span></div>
-    <div class="stat"><b>${money(mrr)}</b><span>MRR at list price</span>${
+    <div class="stat"><b>${clients.length}${floorMark}</b><span>Companies</span></div>
+    <div class="stat"><b>${trialing.length}${floorMark}</b><span>On trial</span></div>
+    <div class="stat"><b>${paying.length}${floorMark}</b><span>Paying</span></div>
+    <div class="stat"><b>${suspended.length}${floorMark}</b><span>Suspended</span></div>
+    <div class="stat"><b>${money(mrr)}${floorMark}</b><span>MRR at list price</span>${
       unpriced ? `<span class="note">${unpriced} active with no recognised plan, not counted</span>` : ''
     }</div>
     <div class="stat"><b>${crashCount7}</b><span>Crashes, 7 days</span></div>
@@ -922,14 +958,15 @@ function renderCompaniesTable() {
         ${accessButton(c)}
         ${c.joined_at ? '' :
           `<button data-invite="${c.id}" data-email="${esc(c.invited_email || c.email || c.billing_email || '')}"
-             data-name="${esc(c.name || '')}" type="button">${c.invited_at ? 'Re-invite' : 'Invite'}</button>`}
+             data-name="${esc(c.name || '')}" data-reinvite="${c.invited_at ? '1' : '0'}"
+             type="button">${c.invited_at ? 'Re-invite' : 'Invite'}</button>`}
         <button data-edit="${c.id}" type="button">Manage</button>
       </td>
     </tr>`).join('');
 
   document.querySelectorAll('[data-invite]').forEach(b =>
     b.addEventListener('click', () =>
-      inviteCompany(b.dataset.invite, b.dataset.name, b.dataset.email)));
+      inviteCompany(b.dataset.invite, b.dataset.name, b.dataset.email, b.dataset.reinvite === '1')));
 
   document.querySelectorAll('[data-edit]').forEach(b =>
     b.addEventListener('click', () => openEdit(b.dataset.edit)));
@@ -1133,13 +1170,25 @@ async function submitNewCompany() {
 }
 
 /** Sends (or re-sends) the invitation for a company already on the list. */
-async function inviteCompany(id, name, existingEmail) {
+async function inviteCompany(id, name, existingEmail, alreadyInvited) {
   const email = (existingEmail || '').trim();
   if (!email) {
     $('msg').textContent = 'Add a contact email in Manage first, then invite.';
     setTimeout(() => { $('msg').textContent = ''; }, 4000);
     return;
   }
+  // This reaches a real inbox the moment it runs, and a re-invite in
+  // particular sits on the row as a bare one-click button -- naming who gets
+  // it and letting the click be undone is the same bar every other
+  // customer-facing action on this page already clears.
+  const ok = await ask({
+    title: (alreadyInvited ? 'Re-send the invitation?' : 'Send the invitation?'),
+    body: `An email goes to ${email} for ${name || 'this company'} right away.` +
+          (alreadyInvited ? ' They already have one from before -- this sends another.' : ''),
+    confirmLabel: alreadyInvited ? 'Re-send' : 'Send'
+  });
+  if (!ok) return;
+
   $('msg').textContent = `Sending to ${email}…`;
   const { data: sess } = await db.auth.getSession();
 

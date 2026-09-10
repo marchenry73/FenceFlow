@@ -47,6 +47,9 @@
 
     <string name="section_progress">Avance del trabajo</string>
     <string name="cat_import_no_items">No se reconoció ningún precio en ese PDF. Puede que sea un escaneo y no texto. Aún puede escribir los precios a mano.</string>
+    <string name="cat_delete_item_title">¿Eliminar este artículo del catálogo?</string>
+    <string name="cat_delete_item_body">Elimina “%1$s”. Los presupuestos que ya lo usan conservan su precio, pero no podrá agregarlo de nuevo hasta que lo restaure desde Elementos eliminados, en Ajustes de cuenta.</string>
+    <string name="cat_this_item">este artículo</string>
     <string name="cat_import_failed">No se pudo leer ese PDF. Puede que sea un escaneo y no texto, o que el archivo esté dañado. Aún puede escribir los precios a mano.</string>
     <string name="section_customer">Cliente</string>
     <string name="section_fence_runs">Tramos de cerca</string>
@@ -264,6 +267,9 @@
     <string name="est_send_invoice">Enviar factura</string>
     <string name="est_working_copy">Tu copia de trabajo</string>
     <string name="est_edit_line_item">Editar concepto</string>
+    <string name="est_delete_line_item_title">¿Eliminar este concepto?</string>
+    <string name="est_delete_line_item_body">Elimina “%1$s” del presupuesto. No hay una entrada en Elementos eliminados para un concepto, así que esto no se puede deshacer.</string>
+    <string name="est_this_line_item">este concepto</string>
     <string name="est_description">Descripción</string>
     <string name="est_qty">Cant.</string>
     <string name="est_unit">Unidad</string>
@@ -366,6 +372,9 @@
     <string name="set_tier_labor_flat">Tarifa fija de mano de obra</string>
     <string name="set_tier_markup">Margen %</string>
     <string name="set_tier_discount">Descuento %</string>
+    <string name="set_delete_tier_title">¿Eliminar este nivel de precios?</string>
+    <string name="set_delete_tier_body">Elimina “%1$s”. Los trabajos ya cotizados con él conservan sus cifras, pero el nivel no va a Elementos eliminados, así que no hay forma de recuperarlo.</string>
+    <string name="set_this_tier">este nivel</string>
     <string name="acct_cloud_not_configured">Las cuentas en la nube no están configuradas en esta versión. La app sigue funcionando completamente sin conexión en este dispositivo.</string>
     <string name="acct_create_account">Crear cuenta</string>
     <string name="acct_sign_in_explain">Iniciar sesión permite que tu cuadrilla comparta los mismos trabajos. Sin una cuenta, la app sigue funcionando sin conexión solo en este teléfono.</string>
@@ -562,6 +571,8 @@
     <string name="jd_invoice_hint">Usa “Generar y compartir factura” en la pantalla de Presupuesto cuando el trabajo esté terminado.</string>
     <string name="jd_no_expenses">Aún no hay gastos registrados en este trabajo (combustible, renta de equipo, permisos, etc.).</string>
     <string name="jd_remove_expense">Quitar gasto</string>
+    <string name="jd_delete_expense_title">¿Eliminar este gasto?</string>
+    <string name="jd_delete_expense_body">Elimina “%2$s” ($%1$s). Es dinero real que afecta la ganancia de este trabajo — puede recuperarlo desde Elementos eliminados, en Ajustes de cuenta.</string>
     <string name="jd_total_expenses">Gastos totales: $%1$s</string>
     <string name="jd_add_expense">Agregar gasto</string>
     <string name="jd_category">Categoría</string>
@@ -592,6 +603,9 @@
     <string name="jd_plus_feet">+%1$s pies</string>
     <string name="jd_edit_change_order">Editar orden de cambio</string>
     <string name="jd_remove_change_order">Quitar orden de cambio</string>
+    <string name="jd_delete_change_order_title">¿Eliminar esta orden de cambio?</string>
+    <string name="jd_delete_change_order_body">Elimina los $%1$s en trabajo extra que autorizó. Puede recuperarla desde Elementos eliminados, en Ajustes de cuenta.</string>
+    <string name="jd_delete_change_order_signed_body">El cliente firmó estos $%1$s en trabajo extra — esa firma se va con ella. Puede recuperarla desde Elementos eliminados, en Ajustes de cuenta.</string>
     <string name="jd_includes_materials">Incluye $%1$s de materiales</string>
     <string name="jd_signed_on">Firmado el %1$s</string>
     <string name="jd_get_signature">Obtener firma del cliente</string>
@@ -608,6 +622,8 @@
     <string name="jd_signature_clears">Cambiar los pies, el costo o los materiales borra la firma del cliente -- firmó por las cifras anteriores, así que tiene que firmar de nuevo.</string>
     <string name="jd_no_punch_items">No hay pendientes. Anota aquí todo lo que el cliente quiera corregir después de la instalación.</string>
     <string name="jd_remove_item">Quitar elemento</string>
+    <string name="jd_delete_punch_item_title">¿Eliminar este pendiente?</string>
+    <string name="jd_delete_punch_item_body">Elimina “%1$s”. Puede recuperarlo desde Elementos eliminados, en Ajustes de cuenta.</string>
     <string name="jd_new_callback_item">Nuevo pendiente</string>
     <string name="jd_review_send_when">Envíalo cuando el trabajo esté terminado y el cliente contento.</string>
     <string name="jd_which_message">¿Qué mensaje?</string>
@@ -619,6 +635,8 @@
     <string name="jd_camera">Cámara</string>
     <string name="jd_gallery">Galería</string>
     <string name="jd_remove_photo">Quitar foto</string>
+    <string name="jd_delete_photo_title">¿Eliminar esta foto?</string>
+    <string name="jd_delete_photo_body">Esta foto se elimina para siempre — antes/después, daños, lo que muestre. No va a Elementos eliminados, así que no hay forma de recuperarla.</string>
     <string name="jd_record_refund">Registrar un reembolso</string>
     <string name="jd_collected_so_far">Cobrado hasta ahora: $%1$s</string>
     <string name="jd_refund_amount">Monto del reembolso ($)</string>
@@ -724,6 +742,8 @@
     <string name="mfr_unnamed">Sin nombre</string>
     <string name="mfr_new_manufacturer">Nuevo fabricante</string>
     <string name="mfr_edit_manufacturer">Editar fabricante</string>
+    <string name="mfr_delete_title">¿Eliminar este fabricante?</string>
+    <string name="mfr_delete_body">Elimina “%1$s”. Los artículos del catálogo con este precio se quedan, pero pierden el vínculo con él. Esto no va a Elementos eliminados, así que no hay forma de recuperarlo.</string>
     <string name="mfr_name">Nombre</string>
     <string name="mfr_order_email">Correo para pedidos</string>
     <string name="mfr_address">Dirección</string>
@@ -1479,6 +1499,16 @@
     <string name="vm_saved_their_access">Se guardó su acceso.</string>
     <string name="vm_couldnt_save_with">No se pudo guardar: %1$s</string>
     <string name="vm_couldnt_save_refused">No se pudo guardar: el servidor rechazó el cambio</string>
+    <string name="vm_couldnt_save_employee">No se pudo guardar este trabajador: %1$s</string>
+    <string name="vm_couldnt_delete_employee">No se pudo eliminar este trabajador: %1$s. No se quitó nada.</string>
+    <string name="vm_couldnt_deactivate_employee">No se pudo sacarlo de la cuadrilla: %1$s. Sigue activo.</string>
+    <string name="vm_couldnt_reactivate_employee">No se pudo volver a ponerlo en la cuadrilla: %1$s</string>
+    <string name="vm_couldnt_update_item">No se pudo guardar esa marca: %1$s</string>
+    <string name="vm_couldnt_attach_photo">No se pudo adjuntar la foto: %1$s</string>
+    <string name="vm_couldnt_delete_item">No se pudo quitar el artículo: %1$s</string>
+    <string name="vm_couldnt_save_catalog_item">No se pudo guardar el artículo del catálogo: %1$s. Los presupuestos que lo usan aún muestran el precio anterior.</string>
+    <string name="vm_couldnt_delete_catalog_item">No se pudo eliminar el artículo del catálogo: %1$s</string>
+    <string name="vm_couldnt_create_job">No se pudo crear un trabajo para este cliente: %1$s</string>
     <string name="vm_waiting_sign_back_in">Esperando para volver a iniciar sesión</string>
     <string name="vm_signed_out_sign_in_again">Sesión cerrada — vuelve a iniciar sesión para subir</string>
     <string name="acct_sync_signed_out">Sesión cerrada</string>

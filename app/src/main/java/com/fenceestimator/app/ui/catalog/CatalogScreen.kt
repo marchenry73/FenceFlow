@@ -41,11 +41,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +72,7 @@ import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.labelRes
+import com.fenceestimator.app.ui.components.resolve
 import com.fenceestimator.app.ui.theme.Space
 import com.fenceestimator.app.ui.theme.semantic
 import androidx.compose.ui.platform.LocalContext
@@ -142,6 +146,11 @@ fun CatalogScreen(onBack: () -> Unit) {
         if (uri != null) viewModel.importPdf(app, uri)
     }
 
+    val message by viewModel.message.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val messageText = message?.resolve()
+    LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -153,7 +162,8 @@ fun CatalogScreen(onBack: () -> Unit) {
             FloatingActionButton(onClick = { pdfPicker.launch("application/pdf") }) {
                 Icon(Icons.Filled.Upload, contentDescription = stringResource(R.string.cat_import_invoice_pdf))
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             OutlinedTextField(
@@ -438,6 +448,10 @@ private fun EditItemDialog(
     var role by remember { mutableStateOf(item.role) }
     var manufacturerId by remember { mutableStateOf(item.manufacturerId) }
     var duplicateTarget by remember { mutableStateOf<Manufacturer?>(null) }
+    // Delete sat right next to Cancel with nothing between a tap and the item
+    // being gone -- and every estimate priced against it going stale with it.
+    // Recoverable from Deleted Items, so said here rather than left to guess.
+    var confirmingDelete by remember { mutableStateOf(false) }
     // The dropdowns build their text outside composition, so resolve through Context.
     val context = LocalContext.current
 
@@ -534,13 +548,27 @@ private fun EditItemDialog(
         dismissButton = {
             Row {
                 if (item.id != 0L) {
-                    OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
+                    OutlinedButton(onClick = { confirmingDelete = true }) { Text(stringResource(R.string.action_delete)) }
                     Spacer(Modifier.width(Space.sm))
                 }
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )
+
+    if (confirmingDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text(stringResource(R.string.cat_delete_item_title)) },
+            text = { Text(stringResource(R.string.cat_delete_item_body, item.name.ifBlank { stringResource(R.string.cat_this_item) })) },
+            confirmButton = {
+                Button(onClick = { confirmingDelete = false; onDelete() }) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

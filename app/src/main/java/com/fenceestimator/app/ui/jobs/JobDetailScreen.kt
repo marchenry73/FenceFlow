@@ -1775,6 +1775,10 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
 @Composable
 private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewModel: JobDetailViewModel) {
     var showAdd by remember { mutableStateOf(false) }
+    // One tap of the X used to remove an expense outright -- no confirmation
+    // -- even though it is a real cost feeding this job's profit. Asked
+    // first now, and told it can be brought back from Deleted Items.
+    var deletingExpense by remember { mutableStateOf<Expense?>(null) }
     val total = expenses.sumOf { it.amount }
 
     if (expenses.isEmpty()) {
@@ -1800,7 +1804,7 @@ private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewMod
                 }
                 Text(Money.format(expense.amount))
                 if (canDelete) {
-                    IconButton(onClick = { viewModel.deleteExpense(expense) }) {
+                    IconButton(onClick = { deletingExpense = expense }) {
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_expense))
                     }
                 }
@@ -1820,6 +1824,30 @@ private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewMod
                 showAdd = false
             },
             onDismiss = { showAdd = false }
+        )
+    }
+
+    deletingExpense?.let { expense ->
+        AlertDialog(
+            onDismissRequest = { deletingExpense = null },
+            title = { Text(stringResource(R.string.jd_delete_expense_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.jd_delete_expense_body,
+                        Money.format(expense.amount),
+                        expense.description.ifBlank { expense.category.label() }
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.deleteExpense(expense); deletingExpense = null }) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { deletingExpense = null }) { Text(stringResource(R.string.action_cancel)) }
+            }
         )
     }
 }
@@ -2013,6 +2041,11 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
     var showAdd by remember { mutableStateOf(false) }
     var editingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
     var signingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
+    // This used to delete on one tap of the close icon -- no confirmation --
+    // even though a signed change order can carry a customer's signature and
+    // the extra money that signature authorised. Asked first now, and told
+    // it can be brought back from Deleted Items, because it can.
+    var deletingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.US) }
     val totals by viewModel.contractTotal.collectAsState()
 
@@ -2079,7 +2112,7 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                             Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.jd_edit_change_order))
                         }
                         if (canDelete) {
-                            IconButton(onClick = { viewModel.deleteChangeOrder(order) }) {
+                            IconButton(onClick = { deletingOrder = order }) {
                                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_change_order))
                             }
                         }
@@ -2129,6 +2162,27 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                 editingOrder = null
             },
             onDismiss = { editingOrder = null }
+        )
+    }
+
+    deletingOrder?.let { order ->
+        AlertDialog(
+            onDismissRequest = { deletingOrder = null },
+            title = { Text(stringResource(R.string.jd_delete_change_order_title)) },
+            text = {
+                Text(
+                    if (order.isSigned) stringResource(R.string.jd_delete_change_order_signed_body, Money.format(order.additionalCost))
+                    else stringResource(R.string.jd_delete_change_order_body, Money.format(order.additionalCost))
+                )
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.deleteChangeOrder(order); deletingOrder = null }) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { deletingOrder = null }) { Text(stringResource(R.string.action_cancel)) }
+            }
         )
     }
 
@@ -2232,6 +2286,10 @@ private fun AddChangeOrderDialog(
 @Composable
 private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, viewModel: JobDetailViewModel) {
     var newItemText by remember { mutableStateOf("") }
+    // The X used to delete a punch list item with one tap. Asked first now,
+    // like every other record in this job -- and it can be brought back from
+    // Deleted Items, so said here rather than left to guess.
+    var deletingItem by remember { mutableStateOf<PunchListItem?>(null) }
 
     if (items.isEmpty()) {
         Text(
@@ -2249,7 +2307,7 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
                     style = if (item.resolved) MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant) else MaterialTheme.typography.bodyMedium
                 )
                 if (canDelete) {
-                    IconButton(onClick = { viewModel.deletePunchListItem(item) }) {
+                    IconButton(onClick = { deletingItem = item }) {
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.jd_remove_item))
                     }
                 }
@@ -2267,6 +2325,22 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
                 newItemText = ""
             }
         }) { Text(stringResource(R.string.action_add)) }
+    }
+
+    deletingItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deletingItem = null },
+            title = { Text(stringResource(R.string.jd_delete_punch_item_title)) },
+            text = { Text(stringResource(R.string.jd_delete_punch_item_body, item.description)) },
+            confirmButton = {
+                Button(onClick = { viewModel.deletePunchListItem(item); deletingItem = null }) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { deletingItem = null }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
     }
 }
 
@@ -2382,6 +2456,12 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
     val context = LocalContext.current
     var pendingKind by remember { mutableStateOf(PhotoKind.BEFORE) }
     var pendingTarget by remember { mutableStateOf<NewPhotoTarget?>(null) }
+    // The remove target on a photo was just enlarged to 44dp for a gloved
+    // hand, which makes it easier to hit BY ACCIDENT too. Unlike the other
+    // records on this screen, a deleted photo has no tombstone at all --
+    // Repository.deletePhoto removes the row outright, so it never reaches
+    // Deleted Items. Asked first, and told plainly that it is gone for good.
+    var deletingPhoto by remember { mutableStateOf<JobPhoto?>(null) }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) pendingTarget?.let { viewModel.addPhoto(pendingKind, it.absolutePath) }
@@ -2435,7 +2515,7 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .size(44.dp)
-                                    .clickable { viewModel.deletePhoto(photo) },
+                                    .clickable { deletingPhoto = photo },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Box(
@@ -2458,6 +2538,22 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
                 }
             }
         }
+    }
+
+    deletingPhoto?.let { photo ->
+        AlertDialog(
+            onDismissRequest = { deletingPhoto = null },
+            title = { Text(stringResource(R.string.jd_delete_photo_title)) },
+            text = { Text(stringResource(R.string.jd_delete_photo_body)) },
+            confirmButton = {
+                Button(onClick = { viewModel.deletePhoto(photo); deletingPhoto = null }) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { deletingPhoto = null }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
     }
 }
 

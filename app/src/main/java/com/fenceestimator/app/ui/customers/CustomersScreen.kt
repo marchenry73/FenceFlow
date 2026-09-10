@@ -19,11 +19,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -33,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.resolve
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,13 +46,19 @@ fun CustomersScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     val viewModel: CustomersViewModel = viewModel(factory = GenericViewModelFactory { CustomersViewModel(app.repository) })
     val customers by viewModel.customers.collectAsState()
 
+    val message by viewModel.message.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val messageText = message?.resolve()
+    LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.misc_customers_title)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (customers.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {

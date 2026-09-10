@@ -2,8 +2,11 @@ package com.fenceestimator.app.ui.customers
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.Repository
+import com.fenceestimator.app.ui.components.UiMessage
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -43,12 +46,23 @@ class CustomersViewModel(private val repository: Repository) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // This used to let a failed insert propagate as an uncaught exception out
+    // of viewModelScope, which crashes the app rather than telling the person
+    // tapping the customer that nothing was created. Offline is not the
+    // failure case for a local Room write; only runCatching actually
+    // throwing is.
+    private val _message = MutableStateFlow<UiMessage?>(null)
+    val message: StateFlow<UiMessage?> = _message
+
     fun createJobForCustomer(customer: CustomerSummary, onCreated: (Long) -> Unit) {
         viewModelScope.launch {
-            val id = repository.createJob(
-                Job(customerName = customer.name, phone = customer.phone, email = customer.email)
-            )
-            onCreated(id)
+            runCatching {
+                repository.createJob(
+                    Job(customerName = customer.name, phone = customer.phone, email = customer.email)
+                )
+            }
+                .onSuccess { onCreated(it) }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_create_job, listOf(it.message.orEmpty())) }
         }
     }
 }

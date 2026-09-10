@@ -23,8 +23,30 @@ async function stripe(method: string, path: string, form?: Record<string, string
   return body;
 }
 
+/**
+ * Constant-time string compare, matching the same guard on every other
+ * secret-gated function here (notify-job-change, the two payment webhooks).
+ * `===` on a secret stops at the first mismatched byte, so response timing
+ * can leak how many leading characters a guess got right -- an attacker who
+ * can send enough requests can walk the token one character at a time
+ * instead of guessing the whole thing at once. This function can create
+ * Stripe products and cancel any subscription by id, so the token guarding
+ * it deserves the same care as a webhook signature.
+ */
+function secretMatches(supplied: string | null, expected: string): boolean {
+  if (!supplied || supplied.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= supplied.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
-  if (req.headers.get("x-setup-token") !== Deno.env.get("BILLING_SETUP_TOKEN")) {
+  const expectedToken = Deno.env.get("BILLING_SETUP_TOKEN");
+  // Fail closed: an unset token must never mean "let everyone in" -- see the
+  // identical rule in notify-job-change.
+  if (!expectedToken || !secretMatches(req.headers.get("x-setup-token"), expectedToken)) {
     return new Response("no", { status: 401 });
   }
   try {

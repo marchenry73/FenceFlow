@@ -31,9 +31,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +51,7 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.resolve
 import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +73,11 @@ fun EmployeesScreen(onBack: () -> Unit) {
     val online by app.connectivity.online.collectAsState()
     var inviteOutcome by remember { mutableStateOf<InviteCrewApi.Result?>(null) }
 
+    val message by viewModel.message.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val messageText = message?.resolve()
+    LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -80,7 +89,8 @@ fun EmployeesScreen(onBack: () -> Unit) {
             FloatingActionButton(onClick = { showNew = true }) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.emp_add_employee))
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (employees.isEmpty()) {
             Column(modifier = Modifier.fillMaxSize().padding(padding).padding(Space.xl)) {

@@ -16,6 +16,34 @@
  * webhook signature BEFORE calling in.
  */
 
+/**
+ * A money write that is allowed to fail loudly.
+ *
+ * supabase-js does not throw when a write fails -- it returns { error } --
+ * so every write below used to be awaited and ignored. A ledger row that
+ * failed on a constraint or an outage still let this module return
+ * { recorded: true }, and both webhooks answer the processor with whatever
+ * this returns: Stripe or Square got a 200, never retried, and a cleared
+ * payment or refund existed only in the processor's own dashboard. This is
+ * the same mustWrite each webhook already applies to its own local writes;
+ * it belongs here too because the ledger and job writes that matter most --
+ * the ones both processors share -- live in this file, not in either caller.
+ * Throwing here reaches each caller's top-level catch, which answers 500,
+ * and both processors retry a 500. Retrying is safe because every write in
+ * this module is an upsert keyed on the processor's own id, or an update
+ * scoped to one job.
+ */
+async function mustWrite(what: string, p: PromiseLike<{ error: unknown }>): Promise<void> {
+  const { error } = await p;
+  if (error) {
+    const detail = typeof error === "object" && error && "message" in error
+      ? String((error as { message: unknown }).message)
+      : String(error);
+    console.error("payment write failed:", what, detail);
+    throw new Error("could not " + what + ": " + detail);
+  }
+}
+
 export interface ClearedPayment {
   /** Which company the money belongs to. */
   companyId: string;
@@ -85,7 +113,8 @@ export async function recordClearedPayment(
   // reaches the cloud. Writing the ledger first means the money is recorded
   // either way, and the app rebuilds the paid figure from the ledger when the
   // job finally arrives.
-  await admin.from("payment_records").upsert({
+  await mustWrite("record the payment in the ledger",
+    admin.from("payment_records").upsert({
     sync_id: `${p.processor}-${p.externalId}`,
     company_id: p.companyId,
     job_sync_id: p.jobSyncId,
@@ -95,7 +124,7 @@ export async function recordClearedPayment(
     reference: p.externalId,
     note: "",
     recorded_by: p.processor === "square" ? "Square" : "Stripe",
-  }, { onConflict: "company_id,sync_id" });
+  }, { onConflict: "company_id,sync_id" }));
 
   // Summed from the ledger rather than incremented, so a replayed webhook or a
   // manual correction cannot drift the total -- and so cash and cheque count
@@ -126,7 +155,8 @@ export async function recordClearedPayment(
   // in full depends on the contract total, which the app computes from line
   // items, change orders and gate charges -- the server does not have it and
   // should not guess.
-  await admin.from("jobs").update({
+  await mustWrite("mark the job paid",
+    admin.from("jobs").update({
     amount_paid: paid,
     payment_status: "DEPOSIT_PAID",
     // Latches the figure read-only in the app: what the processor reports is
@@ -137,7 +167,7 @@ export async function recordClearedPayment(
     // "newer" than whatever a crew phone had changed offline, so that change
     // lost the race and was overwritten. Phones learn about the money from
     // the amount itself and from the ledger, never from the clock.
-  }).eq("id", job.id);
+  }).eq("id", job.id));
 
   return { recorded: true, reason: "recorded against the job", paidAfter: paid };
 }
@@ -175,7 +205,8 @@ export async function recordRefund(
     return { recorded: false, reason: "no amount on the refund" };
   }
 
-  await admin.from("payment_records").upsert({
+  await mustWrite("record the refund in the ledger",
+    admin.from("payment_records").upsert({
     sync_id: `${r.processor}-refund-${r.refundId}`,
     company_id: r.companyId,
     job_sync_id: r.jobSyncId,
@@ -185,7 +216,7 @@ export async function recordRefund(
     reference: r.refundId,
     note: String(r.reason ?? ""),
     recorded_by: r.processor === "square" ? "Square" : "Stripe",
-  }, { onConflict: "company_id,sync_id" });
+  }, { onConflict: "company_id,sync_id" }));
 
   // The trigger has already rebuilt the cached figures from the ledger by the
   // time the upsert returns, so these are post-refund numbers.
@@ -208,7 +239,8 @@ export async function recordRefund(
   if ((rank[should] ?? 0) < (rank[current] ?? 0)) {
     // payment_status is on the trigger's quiet list: this does not move the
     // edit clock, so it cannot overwrite an offline edit on a phone.
-    await admin.from("jobs").update({ payment_status: should }).eq("id", job.id);
+    await mustWrite("step the job's payment status down after a refund",
+      admin.from("jobs").update({ payment_status: should }).eq("id", job.id));
     return { recorded: true, reason: `refund recorded; ${current} -> ${should}`, paidAfter: net };
   }
   return { recorded: true, reason: "refund recorded", paidAfter: net };

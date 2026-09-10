@@ -923,6 +923,12 @@ private fun EditLineItemDialog(
     // the estimate was not using.
     var priceText by remember { mutableStateOf(item.effectiveUnitPrice.toString()) }
     var unit by remember { mutableStateOf(item.unit) }
+    // Delete used to sit right next to Save with nothing between a tap and
+    // the line being gone. This one has no path back through Deleted Items --
+    // the tombstone is written but the trash screen never lists estimate
+    // line items -- so the warning has to say that plainly rather than
+    // imply a safety net that isn't there.
+    var confirmingDelete by remember { mutableStateOf(false) }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
@@ -960,12 +966,26 @@ private fun EditLineItemDialog(
         },
         dismissButton = {
             Row {
-                OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
+                OutlinedButton(onClick = { confirmingDelete = true }) { Text(stringResource(R.string.action_delete)) }
                 Spacer(Modifier.width(Space.sm))
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )
+
+    if (confirmingDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text(stringResource(R.string.est_delete_line_item_title)) },
+            text = { Text(stringResource(R.string.est_delete_line_item_body, item.description.ifBlank { stringResource(R.string.est_this_line_item) })) },
+            confirmButton = {
+                Button(onClick = { confirmingDelete = false; onDelete() }) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
 }
 
 /**

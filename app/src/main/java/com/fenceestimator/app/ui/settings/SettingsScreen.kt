@@ -918,6 +918,13 @@ private fun EditTierDialog(
     var laborRate by remember { mutableStateOf(tier.laborRatePerFt.toString()) }
     var laborFlat by remember { mutableStateOf(tier.laborFlatFee.toString()) }
     var markup by remember { mutableStateOf(tier.markupPercent.toString()) }
+    // The trash icon sat next to Cancel with nothing between a tap and the
+    // tier being gone, and any job priced on this tier keeps its own numbers
+    // but loses the tier that produced them. Pricing tiers don't show up on
+    // Deleted Items, so this one really is gone -- said plainly, not implied
+    // as safe. Only reachable when tier.id != 0L, i.e. never for a brand-new
+    // tier that was never saved.
+    var confirmingDelete by remember { mutableStateOf(false) }
     var discount by remember { mutableStateOf(tier.discountPercent.toString()) }
 
     AlertDialog(
@@ -954,13 +961,27 @@ private fun EditTierDialog(
         dismissButton = {
             Row {
                 if (tier.id != 0L) {
-                    OutlinedButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete)) }
+                    OutlinedButton(onClick = { confirmingDelete = true }) { Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete)) }
                     Spacer(Modifier.width(8.dp))
                 }
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )
+
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text(stringResource(R.string.set_delete_tier_title)) },
+            text = { Text(stringResource(R.string.set_delete_tier_body, tier.name.ifBlank { stringResource(R.string.set_this_tier) })) },
+            confirmButton = {
+                Button(onClick = { confirmingDelete = false; onDelete() }) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
 }
 
 /**

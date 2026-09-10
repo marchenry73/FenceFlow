@@ -10,6 +10,7 @@ import com.fenceestimator.app.data.MaterialItem
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.ImportMatch
 import com.fenceestimator.app.estimate.InvoiceParser
+import com.fenceestimator.app.ui.components.UiMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,14 +35,28 @@ class CatalogViewModel(private val repository: Repository) : ViewModel() {
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting
 
+    // saveItem/deleteItem used to fire into viewModelScope unwatched, so a
+    // priced catalog item that failed to save (a full disk, a corrupt
+    // database) closed its dialog looking saved -- and every estimate that
+    // then priced against it would be quietly wrong. Offline is not a
+    // failure case for a local Room write; only runCatching actually
+    // throwing is.
+    private val _message = MutableStateFlow<UiMessage?>(null)
+    val message: StateFlow<UiMessage?> = _message
+
     fun saveItem(item: MaterialItem) {
         viewModelScope.launch {
-            if (item.id == 0L) repository.saveMaterialItem(item) else repository.updateMaterialItem(item)
+            runCatching {
+                if (item.id == 0L) repository.saveMaterialItem(item) else repository.updateMaterialItem(item)
+            }.onFailure { _message.value = UiMessage(R.string.vm_couldnt_save_catalog_item, listOf(it.message.orEmpty())) }
         }
     }
 
     fun deleteItem(item: MaterialItem) {
-        viewModelScope.launch { repository.deleteMaterialItem(item) }
+        viewModelScope.launch {
+            runCatching { repository.deleteMaterialItem(item) }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_delete_catalog_item, listOf(it.message.orEmpty())) }
+        }
     }
 
     fun importPdf(context: Context, uri: Uri) {

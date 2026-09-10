@@ -176,6 +176,13 @@ const L = {
     paidButNoPage: 'Your approval is saved. We could not open the payment page — %s You can try again below, or your contractor will send you a link.',
     imagery: 'Imagery © ',
     gate: 'gate', gates: 'gates',
+    dragHint: 'Drag to look around · two fingers to move · pinch to zoom',
+    showOld: 'Show the old fence',
+    quoteUnavailable: 'That quote is no longer available.',
+    connErrorRetry: 'Could not reach the server — check your connection and try again.',
+    genericError: 'Something went wrong. Please try again in a moment.',
+    approvalError: 'Could not record the approval.',
+    paymentPageError: 'Could not open the payment page.',
   },
   es: {
     loading: 'Abriendo su presupuesto…',
@@ -211,6 +218,13 @@ const L = {
     paidButNoPage: 'Su aprobación está guardada. No pudimos abrir la página de pago — %s Puede intentarlo de nuevo abajo, o su contratista le enviará un enlace.',
     imagery: 'Imágenes © ',
     gate: 'portón', gates: 'portones',
+    dragHint: 'Arrastre para mirar alrededor · dos dedos para desplazarse · pellizque para acercar',
+    showOld: 'Mostrar la cerca vieja',
+    quoteUnavailable: 'Ese presupuesto ya no está disponible.',
+    connErrorRetry: 'No se pudo contactar con el servidor — revise su conexión e inténtelo de nuevo.',
+    genericError: 'Algo salió mal. Inténtelo de nuevo en un momento.',
+    approvalError: 'No se pudo registrar la aprobación.',
+    paymentPageError: 'No se pudo abrir la página de pago.',
   },
   fr: {
     loading: 'Ouverture de votre devis…',
@@ -246,6 +260,13 @@ const L = {
     paidButNoPage: 'Votre validation est enregistrée. Nous n’avons pas pu ouvrir la page de paiement — %s Vous pouvez réessayer ci-dessous, ou votre entreprise vous enverra un lien.',
     imagery: 'Images © ',
     gate: 'portail', gates: 'portails',
+    dragHint: 'Faites glisser pour regarder autour · deux doigts pour déplacer · pincez pour zoomer',
+    showOld: 'Afficher l’ancienne clôture',
+    quoteUnavailable: 'Ce devis n’est plus disponible.',
+    connErrorRetry: 'Impossible de joindre le serveur — vérifiez votre connexion et réessayez.',
+    genericError: 'Une erreur est survenue. Merci de réessayer dans un instant.',
+    approvalError: 'Impossible d’enregistrer la validation.',
+    paymentPageError: 'Impossible d’ouvrir la page de paiement.',
   },
 };
 
@@ -296,7 +317,7 @@ function setLang(code) {
   <div id="content" style="display:none">
     <div id="stage" style="display:none">
       <div id="stageBadge" data-t="badge">Your fence &middot; 3D preview</div>
-      <div id="stageHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
+      <div id="stageHint" data-t="dragHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
       <button id="oldFenceBtn" style="display:none;position:absolute;top:10px;left:10px;
               margin-top:34px;background:rgba(15,24,38,.82);border:none;color:#fff;
               border-radius:8px;padding:8px 12px;cursor:pointer;
@@ -320,11 +341,11 @@ function setLang(code) {
         <button id="walkBtn" style="background:rgba(15,24,38,.82);border:none;color:#fff;
                 border-radius:8px;padding:8px 12px;cursor:pointer;
                 font:600 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-                text-transform:uppercase">Walk it</button>
+                text-transform:uppercase" data-t="walkIt">Walk it</button>
         <button id="topBtn" style="background:rgba(15,24,38,.82);border:none;color:#fff;
                 border-radius:8px;padding:8px 12px;cursor:pointer;
                 font:600 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-                text-transform:uppercase">Top view</button>
+                text-transform:uppercase" data-t="topView">Top view</button>
       </div>
     </div>
 
@@ -375,8 +396,8 @@ fetch(API+'/quote-map?meta=1',{headers:{apikey:window.FENCEFLOW_CONFIG.SUPABASE_
   .then(m=>{ if(m&&m.attribution){ const el=document.getElementById('imageryCredit'); if(el) el.textContent=tr('imagery')+m.attribution+(m.imagery_note?' · '+m.imagery_note:''); } })
   .catch(()=>{});
 const friendly=e=>(e instanceof TypeError)
-  ? 'Could not reach the server — check your connection and try again.'
-  : (e && e.message) || 'Something went wrong. Please try again in a moment.';
+  ? tr('connErrorRetry')
+  : (e && e.message) || tr('genericError');
 const token=new URLSearchParams(location.search).get('t')||'';
 
 let quote=null;
@@ -395,14 +416,14 @@ async function load(){
   try{ r=await fetch(API+'/quote-view?t='+encodeURIComponent(token)); }
   catch(e){ $('loading').textContent=tr('noServer'); return; }
   const j=await r.json().catch(()=>({}));
-  if(!r.ok){ $('loading').textContent=j.error||'That quote is no longer available.'; return; }
+  if(!r.ok){ $('loading').textContent=j.error||tr('quoteUnavailable'); return; }
   quote=j;
   render();
 }
 
 function render(){
   const q=quote;
-  $('coName').textContent=q.company.name||'Your contractor';
+  $('coName').textContent=q.company.name||tr('yourContractor');
   $('coContact').textContent=[q.company.phone,q.company.email].filter(Boolean).join(' · ');
   $('quoteTitle').textContent=tr('quoteFor', q.customerName||tr('you'));
   $('quoteAddr').textContent=q.address||'';
@@ -527,7 +548,7 @@ async function openPaymentPage(){
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({quoteToken:token,kind:'deposit'})});
   const j=await r.json().catch(()=>({}));
-  if(!r.ok||!j.url) throw new Error(j.error||'Could not open the payment page.');
+  if(!r.ok||!j.url) throw new Error(j.error||tr('paymentPageError'));
   location.href=j.url;
 }
 
@@ -547,7 +568,7 @@ async function doApprove(thenPay){
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({action:'approve',name})});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(j.error||'Could not record the approval.');
+    if(!r.ok) throw new Error(j.error||tr('approvalError'));
     markApproved(j.approvedBy||name);
   }catch(e){
     err.textContent=friendly(e); err.style.display='block';
@@ -1742,7 +1763,7 @@ function build3D(runs,attempt){
     ob.style.display='';
     ob.addEventListener('click',()=>{
       oldFence.visible=!oldFence.visible;
-      ob.textContent=oldFence.visible?'Remove the old fence':'Show the old fence';
+      ob.textContent=oldFence.visible?tr('removeOld'):tr('showOld');
       ob.style.background=oldFence.visible?'rgba(15,24,38,.82)':'rgba(27,175,122,.85)';
     });
   }

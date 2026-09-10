@@ -157,6 +157,12 @@ private fun EditManufacturerDialog(
     var address by remember { mutableStateOf(manufacturer.address) }
     var hours by remember { mutableStateOf(manufacturer.hours) }
     var notes by remember { mutableStateOf(manufacturer.notes) }
+    // Delete sat next to Cancel with nothing between a tap and the record
+    // being gone, and catalog items are priced against this manufacturer --
+    // deleting it orphans them. Manufacturers don't show up on the Deleted
+    // Items screen, so unlike a job or a catalog item, this one really is
+    // gone; the warning has to say so rather than imply a safety net.
+    var confirmingDelete by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -187,11 +193,25 @@ private fun EditManufacturerDialog(
         dismissButton = {
             Row {
                 if (manufacturer.id != 0L && canDelete) {
-                    OutlinedButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
+                    OutlinedButton(onClick = { confirmingDelete = true }) { Text(stringResource(R.string.action_delete)) }
                     Spacer(Modifier.width(8.dp))
                 }
                 OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
             }
         }
     )
+
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text(stringResource(R.string.mfr_delete_title)) },
+            text = { Text(stringResource(R.string.mfr_delete_body, manufacturer.name.ifBlank { stringResource(R.string.mfr_unnamed) })) },
+            confirmButton = {
+                Button(onClick = { confirmingDelete = false; onDelete() }) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
 }

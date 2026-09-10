@@ -47,6 +47,9 @@
 
     <string name="section_progress">Avancement du chantier</string>
     <string name="cat_import_no_items">Aucun prix n\'a été reconnu dans ce PDF. Il s\'agit peut-être d\'un scan et non de texte. Vous pouvez toujours saisir les prix à la main.</string>
+    <string name="cat_delete_item_title">Supprimer cet article du catalogue ?</string>
+    <string name="cat_delete_item_body">Supprime « %1$s ». Les devis qui l’utilisent déjà gardent leur prix, mais vous ne pourrez pas le rajouter tant que vous ne l’aurez pas restauré depuis Éléments supprimés, dans les paramètres du compte.</string>
+    <string name="cat_this_item">cet article</string>
     <string name="cat_import_failed">Ce PDF n\'a pas pu être lu. Il s\'agit peut-être d\'un scan et non de texte, ou le fichier est endommagé. Vous pouvez toujours saisir les prix à la main.</string>
     <string name="section_customer">Client</string>
     <string name="section_fence_runs">Sections de clôture</string>
@@ -264,6 +267,9 @@
     <string name="est_send_invoice">Envoyer la facture</string>
     <string name="est_working_copy">Votre copie de travail</string>
     <string name="est_edit_line_item">Modifier le poste</string>
+    <string name="est_delete_line_item_title">Supprimer ce poste ?</string>
+    <string name="est_delete_line_item_body">Supprime « %1$s » du devis. Il n’existe pas d’entrée dans Éléments supprimés pour un poste, donc c’est irréversible.</string>
+    <string name="est_this_line_item">ce poste</string>
     <string name="est_description">Description</string>
     <string name="est_qty">Qté</string>
     <string name="est_unit">Unité</string>
@@ -366,6 +372,9 @@
     <string name="set_tier_labor_flat">Forfait main-d\'oeuvre</string>
     <string name="set_tier_markup">Marge %</string>
     <string name="set_tier_discount">Remise %</string>
+    <string name="set_delete_tier_title">Supprimer ce niveau de tarif ?</string>
+    <string name="set_delete_tier_body">Supprime « %1$s ». Les chantiers déjà chiffrés avec conservent leurs montants, mais le niveau lui-même ne va pas dans Éléments supprimés, donc il n’y a aucun moyen de le récupérer.</string>
+    <string name="set_this_tier">ce niveau</string>
     <string name="acct_cloud_not_configured">Les comptes cloud ne sont pas configurés dans cette version. L\'application fonctionne toujours entièrement hors ligne sur cet appareil.</string>
     <string name="acct_create_account">Créer un compte</string>
     <string name="acct_sign_in_explain">La connexion permet à votre équipe de partager les mêmes chantiers. Sans compte, l\'application continue de fonctionner hors ligne sur ce téléphone uniquement.</string>
@@ -562,6 +571,8 @@
     <string name="jd_invoice_hint">Utilisez « Générer et partager la facture » sur l\'écran Devis une fois le chantier terminé.</string>
     <string name="jd_no_expenses">Aucune dépense enregistrée pour ce chantier (carburant, location de matériel, frais de permis, etc.).</string>
     <string name="jd_remove_expense">Supprimer la dépense</string>
+    <string name="jd_delete_expense_title">Supprimer cette dépense ?</string>
+    <string name="jd_delete_expense_body">Supprime « %2$s » (%1$s $). C’est un coût réel qui compte dans la marge de ce chantier — vous pouvez la récupérer depuis Éléments supprimés, dans les paramètres du compte.</string>
     <string name="jd_total_expenses">Total des dépenses : %1$s $</string>
     <string name="jd_add_expense">Ajouter une dépense</string>
     <string name="jd_category">Catégorie</string>
@@ -592,6 +603,9 @@
     <string name="jd_plus_feet">+%1$s pi</string>
     <string name="jd_edit_change_order">Modifier l\'avenant</string>
     <string name="jd_remove_change_order">Supprimer l\'avenant</string>
+    <string name="jd_delete_change_order_title">Supprimer cet avenant ?</string>
+    <string name="jd_delete_change_order_body">Supprime les %1$s $ de travaux supplémentaires autorisés. Vous pouvez le récupérer depuis Éléments supprimés, dans les paramètres du compte.</string>
+    <string name="jd_delete_change_order_signed_body">Le client a signé pour ces %1$s $ de travaux supplémentaires — cette signature part avec l’avenant. Vous pouvez le récupérer depuis Éléments supprimés, dans les paramètres du compte.</string>
     <string name="jd_includes_materials">Inclut %1$s $ de matériaux</string>
     <string name="jd_signed_on">Signé le %1$s</string>
     <string name="jd_get_signature">Faire signer le client</string>
@@ -608,6 +622,8 @@
     <string name="jd_signature_clears">Modifier les pieds, le coût ou les matériaux efface la signature du client -- il a signé pour les anciens chiffres, il doit donc signer à nouveau.</string>
     <string name="jd_no_punch_items">Aucun point en suspens. Notez ici tout ce que le client veut corriger après la pose.</string>
     <string name="jd_remove_item">Supprimer l\'élément</string>
+    <string name="jd_delete_punch_item_title">Supprimer cet élément de la liste de reprises ?</string>
+    <string name="jd_delete_punch_item_body">Supprime « %1$s ». Vous pouvez le récupérer depuis Éléments supprimés, dans les paramètres du compte.</string>
     <string name="jd_new_callback_item">Nouveau point à reprendre</string>
     <string name="jd_review_send_when">À envoyer une fois le chantier terminé et le client satisfait.</string>
     <string name="jd_which_message">Quel message ?</string>
@@ -619,6 +635,8 @@
     <string name="jd_camera">Appareil photo</string>
     <string name="jd_gallery">Galerie</string>
     <string name="jd_remove_photo">Supprimer la photo</string>
+    <string name="jd_delete_photo_title">Supprimer cette photo ?</string>
+    <string name="jd_delete_photo_body">Cette photo est supprimée définitivement — avant/après, dégât, quoi qu’elle montre. Elle ne va pas dans Éléments supprimés, donc il n’y a aucun moyen de la récupérer.</string>
     <string name="jd_record_refund">Enregistrer un remboursement</string>
     <string name="jd_collected_so_far">Encaissé à ce jour : %1$s $</string>
     <string name="jd_refund_amount">Montant du remboursement ($)</string>
@@ -724,6 +742,8 @@
     <string name="mfr_unnamed">Sans nom</string>
     <string name="mfr_new_manufacturer">Nouveau fabricant</string>
     <string name="mfr_edit_manufacturer">Modifier le fabricant</string>
+    <string name="mfr_delete_title">Supprimer ce fabricant ?</string>
+    <string name="mfr_delete_body">Supprime « %1$s ». Les articles du catalogue chiffrés à partir de lui restent, mais perdent le lien avec lui. Cette action ne va pas dans Éléments supprimés, donc il n’y a aucun moyen de la récupérer.</string>
     <string name="mfr_name">Nom</string>
     <string name="mfr_order_email">E-mail de commande</string>
     <string name="mfr_address">Adresse</string>
@@ -1479,6 +1499,16 @@
     <string name="vm_saved_their_access">Son accès a été enregistré.</string>
     <string name="vm_couldnt_save_with">Impossible d\'enregistrer : %1$s</string>
     <string name="vm_couldnt_save_refused">Impossible d\'enregistrer : le serveur a refusé la modification</string>
+    <string name="vm_couldnt_save_employee">Impossible d’enregistrer cet employé : %1$s</string>
+    <string name="vm_couldnt_delete_employee">Impossible de supprimer cet employé : %1$s. Rien n’a été retiré.</string>
+    <string name="vm_couldnt_deactivate_employee">Impossible de le retirer de l’équipe : %1$s. Il est toujours actif.</string>
+    <string name="vm_couldnt_reactivate_employee">Impossible de le remettre dans l’équipe : %1$s</string>
+    <string name="vm_couldnt_update_item">Impossible d’enregistrer cette coche : %1$s</string>
+    <string name="vm_couldnt_attach_photo">Impossible de joindre la photo : %1$s</string>
+    <string name="vm_couldnt_delete_item">Impossible de retirer l’article : %1$s</string>
+    <string name="vm_couldnt_save_catalog_item">Impossible d’enregistrer cet article du catalogue : %1$s. Les devis qui l’utilisent affichent encore l’ancien prix.</string>
+    <string name="vm_couldnt_delete_catalog_item">Impossible de supprimer cet article du catalogue : %1$s</string>
+    <string name="vm_couldnt_create_job">Impossible de créer un chantier pour ce client : %1$s</string>
     <string name="vm_waiting_sign_back_in">En attente de reconnexion</string>
     <string name="vm_signed_out_sign_in_again">Déconnecté — reconnectez-vous pour envoyer</string>
     <string name="acct_sync_signed_out">Déconnecté</string>
