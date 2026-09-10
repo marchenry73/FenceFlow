@@ -346,7 +346,7 @@
         <div class="scroll">
           <table>
             <thead><tr>
-              <th>Company</th><th>Job</th><th>Office total</th><th>Phone total</th>
+              <th>Company</th><th>Job</th><th>How far apart</th>
               <th>Engines</th><th class="nowrap">Noted</th><th></th>
             </tr></thead>
             <tbody id="driftRows"></tbody>
@@ -722,6 +722,9 @@ async function loadDrift() {
   // panel itself rather than papered over with a query that looks complete
   // and is not.
   const { data, error } = await db.from('pricing_drift')
+    // office_total and phone_total are still selected because the gap is
+    // computed from them, and the difference cannot be derived without both.
+    // They are never rendered.
     .select('id, company_id, job_sync_id, office_total, phone_total, office_engine, phone_engine, noted_at, seen_at')
     .is('seen_at', null)
     .order('noted_at', { ascending: false });
@@ -1244,12 +1247,32 @@ function renderDrift() {
     $('driftRows').innerHTML = `<tr><td colspan="7" style="color:var(--muted)">Nothing visible to this account.</td></tr>`;
     return;
   }
+  /* The gap, not the totals.
+
+     This table exists to catch the phone and the server disagreeing about a
+     price. What it needs to show is how far apart they are; what it was showing
+     was both contract values in full, which is a customer's job revenue sitting
+     on a vendor's screen. Nobody here needs to know that a fence in Riverview
+     was twenty-six thousand dollars.
+
+     A percentage as well as an amount, because a dollar apart on a hundred
+     dollars is a bug and a dollar apart on twenty thousand is a rounding
+     difference, and the absolute figure alone cannot tell them apart. */
+  const driftGap = (r) => {
+    const a = Number(r.office_total || 0), b = Number(r.phone_total || 0);
+    const gap = Math.abs(a - b);
+    const base = Math.max(Math.abs(a), Math.abs(b));
+    const pct = base > 0.005 ? (gap / base) * 100 : 0;
+    const bad = pct >= 1;
+    return '<span style="' + (bad ? 'color:#b3261e;font-weight:600' : '') + '">' +
+      money(gap) + ' apart' + (base > 0.005 ? ' (' + pct.toFixed(1) + '%)' : '') + '</span>';
+  };
+
   $('driftRows').innerHTML = drift.map(r => `
     <tr>
       <td class="nowrap" title="${esc(r.company_id)}">${esc((r.company_id || '').slice(0, 8))}…</td>
       <td class="nowrap" title="${esc(r.job_sync_id)}">${esc((r.job_sync_id || '').slice(0, 8))}…</td>
-      <td>${money(r.office_total)}</td>
-      <td>${money(r.phone_total)}</td>
+      <td>${driftGap(r)}</td>
       <td>${esc(r.office_engine)} / ${esc(r.phone_engine)}</td>
       <td class="nowrap">${day(r.noted_at)}</td>
       <td><button class="small" data-drift-seen="${r.id}" type="button">Mark seen</button></td>
@@ -1259,7 +1282,11 @@ function renderDrift() {
     b.addEventListener('click', async () => {
       const { error } = await db.from('pricing_drift')
         .update({ seen_at: new Date().toISOString() }).eq('id', b.dataset.driftSeen);
-      if (!error) { await loadDrift(); renderDrift(); }
+      // Said out loud. It used to fail silently, which leaves the row looking
+      // unhandled with no reason given -- so the next person clicks it again,
+      // and again, and concludes the button does nothing.
+      if (error) { b.textContent = 'Could not mark it: ' + error.message; return; }
+      await loadDrift(); renderDrift();
     }));
 }
 
