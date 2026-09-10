@@ -2909,6 +2909,16 @@ function renderDash(){
         id: j.id });
     });
 
+  // A chargeback. Top of the list because the money is already gone and the
+  // job still reads paid: without this line the first anybody hears is a bank
+  // statement weeks later.
+  jobs.filter(j => j.dispute_opened_at && !j.dispute_closed_at)
+    .forEach(j => items.push({ urgent:true,
+      text: 'Payment disputed' + (j.dispute_amount ? ' (' + money(j.dispute_amount) + ')' : '') +
+            (j.dispute_reason ? ', ' + String(j.dispute_reason).replace(/_/g, ' ') : '') +
+            ': ' + name(j),
+      id: j.id }));
+
   // Approved but never signed. The approval is a click on a web page; the
   // signature is the contract. A job worked from an approval with no signature
   // is a job with nothing to point at if the customer changes their mind.

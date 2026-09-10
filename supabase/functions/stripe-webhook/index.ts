@@ -253,6 +253,51 @@ async function applyPaymentToJob(admin: any, payment: any) {
   await notifyPaid(admin, job, Number(payment.amount_cents || 0) / 100, paidDollars);
 }
 
+/**
+ * Tells the company's phones that money is being taken back.
+ *
+ * Reuses the payment notifier's channel rather than inventing a quieter one. A
+ * chargeback is more urgent than an arrival, and a company that turned
+ * notifications on has already said how it wants to hear about money.
+ *
+ * Failures are swallowed for the same reason they are in notifyPaid: the
+ * webhook must not fail for want of a push. If it did, Stripe would retry the
+ * whole event and the ledger row would be written a second time.
+ */
+async function notifyDispute(admin: any, companyId: string, amount: number,
+                             reason: string, eventType: string) {
+  const headline =
+    eventType === "charge.dispute.funds_withdrawn" ? "Chargeback: money taken back" :
+    eventType === "charge.dispute.funds_reinstated" ? "Chargeback reversed in your favour" :
+    eventType === "charge.dispute.closed" ? "A chargeback was closed" :
+    "A customer has disputed a payment";
+  const body = "$" + amount.toFixed(2) +
+    (reason ? " — " + reason.replace(/_/g, " ") : "") +
+    ". Open the job in FenceFlow.";
+
+  const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
+  if (!raw) return;
+  const { data: devices } = await admin.from("device_tokens")
+    .select("token").eq("company_id", companyId);
+  if (!devices?.length) return;
+
+  const sa = JSON.parse(raw);
+  const token = await fcmAccessToken(sa);
+  for (const d of devices) {
+    await fetch("https://fcm.googleapis.com/v1/projects/" + sa.project_id + "/messages:send", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          token: d.token,
+          data: { title: headline, body },
+          android: { priority: "HIGH" },
+        },
+      }),
+    }).catch(() => {});
+  }
+}
+
 /** Tells the company's phones that money arrived, and how much. */
 async function notifyPaid(admin: any, job: any, justPaid: number, totalPaid: number) {
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
@@ -441,6 +486,90 @@ Deno.serve(async (req) => {
           reason: String(refund.reason ?? ""),
           liveMode: event.livemode === true,
         });
+        break;
+      }
+
+      // ------------------------------------------------------ disputes ---
+      // A chargeback used to reach nobody. The bank pulls the money back, the
+      // job goes on reading paid in full, and the paid figure is latched
+      // read-only once a processor has touched it -- so the office could not
+      // even correct it by hand. The first anybody learned was a statement.
+      //
+      // Two facts arriving at different times, handled differently. A dispute
+      // opening is a warning and a deadline; the money is usually still in the
+      // account. Funds actually being withdrawn is a change to what the
+      // company has been paid, and that belongs in the ledger rather than in a
+      // flag on the side.
+      case "charge.dispute.created":
+      case "charge.dispute.updated":
+      case "charge.dispute.closed":
+      case "charge.dispute.funds_withdrawn":
+      case "charge.dispute.funds_reinstated": {
+        const dispute = event.data.object;
+        const intent = String(dispute?.payment_intent ?? "");
+        if (!intent) break;
+        const { data: rows } = await admin.from("job_payments")
+          .select("job_sync_id, company_id")
+          .eq("processor", "stripe")
+          .eq("external_id", intent)
+          .limit(1);
+        const request = rows?.[0];
+        // A dispute against a charge that did not come from a FenceFlow link.
+        // Nothing to attach it to, and inventing a job to hang it on would be
+        // worse than the gap.
+        if (!request?.job_sync_id) break;
+
+        const amount = minorToMajor(Number(dispute.amount ?? 0), String(dispute.currency ?? "usd"));
+        const closed = event.type === "charge.dispute.closed";
+
+        await mustWrite("record the dispute on the job",
+          admin.from("jobs").update({
+            dispute_opened_at: new Date((Number(dispute.created ?? 0) * 1000) || Date.now()).toISOString(),
+            dispute_closed_at: closed ? new Date().toISOString() : null,
+            dispute_status: String(dispute.status ?? ""),
+            dispute_reason: String(dispute.reason ?? ""),
+            dispute_amount: amount,
+            // Deliberately not touching amount_paid here. On most of these
+            // events the money has not moved, and quietly reducing the paid
+            // figure on a dispute the company then WINS would leave the job
+            // understated with nobody to tell them.
+          }).eq("sync_id", request.job_sync_id).eq("company_id", request.company_id));
+
+        // The money has actually gone. Booked as a negative ledger row through
+        // the same path a refund uses, so there is one way money leaves a job
+        // rather than two that can disagree.
+        if (event.type === "charge.dispute.funds_withdrawn") {
+          await recordRefund(admin, {
+            companyId: request.company_id,
+            jobSyncId: request.job_sync_id,
+            amount,
+            refundId: "dispute-" + String(dispute.id ?? ""),
+            processor: "stripe",
+            reason: "chargeback: " + String(dispute.reason ?? "disputed"),
+            liveMode: event.livemode === true,
+          });
+        }
+
+        // And back again if the company wins it.
+        if (event.type === "charge.dispute.funds_reinstated") {
+          await mustWrite("book the reinstated funds",
+            admin.from("payment_records").upsert({
+              sync_id: "stripe-dispute-reinstated-" + String(dispute.id ?? ""),
+              company_id: request.company_id,
+              job_sync_id: request.job_sync_id,
+              amount: Math.abs(amount),
+              method: "CARD",
+              received_at: new Date().toISOString(),
+              reference: String(dispute.id ?? ""),
+              note: "chargeback reversed in your favour",
+              recorded_by: "Stripe",
+            }, { onConflict: "company_id,sync_id" }));
+        }
+
+        // Told, not left to a bank statement. Same channel as a payment
+        // arriving, because this is the more urgent of the two.
+        await notifyDispute(admin, request.company_id, amount,
+                            String(dispute.reason ?? ""), event.type);
         break;
       }
 
