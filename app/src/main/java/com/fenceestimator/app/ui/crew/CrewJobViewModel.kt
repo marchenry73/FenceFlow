@@ -14,12 +14,15 @@ import com.fenceestimator.app.data.JobStep
 import com.fenceestimator.app.data.PhotoKind
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.ui.components.UiMessage
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class CrewJobViewModel(
     private val repository: Repository,
@@ -132,6 +135,57 @@ class CrewJobViewModel(
     fun addPhoto(kind: PhotoKind, filePath: String) {
         viewModelScope.launch {
             repository.addPhoto(JobPhoto(jobId = jobId, kind = kind, filePath = filePath))
+        }
+    }
+
+    /**
+     * Moves the job to [nextStage] through `set_production_stage` -- the
+     * only door onto `jobs.production_stage`. Nothing here ever writes that
+     * column directly; this either mirrors back exactly what the server just
+     * confirmed, or leaves the phone alone.
+     *
+     * Requires a live connection, checked by the caller with
+     * [com.fenceestimator.app.cloud.ConnectivityWatcher] the same way
+     * [com.fenceestimator.app.ui.employees.EmployeesViewModel.addCrewMember]
+     * checks it -- this is an RPC, not a queued local write. A phone with no
+     * signal that "saved" this locally and showed the new stage right away
+     * would be a screen claiming DIG while the server, and every other
+     * phone, still say MATERIALS: exactly the failure this app spent today
+     * removing. Saying plainly that it needs signal is honest; a queued
+     * guess is not.
+     *
+     * `false` back from the RPC is not a failure -- the job was already on
+     * [nextStage] -- so this quietly agrees with the server instead of
+     * raising a Snackbar over nothing. A real refusal (job not approved yet,
+     * an unknown stage name, an account that may not move jobs) comes back
+     * as a raised message written for a person, so it is shown as-is rather
+     * than translated into something vaguer.
+     */
+    fun moveStage(nextStage: String, online: Boolean) {
+        viewModelScope.launch {
+            if (!online) {
+                _message.tryEmit(UiMessage(R.string.crew_stage_needs_signal))
+                return@launch
+            }
+            val current = job.value ?: return@launch
+            runCatching {
+                SupabaseModule.client.postgrest.rpc(
+                    "set_production_stage",
+                    buildJsonObject {
+                        put("job_sid", current.syncId)
+                        put("next_stage", nextStage)
+                    }
+                )
+            }.onSuccess {
+                // Both true (moved) and false (already there) mean the server
+                // now agrees the job is on nextStage -- confirmed, not
+                // guessed, so mirroring it locally without touching updatedAt
+                // is the same quiet-clock write JobSync's pull uses for this
+                // same column.
+                repository.updateJobFromCloud(current.copy(productionStage = nextStage))
+            }.onFailure { e ->
+                _message.tryEmit(UiMessage(R.string.crew_stage_move_failed, listOf(e.message.orEmpty())))
+            }
         }
     }
 

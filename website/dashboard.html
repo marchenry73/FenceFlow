@@ -578,10 +578,12 @@
       <button class="tab" data-tab="jobs">Jobs</button>
       <button class="tab" data-tab="cal">Calendar</button>
       <button class="tab" data-tab="pipe">Pipeline</button>
+      <button class="tab" data-tab="prod">Production</button>
       <button class="tab" data-tab="crew">Crew</button>
       <button class="tab" data-tab="time">Time</button>
       <button class="tab" data-tab="catalog">Catalog</button>
       <button class="tab" data-tab="reports">Reports</button>
+      <button class="tab" data-tab="automation">Automation</button>
       <button class="tab" data-tab="settings">Settings</button>
       <button class="tab" data-tab="billing">Billing</button>
     </div>
@@ -678,6 +680,51 @@
     </div>
 
     <div id="tab-pipe" style="display:none"><div class="pipe" id="pipe"></div></div>
+
+    <div id="tab-prod" style="display:none">
+      <div class="panel">
+        <h2 style="margin-bottom:2px">Production</h2>
+        <p class="sub" style="margin-top:0">Every sold job, where it is right now. Materials, dig,
+          set, build, punch, done &mdash; a job with no stage yet has not started.</p>
+        <div class="msg" id="prodMsg"></div>
+        <div class="pipe" id="prodBoard"></div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-bottom:2px">Time in stage</h2>
+        <p class="sub" style="margin-top:0" id="prodTimeNote"></p>
+        <div class="scroll"><table>
+          <thead><tr><th>Stage</th><th>Jobs there now</th><th>Average time to move on</th></tr></thead>
+          <tbody id="prodTimeRows"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="tab-automation" style="display:none">
+      <div class="panel">
+        <h2 style="margin-bottom:2px">Automation rules</h2>
+        <p class="sub" style="margin-top:0">When something becomes true of a job, one of these can act on it
+          automatically instead of waiting for someone to read a list. Every rule starts off &mdash; turn on
+          the ones you want. None of these touch money or delete anything.</p>
+        <div class="msg" id="automationMsg"></div>
+        <div id="automationRulesRows"></div>
+        <div style="margin-top:12px">
+          <button class="btn btn-sm btn-grey" id="automationRunNow">Check now</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-bottom:2px">Flagged jobs</h2>
+        <p class="sub" style="margin-top:0">Jobs an automation rule raised a flag on. Clearing one does not
+          change the job &mdash; it only says the office has seen it.</p>
+        <div id="automationFlagsRows"></div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-bottom:2px">Automation log</h2>
+        <p class="sub" style="margin-top:0">Every time a rule fired: which job, when, and what it did.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>When</th><th>Rule</th><th>Job</th><th>What happened</th></tr></thead>
+          <tbody id="automationRunsRows"></tbody></table></div>
+        <div class="empty" id="automationRunsEmpty" style="display:none">No rule has fired yet.</div>
+      </div>
+    </div>
 
     <div id="tab-crew" style="display:none">
       <div class="panel">
@@ -1722,6 +1769,12 @@ const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
     orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null, planName='',
+    // Every stage a sold job has ever entered, append-only, read in full at
+    // load like everything else here that is not one of the two bounded
+    // tables. Production's board and its "time in stage" both come out of
+    // this one array -- nothing here is a second source of truth for where a
+    // job is, only for how long it has been there.
+    stageEvents=[],
     // True once `employees` is known to carry the pay columns (hourly_rate,
     // pay_type, per_foot_rate). A direct read of the employees table has
     // them; the crew_roster() fallback below does not -- it returns only id,
@@ -1747,7 +1800,15 @@ let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[
     // states an unscoped ("Total", lifetime) hours or pay figure -- the Time
     // tab, the Pay tab, and Reports when its window reaches earlier than the
     // bound -- must await before it renders.
-    timesFullyLoaded = false;
+    timesFullyLoaded = false,
+    // §27: rules that act on a job instead of a person reading a list.
+    // automationRules maps a fixed rule_key -> {enabled, updated_at} read from
+    // automation_rules (see supabase_automation.sql). Absence of a row, same
+    // convention as notification_prefs, means the rule has never been turned
+    // on -- off by default, not on by default with no row yet.
+    automationRules = new Map(),
+    automationRuns = [],
+    automationFlags = [];
 /* Always the first of the month.
    Kept on today's date, stepping a month meant asking for the 31st of a
    30-day month, which JavaScript rolls forward into the month after -- so on
@@ -1822,6 +1883,222 @@ function renderAlertPrefs(){
   el.querySelectorAll('input[data-alert-key]').forEach(cb =>
     cb.addEventListener('change', () => setAlertMuted(cb.dataset.alertKey, !cb.checked)));
 }
+/* ---------- automation (launch audit §27) ----------------------------
+   The office console above only ever DETECTS: a quote gone quiet, an
+   approved job with no deposit, a job scheduled soon with no materials, a
+   sold job whose materials just arrived. Every one of those ends in a
+   person reading a list. This is the one place an event moves a job
+   forward instead.
+
+   Deliberately a fixed catalog of four rules, not a free-form rule builder.
+   Each one's trigger is the EXACT SAME condition an existing detector on
+   this page already computes (see the comment on each rule below for which
+   one) -- this does not invent a second notion of "gone quiet" or "no
+   deposit", it acts on the one this page already trusts. Each action is
+   honest and self-contained: it stamps a field, moves a production stage
+   the same way the Production board itself does, or raises a flag. None of
+   them touch money, none of them delete anything, and none of them send
+   anything -- there is no mail key configured on this system, and a rule
+   that silently fails to send is worse than no rule.
+
+   Every rule starts OFF (automation_rules.enabled defaults false) and stays
+   off until an owner/manager switches it on here. Firing is idempotent: the
+   server keeps one row per (rule, job) in automation_runs behind a unique
+   constraint, so the same job crossing the same line twice cannot fire the
+   same rule twice -- see run_automation_rule() in supabase_automation.sql. */
+const AUTOMATION_RULE_DEFS = [
+  {
+    key: 'materials_received_advance_stage',
+    label: 'Materials arrive → move the job to Dig',
+    detail: 'When a sold job’s materials are marked Received while it has not started '
+      + 'the build (or is still sitting on Materials), moves it to Dig on the Production '
+      + 'board -- the same move a person makes by hand there.',
+    // Same fields the Production board and the "materials missing" detector
+    // already read: sold, materials received, not past the Materials stage.
+    test: j => (j.status === 'ACCEPTED' || j.status === 'COMPLETED')
+      && j.materials_status === 'RECEIVED'
+      && (!j.production_stage || j.production_stage === 'MATERIALS')
+  },
+  {
+    key: 'quote_gone_quiet_note',
+    label: 'A sent quote goes quiet → add a note',
+    detail: 'When a quote has been sent for 14+ days with no answer, adds a timestamped '
+      + 'note to the job saying so.',
+    // Exactly the "quotes gone quiet" condition renderChase() and the
+    // stale_quote attention alert already use.
+    test: j => j.status === 'SENT' && j.quote_sent_at && !j.quote_approved_at
+      && (Date.now() - d(j.quote_sent_at).getTime()) > 14 * 864e5
+  },
+  {
+    key: 'approved_no_deposit_flag',
+    label: 'Approved with no deposit → raise a flag',
+    detail: 'When a job is approved with a deposit amount on it but nothing has been '
+      + 'collected, raises a flag here for the office.',
+    // Exactly the no_deposit attention alert's condition.
+    test: j => !!j.quote_approved_at && Number(j.deposit_amount) > 0 && netPaid(j) < 0.005
+  },
+  {
+    key: 'materials_missing_scheduled_flag',
+    label: 'Scheduled soon, materials not ready → raise a flag',
+    detail: 'When a job is scheduled within the next 7 days and materials are still not '
+      + 'ordered or received, raises a flag here for the office.',
+    // Exactly the materials_missing attention alert's condition.
+    test: j => !!j.scheduled_date && d(j.scheduled_date) >= new Date()
+      && d(j.scheduled_date) < new Date(Date.now() + 7 * 864e5)
+      && !['RECEIVED', 'NOT_NEEDED'].includes(j.materials_status || 'NOT_ORDERED')
+  }
+];
+
+async function loadAutomationState(){
+  automationRules = new Map();
+  try {
+    const { data, error } = await db.from('automation_rules').select('rule_key,enabled,updated_at');
+    if (!error) (data || []).forEach(r => automationRules.set(r.rule_key, r));
+  } catch (e) { /* table not there yet -- every rule reads as off, same as a fresh row would */ }
+}
+
+async function loadAutomationRuns(){
+  automationRuns = [];
+  try {
+    const { data, error } = await db.from('automation_runs')
+      .select('rule_key,job_sync_id,fired_at,result,detail')
+      .order('fired_at', { ascending: false }).limit(100);
+    if (!error) automationRuns = data || [];
+  } catch (e) { /* table not there yet */ }
+}
+
+async function loadAutomationFlags(){
+  automationFlags = [];
+  try {
+    const { data, error } = await db.from('automation_flags')
+      .select('id,job_sync_id,rule_key,message,created_at')
+      .is('cleared_at', null).order('created_at', { ascending: false });
+    if (!error) automationFlags = data || [];
+  } catch (e) { /* table not there yet */ }
+}
+
+function ruleLastRun(key){
+  return automationRuns.find(r => r.rule_key === key && r.result === 'done') || null;
+}
+
+function renderAutomation(){
+  const rows = $('automationRulesRows');
+  if (!rows) return;
+  const editable = canEdit();
+  rows.innerHTML = AUTOMATION_RULE_DEFS.map(def => {
+    const state = automationRules.get(def.key);
+    const on = !!(state && state.enabled);
+    const last = ruleLastRun(def.key);
+    const statusText = last
+      ? 'Last fired ' + d(last.fired_at).toLocaleString()
+      : 'Never run yet';
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+      <label style="display:flex;align-items:center;gap:10px;font-weight:600">
+        <input type="checkbox" data-automation-key="${esc(def.key)}" ${on ? 'checked' : ''} ${editable ? '' : 'disabled'}>
+        ${esc(def.label)}
+      </label>
+      <div style="color:var(--muted);font-size:13px;margin:4px 0 0 26px">${esc(def.detail)}</div>
+      <div style="color:var(--muted);font-size:12px;margin:4px 0 0 26px">${esc(statusText)}</div>
+    </div>`;
+  }).join('');
+  rows.querySelectorAll('input[data-automation-key]').forEach(cb =>
+    cb.addEventListener('change', () => setAutomationRuleEnabled(cb.dataset.automationKey, cb.checked)));
+
+  const flagsEl = $('automationFlagsRows');
+  if (flagsEl) {
+    flagsEl.innerHTML = automationFlags.length
+      ? automationFlags.map(f => {
+          const j = jobBySync(f.job_sync_id);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+            <span style="flex:1">
+              <strong>${esc(j?.customer_name || j?.address || 'Job no longer here')}</strong>
+              <span style="color:var(--muted)"> — ${esc(f.message)} · ${esc(d(f.created_at).toLocaleDateString())}</span>
+            </span>
+            ${editable ? `<button class="btn btn-sm btn-grey" data-automation-clear="${esc(f.id)}">Clear</button>` : ''}
+          </div>`;
+        }).join('')
+      : '<div class="empty">No open flags.</div>';
+    flagsEl.querySelectorAll('[data-automation-clear]').forEach(el =>
+      el.addEventListener('click', () => clearAutomationFlag(el.dataset.automationClear)));
+  }
+
+  const runsEl = $('automationRunsRows');
+  if (runsEl) {
+    runsEl.innerHTML = automationRuns.map(r => {
+      const j = jobBySync(r.job_sync_id);
+      const def = AUTOMATION_RULE_DEFS.find(x => x.key === r.rule_key);
+      return `<tr><td>${esc(d(r.fired_at).toLocaleString())}</td>
+        <td>${esc(def?.label || r.rule_key)}</td>
+        <td>${esc(j?.customer_name || j?.address || 'Job no longer here')}</td>
+        <td>${esc(r.result === 'done' ? (r.detail || 'Done.') : (r.result + (r.detail ? ': ' + r.detail : '')))}</td></tr>`;
+    }).join('');
+  }
+  const empty = $('automationRunsEmpty');
+  if (empty) empty.style.display = automationRuns.length ? 'none' : 'block';
+}
+
+/** Turns one rule on or off for the whole company. Gated server-side by
+    run_automation_rule's own permission check (EDIT_JOBS) and this RPC's
+    (EDIT_CATALOG_AND_SETTINGS) -- this call is not the security boundary,
+    only the honest way to reach it. */
+async function setAutomationRuleEnabled(key, enabled){
+  if (!canEdit()) return;
+  const { error } = await db.rpc('set_automation_rule_enabled',
+    { p_rule_key: key, p_enabled: enabled });
+  if (error) { msg('automationMsg', error.message, 'err'); renderAutomation(); return; }
+  await loadAutomationState();
+  renderAutomation();
+  msg('automationMsg', enabled ? 'Rule turned on.' : 'Rule turned off.', 'ok');
+  if (enabled) evaluateAutomationRules(true);
+}
+
+async function clearAutomationFlag(id){
+  if (!canEdit()) return;
+  const { error } = await db.rpc('clear_automation_flag', { p_flag_id: id });
+  if (error) { msg('automationMsg', error.message, 'err'); return; }
+  await loadAutomationFlags();
+  renderAutomation();
+}
+
+/** Runs every enabled rule against every job currently loaded, one RPC call
+    per matching (rule, job) pair. run_automation_rule() re-checks the
+    condition and the dedupe guard server-side, so a job that fired last time
+    or no longer matches is simply reported back as skipped, not fired again.
+    silent=true is the automatic pass after every load; the "Check now"
+    button passes silent=false so the person who clicked it sees a result. */
+async function evaluateAutomationRules(silent){
+  if (!profile || !canEdit()) return;
+  let checked = 0, fired = 0;
+  for (const def of AUTOMATION_RULE_DEFS) {
+    const state = automationRules.get(def.key);
+    if (!state || !state.enabled) continue;
+    const candidates = jobs.filter(j => !j.deleted_at && def.test(j));
+    for (const j of candidates) {
+      checked++;
+      try {
+        const { data, error } = await db.rpc('run_automation_rule',
+          { p_rule_key: def.key, p_job_sid: j.sync_id });
+        if (error) { console.warn('automation rule failed:', def.key, j.sync_id, error.message); continue; }
+        if (String(data || '').startsWith('done')) {
+          fired++;
+          // The event already happened server-side; reflect it locally so the
+          // Production board does not wait for a full reload to catch up.
+          if (def.key === 'materials_received_advance_stage') j.production_stage = 'DIG';
+        }
+      } catch (e) { console.warn('automation rule error:', def.key, j.sync_id, e); }
+    }
+  }
+  await loadAutomationRuns();
+  await loadAutomationFlags();
+  renderAutomation();
+  renderProduction();
+  if (!silent) {
+    msg('automationMsg', fired
+      ? 'Checked ' + checked + ' matching job' + (checked === 1 ? '' : 's') + ', fired ' + fired + ' action' + (fired === 1 ? '' : 's') + '.'
+      : 'Checked ' + checked + ' matching job' + (checked === 1 ? '' : 's') + ' -- nothing new to fire.', 'ok');
+  }
+}
+
 /* Says something, visibly, and only tidies away a success.
    An instruction that removes itself after two and a half seconds -- which is
    what happened to "confirm the email we just sent you" -- leaves somebody
@@ -2486,6 +2763,25 @@ async function ensureFullTimes(){
   timesFullyLoaded = true;
 }
 
+/* job_stage_events is small (one row per move, not per job) and append-only
+   with no soft-delete, so it is read in full every load rather than bounded
+   or lazily topped up the way times and line items are. Paginated the same
+   defensive way q() is, in case a long-lived company someday has more than
+   one page of moves. */
+async function loadStageEvents(){
+  const PAGE = 1000;
+  const all = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await db.from('job_stage_events').select('*')
+      .order('entered_at', { ascending: true }).range(from, from + PAGE - 1);
+    if (res.error) return res;
+    const got = res.data || [];
+    all.push(...got);
+    if (got.length < PAGE || all.length >= PAGE * 50) break;
+  }
+  return { data: all, error: null };
+}
+
 async function loadAll(){
   const checkoutNote = await settleAfterCheckout();
   const service = await checkService();
@@ -2568,7 +2864,7 @@ async function loadAll(){
   const RECENT_MS = 545 * 864e5; // ~18 months
   const recentCutoffISO = new Date(Date.now() - RECENT_MS).toISOString();
 
-  const [j,e,r,i,x,p,o,tm,c,ti,pay,fc] = await Promise.all([
+  const [j,e,r,i,x,p,o,tm,c,ti,se,pay,fc] = await Promise.all([
     q('jobs'), q('employees'), q('fence_runs'),
     // Line items rarely change after the estimate is built, so updated_at is
     // a reasonable stand-in for "recent job" here. Anything this window
@@ -2598,6 +2894,10 @@ async function loadAll(){
       return { data: [...byId.values()], error: null };
     })(),
     q('material_items'), q('pricing_tiers'),
+    // job_stage_events is append-only and has no deleted_at column, so it
+    // cannot go through q() above -- that helper filters every table on
+    // deleted_at is null, which this table does not have and would error on.
+    loadStageEvents(),
     // The money ledger. This page used to read job_payments, which is the
     // Stripe payment-LINK table -- amounts in cents, with a URL and a Stripe
     // id. It is not what the app counts money from, which is why the figures
@@ -2611,6 +2911,7 @@ async function loadAll(){
   jobs=j.data||[]; runs=r.data||[]; items=i.data||[];
   expenses=x.data||[]; punch=p.data||[]; orders=o.data||[]; times=tm.data||[];
   catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
+  stageEvents = se && !se.error ? (se.data || []) : [];
   timesFullyLoaded = false;
 
   // The employees table now carries pay (hourly_rate, pay_type,
@@ -2727,11 +3028,19 @@ async function loadAll(){
   } else arAging = [];
 
   await loadNotifPrefs();
-  renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
+  renderDash(); renderJobs(); renderCal(); renderPipe(); renderProduction(); renderEmployees();
   renderTime(); renderCycles(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();
   renderAlertPrefs();
+  await loadAutomationState();
+  await loadAutomationRuns();
+  await loadAutomationFlags();
+  renderAutomation();
   await loadSettings();
   await loadBilling();
+  // Fire-and-forget, same pattern renderChase() uses: the page has already
+  // painted with what loadAll() just fetched, and this only adds to it once
+  // any enabled rule finds a job that now matches.
+  evaluateAutomationRules(true);
 }
 
 /* ---------- billing ----------
@@ -3321,10 +3630,27 @@ async function renderChase(){
       waitFrom = j.quote_approved_at || j.created_at;
       action = { kind:'deposit', label:'Collect deposit' };
     }
-    const ageDays = Math.max(0, (nowMs - d(waitFrom).getTime()) / 864e5);
+    const rawDays = (nowMs - d(waitFrom).getTime()) / 864e5;
+    // A timestamp in the future is an imported or mistyped date, not a job
+    // from tomorrow. Clamping it silently to zero would drop it to the bottom
+    // of the list looking like the freshest thing in the business, so it is
+    // clamped AND flagged.
+    const ageDays = Math.max(0, rawDays);
+    const dateLooksWrong = rawDays < -0.02;
     const value = contractTotalOf(j);
-    return { j, stage, ageDays, value, score: value * ageDays, action };
-  }).sort((a,b) => b.score - a.score);
+    // Value times days is the right rule for something that has been priced.
+    // It is the wrong rule for something that has not: a brand new lead has
+    // an UNKNOWN value, not a value of zero, and multiplying by zero buries
+    // the most time-sensitive thing in the business underneath a ten dollar
+    // job from this morning. So an unpriced job is not scored at all -- it is
+    // ranked by age among its own kind and shown first, which is what speed
+    // to lead actually asks for.
+    return { j, stage, ageDays, value, unpriced: !(value > 0),
+             score: value * ageDays, dateLooksWrong, action };
+  }).sort((a,b) =>
+    a.unpriced !== b.unpriced ? (a.unpriced ? -1 : 1)
+    : a.unpriced ? b.ageDays - a.ageDays
+    : b.score - a.score);
 
   const totalValue = rows.reduce((s,r)=>s+r.value, 0);
 
@@ -3334,7 +3660,6 @@ async function renderChase(){
   const weekAgo = new Date(nowMs - 7*864e5);
   const wonThisWeek = jobs.filter(j => (j.status==='ACCEPTED'||j.status==='COMPLETED')
     && j.quote_approved_at && d(j.quote_approved_at) >= weekAgo);
-  const wonThisWeekValue = wonThisWeek.reduce((s,j)=>s+contractTotalOf(j), 0);
 
   // Lost has no equivalent stamp anywhere on the job (no declined_at column
   // exists), so this cannot be time-boxed to "this week" without guessing
@@ -3343,7 +3668,16 @@ async function renderChase(){
   // rather than a plausible-looking "this week" figure built on a sync
   // timestamp.
   const lost = jobs.filter(j => j.status === 'DECLINED');
+  // These two say "this week" and "all time", so they have to be computed from
+  // all the rows, not from the eighteen months the first paint happened to
+  // carry. contractTotalOf falls back to summing line items when a job has no
+  // stored total, and an old declined job's line items are exactly what the
+  // bounded load leaves out -- so an all-time figure would have quietly shrunk
+  // as history aged past the cutoff, which is the whole failure this page has
+  // been fixing today.
+  await ensureItemsForJobs([...lost, ...wonThisWeek].map(j => j.sync_id));
   const lostValue = lost.reduce((s,j)=>s+contractTotalOf(j), 0);
+  const wonThisWeekValue = wonThisWeek.reduce((s,j)=>s+contractTotalOf(j), 0);
 
   $('chaseStats').innerHTML =
     `<div class="stat"><div class="n">${money(totalValue)}</div><div class="l">Value in play (${rows.length})</div></div>
@@ -3355,13 +3689,28 @@ async function renderChase(){
     return;
   }
 
-  const maxScore = Math.max(1, rows[0].score);
+  // From the priced rows only. The unpriced ones sit at the top with a score
+  // of zero by construction, and taking the maximum from row zero would make
+  // every real bar draw full width.
+  const maxScore = Math.max(1, ...rows.filter(r => !r.unpriced).map(r => r.score));
+  const maxUnpricedAge = Math.max(1, ...rows.filter(r => r.unpriced).map(r => r.ageDays));
   const stageColor = { 'New Lead':'var(--accent,#d9480f)', 'Quote Sent':'var(--orange)', 'Approved':'var(--bad,#b3261e)' };
 
   $('chaseList').innerHTML = rows.map((r,i) => {
     const j = r.j;
     const tel = (j.phone || '').replace(/[^0-9+]/g, '');
-    const pct = Math.max(4, Math.round(r.score / maxScore * 100));
+    const pct = r.unpriced
+      ? Math.max(4, Math.round(r.ageDays / maxUnpricedAge * 100))
+      : Math.max(4, Math.round(r.score / maxScore * 100));
+    const worth = r.unpriced
+      ? '<span style="color:var(--orange)">not priced yet</span>'
+      : money(r.value);
+    const barTitle = r.unpriced
+      ? 'Not priced yet, so there is no value to rank it by. Ranked by how long '
+        + 'it has waited, and put first: an unanswered enquiry is the most '
+        + 'time-sensitive thing here. Waiting ' + r.ageDays.toFixed(1) + ' days.'
+      : 'Priority score ' + Math.round(r.score).toLocaleString() + ' = '
+        + money(r.value) + ' value multiplied by ' + r.ageDays.toFixed(1) + ' days waiting';
     let actionHtml;
     if (r.action.kind === 'contact' && tel.length >= 7) {
       actionHtml = `<a href="tel:${tel}" style="color:var(--orange);font-weight:600">Call</a>
@@ -3384,11 +3733,12 @@ async function renderChase(){
         <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
           <strong style="cursor:pointer" data-chase-open="${j.id}">${esc(name(j))}</strong>
           <span class="pill" style="font-size:11px">${esc(r.stage)}</span>
-          <span style="color:var(--muted);font-size:12px">${money(r.value)} &middot; waiting ${sinceWords(new Date(nowMs - r.ageDays*864e5), new Date(nowMs))}</span>
+          <span style="color:var(--muted);font-size:12px">${worth} &middot; waiting ${sinceWords(new Date(nowMs - r.ageDays*864e5), new Date(nowMs))}</span>
+          ${r.dateLooksWrong ? '<span class="pill" style="font-size:11px;color:var(--bad,#b3261e)" title="This job\'s date is in the future, so how long it has waited cannot be worked out. Check the date on the job.">date looks wrong</span>' : ''}
         </div>
         <div style="background:var(--line);border-radius:4px;height:5px;margin-top:6px;overflow:hidden">
           <div style="background:${stageColor[r.stage]||'var(--orange)'};height:100%;width:${pct}%"
-               title="Priority score ${Math.round(r.score).toLocaleString()} = ${money(r.value)} value × ${r.ageDays.toFixed(1)} days waiting"></div>
+               title="${esc(barTitle)}"></div>
         </div>
       </div>
       <div style="flex:none;font-size:13px;white-space:nowrap">${actionHtml}</div>
@@ -3988,6 +4338,128 @@ function renderPipe(){
   }).join('');
   document.querySelectorAll('#pipe .card').forEach(c=>
     c.addEventListener('click',()=>showJob(c.dataset.id)));
+}
+
+/* ---------- production ----------
+   The owner's own words for the stages a sold job moves through: Materials,
+   dig, set, build, punch, done. jobs.production_stage is null for a job that
+   has not started -- a quote, however far along, is not "waiting on
+   materials" -- so "Not started" is a real column here, not a blank one. */
+const PROD_STAGES=['MATERIALS','DIG','SET','BUILD','PUNCH','DONE'];
+function prodStageLabel(s){
+  return {MATERIALS:'Materials',DIG:'Dig',SET:'Set',BUILD:'Build',PUNCH:'Punch',DONE:'Done'}[s] || s;
+}
+/* Under a day in hours, a day or more in days -- matches how "waited" and
+   "clocked in long" already read elsewhere on this page. */
+function fmtDuration(hours){
+  if(hours==null || !isFinite(hours)) return '—';
+  return hours < 24 ? hours.toFixed(1)+'h' : (hours/24).toFixed(1)+'d';
+}
+/* job_stage_events in ascending entered_at order, grouped by job. The last
+   entry for a job is the stage it is on now (jobs.production_stage says the
+   same thing; this is only ever used for how long it has been true).
+   Consecutive pairs are completed stays -- entered_at to the next entered_at
+   -- since the table records no separate "left at" timestamp. */
+function stageEventsByJob(){
+  const byJob=new Map();
+  stageEvents.forEach(ev=>{
+    const list=byJob.get(ev.job_sync_id)||[];
+    list.push(ev);
+    byJob.set(ev.job_sync_id,list);
+  });
+  byJob.forEach(list=>list.sort((a,b)=>d(a.entered_at)-d(b.entered_at)));
+  return byJob;
+}
+
+function renderProduction(){
+  // Sold, same test "won" uses everywhere else on this page: ACCEPTED or
+  // COMPLETED. A DRAFT or SENT job is quote work, not production -- the
+  // server refuses to start production on one anyway, so the board does not
+  // offer it a stage either.
+  const soldJobs = jobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED');
+  const byJobEvents = stageEventsByJob();
+  const nowMs = Date.now();
+
+  const cols=[{key:null,label:'Not started'}, ...PROD_STAGES.map(s=>({key:s,label:prodStageLabel(s)}))];
+  $('prodBoard').innerHTML = cols.map(col=>{
+    const list = soldJobs.filter(j=>(j.production_stage||null)===col.key);
+    return `<div class="col"><h3><span>${esc(col.label)}</span><span style="color:var(--orange)">${list.length}</span></h3>
+      ${list.map(j=>{
+        const events = byJobEvents.get(j.sync_id)||[];
+        const last = events[events.length-1];
+        const since = last ? fmtDuration((nowMs - d(last.entered_at).getTime())/36e5) : null;
+        return `<div class="card" data-id="${j.id}">
+          <strong>${esc(j.customer_name)||'Untitled'}</strong>
+          <div style="color:var(--muted);font-size:12px">${esc(j.address)||''}</div>
+          ${since ? `<div style="color:var(--muted);font-size:11px;margin-top:3px">In this stage ${since}</div>` : ''}
+          <select class="prod-move" data-sid="${j.sync_id}" style="margin-top:6px;width:100%;font-size:12px" aria-label="Move ${esc(j.customer_name)||'this job'} to a different production stage">
+            ${PROD_STAGES.map(s=>`<option value="${s}"${s===col.key?' selected':''}>${prodStageLabel(s)}</option>`).join('')}
+          </select>
+        </div>`;
+      }).join('') || '<div style="color:var(--muted);font-size:12px">—</div>'}</div>`;
+  }).join('');
+
+  document.querySelectorAll('#prodBoard .card').forEach(c=>
+    c.addEventListener('click', e => { if(e.target.closest('select')) return; showJob(c.dataset.id); }));
+  document.querySelectorAll('#prodBoard select.prod-move').forEach(sel=>{
+    sel.addEventListener('click', e => e.stopPropagation());
+    sel.addEventListener('change', () => moveProductionStage(sel));
+  });
+
+  renderProdTimeTable(byJobEvents, soldJobs);
+}
+
+/** Calls set_production_stage. It returns false for a no-op move (already
+    on that stage) -- not an error, so nothing is shown for it beyond the
+    board settling back to where it was. It throws (surfaces as error.message
+    from PostgREST) for a job that is not sold yet, a stage name that does
+    not exist, or an account without permission to move it -- those messages
+    are written for a person to read, so they are shown exactly as sent
+    rather than replaced with something generic. */
+async function moveProductionStage(sel){
+  const sid = sel.dataset.sid;
+  const next = sel.value;
+  const job = jobs.find(j=>j.sync_id===sid);
+  sel.disabled = true;
+  const { data, error } = await db.rpc('set_production_stage',
+    { job_sid: sid, next_stage: next });
+  sel.disabled = false;
+  if (error) { msg('prodMsg', error.message, 'err'); renderProduction(); return; }
+  if (data === false) { renderProduction(); return; }
+  if (job) job.production_stage = next;
+  // The new job_stage_events row was written server-side, not here -- reread
+  // it rather than fabricate one, so "time in stage" keeps coming out of
+  // rows that actually exist.
+  const res = await loadStageEvents();
+  if (!res.error) stageEvents = res.data || [];
+  msg('prodMsg', `Moved to ${prodStageLabel(next)}.`, 'ok');
+  renderProduction();
+}
+
+/** "Where do jobs get stuck" -- the point of job_stage_events existing at
+    all. A stage's average is only shown once at least two jobs have actually
+    completed it; one data point is not an average, it is one job's number
+    wearing an average's clothes, so a single move says plainly that there is
+    not enough history yet rather than drawing that as if it meant something. */
+function renderProdTimeTable(byJobEvents, soldJobs){
+  const completed=[];
+  byJobEvents.forEach(list=>{
+    for(let i=0;i<list.length-1;i++){
+      completed.push({ stage:list[i].stage,
+        hours:(d(list[i+1].entered_at)-d(list[i].entered_at))/36e5 });
+    }
+  });
+  $('prodTimeNote').textContent = completed.length
+    ? 'How long a sold job has stayed in each stage before moving to the next one, from every recorded move so far.'
+    : 'No job has moved from one production stage to the next yet, so there is nothing to average yet -- this fills in as jobs move.';
+  $('prodTimeRows').innerHTML = PROD_STAGES.map(s=>{
+    const nowHere = soldJobs.filter(j=>j.production_stage===s).length;
+    const samples = completed.filter(c=>c.stage===s).map(c=>c.hours);
+    const avgText = samples.length < 2
+      ? 'Not enough history yet'
+      : `${fmtDuration(samples.reduce((a,b)=>a+b,0)/samples.length)} (from ${samples.length} moves)`;
+    return `<tr><td>${prodStageLabel(s)}</td><td>${nowHere}</td><td>${avgText}</td></tr>`;
+  }).join('');
 }
 
 /* ---------- crew ---------- */
@@ -6142,9 +6614,18 @@ function downloadCsv(name,header,rows){
     deleteJob/deleteEmp already leave it -- shown here, refused there, with
     the server's own words surfacing through msg() if it happens. */
 function tierRowHtml(t){
+  // A starter tier arrives with no rates on it. Showing that as $0.00 would
+  // read as a real decision to charge nothing for labour, which is the one
+  // thing this must never look like -- so it says what it is, and says it in
+  // the row rather than somewhere a person has to go and find.
+  const needs = tierNeedsRates(t);
   return `<tr>
-    <td>${esc(t.name)}</td>
-    <td>${money(t.labor_rate_per_ft)}</td>
+    <td>${esc(t.name)}${needs
+      ? ' <span class="pill" style="font-size:11px;color:var(--orange)"'
+        + ' title="No labour rate and no flat fee on this tier yet, so it cannot price a job. Edit it and put your own numbers in.">'
+        + 'needs your rates</span>'
+      : ''}</td>
+    <td>${needs ? '<span style="color:var(--muted)">not set</span>' : money(t.labor_rate_per_ft)}</td>
     <td>${(t.markup_percent||0)}%</td>
     <td>${(t.discount_percent||0)}%</td>
     <td style="white-space:nowrap">${canEdit() ? `
@@ -6182,22 +6663,43 @@ function renderTiers(){
   if($('sw_tier_starter')) $('sw_tier_starter').style.display = (tiers.length || !canEdit()) ? 'none' : '';
 }
 
-/** "Add starter tiers": five sensible tiers, in the Good/Better/Best
-    convention stretched to cover a repair call and a commercial bid too.
-    Built off the company's OWN current labour rate and markup (0 if neither
-    is set yet) rather than a plan-wide number -- two companies on the same
-    plan charge two different amounts for the same fence, and a starter tier
-    that ignored that would be a worse guess than an empty one. Pure, so
-    tests/settings-wizard.test.mjs exercises it directly. */
-function starterTierRows(baseLaborRate, baseMarkup){
-  const labor = baseLaborRate || 0, markup = baseMarkup || 0;
+/** The five tiers a new company starts with: names and order, no rates.
+ *
+ *  This used to derive each tier from the company's own labour rate and
+ *  markup, which sounds harmless and was not. "Better" got markup plus five,
+ *  "Best" plus ten, "Commercial" a five percent discount, and the rates were
+ *  multiplied by 1.1 and 1.2 -- numbers nobody at the company had ever agreed
+ *  to. Worse, the wizard can reach this BEFORE the owner has set a labour rate
+ *  at all, in which case the base was zero and those additions were the whole
+ *  figure: a tier quoting labour at nothing with a markup somebody invented.
+ *
+ *  March's decision, 10 September: the structure is worth having so a new
+ *  owner can see how tiers work. The numbers have to be theirs. So every rate
+ *  starts at zero and `tierNeedsRates` below is what stops a zero being
+ *  mistaken for a price.
+ *
+ *  The parameters are kept so callers do not have to change, and deliberately
+ *  ignored. */
+function starterTierRows(){
   return [
-    { name:'Repair / small job', labor_rate_per_ft: labor,          markup_percent: markup,       discount_percent: 0, sort_order: 0 },
-    { name:'Good',               labor_rate_per_ft: labor,          markup_percent: markup,       discount_percent: 0, sort_order: 1 },
-    { name:'Better',             labor_rate_per_ft: labor * 1.1,    markup_percent: markup + 5,    discount_percent: 0, sort_order: 2 },
-    { name:'Best',               labor_rate_per_ft: labor * 1.2,    markup_percent: markup + 10,   discount_percent: 0, sort_order: 3 },
-    { name:'Commercial / bid',   labor_rate_per_ft: labor,          markup_percent: markup,       discount_percent: 5, sort_order: 4 },
+    { name:'Repair / small job', labor_rate_per_ft: 0, markup_percent: 0, discount_percent: 0, sort_order: 0 },
+    { name:'Good',               labor_rate_per_ft: 0, markup_percent: 0, discount_percent: 0, sort_order: 1 },
+    { name:'Better',             labor_rate_per_ft: 0, markup_percent: 0, discount_percent: 0, sort_order: 2 },
+    { name:'Best',               labor_rate_per_ft: 0, markup_percent: 0, discount_percent: 0, sort_order: 3 },
+    { name:'Commercial / bid',   labor_rate_per_ft: 0, markup_percent: 0, discount_percent: 0, sort_order: 4 },
   ];
+}
+
+/** A tier nobody has priced yet.
+ *
+ *  Derived rather than stored, on purpose. A stored flag is one more thing to
+ *  keep in step across the phone, the office and the server, and it would go
+ *  stale the first time somebody edited a rate anywhere that forgot to clear
+ *  it. Zero per foot AND zero flat fee means no labour charge at all, which is
+ *  not a price anybody quotes -- it is a tier that has not been filled in. The
+ *  moment a real number is typed, this stops being true by itself. */
+function tierNeedsRates(t){
+  return Number(t?.labor_rate_per_ft || 0) === 0 && Number(t?.labor_flat_fee || 0) === 0;
 }
 
 /** One pricing_tiers row from the dialog's fields. existing is the tier
@@ -6299,7 +6801,7 @@ async function addStarterTiers(){
   const { data } = await db.from('company_settings').select('settings')
     .eq('company_id', profile.company_id).maybeSingle();
   const s = data?.settings || {};
-  const rows = starterTierRows(num(s.labor_rate), num(s.markup));
+  const rows = starterTierRows();
   const payload = rows.map(r => ({ ...r, sync_id: crypto.randomUUID(), company_id: profile.company_id }));
   const { error } = await db.from('pricing_tiers').insert(payload);
   // Reachable from the Settings panel directly, or from inside the setup
@@ -10296,7 +10798,7 @@ function hasAdvancedReports(){
 
 function applyPlanGates(){
   const solo = planName === 'solo';
-  ['pipe','crew','time','reports'].forEach(t=>{
+  ['pipe','prod','crew','time','reports','automation'].forEach(t=>{
     const b=document.querySelector(`.tab[data-tab="${t}"]`);
     if(b) b.style.display = solo ? 'none' : '';
   });
@@ -10315,7 +10817,7 @@ function switchTab(name){
   const btn = document.querySelector(`.tab[data-tab="${name}"]`);
   if (btn && btn.style.display === 'none') name = 'dash';
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
-  ['dash','jobs','cal','pipe','crew','time','catalog','reports','settings','billing']
+  ['dash','jobs','cal','pipe','prod','crew','time','catalog','reports','automation','settings','billing']
     .forEach(n=>$('tab-'+n).style.display=(n===name)?'block':'none');
 }
 document.querySelectorAll('.tab').forEach(t=>
@@ -10353,6 +10855,7 @@ $('authSignOutLink').addEventListener('click',async e=>{
   location.reload();
 });
 $('refresh').addEventListener('click',loadAll);
+$('automationRunNow').addEventListener('click', () => evaluateAutomationRules(false));
 $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'));
 $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'));
 $('saveJob').addEventListener('click',saveJob);

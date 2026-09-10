@@ -45,10 +45,11 @@ Deno.serve(async (req) => {
 
   const { data: job } = await admin
     .from("jobs")
-    .select("id, sync_id, company_id, customer_name, address, status, deleted_at, " +
+    .select("id, sync_id, company_id, customer_name, address, phone, status, deleted_at, " +
       "contract_total, deposit_amount, amount_paid, refunded_amount, " +
       "tax_rate_percent, discount_percent, " +
-      "quote_viewed_at, quote_approved_at, quote_approved_name, calibration_pixels_per_foot")
+      "quote_viewed_at, quote_approved_at, quote_approved_name, calibration_pixels_per_foot, " +
+      "quote_phone_attempts, quote_phone_locked_until")
     .eq("quote_token", token)
     .maybeSingle();
   if (!job || job.deleted_at) return json({ error: "That quote is no longer available." }, 404);
@@ -73,10 +74,76 @@ Deno.serve(async (req) => {
     // First signature wins. A second approval must not overwrite whose name
     // is on the record.
     const justApproved = !job.quote_approved_at;
+
+    // -------------------------------------------------- phone gate --------
+    // A forwarded link lets anyone who has it -- a neighbour, a spouse who
+    // was never the buyer, whoever the customer sent it to for an opinion --
+    // sign for thousands of dollars. Only the approval step is gated; the
+    // quote stays exactly as readable as it always was.
+    //
+    // The digits never reach the browser and the comparison never happens
+    // there: the page holds nothing that decides the answer, so a client
+    // patched to always say "match" still gets refused here.
+    const phoneDigits = String(job.phone ?? "").replace(/\D/g, "");
+    const hasPhone = phoneDigits.length >= 4;
+    let approvedWithoutPhoneCheck = false;
+    if (justApproved) {
+      if (hasPhone) {
+        const now = Date.now();
+        const lockedUntilMs = job.quote_phone_locked_until
+          ? Date.parse(job.quote_phone_locked_until)
+          : 0;
+        if (lockedUntilMs > now) {
+          // Same shape of response as a wrong guess -- a lockout must not
+          // read as a different, more informative kind of failure.
+          return json({ error: "Too many attempts. Try again in a few minutes." }, 429);
+        }
+
+        const submitted = String(body?.phone4 ?? "").replace(/\D/g, "");
+        const last4 = phoneDigits.slice(-4);
+        if (submitted.length !== 4 || submitted !== last4) {
+          const MAX_ATTEMPTS = 5;
+          const attempts = (Number(job.quote_phone_attempts) || 0) + 1;
+          const update: Record<string, unknown> = { quote_phone_attempts: attempts };
+          if (attempts >= MAX_ATTEMPTS) {
+            update.quote_phone_locked_until = new Date(now + 15 * 60 * 1000).toISOString();
+            update.quote_phone_attempts = 0;
+          }
+          await admin.from("jobs").update(update).eq("id", job.id);
+          // One sentence for "wrong digits", "no phone on file" (this branch
+          // is never reached when there isn't one) and "quote not found"
+          // (handled earlier, above). None of them may be told apart by
+          // wording, or the wording itself becomes a way to learn the phone
+          // number four attempts at a time.
+          return json({ error: "Those last four digits don't match our records." }, 400);
+        }
+        // Right answer: a stranger's earlier near-misses on this same job
+        // must not carry forward and count against the person who just got
+        // it right.
+        if (job.quote_phone_attempts || job.quote_phone_locked_until) {
+          await admin.from("jobs")
+            .update({ quote_phone_attempts: 0, quote_phone_locked_until: null })
+            .eq("id", job.id);
+        }
+      } else {
+        // DECISION: a job with no phone on it cannot be gated by a phone
+        // digit nobody collected. Refusing every such quote would strand a
+        // real customer over a field their contractor forgot to fill in;
+        // approving with no check at all -- silently -- is the exact bug
+        // this feature exists to close, just moved one field over. So this
+        // approval is allowed to go through unchecked, but that fact is
+        // written to the row rather than left implicit, so a look at the
+        // job afterwards shows the gate did not run instead of assuming it
+        // did.
+        approvedWithoutPhoneCheck = true;
+      }
+    }
+
     if (justApproved) {
       await admin.from("jobs").update({
         quote_approved_at: new Date().toISOString(),
         quote_approved_name: name,
+        ...(approvedWithoutPhoneCheck ? { quote_approved_without_phone_check: true } : {}),
         // Approval is acceptance. DRAFT/SENT move forward; anything already
         // further along (deposit paid, completed) is left exactly where it is.
         ...(["DRAFT", "SENT"].includes(job.status) ? { status: "ACCEPTED" } : {}),
@@ -242,6 +309,11 @@ Deno.serve(async (req) => {
     depositDue: money.due,
     depositPayable: money.payable,
     approvedAt: job.quote_approved_at,
+    // Whether the approve step needs to ask for the last four digits of the
+    // job's phone number. A boolean saying a phone is on file is not the
+    // phone number -- this is the one fact about it the page is allowed to
+    // hold, and it is not enough to guess the digits from.
+    phoneGateRequired: String(job.phone ?? "").replace(/\D/g, "").length >= 4,
     // The survey canvas draws on a 20px/ft grid unless the job was calibrated
     // against a known measurement; the 3D view must use the same number or
     // the fence is built at the wrong size entirely.

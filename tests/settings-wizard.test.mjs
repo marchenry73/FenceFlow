@@ -132,20 +132,27 @@ eq('whitespace-only counts as blank too',
 eq('fence_type is always forced to VINYL regardless of what existing/fallback carry',
   M.vinylDefaultTemplatePayload(null, shippedVinyl, { spacing:'6', pw:'', ph:'', bags:'' }).fence_type, 'VINYL');
 
-/* ---------- starterTierRows: the "Add starter tiers" preset ---------- */
+/* ---------- starterTierRows: the "Add starter tiers" preset ----------
+   These used to be derived from the company's own labour rate and markup,
+   with "Better" getting markup plus five and "Best" plus ten. Nobody at the
+   company had agreed to those additions, and the wizard can reach this before
+   a labour rate exists at all -- in which case the invented part WAS the whole
+   figure. March's decision on 10 September: names and order, no numbers.
+   These checks now guard that emptiness, because a helpful default creeping
+   back in is exactly how an unverified number reaches a customer. */
 
 {
-  const rows = M.starterTierRows(10, 20);
-  eq('five tiers, in the Good/Better/Best convention', rows.map(r=>r.name),
-    ['Repair / small job','Good','Better','Best','Commercial / bid']);
-  eq('Good matches the company\'s own current rate/markup exactly', [rows[1].labor_rate_per_ft, rows[1].markup_percent], [10, 20]);
-  eq('Better and Best step up from there, never down', rows[2].markup_percent > rows[1].markup_percent
-    && rows[3].markup_percent > rows[2].markup_percent, true);
-  eq('sort_order is 0..4 in the order shown', rows.map(r=>r.sort_order), [0,1,2,3,4]);
-  eq('nobody gets a starter discount except the commercial/bid row', rows.filter(r=>r.discount_percent>0).map(r=>r.name), ['Commercial / bid']);
+  const rows = M.starterTierRows();
+  eq("five tiers, in the Good/Better/Best convention", rows.map(r=>r.name),
+    ["Repair / small job","Good","Better","Best","Commercial / bid"]);
+  eq("every rate starts at zero, so nothing is priced on a number nobody chose",
+    rows.every(r => r.labor_rate_per_ft === 0 && r.markup_percent === 0 && r.discount_percent === 0), true);
+  eq("sort_order is 0..4 in the order shown", rows.map(r=>r.sort_order), [0,1,2,3,4]);
+  eq("arguments are ignored, so an old caller cannot smuggle a rate back in",
+    JSON.stringify(M.starterTierRows(10, 20)) === JSON.stringify(M.starterTierRows()), true);
 }
-eq('no rate/markup set yet (new company): every number is 0, not NaN',
-  M.starterTierRows(undefined, undefined).every(r => Number.isFinite(r.labor_rate_per_ft) && Number.isFinite(r.markup_percent)), true);
+eq("every number is a real zero, not NaN or undefined",
+  M.starterTierRows().every(r => Number.isFinite(r.labor_rate_per_ft) && Number.isFinite(r.markup_percent)), true);
 
 /* ---------- tierFormPayload: existing keeps its identity, new gets the fresh one ---------- */
 

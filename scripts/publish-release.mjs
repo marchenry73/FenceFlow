@@ -23,7 +23,7 @@
  * own login rather than a key stored anywhere.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { writeFileSync, rmSync, existsSync, readdirSync } from "node:fs";
+import { writeFileSync, rmSync, existsSync, readdirSync, copyFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -165,6 +165,39 @@ function stampedVersion() {
  * APK is not a secret: it is the app, and anybody with it installed already
  * has a copy. No company's jobs, customers or money live in that bucket.
  */
+/**
+ * A copy on the machine, beside every other project's builds.
+ *
+ * FenceFlow ships over the air, so this is NOT the distribution path -- phones
+ * update from the release row, which points at the file just uploaded. This is
+ * the spare: the shared APK folder is where every project on this machine keeps
+ * a build that can be sideloaded when something is wrong with the hosted one.
+ *
+ * Deliberately last, deliberately quiet, and deliberately unable to fail the
+ * publish. The drive is a mounted Google Drive folder, so it can be missing,
+ * syncing, or read-only, and none of that is a reason to refuse a release that
+ * has already reached every phone.
+ */
+function keepASpareCopy(remote, stamp) {
+  // Forward slashes on purpose. Node takes them on Windows, and a backslash
+  // here is one more place for an escape to be eaten -- which is exactly what
+  // happened on the first attempt: the path collapsed to "G:My DriveAPK Builds"
+  // and existsSync quietly said no, so the copy would have been skipped for
+  // ever without a word.
+  const folder = "G:/My Drive/APK Builds";
+  try {
+    if (!existsSync(folder)) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const name = `fenceflow-${day}-${stamp}.apk`;
+    const target = join(folder, name);
+    if (existsSync(target)) return;
+    copyFileSync(apk, target);
+    console.log(`  spare copy      ${target}`);
+  } catch (e) {
+    console.log("  (no spare copy: " + String(e.message).slice(0, 80) + ")");
+  }
+}
+
 function uploadApk(code) {
   if (!existsSync(apk)) {
     console.warn("No built APK found. Run assembleDebug first, or pass --url.\n");
@@ -207,6 +240,7 @@ function uploadApk(code) {
     // and phones on 1.134-1.136 crash the moment the updater can render a
     // progress percentage. The proxy serves the same bucket file byte-for-byte;
     // newer builds lose only the progress number.
+    keepASpareCopy(remote, stamp);
     return `https://${PROJECT_REF}.supabase.co/functions/v1/apk-proxy?f=${remote}`;
   } catch (e) {
     // The CLI's own message, not just "command failed" -- which says nothing

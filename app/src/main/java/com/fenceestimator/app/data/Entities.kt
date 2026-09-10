@@ -149,6 +149,19 @@ data class Job(
     val status: JobStatus = JobStatus.DRAFT,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * Where a SOLD job sits between approval and invoice, in the owner's own
+     * words: "Materials, dig, set, build, punch, done." One of MATERIALS,
+     * DIG, SET, BUILD, PUNCH, DONE, or null before production has started --
+     * a quote is not "waiting on materials".
+     *
+     * The phone never writes this column itself. `set_production_stage` on
+     * the server is the only door; this field only ever holds what that RPC
+     * just confirmed, or what a later pull brought down. See
+     * [com.fenceestimator.app.estimate.ProductionStage] and
+     * CrewJobViewModel.moveStage.
+     */
+    val productionStage: String? = null,
 
     // Survey + calibration (shared across all fence runs on this property)
     val surveyImagePath: String? = null,

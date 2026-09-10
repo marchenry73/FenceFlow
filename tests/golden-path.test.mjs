@@ -123,8 +123,35 @@ async function main() {
   // ---------------------------------------------------------- step 3 ---
   console.log("\n3. Approving works and the name is recorded:");
   const firstName = `${MARK} First Approver`;
-  const approveRes = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`, {
+
+  // The last four digits of the phone on the test job. Approving needs them
+  // now: holding the link is no longer enough, because a forwarded link let
+  // anyone commit to the job. The check runs on the server and the digits are
+  // never sent to the page.
+  const PHONE4 = "0111";
+
+  // The canary. Without this, every assertion below could pass against a gate
+  // that had quietly stopped gating -- which is exactly what a wrong phone4
+  // would look like from here.
+  const noDigits = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`, {
     method: "POST", headers: h, body: JSON.stringify({ action: "approve", name: firstName }),
+  });
+  await noDigits.json().catch(() => ({}));
+  const afterNoDigits = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`).then(r => r.json());
+  ok("approving with no phone digits is refused", !noDigits.ok, `http ${noDigits.status}`);
+  ok("and it recorded nobody", !recordedName(afterNoDigits),
+     `recorded name was ${JSON.stringify(recordedName(afterNoDigits))}`);
+
+  const wrongDigits = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`, {
+    method: "POST", headers: h,
+    body: JSON.stringify({ action: "approve", name: firstName, phone4: "9999" }),
+  });
+  await wrongDigits.json().catch(() => ({}));
+  ok("approving with the wrong digits is refused", !wrongDigits.ok, `http ${wrongDigits.status}`);
+
+  const approveRes = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`, {
+    method: "POST", headers: h,
+    body: JSON.stringify({ action: "approve", name: firstName, phone4: PHONE4 }),
   });
   const approveBody = await approveRes.json().catch(() => ({}));
   ok("approve is accepted", approveRes.ok, `http ${approveRes.status}: ${JSON.stringify(approveBody)}`);
@@ -137,7 +164,8 @@ async function main() {
   console.log("\n4. First signature wins:");
   const secondName = `${MARK} Second Approver`;
   const secondRes = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`, {
-    method: "POST", headers: h, body: JSON.stringify({ action: "approve", name: secondName }),
+    method: "POST", headers: h,
+    body: JSON.stringify({ action: "approve", name: secondName, phone4: PHONE4 }),
   });
   await secondRes.json().catch(() => ({}));
 
@@ -149,7 +177,8 @@ async function main() {
   // ---------------------------------------------------------- step 5 ---
   console.log("\n5. Input is refused properly:");
   const oneChar = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`, {
-    method: "POST", headers: h, body: JSON.stringify({ action: "approve", name: "X" }),
+    method: "POST", headers: h,
+    body: JSON.stringify({ action: "approve", name: "X", phone4: PHONE4 }),
   });
   const oneCharBody = await oneChar.json().catch(() => ({}));
   ok("a one-character name is refused", !oneChar.ok || typeof oneCharBody.error === "string",

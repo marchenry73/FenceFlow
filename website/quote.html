@@ -183,6 +183,11 @@ const L = {
     genericError: 'Something went wrong. Please try again in a moment.',
     approvalError: 'Could not record the approval.',
     paymentPageError: 'Could not open the payment page.',
+    phoneLast4Label: 'Last 4 digits of your phone number on file',
+    phoneLast4Placeholder: '1234',
+    phoneLast4Missing: 'Enter the last 4 digits of your phone number.',
+    phoneLast4Wrong: 'Those digits don’t match what we have on file. Check the number and try again — this isn’t a system error.',
+    phoneLast4Locked: 'Too many attempts. Please wait a few minutes and try again.',
   },
   es: {
     loading: 'Abriendo su presupuesto…',
@@ -225,6 +230,11 @@ const L = {
     genericError: 'Algo salió mal. Inténtelo de nuevo en un momento.',
     approvalError: 'No se pudo registrar la aprobación.',
     paymentPageError: 'No se pudo abrir la página de pago.',
+    phoneLast4Label: 'Últimos 4 dígitos del teléfono registrado',
+    phoneLast4Placeholder: '1234',
+    phoneLast4Missing: 'Escriba los últimos 4 dígitos de su teléfono.',
+    phoneLast4Wrong: 'Esos dígitos no coinciden con lo que tenemos registrado. Revise el número e inténtelo de nuevo — esto no es un error del sistema.',
+    phoneLast4Locked: 'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.',
   },
   fr: {
     loading: 'Ouverture de votre devis…',
@@ -267,6 +277,11 @@ const L = {
     genericError: 'Une erreur est survenue. Merci de réessayer dans un instant.',
     approvalError: 'Impossible d’enregistrer la validation.',
     paymentPageError: 'Impossible d’ouvrir la page de paiement.',
+    phoneLast4Label: '4 derniers chiffres du téléphone enregistré',
+    phoneLast4Placeholder: '1234',
+    phoneLast4Missing: 'Saisissez les 4 derniers chiffres de votre téléphone.',
+    phoneLast4Wrong: 'Ces chiffres ne correspondent pas à ce que nous avons enregistré. Vérifiez le numéro et réessayez — ce n’est pas une erreur du système.',
+    phoneLast4Locked: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
   },
 };
 
@@ -363,6 +378,12 @@ function setLang(code) {
       <p style="font-size:14px;color:#AEBBCC" id="approveLead" data-t="leadPlain">Type your name and press approve &mdash; that tells
         us to put you on the schedule. You&rsquo;ll get a copy of everything.</p>
       <input id="signName" placeholder="Your full name" data-t="namePlaceholder" autocomplete="name">
+      <div id="phoneGateRow" style="display:none">
+        <label for="phoneLast4" style="display:block;font-size:12.5px;color:#AEBBCC;margin:10px 0 4px" data-t="phoneLast4Label">Last 4 digits of your phone number on file</label>
+        <input id="phoneLast4" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+               placeholder="1234" data-t="phoneLast4Placeholder" autocomplete="off"
+               style="max-width:110px;letter-spacing:.12em">
+      </div>
       <button class="btn" id="approveBtn" data-t="approve">Approve this quote</button>
       <button class="btn quiet" id="approveOnlyBtn" style="display:none" data-t="approveOnly">Approve without paying now</button>
       <div class="err" id="approveErr"></div>
@@ -478,6 +499,9 @@ function render(){
     if(dueNow()) showPayButton();
   } else {
     $('approveBox').style.display='';
+    // The last-4 field only appears when the server says a phone is on file
+    // to check against -- never a guess made on the page.
+    $('phoneGateRow').style.display=q.phoneGateRequired?'':'none';
     if(dueNow()){
       // One press. Saying yes and paying the deposit are the same decision,
       // and splitting them into two buttons meant a homeowner approved, saw
@@ -562,13 +586,27 @@ async function doApprove(thenPay){
   const name=$('signName').value.trim();
   const err=$('approveErr'); err.style.display='none';
   if(name.length<2){ err.textContent=tr('typeName'); err.style.display='block'; return; }
+  // Asked for only on the approve step, and only when the server told us a
+  // phone is on file to check it against. The digits typed here are never
+  // compared on the page -- they are only ever sent for the server to judge.
+  const phone4=$('phoneLast4').value.replace(/\D/g,'');
+  if(quote && quote.phoneGateRequired && phone4.length!==4){
+    err.textContent=tr('phoneLast4Missing'); err.style.display='block'; return;
+  }
   $('approveBtn').disabled=true; $('approveOnlyBtn').disabled=true;
   try{
     const r=await fetch(API+'/quote-view?t='+encodeURIComponent(token),{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'approve',name})});
+      body:JSON.stringify({action:'approve',name,phone4})});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(j.error||tr('approvalError'));
+    if(!r.ok){
+      // The server's own wording already refuses to say whether the digits
+      // were wrong, there was no phone on file, or the quote didn't exist --
+      // that's the point, and this page repeats it verbatim rather than
+      // re-deciding what the homeowner gets told. A 429 is the one case
+      // worth its own line since it isn't about the digits at all.
+      throw new Error(r.status===429 ? tr('phoneLast4Locked') : (j.error||tr('approvalError')));
+    }
     markApproved(j.approvedBy||name);
   }catch(e){
     err.textContent=friendly(e); err.style.display='block';

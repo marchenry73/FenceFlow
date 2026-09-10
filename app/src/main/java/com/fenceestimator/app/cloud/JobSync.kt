@@ -29,6 +29,13 @@ data class CloudJob(
     val email: String = "",
     val notes: String = "",
     val status: String = "DRAFT",
+    /**
+     * MATERIALS | DIG | SET | BUILD | PUNCH | DONE, or null before production
+     * starts. Never sent by the phone -- see the comment on [Job.toCloud]'s
+     * omission of this field. `set_production_stage` is the only writer;
+     * this class only ever decodes what it or a plain pull already put here.
+     */
+    @SerialName("production_stage") val productionStage: String? = null,
     @SerialName("referral_source") val referralSource: String = "",
     @SerialName("scheduled_date") val scheduledDate: String? = null,
     @SerialName("estimated_duration_hours") val estimatedDurationHours: Double = 4.0,
@@ -747,6 +754,15 @@ object JobSync {
                     )
                     downloaded++
                     incoming += IncomingChange(local.id, cloudJob.customerName, ChangeKind.PAYMENT_RECEIVED)
+                } else if (cloudJob.productionStage != local.productionStage) {
+                    // set_production_stage is a quiet clock, the same shape as
+                    // the payment ledger above: a crew phone moving a job to
+                    // DIG must not have to wait for some unrelated field edit
+                    // to bump updated_at before every OTHER phone (and the
+                    // office) finds out where the job actually is.
+                    repository.updateJobFromCloud(local.copy(productionStage = cloudJob.productionStage))
+                    downloaded++
+                    incoming += IncomingChange(local.id, cloudJob.customerName, ChangeKind.UPDATED)
                 } else if (cloudJob.updatedAtMillis() > local.updatedAt) {
                     val wasComplete = local.status == JobStatus.ACCEPTED
                     val nowComplete = cloudJob.status == JobStatus.ACCEPTED.name
@@ -864,9 +880,14 @@ private fun Job.toCloud(
     // buildTemplateSyncId is a real edit (LOUD server-side), so it travels
     // like every other field above: whichever side is newer wins.
     //
-    // priced_by / priced_at / pricing_engine_version / quote_sent_at are
-    // deliberately NOT wired in here -- they stay at CloudJob's defaults on
-    // this object. Those four are quiet-clock bookkeeping the OFFICE writes;
+    // priced_by / priced_at / pricing_engine_version / quote_sent_at /
+    // production_stage are deliberately NOT wired in here -- they stay at
+    // CloudJob's defaults on this object. `explicitNulls = false` (SyncJson)
+    // means a field left at its null default is dropped from the payload
+    // entirely rather than sent as an explicit null, so leaving
+    // production_stage off here is what keeps crew_save_job's dynamic UPDATE
+    // from touching that column at all. Those are quiet-clock bookkeeping the
+    // OFFICE (or, for production_stage, the set_production_stage RPC) writes;
     // this function backs every ordinary row push (a phone number, a note,
     // a new job), and if it sent this phone's cached copy of them, an
     // unrelated edit would stamp blank/APP-shaped values over a real office
@@ -999,6 +1020,12 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     pricedAt = CloudTime.parseMillis(pricedAt) ?: local.pricedAt,
     pricingEngineVersion = pricingEngineVersion.ifBlank { local.pricingEngineVersion },
     quoteSentAt = CloudTime.parseMillis(quoteSentAt) ?: local.quoteSentAt,
+    // The server is the only writer of a real value here, so take it as-is --
+    // same as the amountPaid bypass branch in JobSync.sync(), this is a quiet
+    // clock the RPC can move without bumping updated_at, so a merge that only
+    // ran because some OTHER field changed must still carry the current
+    // stage down rather than leaving the phone on whatever it had cached.
+    productionStage = productionStage,
     updatedAt = updatedAtMillis()
 )
 
@@ -1010,6 +1037,7 @@ private fun CloudJob.toLocalJob() = Job(
     email = email,
     notes = notes,
     status = runCatching { JobStatus.valueOf(status) }.getOrDefault(JobStatus.DRAFT),
+    productionStage = productionStage,
     referralSource = referralSource,
     scheduledDate = CloudTime.parseMillis(scheduledDate),
     estimatedDurationHours = estimatedDurationHours,

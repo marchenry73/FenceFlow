@@ -66,9 +66,30 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f-]{36}$/.test(tok)) return json({ error: "That link is not valid." }, 400);
       const { data: qjob } = await admin
         .from("jobs")
-        .select("sync_id, company_id, customer_name, deposit_amount, contract_total, amount_paid, refunded_amount, deleted_at")
+        .select("sync_id, company_id, customer_name, deposit_amount, contract_total, amount_paid, refunded_amount, deleted_at, quote_approved_at")
         .eq("quote_token", tok).maybeSingle();
       if (!qjob || qjob.deleted_at) return json({ error: "That quote is no longer available." }, 404);
+
+      // Paying is a commitment, so it goes behind the same door as approving.
+      //
+      // Approving now asks for the last four digits of the phone on the job,
+      // because a forwarded link let anyone commit to thousands of dollars.
+      // This door never checked anything of the kind: it took a token and
+      // handed back a live checkout page. The page happens to approve first,
+      // but that ordering lived only in the page's own JavaScript -- a request
+      // sent straight to this function skipped it entirely, and produced a
+      // real payment link for a job nobody had agreed to buy.
+      //
+      // Requiring the approval stamp closes it without a second copy of the
+      // phone check: nothing can be approved without passing that, so nothing
+      // can be paid without having passed it either.
+      //
+      // Same wording as an unavailable quote, deliberately. A stranger
+      // probing tokens learns nothing from the difference between "no such
+      // quote" and "that one has not been approved yet".
+      if (!qjob.quote_approved_at) {
+        return json({ error: "That quote is no longer available." }, 404);
+      }
 
       const kindWanted = body.kind === "balance" ? "balance" : "deposit";
       // What is actually still owed, for either button.

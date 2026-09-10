@@ -1,0 +1,73 @@
+-- The crew read jobs through this view, not the table -- that is the whole
+-- point of the money lockdown. So a column the crew must see has to be added
+-- here too, or the build board is empty on every crew phone and looks like
+-- the feature simply does not work.
+--
+-- The view is recreated from its own live definition with ONE column added.
+-- production_stage is a stage name, not money, so it belongs on the crew side.
+create or replace view public.jobs_crew as
+SELECT id,
+    company_id,
+    customer_id,
+    local_id,
+    customer_name,
+    address,
+    phone,
+    email,
+    notes,
+    status,
+    referral_source,
+    scheduled_date,
+    estimated_duration_hours,
+    assigned_employee_id,
+    teardown_enabled,
+    hoa_name,
+    hoa_email,
+    hoa_approval_status,
+    permit_number,
+    permit_status,
+    signed_at,
+    updated_at,
+    created_at,
+    sync_id,
+    waste_percent,
+    blocked_reason,
+    customer_must_clear,
+    duration_manually_set,
+    survey_storage_path,
+    signature_storage_path,
+    signed_linear_feet,
+    final_sign_off_storage_path,
+    final_sign_off_at,
+    deleted_at,
+    deleted_by,
+    material_prices_confirmed_at,
+    grid_extent_ft,
+    locate_ticket_no,
+    locate_called_at,
+    locate_dig_after,
+    locate_expires_at,
+    locate_notes,
+    overrun_reason,
+    teardown_feet,
+    assigned_employee_sync_id,
+    grid_feet_per_square,
+    calibration_pixels_per_foot,
+    calibration_known_feet,
+    blocked_at,
+    customer_notified_at,
+    preferred_manufacturer_sync_id,
+    quote_approved_at,
+    quote_approved_name,
+    site_lat,
+    site_lon,
+    build_template_sync_id,
+    wizard_step,
+    priced_by,
+    priced_at,
+    pricing_engine_version,
+       production_stage
+     FROM jobs
+  WHERE company_id = current_company_id() AND NOT company_is_suspended();;
+
+select 'crew view carries the build stage' as done;

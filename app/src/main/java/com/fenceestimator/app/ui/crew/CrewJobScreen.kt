@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -388,6 +389,16 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             }
 
             item {
+                val online by app.connectivity.online.collectAsState()
+                JobStageCard(
+                    stage = currentJob.productionStage,
+                    online = online,
+                    onAdvance = { next -> viewModel.moveStage(next, online) },
+                    onRevert = { prev -> viewModel.moveStage(prev, online) }
+                )
+            }
+
+            item {
                 StepSection(
                     title = stringResource(R.string.crew_walkthrough),
                     subtitle = stringResource(R.string.misc_crew_walkthrough_subtitle),
@@ -538,6 +549,72 @@ private fun TimeClockCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+/** The label a crew member reads for one server-side stage name, or "not started" for null. */
+@Composable
+private fun stageLabel(stage: String?): String = when (stage) {
+    "MATERIALS" -> stringResource(R.string.crew_stage_materials)
+    "DIG" -> stringResource(R.string.crew_stage_dig)
+    "SET" -> stringResource(R.string.crew_stage_set)
+    "BUILD" -> stringResource(R.string.crew_stage_build)
+    "PUNCH" -> stringResource(R.string.crew_stage_punch)
+    "DONE" -> stringResource(R.string.crew_stage_done)
+    else -> stringResource(R.string.crew_stage_not_started)
+}
+
+/**
+ * Where the job is in the yard-to-invoice pipeline, and the one obvious way
+ * to move it on.
+ *
+ * Forward is a full-width [Button] -- the common case, meant to be hit
+ * without looking twice. Back is a plain [TextButton], deliberately the
+ * smaller target: work gets undone (a post fails inspection) so reversing a
+ * stage has to stay possible, but nobody should manage it by accident with a
+ * work glove on.
+ */
+@Composable
+private fun JobStageCard(
+    stage: String?,
+    online: Boolean,
+    onAdvance: (String) -> Unit,
+    onRevert: (String) -> Unit
+) {
+    val next = com.fenceestimator.app.estimate.ProductionStage.next(stage)
+    val previous = com.fenceestimator.app.estimate.ProductionStage.previous(stage)
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            Text(stringResource(R.string.crew_stage_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.crew_stage_current, stageLabel(stage)),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold
+            )
+            if (!online) {
+                Text(
+                    stringResource(R.string.crew_stage_offline_notice),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            if (next != null) {
+                Button(onClick = { onAdvance(next) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.crew_stage_advance_to, stageLabel(next)))
+                }
+            } else {
+                Text(
+                    stringResource(R.string.crew_stage_pipeline_done),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (previous != null) {
+                TextButton(onClick = { onRevert(previous) }, modifier = Modifier.align(Alignment.End)) {
+                    Text(stringResource(R.string.crew_stage_revert_to, stageLabel(previous)))
+                }
             }
         }
     }
