@@ -74,6 +74,9 @@ if (!notes) {
   const gates = [
     ["pricing parity", [join(REPO_ROOT, "scripts", "check-parity.mjs")]],
     ["web pages", [join(REPO_ROOT, "tests", "dashboard-syntax.test.mjs")]],
+    // Against the live system, not the source: what anonymous callers can read,
+    // what a quote link gives away, and whether a forged payment lands.
+    ["security", [join(REPO_ROOT, "tests", "security-smoke.test.mjs")]],
   ];
   for (const [name, argv] of gates) {
     const gate = spawnSync(process.execPath, argv, { cwd: REPO_ROOT, stdio: "inherit" });
