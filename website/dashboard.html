@@ -844,7 +844,7 @@
             <table>
               <thead><tr>
                 <th>Job</th><th>Quoted</th><th>Collected</th><th>Costs</th>
-                <th>Profit</th><th>Margin</th><th>Cash</th><th>Hours</th>
+                <th>Profit</th><th>Margin</th><th>Cash</th><th>Hours</th><th>Labour vs priced</th>
               </tr></thead>
               <tbody id="costingRows"></tbody>
             </table>
@@ -4695,6 +4695,36 @@ function renderCycles(){
     'salesperson. A job has a crew member assigned but nobody marked as having sold it.';
 }
 
+/* What the labour was priced at against what it has cost so far.
+
+   This is the number that tells a fence company whether it is pricing right,
+   and it is the one nobody can compute by hand: the estimate lives on the job
+   as a rate per foot, the actual lives in a pile of shifts.
+
+   Deliberately silent rather than green when there is nothing to compare. A
+   job that has cost nothing has not come in under budget; it has not been
+   costed. Saying "saved 9,572" there would be a lie the size of the labour
+   bill. */
+function labourVsQuoted(r){
+  const j = jobs.find(x => x.sync_id === r.job_sync_id);
+  if (!j) return '<span class="sub">—</span>';
+  const quoted = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
+               + Number(j.labor_flat_fee || 0);
+  const actual = Number(r.labour_cost || 0);
+  if (quoted < 0.005) return '<span class="sub">not priced</span>';
+  if (actual < 0.005) {
+    return Number(r.hours_worked || 0) > 0.05
+      ? '<span class="sub" title="Hours are logged but nobody has an hourly rate on file">' +
+        money(quoted) + ' priced, cost unknown</span>'
+      : '<span class="sub">' + money(quoted) + ' priced, no hours yet</span>';
+  }
+  const diff = quoted - actual;
+  const over = diff < 0;
+  return '<span style="' + (over ? 'color:var(--bad,#b3261e);font-weight:600' : '') + '" ' +
+    'title="Priced ' + money(quoted) + ', cost ' + money(actual) + '">' +
+    money(Math.abs(diff)) + (over ? ' over' : ' under') + '</span>';
+}
+
 function renderCosting(){
   // Per-job profit is Pro's. Same reason as renderAging: not rendered rather
   // than rendered-then-hidden.
@@ -4737,6 +4767,7 @@ function renderCosting(){
       <td style="${tone}">${r.margin_percent == null ? '—' : Number(r.margin_percent).toFixed(0) + '%'}</td>
       <td style="${cash < -0.005 ? 'color:var(--muted)' : ''}">${money(cash)}</td>
       <td>${Number(r.hours_worked||0).toFixed(1)}</td>
+      <td>${labourVsQuoted(r)}</td>
     </tr>`;
   }).join('');
 
