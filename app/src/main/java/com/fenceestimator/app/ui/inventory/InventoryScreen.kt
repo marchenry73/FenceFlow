@@ -157,6 +157,12 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
 private fun ChecklistRow(item: InventoryChecklistItem, viewModel: InventoryViewModel) {
     val context = LocalContext.current
     var pendingPath by remember { mutableStateOf<String?>(null) }
+    // Asked first, because this button sits directly beside the camera button
+    // and a thumb in a work glove does not distinguish them. The checklist is
+    // local to this device and can be re-synced from the estimate, so nothing
+    // is really lost -- but the person who tapped it does not know that, and a
+    // row vanishing without explanation reads as "I have just broken the job".
+    var confirmingRemoval by remember { mutableStateOf(false) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         val path = pendingPath
         if (success && path != null) viewModel.attachPhoto(item, path)
@@ -183,8 +189,26 @@ private fun ChecklistRow(item: InventoryChecklistItem, viewModel: InventoryViewM
                 pendingPath = target.absolutePath
                 cameraLauncher.launch(target.uri)
             }) { Icon(Icons.Filled.CameraAlt, contentDescription = stringResource(R.string.misc_inventory_verify_with_photo)) }
-            IconButton(onClick = { viewModel.delete(item) }) {
+            IconButton(onClick = { confirmingRemoval = true }) {
                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.draw_remove), tint = MaterialTheme.colorScheme.error)
+            }
+            if (confirmingRemoval) {
+                AlertDialog(
+                    onDismissRequest = { confirmingRemoval = false },
+                    title = { Text(stringResource(R.string.inv_remove_title)) },
+                    text = { Text(stringResource(R.string.inv_remove_body)) },
+                    confirmButton = {
+                        OutlinedButton(onClick = {
+                            confirmingRemoval = false
+                            viewModel.delete(item)
+                        }) { Text(stringResource(R.string.inv_remove_confirm)) }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { confirmingRemoval = false }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    },
+                )
             }
         }
     }

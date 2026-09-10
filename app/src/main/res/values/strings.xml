@@ -1594,4 +1594,11 @@
     <string name="crew_plan_something_wrong">Something not right?</string>
     <string name="crew_plan_office_has_it">The office has it. Carry on with the rest of the job while you wait.</string>
     <string name="crew_plan_ask_office">Ask the office before building it different. They will see it straight away.</string>
+
+    <!-- Removing a line from the on-site materials checklist. It says what it
+         does NOT do, because a delete button beside a camera button is easy
+         to hit by accident and the fear is that it undid the job. -->
+    <string name="inv_remove_title">Remove this from the list?</string>
+    <string name="inv_remove_body">It only goes off this checklist on this phone. Nothing is removed from the job, the estimate, or any other device.</string>
+    <string name="inv_remove_confirm">Remove</string>
 </resources>
