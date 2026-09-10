@@ -1433,6 +1433,47 @@ async function saveEdit() {
     patch.subscription_plan = $('e_plan').value.trim();
     patch.monthly_price = Number($('e_price').value || 0);
   }
+
+  /* Suspending a company asks first. Changing what it pays did not, which is
+     the wrong way round: suspension is loud and reversible, and the company
+     notices within the minute. A price typed into the wrong row is silent, and
+     the first anybody knows is a bill.
+
+     Only the three that decide money or access are worth interrupting for. A
+     changed note or contact address saves as it always did -- confirming
+     everything is how people learn to click through confirmations without
+     reading them. */
+  const moneyChanges = [];
+  if ('subscription_plan' in patch && patch.subscription_plan !== (editing.subscription_plan || '')) {
+    moneyChanges.push('plan: ' + (editing.subscription_plan || 'none') +
+                      ' becomes ' + (patch.subscription_plan || 'none'));
+  }
+  if ('monthly_price' in patch && Number(patch.monthly_price) !== Number(editing.monthly_price || 0)) {
+    moneyChanges.push('price: ' + money(editing.monthly_price || 0) +
+                      ' becomes ' + money(patch.monthly_price));
+  }
+  const graceBefore = editing.grace_ends_at ? new Date(editing.grace_ends_at).getTime() : 0;
+  const graceAfter = patch.grace_ends_at ? new Date(patch.grace_ends_at).getTime() : 0;
+  if (graceBefore !== graceAfter) {
+    moneyChanges.push(graceAfter
+      ? 'free access until ' + new Date(graceAfter).toLocaleDateString()
+      : 'free access removed');
+  }
+
+  if (moneyChanges.length) {
+    const ok = await ask({
+      title: 'Change what ' + (editing.name || 'this company') + ' pays?',
+      // The company's own name in the question, because a wrong row is the
+      // mistake this is here to catch, and the name is the only thing that
+      // tells you which row you are on.
+      body: moneyChanges.join('. ') + '. They are not told, and nothing here ' +
+            'takes a payment — it changes what the next bill is worked out from.',
+      confirmLabel: 'Change it',
+      danger: true,
+    });
+    if (!ok) { $('editMsg').textContent = 'Nothing was changed.'; return; }
+  }
+
   const { error } = await db.from('companies').update(patch).eq('id', editing.id);
 
   if (error) { $('editMsg').textContent = error.message; return; }
