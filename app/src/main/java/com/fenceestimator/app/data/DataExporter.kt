@@ -2,6 +2,7 @@ package com.fenceestimator.app.data
 
 import android.content.Context
 import android.net.Uri
+import com.fenceestimator.app.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -39,9 +40,24 @@ object DataExporter {
         val employees: List<Employee>
     )
 
-    fun export(context: Context, bundle: Bundle, destination: Uri): Result<Unit> = runCatching {
+    /**
+     * @param maySeePay whether this signed-in account may see what a PERSON is
+     * paid -- [com.fenceestimator.app.cloud.SessionManager.canSeePay], the
+     * local mirror of `can_see_employee_pay()`, already resolved before this
+     * function is ever called. Never asked here: this export used to write
+     * `employee.hourlyRate` straight from the local cache with no check at
+     * all, so a phone that could no longer read pay from the server (but had
+     * cached rates from before that door closed) still put real numbers -- or
+     * worse, a stale number that had since changed -- into crew.csv and
+     * hours.csv. When this is false the rate columns say so instead of
+     * printing a number that reads as either the true rate or, worse, free
+     * labour.
+     */
+    fun export(context: Context, bundle: Bundle, destination: Uri, maySeePay: Boolean): Result<Unit> = runCatching {
         val jobsById = bundle.jobs.associateBy { it.id }
         val employeesById = bundle.employees.associateBy { it.id }
+        val hiddenPay = context.getString(R.string.export_pay_hidden)
+        fun payOrHidden(value: Double) = payCell(value, maySeePay, hiddenPay)
 
         // A job is named by its customer everywhere else in the app, so the
         // export names it that way too -- a column of row ids is not something
@@ -87,8 +103,10 @@ object DataExporter {
                             employeesById[t.employeeId]?.name.orEmpty(),
                             stamp(t.startedAt), stampOrBlank(t.endedAt),
                             hours?.let { String.format(Locale.US, "%.2f", it) }.orEmpty(),
-                            money(t.hourlyRate),
-                            hours?.let { money(it * t.hourlyRate) }.orEmpty(),
+                            payOrHidden(t.hourlyRate),
+                            // Blank stays blank when there is no rate to hide
+                            // behind -- only an actual figure gets replaced.
+                            hours?.let { payCell(it * t.hourlyRate, maySeePay, hiddenPay) }.orEmpty(),
                             // Blank rather than "false": an unapproved shift is
                             // awaiting a decision, not one that was refused.
                             if (t.approvedAt != null) "Yes" else if (t.rejectedAt != null) "Rejected" else "",
@@ -119,7 +137,7 @@ object DataExporter {
                 zip.put("crew.csv") {
                     row("Name", "Role", "Phone", "Email", "Hourly rate")
                     bundle.employees.forEach { e ->
-                        row(e.name, e.role, e.phone, e.email, money(e.hourlyRate))
+                        row(e.name, e.role, e.phone, e.email, payOrHidden(e.hourlyRate))
                     }
                 }
             }
@@ -152,6 +170,17 @@ object DataExporter {
     private fun dateOrBlank(millis: Long?) = millis?.let { date(it) }.orEmpty()
     private fun stampOrBlank(millis: Long?) = millis?.let { stamp(it) }.orEmpty()
     private fun money(value: Double) = String.format(Locale.US, "%.2f", value)
+
+    /**
+     * A pay figure, or [hiddenLabel] in its place when [maySeePay] is false.
+     *
+     * Pulled out of the row-building closures so it is one place, testable
+     * without a Context or a destination Uri, that decides whether a rate
+     * ever reaches the CSV -- rather than each column re-deriving the same
+     * check and one of them eventually being missed.
+     */
+    internal fun payCell(value: Double, maySeePay: Boolean, hiddenLabel: String): String =
+        if (maySeePay) money(value) else hiddenLabel
 
     /**
      * Quotes a value, and defuses it if a spreadsheet would treat it as a formula.

@@ -281,6 +281,7 @@
     <string name="set_expenses_exported">Gastos exportados</string>
     <string name="set_export_failed">Falló la exportación: %1$s</string>
     <string name="set_data_exported">Tus datos se exportaron</string>
+    <string name="export_pay_hidden">Oculto</string>
     <string name="set_security">Seguridad</string>
     <string name="set_security_explain">Bloquea la app tras un tiempo sin usarla. Útil en los teléfonos de la cuadrilla que se quedan en las camionetas.</string>
     <string name="set_auto_lock_after">Bloqueo automático después de</string>

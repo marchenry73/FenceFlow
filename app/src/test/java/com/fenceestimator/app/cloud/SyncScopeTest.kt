@@ -63,4 +63,38 @@ class SyncScopeTest {
         assertTrue("company_id" in onCloudJob)
         assertTrue("tax_rate_percent" in onCloudJob)
     }
+
+    // ---- foldPayAnswer: the shared three-state fold behind askMoneyScope
+    // and askEmployeePayScope ----
+    //
+    // Both askMoneyScope() (can_see_pay) and askEmployeePayScope()
+    // (can_see_employee_pay) turn their RPC's Result<Boolean> into a
+    // MoneyScope through this one function. The rule that must hold for
+    // either RPC: a true answer is ALLOWED, a false answer is DENIED, and a
+    // THROWN error -- not a false -- is UNKNOWN. Collapsing a thrown error
+    // into DENIED is exactly the bug documented on MoneyScope and on
+    // memory/empty-answer-reads-as-good-news.md: a dead spot reading as "not
+    // allowed" scrubbed real cached rates to zero and pushed the zeros back
+    // up.
+
+    @Test
+    fun `a true answer is ALLOWED`() {
+        assertEquals(MoneyScope.ALLOWED, foldPayAnswer(Result.success(true)))
+    }
+
+    @Test
+    fun `a false answer is DENIED, not UNKNOWN`() {
+        assertEquals(MoneyScope.DENIED, foldPayAnswer(Result.success(false)))
+    }
+
+    @Test
+    fun `a thrown error is UNKNOWN, never DENIED`() {
+        // This is the one that matters: a network failure, a missing RPC on
+        // an old database, or a dropped session must never be read as "the
+        // server said no."
+        assertEquals(
+            MoneyScope.UNKNOWN,
+            foldPayAnswer(Result.failure(RuntimeException("no signal")))
+        )
+    }
 }

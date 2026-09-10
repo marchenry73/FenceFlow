@@ -1002,7 +1002,12 @@ object EntitySync {
      * been working offline keeps its own version until a proper two-way merge
      * exists for these tables.
      */
-    suspend fun pullAll(repository: Repository, companyId: String, scope: MoneyScope): Result<Int> =
+    suspend fun pullAll(
+        repository: Repository,
+        companyId: String,
+        scope: MoneyScope,
+        employeePayScope: MoneyScope
+    ): Result<Int> =
         withContext(Dispatchers.IO) {
             // In flight together rather than one after another. Each pull
             // reads its own cloud table and writes its own local one, so
@@ -1017,7 +1022,7 @@ object EntitySync {
             // push side had, arriving from the other direction.
             val results = kotlinx.coroutines.coroutineScope {
                 listOf(
-                    async { runCatching { netGate.withPermit { pullEmployees(repository, companyId, scope) } } },
+                    async { runCatching { netGate.withPermit { pullEmployees(repository, companyId, employeePayScope) } } },
                     async { runCatching { netGate.withPermit { pullManufacturers(repository, companyId) } } },
                     // Tiers are SEE_MONEY-gated at the base table; asking
                     // while not confirmed ALLOWED would read an empty answer
@@ -1763,18 +1768,28 @@ object EntitySync {
      * still arrive. The rate is not missed: the server stamps it onto a shift
      * when the phone clocks in, rather than believing whatever the phone sent.
      */
-    private suspend fun pullEmployees(repository: Repository, companyId: String, scope: MoneyScope): Int {
-        // The scope this whole pass already asked once, rather than a second,
-        // separate can_see_pay() call here. This used to ask again on its own
+    private suspend fun pullEmployees(repository: Repository, companyId: String, employeePayScope: MoneyScope): Int {
+        // employeePayScope answers can_see_employee_pay(), NOT can_see_pay() --
+        // a different door than the rest of this pass. A salesperson can be
+        // ALLOWED to see job money and still DENIED here, and used to take the
+        // direct `employees` read anyway because this function reused the job
+        // MoneyScope: the read came back with zero rows (the server, not this
+        // code, was doing the actual gating), so nothing was added and nothing
+        // was scrubbed, and whatever rates that phone cached before the server
+        // side was locked down just sat in Room forever.
+        //
+        // This is asked once, up in AutoSync beside the job MoneyScope, rather
+        // than a second, separate can_see_employee_pay() call here. It used to
+        // ask can_see_pay() again on its own (wrong RPC, but the same instinct)
         // and fold ANY failure into "not allowed" -- so a dead spot on an
         // owner's phone read as "not allowed to see pay," replaced every
         // cached rate with the roster's zeros, and the very next push sent
         // those zeros back up. A real hourly rate on this database went from
-        // 25 to 0 that way. UNKNOWN here skips the pull entirely instead:
+        // 25 to 0 that way. UNKNOWN here still skips the pull entirely:
         // neither the real rows nor the roster's zeros are safe to apply when
         // the door itself could not be asked about.
-        if (scope == MoneyScope.UNKNOWN) return 0
-        val maySeePay = scope == MoneyScope.ALLOWED
+        if (employeePayScope == MoneyScope.UNKNOWN) return 0
+        val maySeePay = employeePayScope == MoneyScope.ALLOWED
 
         val fromRoster = !maySeePay
         val cloud = if (maySeePay)

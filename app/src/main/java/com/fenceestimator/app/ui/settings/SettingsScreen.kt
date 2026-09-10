@@ -108,6 +108,7 @@ fun SettingsScreen(
     val viewModel: SettingsViewModel = viewModel(
         factory = GenericViewModelFactory { SettingsViewModel(app.settingsStore, app.repository, app.applicationScope) }
     )
+    val session by app.session.state.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val savedMessage = stringResource(R.string.settings_saved)
@@ -179,7 +180,7 @@ fun SettingsScreen(
                         lineItems = app.repository.getAllLineItemsByJob().values.flatten(),
                         employees = app.repository.getAllEmployees()
                     )
-                }.mapCatching { DataExporter.export(context, it, uri).getOrThrow() }
+                }.mapCatching { DataExporter.export(context, it, uri, session.canSeePay).getOrThrow() }
                 exporting = false
                 snackbarHostState.showSnackbar(
                     if (result.isSuccess) context.getString(R.string.set_data_exported)

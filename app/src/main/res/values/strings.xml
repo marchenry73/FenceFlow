@@ -295,6 +295,8 @@
     <string name="set_expenses_exported">Expenses exported</string>
     <string name="set_export_failed">Export failed: %1$s</string>
     <string name="set_data_exported">Your data was exported</string>
+    <!-- Placeholder printed in place of a pay figure (crew.csv, hours.csv) when this account may not see employee pay. -->
+    <string name="export_pay_hidden">Hidden</string>
     <string name="set_security">Security</string>
     <string name="set_security_explain">Locks the app after a period of inactivity. Useful on crew phones that get left in trucks.</string>
     <string name="set_auto_lock_after">Auto-lock after</string>

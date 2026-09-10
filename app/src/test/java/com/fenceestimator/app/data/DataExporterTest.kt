@@ -86,4 +86,32 @@ class DataExporterTest {
     fun `empty stays empty`() {
         assertEquals("", DataExporter.escape(""))
     }
+
+    // ---- pay visibility ----
+    //
+    // crew.csv and hours.csv used to write employee.hourlyRate straight from
+    // the local cache with no check at all. payCell is the one place that
+    // now decides whether a rate reaches either file.
+
+    @Test
+    fun `a real rate is printed when this account may see pay`() {
+        assertEquals("25.00", DataExporter.payCell(25.0, maySeePay = true, hiddenLabel = "Hidden"))
+    }
+
+    @Test
+    fun `the rate is replaced, not zeroed, when this account may not see pay`() {
+        // A zero here would read as free labour, and a stale cached number
+        // would read as the true rate -- neither is honest. Only the
+        // caller-supplied label may stand in for the figure.
+        assertEquals("Hidden", DataExporter.payCell(25.0, maySeePay = false, hiddenLabel = "Hidden"))
+    }
+
+    @Test
+    fun `a zero rate is not confused with a hidden one when pay IS visible`() {
+        // Guards against a fix that collapses "0.00" and the hidden label
+        // together -- an employee genuinely paid nothing per hour (e.g.
+        // commission-only) must still show as a real, honest "0.00" to
+        // someone who is allowed to see it.
+        assertEquals("0.00", DataExporter.payCell(0.0, maySeePay = true, hiddenLabel = "Hidden"))
+    }
 }

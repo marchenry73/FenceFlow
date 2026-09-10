@@ -37,9 +37,36 @@ enum class MoneyScope { ALLOWED, DENIED, UNKNOWN }
  * the second case is folded into [MoneyScope.UNKNOWN]; the two real answers
  * are trusted as given.
  */
-suspend fun askMoneyScope(): MoneyScope = runCatching {
+suspend fun askMoneyScope(): MoneyScope = foldPayAnswer(runCatching {
     SupabaseModule.client.postgrest.rpc("can_see_pay").decodeAs<Boolean>()
-}.fold(
+})
+
+/**
+ * Asks the server, once per sync pass, whether this account may see what a
+ * PERSON is paid -- the four pay columns on `employees` -- which is a
+ * different door than [askMoneyScope]'s job money.
+ *
+ * `can_see_employee_pay()` answers with exactly
+ * `coalesce(has_permission('SEE_EMPLOYEE_PAY'), false)`, the same shape as
+ * `can_see_pay()`: a real true or false for anyone signed in, and a thrown
+ * error only when the request itself could not be made. Folded the same way,
+ * for the same reason -- an empty answer here must read as "could not ask,"
+ * not as "not allowed," or a dead spot on an owner's phone would scrub every
+ * cached hourly rate exactly the way it once did for job money. See
+ * [askMoneyScope]'s doc and memory/empty-answer-reads-as-good-news.md.
+ */
+suspend fun askEmployeePayScope(): MoneyScope = foldPayAnswer(runCatching {
+    SupabaseModule.client.postgrest.rpc("can_see_employee_pay").decodeAs<Boolean>()
+})
+
+/**
+ * The one fold both [askMoneyScope] and [askEmployeePayScope] use to turn a
+ * `Result<Boolean>` into a [MoneyScope] -- pulled out so the rule that a
+ * thrown error becomes [MoneyScope.UNKNOWN], never [MoneyScope.DENIED], is
+ * written once and is directly testable without standing up a fake network
+ * call for two RPCs that only differ in name.
+ */
+internal fun foldPayAnswer(result: Result<Boolean>): MoneyScope = result.fold(
     onSuccess = { canSeePay -> if (canSeePay) MoneyScope.ALLOWED else MoneyScope.DENIED },
     onFailure = { MoneyScope.UNKNOWN }
 )

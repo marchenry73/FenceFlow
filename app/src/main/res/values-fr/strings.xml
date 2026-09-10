@@ -281,6 +281,7 @@
     <string name="set_expenses_exported">Dépenses exportées</string>
     <string name="set_export_failed">Échec de l\'exportation : %1$s</string>
     <string name="set_data_exported">Vos données ont été exportées</string>
+    <string name="export_pay_hidden">Masqué</string>
     <string name="set_security">Sécurité</string>
     <string name="set_security_explain">Verrouille l\'application après une période d\'inactivité. Utile sur les téléphones de l\'équipe laissés dans les camions.</string>
     <string name="set_auto_lock_after">Verrouillage automatique après</string>

@@ -394,6 +394,12 @@ class AutoSync(
             // read as "not allowed" while another read the real rows in the
             // same pass.
             val scope = askMoneyScope()
+            // Employee pay is a separate door from job money -- a salesperson
+            // can be ALLOWED here and DENIED there. Asked once, here, beside
+            // the money scope, and handed down to pullAll rather than asked
+            // again inside pullEmployees: the same reasoning as the comment
+            // above, for the employees table instead of the jobs one.
+            val employeePayScope = askEmployeePayScope()
             val uid = SupabaseModule.currentUserId()
             val lastScope = uid?.let { id -> runCatching { MoneyScopeMemory.last(context, id) }.getOrNull() }
 
@@ -457,11 +463,11 @@ class AutoSync(
             val pushResult: Result<Int>
             val pullResult: Result<Int>
             if (promoted) {
-                pullResult = EntitySync.pullAll(repository, companyId, scope)
+                pullResult = EntitySync.pullAll(repository, companyId, scope, employeePayScope)
                 pushResult = EntitySync.pushAll(repository, companyId, scope, skipMoneySensitivePushes = true)
             } else {
                 pushResult = EntitySync.pushAll(repository, companyId, scope)
-                pullResult = EntitySync.pullAll(repository, companyId, scope)
+                pullResult = EntitySync.pullAll(repository, companyId, scope, employeePayScope)
             }
 
             // Files last, and never allowed to fail the sync. A signature that
