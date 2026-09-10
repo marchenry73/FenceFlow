@@ -310,7 +310,7 @@ fun JobsListScreen(
                 containerColor = MaterialTheme.colorScheme.secondary,
                 contentColor = MaterialTheme.colorScheme.onSecondary
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "New job")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.jobs_new_job))
             }
         }
     ) { padding ->
