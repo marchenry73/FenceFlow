@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.geometry.GateGeometry
 import androidx.compose.material3.FilterChip
 import android.graphics.Bitmap
@@ -267,7 +268,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             }
             if (runs.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.draw_add_run_first), modifier = Modifier.padding(Space.xl))
+                    EmptyState(stringResource(R.string.draw_add_run_first), modifier = Modifier.padding(Space.xl))
                 }
                 return@Column
             }

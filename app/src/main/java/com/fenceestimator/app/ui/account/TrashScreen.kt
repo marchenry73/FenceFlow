@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.resolve
@@ -107,11 +108,7 @@ fun TrashScreen(onBack: () -> Unit) {
 
             if (!busy && items.isEmpty()) {
                 item {
-                    Text(
-                        stringResource(R.string.acct_trash_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    EmptyState(stringResource(R.string.acct_trash_empty))
                 }
             }
 

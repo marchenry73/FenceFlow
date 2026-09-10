@@ -450,6 +450,7 @@
     <string name="acct_access_can_delete_records">Can delete records</string>
     <string name="acct_access_can_change_access">Can change access</string>
     <string name="acct_access_nobody_joined">Nobody has joined yet. Share your invite code from Account &amp; Team.</string>
+    <string name="acct_access_retry">Try again</string>
     <string name="acct_access_confirm_title">Confirm access change</string>
     <string name="acct_access_confirm_subtitle">Changing what this person can do</string>
     <string name="acct_access_team_member">Team member</string>
@@ -1004,6 +1005,7 @@
     <string name="rep_help_link_insurance">Compare contractor liability insurance</string>
     <string name="rep_help_link_license_board">Check your state contractor license board</string>
     <string name="rep_help_third_party_note">These links open your browser and go to third-party sites -- FenceFlow doesn\'t control what they say.</string>
+    <string name="rep_help_link_failed">Couldn’t open a browser for this link</string>
     <string name="rep_guide_start_job_title">1. Start a job</string>
     <string name="rep_guide_start_job_body">Tap the + button on the home screen. Fill in the customer\'s name, address, phone, and email. The address box suggests real addresses as you type, so you don\'t have to type the whole thing.</string>
     <string name="rep_guide_draw_fence_title">2. Draw the fence</string>
@@ -1074,6 +1076,7 @@
     <string name="jsec_blocked_debris_hint">We clear leaves and loose debris. Anything needing a tool -- bushes, planters, sheds, limbs, old posts -- is the customer\'s to clear, or it becomes a change order.</string>
     <string name="jsec_blocked_not_told">Customer has NOT been told yet</string>
     <string name="jsec_blocked_told_on">Customer told %1$s</string>
+    <string name="jsec_blocked_draft_failed">Couldn’t open a texting or email app for this</string>
     <string name="jsec_blocked_held_since">Held up since %1$s</string>
     <string name="jsec_blocked_text_customer">Text Customer</string>
     <string name="jsec_blocked_email_customer">Email Customer</string>
@@ -1162,6 +1165,8 @@
     <string name="misc_feedback_from_line">From: %1$s</string>
     <string name="misc_feedback_subject">%1$s from the crew</string>
     <string name="misc_feedback_set_email_first">Set a business email in Settings first</string>
+    <string name="misc_feedback_loading">Loading your settings…</string>
+    <string name="misc_feedback_email_open_failed">Couldn’t open an email app for this</string>
     <string name="misc_feedback_send_to_office">Send to the Office</string>
     <string name="misc_feedback_opens_email">This opens your email app with the message ready -- you tap send yourself.</string>
     <string name="misc_feedback_anon_heads_up">Heads up: your email address will still be visible to whoever receives it, since it\'s sent from your own email app.</string>
@@ -1516,6 +1521,10 @@
     <string name="vm_restored_back">\"%1$s\" is back.</string>
     <string name="vm_couldnt_restore">Couldn\'t restore it: %1$s</string>
     <string name="vm_couldnt_load_team">Couldn\'t load the team: %1$s</string>
+    <string name="vm_time_approved">Shift approved.</string>
+    <string name="vm_couldnt_approve_time">Couldn\'t approve this shift: %1$s</string>
+    <string name="vm_time_rejected">Shift sent back to the crew member.</string>
+    <string name="vm_couldnt_reject_time">Couldn\'t send this shift back: %1$s</string>
     <string name="vm_saved_access_of">Saved %1$s access.</string>
     <string name="vm_saved_their_access">Saved their access.</string>
     <string name="vm_couldnt_save_with">Couldn\'t save: %1$s</string>

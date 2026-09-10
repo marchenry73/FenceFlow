@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
@@ -110,11 +111,7 @@ private fun StageColumn(
             )
         }
         if (jobs.isEmpty()) {
-            Text(
-                stringResource(R.string.misc_pipeline_nothing_here),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            EmptyState(stringResource(R.string.misc_pipeline_nothing_here))
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             items(jobs, key = { it.id }) { job ->

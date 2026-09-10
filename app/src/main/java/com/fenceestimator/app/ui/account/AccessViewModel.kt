@@ -22,18 +22,29 @@ class AccessViewModel(private val session: SessionManager) : ViewModel() {
     private val _message = MutableStateFlow<UiMessage?>(null)
     val message: StateFlow<UiMessage?> = _message
 
+    // Separate from [message]: a snackbar flashes past on its own, and a team
+    // that failed to load must not settle into looking the same as a team
+    // with nobody in it. This stays on screen until a load actually succeeds.
+    private val _loadFailed = MutableStateFlow<UiMessage?>(null)
+    val loadFailed: StateFlow<UiMessage?> = _loadFailed
+
     fun load() {
         val companyId = session.state.value.companyId ?: return
         viewModelScope.launch {
             runCatching { SupabaseModule.fetchTeam(companyId) }
                 .onSuccess { members ->
+                    _loadFailed.value = null
                     // Owners first, then by name -- the list is read to find one
                     // person, and alphabetical-by-role is how you find them.
                     _team.value = members.sortedWith(
                         compareBy({ it.userRole.ordinal }, { it.fullName.lowercase() })
                     )
                 }
-                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_load_team, listOf(it.message.orEmpty())) }
+                .onFailure {
+                    val failure = UiMessage(R.string.vm_couldnt_load_team, listOf(it.message.orEmpty()))
+                    _message.value = failure
+                    _loadFailed.value = failure
+                }
         }
     }
 

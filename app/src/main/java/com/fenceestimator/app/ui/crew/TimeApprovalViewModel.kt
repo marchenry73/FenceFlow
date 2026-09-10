@@ -2,10 +2,13 @@ package com.fenceestimator.app.ui.crew
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.R
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.data.TimeEntry
+import com.fenceestimator.app.ui.components.UiMessage
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -25,6 +28,9 @@ class TimeApprovalViewModel(
 
     val pending: StateFlow<List<TimeEntry>> = repository.observeTimeAwaitingApproval()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _message = MutableStateFlow<UiMessage?>(null)
+    val message: StateFlow<UiMessage?> = _message
 
     /**
      * Whether this shift is the signed-in person's own.
@@ -56,11 +62,19 @@ class TimeApprovalViewModel(
         // hidden is not a control.
         if (isOwnShift(entry)) return
         viewModelScope.launch {
-            repository.approveTimeEntry(entry, approvedBy, correctedStart, correctedEnd, note)
+            // This is payroll: a dialog that just closes leaves nobody able to
+            // tell a saved approval from one the database silently dropped.
+            runCatching { repository.approveTimeEntry(entry, approvedBy, correctedStart, correctedEnd, note) }
+                .onSuccess { _message.value = UiMessage(R.string.vm_time_approved) }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_approve_time, listOf(it.message.orEmpty())) }
         }
     }
 
     fun reject(entry: TimeEntry, note: String) {
-        viewModelScope.launch { repository.rejectTimeEntry(entry, note) }
+        viewModelScope.launch {
+            runCatching { repository.rejectTimeEntry(entry, note) }
+                .onSuccess { _message.value = UiMessage(R.string.vm_time_rejected) }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_reject_time, listOf(it.message.orEmpty())) }
+        }
     }
 }

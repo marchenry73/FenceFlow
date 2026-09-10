@@ -106,11 +106,18 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
             }
         }
 
+        val draftFailed = stringResource(R.string.jsec_blocked_draft_failed)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = {
-                    IntentHelpers.openSmsDraft(context, job.phone, message)
-                    viewModel.markCustomerNotified()
+                    // Stamp only what actually happened: a draft that opened. A
+                    // crew that backs out before hitting Send, or a phone with
+                    // no messaging app at all, must not read on the job as
+                    // "customer told" -- that claim is what an argument about a
+                    // delayed job later turns on.
+                    val opened = IntentHelpers.openSmsDraft(context, job.phone, message)
+                    if (opened) viewModel.markCustomerNotified()
+                    else android.widget.Toast.makeText(context, draftFailed, android.widget.Toast.LENGTH_SHORT).show()
                 },
                 enabled = job.phone.isNotBlank(),
                 modifier = Modifier.weight(1f)
@@ -121,10 +128,11 @@ fun JobBlockedSection(job: Job, profile: BusinessProfile, viewModel: JobDetailVi
             // here would read as "prefer this one" when there is no preference.
             OutlinedButton(
                 onClick = {
-                    IntentHelpers.openEmailDraft(
+                    val opened = IntentHelpers.openEmailDraft(
                         context, job.email, emailSubject, message
                     )
-                    viewModel.markCustomerNotified()
+                    if (opened) viewModel.markCustomerNotified()
+                    else android.widget.Toast.makeText(context, draftFailed, android.widget.Toast.LENGTH_SHORT).show()
                 },
                 enabled = job.email.isNotBlank(),
                 modifier = Modifier.weight(1f)

@@ -595,6 +595,14 @@
         <div id="setupList"></div>
       </div>
       <div class="stats" id="stats"></div>
+      <div class="panel">
+        <h2 style="margin-bottom:2px">Chase list</h2>
+        <p class="sub" style="margin-top:0">Every open lead, sent quote and unpaid approval, ranked by
+          what it is worth times how long it has been waiting &mdash; so a big job that has gone quiet
+          outranks a small one from this morning. Click the bar to see the math.</p>
+        <div class="stats" id="chaseStats" style="margin-bottom:14px"></div>
+        <div id="chaseList"></div>
+      </div>
       <div class="panel"><h2>Needs attention</h2><div id="attention"></div></div>
       <div class="panel"><h2>This week</h2>
         <p class="sub">The next seven days. Click a job to open it.</p>
@@ -3269,6 +3277,133 @@ function renderDash(){
       </div>`).join('');
     document.querySelectorAll('.wk-row').forEach(el=>el.addEventListener('click',()=>showJob(el.dataset.wkId)));
   }
+
+  // Fire-and-forget, same pattern renderReports uses for its own top-up:
+  // the rest of the dashboard paints immediately and this panel fills in
+  // once the line items it needs for a complete total have arrived.
+  renderChase();
+}
+
+/* ---------- chase list: rank open sales work by value x time waiting ----
+
+   Reuses stageOf() for exactly which jobs are still "sales work" rather
+   than re-deciding it here (New Lead / Quote Sent / Approved -- the three
+   stages before a deposit exists), contractTotalOf() for what each is
+   worth, and the same fields the uncontacted_lead / stale_quote / no_deposit
+   alerts above already key off of for how long each has been waiting. This
+   does not invent a second notion of any of those three things -- it only
+   puts them in one ranked list with a next action attached. */
+async function renderChase(){
+  if (!$('chaseList')) return;
+  const nowMs = Date.now();
+  const name = j => j.customer_name || j.address || 'Untitled job';
+
+  const open = jobs.filter(j => ['New Lead','Quote Sent','Approved'].includes(stageOf(j)));
+
+  // A total stated here has to be complete, not whatever the bounded first
+  // paint happened to carry for these jobs' line items.
+  await ensureItemsForJobs(open.map(j => j.sync_id));
+
+  const rows = open.map(j => {
+    const stage = stageOf(j);
+    let waitFrom, action;
+    if (stage === 'New Lead') {
+      waitFrom = j.created_at;
+      action = j.first_contact_at
+        ? { kind:'open', label:'Send the quote' }
+        : { kind:'contact', label:'Contact them' };
+    } else if (stage === 'Quote Sent') {
+      // Same field the stale_quote alert reads; falls back to created_at
+      // only for a legacy row that somehow reached SENT with no timestamp.
+      waitFrom = j.quote_sent_at || j.created_at;
+      action = { kind:'follow', label:'Follow up' };
+    } else { // Approved, no deposit -- same fields the no_deposit alert reads
+      waitFrom = j.quote_approved_at || j.created_at;
+      action = { kind:'deposit', label:'Collect deposit' };
+    }
+    const ageDays = Math.max(0, (nowMs - d(waitFrom).getTime()) / 864e5);
+    const value = contractTotalOf(j);
+    return { j, stage, ageDays, value, score: value * ageDays, action };
+  }).sort((a,b) => b.score - a.score);
+
+  const totalValue = rows.reduce((s,r)=>s+r.value, 0);
+
+  // Won this week: quote_approved_at is a real event stamp (set once, by the
+  // approval itself), unlike updated_at which this file already learned not
+  // to trust as a period marker (see renderDash's "This month" comment).
+  const weekAgo = new Date(nowMs - 7*864e5);
+  const wonThisWeek = jobs.filter(j => (j.status==='ACCEPTED'||j.status==='COMPLETED')
+    && j.quote_approved_at && d(j.quote_approved_at) >= weekAgo);
+  const wonThisWeekValue = wonThisWeek.reduce((s,j)=>s+contractTotalOf(j), 0);
+
+  // Lost has no equivalent stamp anywhere on the job (no declined_at column
+  // exists), so this cannot be time-boxed to "this week" without guessing
+  // from updated_at -- the exact mistake this file's own history warns
+  // about. Shown as an all-time count/value instead, labelled as such,
+  // rather than a plausible-looking "this week" figure built on a sync
+  // timestamp.
+  const lost = jobs.filter(j => j.status === 'DECLINED');
+  const lostValue = lost.reduce((s,j)=>s+contractTotalOf(j), 0);
+
+  $('chaseStats').innerHTML =
+    `<div class="stat"><div class="n">${money(totalValue)}</div><div class="l">Value in play (${rows.length})</div></div>
+     <div class="stat"><div class="n">${money(wonThisWeekValue)}</div><div class="l">Won this week (${wonThisWeek.length})</div></div>
+     <div class="stat"><div class="n">${money(lostValue)}</div><div class="l">Lost, all time (${lost.length})</div></div>`;
+
+  if (!rows.length) {
+    $('chaseList').innerHTML = '<div class="empty">Nothing open to chase right now.</div>';
+    return;
+  }
+
+  const maxScore = Math.max(1, rows[0].score);
+  const stageColor = { 'New Lead':'var(--accent,#d9480f)', 'Quote Sent':'var(--orange)', 'Approved':'var(--bad,#b3261e)' };
+
+  $('chaseList').innerHTML = rows.map((r,i) => {
+    const j = r.j;
+    const tel = (j.phone || '').replace(/[^0-9+]/g, '');
+    const pct = Math.max(4, Math.round(r.score / maxScore * 100));
+    let actionHtml;
+    if (r.action.kind === 'contact' && tel.length >= 7) {
+      actionHtml = `<a href="tel:${tel}" style="color:var(--orange);font-weight:600">Call</a>
+        &nbsp;&middot;&nbsp;
+        <a href="sms:${tel}" style="color:var(--orange);font-weight:600">Text</a>
+        &nbsp;&middot;&nbsp;
+        <button class="btn btn-sm" data-chase-contact="${j.id}">Mark contacted</button>`;
+    } else if ((r.action.kind === 'follow' || r.action.kind === 'deposit') && tel.length >= 7) {
+      actionHtml = `<a href="tel:${tel}" style="color:var(--orange);font-weight:600">Call</a>
+        &nbsp;&middot;&nbsp;
+        <a href="sms:${tel}" style="color:var(--orange);font-weight:600">Text</a>
+        &nbsp;&middot;&nbsp;
+        <button class="btn btn-sm btn-grey" data-chase-open="${j.id}">${esc(r.action.label)}</button>`;
+    } else {
+      actionHtml = `<button class="btn btn-sm ${r.action.kind==='contact'?'':'btn-grey'}" data-chase-open="${j.id}">${esc(r.action.label)}</button>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">
+      <span style="width:20px;color:var(--muted);font-size:12px;text-align:right;flex:none">${i+1}</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+          <strong style="cursor:pointer" data-chase-open="${j.id}">${esc(name(j))}</strong>
+          <span class="pill" style="font-size:11px">${esc(r.stage)}</span>
+          <span style="color:var(--muted);font-size:12px">${money(r.value)} &middot; waiting ${sinceWords(new Date(nowMs - r.ageDays*864e5), new Date(nowMs))}</span>
+        </div>
+        <div style="background:var(--line);border-radius:4px;height:5px;margin-top:6px;overflow:hidden">
+          <div style="background:${stageColor[r.stage]||'var(--orange)'};height:100%;width:${pct}%"
+               title="Priority score ${Math.round(r.score).toLocaleString()} = ${money(r.value)} value × ${r.ageDays.toFixed(1)} days waiting"></div>
+        </div>
+      </div>
+      <div style="flex:none;font-size:13px;white-space:nowrap">${actionHtml}</div>
+    </div>`;
+  }).join('');
+
+  $('chaseList').querySelectorAll('[data-chase-open]').forEach(el =>
+    el.addEventListener('click', () => showJob(el.dataset.chaseOpen)));
+  $('chaseList').querySelectorAll('[data-chase-contact]').forEach(el =>
+    el.addEventListener('click', async () => {
+      if (!canEdit()) return;
+      const { error } = await db.from('jobs')
+        .update({ first_contact_at: new Date().toISOString() }).eq('id', el.dataset.chaseContact);
+      if (!error) await loadAll();
+    }));
 }
 
 /* ---------- jobs ---------- */

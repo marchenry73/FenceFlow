@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.IntentHelpers
@@ -86,11 +87,7 @@ fun ManufacturersScreen(onBack: () -> Unit) {
             }
             if (manufacturers.isEmpty()) {
                 Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-                    Text(
-                        stringResource(R.string.mfr_empty_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    EmptyState(stringResource(R.string.mfr_empty_hint))
                 }
             } else {
                 LazyColumn(

@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.data.JobStep
 import com.fenceestimator.app.data.JobStepKind
 import com.fenceestimator.app.data.PhotoKind
@@ -272,11 +273,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                     Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                         Text(stringResource(R.string.crew_what_building), style = MaterialTheme.typography.titleMedium)
                         if (runs.isEmpty()) {
-                            Text(
-                                stringResource(R.string.misc_crew_no_runs),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            EmptyState(stringResource(R.string.misc_crew_no_runs))
                         }
                         runs.forEach { run ->
                             val points = FenceCodec.decodePoints(run.pointsEncoded)

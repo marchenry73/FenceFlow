@@ -436,6 +436,7 @@
     <string name="acct_access_can_delete_records">Peut supprimer des enregistrements</string>
     <string name="acct_access_can_change_access">Peut modifier les accès</string>
     <string name="acct_access_nobody_joined">Personne n\'a encore rejoint l\'équipe. Partagez votre code d\'invitation depuis Compte et équipe.</string>
+    <string name="acct_access_retry">Réessayer</string>
     <string name="acct_access_confirm_title">Confirmer la modification d\'accès</string>
     <string name="acct_access_confirm_subtitle">Modification de ce que cette personne peut faire</string>
     <string name="acct_access_team_member">Membre de l\'équipe</string>
@@ -990,6 +991,7 @@
     <string name="rep_help_link_insurance">Comparez les assurances responsabilité civile pour entrepreneurs</string>
     <string name="rep_help_link_license_board">Consultez l\'ordre des entrepreneurs de votre état</string>
     <string name="rep_help_third_party_note">Ces liens ouvrent votre navigateur vers des sites tiers : FenceFlow ne contrôle pas leur contenu.</string>
+    <string name="rep_help_link_failed">Impossible d’ouvrir un navigateur pour ce lien</string>
     <string name="rep_guide_start_job_title">1. Créer un chantier</string>
     <string name="rep_guide_start_job_body">Touchez le bouton + sur l\'écran d\'accueil. Renseignez le nom, l\'adresse, le téléphone et l\'e-mail du client. Le champ d\'adresse propose de vraies adresses pendant la saisie, vous n\'avez donc pas à tout taper.</string>
     <string name="rep_guide_draw_fence_title">2. Dessiner la clôture</string>
@@ -1060,6 +1062,7 @@
     <string name="jsec_blocked_debris_hint">Nous dégageons les feuilles et les débris légers. Tout ce qui demande un outil -- buissons, jardinières, abris, branches, anciens poteaux -- est à la charge du client, sinon cela devient un avenant.</string>
     <string name="jsec_blocked_not_told">Le client n\'a PAS encore été prévenu</string>
     <string name="jsec_blocked_told_on">Client prévenu le %1$s</string>
+    <string name="jsec_blocked_draft_failed">Impossible d’ouvrir une appli SMS ou e-mail pour ça</string>
     <string name="jsec_blocked_held_since">Bloqué depuis le %1$s</string>
     <string name="jsec_blocked_text_customer">SMS au client</string>
     <string name="jsec_blocked_email_customer">E-mail au client</string>
@@ -1141,6 +1144,8 @@
     <string name="misc_feedback_from_line">De : %1$s</string>
     <string name="misc_feedback_subject">%1$s de l\'équipe</string>
     <string name="misc_feedback_set_email_first">Définissez d\'abord un e-mail professionnel dans les Réglages</string>
+    <string name="misc_feedback_loading">Chargement de vos réglages…</string>
+    <string name="misc_feedback_email_open_failed">Impossible d’ouvrir une appli e-mail pour ça</string>
     <string name="misc_feedback_send_to_office">Envoyer au bureau</string>
     <string name="misc_feedback_opens_email">Cela ouvre votre application e-mail avec le message prêt ; vous appuyez vous-même sur envoyer.</string>
     <string name="misc_feedback_anon_heads_up">Attention : votre adresse e-mail restera visible par le destinataire, puisque l\'envoi se fait depuis votre propre application e-mail.</string>
@@ -1495,6 +1500,10 @@
     <string name="vm_restored_back">« %1$s » est de retour.</string>
     <string name="vm_couldnt_restore">Impossible de le restaurer : %1$s</string>
     <string name="vm_couldnt_load_team">Impossible de charger l\'équipe : %1$s</string>
+    <string name="vm_time_approved">Quart de travail approuvé.</string>
+    <string name="vm_couldnt_approve_time">Impossible d\'approuver ce quart : %1$s</string>
+    <string name="vm_time_rejected">Quart renvoyé à l\'employé.</string>
+    <string name="vm_couldnt_reject_time">Impossible de renvoyer ce quart : %1$s</string>
     <string name="vm_saved_access_of">Accès de %1$s enregistré.</string>
     <string name="vm_saved_their_access">Son accès a été enregistré.</string>
     <string name="vm_couldnt_save_with">Impossible d\'enregistrer : %1$s</string>

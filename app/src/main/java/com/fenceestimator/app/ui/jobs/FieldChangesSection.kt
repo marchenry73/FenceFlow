@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.data.FieldChange
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,11 +42,7 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
     val timeFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.US) }
 
     if (changes.isEmpty()) {
-        Text(
-            stringResource(R.string.jsec_fc_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        EmptyState(stringResource(R.string.jsec_fc_empty))
         return
     }
 

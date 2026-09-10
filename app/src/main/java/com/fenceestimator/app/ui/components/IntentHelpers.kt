@@ -11,13 +11,21 @@ import android.provider.CalendarContract
  * sending on the user's behalf. The user always taps Send/Save themselves.
  */
 object IntentHelpers {
-    fun openEmailDraft(context: Context, to: String, subject: String, body: String) {
+    /**
+     * Opens an email draft. Returns whether it actually opened, because a
+     * caller that stamps "sent" or "told" the moment it fires, without
+     * checking, records that on a phone with no mail app configured -- where
+     * nothing opened at all.
+     */
+    fun openEmailDraft(context: Context, to: String, subject: String, body: String): Boolean {
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
             putExtra(Intent.EXTRA_EMAIL, arrayOf(to))
             putExtra(Intent.EXTRA_SUBJECT, subject)
             putExtra(Intent.EXTRA_TEXT, body)
         }
-        context.startActivity(Intent.createChooser(intent, "Send Email"))
+        return runCatching {
+            context.startActivity(Intent.createChooser(intent, "Send Email"))
+        }.isSuccess
     }
 
     /**
@@ -55,11 +63,17 @@ object IntentHelpers {
         }
     }
 
-    fun openSmsDraft(context: Context, phone: String, body: String) {
+    /**
+     * Opens a texting-app draft. Returns whether it actually opened -- a
+     * device with nothing registered for smsto: throws instead of doing
+     * nothing, and a caller that stamps a record on the throw would claim a
+     * text was sent when no app even opened.
+     */
+    fun openSmsDraft(context: Context, phone: String, body: String): Boolean {
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$phone")).apply {
             putExtra("sms_body", body)
         }
-        context.startActivity(intent)
+        return runCatching { context.startActivity(intent) }.isSuccess
     }
 
     fun addToCalendar(context: Context, title: String, description: String, location: String, startMillis: Long, durationHours: Double = 4.0) {
@@ -99,6 +113,17 @@ object IntentHelpers {
         }
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
+
+    /**
+     * Opens a plain web link. Returns whether it actually opened.
+     *
+     * This is the one every reference-link button on the help screen goes
+     * through: a foreman looking up a pool-barrier code in the field is on
+     * whatever browser the phone has, and a device with none configured must
+     * not take the whole screen down with an uncaught ActivityNotFoundException.
+     */
+    fun openWebLink(context: Context, url: String): Boolean =
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isSuccess
 
     fun searchNearby(context: Context, query: String) {
         val encoded = Uri.encode(query)

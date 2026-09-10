@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.resolve
@@ -62,7 +63,7 @@ fun CustomersScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
     ) { padding ->
         if (customers.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.misc_customers_empty), modifier = Modifier.padding(24.dp))
+                EmptyState(stringResource(R.string.misc_customers_empty), modifier = Modifier.padding(24.dp))
             }
         } else {
             LazyColumn(

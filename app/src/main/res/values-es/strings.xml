@@ -436,6 +436,7 @@
     <string name="acct_access_can_delete_records">Puede eliminar registros</string>
     <string name="acct_access_can_change_access">Puede cambiar accesos</string>
     <string name="acct_access_nobody_joined">Nadie se ha unido todavía. Comparte tu código de invitación desde Cuenta y equipo.</string>
+    <string name="acct_access_retry">Intentar de nuevo</string>
     <string name="acct_access_confirm_title">Confirmar cambio de acceso</string>
     <string name="acct_access_confirm_subtitle">Cambiando lo que esta persona puede hacer</string>
     <string name="acct_access_team_member">Miembro del equipo</string>
@@ -990,6 +991,7 @@
     <string name="rep_help_link_insurance">Compara seguros de responsabilidad para contratistas</string>
     <string name="rep_help_link_license_board">Consulta la junta de licencias de contratistas de tu estado</string>
     <string name="rep_help_third_party_note">Estos enlaces abren tu navegador y llevan a sitios de terceros; FenceFlow no controla lo que dicen.</string>
+    <string name="rep_help_link_failed">No se pudo abrir un navegador para este enlace</string>
     <string name="rep_guide_start_job_title">1. Inicia un trabajo</string>
     <string name="rep_guide_start_job_body">Toca el botón + en la pantalla de inicio. Llena el nombre, la dirección, el teléfono y el correo del cliente. El campo de dirección sugiere direcciones reales mientras escribes, así no tienes que escribirla completa.</string>
     <string name="rep_guide_draw_fence_title">2. Dibuja la cerca</string>
@@ -1060,6 +1062,7 @@
     <string name="jsec_blocked_debris_hint">Nosotros retiramos hojas y escombros sueltos. Todo lo que requiera herramienta -- arbustos, macetas, cobertizos, ramas, postes viejos -- lo despeja el cliente, o pasa a ser una orden de cambio.</string>
     <string name="jsec_blocked_not_told">El cliente AÚN NO ha sido avisado</string>
     <string name="jsec_blocked_told_on">Cliente avisado el %1$s</string>
+    <string name="jsec_blocked_draft_failed">No se pudo abrir una app de mensajes ni de correo para esto</string>
     <string name="jsec_blocked_held_since">Detenido desde el %1$s</string>
     <string name="jsec_blocked_text_customer">SMS al cliente</string>
     <string name="jsec_blocked_email_customer">Email al cliente</string>
@@ -1141,6 +1144,8 @@
     <string name="misc_feedback_from_line">De: %1$s</string>
     <string name="misc_feedback_subject">%1$s de la cuadrilla</string>
     <string name="misc_feedback_set_email_first">Primero configura un correo del negocio en Ajustes</string>
+    <string name="misc_feedback_loading">Cargando tus ajustes…</string>
+    <string name="misc_feedback_email_open_failed">No se pudo abrir una app de correo para esto</string>
     <string name="misc_feedback_send_to_office">Enviar a la oficina</string>
     <string name="misc_feedback_opens_email">Esto abre tu app de correo con el mensaje listo; tú mismo tocas enviar.</string>
     <string name="misc_feedback_anon_heads_up">Ojo: tu dirección de correo seguirá siendo visible para quien lo reciba, ya que se envía desde tu propia app de correo.</string>
@@ -1495,6 +1500,10 @@
     <string name="vm_restored_back">\"%1$s\" está de vuelta.</string>
     <string name="vm_couldnt_restore">No se pudo restaurar: %1$s</string>
     <string name="vm_couldnt_load_team">No se pudo cargar el equipo: %1$s</string>
+    <string name="vm_time_approved">Turno aprobado.</string>
+    <string name="vm_couldnt_approve_time">No se pudo aprobar este turno: %1$s</string>
+    <string name="vm_time_rejected">Turno devuelto al empleado.</string>
+    <string name="vm_couldnt_reject_time">No se pudo devolver este turno: %1$s</string>
     <string name="vm_saved_access_of">Se guardó el acceso de %1$s.</string>
     <string name="vm_saved_their_access">Se guardó su acceso.</string>
     <string name="vm_couldnt_save_with">No se pudo guardar: %1$s</string>

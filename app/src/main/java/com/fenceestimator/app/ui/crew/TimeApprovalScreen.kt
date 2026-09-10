@@ -44,6 +44,7 @@ import com.fenceestimator.app.data.TimeEntry
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
+import com.fenceestimator.app.ui.components.resolve
 import com.fenceestimator.app.ui.theme.Space
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -92,6 +93,9 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
 
     var reviewing by remember { mutableStateOf<TimeEntry?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val message by viewModel.message.collectAsState()
+    val messageText = message?.resolve()
+    LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
 
     Scaffold(
         topBar = {

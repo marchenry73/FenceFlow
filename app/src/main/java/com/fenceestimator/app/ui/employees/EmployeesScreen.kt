@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
@@ -94,11 +95,7 @@ fun EmployeesScreen(onBack: () -> Unit) {
     ) { padding ->
         if (employees.isEmpty()) {
             Column(modifier = Modifier.fillMaxSize().padding(padding).padding(Space.xl)) {
-                Text(
-                    stringResource(R.string.emp_no_crew_yet),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                EmptyState(stringResource(R.string.emp_no_crew_yet))
             }
         } else {
             LazyColumn(

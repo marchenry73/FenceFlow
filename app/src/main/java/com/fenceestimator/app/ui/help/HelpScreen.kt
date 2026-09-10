@@ -1,6 +1,5 @@
 package com.fenceestimator.app.ui.help
 
-import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
@@ -123,6 +122,7 @@ fun HelpScreen(onBack: () -> Unit) {
 @Composable
 private fun CodesTab() {
     val context = LocalContext.current
+    val linkFailed = stringResource(R.string.rep_help_link_failed)
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -148,22 +148,22 @@ private fun CodesTab() {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(stringResource(R.string.rep_help_lookup_rules), style = MaterialTheme.typography.titleMedium)
                     LinkButton(stringResource(R.string.rep_help_link_811)) {
-                        openUrl(context, "https://call811.com/")
+                        openUrl(context, linkFailed, "https://call811.com/")
                     }
                     LinkButton(stringResource(R.string.rep_help_link_building_dept)) {
-                        openUrl(context, "https://www.google.com/search?q=" + Uri.encode("building department fence permit near me"))
+                        openUrl(context, linkFailed, "https://www.google.com/search?q=" + Uri.encode("building department fence permit near me"))
                     }
                     LinkButton(stringResource(R.string.rep_help_link_height_setback)) {
-                        openUrl(context, "https://www.google.com/search?q=" + Uri.encode("residential fence height setback code ordinance near me"))
+                        openUrl(context, linkFailed, "https://www.google.com/search?q=" + Uri.encode("residential fence height setback code ordinance near me"))
                     }
                     LinkButton(stringResource(R.string.rep_help_link_pool)) {
-                        openUrl(context, "https://www.google.com/search?q=" + Uri.encode("swimming pool barrier fence code requirements"))
+                        openUrl(context, linkFailed, "https://www.google.com/search?q=" + Uri.encode("swimming pool barrier fence code requirements"))
                     }
                     LinkButton(stringResource(R.string.rep_help_link_icc)) {
-                        openUrl(context, "https://www.iccsafe.org/")
+                        openUrl(context, linkFailed, "https://www.iccsafe.org/")
                     }
                     LinkButton(stringResource(R.string.rep_help_link_osha)) {
-                        openUrl(context, "https://www.osha.gov/construction")
+                        openUrl(context, linkFailed, "https://www.osha.gov/construction")
                     }
                 }
             }
@@ -178,10 +178,10 @@ private fun CodesTab() {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     LinkButton(stringResource(R.string.rep_help_link_insurance)) {
-                        openUrl(context, "https://www.google.com/search?q=" + Uri.encode("fencing contractor general liability insurance quotes"))
+                        openUrl(context, linkFailed, "https://www.google.com/search?q=" + Uri.encode("fencing contractor general liability insurance quotes"))
                     }
                     LinkButton(stringResource(R.string.rep_help_link_license_board)) {
-                        openUrl(context, "https://www.google.com/search?q=" + Uri.encode("state contractor license board fencing"))
+                        openUrl(context, linkFailed, "https://www.google.com/search?q=" + Uri.encode("state contractor license board fencing"))
                     }
                 }
             }
@@ -204,8 +204,17 @@ private fun LinkButton(label: String, onClick: () -> Unit) {
     }
 }
 
-private fun openUrl(context: android.content.Context, url: String) {
-    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+/**
+ * Opens a code-lookup link. Wrapped so a device with nothing able to handle
+ * a URL -- no default browser, a locked-down work phone -- shows a toast
+ * instead of taking down a screen someone is using to check a permit rule
+ * on site.
+ */
+private fun openUrl(context: android.content.Context, failedMessage: String, url: String) {
+    val opened = com.fenceestimator.app.ui.components.IntentHelpers.openWebLink(context, url)
+    if (!opened) {
+        android.widget.Toast.makeText(context, failedMessage, android.widget.Toast.LENGTH_SHORT).show()
+    }
 }
 
 @Composable

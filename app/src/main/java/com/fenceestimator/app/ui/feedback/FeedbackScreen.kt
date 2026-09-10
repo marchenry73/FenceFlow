@@ -48,7 +48,12 @@ private enum class FeedbackKind(val labelRes: Int) {
 fun FeedbackScreen(onBack: () -> Unit) {
     val app = currentApp()
     val context = LocalContext.current
-    val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
+    // Null means "not read from disk yet", not "no email set" -- collecting with a
+    // BusinessProfile() default here used to make the button claim the email was
+    // missing for the moment before the real, already-saved profile loaded.
+    val loadedProfile by app.settingsStore.profile.collectAsState(initial = null)
+    val profile = loadedProfile ?: BusinessProfile()
+    val profileLoaded = loadedProfile != null
 
     var kind by remember { mutableStateOf(FeedbackKind.SUGGESTION) }
     var anonymous by remember { mutableStateOf(true) }
@@ -96,6 +101,7 @@ fun FeedbackScreen(onBack: () -> Unit) {
                             label = { Text(stringResource(R.string.misc_feedback_message_label)) },
                             minLines = 6, modifier = Modifier.fillMaxWidth()
                         )
+                        val emailDraftFailed = stringResource(R.string.misc_feedback_email_open_failed)
                         Button(
                             onClick = {
                                 val kindLabel = context.getString(kind.labelRes)
@@ -103,17 +109,30 @@ fun FeedbackScreen(onBack: () -> Unit) {
                                 else name.ifBlank { context.getString(R.string.misc_feedback_unnamed) }
                                 val body = context.getString(R.string.misc_feedback_type_line, kindLabel) + "\n" +
                                     context.getString(R.string.misc_feedback_from_line, from) + "\n\n" + message
-                                IntentHelpers.openEmailDraft(
+                                val opened = IntentHelpers.openEmailDraft(
                                     context,
                                     profile.email,
                                     context.getString(R.string.misc_feedback_subject, kindLabel),
                                     body
                                 )
+                                if (!opened) {
+                                    android.widget.Toast.makeText(context, emailDraftFailed, android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             },
-                            enabled = message.isNotBlank() && profile.email.isNotBlank(),
+                            // Not loaded yet keeps the button disabled the same as a genuinely
+                            // blank email would, but without claiming the email is missing.
+                            enabled = message.isNotBlank() && profileLoaded && profile.email.isNotBlank(),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(stringResource(if (profile.email.isBlank()) R.string.misc_feedback_set_email_first else R.string.misc_feedback_send_to_office))
+                            Text(
+                                stringResource(
+                                    when {
+                                        !profileLoaded -> R.string.misc_feedback_loading
+                                        profile.email.isBlank() -> R.string.misc_feedback_set_email_first
+                                        else -> R.string.misc_feedback_send_to_office
+                                    }
+                                )
+                            )
                         }
                         Text(
                             stringResource(R.string.misc_feedback_opens_email) + " " +

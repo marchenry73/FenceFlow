@@ -72,6 +72,7 @@ fun AccessScreen(onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val team by viewModel.team.collectAsState()
     val message by viewModel.message.collectAsState()
+    val loadFailed by viewModel.loadFailed.collectAsState()
 
     var editing by remember { mutableStateOf<CloudProfile?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -114,6 +115,30 @@ fun AccessScreen(onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // A failed load must not settle into looking like a team with
+            // nobody on it -- the snackbar for this already flashed past, so
+            // the reason it's empty (or stale) stays visible until a reload
+            // actually succeeds.
+            loadFailed?.let { failure ->
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                failure.resolve(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            OutlinedButton(onClick = { viewModel.load() }) {
+                                Text(stringResource(R.string.acct_access_retry))
+                            }
+                        }
+                    }
+                }
             }
 
             items(team, key = { it.id }) { member ->
@@ -181,11 +206,13 @@ fun AccessScreen(onBack: () -> Unit) {
                 }
             }
 
-            if (team.isEmpty()) {
+            // Only read as "nobody has joined" once a load has actually
+            // succeeded with nothing in it -- while loadFailed is showing above,
+            // an empty list here is unproven, not a fact about the team.
+            if (team.isEmpty() && loadFailed == null) {
                 item {
-                    Text(
-                        stringResource(R.string.acct_access_nobody_joined),
-                        style = MaterialTheme.typography.bodyMedium
+                    com.fenceestimator.app.ui.components.EmptyState(
+                        stringResource(R.string.acct_access_nobody_joined)
                     )
                 }
             }
