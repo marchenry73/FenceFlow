@@ -9,6 +9,7 @@
 <meta property="og:description" content="Draw the fence line or measure it off a satellite photo. Posts, panels, concrete and gate hardware counted and priced from your own supplier list.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://fenceflowapp.com/">
+<link rel="canonical" href="https://fenceflowapp.com/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -133,6 +134,12 @@
   .versus{display:grid;gap:10px}
   .versus div{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start;
               font-size:16.5px;color:#C3CDDC}
+  /* Visible only to screen readers: the +/- distinction in the list below is
+     carried by colour and a glyph, which neither reaches a screen reader. */
+  .sr-only{
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+  }
   .versus .mark{font-weight:700;text-align:center}
   .versus .no .mark{color:#8B97A9}
   .versus .yes .mark{color:var(--teal)}
@@ -329,14 +336,14 @@
           customised into faking it.</small></p>
     </div>
     <div class="versus">
-      <div class="no"><span class="mark">—</span><span>Type every line item by hand, every quote</span></div>
-      <div class="no"><span class="mark">—</span><span>Drive to the property before you can price it</span></div>
-      <div class="no"><span class="mark">—</span><span>A three-day install logged as three unrelated appointments</span></div>
-      <div class="no"><span class="mark">—</span><span>Permits and HOA approvals kept in a custom field, or a notebook</span></div>
-      <div class="yes"><span class="mark">✓</span><span>Posts, panels, concrete and hardware counted from the line</span></div>
-      <div class="yes"><span class="mark">✓</span><span>Measure it off a satellite photo before you leave the shop</span></div>
-      <div class="yes"><span class="mark">✓</span><span>Multi-day installs, crew by crew, on one calendar</span></div>
-      <div class="yes"><span class="mark">✓</span><span>Permit numbers, HOA status and 811 locates on the job itself</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>Type every line item by hand, every quote</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>Drive to the property before you can price it</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>A three-day install logged as three unrelated appointments</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>Permits and HOA approvals kept in a custom field, or a notebook</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Posts, panels, concrete and hardware counted from the line</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Measure it off a satellite photo before you leave the shop</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Multi-day installs, crew by crew, on one calendar</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Permit numbers, HOA status and 811 locates on the job itself</span></div>
     </div>
   </div>
 </section>
