@@ -88,10 +88,25 @@ if (!notes) {
 
   // Gradle, so it needs the wrapper rather than node.
   {
-    const wrapper = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+    // An absolute path to the wrapper, not a bare name.
+    //
+    // This said "gradlew.bat" on Windows and relied on the shell finding it.
+    // Git Bash does not put the working directory on PATH, so the spawn failed
+    // with "not recognized" and a non-zero status -- which this gate then
+    // reported as "the app unit tests are red". They were green. A gate that
+    // cannot tell a failed test from a failed launch refuses good releases and
+    // teaches everyone to distrust it.
+    const wrapper = join(REPO_ROOT, process.platform === "win32" ? "gradlew.bat" : "gradlew");
     const tests = spawnSync(wrapper, ["testDebugUnitTest", "-q"], {
       cwd: REPO_ROOT, stdio: "inherit", shell: process.platform === "win32",
     });
+    if (tests.error) {
+      // A gate that cannot start is not a gate that failed. Told apart because
+      // the fixes are different, and confusing them cost two good releases.
+      console.error("Refusing to publish: could not run the app tests at all -- "
+        + tests.error.message);
+      process.exit(1);
+    }
     if (tests.status !== 0) {
       console.error("\nRefusing to publish: the app unit tests are red (see above).");
       process.exit(1);
