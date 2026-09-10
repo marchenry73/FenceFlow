@@ -1,0 +1,25 @@
+# A quote link is the key to that quote. It carries no password because the
+# unguessable token IS the authorisation -- which works right up until a search
+# engine indexes one and it becomes a result anybody can click.
+#
+# Disallow alone would not be enough: it stops crawling, not indexing, and a URL
+# somebody shares in a forum can still be listed without ever being fetched.
+# Every page below also carries <meta name="robots" content="noindex">, which is
+# the half that actually prevents that. This file is the belt.
+
+User-agent: *
+Disallow: /quote.html
+Disallow: /dashboard.html
+Disallow: /dashboard
+Disallow: /admin.html
+Disallow: /admin
+Disallow: /welcome.html
+
+# The marketing pages are meant to be found.
+Allow: /
+Allow: /index.html
+Allow: /lead.html
+Allow: /privacy.html
+Allow: /terms.html
+
+Sitemap: https://fenceflowapp.com/sitemap.xml
