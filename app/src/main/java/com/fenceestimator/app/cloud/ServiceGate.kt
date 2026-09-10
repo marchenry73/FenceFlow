@@ -302,8 +302,44 @@ object ServiceGate {
             )
         }
 
+        val allowed = prefs[ALLOWED] ?: true
+        val age = System.currentTimeMillis() - checkedAt
+
+        // A remembered YES and a remembered NO are not worth the same.
+        //
+        // Failing open for a month offline is deliberate: a crew in a dead spot
+        // keeps working. Failing CLOSED on a month-old no is a different thing
+        // entirely -- it locks a working crew out on the strength of a fact
+        // nobody has been able to re-check, and the person holding the phone
+        // has no way to argue with it.
+        //
+        // This happened. A crew handset sat on "Your trial has ended" long
+        // after the company was active and paying, because its session had
+        // lapsed, the gate refuses to ask without one, and the stored answer
+        // was the last thing anybody had told it. The owner's phone had since
+        // asked again and moved on; the crew's could not.
+        //
+        // So a stale NO decays into "could not check" rather than staying a
+        // verdict. The screen still stops them -- this does not hand the
+        // product to a cancelled company -- but it stops them with the truth,
+        // which is that this phone needs to reach the server, and that is
+        // something a person can actually act on.
+        if (!allowed && age > BLOCK_TRUST_MS) {
+            return ServiceStatus(
+                allowed = false,
+                subscriptionStatus = prefs[STATUS].orEmpty(),
+                plan = prefs[PLAN].orEmpty(),
+                reason = "This phone hasn't been able to reach FenceFlow since " +
+                    "it was last told your account was on hold, so it cannot tell " +
+                    "whether that is still true. Connect to the internet once, or " +
+                    "sign out and back in, and it will sort itself out.",
+                trialDaysLeft = null,
+                subscribed = prefs[SUBSCRIBED] ?: false
+            )
+        }
+
         return ServiceStatus(
-            allowed = prefs[ALLOWED] ?: true,
+            allowed = allowed,
             subscriptionStatus = prefs[STATUS].orEmpty(),
             plan = prefs[PLAN].orEmpty(),
             reason = prefs[REASON].orEmpty(),
@@ -314,6 +350,16 @@ object ServiceGate {
 
     /** Thirty days without one successful check. */
     private const val OFFLINE_TRUST_MS = 30L * 24 * 60 * 60 * 1000
+
+    /**
+     * How long a remembered NO stays a verdict rather than a question.
+     *
+     * Deliberately far shorter than [OFFLINE_TRUST_MS]. Trusting a yes for a
+     * month costs a company one month of a product they may have cancelled.
+     * Trusting a no for a month costs a paying crew a month of work they are
+     * entitled to, and they cannot tell why.
+     */
+    private const val BLOCK_TRUST_MS = 2L * 24 * 60 * 60 * 1000
 
     /** Forgotten on sign-out, so the next account is judged on its own terms. */
     suspend fun clear(context: Context) {

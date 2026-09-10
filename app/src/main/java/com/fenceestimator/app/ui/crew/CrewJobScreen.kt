@@ -344,7 +344,13 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
                     val pay = com.fenceestimator.app.estimate.CrewPay
                         .forJob(assigned, entries, runs, pxPerFt)
-                    if (pay.amount > 0.0 || pay.hoursAwaitingApproval > 0.0) {
+                    // rateIsUnset is included here on purpose: without it, a
+                    // crew member whose approved hours (or built feet) came
+                    // to $0.00 only because nobody set their rate saw no card
+                    // at all -- the same blank-reads-as-fine failure as
+                    // showing a bare "$0.00" would have been, just moved one
+                    // level up.
+                    if (pay.amount > 0.0 || pay.hoursAwaitingApproval > 0.0 || pay.rateIsUnset) {
                         Card(
                             Modifier.fillMaxWidth().padding(top = Space.section),
                             colors = CardDefaults.cardColors(
@@ -353,12 +359,28 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                         ) {
                             Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                                 Text(stringResource(R.string.crew_your_pay), style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    Money.format(pay.amount),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(pay.explain(), style = MaterialTheme.typography.bodySmall)
+                                if (pay.rateIsUnset) {
+                                    // Never $0.00 here. A dollar figure of
+                                    // nothing reads as "you earned nothing today,"
+                                    // and that is not what a missing rate means.
+                                    Text(
+                                        stringResource(R.string.misc_crew_rate_not_set),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        stringResource(R.string.misc_crew_rate_not_set_detail),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                } else {
+                                    Text(
+                                        Money.format(pay.amount),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(pay.explain(), style = MaterialTheme.typography.bodySmall)
+                                }
                                 // Said plainly rather than left as a gap. Hours
                                 // that are simply missing from the total read as
                                 // the app having lost the day worked.
@@ -373,7 +395,7 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                         color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                 }
-                                if (pay.payType == com.fenceestimator.app.data.PayType.PER_FOOT &&
+                                if (!pay.rateIsUnset && pay.payType == com.fenceestimator.app.data.PayType.PER_FOOT &&
                                     pay.effectiveHourly > 0.0
                                 ) {
                                     Text(

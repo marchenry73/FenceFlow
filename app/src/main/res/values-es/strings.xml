@@ -704,6 +704,7 @@
     <string name="cat_default_price">Precio predeterminado</string>
     <string name="cat_no_price">Sin precio</string>
     <string name="cat_price_per_unit">%1$s / %2$s</string>
+    <string name="cat_price_confirmed_on">Confirmado el %1$s</string>
     <string name="cat_edit">Editar</string>
     <string name="cat_new_item">Nuevo artículo</string>
     <string name="cat_edit_item">Editar artículo</string>
@@ -1213,6 +1214,8 @@
     <string name="misc_crew_run_details">%1$d esquinas · %2$d portón(es) · postes cada %3$d pies</string>
     <string name="misc_crew_hours_awaiting">%1$s h más pendientes de aprobación; aún no se cuentan.</string>
     <string name="misc_crew_works_out_hourly">Equivale a $%1$s/h</string>
+    <string name="misc_crew_rate_not_set">Tarifa no definida</string>
+    <string name="misc_crew_rate_not_set_detail">Hoy trabajaste, pero todavía no se ha registrado tu tarifa de pago. Pídele a tu encargado que la configure para que este trabajo se pague correctamente.</string>
     <string name="misc_crew_walkthrough_subtitle">Repasa cada punto con el cliente y márcalo cuando esté de acuerdo.</string>
     <string name="misc_crew_final_walkthrough_title">Recorrido final (antes de irte)</string>
     <string name="misc_crew_final_walkthrough_subtitle">Recorre la cerca terminada con el cliente y luego pídele que firme abajo.</string>

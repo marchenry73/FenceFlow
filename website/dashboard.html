@@ -579,6 +579,7 @@
       <button class="tab" data-tab="cal">Calendar</button>
       <button class="tab" data-tab="pipe">Pipeline</button>
       <button class="tab" data-tab="prod">Production</button>
+      <button class="tab" data-tab="materials">Materials</button>
       <button class="tab" data-tab="crew">Crew</button>
       <button class="tab" data-tab="time">Time</button>
       <button class="tab" data-tab="catalog">Catalog</button>
@@ -595,6 +596,12 @@
           estimate this company produces is built on blanks &mdash; and you will not find out
           until the job is done.</p>
         <div id="setupList"></div>
+      </div>
+      <div class="panel" id="briefingPanel">
+        <h2 style="margin-bottom:2px">Daily briefing</h2>
+        <p class="sub" style="margin-top:0">What changed in the last 24 hours, and what needs you today
+          &mdash; a summary of the alerts and totals below, not a new set of checks.</p>
+        <div id="briefingBody"></div>
       </div>
       <div class="stats" id="stats"></div>
       <div class="panel">
@@ -695,6 +702,29 @@
         <div class="scroll"><table>
           <thead><tr><th>Stage</th><th>Jobs there now</th><th>Average time to move on</th></tr></thead>
           <tbody id="prodTimeRows"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="tab-materials" style="display:none">
+      <div class="panel">
+        <h2 style="margin-bottom:2px">What to buy</h2>
+        <p class="sub" style="margin-top:0">Every sold job that still needs materials ordered or received,
+          rolled up into one buy list. Quantities come straight from each job's line items &mdash; no lead
+          times or delivery dates are shown here because this database does not record any.</p>
+        <div class="msg" id="materialsMsg"></div>
+        <div class="scroll"><table>
+          <thead><tr><th>Item</th><th>Unit</th><th>Total quantity</th><th>Needed by</th><th>Jobs</th></tr></thead>
+          <tbody id="materialsBuyRows"></tbody></table></div>
+        <div class="empty" id="materialsBuyEmpty" style="display:none">Nothing to buy right now.</div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-bottom:2px">By job</h2>
+        <p class="sub" style="margin-top:0">Same jobs, one row each, so you can see what is blocking a
+          specific truck roll.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Job</th><th>Scheduled</th><th>Materials status</th><th>Line items</th></tr></thead>
+          <tbody id="materialsJobRows"></tbody></table></div>
+        <div class="empty" id="materialsJobEmpty" style="display:none">Nothing to buy right now.</div>
       </div>
     </div>
 
@@ -1834,6 +1864,11 @@ const ALERT_DEFS = [
   { key:'no_deposit',        label:'Approved with no deposit taken' },
   { key:'clocked_in_long',   label:'Someone has been clocked in unusually long' },
   { key:'unverified_prices', label:'Priced on catalog prices nobody has confirmed' },
+  { key:'unassigned_scheduled', label:'Scheduled with nobody assigned to the crew' },
+  { key:'clocked_in_finished',  label:'Clocked in on a job already marked finished' },
+  { key:'approved_unscheduled', label:'Approved but never scheduled' },
+  { key:'paid_then_declined',   label:'Money collected on a job later declined' },
+  { key:'stage_stalled',        label:'Sitting on one production stage for weeks' },
 ];
 // True unless this user has switched that alert off. Absence of a row for
 // this user (table not created yet, or never saved a preference) means
@@ -2356,6 +2391,11 @@ let companyMembers=[];
 let setupSteps=[];
 let paymentConn=null;
 let setupBlocks=false;
+// Snapshot of what renderDash already computed, so the Daily briefing and
+// the Materials tab can quote the same numbers instead of recomputing their
+// own second version of "needs attention" or "on the clock now".
+let dashSnapshot=null;
+let attentionItems=[];
 
 /* ---------- data ---------- */
 /**
@@ -2714,17 +2754,27 @@ async function settleAfterCheckout(){
    request risks the URL length, not correctness), merged into the existing
    array by id so nothing already loaded is lost or duplicated. */
 
+// Returns { failedIds }: the job sync_ids whose chunk errored, so a caller
+// that has to state a total (the Materials tab's buy list) can name those
+// jobs as unknown rather than silently letting a failed chunk read as "this
+// job needs nothing" -- which is what happened before this return value
+// existed, since a failed chunk simply added nothing to `items`.
 async function ensureItemsForJobs(syncIds){
   const ids = [...new Set((syncIds || []).filter(Boolean))];
-  if (!ids.length) return;
+  if (!ids.length) return { failedIds: new Set() };
   const CHUNK = 150;
   const chunks = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
   const results = await Promise.all(chunks.map(c =>
     db.from('estimate_line_items').select('*').is('deleted_at', null).in('job_sync_id', c)));
   const byId = new Map(items.map(x => [x.id, x]));
-  results.forEach(res => { if (!res.error) (res.data || []).forEach(x => byId.set(x.id, x)); });
+  const failedIds = new Set();
+  results.forEach((res, i) => {
+    if (res.error) chunks[i].forEach(id => failedIds.add(id));
+    else (res.data || []).forEach(x => byId.set(x.id, x));
+  });
   items = [...byId.values()];
+  return { failedIds };
 }
 
 async function ensureTimesForJobs(syncIds){
@@ -3029,6 +3079,10 @@ async function loadAll(){
 
   await loadNotifPrefs();
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderProduction(); renderEmployees();
+  // Fire-and-forget, same pattern as renderChase(): the tab paints once
+  // ensureItemsForJobs (inside renderProcurement) has topped up the items
+  // this buy list has to total completely.
+  renderProcurement();
   renderTime(); renderCycles(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();
   renderAlertPrefs();
   await loadAutomationState();
@@ -3336,6 +3390,24 @@ function renderDash(){
   // off. Ledger rows carry the refund as a negative, so summing them is both
   // the right period and already net.
   const collected=payments.filter(p=>d(p.received_at)>=m).reduce((s,p)=>s+(p.amount||0),0);
+  // Last calendar month, same two counts, so the two headline tiles below
+  // ("Jobs won this month" / "Collected this month") say which way things are
+  // going rather than just where they sit -- a count alone answers nothing;
+  // it only means something beside the month before it.
+  const prevM=new Date(m); prevM.setMonth(prevM.getMonth()-1);
+  const wonPrev=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')
+    && d(j.scheduled_date||j.created_at)>=prevM && d(j.scheduled_date||j.created_at)<m).length;
+  const collectedPrev=payments.filter(p=>d(p.received_at)>=prevM && d(p.received_at)<m)
+    .reduce((s,p)=>s+(p.amount||0),0);
+  const monthDelta = (now, prev) => {
+    if (prev <= 0 && now <= 0) return '';
+    if (prev <= 0) return '<span class="delta up">new</span>';
+    const pct = (now - prev) / prev * 100;
+    const cls = pct > 2 ? 'up' : pct < -2 ? 'down' : 'flat';
+    const arrow = pct > 2 ? '▲' : pct < -2 ? '▼' : '•';
+    return '<span class="delta ' + cls + '">' + arrow + ' ' +
+      (Math.abs(pct) >= 1000 ? '10x+' : Math.abs(pct).toFixed(0) + '%') + ' vs last month</span>';
+  };
   const unpaid=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&j.payment_status!=='PAID_IN_FULL');
   const owedTotal=jobs.filter(j=>j.status==='ACCEPTED'||j.status==='COMPLETED')
     .reduce((s,j)=>s+stillOwed(j, contractTotalOf(j)),0);
@@ -3359,10 +3431,10 @@ function renderDash(){
     const b = document.querySelector(`.tab[data-tab="${tab}"]`);
     return (b && b.style.display === 'none') ? '' : tab;
   };
-  const tile = (tab, n, label) => {
+  const tile = (tab, n, label, delta) => {
     const to = tileTo(tab);
     return `<div class="stat${to ? ' click' : ''}"${to ? ` data-go="${to}"` : ''}>` +
-           `<div class="n">${n}</div><div class="l">${label}</div></div>`;
+           `<div class="n">${n}</div><div class="l">${label}</div>${delta||''}</div>`;
   };
   /* The two a manager checks before anything else, and neither was anywhere on
      this page: what is happening today, and who is actually on the clock.
@@ -3382,8 +3454,8 @@ function renderDash(){
     tile('cal', todaysJobs.length, todaysJobs.length === 1 ? 'Job today' : 'Jobs today') +
     tile('time', onTheClock.length, onTheClock.length === 1 ? 'On the clock now' : 'On the clock now') +
     tile('cal', soon.length, 'Scheduled next 7 days') +
-    tile('pipe', won, 'Jobs won this month') +
-    tile('reports', money(collected), 'Collected this month') +
+    tile('pipe', won, 'Jobs won this month', monthDelta(won, wonPrev)) +
+    tile('reports', money(collected), 'Collected this month', monthDelta(collected, collectedPrev)) +
     tile('jobs', money(owedTotal), 'Still owed');
   document.querySelectorAll('.stat.click').forEach(s=>
     s.addEventListener('click',()=>switchTab(s.dataset.go)));
@@ -3404,11 +3476,13 @@ function renderDash(){
     // sheet here has no such panel, so an alert that just opened the sheet
     // sent the contractor looking for a control that was never there.
     const j = jobBySync(sid);
-    if (j) items.push({ urgent:true, text:'Plan change waiting — answer it in the phone app: '+name(j), id:j.id });
+    if (j) items.push({ urgent:true, severity:'warn', text:'Plan change waiting — answer it in the phone app: '+name(j), id:j.id, key:'field_change:'+j.id, fp:j.updated_at });
   });
-  // 811 locate expired on a job that is not finished.
+  // 811 locate expired on a job that is not finished. A legal/safety deadline
+  // that has already passed -- the sharpest kind of urgent this list has, so
+  // it gets the top severity, unlike a quote that has merely gone quiet below.
   jobs.filter(j=>j.locate_expires_at && d(j.locate_expires_at) < new Date() && j.status!=='COMPLETED')
-    .forEach(j=>items.push({ urgent:true, text:'811 locate expired: '+name(j), id:j.id }));
+    .forEach(j=>items.push({ urgent:true, severity:'critical', text:'811 locate expired: '+name(j), id:j.id, key:'locate_expired:'+j.id, fp:j.locate_expires_at }));
   // Hours waiting for approval.
   const pendingShifts = times.filter(t=>t.ended_at && !t.approved_at && !t.rejected_at).length;
   // Somebody new has joined and is waiting to be told what they are.
@@ -3420,21 +3494,21 @@ function renderDash(){
   if (profile?.role === 'OWNER') {
     companyMembers.filter(m => m.requested_role && m.requested_role !== m.role)
       .forEach(m => items.push({
-        urgent: true,
+        urgent: true, severity:'warn',
         text: (m.full_name || 'Somebody') + ' joined and asked to be '
               + m.requested_role.charAt(0) + m.requested_role.slice(1).toLowerCase()
               + ' — say yes or no',
-        id: null, go: 'crew'
+        id: null, go: 'crew', key:'join_request:'+m.id, fp:m.requested_role
       }));
   }
 
-  if (pendingShifts) items.push({ urgent:false, text:pendingShifts+' shift'+(pendingShifts===1?'':'s')+' waiting for approval', id:null, go:'time' });
+  if (pendingShifts) items.push({ urgent:false, severity:'info', text:pendingShifts+' shift'+(pendingShifts===1?'':'s')+' waiting for approval', id:null, go:'time', key:'pending_shifts', fp:String(pendingShifts) });
   // Finished but not paid in full.
   jobs.filter(j=>j.status==='COMPLETED' && j.payment_status!=='PAID_IN_FULL')
-    .forEach(j=>items.push({ urgent:false, text:'Finished, not paid: '+name(j), id:j.id }));
+    .forEach(j=>items.push({ urgent:false, severity:'info', text:'Finished, not paid: '+name(j), id:j.id, key:'unpaid:'+j.id, fp:j.payment_status }));
   // Drafts that never went out.
   jobs.filter(j=>j.status==='DRAFT' && d(j.updated_at||j.created_at) < new Date(weekAgo))
-    .forEach(j=>items.push({ urgent:false, text:'Draft never sent: '+name(j), id:j.id }));
+    .forEach(j=>items.push({ urgent:false, severity:'info', text:'Draft never sent: '+name(j), id:j.id, key:'draft_stale:'+j.id, fp:j.updated_at }));
   /* ---- exceptions the system should find before a person does -----------
 
      Everything above answers "something happened, deal with it". These four
@@ -3456,28 +3530,28 @@ function renderDash(){
                    && (nowMs - d(j.created_at).getTime()) < 7 * 864e5)
     .forEach(j => {
       const waited = Math.round((nowMs - d(j.created_at).getTime()) / 36e5);
-      items.push({ urgent: waited >= 24,
+      items.push({ urgent: waited >= 24, severity: waited >= 24 ? 'critical' : 'warn',
         text: 'Nobody has contacted ' + name(j) + ' yet \u2014 ' + waited + ' hours since the enquiry',
-        id: j.id });
+        id: j.id, key:'uncontacted_lead:'+j.id, fp:j.updated_at });
     });
 
   // A chargeback. Top of the list because the money is already gone and the
   // job still reads paid: without this line the first anybody hears is a bank
   // statement weeks later.
   if (alertOn('dispute_open')) jobs.filter(j => j.dispute_opened_at && !j.dispute_closed_at)
-    .forEach(j => items.push({ urgent:true,
+    .forEach(j => items.push({ urgent:true, severity:'critical',
       text: 'Payment disputed' + (j.dispute_amount ? ' (' + money(j.dispute_amount) + ')' : '') +
             (j.dispute_reason ? ', ' + String(j.dispute_reason).replace(/_/g, ' ') : '') +
             ': ' + name(j),
-      id: j.id }));
+      id: j.id, key:'dispute_open:'+j.id, fp:j.updated_at }));
 
   // Approved but never signed. The approval is a click on a web page; the
   // signature is the contract. A job worked from an approval with no signature
   // is a job with nothing to point at if the customer changes their mind.
   if (alertOn('unsigned_approved')) jobs.filter(j => j.quote_approved_at && !j.signed_at
                    && !['COMPLETED','DECLINED'].includes(j.status))
-    .forEach(j => items.push({ urgent:false,
-      text: 'Approved but not signed: ' + name(j), id: j.id }));
+    .forEach(j => items.push({ urgent:false, severity:'warn',
+      text: 'Approved but not signed: ' + name(j), id: j.id, key:'unsigned_approved:'+j.id, fp:j.updated_at }));
 
   // Labour has already cost more than it was priced at. Not a warning about
   // the future -- the money is spent. Only when there is a real rate behind
@@ -3488,9 +3562,9 @@ function renderDash(){
     const quoted = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
                  + Number(j.labor_flat_fee || 0);
     if (quoted > 0.005 && Number(r.labour_cost) > quoted) {
-      items.push({ urgent:true,
+      items.push({ urgent:true, severity:'warn',
         text: 'Labour is over what it was priced at by ' +
-              money(Number(r.labour_cost) - quoted) + ': ' + name(j), id: j.id });
+              money(Number(r.labour_cost) - quoted) + ': ' + name(j), id: j.id, key:'labour_over:'+j.id, fp:j.updated_at });
     }
   });
 
@@ -3501,11 +3575,11 @@ function renderDash(){
                    && d(j.scheduled_date) >= new Date(nowMs)
                    && d(j.scheduled_date) < new Date(nowMs + 7*864e5)
                    && !['RECEIVED','NOT_NEEDED'].includes(j.materials_status || 'NOT_ORDERED'))
-    .forEach(j => items.push({ urgent: true,
+    .forEach(j => items.push({ urgent: true, severity:'critical',
       text: 'Scheduled ' + d(j.scheduled_date).toLocaleDateString() +
             ' with materials ' + ((j.materials_status === 'ORDERED') ? 'ordered but not received' : 'not ordered') +
             ': ' + name(j),
-      id: j.id }));
+      id: j.id, key:'materials_missing:'+j.id, fp:j.materials_status+'|'+j.scheduled_date }));
 
   // A quote that went out and went quiet. The most expensive thing on this
   // page: a sale nobody said no to.
@@ -3517,9 +3591,12 @@ function renderDash(){
       // Opened and still silent is a different conversation from never opened,
       // so the alert says which.
       const seen = j.quote_viewed_at ? 'opened it but has not approved' : 'has not opened it';
-      items.push({ urgent:false,
+      // Gone quiet, not gone wrong: no deadline has passed and no money is at
+      // risk yet, which is exactly why this sits at the bottom severity tier
+      // instead of looking like the dispute above.
+      items.push({ urgent:false, severity:'info',
         text: 'Quote sent ' + days + ' days ago, customer ' + seen + ': ' + name(j),
-        id: j.id });
+        id: j.id, key:'stale_quote:'+j.id, fp:j.quote_viewed_at||'' });
     });
 
   // Approved, deposit agreed, nothing collected. The work is scheduled against
@@ -3527,8 +3604,8 @@ function renderDash(){
   if (alertOn('no_deposit')) jobs.filter(j => j.quote_approved_at
                    && Number(j.deposit_amount) > 0
                    && netPaid(j) < 0.005)
-    .forEach(j => items.push({ urgent:true,
-      text: 'Approved, no deposit taken: ' + name(j), id: j.id }));
+    .forEach(j => items.push({ urgent:true, severity:'critical',
+      text: 'Approved, no deposit taken: ' + name(j), id: j.id, key:'no_deposit:'+j.id, fp:j.updated_at }));
 
   // Still clocked in long after any shift would have ended. Sixteen hours
   // rather than eight, because a long day on a fence line is a real thing and
@@ -3538,22 +3615,94 @@ function renderDash(){
     .forEach(t => {
       const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Someone';
       const hrs = Math.floor((nowMs - d(t.started_at).getTime()) / 36e5);
-      items.push({ urgent:true,
+      items.push({ urgent:true, severity:'warn',
         text: who + ' has been clocked in for ' + hrs + ' hours',
-        go: 'time' });
+        go: 'time', key:'clocked_in_long:'+t.id, fp:t.started_at });
     });
 
   // A quote whose price still rests on catalog rows nobody confirmed. The
   // quote panel already blocks sending one; this is so the owner learns about
   // it before opening the job rather than after.
   if (alertOn('unverified_prices')) jobs.filter(j => ['DRAFT','SENT'].includes(j.status) && unverifiedPricesOn(j).length)
-    .forEach(j => items.push({ urgent:false,
-      text: 'Priced on catalog prices nobody has confirmed: ' + name(j), id: j.id }));
+    .forEach(j => items.push({ urgent:false, severity:'info',
+      text: 'Priced on catalog prices nobody has confirmed: ' + name(j), id: j.id, key:'unverified_prices:'+j.id, fp:j.updated_at }));
+
+  /* ---- exceptions added for §29: still nothing-happened problems, found the
+     same way as the four above -- read what the app already stores, do not
+     invent a new notion of any of these states. */
+
+  // A truck and a crew go somewhere on a date nobody put a name against. This
+  // is not "materials missing" -- it is the day itself with nobody booked to
+  // show up.
+  if (alertOn('unassigned_scheduled')) jobs.filter(j => j.scheduled_date
+                   && d(j.scheduled_date) >= new Date(nowMs)
+                   && !j.assigned_employee_id
+                   && j.status !== 'DECLINED')
+    .forEach(j => items.push({ urgent:true,
+      text: 'Scheduled ' + d(j.scheduled_date).toLocaleDateString() + ' with nobody assigned: ' + name(j),
+      id: j.id }));
+
+  // Someone is still on the clock against a job the office already marked
+  // finished. Either the job was closed too early or the shift was never
+  // stopped -- either way the labour cost on a "done" job is still moving.
+  if (alertOn('clocked_in_finished')) times.filter(t => t.started_at && !t.ended_at)
+    .forEach(t => {
+      const j = jobBySync(t.job_sync_id);
+      if (!j || j.status !== 'COMPLETED') return;
+      const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Someone';
+      items.push({ urgent:true,
+        text: who + ' is clocked in on a job already marked finished: ' + name(j), id: j.id });
+    });
+
+  // Approved and still sitting with no date on the calendar. A quote that got
+  // a yes is a promise; three days is enough time to have called and picked
+  // one, and every day after that is a day the customer wonders if they were
+  // forgotten.
+  if (alertOn('approved_unscheduled')) jobs.filter(j => j.quote_approved_at
+                   && !j.scheduled_date
+                   && !['COMPLETED','DECLINED'].includes(j.status)
+                   && (nowMs - d(j.quote_approved_at).getTime()) > 3 * 864e5)
+    .forEach(j => {
+      const days = Math.floor((nowMs - d(j.quote_approved_at).getTime()) / 864e5);
+      items.push({ urgent:true,
+        text: 'Approved ' + days + ' days ago, never scheduled: ' + name(j), id: j.id });
+    });
+
+  // Money came in and the job still ended up marked declined. Somebody owes
+  // somebody: either the deposit needs refunding or the status is wrong.
+  if (alertOn('paid_then_declined')) jobs.filter(j => j.status === 'DECLINED' && netPaid(j) > 0.005)
+    .forEach(j => items.push({ urgent:true,
+      text: money(netPaid(j)) + ' collected on a job later marked declined: ' + name(j), id: j.id }));
+
+  // A sold job that has not moved off its production stage in three weeks.
+  // Same job_stage_events table the Production board's own "time in stage"
+  // column already reads -- this just says so before anyone happens to look
+  // at that board. DONE is excluded: sitting on DONE is not stuck, it is
+  // finished.
+  if (alertOn('stage_stalled')) {
+    const byJobEvents = stageEventsByJob();
+    jobs.filter(j => (j.status === 'ACCEPTED' || j.status === 'COMPLETED')
+        && j.production_stage && j.production_stage !== 'DONE')
+      .forEach(j => {
+        const events = byJobEvents.get(j.sync_id) || [];
+        const last = events[events.length - 1];
+        if (!last) return;
+        const days = Math.floor((nowMs - d(last.entered_at).getTime()) / 864e5);
+        if (days >= 21) items.push({ urgent:false,
+          text: 'Stuck on ' + prodStageLabel(j.production_stage) + ' for ' + days + ' days: ' + name(j),
+          id: j.id });
+      });
+  }
 
   // Open punch-list items, by job.
   const openBy = {};
   punch.filter(p=>!p.resolved).forEach(p=>{ openBy[p.job_sync_id]=(openBy[p.job_sync_id]||0)+1; });
   Object.entries(openBy).forEach(([sid,cnt])=>{ const j=jobBySync(sid); if(j) items.push({ urgent:false, text:cnt+' open punch-list item'+(cnt===1?'':'s')+': '+name(j), id:j.id }); });
+
+  // Handed to the Daily briefing so it can say what needs attention today
+  // without re-running every alert rule above a second time.
+  attentionItems = items;
+  dashSnapshot = { todaysJobs, onTheClock, soon, won, collected, owedTotal };
 
   $('attention').innerHTML = items.length
     ? items.map(it=>`<div class="att-row" data-att-id="${it.id??''}" data-att-go="${it.go||''}"
@@ -3591,6 +3740,188 @@ function renderDash(){
   // the rest of the dashboard paints immediately and this panel fills in
   // once the line items it needs for a complete total have arrived.
   renderChase();
+  renderBriefing();
+}
+
+/* ---------- daily briefing: what changed since yesterday, what needs you today ----
+
+   Not a new detector. Every figure here is read off jobs/payments/stageEvents
+   that loadAll() already fetched in full, or off attentionItems/dashSnapshot,
+   which renderDash just finished computing a moment ago -- this never
+   re-decides what counts as "needs attention", it only re-states it.
+
+   "Since yesterday" is the last 24 hours ending now, and it is built ONLY
+   from timestamps that record something actually happening:
+     created_at, first_contact_at, quote_sent_at, quote_approved_at,
+     signed_at, quote_viewed_at, dispute_opened_at/closed_at on jobs;
+     received_at on payments; entered_at on job_stage_events;
+     started_at/ended_at on time_entries.
+   updated_at is deliberately never used for this: it is the row's sync
+   clock, stamped by the touch trigger on any write from any device, and
+   this file already has one incident on record (see renderDash's "This
+   month" comment above) where treating it as an event clock made the same
+   job's whole history count as "this month" on one screen and not another.
+   The same mistake here would make "since yesterday" true for a job nobody
+   touched today, just because some device finally synced it. There is also
+   no completed_at column and no declined_at column on jobs, and no
+   resolved_at on punch-list items -- so "jobs finished" and "jobs lost"
+   since yesterday are left out of this panel rather than guessed at. */
+function renderBriefing(){
+  if (!$('briefingBody')) return;
+  const nowMs = Date.now();
+  const cutoff = new Date(nowMs - 24*36e5);
+
+  const newLeads   = jobs.filter(j => j.created_at && d(j.created_at) >= cutoff);
+  const contacted  = jobs.filter(j => j.first_contact_at && d(j.first_contact_at) >= cutoff);
+  const quotesSent = jobs.filter(j => j.quote_sent_at && d(j.quote_sent_at) >= cutoff);
+  const quotesSeen = jobs.filter(j => j.quote_viewed_at && d(j.quote_viewed_at) >= cutoff);
+  const wonJobs     = jobs.filter(j => j.quote_approved_at && d(j.quote_approved_at) >= cutoff);
+  const disputed    = jobs.filter(j => j.dispute_opened_at && d(j.dispute_opened_at) >= cutoff);
+  const newPayments = payments.filter(p => p.received_at && d(p.received_at) >= cutoff);
+  const paymentsSum = newPayments.reduce((s,p)=>s+(p.amount||0),0);
+  const stageMoves   = stageEvents.filter(e => e.entered_at && d(e.entered_at) >= cutoff);
+  const jobsMovedStage = new Set(stageMoves.map(e=>e.job_sync_id)).size;
+
+  const changeLines = [
+    newLeads.length   ? newLeads.length + ' new ' + (newLeads.length===1?'lead':'leads') : null,
+    contacted.length  ? contacted.length + ' first contact' + (contacted.length===1?'':'s') + ' logged' : null,
+    quotesSent.length ? quotesSent.length + ' quote' + (quotesSent.length===1?'':'s') + ' sent' : null,
+    quotesSeen.length ? quotesSeen.length + ' quote' + (quotesSeen.length===1?'':'s') + ' opened by the customer' : null,
+    wonJobs.length    ? wonJobs.length + ' job' + (wonJobs.length===1?'':'s') + ' approved' : null,
+    newPayments.length? newPayments.length + ' payment' + (newPayments.length===1?'':'s') + ' collected (' + money(paymentsSum) + ')' : null,
+    jobsMovedStage    ? jobsMovedStage + ' job' + (jobsMovedStage===1?'':'s') + ' moved production stage' : null,
+    disputed.length   ? disputed.length + ' new dispute' + (disputed.length===1?'':'s') : null,
+  ].filter(Boolean);
+
+  const urgent = attentionItems.filter(it=>it.urgent);
+  const todayLine = dashSnapshot
+    ? dashSnapshot.todaysJobs.length + ' job' + (dashSnapshot.todaysJobs.length===1?'':'s') + ' today, '
+      + dashSnapshot.onTheClock.length + ' on the clock now'
+    : '';
+
+  const changeBlock = changeLines.length
+    ? '<ul style="margin:0;padding-left:18px">' + changeLines.map(l=>`<li>${esc(l)}</li>`).join('') + '</ul>'
+    : '<div class="empty">Nothing happened in the last 24 hours.</div>';
+
+  const needsBlock = attentionItems.length
+    ? '<ul style="margin:0;padding-left:18px">' +
+        attentionItems.slice(0, 8).map(it=>`<li${it.urgent?' style="color:var(--bad,#b3261e)"':''}>${esc(it.text)}</li>`).join('') +
+      (attentionItems.length > 8 ? `<li>+ ${attentionItems.length - 8} more on the Needs attention list below</li>` : '') +
+      '</ul>'
+    : '<div class="empty">Nothing is waiting on you.</div>';
+
+  $('briefingBody').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div style="font-weight:700;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Since yesterday</div>
+        ${changeBlock}
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
+          Needs you today${urgent.length ? ' (' + urgent.length + ' urgent)' : ''}</div>
+        ${needsBlock}
+      </div>
+    </div>
+    ${todayLine ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:13px">${esc(todayLine)}</div>` : ''}
+  `;
+}
+
+/* ---------- materials tab: the buyer's view --------------------------
+
+   A job's line items say what it needs, its scheduled_date says when, and
+   materials_status says where the order has got to -- that is all the real
+   data there is, so that is all this shows. No supplier, no lead time, no
+   PO number, no delivery date: none of those exist anywhere in this
+   database, so a screen that showed them would be making them up.
+
+   Candidates are sold jobs (ACCEPTED) whose materials are not RECEIVED or
+   NOT_NEEDED -- the same test the materials_missing alert and the job
+   sheet's readiness check already use, just without the "scheduled within
+   a week" narrowing, because a buyer needs to see next month's order too.
+
+   Quantities must be right or absent. ensureItemsForJobs() is what turns
+   the bounded first-paint items array into the complete one; its return
+   value now says which job sync_ids failed to load (a chunk error), and
+   this screen names those jobs rather than folding them into the totals as
+   if they needed nothing. */
+async function renderProcurement(){
+  if (!$('materialsBuyRows')) return;
+  const nowMs = Date.now();
+  const candidates = jobs.filter(j => j.status === 'ACCEPTED'
+    && !['RECEIVED','NOT_NEEDED'].includes(j.materials_status || 'NOT_ORDERED'));
+
+  if (!candidates.length) {
+    $('materialsBuyRows').innerHTML = '';
+    $('materialsBuyEmpty').style.display = 'block';
+    $('materialsJobRows').innerHTML = '';
+    $('materialsJobEmpty').style.display = 'block';
+    msg('materialsMsg', '', 'info');
+    return;
+  }
+  $('materialsBuyEmpty').style.display = 'none';
+  $('materialsJobEmpty').style.display = 'none';
+
+  const { failedIds } = await ensureItemsForJobs(candidates.map(j => j.sync_id));
+  const knownJobs = candidates.filter(j => !failedIds.has(j.sync_id));
+  const unknownJobs = candidates.filter(j => failedIds.has(j.sync_id));
+
+  // Aggregate by description+unit, across known jobs only.
+  const buy = new Map();
+  knownJobs.forEach(j => {
+    const neededBy = j.scheduled_date ? d(j.scheduled_date) : null;
+    items.filter(i => i.job_sync_id === j.sync_id).forEach(i => {
+      const description = i.description || '(unnamed item)';
+      const unit = i.unit || '';
+      const key = description + '|' + unit;
+      if (!buy.has(key)) buy.set(key, { description, unit, qty: 0, jobs: new Map(), neededBy: null });
+      const row = buy.get(key);
+      row.qty += Number(i.quantity || 0);
+      row.jobs.set(j.sync_id, j);
+      if (neededBy && (!row.neededBy || neededBy < row.neededBy)) row.neededBy = neededBy;
+    });
+  });
+
+  const rows = [...buy.values()].sort((a, b) => {
+    // Soonest needed-by first; anything with no scheduled job among its
+    // buyers sorts last rather than mixed in as if "not scheduled" were
+    // some particular date.
+    if (a.neededBy && b.neededBy) return a.neededBy - b.neededBy;
+    if (a.neededBy) return -1;
+    if (b.neededBy) return 1;
+    return b.qty - a.qty;
+  });
+
+  msg('materialsMsg', unknownJobs.length
+    ? 'Could not load line items for ' + unknownJobs.length + ' job'
+      + (unknownJobs.length === 1 ? '' : 's') + ' — '
+      + unknownJobs.map(j => j.customer_name || j.address || 'Untitled job').join(', ')
+      + '. Left out of the totals below as unknown, not counted as needing nothing.'
+    : '', unknownJobs.length ? 'err' : 'info');
+
+  $('materialsBuyRows').innerHTML = rows.map(r => {
+    const jobNames = [...r.jobs.values()].map(j => j.customer_name || j.address || 'Untitled job');
+    const neededByText = r.neededBy
+      ? r.neededBy.toLocaleDateString() + (r.neededBy.getTime() < nowMs ? ' (overdue)' : '')
+      : 'not scheduled';
+    return `<tr><td>${esc(r.description)}</td><td>${esc(r.unit)}</td>`
+      + `<td>${r.qty}</td><td>${esc(neededByText)}</td>`
+      + `<td>${esc(jobNames.join(', '))}</td></tr>`;
+  }).join('');
+  if (!rows.length) $('materialsBuyEmpty').style.display = 'block';
+
+  $('materialsJobRows').innerHTML = candidates.map(j => {
+    const name = j.customer_name || j.address || 'Untitled job';
+    const scheduled = j.scheduled_date ? d(j.scheduled_date).toLocaleDateString() : 'not scheduled';
+    const statusLabel = j.materials_status === 'ORDERED' ? 'Ordered, not received' : 'Not ordered';
+    let itemsLabel;
+    if (failedIds.has(j.sync_id)) {
+      itemsLabel = '<span style="color:var(--bad,#b3261e)">unknown — could not load</span>';
+    } else {
+      const n = items.filter(i => i.job_sync_id === j.sync_id).length;
+      itemsLabel = n + ' item' + (n === 1 ? '' : 's');
+    }
+    return `<tr><td>${esc(name)}</td><td>${esc(scheduled)}</td><td>${esc(statusLabel)}</td><td>${itemsLabel}</td></tr>`;
+  }).join('');
 }
 
 /* ---------- chase list: rank open sales work by value x time waiting ----
@@ -10798,7 +11129,7 @@ function hasAdvancedReports(){
 
 function applyPlanGates(){
   const solo = planName === 'solo';
-  ['pipe','prod','crew','time','reports','automation'].forEach(t=>{
+  ['pipe','prod','materials','crew','time','reports','automation'].forEach(t=>{
     const b=document.querySelector(`.tab[data-tab="${t}"]`);
     if(b) b.style.display = solo ? 'none' : '';
   });
@@ -10817,7 +11148,7 @@ function switchTab(name){
   const btn = document.querySelector(`.tab[data-tab="${name}"]`);
   if (btn && btn.style.display === 'none') name = 'dash';
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
-  ['dash','jobs','cal','pipe','prod','crew','time','catalog','reports','automation','settings','billing']
+  ['dash','jobs','cal','pipe','prod','materials','crew','time','catalog','reports','automation','settings','billing']
     .forEach(n=>$('tab-'+n).style.display=(n===name)?'block':'none');
 }
 document.querySelectorAll('.tab').forEach(t=>

@@ -719,6 +719,8 @@
     <string name="cat_default_price">Default price</string>
     <string name="cat_no_price">No price</string>
     <string name="cat_price_per_unit">%1$s / %2$s</string>
+    <!-- A price with no visible date is a price nobody can check against a real invoice. -->
+    <string name="cat_price_confirmed_on">Confirmed %1$s</string>
     <string name="cat_edit">Edit</string>
     <string name="cat_new_item">New Item</string>
     <string name="cat_edit_item">Edit Item</string>
@@ -1235,6 +1237,9 @@
     <string name="misc_crew_run_details">%1$d corners · %2$d gate(s) · posts %3$d ft apart</string>
     <string name="misc_crew_hours_awaiting">%1$s more hrs waiting to be approved -- not counted yet.</string>
     <string name="misc_crew_works_out_hourly">Works out to $%1$s/hr</string>
+    <!-- Shown instead of a dollar amount when the employee's rate is still the unset default: a $0.00 here would read as "you earned nothing," which is not what a missing rate means. -->
+    <string name="misc_crew_rate_not_set">Rate not set</string>
+    <string name="misc_crew_rate_not_set_detail">You worked today, but your pay rate hasn’t been entered yet. Ask your manager to set it so this job pays out correctly.</string>
     <string name="misc_crew_walkthrough_subtitle">Go through each item with the customer and tick it once they agree.</string>
     <string name="misc_crew_final_walkthrough_title">Final Walkthrough (before you leave)</string>
     <string name="misc_crew_final_walkthrough_subtitle">Walk the finished fence with the customer, then have them sign below.</string>

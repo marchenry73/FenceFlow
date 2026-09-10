@@ -704,6 +704,7 @@
     <string name="cat_default_price">Prix par défaut</string>
     <string name="cat_no_price">Sans prix</string>
     <string name="cat_price_per_unit">%1$s / %2$s</string>
+    <string name="cat_price_confirmed_on">Confirmé le %1$s</string>
     <string name="cat_edit">Modifier</string>
     <string name="cat_new_item">Nouvel article</string>
     <string name="cat_edit_item">Modifier l\'article</string>
@@ -1213,6 +1214,8 @@
     <string name="misc_crew_run_details">%1$d angles · %2$d portail(s) · poteaux tous les %3$d pi</string>
     <string name="misc_crew_hours_awaiting">%1$s h de plus en attente d\'approbation ; pas encore comptées.</string>
     <string name="misc_crew_works_out_hourly">Soit %1$s $/h</string>
+    <string name="misc_crew_rate_not_set">Taux non défini</string>
+    <string name="misc_crew_rate_not_set_detail">Tu as travaillé aujourd’hui, mais ton taux de paie n’a pas encore été saisi. Demande à ton responsable de le définir pour que ce chantier soit payé correctement.</string>
     <string name="misc_crew_walkthrough_subtitle">Passez chaque point en revue avec le client et cochez-le une fois qu\'il est d\'accord.</string>
     <string name="misc_crew_final_walkthrough_title">Visite finale (avant de partir)</string>
     <string name="misc_crew_final_walkthrough_subtitle">Parcourez la clôture terminée avec le client, puis faites-le signer ci-dessous.</string>

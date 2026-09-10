@@ -418,6 +418,23 @@ private fun CatalogRow(
                     // as a decision and this is an omission.
                     color = if (unpriced) MaterialTheme.colorScheme.error else Color.Unspecified
                 )
+                // The date lived on the row (lastUpdated) but never reached the
+                // screen, so a priced item and a stale one looked identical.
+                // A price nobody can date back to an invoice is a price nobody
+                // can check.
+                if (!unpriced) {
+                    Text(
+                        stringResource(
+                            R.string.cat_price_confirmed_on,
+                            remember(item.lastUpdated) {
+                                java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+                                    .format(java.util.Date(item.lastUpdated))
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.cat_edit), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = Space.xs))
             }
         }
