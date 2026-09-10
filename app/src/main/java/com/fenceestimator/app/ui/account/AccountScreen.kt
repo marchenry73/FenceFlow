@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -279,8 +280,68 @@ private fun SignedInSection(
                     Text(stringResource(R.string.acct_deleted_items))
                 }
             }
-            OutlinedButton(onClick = { viewModel.signOut() }, modifier = Modifier.fillMaxWidth()) {
+            var confirmingSignOut by remember { mutableStateOf(false) }
+            // Checked here, not just inside signOut() itself, so the dialog
+            // below can say up front what a tap would throw away instead of
+            // the person finding out from an error after the fact -- the
+            // same thing ServiceBlockedScreen already does before its own
+            // sign-out button.
+            var unsynced by remember { mutableStateOf<com.fenceestimator.app.data.UnsyncedSummary?>(null) }
+            val app = currentApp()
+            LaunchedEffect(confirmingSignOut) {
+                if (confirmingSignOut) {
+                    unsynced = runCatching { app.repository.unsyncedSummary() }.getOrNull()
+                }
+            }
+            val holdsUnsyncedWork = unsynced?.isEmpty == false
+
+            OutlinedButton(onClick = { confirmingSignOut = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.action_sign_out))
+            }
+
+            if (confirmingSignOut) {
+                AlertDialog(
+                    onDismissRequest = { confirmingSignOut = false },
+                    title = { Text(stringResource(R.string.action_sign_out)) },
+                    text = {
+                        Text(
+                            if (holdsUnsyncedWork) {
+                                stringResource(
+                                    R.string.onb_sign_out_unsynced_warning,
+                                    unsynced?.jobs ?: 0,
+                                    unsynced?.files ?: 0
+                                )
+                            } else {
+                                stringResource(R.string.acct_sign_out_confirm_body)
+                            }
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                confirmingSignOut = false
+                                // force only when the warning above already
+                                // told them it would happen -- the plain
+                                // confirm below never needs it, since signOut()
+                                // itself still refuses if it turns out there is
+                                // unsynced work this check missed.
+                                viewModel.signOut(force = holdsUnsyncedWork)
+                            }
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (holdsUnsyncedWork) R.string.onb_sign_out_anyway
+                                    else R.string.action_sign_out
+                                )
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmingSignOut = false }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    }
+                )
             }
         }
     }

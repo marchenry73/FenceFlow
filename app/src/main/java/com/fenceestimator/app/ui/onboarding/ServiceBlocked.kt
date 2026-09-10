@@ -72,11 +72,23 @@ fun ServiceBlockedScreen(
     // locally so the warning below is accurate on its own, independent of
     // whatever onSignOut itself ends up doing with force.
     var unsynced by remember { mutableStateOf<com.fenceestimator.app.data.UnsyncedSummary?>(null) }
+    // Whether the check itself came back at all. It used to be folded into
+    // unsynced via getOrNull(), so a thrown exception looked identical to "an
+    // empty phone" -- the one case where the warning is least sure there is
+    // nothing to lose is the case it silently skipped showing one. A failed
+    // check now counts as "assume there is work to lose", not "assume there
+    // is none".
+    var checkFailed by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val app = context.applicationContext as? com.fenceestimator.app.FenceEstimatorApp
-        unsynced = app?.let { runCatching { it.repository.unsyncedSummary() }.getOrNull() }
+        val result = app?.let { runCatching { it.repository.unsyncedSummary() } }
+        if (result == null || result.isFailure) {
+            checkFailed = true
+        } else {
+            unsynced = result.getOrNull()
+        }
     }
-    val holdsUnsyncedWork = unsynced?.isEmpty == false
+    val holdsUnsyncedWork = checkFailed || unsynced?.isEmpty == false
     // The first tap only warns. Signing out -- and losing whatever is
     // counted above -- takes a second, deliberate tap once that warning is
     // on screen, the same "are you sure" shape as any other destructive
@@ -176,8 +188,12 @@ fun ServiceBlockedScreen(
         // asks for it, so the button's changed label ("Sign out anyway and
         // lose it") is not the first anyone hears of what it now means.
         if (holdsUnsyncedWork && confirmingLoss) {
+            // Two different warnings, because only one of them has a count to
+            // give. Inventing a number for the checkFailed case would be a
+            // fake confidence the screen does not have.
             Text(
-                stringResource(
+                if (checkFailed) stringResource(R.string.onb_sign_out_could_not_check_warning)
+                else stringResource(
                     R.string.onb_sign_out_unsynced_warning,
                     unsynced?.jobs ?: 0,
                     unsynced?.files ?: 0

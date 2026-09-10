@@ -64,6 +64,16 @@ data class SessionState(
     /** Prices, margins, costs and payment figures. */
     val canSeeMoney: Boolean get() = can(Permission.SEE_MONEY)
 
+    /**
+     * A colleague's pay: hourly rate, pay type, per-foot rate.
+     *
+     * Kept apart from [canSeeMoney] -- a salesperson sees job prices and
+     * margins to do their job, not what the crew earns. The server enforces
+     * this via can_see_pay(); this mirror only keeps the app from offering a
+     * screen the server would hand back empty.
+     */
+    val canSeePay: Boolean get() = can(Permission.SEE_PAY)
+
     /** Catalog prices, pricing tiers, company settings. */
     val canEditCatalogAndSettings: Boolean get() = can(Permission.EDIT_CATALOG_AND_SETTINGS)
 

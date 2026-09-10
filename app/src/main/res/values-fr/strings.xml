@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="action_back">Retour</string>
     <string name="action_save">Enregistrer</string>
@@ -160,6 +160,8 @@
     <string name="crew_time_clock">Pointeuse</string>
     <string name="crew_clock_in">Pointer l\'arrivée</string>
     <string name="crew_clock_out">Pointer le départ</string>
+    <!-- Shown when clock-in can't identify anyone to pay: the job has no assigned crew member and the signed-in person has no crew record of their own. -->
+    <string name="crew_clock_in_no_identity">Ce chantier n’est assigné à personne, et toi non plus. Demande au chef d’équipe de t’assigner avant de pointer.</string>
     <string name="crew_sign_off_title">Validation du client</string>
     <string name="crew_sign_off_button">Le client valide</string>
     <string name="crew_ask_change_plan">Demander un changement au plan</string>
@@ -220,6 +222,8 @@
     <string name="seg_len_unreadable">Impossible de lire cela comme une longueur</string>
     <string name="seg_len_explains">Le reste de la section suit en gardant sa forme. Les matériaux et le prix suivent.</string>
     <string name="draw_clear">Tout effacer</string>
+    <string name="draw_clear_title">Effacer ce dessin ?</string>
+    <string name="draw_clear_text">Tous les points et portails de cette section disparaissent -- le métré, le compte de poteaux, la commande de matériaux et le prix viennent tous de ce dessin. Impossible à annuler.</string>
     <string name="draw_to_estimate">Vers le devis</string>
     <string name="draw_remove_gate_title">Retirer ce portail ?</string>
     <string name="draw_remove">Retirer</string>
@@ -243,6 +247,7 @@
     <string name="est_title">Devis</string>
     <string name="est_other_items">Autres postes</string>
     <string name="est_add_item">+ Ajouter un poste</string>
+    <string name="est_no_other_items">Pas encore de poste supplémentaire sur ce devis -- ajoutez-en un s’il y a du matériel ou de la main-d’œuvre que les tronçons ci-dessus ne couvrent pas.</string>
     <string name="est_know_length">Vous connaissez déjà la longueur ?</string>
     <string name="est_total_feet">Pieds au total</string>
     <string name="est_corners">Angles</string>
@@ -368,6 +373,7 @@
     <string name="acct_already_have_account">J\'ai déjà un compte</string>
     <string name="acct_need_create_account">Je dois créer un compte</string>
     <string name="acct_signed_in">Connecté</string>
+    <string name="acct_sign_out_confirm_body">Se déconnecter de cet appareil ? Il faudra vous reconnecter pour revoir les chantiers et resynchroniser.</string>
     <string name="acct_access_level">Niveau d\'accès : %1$s</string>
     <string name="acct_invite_share_subject">Rejoignez notre équipe FenceFlow</string>
     <string name="acct_invite_share_body">Installez FenceFlow, créez un compte, puis choisissez « Rejoindre l\'équipe » et saisissez ce code d\'invitation :\n\n%1$s</string>
@@ -1076,6 +1082,7 @@
     <string name="onb_signing_out">Déconnexion…</string>
     <string name="onb_sign_out_anyway">Se déconnecter quand même et le perdre</string>
     <string name="onb_sign_out_unsynced_warning">Ce téléphone contient encore du travail qui n\'a pas atteint le cloud : %1$d chantier(s), %2$d photo(s). Se déconnecter maintenant le supprime pour de bon -- touchez Se déconnecter quand même seulement si c\'est ce que vous voulez.</string>
+    <string name="onb_sign_out_could_not_check_warning">Je n’ai pas pu vérifier si ce téléphone contient du travail qui n’a pas atteint le cloud. Si c’est le cas, se déconnecter maintenant le supprime pour de bon -- touchez Se déconnecter quand même seulement si c’est ce que vous voulez.</string>
     <string name="data_ownership_held_work">Ce téléphone contient encore du travail qui n\'a jamais atteint %1$s : %2$d chantier(s), %3$d photo(s). Demandez au propriétaire de vous remettre dans l\'équipe, puis synchronisez. Rien n\'est supprimé tant que ce n\'est pas fait.</string>
     <string name="onb_update_needed">Mise à jour requise</string>
     <string name="onb_new_version_available">Nouvelle version disponible</string>
@@ -1154,6 +1161,10 @@
     <string name="misc_crew_fallback_there">cher client</string>
     <string name="misc_crew_fallback_your_property">votre propriété</string>
     <string name="misc_crew_no_runs">Aucune section de clôture sur ce chantier pour l\'instant.</string>
+    <string name="misc_crew_job_not_on_phone">Introuvable sur ce téléphone. Synchronisez, puis vérifiez à nouveau.</string>
+    <string name="misc_crew_plan_not_on_phone">Le plan de ce chantier est introuvable sur ce téléphone. Synchronisez, puis vérifiez à nouveau.</string>
+    <string name="misc_run_not_on_phone">Cette section de clôture est introuvable sur ce téléphone. Synchronisez, puis vérifiez à nouveau.</string>
+    <string name="misc_job_not_on_phone">Ce chantier est introuvable sur ce téléphone. Synchronisez, puis vérifiez à nouveau.</string>
     <string name="misc_crew_untitled_run">Section sans nom</string>
     <string name="misc_crew_nothing_measured">Rien de mesuré pour cette section — voyez avec le bureau.</string>
     <string name="misc_feet_value">%1$s pi</string>
@@ -1363,6 +1374,8 @@
     <string name="enum_role_crew_desc">Le travail du jour uniquement. Pas de prix, de coûts ni de coordonnées client.</string>
     <string name="enum_perm_see_money">Voir les prix et l\'argent</string>
     <string name="enum_perm_see_money_desc">Totaux des chantiers, marges, coûts et ce que les clients ont payé.</string>
+    <string name="enum_perm_see_pay">Voir la paie de l’équipe</string>
+    <string name="enum_perm_see_pay_desc">Taux horaire, taux au pied et type de paie sur la liste de l’équipe. Séparé de l’argent du chantier — un vendeur peut voir le prix d’un chantier sans voir ce que gagne un collègue.</string>
     <string name="enum_perm_edit_jobs">Créer et modifier des chantiers</string>
     <string name="enum_perm_edit_jobs_desc">Coordonnées du client, spécification de la clôture et le plan.</string>
     <string name="enum_perm_edit_catalog_and_settings">Modifier le catalogue et les réglages</string>
@@ -1571,7 +1584,7 @@
     <string name="crew_plan_watch_out">Attention sur le chantier</string>
     <string name="crew_plan_change_requested">Modification demandée</string>
     <string name="crew_plan_something_wrong">Quelque chose ne va pas ?</string>
-    <string name="crew_plan_office_has_it">Le bureau l\'a reçu. Continuez le reste du travail en attendant.</string>
+    <string name="crew_plan_office_has_it">Enregistré sur ce téléphone. Ça arrive au bureau dès que vous avez du réseau. Continuez le reste du travail en attendant.</string>
     <string name="crew_plan_ask_office">Demandez au bureau avant de construire autrement. Ils le verront tout de suite.</string>
 
     <!-- Removing a line from the on-site materials checklist. It says what it

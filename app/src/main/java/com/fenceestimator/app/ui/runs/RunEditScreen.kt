@@ -67,7 +67,29 @@ fun RunEditScreen(
         factory = GenericViewModelFactory { RunEditViewModel(app.repository, runId) }
     )
     val run by viewModel.run.collectAsState()
-    val currentRun = run ?: return
+    // `run ?: return` used to show the same bare back arrow whether the run
+    // was still loading or had never made it to this phone. Waits out a slow
+    // cold start before calling it missing, same treatment as the other
+    // screens that key off a single record.
+    if (run == null) {
+        val loadTimedOut = com.fenceestimator.app.ui.components.rememberLoadTimedOut()
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.est2_fence_run_title)) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
+                )
+            }
+        ) { padding ->
+            com.fenceestimator.app.ui.components.LoadingOrMissing(
+                stillLoading = !loadTimedOut,
+                notFoundText = stringResource(R.string.misc_run_not_on_phone),
+                modifier = Modifier.padding(padding)
+            )
+        }
+        return
+    }
+    val currentRun = run!!
 
     Scaffold(
         topBar = {

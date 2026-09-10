@@ -174,6 +174,8 @@
     <string name="crew_time_clock">Time Clock</string>
     <string name="crew_clock_in">Clock In</string>
     <string name="crew_clock_out">Clock Out</string>
+    <!-- Shown when clock-in can't identify anyone to pay: the job has no assigned crew member and the signed-in person has no crew record of their own. -->
+    <string name="crew_clock_in_no_identity">This job isn’t assigned to anyone, and neither are you. Ask your foreman to assign it before you clock in.</string>
     <string name="crew_sign_off_title">Customer Sign-Off</string>
     <string name="crew_sign_off_button">Customer Signs Off</string>
     <string name="crew_ask_change_plan">Ask to change the plan</string>
@@ -234,6 +236,8 @@
     <string name="seg_len_unreadable">Couldn\'t read that as a length</string>
     <string name="seg_len_explains">The rest of the run moves with it, keeping its shape. Materials and price follow.</string>
     <string name="draw_clear">Clear</string>
+    <string name="draw_clear_title">Clear this drawing?</string>
+    <string name="draw_clear_text">Every point and gate on this run comes off -- the takeoff, post count, material order and price all come from this drawing. This can’t be undone.</string>
     <string name="draw_to_estimate">To Estimate</string>
     <string name="draw_remove_gate_title">Remove this gate?</string>
     <string name="draw_remove">Remove</string>
@@ -257,6 +261,7 @@
     <string name="est_title">Estimate</string>
     <string name="est_other_items">Other Items</string>
     <string name="est_add_item">+ Add Item</string>
+    <string name="est_no_other_items">No extra items on this estimate yet -- add one if there’s material or labor the runs above don’t cover.</string>
     <string name="est_know_length">Know the length already?</string>
     <string name="est_total_feet">Total feet</string>
     <string name="est_corners">Corners</string>
@@ -382,6 +387,7 @@
     <string name="acct_already_have_account">I already have an account</string>
     <string name="acct_need_create_account">I need to create an account</string>
     <string name="acct_signed_in">Signed In</string>
+    <string name="acct_sign_out_confirm_body">Sign out of this device? You’ll sign back in to see jobs and sync again.</string>
     <string name="acct_access_level">Access level: %1$s</string>
     <string name="acct_invite_share_subject">Join our FenceFlow team</string>
     <string name="acct_invite_share_body">Install FenceFlow, create an account, then choose “Join the team” and enter this invite code:\n\n%1$s</string>
@@ -1093,6 +1099,7 @@
          seen; signing out from here used to skip that check entirely. -->
     <string name="onb_sign_out_anyway">Sign out anyway and lose it</string>
     <string name="onb_sign_out_unsynced_warning">This phone still holds work that hasn\'t reached the cloud yet: %1$d job(s), %2$d photo(s). Signing out now deletes it for good -- tap Sign out anyway only if that\'s what you want.</string>
+    <string name="onb_sign_out_could_not_check_warning">I couldn’t check whether this phone holds work that hasn’t reached the cloud yet. If it does, signing out now deletes it for good -- tap Sign out anyway only if that’s what you want.</string>
     <!-- Shown when a wipe was refused because the phone still holds work
          the cloud never got, most often someone taken off the crew before
          a signature or photo taken with no signal ever had a chance to
@@ -1175,6 +1182,10 @@
     <string name="misc_crew_fallback_there">there</string>
     <string name="misc_crew_fallback_your_property">your property</string>
     <string name="misc_crew_no_runs">No fence runs on this job yet.</string>
+    <string name="misc_crew_job_not_on_phone">Can’t find this job on this phone. Sync, then check again.</string>
+    <string name="misc_crew_plan_not_on_phone">Can’t find this job’s plan on this phone. Sync, then check again.</string>
+    <string name="misc_run_not_on_phone">Can’t find this fence run on this phone. Sync, then check again.</string>
+    <string name="misc_job_not_on_phone">Can’t find this job on this phone. Sync, then check again.</string>
     <string name="misc_crew_untitled_run">Untitled run</string>
     <string name="misc_crew_nothing_measured">Nothing measured for this run yet — check with the office.</string>
     <string name="misc_feet_value">%1$s ft</string>
@@ -1384,6 +1395,8 @@
     <string name="enum_role_crew_desc">Today\'s work only. No pricing, costs or customer contact details.</string>
     <string name="enum_perm_see_money">See prices and money</string>
     <string name="enum_perm_see_money_desc">Job totals, margins, costs and what customers have paid.</string>
+    <string name="enum_perm_see_pay">See what people are paid</string>
+    <string name="enum_perm_see_pay_desc">Hourly rates, per-foot rates and pay type on the crew roster. Separate from job money — a salesperson can see a job’s price without seeing what a colleague earns.</string>
     <string name="enum_perm_edit_jobs">Create and edit jobs</string>
     <string name="enum_perm_edit_jobs_desc">Customer details, fence spec, and the drawing.</string>
     <string name="enum_perm_edit_catalog_and_settings">Change catalog and settings</string>
@@ -1592,7 +1605,7 @@
     <string name="crew_plan_watch_out">Watch out on site</string>
     <string name="crew_plan_change_requested">Change requested</string>
     <string name="crew_plan_something_wrong">Something not right?</string>
-    <string name="crew_plan_office_has_it">The office has it. Carry on with the rest of the job while you wait.</string>
+    <string name="crew_plan_office_has_it">Saved on this phone. It reaches the office as soon as you have signal. Carry on with the rest of the job while you wait.</string>
     <string name="crew_plan_ask_office">Ask the office before building it different. They will see it straight away.</string>
 
     <!-- Removing a line from the on-site materials checklist. It says what it

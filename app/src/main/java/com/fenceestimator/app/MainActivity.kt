@@ -602,13 +602,15 @@ fun FenceEstimatorNavHost() {
             // The whole screen is pay: hourly rate, pay type, per-foot rate.
             // It was the last list with no guard on it -- Customers next door
             // had one, this did not -- so a crew account could open it and
-            // read what every colleague earns. The database now refuses to
-            // hand those rows to anyone without SEE_MONEY, and this stops the
-            // screen being reachable in the first place rather than showing an
-            // empty list with no explanation.
+            // read what every colleague earns. Gated on SEE_PAY specifically,
+            // not SEE_MONEY: a salesperson has SEE_MONEY to work a job's price
+            // but must not see what a colleague is paid. The database now
+            // refuses to hand these rows to anyone without SEE_PAY via
+            // can_see_pay(), and this stops the screen being reachable in the
+            // first place rather than showing an empty list with no explanation.
             com.fenceestimator.app.ui.components.AccessGuard(
-                allowed = session.canSeeMoney,
-                permissionName = "See money",
+                allowed = session.canSeePay,
+                permissionName = "See what people are paid",
                 onLeave = { navController.popBackStack() }
             ) {
                 EmployeesScreen(onBack = { navController.popBackStack() })

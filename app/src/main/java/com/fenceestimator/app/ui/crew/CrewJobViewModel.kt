@@ -2,6 +2,10 @@ package com.fenceestimator.app.ui.crew
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.R
+import com.fenceestimator.app.cloud.ClockInIdentity
+import com.fenceestimator.app.cloud.SessionManager
+import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobPhoto
@@ -9,12 +13,23 @@ import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.JobStep
 import com.fenceestimator.app.data.PhotoKind
 import com.fenceestimator.app.data.Repository
+import com.fenceestimator.app.ui.components.UiMessage
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class CrewJobViewModel(private val repository: Repository, private val jobId: Long) : ViewModel() {
+class CrewJobViewModel(
+    private val repository: Repository,
+    private val jobId: Long,
+    private val session: SessionManager
+) : ViewModel() {
+
+    /** Told to the screen once, not stored -- a Snackbar, not a field that lingers. */
+    private val _message = MutableSharedFlow<UiMessage>(extraBufferCapacity = 1)
+    val message: SharedFlow<UiMessage> = _message
     val job: StateFlow<Job?> = repository.observeJob(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -41,12 +56,38 @@ class CrewJobViewModel(private val repository: Repository, private val jobId: Lo
         viewModelScope.launch { repository.ensureJobStepsSeeded(jobId) }
     }
 
-    /** Clocks in against the job's assigned crew member, at whatever their rate is today. */
+    /**
+     * Clocks in the SIGNED-IN PERSON, not the job's assignment.
+     *
+     * Taking identity from the job's assignedEmployeeId used to let anyone
+     * clock in on an unassigned job and produce a shift with no employee and
+     * a zero rate -- indistinguishable from a normal entry in every list.
+     * [ClockInIdentity] resolves the signed-in account to its own employee
+     * record first, falling back to the job's assignment only when the
+     * signed-in person has no crew record of their own (the shared-phone /
+     * owner-clocking-in-for-the-crew case). When neither resolves, this must
+     * NOT clock in -- the server now rejects a blank employee with a
+     * SQLSTATE 23514 trigger anyway, but the point is for the person to find
+     * out on the spot, in the field, not from a failed sync days later.
+     *
+     * The rate sent here is only a local placeholder: the server stamps the
+     * real rate over whatever the phone sends, so this never becomes
+     * authoritative pay.
+     */
     fun clockIn() {
         viewModelScope.launch {
-            val employeeId = job.value?.assignedEmployeeId
-            val rate = employees.value.firstOrNull { it.id == employeeId }?.hourlyRate ?: 0.0
-            repository.clockIn(jobId, employeeId, rate)
+            val result = ClockInIdentity.resolve(
+                employees = employees.value,
+                assignedEmployeeId = job.value?.assignedEmployeeId,
+                signedInProfileId = SupabaseModule.currentUserId(),
+                signedInEmail = session.state.value.email
+            )
+            when (result) {
+                is ClockInIdentity.Result.Resolved ->
+                    repository.clockIn(jobId, result.employeeId, result.hourlyRate)
+                ClockInIdentity.Result.NoIdentity ->
+                    _message.tryEmit(UiMessage(R.string.crew_clock_in_no_identity))
+            }
         }
     }
 

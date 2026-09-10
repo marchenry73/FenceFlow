@@ -76,13 +76,39 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
     val context = LocalContext.current
     val viewModel: CrewJobViewModel = viewModel(
         key = "crew_$jobId",
-        factory = GenericViewModelFactory { CrewJobViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { CrewJobViewModel(app.repository, jobId, app.session) }
     )
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.message.collect {
+            snackbarHostState.showSnackbar(context.getString(it.textRes, *it.args.toTypedArray()))
+        }
+    }
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
     val steps by viewModel.steps.collectAsState()
     val photos by viewModel.photos.collectAsState()
-    val currentJob = job ?: return
+    val topBar: @Composable () -> Unit = {
+        TopAppBar(
+            title = { Text(stringResource(R.string.crew_job_number, jobId)) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
+        )
+    }
+    // Same job used to reach this screen (`job ?: return`) whether it was
+    // still loading or genuinely not on this phone -- a bare back arrow
+    // either way. Waits for the local database to answer before deciding.
+    if (job == null) {
+        val loadTimedOut = com.fenceestimator.app.ui.components.rememberLoadTimedOut()
+        Scaffold(topBar = topBar) { padding ->
+            com.fenceestimator.app.ui.components.LoadingOrMissing(
+                stillLoading = !loadTimedOut,
+                notFoundText = stringResource(R.string.misc_crew_job_not_on_phone),
+                modifier = Modifier.padding(padding)
+            )
+        }
+        return
+    }
+    val currentJob = job!!
 
     var pendingKind by remember { mutableStateOf(PhotoKind.BEFORE) }
     var pendingTarget by remember { mutableStateOf<NewPhotoTarget?>(null) }
@@ -110,12 +136,8 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
     )
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.crew_job_number, currentJob.id)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
-            )
-        }
+        topBar = topBar,
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(padding),

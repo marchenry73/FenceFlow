@@ -193,7 +193,31 @@ fun JobDetailScreen(
     androidx.compose.runtime.LaunchedEffect(profile.ownerName, session.email) {
         viewModel.decidedByName = profile.ownerName.ifBlank { session.email.orEmpty() }
     }
-    val currentJob = job ?: return
+    // `job ?: return` used to render a bare back arrow whether this job was
+    // still loading from the local database or had genuinely never made it
+    // to this phone -- indistinguishable to whoever is looking at it. This
+    // waits out a slow cold start before calling it missing.
+    if (job == null) {
+        val loadTimedOut = com.fenceestimator.app.ui.components.rememberLoadTimedOut()
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.jd_new_job)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
+                    }
+                )
+            }
+        ) { padding ->
+            com.fenceestimator.app.ui.components.LoadingOrMissing(
+                stillLoading = !loadTimedOut,
+                notFoundText = stringResource(R.string.misc_job_not_on_phone),
+                modifier = Modifier.padding(padding)
+            )
+        }
+        return
+    }
+    val currentJob = job!!
 
     var showAddRunDialog by remember { mutableStateOf(false) }
 

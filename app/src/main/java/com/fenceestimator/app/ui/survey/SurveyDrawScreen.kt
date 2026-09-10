@@ -181,6 +181,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     var pendingGateRemoval by remember(selectedRunId) {
         mutableStateOf<com.fenceestimator.app.geometry.GateMarker?>(null)
     }
+    /** Set when Clear is tapped, held until confirmed. Same shape as gate removal below: this drawing is what the takeoff, post count, material order and price all come from, so wiping it is not a one-tap action. */
+    var pendingClearPoints by remember(selectedRunId) { mutableStateOf(false) }
     var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
@@ -1199,7 +1201,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 Icon(Icons.Filled.Undo, contentDescription = null)
                                 Text(" " + stringResource(R.string.draw_undo))
                             }
-                            OutlinedButton(onClick = { viewModel.clearPoints() }, modifier = Modifier.weight(1f)) {
+                            OutlinedButton(onClick = { pendingClearPoints = true }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Filled.Clear, contentDescription = null)
                                 Text(" " + stringResource(R.string.draw_clear))
                             }
@@ -1267,6 +1269,26 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             },
             dismissButton = {
                 OutlinedButton(onClick = { pendingGateRemoval = null }) { Text(stringResource(R.string.draw_keep)) }
+            }
+        )
+    }
+
+    // Confirmed for the same reason gate removal is: every point and gate on
+    // this run is what the takeoff, post count, material order and price are
+    // built from, and a stray tap here used to wipe all of it in one go.
+    if (pendingClearPoints) {
+        AlertDialog(
+            onDismissRequest = { pendingClearPoints = false },
+            title = { Text(stringResource(R.string.draw_clear_title)) },
+            text = { Text(stringResource(R.string.draw_clear_text)) },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.clearPoints()
+                    pendingClearPoints = false
+                }) { Text(stringResource(R.string.draw_clear)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingClearPoints = false }) { Text(stringResource(R.string.draw_keep)) }
             }
         )
     }

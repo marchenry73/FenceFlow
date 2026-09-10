@@ -309,6 +309,7 @@ fun UserRole.description(): String = stringResource(descriptionRes())
 @StringRes
 fun Permission.labelRes(): Int = when (this) {
     Permission.SEE_MONEY -> R.string.enum_perm_see_money
+    Permission.SEE_PAY -> R.string.enum_perm_see_pay
     Permission.EDIT_JOBS -> R.string.enum_perm_edit_jobs
     Permission.EDIT_CATALOG_AND_SETTINGS -> R.string.enum_perm_edit_catalog_and_settings
     Permission.SCHEDULE_AND_ASSIGN -> R.string.enum_perm_schedule_and_assign
@@ -330,6 +331,7 @@ fun Permission.label(): String = stringResource(labelRes())
 @StringRes
 fun Permission.descriptionRes(): Int = when (this) {
     Permission.SEE_MONEY -> R.string.enum_perm_see_money_desc
+    Permission.SEE_PAY -> R.string.enum_perm_see_pay_desc
     Permission.EDIT_JOBS -> R.string.enum_perm_edit_jobs_desc
     Permission.EDIT_CATALOG_AND_SETTINGS -> R.string.enum_perm_edit_catalog_and_settings_desc
     Permission.SCHEDULE_AND_ASSIGN -> R.string.enum_perm_schedule_and_assign_desc

@@ -82,17 +82,32 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
     val markers by viewModel.siteMarkers.collectAsState()
-    val currentJob = job ?: return
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.crew_fence_plan)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
-                }
+    val topBar: @Composable () -> Unit = {
+        TopAppBar(
+            title = { Text(stringResource(R.string.crew_fence_plan)) },
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+            }
+        )
+    }
+    // A job not yet in the local database and a job that never arrives look
+    // the same to `job ?: return` -- a bare back arrow, no clue which one it
+    // is. This waits out a slow cold start before calling it missing.
+    if (job == null) {
+        val loadTimedOut = com.fenceestimator.app.ui.components.rememberLoadTimedOut()
+        Scaffold(topBar = topBar) { padding ->
+            com.fenceestimator.app.ui.components.LoadingOrMissing(
+                stillLoading = !loadTimedOut,
+                notFoundText = stringResource(R.string.misc_crew_plan_not_on_phone),
+                modifier = Modifier.padding(padding)
             )
         }
+        return
+    }
+    val currentJob = job!!
+
+    Scaffold(
+        topBar = topBar
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),

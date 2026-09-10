@@ -146,6 +146,24 @@ class PermissionsTest {
     }
 
     @Test
+    fun `sales sees job money but not a colleague's pay`() {
+        // SEE_MONEY and SEE_PAY are deliberately split: a salesperson prices
+        // a job without learning what the crew earns.
+        assertTrue(Permission.SEE_MONEY in UserRole.SALES.defaultPermissions)
+        assertFalse(Permission.SEE_PAY in UserRole.SALES.defaultPermissions)
+    }
+
+    @Test
+    fun `owner, manager and accountant see pay - foreman and crew do not`() {
+        assertTrue(Permission.SEE_PAY in UserRole.OWNER.defaultPermissions)
+        assertTrue(Permission.SEE_PAY in UserRole.MANAGER.defaultPermissions)
+        assertTrue(Permission.SEE_PAY in UserRole.ACCOUNTANT.defaultPermissions)
+        assertFalse(Permission.SEE_PAY in UserRole.SALES.defaultPermissions)
+        assertFalse(Permission.SEE_PAY in UserRole.FOREMAN.defaultPermissions)
+        assertFalse(Permission.SEE_PAY in UserRole.CREW.defaultPermissions)
+    }
+
+    @Test
     fun `a per-person adjustment reaches the screens that ask`() {
         val trustedForeman = SessionState(
             signedIn = true,

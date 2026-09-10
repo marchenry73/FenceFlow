@@ -28,7 +28,12 @@
 -- invoker view 0.
 --
 -- ------------------------------------------------------------ the gate ---
--- can_see_pay() checked against every real account today:
+-- These are JOB money, so they ask SEE_MONEY. can_see_pay() used to mean the
+-- same thing and this file used to call it; payroll has since been split onto
+-- its own permission, and leaving the old call here would have quietly taken
+-- the customer contract and payment history away from salespeople too.
+--
+-- Checked against every real account today:
 --     OWNER true, MANAGER true, SALES true, CREW false.
 -- Only the crew loses anything here.
 
@@ -40,21 +45,21 @@ alter table change_orders       enable row level security;
 -- jobs carries deposit_amount, amount_paid, refunded_amount, the labour rates
 -- and the markup. All of it is the office's business.
 create policy jobs_money_hidden_from_crew on jobs
-  as restrictive for select using (can_see_pay());
+  as restrictive for select using (has_permission('SEE_MONEY'));
 
 -- unit_price and supplier_unit_price: what the customer pays and what the
 -- company pays. The crew view carries the description and quantity, which is
 -- what somebody building a fence actually needs.
 create policy line_items_money_hidden_from_crew on estimate_line_items
-  as restrictive for select using (can_see_pay());
+  as restrictive for select using (has_permission('SEE_MONEY'));
 
 -- The catalog is a price list.
 create policy materials_money_hidden_from_crew on material_items
-  as restrictive for select using (can_see_pay());
+  as restrictive for select using (has_permission('SEE_MONEY'));
 
 -- additional_cost and material_cost on a change order.
 create policy change_orders_money_hidden_from_crew on change_orders
-  as restrictive for select using (can_see_pay());
+  as restrictive for select using (has_permission('SEE_MONEY'));
 
 -- time_entries is deliberately NOT here. hourly_rate lives on it, but a crew
 -- member has to read their own shifts to clock out, and time_entries_crew

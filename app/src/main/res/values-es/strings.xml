@@ -160,6 +160,8 @@
     <string name="crew_time_clock">Reloj de horas</string>
     <string name="crew_clock_in">Marcar entrada</string>
     <string name="crew_clock_out">Marcar salida</string>
+    <!-- Shown when clock-in can't identify anyone to pay: the job has no assigned crew member and the signed-in person has no crew record of their own. -->
+    <string name="crew_clock_in_no_identity">Este trabajo no está asignado a nadie, y tú tampoco. Pídele al capataz que te asigne antes de marcar entrada.</string>
     <string name="crew_sign_off_title">Aprobación del cliente</string>
     <string name="crew_sign_off_button">El cliente aprueba</string>
     <string name="crew_ask_change_plan">Pedir un cambio al plano</string>
@@ -220,6 +222,8 @@
     <string name="seg_len_unreadable">No se pudo leer como una longitud</string>
     <string name="seg_len_explains">El resto del tramo se mueve con él y mantiene su forma. Los materiales y el precio se ajustan.</string>
     <string name="draw_clear">Borrar todo</string>
+    <string name="draw_clear_title">¿Borrar este dibujo?</string>
+    <string name="draw_clear_text">Se quitan todos los puntos y portones de este tramo -- el metrado, el conteo de postes, el pedido de materiales y el precio salen de este dibujo. Esto no se puede deshacer.</string>
     <string name="draw_to_estimate">Al presupuesto</string>
     <string name="draw_remove_gate_title">¿Quitar este portón?</string>
     <string name="draw_remove">Quitar</string>
@@ -243,6 +247,7 @@
     <string name="est_title">Presupuesto</string>
     <string name="est_other_items">Otros conceptos</string>
     <string name="est_add_item">+ Añadir concepto</string>
+    <string name="est_no_other_items">Todavía no hay conceptos extra en este presupuesto -- añade uno si hay material o mano de obra que los tramos de arriba no cubren.</string>
     <string name="est_know_length">¿Ya sabes la longitud?</string>
     <string name="est_total_feet">Pies totales</string>
     <string name="est_corners">Esquinas</string>
@@ -368,6 +373,7 @@
     <string name="acct_already_have_account">Ya tengo una cuenta</string>
     <string name="acct_need_create_account">Necesito crear una cuenta</string>
     <string name="acct_signed_in">Sesión iniciada</string>
+    <string name="acct_sign_out_confirm_body">¿Cerrar sesión en este teléfono? Tendrás que volver a iniciar sesión para ver los trabajos y sincronizar de nuevo.</string>
     <string name="acct_access_level">Nivel de acceso: %1$s</string>
     <string name="acct_invite_share_subject">Únete a nuestro equipo en FenceFlow</string>
     <string name="acct_invite_share_body">Instala FenceFlow, crea una cuenta, luego elige “Unirme al equipo” e ingresa este código de invitación:\n\n%1$s</string>
@@ -1076,6 +1082,7 @@
     <string name="onb_signing_out">Cerrando sesión…</string>
     <string name="onb_sign_out_anyway">Cerrar sesión de todos modos y perderlo</string>
     <string name="onb_sign_out_unsynced_warning">Este teléfono todavía tiene trabajo que no ha llegado a la nube: %1$d trabajo(s), %2$d foto(s). Cerrar sesión ahora lo elimina para siempre -- toca Cerrar sesión de todos modos solo si eso es lo que quieres.</string>
+    <string name="onb_sign_out_could_not_check_warning">No pude comprobar si este teléfono tiene trabajo que no ha llegado a la nube. Si lo tiene, cerrar sesión ahora lo elimina para siempre -- toca Cerrar sesión de todos modos solo si eso es lo que quieres.</string>
     <string name="data_ownership_held_work">Este teléfono todavía tiene trabajo que nunca llegó a %1$s: %2$d trabajo(s), %3$d foto(s). Pídele al dueño que te vuelva a poner en la cuadrilla, luego sincroniza. Nada se elimina hasta que eso pase.</string>
     <string name="onb_update_needed">Actualización necesaria</string>
     <string name="onb_new_version_available">Nueva versión disponible</string>
@@ -1154,6 +1161,10 @@
     <string name="misc_crew_fallback_there">estimado cliente</string>
     <string name="misc_crew_fallback_your_property">tu propiedad</string>
     <string name="misc_crew_no_runs">Este trabajo aún no tiene tramos de cerca.</string>
+    <string name="misc_crew_job_not_on_phone">No se encuentra este trabajo en este teléfono. Sincroniza y vuelve a revisar.</string>
+    <string name="misc_crew_plan_not_on_phone">No se encuentra el plano de este trabajo en este teléfono. Sincroniza y vuelve a revisar.</string>
+    <string name="misc_run_not_on_phone">No se encuentra este tramo de cerca en este teléfono. Sincroniza y vuelve a revisar.</string>
+    <string name="misc_job_not_on_phone">No se encuentra este trabajo en este teléfono. Sincroniza y vuelve a revisar.</string>
     <string name="misc_crew_untitled_run">Tramo sin nombre</string>
     <string name="misc_crew_nothing_measured">Este tramo aún no tiene medidas — consulta con la oficina.</string>
     <string name="misc_feet_value">%1$s pies</string>
@@ -1363,6 +1374,8 @@
     <string name="enum_role_crew_desc">Solo el trabajo de hoy. Sin precios, costos ni datos de contacto del cliente.</string>
     <string name="enum_perm_see_money">Ver precios y dinero</string>
     <string name="enum_perm_see_money_desc">Totales de trabajos, márgenes, costos y lo que han pagado los clientes.</string>
+    <string name="enum_perm_see_pay">Ver lo que se le paga a la gente</string>
+    <string name="enum_perm_see_pay_desc">Tarifas por hora, tarifas por pie y tipo de pago en la lista de la cuadrilla. Es distinto del dinero del trabajo — un vendedor puede ver el precio de un trabajo sin ver lo que gana un compañero.</string>
     <string name="enum_perm_edit_jobs">Crear y editar trabajos</string>
     <string name="enum_perm_edit_jobs_desc">Datos del cliente, especificación de la cerca y el dibujo.</string>
     <string name="enum_perm_edit_catalog_and_settings">Cambiar el catálogo y los ajustes</string>
@@ -1571,7 +1584,7 @@
     <string name="crew_plan_watch_out">Ojo en la obra</string>
     <string name="crew_plan_change_requested">Cambio solicitado</string>
     <string name="crew_plan_something_wrong">¿Algo no cuadra?</string>
-    <string name="crew_plan_office_has_it">La oficina ya lo tiene. Sigue con el resto del trabajo mientras esperas.</string>
+    <string name="crew_plan_office_has_it">Guardado en este teléfono. Llega a la oficina en cuanto tengas señal. Sigue con el resto del trabajo mientras esperas.</string>
     <string name="crew_plan_ask_office">Pregunta a la oficina antes de construirlo distinto. Lo verán de inmediato.</string>
 
     <!-- Removing a line from the on-site materials checklist. It says what it

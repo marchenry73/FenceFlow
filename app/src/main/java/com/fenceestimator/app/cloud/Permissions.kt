@@ -28,6 +28,12 @@ enum class Permission(
         "See prices and money",
         "Job totals, margins, costs and what customers have paid."
     ),
+    SEE_PAY(
+        "See what people are paid",
+        "Hourly rates, per-foot rates and pay type on the crew roster. Separate from job " +
+            "money -- a salesperson can see a job's price without seeing what a colleague earns.",
+        sensitive = true
+    ),
     EDIT_JOBS(
         "Create and edit jobs",
         "Customer details, fence spec, and the drawing."
@@ -110,7 +116,7 @@ val UserRole.defaultPermissions: Set<Permission>
         UserRole.OWNER -> Permission.ALL
 
         UserRole.MANAGER -> setOf(
-            Permission.SEE_MONEY, Permission.EDIT_JOBS, Permission.EDIT_CATALOG_AND_SETTINGS,
+            Permission.SEE_MONEY, Permission.SEE_PAY, Permission.EDIT_JOBS, Permission.EDIT_CATALOG_AND_SETTINGS,
             Permission.SCHEDULE_AND_ASSIGN, Permission.REQUEST_PAYMENT, Permission.RECORD_FIELD_WORK,
             Permission.SEE_CUSTOMER_CONTACT, Permission.SEE_REPORTS, Permission.APPROVE_TIME,
             Permission.APPROVE_PLAN_CHANGES
@@ -119,12 +125,16 @@ val UserRole.defaultPermissions: Set<Permission>
             // who needs to do it can be given it by name.
         )
 
+        // Sales sees prices and margins to sell a job, but not what a
+        // colleague is paid -- SEE_MONEY and SEE_PAY are deliberately split
+        // here so a salesperson's own commission stays private from the crew
+        // and the crew's pay stays private from sales.
         UserRole.SALES -> setOf(
             Permission.SEE_MONEY, Permission.EDIT_JOBS, Permission.SEE_CUSTOMER_CONTACT
         )
 
         UserRole.ACCOUNTANT -> setOf(
-            Permission.SEE_MONEY, Permission.REQUEST_PAYMENT, Permission.RECORD_REFUNDS,
+            Permission.SEE_MONEY, Permission.SEE_PAY, Permission.REQUEST_PAYMENT, Permission.RECORD_REFUNDS,
             Permission.SEE_CUSTOMER_CONTACT, Permission.SEE_REPORTS
         )
 

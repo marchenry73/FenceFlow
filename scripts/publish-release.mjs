@@ -212,8 +212,28 @@ function uploadApk(code) {
     // The CLI's own message, not just "command failed" -- which says nothing
     // about why and sent me chasing the wrong cause twice.
     const detail = String(e.stderr || e.stdout || e.message || "").trim();
-    console.warn("Could not upload the APK.\n  " + detail.slice(0, 400));
-    return null;
+    console.error("Could not upload the APK.\n  " + detail.slice(0, 400));
+    // Stop. Do NOT fall through to the release row.
+    //
+    // A failed upload used to return null, and null meant "keep whatever URL
+    // the last release had". So a publish whose upload failed still wrote a
+    // new release row, pointing at the PREVIOUS build, and told every phone to
+    // update -- announcing new work while shipping the old bytes, and exiting
+    // zero. That happened on 10 September: storage refused the name as a
+    // duplicate because nothing had been committed, so the commit hash in the
+    // filename had not moved, and 1.416 was re-announced with yesterday's apk
+    // behind it.
+    //
+    // A duplicate name is worth calling out by itself, because the cause is
+    // almost always the same one and the CLI's wording does not say it.
+    if (/KeyAlreadyExists|Duplicate|already exists/i.test(detail)) {
+      console.error(
+        "\nThat name is already taken in the bucket, which means the commit " +
+        "hash has not moved.\nCommit this work first: the version number and " +
+        "the file name both come from the commit count."
+      );
+    }
+    process.exit(1);
   }
 }
 

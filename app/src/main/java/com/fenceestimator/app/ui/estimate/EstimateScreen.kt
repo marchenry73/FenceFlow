@@ -58,6 +58,7 @@ import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.MaterialRole
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.EstimateWarning
 import com.fenceestimator.app.estimate.JobMoney
@@ -150,6 +151,12 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                     Text(stringResource(R.string.est_other_items), style = MaterialTheme.typography.titleMedium)
                     OutlinedButton(onClick = { viewModel.addManualLineItem() }) { Text(stringResource(R.string.est_add_item)) }
                 }
+            }
+            if (unassigned.isEmpty()) {
+                // Header and Add item render regardless, so an empty list used
+                // to leave nothing between them -- indistinguishable from a
+                // list that failed to load its items.
+                item { EmptyState(stringResource(R.string.est_no_other_items)) }
             }
             items(unassigned, key = { "item-${it.id}" }) { item ->
                 LineItemRow(item, onClick = { editingItem = item })

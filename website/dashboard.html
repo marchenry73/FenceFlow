@@ -1077,6 +1077,14 @@
       </div>
 
       <div class="panel">
+        <h2>Your alerts</h2>
+        <p class="sub">The "Needs attention" list on Home can get noisy if you don't own a
+          particular part of the job (scheduling materials, say). Turn off what you don't need —
+          this only affects what you see; everyone else on your team still sees theirs.</p>
+        <div id="alertPrefsRows"></div>
+      </div>
+
+      <div class="panel">
         <h2>Build Templates</h2>
         <p class="sub">What a new fence run starts as — post spacing, panel height, bags of
           concrete, rails, everything. The New client wizard's "What we're building" step
@@ -1694,15 +1702,44 @@ function ask({ title, body, confirmLabel = 'Confirm', danger = false }) {
 const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
 const esc = s => (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
+// A rate cell that tells the truth when the roster came from the
+// crew_roster() fallback: there is no rate to show, and "—" or "$0.00/hr"
+// both read as a real answer instead of "you can't see this". A zero
+// rendered here is the exact failure the pay-privacy split exists to
+// prevent -- margins computed from it would be silently overstated.
+const payCell = (rate) => employeesHavePay
+  ? (rate ? money(rate) + '/hr' : '—')
+  : '<span title="Pay is not visible to your account">Not visible</span>';
 const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
     orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null, planName='',
+    // True once `employees` is known to carry the pay columns (hourly_rate,
+    // pay_type, per_foot_rate). A direct read of the employees table has
+    // them; the crew_roster() fallback below does not -- it returns only id,
+    // sync_id, name, role, is_active, by design, for anyone without SEE_PAY.
+    // Every screen that shows or edits a rate checks this before trusting
+    // employees[].hourly_rate, so a missing rate reads as "not visible to
+    // you" instead of as a real zero.
+    employeesHavePay=true,
     // Build templates (my_build_templates(), shipped + this company's own) and
     // the two small dialogs that edit a single tier or template -- see the
     // "Settings: build templates & pricing tiers" and "Business setup wizard"
     // sections below.
-    buildTemplates=[], openTier=null, openTpl=null, tplDraftSpec={}, tplDerivedFrom=null;
+    buildTemplates=[], openTier=null, openTpl=null, tplDraftSpec={}, tplDerivedFrom=null,
+    // Which "needs attention" exception alerts THIS signed-in user has turned
+    // off -- a Set of keys, e.g. {'materials_missing'}. Personal, not
+    // company-wide: see supabase_notification_prefs.sql. Starts empty, which
+    // means every alert is on, so a page load before the prefs fetch settles
+    // (or a database without the table yet) behaves exactly as it always has.
+    mutedAlerts = new Set(),
+    // True once `times` has been topped up to every time_entries row the
+    // company has, not just the recent/pending slice loadAll() bounds the
+    // first paint to. Set by ensureFullTimes(), which every screen that
+    // states an unscoped ("Total", lifetime) hours or pay figure -- the Time
+    // tab, the Pay tab, and Reports when its window reaches earlier than the
+    // bound -- must await before it renders.
+    timesFullyLoaded = false;
 /* Always the first of the month.
    Kept on today's date, stepping a month meant asking for the 31st of a
    30-day month, which JavaScript rolls forward into the month after -- so on
@@ -1711,6 +1748,72 @@ let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[
 let calMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
 
 const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANAGER');
+
+/* Per-user "needs attention" alert preferences -- launch audit §28.
+   The nine exception detectors below (the ones that answer "nothing
+   happened, and that is the problem", not the ordinary "something happened"
+   items) can each be switched off by this user alone, via the "Your alerts"
+   panel in Settings. Keyed by name so the checkbox list and the detectors
+   below never drift apart. */
+const ALERT_DEFS = [
+  { key:'uncontacted_lead',  label:'Nobody has contacted a new lead yet' },
+  { key:'dispute_open',      label:'A payment dispute is open' },
+  { key:'unsigned_approved', label:'Approved but not signed' },
+  { key:'labour_over',       label:'Labour cost is over what a job was priced at' },
+  { key:'materials_missing', label:'Scheduled soon with materials not ordered/received' },
+  { key:'stale_quote',       label:'A sent quote has gone quiet' },
+  { key:'no_deposit',        label:'Approved with no deposit taken' },
+  { key:'clocked_in_long',   label:'Someone has been clocked in unusually long' },
+  { key:'unverified_prices', label:'Priced on catalog prices nobody has confirmed' },
+];
+// True unless this user has switched that alert off. Absence of a row for
+// this user (table not created yet, or never saved a preference) means
+// every alert reads as on -- exactly today's behaviour.
+const alertOn = key => !mutedAlerts.has(key);
+
+async function loadNotifPrefs(){
+  mutedAlerts = new Set();
+  if (!profile?.id) return;
+  try {
+    // Same tolerant-missing-table shape as the other optional reads in
+    // loadAll(): an error here (including the table not existing yet on a
+    // database that has not had supabase_notification_prefs.sql run against
+    // it) is treated as "no preferences saved", not a page error.
+    const { data, error } = await db.from('notification_prefs')
+      .select('muted_alerts').eq('user_id', profile.id).maybeSingle();
+    if (!error && data?.muted_alerts) mutedAlerts = new Set(data.muted_alerts);
+  } catch (e) { /* table not there yet -- every alert stays on */ }
+}
+
+// Turns one alert on or off for this user only, and persists it. Upsert
+// because the first toggle a user ever makes has no row to update yet.
+async function setAlertMuted(key, muted){
+  const next = new Set(mutedAlerts);
+  if (muted) next.add(key); else next.delete(key);
+  mutedAlerts = next;
+  renderDash();
+  try {
+    await db.from('notification_prefs').upsert({
+      user_id: profile.id,
+      muted_alerts: Array.from(next),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+  } catch (e) { /* offline or table missing -- the on-screen state above is
+                   still correct for this session; it just will not survive
+                   a reload until the table exists and the write succeeds */ }
+}
+
+function renderAlertPrefs(){
+  const el = $('alertPrefsRows');
+  if (!el) return;
+  el.innerHTML = ALERT_DEFS.map(a => `
+    <label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-weight:400">
+      <input type="checkbox" data-alert-key="${esc(a.key)}" ${alertOn(a.key) ? 'checked' : ''}>
+      ${esc(a.label)}
+    </label>`).join('');
+  el.querySelectorAll('input[data-alert-key]').forEach(cb =>
+    cb.addEventListener('change', () => setAlertMuted(cb.dataset.alertKey, !cb.checked)));
+}
 /* Says something, visibly, and only tidies away a success.
    An instruction that removes itself after two and a half seconds -- which is
    what happened to "confirm the email we just sent you" -- leaves somebody
@@ -2316,6 +2419,65 @@ async function settleAfterCheckout(){
                + 'The receipt is on its way to your email.', kind: 'ok' };
 }
 
+/* ---------- topping up the first-paint slice of items / time entries -----
+
+   loadAll() bounds estimate_line_items and time_entries so the first paint
+   does not wait on every run and every shift the company has ever logged.
+   These three helpers are how the rest of the page still ends up with
+   complete data before it states a number that has to be complete: fetched
+   by job_sync_id (chunked -- an .in() with a couple thousand ids in one
+   request risks the URL length, not correctness), merged into the existing
+   array by id so nothing already loaded is lost or duplicated. */
+
+async function ensureItemsForJobs(syncIds){
+  const ids = [...new Set((syncIds || []).filter(Boolean))];
+  if (!ids.length) return;
+  const CHUNK = 150;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+  const results = await Promise.all(chunks.map(c =>
+    db.from('estimate_line_items').select('*').is('deleted_at', null).in('job_sync_id', c)));
+  const byId = new Map(items.map(x => [x.id, x]));
+  results.forEach(res => { if (!res.error) (res.data || []).forEach(x => byId.set(x.id, x)); });
+  items = [...byId.values()];
+}
+
+async function ensureTimesForJobs(syncIds){
+  const ids = [...new Set((syncIds || []).filter(Boolean))];
+  if (!ids.length) return;
+  const CHUNK = 150;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+  const results = await Promise.all(chunks.map(c =>
+    db.from('time_entries').select('*').is('deleted_at', null).in('job_sync_id', c)));
+  const byId = new Map(times.map(t => [t.id, t]));
+  results.forEach(res => { if (!res.error) (res.data || []).forEach(t => byId.set(t.id, t)); });
+  times = [...byId.values()];
+}
+
+// Reports lets someone pick "All time" or hand-type a date going back years,
+// and a time entry's own started_at -- not which job it belongs to -- is
+// what decides whether it is in that window. That rules out the per-job
+// chunked fetch above for Reports and for the Time/Pay tabs, which have no
+// window at all: those need every row, so this pulls the rest of the table
+// once per page load and remembers that it did.
+async function ensureFullTimes(){
+  if (timesFullyLoaded) return;
+  const PAGE = 1000;
+  const all = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await db.from('time_entries').select('*').is('deleted_at', null)
+      .order('id', { ascending: true }).range(from, from + PAGE - 1);
+    if (res.error) { console.error('ensureFullTimes failed:', res.error); return; }
+    const got = res.data || [];
+    all.push(...got);
+    if (got.length < PAGE || all.length >= PAGE * 50) break;
+  }
+  const liveJobs = new Set(jobs.map(j => j.sync_id));
+  times = all.filter(t => liveJobs.has(t.job_sync_id));
+  timesFullyLoaded = true;
+}
+
 async function loadAll(){
   const checkoutNote = await settleAfterCheckout();
   const service = await checkService();
@@ -2364,11 +2526,12 @@ async function loadAll(){
 
      A short page means the end. A full page means ask again. */
   const PAGE = 1000;
-  const q = async (t) => {
+  const q = async (t, filterFn) => {
     const all = [];
     for (let from = 0; ; from += PAGE) {
-      const res = await db.from(t).select('*').is('deleted_at', null)
-        .order('id', { ascending: true })
+      let qb = db.from(t).select('*').is('deleted_at', null);
+      if (filterFn) qb = filterFn(qb);
+      const res = await qb.order('id', { ascending: true })
         .range(from, from + PAGE - 1);
       if (res.error) return res;                  // caller already handles .error
       const got = res.data || [];
@@ -2384,9 +2547,48 @@ async function loadAll(){
     }
     return { data: all, error: null };
   };
+
+  // estimate_line_items and time_entries are the two tables that grow
+  // per-run and per-shift rather than per-job, so on a company with a real
+  // history they are the ones that turn the first paint into ten megabytes
+  // before anything is on screen. Everything else here is still fetched in
+  // full, unconditionally, every load -- only these two are bounded, and only
+  // for the FIRST paint. Nothing downstream is allowed to call a total over a
+  // bounded slice "the total": renderReports, showJob and the Time/Pay tabs
+  // each pull in whatever this window left out before they compute anything
+  // (see ensureItemsForJobs / ensureTimesForJobs / ensureFullTimes below).
+  const RECENT_MS = 545 * 864e5; // ~18 months
+  const recentCutoffISO = new Date(Date.now() - RECENT_MS).toISOString();
+
   const [j,e,r,i,x,p,o,tm,c,ti,pay,fc] = await Promise.all([
-    q('jobs'), q('employees'), q('fence_runs'), q('estimate_line_items'),
-    q('expenses'), q('punch_list_items'), q('change_orders'), q('time_entries'),
+    q('jobs'), q('employees'), q('fence_runs'),
+    // Line items rarely change after the estimate is built, so updated_at is
+    // a reasonable stand-in for "recent job" here. Anything this window
+    // misses -- an old job's materials, a report reaching further back -- is
+    // fetched on demand by ensureItemsForJobs, never assumed to be zero.
+    q('estimate_line_items', qb => qb.gte('updated_at', recentCutoffISO)),
+    q('expenses'), q('punch_list_items'), q('change_orders'),
+    // Time entries: two things must always be present regardless of age --
+    // any shift still clocked in, and any shift waiting on approve/reject --
+    // because the Home tab's "clocked in long" and "waiting for approval"
+    // alerts have to see every one of them or they silently stop firing for
+    // old rows. Both conditions collapse to one filter: approved_at is null
+    // covers a shift that has not been approved yet, whether or not it has
+    // even been rejected -- no, rejected shifts need excluding, so this is
+    // "needs a decision" (open OR ended-but-undecided). Recent completed and
+    // already-decided shifts are added on top so Home's other tiles and a
+    // first glance at Time have real recent numbers to show.
+    (async () => {
+      const [pending, recent] = await Promise.all([
+        q('time_entries', qb => qb.is('approved_at', null).is('rejected_at', null)),
+        q('time_entries', qb => qb.gte('started_at', recentCutoffISO))
+      ]);
+      if (pending.error) return pending;
+      if (recent.error) return recent;
+      const byId = new Map();
+      [...pending.data, ...recent.data].forEach(t => byId.set(t.id, t));
+      return { data: [...byId.values()], error: null };
+    })(),
     q('material_items'), q('pricing_tiers'),
     // The money ledger. This page used to read job_payments, which is the
     // Stripe payment-LINK table -- amounts in cents, with a URL and a Stripe
@@ -2398,9 +2600,28 @@ async function loadAll(){
     q('field_changes')
   ]);
   fieldChanges = fc && !fc.error ? (fc.data || []) : [];
-  jobs=j.data||[]; employees=e.data||[]; runs=r.data||[]; items=i.data||[];
+  jobs=j.data||[]; runs=r.data||[]; items=i.data||[];
   expenses=x.data||[]; punch=p.data||[]; orders=o.data||[]; times=tm.data||[];
   catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
+  timesFullyLoaded = false;
+
+  // The employees table now carries pay (hourly_rate, pay_type,
+  // per_foot_rate) behind a permission most of the company doesn't hold, so
+  // RLS hides the whole row from a salesperson -- not just the pay columns,
+  // which it cannot do. A direct read that comes back empty or erroring
+  // isn't necessarily "no crew" -- it's usually "can't read this row" -- so
+  // fall back to crew_roster(), the server function built for exactly this:
+  // names, roles and the active flag, with no pay attached, open to any
+  // signed-in company member. When the direct read succeeds it is kept,
+  // pay columns and all, because payroll screens need them.
+  if (!e.error && (e.data || []).length) {
+    employees = e.data;
+    employeesHavePay = true;
+  } else {
+    const roster = await db.rpc('crew_roster');
+    employees = roster.error ? [] : (roster.data || []);
+    employeesHavePay = false;
+  }
 
   // Drop anything hanging off a job that was deleted.
   //
@@ -2424,6 +2645,18 @@ async function loadAll(){
   punch    = ofLiveJob(punch);
   runs     = ofLiveJob(runs);
   jobs.sort((a,b)=>new Date(b.updated_at||0)-new Date(a.updated_at||0));
+
+  // contractTotalOf() falls back to summing line items only for a job that
+  // has no contract_total of its own -- and that fallback is used
+  // unconditionally by the Jobs and Pipeline lists, not lazily. If such a
+  // job is old enough that its items fell outside the recent window above,
+  // it would render as $0 owed, which the comment on contractTotalOf calls
+  // out as worse than reading low. So those specific jobs' items are topped
+  // up here, before first paint, rather than left to a lazy load that runs
+  // after the wrong number is already on screen.
+  const untotaledJobIds = jobs.filter(x2 => !x2.deleted_at && x2.contract_total == null)
+    .map(x2 => x2.sync_id);
+  if (untotaledJobIds.length) await ensureItemsForJobs(untotaledJobIds);
 
   // Profit per job is computed by the database, not here, so this page and
   // the app can never disagree about what a job made -- which is exactly how
@@ -2485,8 +2718,10 @@ async function loadAll(){
     arAging = aging.error ? [] : (aging.data || []);
   } else arAging = [];
 
+  await loadNotifPrefs();
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderEmployees();
   renderTime(); renderCycles(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();
+  renderAlertPrefs();
   await loadSettings();
   await loadBilling();
 }
@@ -2898,7 +3133,7 @@ function renderDash(){
   // alert that can never be cleared is an alert everyone learns to scroll past.
   // Without this, every job that existed before the column did would sit here
   // forever saying nobody had phoned somebody who was served months ago.
-  jobs.filter(j => !j.first_contact_at
+  if (alertOn('uncontacted_lead')) jobs.filter(j => !j.first_contact_at
                    && ['DRAFT','SENT'].includes(j.status)
                    && (nowMs - d(j.created_at).getTime()) > 4 * 36e5
                    && (nowMs - d(j.created_at).getTime()) < 7 * 864e5)
@@ -2912,7 +3147,7 @@ function renderDash(){
   // A chargeback. Top of the list because the money is already gone and the
   // job still reads paid: without this line the first anybody hears is a bank
   // statement weeks later.
-  jobs.filter(j => j.dispute_opened_at && !j.dispute_closed_at)
+  if (alertOn('dispute_open')) jobs.filter(j => j.dispute_opened_at && !j.dispute_closed_at)
     .forEach(j => items.push({ urgent:true,
       text: 'Payment disputed' + (j.dispute_amount ? ' (' + money(j.dispute_amount) + ')' : '') +
             (j.dispute_reason ? ', ' + String(j.dispute_reason).replace(/_/g, ' ') : '') +
@@ -2922,7 +3157,7 @@ function renderDash(){
   // Approved but never signed. The approval is a click on a web page; the
   // signature is the contract. A job worked from an approval with no signature
   // is a job with nothing to point at if the customer changes their mind.
-  jobs.filter(j => j.quote_approved_at && !j.signed_at
+  if (alertOn('unsigned_approved')) jobs.filter(j => j.quote_approved_at && !j.signed_at
                    && !['COMPLETED','DECLINED'].includes(j.status))
     .forEach(j => items.push({ urgent:false,
       text: 'Approved but not signed: ' + name(j), id: j.id }));
@@ -2930,7 +3165,7 @@ function renderDash(){
   // Labour has already cost more than it was priced at. Not a warning about
   // the future -- the money is spent. Only when there is a real rate behind
   // it, because a zero cost is not an underspend.
-  jobCosting.filter(r => Number(r.labour_cost || 0) > 0.005).forEach(r => {
+  if (alertOn('labour_over')) jobCosting.filter(r => Number(r.labour_cost || 0) > 0.005).forEach(r => {
     const j = jobs.find(x => x.sync_id === r.job_sync_id);
     if (!j) return;
     const quoted = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
@@ -2945,7 +3180,7 @@ function renderDash(){
   // Scheduled, and nothing ordered. This one is why materials got a column:
   // a crew driving to a job with no posts on the truck is a wasted day for two
   // people plus an apology to a customer who took the morning off.
-  jobs.filter(j => j.scheduled_date
+  if (alertOn('materials_missing')) jobs.filter(j => j.scheduled_date
                    && d(j.scheduled_date) >= new Date(nowMs)
                    && d(j.scheduled_date) < new Date(nowMs + 7*864e5)
                    && !['RECEIVED','NOT_NEEDED'].includes(j.materials_status || 'NOT_ORDERED'))
@@ -2957,7 +3192,7 @@ function renderDash(){
 
   // A quote that went out and went quiet. The most expensive thing on this
   // page: a sale nobody said no to.
-  jobs.filter(j => j.status === 'SENT' && j.quote_sent_at
+  if (alertOn('stale_quote')) jobs.filter(j => j.status === 'SENT' && j.quote_sent_at
                    && !j.quote_approved_at
                    && d(j.quote_sent_at) < new Date(weekAgo))
     .forEach(j => {
@@ -2972,7 +3207,7 @@ function renderDash(){
 
   // Approved, deposit agreed, nothing collected. The work is scheduled against
   // money that never arrived.
-  jobs.filter(j => j.quote_approved_at
+  if (alertOn('no_deposit')) jobs.filter(j => j.quote_approved_at
                    && Number(j.deposit_amount) > 0
                    && netPaid(j) < 0.005)
     .forEach(j => items.push({ urgent:true,
@@ -2981,7 +3216,7 @@ function renderDash(){
   // Still clocked in long after any shift would have ended. Sixteen hours
   // rather than eight, because a long day on a fence line is a real thing and
   // crying wolf at 5pm teaches people to ignore the panel.
-  times.filter(t => t.started_at && !t.ended_at
+  if (alertOn('clocked_in_long')) times.filter(t => t.started_at && !t.ended_at
                     && (nowMs - d(t.started_at).getTime()) > 16 * 36e5)
     .forEach(t => {
       const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Someone';
@@ -2994,7 +3229,7 @@ function renderDash(){
   // A quote whose price still rests on catalog rows nobody confirmed. The
   // quote panel already blocks sending one; this is so the owner learns about
   // it before opening the job rather than after.
-  jobs.filter(j => ['DRAFT','SENT'].includes(j.status) && unverifiedPricesOn(j).length)
+  if (alertOn('unverified_prices')) jobs.filter(j => ['DRAFT','SENT'].includes(j.status) && unverifiedPricesOn(j).length)
     .forEach(j => items.push({ urgent:false,
       text: 'Priced on catalog prices nobody has confirmed: ' + name(j), id: j.id }));
 
@@ -3415,17 +3650,22 @@ async function renderJobsMap(){
    Not a sync -- three clean files QuickBooks Online imports natively
    (Customers, Invoices, Payments), which answers the first question every
    buyer asks without an OAuth app. The full sync is a Runbook task. */
+/* The invoice amount is the CONTRACT total, not what is still owed. Payments
+   go out in their own file and QuickBooks applies them against the invoice --
+   sending a net figure here would book the same money twice. This called a
+   netTotal() that does not exist anywhere in this file, so the whole export
+   threw before writing a line and the three buttons did nothing at all. */
 function exportQuickBooks(){
   const dt=x=>x?new Date(x).toLocaleDateString('en-US'):'';
   downloadCsv('quickbooks-customers.csv',
     ['Name','Phone','Email','Billing Address'],
     jobs.filter(j=>j.customer_name).map(j=>[j.customer_name,j.phone||'',j.email||'',j.address||'']));
-  const won=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&netTotal(j)>0);
+  const won=jobs.filter(j=>(j.status==='ACCEPTED'||j.status==='COMPLETED')&&contractTotalOf(j)>0);
   downloadCsv('quickbooks-invoices.csv',
     ['*InvoiceNo','*Customer','*InvoiceDate','*DueDate','Item(Product/Service)','ItemAmount'],
     won.map((j,i)=>['FF-'+String(j.id).padStart(4,'0'),j.customer_name,
       dt(j.updated_at||j.created_at),dt(j.updated_at||j.created_at),
-      'Fence installation',netTotal(j).toFixed(2)]));
+      'Fence installation',contractTotalOf(j).toFixed(2)]));
   downloadCsv('quickbooks-payments.csv',
     ['Customer','Payment Date','Amount','Ref No.'],
     payments.filter(p=>p.amount>0).map(p=>{
@@ -3646,7 +3886,7 @@ function renderEmployees(){
       <td><strong>${esc(e.name)||'Unnamed'}</strong>${active(e)?''
         :' <span class="pill" style="font-size:11px">Off the crew</span>'}${workingNow(e)}</td><td>${esc(e.role)||'—'}</td>
       <td>${esc(e.phone)||'—'}</td><td>${esc(e.email)||'—'}</td>
-      <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':'—'}</td>
+      <td>${payCell(e.hourly_rate)}</td>
       <td>${e.email?`<button class="btn btn-sm btn-grey resend-invite" data-id="${e.id}">Resend invite</button>`:''}</td>
       </tr>`).join('');
   document.querySelectorAll('#empRows tr').forEach(tr=>
@@ -3675,7 +3915,13 @@ function shiftWhoName(t){
   return (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Unknown';
 }
 
-function renderTime(){
+async function renderTime(){
+  // No date filter anywhere on this tab -- it is a lifetime worksheet, every
+  // shift the company has ever logged, with a "Total" at the bottom that
+  // means exactly that. loadAll() only bounds the first paint's slice of
+  // time_entries, so this has to pull in the rest before it draws anything,
+  // the same way Reports does for its own "All time" figure.
+  await ensureFullTimes();
   const done=times.filter(t=>t.ended_at);
   $('timeEmpty').style.display=done.length?'none':'block';
   $('timeRows').innerHTML=done.map(t=>{
@@ -4976,11 +5222,13 @@ function renderScorecard(){
   const longest = shiftHours.length ? Math.max(...shiftHours) : 0;
   const avg = shiftHours.length ? c.hours / shiftHours.length : 0;
   const pct = c.hours > 0 ? (c.approvedH / c.hours) * 100 : 0;
-  const payLine = c.emp
-    ? (c.emp.pay_type === 'PER_FOOT'
-        ? money(c.emp.per_foot_rate || 0) + ' per foot'
-        : money(c.emp.hourly_rate || 0) + ' an hour')
-    : 'No crew member attached to these shifts';
+  const payLine = !c.emp
+    ? 'No crew member attached to these shifts'
+    : !employeesHavePay
+      ? 'Pay is not visible to your account'
+      : (c.emp.pay_type === 'PER_FOOT'
+          ? money(c.emp.per_foot_rate || 0) + ' per foot'
+          : money(c.emp.hourly_rate || 0) + ' an hour');
 
   const byJob = new Map();
   c.shifts.forEach(t => {
@@ -5133,16 +5381,19 @@ function renderAgingChart(){
   const el='chartAging';
   if(!$(el)) return;
   if(!arAging.length) return noData(el,'Nobody owes you anything.');
+  // Bucketed by the server's own r.bucket field -- the same field renderAging
+  // uses -- so this chart and that panel can never disagree about who is in
+  // which bucket. Do not re-derive buckets from r.days_out here.
   const buckets=[
-    {label:'Under 30 days', min:0,  max:30,       n:0, value:0},
-    {label:'30 to 60',      min:30, max:60,       n:0, value:0},
-    {label:'60 to 90',      min:60, max:90,       n:0, value:0},
-    {label:'Over 90 days',  min:90, max:Infinity, n:0, value:0}
+    {key:'current', label:'Under 30 days', n:0, value:0},
+    {key:'30',      label:'30 to 60',      n:0, value:0},
+    {key:'60',      label:'60 to 90',      n:0, value:0},
+    {key:'90',      label:'Over 90 days',  n:0, value:0}
   ];
   arAging.forEach(r=>{
-    const days=Number(r.days_out||0), owed=Number(r.owed||0);
+    const owed=Number(r.owed||0);
     if(owed<=0) return;
-    const b=buckets.find(b=>days>=b.min && days<b.max);
+    const b=buckets.find(b=>b.key===r.bucket);
     if(b){ b.value+=owed; b.n+=1; }
   });
   const live=buckets.filter(b=>b.value>0);
@@ -5155,10 +5406,7 @@ function renderAgingChart(){
   pickable(el, i => {
     const b = live[i];
     if(!b) return;
-    const mine = arAging.filter(r=>{
-      const days=Number(r.days_out||0);
-      return Number(r.owed||0) > 0 && days >= b.min && days < b.max;
-    });
+    const mine = arAging.filter(r=> Number(r.owed||0) > 0 && r.bucket === b.key);
     showExplain({
       title: b.label, value: money(b.value),
       how:'Everything still owed where the debt is ' + b.label.toLowerCase() + ' old, added up. '
@@ -5173,7 +5421,7 @@ function renderAgingChart(){
   const oldest=live[live.length-1];
   $(el).insertAdjacentHTML('beforeend',
     `<p class="sub" style="margin:10px 0 0">${
-      oldest.min>=60
+      (oldest.key==='60' || oldest.key==='90')
         ? `${money(oldest.value)} has been outstanding ${oldest.label.toLowerCase().replace(' (${oldest.n})','')}. Debt gets harder to collect the longer it sits.`
         : 'Nothing has been outstanding more than 60 days.'
     }</p>`);
@@ -5242,13 +5490,23 @@ function pickable(el, handler){
   }
 }
 
-function renderReports(){
+async function renderReports(){
   if(!repFrom) setPreset(90);
   $('repRangeLabel').textContent =
     `${repFrom.toLocaleDateString()} — ${repTo.toLocaleDateString()}`
     + ($('repHours').value!=='all' ? ` · ${$('repHours').selectedOptions[0].text.toLowerCase()}` : '');
 
   const jobsIn=jobs.filter(j=>inPeriod(j.updated_at||j.created_at));
+  // The window here can reach back years ("All time", or a hand-typed date),
+  // well past what loadAll() bounded the first paint to. Line items are
+  // scoped to one job, so topping them up for exactly the jobs this window
+  // touched is enough; a time entry's own started_at decides whether it is
+  // in the window, not which job it belongs to, so that one needs the whole
+  // table rather than a per-job fetch. Both are one-time per page load.
+  await Promise.all([
+    ensureItemsForJobs(jobsIn.map(j => j.sync_id)),
+    ensureFullTimes()
+  ]);
   const syncIds=new Set(jobsIn.map(j=>j.sync_id));
   // Payments are selected by WHEN THE MONEY MOVED, not by which jobs happen to
   // have been touched in the window. A job synced today does not make a payment
@@ -7057,8 +7315,15 @@ async function callPriceJob(jobSyncId, mode, expectedUpdatedAt){
 }
 
 /** The dry_run preview: line items, per-run summaries, warnings and totals,
-    straight off PricingOutput. No arithmetic happens here -- every number on
-    screen is a field the server already computed. */
+    straight off PricingOutput. Every total below is a field the server
+    already computed. The one exception is the "Line total" column: the
+    server's PricingOutput.items does not carry a line total (it sums
+    lineTotal() internally for totals.materials_subtotal but never emits it
+    per item), so this page multiplies quantity by the same effective unit
+    price the server would use -- supplier_unit_price when present, else
+    unit_price -- mirroring effectiveUnitPrice/lineTotal in
+    supabase/functions/_shared/pricing/types.ts exactly. That match is what
+    keeps this column reconciling with the totals shown just below it. */
 function renderOfficePricingResult(output){
   const runLabel = sid => { const r=runs.find(x=>x.sync_id===sid); return (r&&r.label) || 'Untitled run'; };
   const items = output.items||[], runsOut = output.runs||[], totals = output.totals||{};
@@ -7430,7 +7695,7 @@ function jobRunsHtml(jr, pxPerFoot){
   }).join('');
 }
 
-function showJob(id){
+async function showJob(id){
   // A job the wizard has not finished belongs in the wizard, resumed at
   // whatever step it stopped on -- opening the full sheet instead would show
   // an estimate for runs that were never priced and a quote link nobody
@@ -7515,6 +7780,14 @@ function showJob(id){
     if(pts.length>1) drawRunCanvas(cvs, r, runPxPerFoot);
     else drawManualFeetBar(cvs, r.manual_linear_feet||0);
   });
+
+  // This job's own materials and hours are loadAll()'s recent/pending slice
+  // only if the job is recent or its shifts are still open/unapproved -- an
+  // older, fully wrapped-up job may have neither. A sheet showing "no
+  // estimate" or "no time clocked" for a job that plainly has both is the
+  // empty-answer-reads-as-good-news failure, so both are topped up for this
+  // one job before anything below reads from them.
+  await Promise.all([ensureItemsForJobs([sid]), ensureTimesForJobs([sid])]);
 
   const li=items.filter(i=>i.job_sync_id===sid);
   const liTotal=li.reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
@@ -9129,7 +9402,7 @@ function swWireTiers(){
 
 function swCrewHtml(){
   const rows = employees.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.role||'')}</td>
-    <td>${e.hourly_rate?money(e.hourly_rate)+'/hr':''}</td></tr>`).join('');
+    <td>${employeesHavePay ? (e.hourly_rate?money(e.hourly_rate)+'/hr':'') : 'Not visible'}</td></tr>`).join('');
   return `<div class="panel"><h2>Crew</h2>
     <p class="sub" style="margin-top:0">The people who work for you, so hours and job assignments have a name on them.</p>
     <button class="btn btn-sm" type="button" id="sw_add_crew">Add a crew member</button>
@@ -9747,14 +10020,26 @@ function showEmp(id){
   openEmp = id ? employees.find(e=>String(e.id)===String(id)) : null;
   $('empTitle').textContent = openEmp ? (openEmp.name||'Crew Member') : 'New Crew Member';
   ['name','role','phone','email','notes'].forEach(k=>$('e_'+k).value=openEmp?.[k]||'');
-  $('e_hourly_rate').value=openEmp?.hourly_rate??'';
+  // The fallback roster has no rate at all -- not a zero, just absent. Typing
+  // a number into that box and hitting Save would write a real rate over
+  // whatever this account can't see, which is worse than not editing it, so
+  // the field is disabled and says why instead of quietly showing blank.
+  const rateInput = $('e_hourly_rate');
+  rateInput.value = employeesHavePay ? (openEmp?.hourly_rate ?? '') : '';
+  rateInput.disabled = !employeesHavePay;
+  rateInput.placeholder = employeesHavePay ? '' : 'Not visible to your account';
   $('deleteEmp').style.display=openEmp?'inline-block':'none';
   $('empOverlay').classList.add('on');
 }
 async function saveEmp(){
   if(!canEdit()) return;
   const patch={name:$('e_name').value,role:$('e_role').value,phone:$('e_phone').value,
-    email:$('e_email').value,notes:$('e_notes').value,hourly_rate:num($('e_hourly_rate').value)};
+    email:$('e_email').value,notes:$('e_notes').value};
+  // Only send a rate if this account can actually see rates. The field is
+  // disabled and blank in the fallback case -- sending 0 here would silently
+  // zero out whatever this account can't read, which is a payroll bug, not a
+  // UI nicety.
+  if (employeesHavePay) patch.hourly_rate = num($('e_hourly_rate').value);
   // The previous email, from before this save, decides whether an invite
   // goes out below -- selected while openEmp still points at the old row.
   const priorEmail = (openEmp?.email||'').trim();
