@@ -548,7 +548,17 @@
   <p id="authSignOut" style="margin-top:4px;text-align:center;font-size:13px;display:none">
     <a href="#" id="authSignOutLink">Sign in as someone else</a>
   </p>
-  <p style="margin-top:8px;text-align:center"><a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a></p>
+  <!-- One sign-in for everybody. This link only changes which console you
+       land on; it grants nothing. Whether the account is a platform admin is
+       decided by is_platform_admin() on the server, and an ordinary user who
+       follows it reaches a page that shows them nothing -- verified: a
+       non-admin calling the admin functions gets zero companies where a real
+       admin gets six. Choosing "admin" has never been how anyone becomes one. -->
+  <p style="margin-top:8px;text-align:center">
+    <a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a>
+    <span style="color:var(--muted);font-size:13px"> &middot; </span>
+    <a href="admin.html" style="color:var(--muted);font-size:13px">FenceFlow staff sign-in</a>
+  </p>
 </div>
 
 <dialog id="askDialog" style="border:1px solid var(--line);border-radius:14px;background:var(--surface-2);
