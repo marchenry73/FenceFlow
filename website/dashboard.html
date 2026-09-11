@@ -811,6 +811,17 @@
         <div class="empty" id="crewStatusEmpty" style="display:none">Everyone active has clocked in recently.</div>
       </div>
 
+      <!-- §17 Q1: hours, not "productivity" -- see renderCrewProductivity()
+           for why no dollar figure appears here. -->
+      <div class="panel" style="margin-top:12px">
+        <h2 style="margin:0 0 8px">Hours logged</h2>
+        <p class="sub" style="margin-top:0" id="crewProdNote"></p>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>Hours (all time)</th><th>Jobs</th><th>Avg hours / job</th><th>Vs. the job estimate</th></tr></thead>
+          <tbody id="crewProdRows"></tbody></table></div>
+        <div class="empty" id="crewProdEmpty" style="display:none">No shifts logged yet.</div>
+      </div>
+
       <!-- Employees are people you pay; logins are seats you pay for. They are
            not the same list, and the plan is priced on this one. -->
       <div class="panel" style="margin-top:12px">
@@ -5149,6 +5160,82 @@ async function renderCrewStatus(){
     '<tr><td>'+(esc(r.e.name)||'Unnamed')+'</td><td>'
     + (r.kind==='new' ? '<span class="pill warn">Not started</span>' : '<span class="pill wait">Gone quiet</span>')
     + '</td><td>'+r.label+'</td></tr>').join('');
+}
+
+/* §17 Q1: productivity. Called "hours", not "productivity", because that is
+   all the schema can honestly support.
+
+   Every employee's hourly_rate on this system reads $0 (or, for someone
+   without SEE_PAY, does not read at all -- see employeesHavePay). A
+   cost-per-hour or "efficiency" figure divides labour cost by hours worked,
+   and labour cost computed from a $0 rate is not a small number, it is a
+   missing one wearing the shape of a real one -- renderCosting() already
+   refuses to call that a margin, and this refuses to call it productivity
+   for the same reason. So no dollar figure appears anywhere below.
+
+   What the database CAN answer without a rate: hours logged, how many jobs
+   they were logged against, and -- only for a job with exactly one assigned
+   crew member AND an estimate on file -- whether the hours that person
+   logged on it ran over or under that estimate. A shared job is deliberately
+   left out of that comparison: crediting or blaming one name for a two-man
+   job's total is the exact assignee-vs-shift mistake workingNow() above was
+   built to stop repeating. */
+function jobEstimateVariance(e){
+  const jobIds = new Set(times.filter(t=>t.ended_at && t.employee_sync_id===e.sync_id).map(t=>t.job_sync_id));
+  let estHours=0, actualHours=0, soloJobs=0;
+  jobIds.forEach(jid=>{
+    const j = jobBySync(jid);
+    // Only a job this person alone was assigned to, and only one with an
+    // estimate on file -- anything else has no honest "expected" to compare
+    // against, so it is left out rather than compared to a guess.
+    if(!j || j.assigned_employee_sync_id !== e.sync_id) return;
+    if(!Number(j.estimated_duration_hours)) return;
+    soloJobs++;
+    estHours += Number(j.estimated_duration_hours);
+    actualHours += times.filter(t=>t.ended_at && t.employee_sync_id===e.sync_id && t.job_sync_id===jid)
+      .reduce((s,t)=>s+hoursOf(t),0);
+  });
+  return {estHours, actualHours, soloJobs};
+}
+
+function renderCrewProductivity(){
+  if(!$('crewProdRows')) return;
+  const active = employees.filter(e=>e.is_active!==false);
+  const rows = active.map(e=>{
+    const mine = e.sync_id ? times.filter(t=>t.ended_at && t.employee_sync_id===e.sync_id) : [];
+    if(!mine.length) return null;
+    const hours = mine.reduce((s,t)=>s+hoursOf(t),0);
+    const jobIds = new Set(mine.map(t=>t.job_sync_id));
+    return {e, hours, jobs: jobIds.size, variance: jobEstimateVariance(e)};
+  }).filter(Boolean).sort((a,b)=>b.hours-a.hours);
+
+  $('crewProdEmpty').style.display = rows.length ? 'none' : 'block';
+  $('crewProdRows').innerHTML = rows.map(r=>{
+    const avgPerJob = r.jobs ? (r.hours/r.jobs) : 0;
+    const v = r.variance;
+    const vsEstimate = v.soloJobs
+      ? (()=>{ const diff = v.estHours - v.actualHours; const over = diff < -0.05;
+          const under = diff > 0.05;
+          const text = Math.abs(diff).toFixed(1) + 'h ' + (over ? 'over' : under ? 'under' : 'on') + ' estimate';
+          return '<span' + (over ? ' style="color:var(--bad,#b3261e)"' : '') + ' title="'
+            + v.estHours.toFixed(1) + 'h estimated, ' + v.actualHours.toFixed(1) + 'h logged, across '
+            + v.soloJobs + ' solo-assigned job' + (v.soloJobs===1?'':'s') + '">' + text + '</span>'; })()
+      : '<span class="sub" title="Either no job was assigned to this person alone, or none of those jobs had an estimated-hours figure on file">Not enough solo-assigned, estimated jobs</span>';
+    return `<tr><td>${esc(r.e.name)||'Unnamed'}</td><td>${r.hours.toFixed(1)}</td>`
+      + `<td>${r.jobs}</td><td>${avgPerJob.toFixed(1)}</td><td>${vsEstimate}</td></tr>`;
+  }).join('');
+
+  // Whether a cost figure could ever have been honest here, stated instead
+  // of attempted. See the function comment above for the incident this
+  // guards against -- a margin/efficiency number built on a $0 rate that
+  // nobody flagged until it had already been used to price the next job.
+  const anyRateOnFile = employeesHavePay && employees.some(e =>
+    Number(e.hourly_rate||0) > 0 || (e.pay_type === 'PER_FOOT' && Number(e.per_foot_rate||0) > 0));
+  $('crewProdNote').textContent = !employeesHavePay
+    ? 'Pay is not visible to your account, so a cost-per-hour figure could not be verified even if one existed. Everything above is hours, never money.'
+    : anyRateOnFile
+      ? 'Not shown: cost per hour. Some crew have a rate on file and some read $0, and averaging real pay with a missing one produces a number that is wrong in both directions. Everything above is hours, never money.'
+      : 'Not shown: cost per hour or any efficiency figure. No crew member has an hourly rate on file, so labour cost is $0 for every hour logged -- a number computed from that would be a $0 rate wearing a decimal point, not a measurement. Everything above is hours, never money.';
 }
 
 /* ---------- time ---------- */
@@ -11553,7 +11640,7 @@ function switchTab(name){
   // Needs the full time_entries history, not just the bounded first-load
   // slice, so it is fetched lazily on open rather than on every loadAll --
   // the same lazy-full-history pattern renderTime() uses for the Time tab.
-  if(name==='crew') renderCrewStatus();
+  if(name==='crew') renderCrewStatus().then(renderCrewProductivity);
 }
 document.querySelectorAll('.tab').forEach(t=>
   t.addEventListener('click',()=>switchTab(t.dataset.tab)));
