@@ -42,6 +42,22 @@
     --bad:#FF8A80;--bad-bg:#3E1A1A;--bad-fg:#FFBDB6;
     --info:#7FB6F0;--info-bg:#12263D;--info-fg:#B6D6F7;
   }
+  /* "Some of the text on the website are black and I can barely see them."
+     Every colour on this page comes from the --text/--surface variables
+     above, which do flip for dark mode -- except native form controls.
+     A browser that has never been told the page supports both appearances
+     renders <input>/<select>/<textarea> text in ITS OWN default (light-mode
+     black) no matter what CSS variables say, because nothing here declared
+     color-scheme. On a dark surface that is black-on-near-black: every box
+     in Settings, every wizard field, every dropdown -- readable only by
+     squinting. color-scheme tells the browser both appearances are
+     supported so it picks the matching one for native chrome (form
+     control text/background, scrollbars, the select popup), and the
+     explicit color:var(--text) below covers browsers that still leave the
+     text colour up to the page even once color-scheme is set. */
+  :root{color-scheme:light dark}
+  :root[data-theme="light"]{color-scheme:light}
+  :root[data-theme="dark"]{color-scheme:dark}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
   /* The header carries the brand: graphite steel with the safety-orange
@@ -60,7 +76,7 @@
   .btn-sm{padding:6px 12px;font-size:13px}
   .btn-ghost{background:transparent;border:1px solid #48566B;color:#fff}
   .btn-grey{background:var(--surface);border:1px solid var(--line);color:var(--text)}
-  input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background:var(--surface)}
+  input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background:var(--surface);color:var(--text)}
   textarea{min-height:70px;resize:vertical}
   label{display:block;font-size:11px;font-weight:600;margin:10px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
   /* Headings speak in the display face; running text stays system. */
@@ -2035,16 +2051,40 @@ function notifyOfNewAlerts(items){
 
 async function loadNotifPrefs(){
   mutedAlerts = new Set();
+  dismissedSetupSteps = new Set();
   if (!profile?.id) return;
   try {
     // Same tolerant-missing-table shape as the other optional reads in
     // loadAll(): an error here (including the table not existing yet on a
-    // database that has not had supabase_notification_prefs.sql run against
-    // it) is treated as "no preferences saved", not a page error.
+    // database that has not had supabase_notification_prefs.sql (and its
+    // dismissed_setup_steps follow-up) run against it) is treated as "no
+    // preferences saved", not a page error.
     const { data, error } = await db.from('notification_prefs')
-      .select('muted_alerts').eq('user_id', profile.id).maybeSingle();
+      .select('muted_alerts,dismissed_setup_steps').eq('user_id', profile.id).maybeSingle();
     if (!error && data?.muted_alerts) mutedAlerts = new Set(data.muted_alerts);
-  } catch (e) { /* table not there yet -- every alert stays on */ }
+    if (!error && data?.dismissed_setup_steps) dismissedSetupSteps = new Set(data.dismissed_setup_steps);
+  } catch (e) { /* table not there yet -- every alert stays on, every reminder stays showing */ }
+}
+
+// Turns one setup-checklist reminder off for this user only, same shape as
+// setAlertMuted just above -- upsert only touches the one column, so a user
+// who has never muted an alert (or vice versa) does not clobber that
+// column back to empty. Never called for an essential step; renderSetup
+// does not offer the button for one.
+async function setSetupStepDismissed(step, dismissed){
+  const next = new Set(dismissedSetupSteps);
+  if (dismissed) next.add(step); else next.delete(step);
+  dismissedSetupSteps = next;
+  renderSetup();
+  try {
+    await db.from('notification_prefs').upsert({
+      user_id: profile.id,
+      dismissed_setup_steps: Array.from(next),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+  } catch (e) { /* offline or table/column missing -- on-screen state above is
+                   still correct for this session; it just will not survive
+                   a reload until the write succeeds */ }
 }
 
 // Turns one alert on or off for this user only, and persists it. Upsert
@@ -2572,6 +2612,14 @@ let companyMembers=[];
 let setupSteps=[];
 let paymentConn=null;
 let setupBlocks=false;
+// Setup-checklist steps this user has dismissed -- "small stuff, I can just
+// get a reminder, I should be able to dismiss them." Per-user, same table
+// and same reasoning as mutedAlerts below: dismissing a reminder for
+// yourself must never hide it for anyone else on the same company, and an
+// ESSENTIAL step (see my_setup_progress's `essential` column -- the four
+// numbers a quote is arithmetic on) is never eligible in the first place,
+// checked in renderSetup before this set is even consulted.
+let dismissedSetupSteps=new Set();
 // Snapshot of what renderDash already computed, so the Daily briefing and
 // the Materials tab can quote the same numbers instead of recomputing their
 // own second version of "needs attention" or "on the clock now".
@@ -2802,27 +2850,50 @@ function renderSetup(){
   if (!panel) return;
   const steps = setupSteps || [];
   const missing = steps.filter(s => !s.done);
+  // Essential = the four numbers a quote is arithmetic on (labour_rate,
+  // markup, min_charge, tax_rate -- see my_setup_progress). Nothing here can
+  // ever dismiss one of these; they block quoting in wizSaveJob/newJob via
+  // setupBlocks below exactly as before. "the necessary stuff needs
+  // immediate" -- these stay on screen, undismissable, until actually set.
   const blocking = missing.filter(s => s.essential);
+  // Reminder = catalog / tiers / crew: strongly wanted, cannot break a quote
+  // by being unset, and my_setup_progress already marks them essential:false
+  // for exactly that reason. "small stuff, I can just get a reminder, I
+  // should be able to dismiss them" -- these get a Dismiss button, and a
+  // dismissed one drops off THIS user's list until it becomes done (a
+  // reload does not un-dismiss it; only finishing the step, or the muted
+  // list being cleared server-side, does).
+  const reminders = missing.filter(s => !s.essential && !dismissedSetupSteps.has(s.step));
 
-  if (!steps.length || !missing.length) { panel.style.display = 'none'; setupBlocks = false; return; }
+  if (!steps.length || (!blocking.length && !reminders.length)) {
+    panel.style.display = 'none'; setupBlocks = false; return;
+  }
   setupBlocks = blocking.length > 0;
   panel.style.display = 'block';
 
   const TAB = { settings:'settings', catalog:'catalog', crew:'crew' };
-  $('setupList').innerHTML = steps.map(st => `
+  const row = (st, dismissable) => `
     <div class="setup-row">
-      <span class="setup-mark ${st.done ? 'setup-done' : 'setup-todo'}">${st.done ? '✓' : ''}</span>
+      <span class="setup-mark setup-todo">!</span>
       <span>
         <span class="setup-what">${esc(st.label)}</span>${
-          st.essential ? '' : ' <span style="font-size:12px;color:var(--muted)">— optional</span>'}
+          dismissable ? ' <span style="font-size:12px;color:var(--muted)">— reminder, not required</span>' : ''}
         <div class="setup-why">${esc(st.detail)}</div>
       </span>
-      ${st.done ? '' : `<span class="setup-go"><button class="btn btn-sm btn-grey"
-          data-setup-go="${esc(TAB[st.where_to_go] || 'settings')}">Set it</button></span>`}
-    </div>`).join('');
+      <span class="setup-go" style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-grey" data-setup-go="${esc(TAB[st.where_to_go] || 'settings')}">Set it</button>
+        ${dismissable ? `<button class="btn btn-sm btn-grey" data-setup-dismiss="${esc(st.step)}"
+            title="Hide this reminder for you until it's done -- nobody else's checklist changes">Dismiss</button>` : ''}
+      </span>
+    </div>`;
+  $('setupList').innerHTML =
+    blocking.map(st => row(st, false)).join('')
+    + reminders.map(st => row(st, true)).join('');
 
   document.querySelectorAll('[data-setup-go]').forEach(b =>
     b.addEventListener('click', () => switchTab(b.dataset.setupGo)));
+  document.querySelectorAll('[data-setup-dismiss]').forEach(b =>
+    b.addEventListener('click', () => setSetupStepDismissed(b.dataset.setupDismiss, true)));
 }
 
 function showServiceBanner(s){
@@ -3264,35 +3335,51 @@ async function loadAll(){
     jobCosting = costing.error ? [] : (costing.data || []);
   } else jobCosting = [];
 
-  // Only owners, managers and accountants can read this -- a trail a crew
-  // member can see is a list of what everyone earns. An error here is a
-  // permission answer, not a failure, so it is silently empty.
-  const trail = await db.from('audit_log').select('*')
-    .order('at', { ascending: false }).limit(200);
-  auditTrail = trail.error ? [] : (trail.data || []);
+  // Everything from here down used to be one flat sequence of awaits with no
+  // try/catch at all. Each individual RPC checks its own `.error` and falls
+  // back to empty -- but that only covers the request succeeding and coming
+  // back with a Postgres/PostgREST error. A rejected promise (a dropped
+  // connection, a timeout, a bad response body) is not an `.error` field,
+  // it is a THROW, and nothing here was catching it. One flaky request
+  // anywhere in this list used to take out every await after it in silence:
+  // Settings and Billing (the two LAST things in the old order) were the
+  // most exposed, which is exactly the bug reported as "the office does not
+  // match the app, it's not synching" -- the row was fine, the fetch for it
+  // just never ran. Wrapped so a failure here is logged and stops only the
+  // one section it belongs to, not everything queued behind it.
+  try {
+    // Only owners, managers and accountants can read this -- a trail a crew
+    // member can see is a list of what everyone earns. An error here is a
+    // permission answer, not a failure, so it is silently empty.
+    const trail = await db.from('audit_log').select('*')
+      .order('at', { ascending: false }).limit(200);
+    auditTrail = trail.error ? [] : (trail.data || []);
 
-  // Who is in the company, so the home screen can say when somebody new turns
-  // up. Nothing told the owner at all before: an installer joined, said he was
-  // a Foreman, and that request sat in a column no screen read.
-  const membersRes = await db.rpc('company_members');
-  companyMembers = membersRes.error ? [] : (membersRes.data || []);
+    // Who is in the company, so the home screen can say when somebody new turns
+    // up. Nothing told the owner at all before: an installer joined, said he was
+    // a Foreman, and that request sat in a column no screen read.
+    const membersRes = await db.rpc('company_members');
+    companyMembers = membersRes.error ? [] : (membersRes.data || []);
 
-  // What this company still has to set up. One function answers it, so the
-  // phone and this page can never drift apart about what is missing.
-  // Which processor this company takes card payments through, if any. Never
-  // the credential -- that lives where only the backend can read it.
-  const connRes = await db.rpc('my_payment_connection');
-  paymentConn = connRes.error ? null : ((connRes.data || [])[0] || null);
+    // What this company still has to set up. One function answers it, so the
+    // phone and this page can never drift apart about what is missing.
+    // Which processor this company takes card payments through, if any. Never
+    // the credential -- that lives where only the backend can read it.
+    const connRes = await db.rpc('my_payment_connection');
+    paymentConn = connRes.error ? null : ((connRes.data || [])[0] || null);
 
-  // Build templates: what a new fence run starts as. The office wizard's own
-  // template picker and the Business setup wizard's "Your standard build"
-  // step both need this the moment either overlay opens, so it loads here
-  // once per page load, alongside every other "what does this company have"
-  // read, rather than lazily on a first visit to Settings.
-  await reloadTemplates();
+    // Build templates: what a new fence run starts as. The office wizard's own
+    // template picker and the Business setup wizard's "Your standard build"
+    // step both need this the moment either overlay opens, so it loads here
+    // once per page load, alongside every other "what does this company have"
+    // read, rather than lazily on a first visit to Settings.
+    await reloadTemplates();
 
-  const setupRes = await db.rpc('my_setup_progress');
-  setupSteps = setupRes.error ? [] : (setupRes.data || []);
+    const setupRes = await db.rpc('my_setup_progress');
+    setupSteps = setupRes.error ? [] : (setupRes.data || []);
+  } catch (e) {
+    console.error('loadAll: setup/members/templates section failed:', e);
+  }
   // Painted here, not eighty lines earlier.
   //
   // renderSetup() used to run before this fetch, so it always drew the
@@ -3305,12 +3392,17 @@ async function loadAll(){
   // processor already chosen showed as not chosen.
   renderProcessor();
 
-  if (hasAdvancedReports()) {
-    const aging = await db.rpc('ar_aging');
-    arAging = aging.error ? [] : (aging.data || []);
-  } else arAging = [];
+  try {
+    if (hasAdvancedReports()) {
+      const aging = await db.rpc('ar_aging');
+      arAging = aging.error ? [] : (aging.data || []);
+    } else arAging = [];
+    await loadNotifPrefs();
+  } catch (e) {
+    console.error('loadAll: aging/notif-prefs section failed:', e);
+    arAging = arAging || [];
+  }
 
-  await loadNotifPrefs();
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderProduction(); renderEmployees();
   renderCrewAvailability();
   // Fire-and-forget, same pattern as renderChase(): the tab paints once
@@ -3319,12 +3411,19 @@ async function loadAll(){
   renderProcurement();
   renderTime(); renderCycles(); renderCatalog(); renderReports(); renderTiers(); renderCosting(); renderAudit(); renderAging();
   renderAlertPrefs();
-  await loadAutomationState();
-  await loadAutomationRuns();
-  await loadAutomationFlags();
+  try {
+    await loadAutomationState();
+    await loadAutomationRuns();
+    await loadAutomationFlags();
+  } catch (e) {
+    console.error('loadAll: automation section failed:', e);
+  }
   renderAutomation();
-  await loadSettings();
-  await loadBilling();
+  // Settings and Billing each load and report their own failures now (see
+  // loadSettings and loadBilling), so a throw in one cannot swallow the
+  // other the way it could when this whole tail was one unguarded chain.
+  try { await loadSettings(); } catch (e) { console.error('loadAll: loadSettings threw:', e); }
+  try { await loadBilling(); } catch (e) { console.error('loadAll: loadBilling threw:', e); }
   // Fire-and-forget, same pattern renderChase() uses: the page has already
   // painted with what loadAll() just fetched, and this only adds to it once
   // any enabled rule finds a job that now matches.
@@ -3941,13 +4040,28 @@ function renderDash(){
 
   const visible = items.filter(it => !isAlertSeen(it));
   const seenCount = items.length - visible.length;
+  // "Alerts need to look better and does not need that much space, need to
+  // be simpler and better." Every alert here still fires exactly as before
+  // and mute/seen still work the same -- this is layout only. What changed:
+  // one line per alert instead of a padded row with a redundant trailing
+  // chevron (the whole row is already clickable, the arrow said nothing the
+  // cursor didn't), the severity dot moved to a left border so colour reads
+  // as a strip you scan down rather than a separate glyph to parse per row,
+  // and long text truncates with an ellipsis (full text still in the title
+  // attribute, and still there in full inside showJob/switchTab once
+  // clicked) instead of wrapping to a second line and doubling the row's
+  // height. The job or person named in the alert is always the tail end of
+  // the sentence, so truncation clips context, never the subject.
   $('attention').innerHTML = (visible.length
     ? visible.map((it,i)=>`<div class="att-row" data-att-idx="${i}" data-att-id="${it.id??''}" data-att-go="${it.go||''}"
-         style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
-         <span style="width:9px;height:9px;border-radius:50%;flex:none;background:${SEV_DOT[it.severity]||SEV_DOT.info}"></span>
-         <span class="att-open" style="flex:1;cursor:pointer">${esc(it.text)}</span>
-         ${it.key ? `<button type="button" class="btn-grey btn-sm" data-att-dismiss="${i}" title="Mark as seen — hide until this changes">Seen</button>` : ''}
-         <span class="att-open" style="color:var(--muted);cursor:pointer">›</span></div>`).join('')
+         style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;
+                background:var(--paper);margin-bottom:4px;
+                border-left:3px solid ${SEV_DOT[it.severity]||SEV_DOT.info}">
+         <span class="att-open" style="flex:1;min-width:0;cursor:pointer;font-size:13px;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(it.text)}">${esc(it.text)}</span>
+         ${it.key ? `<button type="button" class="btn-grey btn-sm" data-att-dismiss="${i}"
+               style="padding:3px 8px;font-size:11px;flex:none" title="Mark as seen — hide until this changes">Seen</button>` : ''}
+         </div>`).join('')
     : '<div class="empty">All clear — nothing is waiting on you.</div>')
     + (seenCount ? `<div class="empty" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">${seenCount} more marked seen — hidden until they change.</div>` : '');
   document.querySelectorAll('.att-row').forEach(el=>{
@@ -4029,15 +4143,33 @@ function renderBriefing(){
   const stageMoves   = stageEvents.filter(e => e.entered_at && d(e.entered_at) >= cutoff);
   const jobsMovedStage = new Set(stageMoves.map(e=>e.job_sync_id)).size;
 
+  // "Need to be able to click on the daily briefing stuff." Every line here
+  // already names a real set of jobs or payments -- the arrays computed
+  // above, not a re-derived guess -- so each one now carries that set
+  // through to the click handler below. A line whose set has exactly one
+  // job opens that job directly; more than one opens the same showExplain
+  // list-modal the Reports chase panel already uses, so "what is this made
+  // of" always answers with real rows, never an invented total. `jobsMovedStage`
+  // is a count of distinct jobs, not of stage-move events, so its rows are
+  // built from that same deduped set (`movedJobs`) rather than one row per
+  // event, which would have double-counted a job that moved stage twice.
+  const movedJobs = [...new Set(stageMoves.map(e=>e.job_sync_id))]
+    .map(sid => jobBySync(sid)).filter(Boolean);
+  const paidJobs = newPayments.map(p => ({ job: jobBySync(p.job_sync_id), payment: p }))
+    .filter(x => x.job);
+
   const changeLines = [
-    newLeads.length   ? newLeads.length + ' new ' + (newLeads.length===1?'lead':'leads') : null,
-    contacted.length  ? contacted.length + ' first contact' + (contacted.length===1?'':'s') + ' logged' : null,
-    quotesSent.length ? quotesSent.length + ' quote' + (quotesSent.length===1?'':'s') + ' sent' : null,
-    quotesSeen.length ? quotesSeen.length + ' quote' + (quotesSeen.length===1?'':'s') + ' opened by the customer' : null,
-    wonJobs.length    ? wonJobs.length + ' job' + (wonJobs.length===1?'':'s') + ' approved' : null,
-    newPayments.length? newPayments.length + ' payment' + (newPayments.length===1?'':'s') + ' collected (' + money(paymentsSum) + ')' : null,
-    jobsMovedStage    ? jobsMovedStage + ' job' + (jobsMovedStage===1?'':'s') + ' moved production stage' : null,
-    disputed.length   ? disputed.length + ' new dispute' + (disputed.length===1?'':'s') : null,
+    newLeads.length   ? { text: newLeads.length + ' new ' + (newLeads.length===1?'lead':'leads'), jobs: newLeads } : null,
+    contacted.length  ? { text: contacted.length + ' first contact' + (contacted.length===1?'':'s') + ' logged', jobs: contacted } : null,
+    quotesSent.length ? { text: quotesSent.length + ' quote' + (quotesSent.length===1?'':'s') + ' sent', jobs: quotesSent } : null,
+    quotesSeen.length ? { text: quotesSeen.length + ' quote' + (quotesSeen.length===1?'':'s') + ' opened by the customer', jobs: quotesSeen } : null,
+    wonJobs.length    ? { text: wonJobs.length + ' job' + (wonJobs.length===1?'':'s') + ' approved', jobs: wonJobs } : null,
+    newPayments.length? { text: newPayments.length + ' payment' + (newPayments.length===1?'':'s') + ' collected (' + money(paymentsSum) + ')',
+                          jobs: paidJobs.map(x=>x.job), rows: paidJobs.map(x=>({
+                            label: x.job.customer_name || x.job.address || 'Untitled job',
+                            sub: d(x.payment.received_at).toLocaleString(), amount: money(x.payment.amount||0) })) } : null,
+    jobsMovedStage    ? { text: jobsMovedStage + ' job' + (jobsMovedStage===1?'':'s') + ' moved production stage', jobs: movedJobs } : null,
+    disputed.length   ? { text: disputed.length + ' new dispute' + (disputed.length===1?'':'s'), jobs: disputed } : null,
   ].filter(Boolean);
 
   const urgent = attentionItems.filter(it=>it.urgent);
@@ -4046,14 +4178,22 @@ function renderBriefing(){
       + dashSnapshot.onTheClock.length + ' on the clock now'
     : '';
 
+  const jobLabel = j => j.customer_name || j.address || 'Untitled job';
+  // A line is clickable only when it names at least one real job -- a count
+  // with nothing behind it (should never happen, since every branch above
+  // filters on a non-empty array first) stays plain text rather than a dead
+  // click target.
+  const briefLi = (i, line) => `<li${line.jobs && line.jobs.length ? ' class="brief-open" data-brief-idx="'+i+'" style="cursor:pointer"' : ''}>${esc(line.text)}</li>`;
   const changeBlock = changeLines.length
-    ? '<ul style="margin:0;padding-left:18px">' + changeLines.map(l=>`<li>${esc(l)}</li>`).join('') + '</ul>'
+    ? '<ul style="margin:0;padding-left:18px">' + changeLines.map((l,i)=>briefLi(i,l)).join('') + '</ul>'
     : '<div class="empty">Nothing happened in the last 24 hours.</div>';
 
+  const shownAttn = attentionItems.slice(0, 8);
   const needsBlock = attentionItems.length
     ? '<ul style="margin:0;padding-left:18px">' +
-        attentionItems.slice(0, 8).map(it=>`<li${it.urgent?' style="color:var(--bad,#b3261e)"':''}>${esc(it.text)}</li>`).join('') +
-      (attentionItems.length > 8 ? `<li>+ ${attentionItems.length - 8} more on the Needs attention list below</li>` : '') +
+        shownAttn.map((it,i)=>`<li class="attn-open" data-attn-idx="${i}"
+            style="cursor:pointer${it.urgent?';color:var(--bad,#b3261e)':''}">${esc(it.text)}</li>`).join('') +
+      (attentionItems.length > 8 ? `<li class="attn-more" style="cursor:pointer;color:var(--muted)">+ ${attentionItems.length - 8} more on the Needs attention list below</li>` : '') +
       '</ul>'
     : '<div class="empty">Nothing is waiting on you.</div>';
 
@@ -4071,6 +4211,30 @@ function renderBriefing(){
     </div>
     ${todayLine ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:13px">${esc(todayLine)}</div>` : ''}
   `;
+
+  // "Since yesterday": one job opens straight to it; several open the same
+  // rows-list modal used everywhere else on this page, so what's "in" a
+  // count is always answerable with real data, not a made-up drill-down.
+  $('briefingBody').querySelectorAll('.brief-open').forEach(li => li.addEventListener('click', () => {
+    const line = changeLines[Number(li.dataset.briefIdx)];
+    if (!line || !line.jobs.length) return;
+    if (line.jobs.length === 1) { showJob(line.jobs[0].id); return; }
+    showExplain({
+      title: line.text, value: String(line.jobs.length),
+      rowsTitle: 'The jobs', rows: line.rows || line.jobs.map(j => ({ label: jobLabel(j) }))
+    });
+  }));
+  // "Needs you today" mirrors the Home Needs-attention row's own click
+  // behaviour exactly (job id -> showJob, tab hint -> switchTab) rather than
+  // inventing a second way to open the same alert.
+  $('briefingBody').querySelectorAll('.attn-open').forEach(li => li.addEventListener('click', () => {
+    const it = shownAttn[Number(li.dataset.attnIdx)];
+    if (!it) return;
+    if (it.id != null) showJob(it.id);
+    else if (it.go) switchTab(it.go);
+  }));
+  const moreLi = $('briefingBody').querySelector('.attn-more');
+  if (moreLi) moreLi.addEventListener('click', () => $('attention').scrollIntoView({ behavior:'smooth', block:'center' }));
 }
 
 /* ---------- materials tab: the buyer's view --------------------------
@@ -11554,10 +11718,32 @@ const SET={s_businessName:'business_name',s_ownerName:'owner_name',s_phone:'phon
 const SET_NUM=['s_tax','s_markup','s_labor','s_spacing','s_bags','s_pw','s_ph','s_min'];
 
 async function loadSettings(){
-  const {data}=await db.from('company_settings').select('settings')
-    .eq('company_id',profile.company_id).maybeSingle();
-  const s=data?.settings||{};
-  Object.entries(SET).forEach(([el,key])=>{const e=$(el); if(e) e.value=s[key]??'';});
+  // "the office does not have the business name, it's not synching" -- the
+  // data was in the cloud the whole time. What was missing was this call
+  // ever running: loadAll() awaited loadAutomationState/Runs/Flags first,
+  // and any one of those throwing (a missing table, a network blip) skipped
+  // loadSettings() entirely with no error anywhere. An empty form and a
+  // failed-to-load form looked identical, so nobody could tell "you haven't
+  // set this up" from "we couldn't check". Now this call is wrapped so a
+  // failure says so instead of rendering as blank boxes, and switchTab()
+  // below calls it directly on open instead of trusting loadAll()'s chain.
+  const note = $('setNote');
+  try {
+    const {data,error}=await db.from('company_settings').select('settings')
+      .eq('company_id',profile.company_id).maybeSingle();
+    if(error) throw error;
+    if(note) note.textContent='';
+    const s=data?.settings||{};
+    Object.entries(SET).forEach(([el,key])=>{const e=$(el); if(e) e.value=s[key]??'';});
+  } catch(e) {
+    console.error('loadSettings failed:', e);
+    if(note){
+      note.textContent = "Couldn't load your business settings just now -- the boxes below are "
+        + "blank because the load failed, not because nothing is set. Switch tabs and back, or "
+        + "refresh, to try again.";
+      note.className='msg err';
+    }
+  }
 }
 async function saveSettings(){
   if(!canEdit()) return;
@@ -11650,6 +11836,12 @@ function switchTab(name){
   // slice, so it is fetched lazily on open rather than on every loadAll --
   // the same lazy-full-history pattern renderTime() uses for the Time tab.
   if(name==='crew') renderCrewStatus().then(renderCrewProductivity);
+  // "the setting option on myoffice is not matching the app... it's not
+  // synching" -- the data was always there; loadSettings() just never ran,
+  // buried behind three other awaits in loadAll() that any one of could
+  // throw and skip it silently. Opening the tab now loads its own data
+  // rather than trusting that whole chain succeeded earlier.
+  if(name==='settings') loadSettings();
 }
 document.querySelectorAll('.tab').forEach(t=>
   t.addEventListener('click',()=>switchTab(t.dataset.tab)));
