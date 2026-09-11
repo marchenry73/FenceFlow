@@ -682,23 +682,28 @@ object EntitySync {
         // any signed-in company member regardless of SEE_MONEY, so this stays
         // accurate rather than silently empty even under UNKNOWN.
         val cloudTouchedAt = runCatching {
+            // Paged: this is the push-side "what does the cloud already have"
+            // read, so a truncation here is worse than on a pull -- it decides
+            // which jobs' children get held back, and a job past the first
+            // thousand would silently read as "cloud has nothing newer" and
+            // let this phone push stale children over it.
             val rows = if (scope == MoneyScope.ALLOWED)
-                SupabaseModule.client.postgrest.from("jobs")
+                pagedList<CloudJob>("jobs") {
                     // sees-tombstones: this reads WHEN each job last changed, not
                     // what it contains. A job deleted elsewhere has a very recent
                     // timestamp, and its children are exactly the ones this phone
                     // must not push back up -- so hiding the tombstone here would
                     // resurrect them through the side door.
-                    .select { filter { eq("company_id", companyId) } }
-                    .decodeList<CloudJob>()
+                    eq("company_id", companyId)
+                }
             else
-                SupabaseModule.client.postgrest.from("jobs_crew")
+                pagedList<CloudJob>("jobs_crew") {
                     // sees-tombstones: same reasoning as the "jobs" branch --
                     // a job tombstoned elsewhere still has to stop this phone
                     // pushing its children back up, and the view carries
                     // deleted_at same as the base table.
-                    .select { filter { eq("company_id", companyId) } }
-                    .decodeList<CloudJob>()
+                    eq("company_id", companyId)
+                }
             rows.associate { it.syncId to it.updatedAtMillis() }
         }.getOrDefault(emptyMap())
 
@@ -808,11 +813,13 @@ object EntitySync {
         fun identity(name: String, role: String, fenceType: String, colour: String) =
             listOf(name, role, fenceType, colour).joinToString("|") { it.trim().lowercase() }
 
-        val cloudByIdentity = SupabaseModule.client.postgrest.from("material_items")
+        // Paged: another push-side compare, so a truncation here means items
+        // past row one thousand look unclaimed and get duplicated upward.
+        val cloudByIdentity = pagedList<CloudMaterialItem>("material_items") {
             // sees-tombstones: as above -- a deleted catalog item keeps its
             // identity reserved so this phone does not push a fresh copy.
-            .select { filter { eq("company_id", companyId) } }
-            .decodeList<CloudMaterialItem>()
+            eq("company_id", companyId)
+        }
             .associateBy { identity(it.name, it.role, it.fenceType, it.colorOrFinish) }
 
         val rows = local.filter { item ->
@@ -857,11 +864,14 @@ object EntitySync {
         // Tombstoned rows are included deliberately: a name already taken by a
         // deleted row must not be re-created by this phone pushing its own
         // copy, or emptying the trash would never stick.
-        val cloudByName = SupabaseModule.client.postgrest.from("pricing_tiers")
+        // Paged: same push-side-compare risk as the catalog above -- a tier
+        // name past the first thousand rows would read as unclaimed and get
+        // re-created under a fresh id every sync.
+        val cloudByName = pagedList<CloudPricingTier>("pricing_tiers") {
             // sees-tombstones: a name held by a deleted row must stay taken, or
             // this phone re-creates it and emptying the trash never sticks.
-            .select { filter { eq("company_id", companyId) } }
-            .decodeList<CloudPricingTier>()
+            eq("company_id", companyId)
+        }
             .associateBy { it.name.trim().lowercase() }
 
         val rows = local.filter { tier ->
@@ -1055,9 +1065,12 @@ object EntitySync {
         }
 
     private suspend fun pullPricingTiers(repository: Repository, companyId: String): Int {
-        val cloud = SupabaseModule.client.postgrest.from("pricing_tiers")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudPricingTier>()
+        // Paged, same reason as every other pull below: an unpaged read
+        // truncates at 1000 with no error, and a tier past that line would
+        // read as "the office deleted it."
+        val cloud = pagedList<CloudPricingTier>("pricing_tiers") {
+            eq("company_id", companyId); notDeleted()
+        }
         // Match on NAME as well as sync id.
         //
         // Every install seeds its own copy of the standard tiers, each with its
@@ -1166,13 +1179,14 @@ object EntitySync {
      * reason to invent a second one here.
      */
     private suspend fun pullBuildTemplates(repository: Repository, companyId: String): Int {
-        val cloud = SupabaseModule.client.postgrest.from("build_templates")
+        // Paged, same trap as the rest of this pass.
+        val cloud = pagedList<CloudBuildTemplate>("build_templates") {
             // No company_id filter: RLS on build_templates already restricts
             // a select to "company_id is null (shipped) or mine", which is
             // exactly shipped union own -- asking for everything visible IS
             // asking for that set, with nothing extra to intersect here.
-            .select { filter { notDeleted() } }
-            .decodeList<CloudBuildTemplate>()
+            notDeleted()
+        }
         val localBySyncId = repository.getAllBuildTemplates().associateBy { it.syncId }
 
         val toUpsert = cloud.mapNotNull { row ->
@@ -1185,14 +1199,15 @@ object EntitySync {
     }
 
     private suspend fun pullCatalog(repository: Repository, companyId: String, scope: MoneyScope): Int {
+        // Paged, same trap as the rest of this pass.
         val cloud = if (scope == MoneyScope.DENIED)
-            SupabaseModule.client.postgrest.from("material_items_crew")
-                .select { filter { eq("company_id", companyId); notDeleted() } }
-                .decodeList<CloudMaterialItem>()
+            pagedList<CloudMaterialItem>("material_items_crew") {
+                eq("company_id", companyId); notDeleted()
+            }
         else
-            SupabaseModule.client.postgrest.from("material_items")
-                .select { filter { eq("company_id", companyId); notDeleted() } }
-                .decodeList<CloudMaterialItem>()
+            pagedList<CloudMaterialItem>("material_items") {
+                eq("company_id", companyId); notDeleted()
+            }
         // Same seeded-identity problem as pricing tiers: a catalog item is the
         // same item if its name, role, fence type and colour match, whatever
         // sync id the phone that seeded it happened to generate.
@@ -1420,9 +1435,10 @@ object EntitySync {
         // policy is unchanged by this feature, but an amount is still money,
         // and only a confirmed ALLOWED phone pulls it down.
         if (scope == MoneyScope.ALLOWED) {
-        val expenses = SupabaseModule.client.postgrest.from("expenses")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudExpense>()
+        // Paged, same trap as the rest of this pass.
+        val expenses = pagedList<CloudExpense>("expenses") {
+            eq("company_id", companyId); notDeleted()
+        }
         val localExpensesBySyncId = jobIdBySyncId.values
             .flatMap { repository.getExpenses(it) }.associateBy { it.syncId }
         expenses.forEach { row ->
@@ -1453,9 +1469,10 @@ object EntitySync {
         }
         }
 
-        val punch = SupabaseModule.client.postgrest.from("punch_list_items")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudPunchItem>()
+        // Paged, same trap as the rest of this pass.
+        val punch = pagedList<CloudPunchItem>("punch_list_items") {
+            eq("company_id", companyId); notDeleted()
+        }
         val localPunchBySyncId = jobIdBySyncId.values
             .flatMap { repository.getPunchList(it) }.associateBy { it.syncId }
         punch.forEach { row ->
@@ -1480,9 +1497,10 @@ object EntitySync {
             }
         }
 
-        val cloudChanges = SupabaseModule.client.postgrest.from("field_changes")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudFieldChange>()
+        // Paged, same trap as the rest of this pass.
+        val cloudChanges = pagedList<CloudFieldChange>("field_changes") {
+            eq("company_id", companyId); notDeleted()
+        }
         val localChangesBySyncId = jobIdBySyncId.values
             .flatMap { repository.getFieldChanges(it) }.associateBy { it.syncId }
         cloudChanges.forEach { row ->
@@ -1529,14 +1547,15 @@ object EntitySync {
         // skips outright, DENIED reads the money-free view and never moves a
         // cost.
         if (scope != MoneyScope.UNKNOWN) {
+        // Paged, same trap as the rest of this pass.
         val orders = if (scope == MoneyScope.DENIED)
-            SupabaseModule.client.postgrest.from("change_orders_crew")
-                .select { filter { eq("company_id", companyId); notDeleted() } }
-                .decodeList<CloudChangeOrder>()
+            pagedList<CloudChangeOrder>("change_orders_crew") {
+                eq("company_id", companyId); notDeleted()
+            }
         else
-            SupabaseModule.client.postgrest.from("change_orders")
-                .select { filter { eq("company_id", companyId); notDeleted() } }
-                .decodeList<CloudChangeOrder>()
+            pagedList<CloudChangeOrder>("change_orders") {
+                eq("company_id", companyId); notDeleted()
+            }
         val localOrdersBySyncId = jobIdBySyncId.values
             .flatMap { repository.getChangeOrders(it) }.associateBy { it.syncId }
         orders.forEach { row ->
@@ -1670,9 +1689,10 @@ object EntitySync {
         }
         }
 
-        val steps = SupabaseModule.client.postgrest.from("job_steps")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudJobStep>()
+        // Paged, same trap as the rest of this pass.
+        val steps = pagedList<CloudJobStep>("job_steps") {
+            eq("company_id", companyId); notDeleted()
+        }
         val localStepsBySyncId = jobIdBySyncId.values
             .flatMap { repository.getJobSteps(it) }.associateBy { it.syncId }
         steps.forEach { row ->
@@ -1726,9 +1746,10 @@ object EntitySync {
             }
         }
 
-        val markers = SupabaseModule.client.postgrest.from("site_markers")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudSiteMarker>()
+        // Paged, same trap as the rest of this pass.
+        val markers = pagedList<CloudSiteMarker>("site_markers") {
+            eq("company_id", companyId); notDeleted()
+        }
         val localMarkersBySyncId = jobIdBySyncId.values
             .flatMap { repository.getSiteMarkers(it) }.associateBy { it.syncId }
         markers.forEach { row ->
@@ -1792,10 +1813,11 @@ object EntitySync {
         val maySeePay = employeePayScope == MoneyScope.ALLOWED
 
         val fromRoster = !maySeePay
+        // Paged, same trap as the rest of this pass.
         val cloud = if (maySeePay)
-            SupabaseModule.client.postgrest.from("employees")
-                .select { filter { eq("company_id", companyId); notDeleted() } }
-                .decodeList<CloudEmployee>()
+            pagedList<CloudEmployee>("employees") {
+                eq("company_id", companyId); notDeleted()
+            }
         else
             SupabaseModule.client.postgrest
                 .rpc("crew_roster")
@@ -1859,9 +1881,10 @@ object EntitySync {
     }
 
     private suspend fun pullManufacturers(repository: Repository, companyId: String): Int {
-        val cloud = SupabaseModule.client.postgrest.from("manufacturers")
-            .select { filter { eq("company_id", companyId); notDeleted() } }
-            .decodeList<CloudManufacturer>()
+        // Paged, same trap as the rest of this pass.
+        val cloud = pagedList<CloudManufacturer>("manufacturers") {
+            eq("company_id", companyId); notDeleted()
+        }
         val localBySyncId = repository.getAllManufacturers().associateBy { it.syncId }
         var added = 0
         cloud.forEach { row ->
@@ -2029,13 +2052,15 @@ object EntitySync {
         // this phone's copy is actually newer than the cloud's; a phone that
         // only pulled the run re-pushes its now-stale copy every sync
         // otherwise and clobbers an edit made elsewhere in between.
-        val cloudBySyncId = SupabaseModule.client.postgrest.from("fence_runs")
+        // Paged: push-side compare again, so a run past row one thousand
+        // would read as "no cloud copy" and get pushed as if brand new.
+        val cloudBySyncId = pagedList<CloudFenceRun>("fence_runs") {
             // sees-tombstones: a run this phone deleted must still compare
             // against the cloud's last known clock for it, or a tombstoned
             // row looks like "no cloud copy" and a stale local push
             // resurrects it.
-            .select { filter { eq("company_id", companyId) } }
-            .decodeList<CloudFenceRun>()
+            eq("company_id", companyId)
+        }
             .associateBy { it.syncId }
 
         val rows = local.filter { (run, _) ->
@@ -2238,9 +2263,15 @@ object PaymentLedgerSync {
             val local = repository.getAllPayments()
             val localBySyncId = local.associateBy { it.syncId }
 
-            val cloud = SupabaseModule.client.postgrest.from("payment_records")
-                .select { filter { eq("company_id", companyId) } }
-                .decodeList<CloudPaymentRecord>()
+            // Paged. Measured against real data: payment_records runs at
+            // 1.125 rows per job, so this truncates around 889 jobs for one
+            // company -- before the jobs table itself would. This is the
+            // push-side compare, so a truncated read here does not just show
+            // a wrong number: it decides which payments look unclaimed and
+            // get pushed up a second time.
+            val cloud = pagedList<CloudPaymentRecord>("payment_records") {
+                eq("company_id", companyId)
+            }
             val cloudBySyncId = cloud.associateBy { it.syncId }
 
             var moved = 0

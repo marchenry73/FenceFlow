@@ -1,6 +1,7 @@
 package com.fenceestimator.app.cloud
 
 import android.content.Context
+import com.fenceestimator.app.R
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -296,8 +297,7 @@ object ServiceGate {
                 allowed = false,
                 subscriptionStatus = prefs[STATUS].orEmpty(),
                 plan = prefs[PLAN].orEmpty(),
-                reason = "This phone hasn't been able to check your account in a while. " +
-                    "Connect to the internet once and everything comes straight back.",
+                reason = context.getString(R.string.gate_offline_too_long),
                 trialDaysLeft = null
             )
         }
@@ -329,10 +329,7 @@ object ServiceGate {
                 allowed = false,
                 subscriptionStatus = prefs[STATUS].orEmpty(),
                 plan = prefs[PLAN].orEmpty(),
-                reason = "This phone hasn't been able to reach FenceFlow since " +
-                    "it was last told your account was on hold, so it cannot tell " +
-                    "whether that is still true. Connect to the internet once, or " +
-                    "sign out and back in, and it will sort itself out.",
+                reason = context.getString(R.string.gate_block_unconfirmed),
                 trialDaysLeft = null,
                 subscribed = prefs[SUBSCRIBED] ?: false
             )

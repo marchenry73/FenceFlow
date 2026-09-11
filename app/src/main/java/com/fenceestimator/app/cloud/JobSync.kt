@@ -273,9 +273,13 @@ object JobSync {
             if (scope != MoneyScope.ALLOWED) return@runCatching 0
             val jobs = repository.getAllJobs()
             if (jobs.isEmpty()) return@runCatching 0
-            val cloudBySyncId = SupabaseModule.client.postgrest.from("jobs")
-                .select { filter { eq("company_id", companyId) } }
-                .decodeList<CloudJob>()
+            // Paged: another push-side compare, so a job past row one
+            // thousand would read as "not found in the cloud" and this
+            // correction pass would silently skip reconciling its ledger
+            // total.
+            val cloudBySyncId = pagedList<CloudJob>("jobs") {
+                eq("company_id", companyId)
+            }
                 .associateBy { it.syncId }
 
             var corrected = 0
@@ -408,14 +412,18 @@ object JobSync {
             // ALLOWED reads the real table; anything else reads the door
             // without money on it -- same filter, same shape, absent keys
             // decoding to CloudJob's own defaults.
+            // Paged: this is the jobs table itself, which the arithmetic on
+            // this bug names directly -- at 1:1 rows per job it truncates at
+            // exactly 1000 jobs for a company, and it is both a push-side
+            // compare (below) and the read that decides what gets pulled.
             val cloudJobs = if (scope == MoneyScope.ALLOWED)
-                SupabaseModule.client.postgrest.from("jobs")
-                    .select { filter { eq("company_id", companyId) } }
-                    .decodeList<CloudJob>()
+                pagedList<CloudJob>("jobs") {
+                    eq("company_id", companyId)
+                }
             else
-                SupabaseModule.client.postgrest.from("jobs_crew")
-                    .select { filter { eq("company_id", companyId) } }
-                    .decodeList<CloudJob>()
+                pagedList<CloudJob>("jobs_crew") {
+                    eq("company_id", companyId)
+                }
 
             val cloudBySyncId = cloudJobs.associateBy { it.syncId }
             var uploaded = 0

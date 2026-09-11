@@ -1675,4 +1675,11 @@
     <string name="inv_remove_title">Remove this from the list?</string>
     <string name="inv_remove_body">It only goes off this checklist on this phone. Nothing is removed from the job, the estimate, or any other device.</string>
     <string name="inv_remove_confirm">Remove</string>
+
+    <!-- The blocked screen, when the phone cannot confirm the account at all.
+         Typographic apostrophes: a straight one needs escaping inside a
+         resource value, and that escape has been eaten by a patch script
+         three separate times today. -->
+    <string name="gate_offline_too_long">This phone hasn’t been able to check your account in a while. Connect to the internet once and everything comes straight back.</string>
+    <string name="gate_block_unconfirmed">This phone hasn’t been able to reach FenceFlow since it was last told your account was on hold, so it cannot tell whether that is still true. Connect to the internet once, or sign out and back in, and it will sort itself out.</string>
 </resources>

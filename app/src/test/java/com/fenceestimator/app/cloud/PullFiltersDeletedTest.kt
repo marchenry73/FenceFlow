@@ -71,14 +71,23 @@ class PullFiltersDeletedTest {
         // Captures any comment lines between from(...) and .select, so a read
         // marked as deliberately seeing tombstones can be told apart from one
         // that simply forgot the filter.
+        // Two shapes now, because every read that used to be a single
+        // request is paged. Paging did not change what a pull must filter --
+        // a tombstoned row read in page three resurrects just as happily as
+        // one read in page one -- so both shapes are checked by the same
+        // rule rather than the paged ones being quietly exempted.
         val pull = Regex(
-            """from\("([a-z_]+)"\)\s*\n([\s\S]{0,300}?)\.select\s*\{([\s\S]{0,300}?)\}\s*\n?\s*\.decodeList"""
+            """(?:from\("([a-z_]+)"\)\s*\n([\s\S]{0,300}?)\.select\s*\{([\s\S]{0,300}?)\}\s*\n?\s*\.decodeList|pagedList<[A-Za-z<>, ]+>\("([a-z_]+)"\)\s*\{([\s\S]{0,300}?)\n\s*\})"""
         )
 
         val offenders = pull.findAll(source).mapNotNull { match ->
-            val table = match.groupValues[1]
-            val preamble = match.groupValues[2]
-            val selectBody = match.groupValues[3]
+            // Groups 1-3 are the plain read, 4-5 the paged one. A paged call
+            // carries no preamble of its own, so its marker -- when it really
+            // does need to see tombstones -- is looked for in the body.
+            val paged = match.groupValues[4].isNotEmpty()
+            val table = if (paged) match.groupValues[4] else match.groupValues[1]
+            val preamble = if (paged) match.groupValues[5] else match.groupValues[2]
+            val selectBody = if (paged) match.groupValues[5] else match.groupValues[3]
             when {
                 table in allowedWithoutFilter -> null
                 preamble.contains(deliberateMarker) -> null
@@ -101,8 +110,13 @@ class PullFiltersDeletedTest {
         // Without this, a regex that silently matches nothing would make the
         // test above pass forever while checking absolutely nothing.
         val source = syncSource()
+        // Counts both shapes. When every read was paged this found two, and
+        // the check above was therefore examining almost nothing while still
+        // reporting success -- which is the exact failure this canary exists
+        // to make loud. Whatever the reads look like next, this number is the
+        // thing to look at first.
         val pullCount = Regex(
-            """from\("([a-z_]+)"\)\s*\n\s*\.select\s*\{([\s\S]{0,300}?)\}\s*\n?\s*\.decodeList"""
+            """(?:from\("[a-z_]+"\)\s*\n\s*\.select\s*\{[\s\S]{0,300}?\}\s*\n?\s*\.decodeList|pagedList<[A-Za-z<>, ]+>\("[a-z_]+"\))"""
         ).findAll(source).count()
 
         assertTrue(

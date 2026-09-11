@@ -481,8 +481,11 @@
   .xp-math div.tot{background:var(--paper);font-weight:700}
   .xp-math div.neg span:last-child{color:var(--red)}
   .xp-math .op{color:var(--muted);font-weight:400;padding-right:8px}
-  .xp-caveat{border-left:3px solid var(--orange);background:#FFF6F2;padding:11px 14px;
-             border-radius:0 8px 8px 0;font-size:13px;margin-top:14px}
+  /* Was a hardcoded light peach (#FFF6F2) with no text colour of its own, so
+     it inherited whatever --text was -- fine in light mode, but in dark mode
+     that is near-white text on a near-white box: the caveat itself vanished. */
+  .xp-caveat{border-left:3px solid var(--orange);background:var(--warn-bg);color:var(--warn-fg);
+             padding:11px 14px;border-radius:0 8px 8px 0;font-size:13px;margin-top:14px}
   .xp-rows{margin-top:18px}
   .xp-rows h4{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px}
   .readout{
@@ -773,6 +776,39 @@
              JS below instead of the page's generic msg() helper, which only
              ever sets textContent -- the 503 case needs an actual button. -->
         <div id="crewInviteNotice" class="msg"></div>
+      </div>
+
+      <!-- §17 Q2: who is free this week. Matches each active crew member
+           against the same assigned_employee_sync_id and site-day span the
+           calendar and job editor already write and read, so "on a job"
+           here means the same thing it means there. -->
+      <div class="panel" style="margin-top:12px">
+        <h2 style="margin:0 0 8px">Who's free this week</h2>
+        <p class="sub" style="margin-top:0">Matched against each job's scheduled date and estimated
+          duration &mdash; the same site-days the calendar counts.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>This week</th></tr></thead>
+          <tbody id="crewFreeRows"></tbody></table></div>
+        <div class="empty" id="crewFreeEmpty" style="display:none">No active crew members.</div>
+      </div>
+
+      <!-- §17 Q3/Q4: an invitation that never landed, and someone who has
+           stopped. The employees table has no invited_at, no created_at and
+           no link to a login, so there is no honest way to say "invited N
+           days ago" or "has never signed in" yet -- this is built only from
+           what a shift can prove: whether one has ever been logged, and how
+           long since the last one. -->
+      <div class="panel" style="margin-top:12px">
+        <h2 style="margin:0 0 8px">Needs a look</h2>
+        <p class="sub" style="margin-top:0">Nobody with a shift in the last
+          <span id="crewDormantDays"></span> days, or nobody who has ever clocked one.
+          FenceFlow does not record when an invite was sent or whether someone has ever signed
+          in, so this reads clocked time only &mdash; not login activity, and it is not proof
+          anyone has left.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Name</th><th>Status</th><th>Detail</th></tr></thead>
+          <tbody id="crewStatusRows"></tbody></table></div>
+        <div class="empty" id="crewStatusEmpty" style="display:none">Everyone active has clocked in recently.</div>
       </div>
 
       <!-- Employees are people you pay; logins are seats you pay for. They are
@@ -1167,6 +1203,11 @@
           particular part of the job (scheduling materials, say). Turn off what you don't need —
           this only affects what you see; everyone else on your team still sees theirs.</p>
         <div id="alertPrefsRows"></div>
+        <p class="sub" style="margin-top:14px">Dismissed items stay dismissed until something about them actually
+          changes. Desktop alerts pop up in this browser while this tab is open but not the one you're looking
+          at — there's no email alert yet; the mail key isn't configured, and a silent failure to send would be
+          worse than none.</p>
+        <div id="desktopAlertsRow" style="margin-top:6px"></div>
       </div>
 
       <div class="panel">
@@ -1875,6 +1916,86 @@ const ALERT_DEFS = [
 // every alert reads as on -- exactly today's behaviour.
 const alertOn = key => !mutedAlerts.has(key);
 
+/* ---------- "seen" state for the Needs-attention list -- launch audit §28 ----
+   Muting (above) is "never show me this kind of alert again". This is the
+   other half: "I have seen THIS one, for now". There is no seen_alerts (or
+   similar) column on notification_prefs or anywhere else in the database --
+   adding one is a schema change this file does not own -- so this lives in
+   the browser's own localStorage. It does not follow a user to another
+   computer and does not survive clearing site data; that is a real
+   limitation, stated here rather than hidden, not a bug to work around with
+   a guess at a table shape that may not match what actually gets built.
+
+   Keyed by (alert key, fingerprint) rather than by key alone, so dismissing
+   "quote gone quiet" for a job does not also hide it forever the NEXT time
+   that job's quote goes quiet after being re-sent -- the fingerprint is
+   whichever field actually changes when the underlying fact does (usually
+   the job's updated_at, sometimes a more specific field named at each call
+   site above). A dismissal whose fingerprint no longer matches the item's
+   current one is treated as not-seen. */
+function seenAlertsKey(){ return 'ff_seen_alerts_' + (profile?.id || 'anon'); }
+function loadSeenAlerts(){
+  try { return new Map(JSON.parse(localStorage.getItem(seenAlertsKey()) || '[]')); }
+  catch (e) { return new Map(); }
+}
+function isAlertSeen(item){
+  if (!item.key) return false;
+  const seen = loadSeenAlerts();
+  return seen.has(item.key) && seen.get(item.key) === String(item.fp ?? '');
+}
+function dismissAlert(key, fp){
+  if (!key) return;
+  const seen = loadSeenAlerts();
+  seen.set(key, String(fp ?? ''));
+  try { localStorage.setItem(seenAlertsKey(), JSON.stringify([...seen])); } catch (e) {}
+  renderDash();
+}
+// Colour per severity tier, not per boolean -- a dispute with money already
+// gone and a quote that has merely gone quiet both used to render as the
+// same orange dot. 'critical' = a real deadline has passed or is about to
+// (a locate, a truck with nothing on it, money already moved); 'warn' = real
+// but not time-boxed; 'info' = worth knowing, nothing is on fire.
+const SEV_DOT = { critical: 'var(--bad,#b3261e)', warn: 'var(--warn-fg,#8A5200)', info: 'var(--muted)' };
+
+/* ---------- desktop notifications for when nobody is looking at the tab ----
+   Email is deliberately not built here: there is no mail key configured on
+   this system (see the automation comment below), and a notification that
+   silently fails to send is worse than no notification -- so this uses the
+   one channel that actually works without any backend at all, the browser's
+   own Notification API. It fires only while this tab is open somewhere in
+   the background (another tab or window focused, or the browser minimised)
+   -- there is no service worker here and no push server, so it cannot reach
+   a phone or a fully closed browser. That is a real ceiling, not a bug:
+   true background push needs a server to hold subscriptions and a mail/push
+   key this system does not have configured, same as email above.
+   Permission is asked for once, from a button in Settings → Your alerts,
+   never automatically -- browsers ignore or block an unsolicited request
+   anyway, and an alert panel is not the place to spring a permission prompt
+   unasked. */
+function desktopAlertsSupported(){ return typeof Notification !== 'undefined'; }
+function desktopAlertsEnabled(){ return desktopAlertsSupported() && Notification.permission === 'granted'; }
+async function enableDesktopAlerts(){
+  if (!desktopAlertsSupported()) return;
+  try { await Notification.requestPermission(); } catch (e) {}
+  renderAlertPrefs();
+}
+// Which critical/warn items we have already put a system notification up
+// for, so a tab left open in the background all afternoon does not re-notify
+// on every render -- only for a key+fingerprint pair not seen before.
+let notifiedAlertKeys = new Map();
+function notifyOfNewAlerts(items){
+  if (!desktopAlertsEnabled() || document.visibilityState !== 'hidden') return;
+  const fresh = items.filter(it => (it.severity === 'critical' || it.severity === 'warn')
+    && it.key && notifiedAlertKeys.get(it.key) !== String(it.fp ?? '') && !isAlertSeen(it));
+  if (!fresh.length) return;
+  fresh.forEach(it => notifiedAlertKeys.set(it.key, String(it.fp ?? '')));
+  try {
+    const body = fresh.length === 1 ? fresh[0].text
+      : fresh.length + ' new items need attention, including: ' + fresh[0].text;
+    new Notification('FenceFlow — Needs attention', { body });
+  } catch (e) { /* browser blocked or ignored it -- nothing else to do here */ }
+}
+
 async function loadNotifPrefs(){
   mutedAlerts = new Set();
   if (!profile?.id) return;
@@ -1917,6 +2038,21 @@ function renderAlertPrefs(){
     </label>`).join('');
   el.querySelectorAll('input[data-alert-key]').forEach(cb =>
     cb.addEventListener('change', () => setAlertMuted(cb.dataset.alertKey, !cb.checked)));
+
+  const dEl = $('desktopAlertsRow');
+  if (dEl) {
+    if (!desktopAlertsSupported()) {
+      dEl.innerHTML = '<span style="color:var(--muted)">This browser does not support desktop notifications.</span>';
+    } else if (Notification.permission === 'denied') {
+      dEl.innerHTML = '<span style="color:var(--muted)">Blocked in this browser — allow notifications for this site to turn it back on.</span>';
+    } else if (desktopAlertsEnabled()) {
+      dEl.innerHTML = '<span style="color:var(--ok,#0B6B4F)">On — this browser will pop up a notification for a critical or urgent item while this tab is in the background.</span>';
+    } else {
+      dEl.innerHTML = '<button type="button" class="btn btn-sm" id="enableDesktopAlertsBtn">Turn on desktop alerts</button>';
+      const btn = $('enableDesktopAlertsBtn');
+      if (btn) btn.addEventListener('click', enableDesktopAlerts);
+    }
+  }
 }
 /* ---------- automation (launch audit §27) ----------------------------
    The office console above only ever DETECTS: a quote gone quiet, an
@@ -3079,6 +3215,7 @@ async function loadAll(){
 
   await loadNotifPrefs();
   renderDash(); renderJobs(); renderCal(); renderPipe(); renderProduction(); renderEmployees();
+  renderCrewAvailability();
   // Fire-and-forget, same pattern as renderChase(): the tab paints once
   // ensureItemsForJobs (inside renderProcurement) has topped up the items
   // this buy list has to total completely.
@@ -3638,9 +3775,9 @@ function renderDash(){
                    && d(j.scheduled_date) >= new Date(nowMs)
                    && !j.assigned_employee_id
                    && j.status !== 'DECLINED')
-    .forEach(j => items.push({ urgent:true,
+    .forEach(j => items.push({ urgent:true, severity:'critical',
       text: 'Scheduled ' + d(j.scheduled_date).toLocaleDateString() + ' with nobody assigned: ' + name(j),
-      id: j.id }));
+      id: j.id, key:'unassigned_scheduled:'+j.id, fp:j.scheduled_date }));
 
   // Someone is still on the clock against a job the office already marked
   // finished. Either the job was closed too early or the shift was never
@@ -3650,8 +3787,8 @@ function renderDash(){
       const j = jobBySync(t.job_sync_id);
       if (!j || j.status !== 'COMPLETED') return;
       const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Someone';
-      items.push({ urgent:true,
-        text: who + ' is clocked in on a job already marked finished: ' + name(j), id: j.id });
+      items.push({ urgent:true, severity:'warn',
+        text: who + ' is clocked in on a job already marked finished: ' + name(j), id: j.id, key:'clocked_in_finished:'+t.id, fp:t.started_at });
     });
 
   // Approved and still sitting with no date on the calendar. A quote that got
@@ -3664,15 +3801,15 @@ function renderDash(){
                    && (nowMs - d(j.quote_approved_at).getTime()) > 3 * 864e5)
     .forEach(j => {
       const days = Math.floor((nowMs - d(j.quote_approved_at).getTime()) / 864e5);
-      items.push({ urgent:true,
-        text: 'Approved ' + days + ' days ago, never scheduled: ' + name(j), id: j.id });
+      items.push({ urgent:true, severity:'warn',
+        text: 'Approved ' + days + ' days ago, never scheduled: ' + name(j), id: j.id, key:'approved_unscheduled:'+j.id, fp:j.quote_approved_at });
     });
 
   // Money came in and the job still ended up marked declined. Somebody owes
   // somebody: either the deposit needs refunding or the status is wrong.
   if (alertOn('paid_then_declined')) jobs.filter(j => j.status === 'DECLINED' && netPaid(j) > 0.005)
-    .forEach(j => items.push({ urgent:true,
-      text: money(netPaid(j)) + ' collected on a job later marked declined: ' + name(j), id: j.id }));
+    .forEach(j => items.push({ urgent:true, severity:'critical',
+      text: money(netPaid(j)) + ' collected on a job later marked declined: ' + name(j), id: j.id, key:'paid_then_declined:'+j.id, fp:j.updated_at }));
 
   // A sold job that has not moved off its production stage in three weeks.
   // Same job_stage_events table the Production board's own "time in stage"
@@ -3688,31 +3825,44 @@ function renderDash(){
         const last = events[events.length - 1];
         if (!last) return;
         const days = Math.floor((nowMs - d(last.entered_at).getTime()) / 864e5);
-        if (days >= 21) items.push({ urgent:false,
+        if (days >= 21) items.push({ urgent:false, severity:'info',
           text: 'Stuck on ' + prodStageLabel(j.production_stage) + ' for ' + days + ' days: ' + name(j),
-          id: j.id });
+          id: j.id, key:'stage_stalled:'+j.id, fp:last.entered_at });
       });
   }
 
   // Open punch-list items, by job.
   const openBy = {};
   punch.filter(p=>!p.resolved).forEach(p=>{ openBy[p.job_sync_id]=(openBy[p.job_sync_id]||0)+1; });
-  Object.entries(openBy).forEach(([sid,cnt])=>{ const j=jobBySync(sid); if(j) items.push({ urgent:false, text:cnt+' open punch-list item'+(cnt===1?'':'s')+': '+name(j), id:j.id }); });
+  Object.entries(openBy).forEach(([sid,cnt])=>{ const j=jobBySync(sid); if(j) items.push({ urgent:false, severity:'info', text:cnt+' open punch-list item'+(cnt===1?'':'s')+': '+name(j), id:j.id, key:'punch:'+sid, fp:String(cnt) }); });
 
   // Handed to the Daily briefing so it can say what needs attention today
   // without re-running every alert rule above a second time.
   attentionItems = items;
   dashSnapshot = { todaysJobs, onTheClock, soon, won, collected, owedTotal };
+  notifyOfNewAlerts(items);
 
-  $('attention').innerHTML = items.length
-    ? items.map(it=>`<div class="att-row" data-att-id="${it.id??''}" data-att-go="${it.go||''}"
-         style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer">
-         <span style="width:9px;height:9px;border-radius:50%;flex:none;background:${it.urgent?'var(--bad,#b3261e)':'var(--accent,#d9480f)'}"></span>
-         <span style="flex:1">${esc(it.text)}</span><span style="color:var(--muted)">›</span></div>`).join('')
-    : '<div class="empty">All clear — nothing is waiting on you.</div>';
-  document.querySelectorAll('.att-row').forEach(el=>el.addEventListener('click',()=>{
-    if (el.dataset.attId) showJob(el.dataset.attId);
-    else if (el.dataset.attGo) switchTab(el.dataset.attGo);
+  const visible = items.filter(it => !isAlertSeen(it));
+  const seenCount = items.length - visible.length;
+  $('attention').innerHTML = (visible.length
+    ? visible.map((it,i)=>`<div class="att-row" data-att-idx="${i}" data-att-id="${it.id??''}" data-att-go="${it.go||''}"
+         style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+         <span style="width:9px;height:9px;border-radius:50%;flex:none;background:${SEV_DOT[it.severity]||SEV_DOT.info}"></span>
+         <span class="att-open" style="flex:1;cursor:pointer">${esc(it.text)}</span>
+         ${it.key ? `<button type="button" class="btn-grey btn-sm" data-att-dismiss="${i}" title="Mark as seen — hide until this changes">Seen</button>` : ''}
+         <span class="att-open" style="color:var(--muted);cursor:pointer">›</span></div>`).join('')
+    : '<div class="empty">All clear — nothing is waiting on you.</div>')
+    + (seenCount ? `<div class="empty" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">${seenCount} more marked seen — hidden until they change.</div>` : '');
+  document.querySelectorAll('.att-row').forEach(el=>{
+    el.querySelectorAll('.att-open').forEach(span=>span.addEventListener('click',()=>{
+      if (el.dataset.attId) showJob(el.dataset.attId);
+      else if (el.dataset.attGo) switchTab(el.dataset.attGo);
+    }));
+  });
+  document.querySelectorAll('[data-att-dismiss]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const it = visible[Number(btn.dataset.attDismiss)];
+    if (it) dismissAlert(it.key, it.fp);
   }));
 
   // This week: the next seven days, grouped by day, each job one click away.
@@ -4838,6 +4988,85 @@ function renderEmployees(){
       const emp=employees.find(x=>String(x.id)===String(b.dataset.id));
       if(emp) sendCrewInvite(emp);
     }));
+}
+
+/* ---------- crew availability & status (launch audit §17) --------------
+
+   Q2, who is free this week: reuses the exact rule renderCal() uses to lay
+   a job across multiple boxes on the calendar -- ceil(estimated_duration_
+   hours / 8) site-days from scheduled_date, skipping Sundays past the first
+   -- so "busy through Thursday" here means the same thing it means there.
+   Matched on assigned_employee_sync_id, the field the job editor, the
+   wizard and the batch-assign picker all actually write; assigned_
+   employee_id (no sync_ prefix) is the older column a couple of read paths
+   still fall back to and is left alone here.
+
+   Q3/Q4, an invitation that never landed and someone who has stopped: the
+   employees table (supabase_schema.sql + patches) has no invited_at, no
+   created_at, and nothing tying a row to a login -- so there is no honest
+   way to say "invited N days ago" or "has never signed in". What actually
+   exists is time_entries, so that is all this reads: whether a shift has
+   ever been logged for that person, and how long since the last one. */
+function jobSiteDays(j){
+  if(!j.scheduled_date) return [];
+  const start=d(j.scheduled_date); start.setHours(0,0,0,0);
+  const spanDays=Math.max(1,Math.ceil((Number(j.estimated_duration_hours)||0)/8));
+  const days=[]; let placed=0, cursor=new Date(start);
+  while(placed<spanDays && placed<15){
+    if(cursor.getDay()!==0 || placed===0){ days.push(new Date(cursor)); placed++; }
+    cursor.setDate(cursor.getDate()+1);
+  }
+  return days;
+}
+
+function renderCrewAvailability(){
+  if(!$('crewFreeRows')) return;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const weekEnd=new Date(today.getTime()+7*864e5);
+  const active=employees.filter(e=>e.is_active!==false);
+  const rows=active.map(e=>{
+    const onJobs = e.sync_id ? jobs.filter(j=>j.assigned_employee_sync_id===e.sync_id
+      && jobSiteDays(j).some(dt=>dt>=today && dt<weekEnd)) : [];
+    return {e, onJobs};
+  }).sort((a,b)=> (a.onJobs.length>0)-(b.onJobs.length>0) || (a.e.name||'').localeCompare(b.e.name||''));
+  $('crewFreeEmpty').style.display = active.length ? 'none' : 'block';
+  $('crewFreeRows').innerHTML = rows.map(({e,onJobs})=>{
+    const status = onJobs.length
+      ? esc(onJobs.map(j=>(j.customer_name||'Job')+' ('
+          + (j.scheduled_date ? d(j.scheduled_date).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '?')
+          + ')').join(', '))
+      : '<span class="pill ok">Free all week</span>';
+    return '<tr><td>'+(esc(e.name)||'Unnamed')+'</td><td>'+status+'</td></tr>';
+  }).join('');
+}
+
+// Three weeks with no shift is long enough that "still with us" is a real
+// question, short enough that it is not just somebody between jobs.
+const CREW_DORMANT_DAYS = 21;
+
+async function renderCrewStatus(){
+  if(!$('crewStatusRows')) return;
+  // Bounded first-load times would call a shift from five months back
+  // "never happened" -- the full history is what this needs.
+  await ensureFullTimes();
+  const active=employees.filter(e=>e.is_active!==false);
+  const now=Date.now();
+  const rows=active.map(e=>{
+    const mine = e.sync_id ? times.filter(t=>t.employee_sync_id===e.sync_id && t.started_at) : [];
+    if(!mine.length) return {e, kind:'new', label:'Added to the crew. No shift on record yet.'};
+    const last = mine.reduce((a,t)=> d(t.started_at)>d(a.started_at)?t:a);
+    const daysSince = Math.floor((now - d(last.started_at).getTime())/864e5);
+    if(daysSince < CREW_DORMANT_DAYS) return null;
+    const job = jobBySync(last.job_sync_id);
+    return {e, kind:'quiet', label:'Last clocked in ' + daysSince + ' days ago'
+      + (job ? ' &middot; ' + esc(job.customer_name || 'a job') : '') + '.'};
+  }).filter(Boolean);
+  $('crewDormantDays').textContent = CREW_DORMANT_DAYS;
+  $('crewStatusEmpty').style.display = rows.length ? 'none' : 'block';
+  $('crewStatusRows').innerHTML = rows.map(r=>
+    '<tr><td>'+(esc(r.e.name)||'Unnamed')+'</td><td>'
+    + (r.kind==='new' ? '<span class="pill warn">Not started</span>' : '<span class="pill wait">Gone quiet</span>')
+    + '</td><td>'+r.label+'</td></tr>').join('');
 }
 
 /* ---------- time ---------- */
@@ -11150,6 +11379,10 @@ function switchTab(name){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
   ['dash','jobs','cal','pipe','prod','materials','crew','time','catalog','reports','automation','settings','billing']
     .forEach(n=>$('tab-'+n).style.display=(n===name)?'block':'none');
+  // Needs the full time_entries history, not just the bounded first-load
+  // slice, so it is fetched lazily on open rather than on every loadAll --
+  // the same lazy-full-history pattern renderTime() uses for the Time tab.
+  if(name==='crew') renderCrewStatus();
 }
 document.querySelectorAll('.tab').forEach(t=>
   t.addEventListener('click',()=>switchTab(t.dataset.tab)));

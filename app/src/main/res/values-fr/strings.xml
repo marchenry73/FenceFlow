@@ -1651,4 +1651,11 @@
     <string name="inv_remove_title">Retirer ceci de la liste ?</string>
     <string name="inv_remove_body">Cela ne disparaît que de cette liste, sur ce téléphone. Rien n’est retiré du chantier, du devis, ni d’un autre appareil.</string>
     <string name="inv_remove_confirm">Retirer</string>
+
+    <!-- The blocked screen, when the phone cannot confirm the account at all.
+         Typographic apostrophes: a straight one needs escaping inside a
+         resource value, and that escape has been eaten by a patch script
+         three separate times today. -->
+    <string name="gate_offline_too_long">Ce téléphone n’a pas pu vérifier votre compte depuis un moment. Connectez-vous à internet une fois et tout revient aussitôt.</string>
+    <string name="gate_block_unconfirmed">Ce téléphone n’a pas pu joindre FenceFlow depuis qu’on lui a dit que votre compte était suspendu, donc il ne sait pas si c’est toujours le cas. Connectez-vous à internet une fois, ou déconnectez-vous et reconnectez-vous, et ça se règle tout seul.</string>
 </resources>
