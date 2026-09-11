@@ -10992,7 +10992,7 @@ async function swRenderStep(){
   $('swMsg').className='msg'; $('swMsg').textContent='';
   const body = $('swBody');
   switch(key){
-    case 'business': body.innerHTML = swBusinessHtml(); break;
+    case 'business': body.innerHTML = swBusinessHtml(); swWireBusiness(); break;
     case 'rates':    body.innerHTML = swRatesHtml(); break;
     case 'build':    body.innerHTML = swBuildHtml(); swWireBuild(); break;
     case 'supplier': body.innerHTML = swSupplierHtml(); swWireSupplier(); break;
@@ -11046,7 +11046,14 @@ function swBusinessHtml(){
       <div><label>Email</label><input id="sw_email" value="${esc(s.email||'')}"></div>
       <div><label>License number</label><input id="sw_license" value="${esc(s.license_number||'')}"></div>
     </div>
+    <p class="sub" style="margin-top:8px">Optional -- Next moves on even with this blank, and
+      "Your business details" stays on your setup checklist as a reminder until a business name
+      is actually entered, here or on the Settings tab.</p>
+    <button class="btn btn-sm btn-grey" type="button" id="sw_skip_business">Skip this step for now</button>
   </div>`;
+}
+function swWireBusiness(){
+  $('sw_skip_business').addEventListener('click', swNext);
 }
 async function swSaveBusiness(){
   const payload = {
@@ -11150,7 +11157,8 @@ function swBuildHtml(){
     <button class="btn" type="button" id="sw_save_default">Save as my standard build</button>
     <p class="sub" style="margin-top:8px">Sets this as your default template for ${esc(wizFenceTypeLabel(s.fence_type))} --
       the New client wizard offers it first for every fence of this type. Next also saves it,
-      so pressing this button first is a way to see it confirmed, not a step you can skip past.</p>`;
+      so pressing this button first is a way to see it confirmed, not a step you can skip past.
+      "Your standard build" stays on your setup checklist as a reminder until you have saved one.</p>`;
 }
 
 function swSyncSpecFromDom(){
@@ -11301,7 +11309,9 @@ function swCrewHtml(){
   const rows = employees.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.role||'')}</td>
     <td>${employeesHavePay ? (e.hourly_rate?money(e.hourly_rate)+'/hr':'') : 'Not visible'}</td></tr>`).join('');
   return `<div class="panel"><h2>Crew</h2>
-    <p class="sub" style="margin-top:0">The people who work for you, so hours and job assignments have a name on them.</p>
+    <p class="sub" style="margin-top:0">The people who work for you, so hours and job assignments have a name on them.
+      Optional -- Next moves on with nobody added, and "Your crew" stays on your setup checklist
+      as a reminder until somebody is.</p>
     <button class="btn btn-sm" type="button" id="sw_add_crew">Add a crew member</button>
     <div class="scroll" style="margin-top:10px"><table>
       <thead><tr><th>Name</th><th>Role</th><th>Rate</th></tr></thead>
