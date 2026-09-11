@@ -1938,6 +1938,15 @@ const ALERT_DEFS = [
   { key:'approved_unscheduled', label:'Approved but never scheduled' },
   { key:'paid_then_declined',   label:'Money collected on a job later declined' },
   { key:'stage_stalled',        label:'Sitting on one production stage for weeks' },
+
+  // The two the PHONE raises, not this page. They are listed here because
+  // this is where a person manages what reaches them, and a preference that
+  // can only be set by someone who knows the key is not a preference. The
+  // app reads this same muted list, so switching one off here silences it on
+  // the handset. Nothing on this page ever shows these two -- they have no
+  // detector above, and that is deliberate rather than missing.
+  { key:'job_overdue',    label:'On your phone: a job is running late' },
+  { key:'weekly_digest',  label:'On your phone: the Monday summary' },
 ];
 // True unless this user has switched that alert off. Absence of a row for
 // this user (table not created yet, or never saved a preference) means
