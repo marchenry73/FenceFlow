@@ -178,7 +178,7 @@ function stampedVersion() {
  * syncing, or read-only, and none of that is a reason to refuse a release that
  * has already reached every phone.
  */
-function keepASpareCopy(remote, stamp) {
+function keepASpareCopy(remote) {
   // Forward slashes on purpose. Node takes them on Windows, and a backslash
   // here is one more place for an escape to be eaten -- which is exactly what
   // happened on the first attempt: the path collapsed to "G:My DriveAPK Builds"
@@ -187,10 +187,20 @@ function keepASpareCopy(remote, stamp) {
   const folder = "G:/My Drive/APK Builds";
   try {
     if (!existsSync(folder)) return;
-    const day = new Date().toISOString().slice(0, 10);
-    const name = `fenceflow-${day}-${stamp}.apk`;
-    const target = join(folder, name);
-    if (existsSync(target)) return;
+    // One file per app, overwritten every time.
+    //
+    // The shared folder reached 497 MB of superseded binaries and was eating
+    // the Drive quota, so the convention changed on 11 September: no dates, no
+    // hashes, no versions in the name. If a specific past build is ever needed
+    // it gets rebuilt from the commit it came from, which is what the history
+    // is for.
+    //
+    // The rule warns that this leaves no rollback copy. True for a sideloaded
+    // app whose only copy lives here -- and not true for FenceFlow, whose
+    // phones update from a release row pointing at storage that keeps every
+    // build ever published. This file is a convenience for sideloading, not
+    // the distribution path, so the single-file rule costs nothing here.
+    const target = join(folder, "fenceflow.apk");
     copyFileSync(apk, target);
     console.log(`  spare copy      ${target}`);
   } catch (e) {
@@ -240,7 +250,7 @@ function uploadApk(code) {
     // and phones on 1.134-1.136 crash the moment the updater can render a
     // progress percentage. The proxy serves the same bucket file byte-for-byte;
     // newer builds lose only the progress number.
-    keepASpareCopy(remote, stamp);
+    keepASpareCopy(remote);
     return `https://${PROJECT_REF}.supabase.co/functions/v1/apk-proxy?f=${remote}`;
   } catch (e) {
     // The CLI's own message, not just "command failed" -- which says nothing

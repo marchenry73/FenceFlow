@@ -91,9 +91,29 @@ Deno.serve(async (req) => {
       return Response.json({ created: out });
     }
 
+    // cancel_subscription is gone, deliberately.
+    //
+    // It took a bare Stripe subscription id and deleted it. No company scope,
+    // no check that the subscription belonged to anyone in particular, no
+    // confirmation -- so anything holding this function's shared token could
+    // end any paying customer's subscription, including one belonging to a
+    // company nobody here has ever heard of. The token is a single shared
+    // secret with no rotation and no audit trail behind it.
+    //
+    // Nothing was lost by removing it. Cancelling a subscription is a rare,
+    // deliberate act that Stripe's own dashboard does properly: it shows whose
+    // subscription it is before you confirm, and it records who did it. A
+    // one-line HTTP call that does the same thing with none of that is a
+    // liability standing in for a convenience.
+    //
+    // The rest of this file -- reading status, creating the plan objects -- is
+    // read-mostly setup work and stays until go-live, when the header above
+    // says the whole file goes.
     if (action === "cancel_subscription") {
-      const out = await stripe("DELETE", `/subscriptions/${subscriptionId}`);
-      return Response.json({ canceled: out.id, status: out.status });
+      return Response.json({
+        error: "Cancel a subscription in the Stripe dashboard, where it shows " +
+          "you whose it is and records who cancelled it.",
+      }, { status: 410 });
     }
 
     return Response.json({ error: "unknown action" }, { status: 400 });
