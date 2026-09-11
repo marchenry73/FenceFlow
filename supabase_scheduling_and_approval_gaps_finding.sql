@@ -1,0 +1,56 @@
+-- FINDING, not a fix -- written for the record, per §46 of the launch audit.
+--
+-- tests/company-crew-golden-path.test.mjs demonstrated two real gaps against
+-- the live database (read-only, rolled back). Fixing RLS/triggers is outside
+-- that task's file ownership (tests/ and supabase_*.sql only), so this file
+-- documents what was found and, for reference, the shape a fix would take --
+-- it changes nothing on its own and is not intended to be run as-is without
+-- review by whoever owns supabase/ and the RLS policies.
+--
+-- ---------------------------------------------------------------------------
+-- 1. SCHEDULING: jobs_update has no permission check at all.
+-- ---------------------------------------------------------------------------
+--   select policyname, cmd, qual from pg_policies
+--   where tablename = 'jobs' and policyname = 'jobs_update';
+--   ->  qual = "(company_id = current_company_id())"
+--
+-- Any company member -- OWNER, MANAGER, SALES, ACCOUNTANT, FOREMAN, or a
+-- plain CREW phone -- can write assigned_employee_sync_id (or any other
+-- column jobs_update doesn't specifically protect) on any job in the
+-- company, with no SCHEDULE_AND_ASSIGN check anywhere in the path.
+-- supabase_views_and_admin_patch.sql already found and fixed the identical
+-- shape of bug for customer_name/address/phone/customer_id
+-- (protect_customer_identity trigger) after a real CREW profile blanked the
+-- customer on every job with one UPDATE. assigned_employee_sync_id is the
+-- exact same shape of hole, just never closed.
+--
+-- A fix would mirror protect_customer_identity: a BEFORE UPDATE trigger that
+-- holds assigned_employee_sync_id at its old value unless the caller has
+-- SCHEDULE_AND_ASSIGN (or is the service role / a direct connection with no
+-- request context, exactly as protect_customer_identity already
+-- distinguishes). Not written here because it touches a live trigger this
+-- task does not own.
+--
+-- ---------------------------------------------------------------------------
+-- 2. TIME CLOCK: time_entries_update has no permission check either.
+-- ---------------------------------------------------------------------------
+--   select policyname, cmd, qual from pg_policies
+--   where tablename = 'time_entries' and policyname = 'time_entries_update';
+--   ->  qual = "(company_id = current_company_id())"
+--
+-- approved_at/approved_by/rejected_at/review_note are meant to be a
+-- manager's signature (supabase_time_approval_patch.sql: "Until this is set
+-- the hours do not count towards pay or job cost"), gated by APPROVE_TIME
+-- in has_permission(). But RLS never checks APPROVE_TIME, and there is no
+-- trigger analogous to protect_customer_identity guarding those four
+-- columns -- so the same crew member whose shift it is can set their own
+-- approved_at directly. job_costing()'s labour_cost and hours_worked (see
+-- tests/company-crew-golden-path.test.mjs section 8) then count that shift
+-- as approved labour exactly as if a manager had reviewed it, because the
+-- column is all job_costing() looks at.
+--
+-- A fix would add a trigger holding approved_at/approved_by/rejected_at/
+-- review_note at their old values on UPDATE unless the caller has
+-- APPROVE_TIME (or is the service role / a direct connection), the same
+-- shape as (1) and as protect_customer_identity. Not written here for the
+-- same reason: it touches a live trigger this task does not own.
