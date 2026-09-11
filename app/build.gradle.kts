@@ -271,7 +271,7 @@ dependencies {
 // build output nobody should be syncing. It grew to 200 MB and was cleaned out
 // by hand on 11 September. Drive holds finished APKs and documents, nothing
 // else, and the name carries no date or hash so there is only ever one file.
-val driveApkFolder = file("G:/My Drive/APK Builds")
+val driveApkFolder = file("G:/My Drive/Professional Documents/Projects/APK Builds")
 val driveApkName = "fenceflow.apk"
 
 tasks.register("copyDebugApkToDrive") {

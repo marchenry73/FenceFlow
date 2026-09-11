@@ -201,7 +201,7 @@ function keepASpareCopy(remote) {
   // happened on the first attempt: the path collapsed to "G:My DriveAPK Builds"
   // and existsSync quietly said no, so the copy would have been skipped for
   // ever without a word.
-  const folder = "G:/My Drive/APK Builds";
+  const folder = "G:/My Drive/Professional Documents/Projects/APK Builds";
   try {
     if (!existsSync(folder)) return;
     // One file per app, overwritten every time.
