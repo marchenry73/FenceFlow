@@ -58,6 +58,10 @@ class OverdueWatcher(
     /** Exposed so the app can check immediately on launch rather than waiting an hour. */
     suspend fun checkOnce() {
         if (!Notifications.hasPermission(context)) return
+        // §28: the office can mute this exact condition from the web
+        // dashboard (see AlertPrefs) -- checked once per pass rather than
+        // per job, since it is one person's setting, not a per-job fact.
+        if (AlertPrefs.isMuted(AlertPrefs.Keys.JOB_OVERDUE)) return
 
         val now = System.currentTimeMillis()
         val today = now / DAY_MS

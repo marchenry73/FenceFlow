@@ -59,6 +59,10 @@ class WeeklySummary(
         val status = com.fenceestimator.app.cloud.ServiceGate.remembered(context) ?: return
         if (!status.allowed) return
         if (!com.fenceestimator.app.cloud.Entitlements.of(status.plan).digest) return
+        // §28: same mute list the office's own alert checkboxes write to --
+        // see AlertPrefs. A person who has told the web dashboard to stop
+        // showing this should not have their phone buzz with it instead.
+        if (AlertPrefs.isMuted(AlertPrefs.Keys.WEEKLY_DIGEST)) return
         val cal = Calendar.getInstance()
         if (cal.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) return
         if (cal.get(Calendar.HOUR_OF_DAY) < 7) return

@@ -4,6 +4,8 @@ import com.fenceestimator.app.R
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.random.Random
 
 /**
@@ -24,6 +26,24 @@ class FenceFlowMessagingService : FirebaseMessagingService() {
         // A job id lets tapping the notification reuse that job's slot instead
         // of stacking duplicates for the same job.
         val id = data["jobId"]?.toIntOrNull() ?: Random.nextInt(10_000, 99_999)
+
+        // §28: no server sends a push carrying this field today -- the token
+        // is only cached locally (see PushTokenStore below), because the
+        // Edge Function that would address a device by it does not exist
+        // yet. This is here so that WHEN one exists, a push tagged with one
+        // of this app's own notification keys (AlertPrefs.Keys, or a future
+        // office ALERT_DEFS key given the same treatment) is honoured the
+        // same way a locally-detected one already is, rather than that
+        // server needing to duplicate the mute check itself. Absent, as it
+        // always is today, this changes nothing -- a message with no
+        // alertKey was never checked before and still isn't.
+        val alertKey = data["alertKey"]
+        if (alertKey != null) {
+            val muted = runBlocking {
+                withTimeoutOrNull(3_000) { AlertPrefs.isMuted(alertKey) } ?: false
+            }
+            if (muted) return
+        }
 
         Notifications.show(
             context = applicationContext,

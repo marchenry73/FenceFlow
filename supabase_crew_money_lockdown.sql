@@ -1,6 +1,21 @@
 -- CREW CANNOT READ MONEY. The database side of a rule the app already keeps.
 --
--- DO NOT RUN THIS YET. Preconditions at the bottom.
+-- ALREADY RUN. This is live on the production database and has been since
+-- 11 September 2026. Verified against pg_policy on that date: all four
+-- RESTRICTIVE policies exist -- jobs_money_hidden_from_crew,
+-- line_items_money_hidden_from_crew, materials_money_hidden_from_crew and
+-- change_orders_money_hidden_from_crew.
+--
+-- The line above used to read DO NOT RUN THIS YET, and it stayed there after
+-- the policies went live. On 11 September that stale warning convinced a
+-- reader auditing notifications that crew money was still exposed, and it
+-- very nearly became a reported security hole that had already been closed.
+-- A warning that outlives its reason is not caution, it is misinformation
+-- with a serious face on. If this file is ever rolled back, change this
+-- header in the same breath.
+--
+-- The preconditions at the bottom were met: crew phones run 1.417 or newer,
+-- which read through the money-free _crew views rather than the base tables.
 --
 -- ---------------------------------------------------------------- why ----
 -- The crew app reads through the money-free _crew views, but nothing forces

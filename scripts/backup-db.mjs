@@ -53,6 +53,18 @@ const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
 const outDir = join(outRoot, stamp);
 mkdirSync(outDir, { recursive: true });
 
+// Written first, removed last. A run that is killed part way through --
+// the machine sleeps, the terminal closes, someone stops the job -- used to
+// leave a folder holding most of the tables and no sign that anything was
+// missing. Twenty-nine of thirty-six JSON files looks exactly like a backup
+// until the day you restore from it. This marker is the difference between
+// a folder that is quiet and a folder that says it is not finished.
+const partialFlag = join(outDir, "IN_PROGRESS_DO_NOT_TRUST.txt");
+writeFileSync(partialFlag, [
+  "This backup was still being written.",
+  "If this file is still here, the run did not finish and the folder is incomplete.",
+].join(" ") + String.fromCharCode(10));
+
 const failedFlag = join(outRoot, "LAST_BACKUP_FAILED.txt");
 const okFlag = join(outRoot, "LAST_BACKUP_OK.txt");
 
@@ -161,6 +173,9 @@ try {
     rmSync(join(outRoot, old), { recursive: true, force: true });
   }
 
+  // Only now is the folder a backup. Removed after the manifest is written
+  // and every row count has already been checked against the database.
+  rmSync(partialFlag, { force: true });
   rmSync(failedFlag, { force: true });
   writeFileSync(okFlag, `${manifest.taken_at}\n${outDir}\n${Object.values(manifest.tables).reduce((a, b) => a + b, 0)} rows across ${tables.length} tables\n`);
   console.log(`\nBacked up ${tables.length} tables to ${outDir}`);
