@@ -98,6 +98,38 @@ class Repository(private val db: AppDatabase) {
     }
 
     /**
+     * Hours clocked on this job, in decimal hours, for the delete confirmation
+     * to name honestly instead of the confirmation just saying "time entries"
+     * with no idea how much work that actually is.
+     *
+     * Returns null on a read failure rather than 0.0 -- a wiped-out count that
+     * silently reads as "no hours at risk" is exactly the failure this exists
+     * to prevent, so a failure to count must never be mistaken for a real zero.
+     *
+     * A running (not yet clocked out) entry counts its elapsed time so far,
+     * since that work has genuinely happened even though the shift is not
+     * closed out yet.
+     *
+     * [TimeEntry] carries no per-row synced flag -- unlike [Job.lastSyncedAt],
+     * [com.fenceestimator.app.cloud.EntitySync] pushes this whole table on
+     * every pass rather than tracking which rows already reached the cloud --
+     * so this can only report how many hours exist, never how many of them
+     * are still only on this phone. `TimeEntry.CASCADE` from `jobs` means every
+     * one of these is destroyed the instant the job row is, together with
+     * whichever of them the office has never seen.
+     */
+    suspend fun recordedHoursForJob(jobId: Long): Double? = try {
+        val now = System.currentTimeMillis()
+        timeEntryDao.getForJob(jobId).sumOf { entry ->
+            ((entry.endedAt ?: now) - entry.startedAt).coerceAtLeast(0L) / 3_600_000.0
+        }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    /**
      * Wipes every table on this phone.
      *
      * Used when the phone changes hands between accounts. The cloud copy is

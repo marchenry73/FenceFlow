@@ -29,13 +29,26 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync, rmSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 
 const PROJECT_REF = "newcrgafcptspmapacrx";
-const DRIVE_ROOT = "G:/My Drive/Professional Documents/Projects/FenceEstimator/backups";
+// The backups live on the computer. Google Drive holds the FenceFlow APK and
+// nothing else -- that is the rule, set on 11 September after a replica of the
+// project tree, 200 MB of it build output, was cleaned out of Drive by hand.
+//
+// These dumps used to live in Drive and ONLY in Drive. That day the folder was
+// deleted with no copy anywhere and came back from the Recycle Bin by luck
+// rather than by design. Business data with a single home on a synced virtual
+// drive is one accidental delete or one sync conflict away from gone.
+//
+// Worth saying plainly: local is now also a single home. It is a better one --
+// nothing syncs it, nothing else writes to it -- but if this machine dies, the
+// backups die with it. A second copy belongs somewhere off this computer that
+// is not the Drive folder reserved for the APK.
+const LOCAL_ROOT = join(homedir(), "FenceFlowBackups");
 const KEEP_RUNS = 12;   // three months of weekly copies
 
-const outRoot = resolve(process.argv[2] || DRIVE_ROOT);
+const outRoot = resolve(process.argv[2] || LOCAL_ROOT);
 const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
 const outDir = join(outRoot, stamp);
 mkdirSync(outDir, { recursive: true });
@@ -154,3 +167,4 @@ try {
 } catch (e) {
   fail(String(e?.message ?? e));
 }
+

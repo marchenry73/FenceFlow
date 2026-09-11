@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="delc_hours_checking">Vérification des heures pointées…</string>
+    <string name="delc_hours_zero">Aucune heure n’est pointée sur ce chantier.</string>
+    <string name="delc_hours_present">%1$s pointées sur ce chantier. Ce téléphone ne peut pas savoir lesquelles sont déjà arrivées au bureau, donc celles qui ne le sont pas encore sont perdues pour de bon dès que ceci est supprimé.</string>
+    <string name="delc_hours_failed">Impossible de vérifier les heures pointées sur ce chantier. S’il n’a pas été synchronisé récemment, considérez comme perdues pour de bon celles qui ne sont pas encore arrivées au bureau.</string>
+    <string name="delc_hours_value">%1$.1f heures</string>
+
+    <string name="jl_delete_job_body">Supprime « %1$s » et tout ce qu’il contient. Si ce chantier a déjà atteint le cloud, il peut être restauré avec tout le reste depuis Éléments supprimés dans les paramètres du compte.</string>
+</resources>

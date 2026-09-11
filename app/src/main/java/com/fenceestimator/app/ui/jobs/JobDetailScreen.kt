@@ -548,6 +548,7 @@ fun JobDetailScreen(
     if (confirmDeleteJob) {
         ConfirmDeleteJobDialog(
             job = currentJob,
+            countRecordedHours = { viewModel.countRecordedHours() },
             onConfirm = { confirmDeleteJob = false; viewModel.delete(onDeleted) },
             onDismiss = { confirmDeleteJob = false }
         )
@@ -578,9 +579,26 @@ private fun MoneyLine(label: String, amount: Double, bold: Boolean = false) {
 }
 
 @Composable
-private fun ConfirmDeleteJobDialog(job: Job, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun ConfirmDeleteJobDialog(
+    job: Job,
+    countRecordedHours: suspend () -> Double?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
     val expected = job.customerName.trim().ifBlank { stringResource(R.string.jd_delete_word) }
     var typed by remember { mutableStateOf("") }
+
+    // Counted fresh every time this dialog opens, not once at first compose --
+    // a shift can still be running while it sits on screen. Failure is tracked
+    // apart from the value itself so a failed count can never be displayed, or
+    // read, as a real zero -- see Repository.recordedHoursForJob.
+    var hours by remember(job.id) { mutableStateOf<Double?>(null) }
+    var hoursFailed by remember(job.id) { mutableStateOf(false) }
+    LaunchedEffect(job.id) {
+        val result = countRecordedHours()
+        hoursFailed = result == null
+        hours = result
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -591,6 +609,25 @@ private fun ConfirmDeleteJobDialog(job: Job, onConfirm: () -> Unit, onDismiss: (
                 Text(
                     stringResource(R.string.jd_delete_bullets),
                     style = MaterialTheme.typography.bodyMedium
+                )
+                // The bullets above cover what has a Deleted Items entry.
+                // Clocked hours are the one line item that does not carry a
+                // synced flag (TimeEntry, unlike Job, has no lastSyncedAt), so
+                // this app cannot tell which of them the office has already
+                // seen -- said plainly here rather than folded into a bullet
+                // that would overstate what is known.
+                Text(
+                    when {
+                        hoursFailed -> stringResource(R.string.delc_hours_failed)
+                        hours == null -> stringResource(R.string.delc_hours_checking)
+                        hours == 0.0 -> stringResource(R.string.delc_hours_zero)
+                        else -> stringResource(
+                            R.string.delc_hours_present,
+                            stringResource(R.string.delc_hours_value, hours!!)
+                        )
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
                 )
                 Text(
                     stringResource(R.string.jd_delete_decline_hint),

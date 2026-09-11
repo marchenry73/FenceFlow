@@ -134,4 +134,12 @@ class JobsViewModel(private val repository: Repository) : ViewModel() {
     fun deleteJob(job: Job) {
         viewModelScope.launch { repository.deleteJob(job) }
     }
+
+    /**
+     * For the delete confirmation, so it can name how many hours are on the
+     * job rather than just warning about "time entries" in the abstract. Null
+     * means the count failed, not that there were zero -- see
+     * [Repository.recordedHoursForJob].
+     */
+    suspend fun countRecordedHours(jobId: Long): Double? = repository.recordedHoursForJob(jobId)
 }

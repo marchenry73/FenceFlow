@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Delete-a-job confirmation, hours half.
+
+        TimeEntry has no per-row synced flag (see Repository.recordedHoursForJob),
+        so these strings never claim to know which clocked hours reached the
+        cloud and which did not — only how many hours exist and that the
+        unsynced ones among them cannot be told apart from the safe ones. The
+        honest worst case is the whole point: hours recorded offline, or since
+        the last sync, are destroyed with no copy anywhere the moment the job
+        is deleted, and nothing on this phone can promise otherwise.
+    -->
+    <string name="delc_hours_checking">Checking clocked hours…</string>
+    <string name="delc_hours_zero">No hours have been clocked on this job.</string>
+    <string name="delc_hours_present">%1$s clocked on this job. There’s no record on this phone of which of that has already reached the office, so anything that hasn’t is gone for good the moment this is deleted.</string>
+    <string name="delc_hours_failed">Couldn’t check the clocked hours on this job. If it hasn’t synced recently, assume any hours that haven’t reached the office yet are gone for good if this is deleted.</string>
+    <string name="delc_hours_value">%1$.1f hours</string>
+
+    <!--
+        Jobs list quick-delete dialog. Used to say the job "and everything on
+        it" would be deleted and "can’t be undone" — frightening about the
+        part that is recoverable (a synced job comes back from Deleted Items)
+        while saying nothing about the part that genuinely is not (unsynced
+        hours, handled by the delc_hours_* strings above).
+    -->
+    <string name="jl_delete_job_body">Deletes “%1$s” and everything on it. If this job has already reached the cloud, it and everything on it can be brought back together from Deleted Items in Account settings.</string>
+</resources>

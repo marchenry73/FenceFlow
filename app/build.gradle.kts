@@ -265,9 +265,14 @@ dependencies {
 // virtual drive can't keep up -- that's what broke builds back when this lived
 // in OneDrive. So only the one finished APK travels to Google Drive, where it
 // syncs down to the phone for installing.
-val driveProjectFolder = file("G:/My Drive/Professional Documents/Projects/FenceEstimator")
-
-val driveApkFolder = driveProjectFolder.resolve("app/build/outputs/apk/debug")
+// One APK per app, overwritten in place. This used to copy into a replica of
+// the project tree inside Drive -- G:/.../FenceEstimator/app/build/outputs/... --
+// which meant every debug build recreated a folder that looks exactly like
+// build output nobody should be syncing. It grew to 200 MB and was cleaned out
+// by hand on 11 September. Drive holds finished APKs and documents, nothing
+// else, and the name carries no date or hash so there is only ever one file.
+val driveApkFolder = file("G:/My Drive/APK Builds")
+val driveApkName = "fenceflow.apk"
 
 tasks.register("copyDebugApkToDrive") {
     description = "Copies the debug APK into Google Drive so it syncs to the phone."
@@ -285,13 +290,12 @@ tasks.register("copyDebugApkToDrive") {
         }
         // Missing drive means Drive is paused or this is another machine; say so
         // rather than failing the build over it.
-        if (!driveProjectFolder.exists()) {
-            logger.lifecycle("APK -> Drive: SKIPPED, ${driveProjectFolder} is not available.")
+        if (!driveApkFolder.exists()) {
+            logger.lifecycle("APK -> Drive: SKIPPED, ${driveApkFolder} is not available.")
             return@doLast
         }
 
-        driveApkFolder.mkdirs()
-        val target = driveApkFolder.resolve(source.name)
+        val target = driveApkFolder.resolve(driveApkName)
         source.copyTo(target, overwrite = true)
 
         // Confirm from the destination, not from the copy call, so a partial or

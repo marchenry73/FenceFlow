@@ -483,6 +483,14 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
         }
     }
 
+    /**
+     * For the delete confirmation, so it can name how many hours are on the
+     * job rather than just warning about "clocked hours" in the abstract.
+     * Null means the count failed, not that there were zero -- see
+     * [Repository.recordedHoursForJob].
+     */
+    suspend fun countRecordedHours(): Double? = repository.recordedHoursForJob(jobId)
+
     private companion object {
         val EMPTY_TOTALS = EstimateEngine.Totals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }

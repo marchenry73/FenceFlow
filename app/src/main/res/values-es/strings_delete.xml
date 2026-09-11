@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="delc_hours_checking">Comprobando las horas fichadas…</string>
+    <string name="delc_hours_zero">No hay horas fichadas en este trabajo.</string>
+    <string name="delc_hours_present">%1$s fichadas en este trabajo. Este teléfono no tiene forma de saber cuáles ya llegaron a la oficina, así que las que no hayan llegado se pierden para siempre en cuanto se elimine esto.</string>
+    <string name="delc_hours_failed">No se pudieron comprobar las horas fichadas en este trabajo. Si no se ha sincronizado hace poco, da por perdidas para siempre las que aún no hayan llegado a la oficina.</string>
+    <string name="delc_hours_value">%1$.1f horas</string>
+
+    <string name="jl_delete_job_body">Elimina “%1$s” y todo lo que contiene. Si este trabajo ya llegó a la nube, se puede recuperar junto con todo lo demás desde Elementos eliminados en Ajustes de cuenta.</string>
+</resources>

@@ -55,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -688,14 +689,42 @@ fun JobsListScreen(
     }
 
     pendingDelete?.let { job ->
+        // Counted fresh each time the dialog opens rather than once at compose
+        // time -- a running clock-in is still adding hours while this sits on
+        // screen. Null means the count failed and must read as "unknown", not
+        // as zero: a wiped-out count reading as "nothing at risk" is exactly
+        // the failure this dialog exists to prevent.
+        var hoursState by remember(job.id) { mutableStateOf<Double?>(null) }
+        var hoursFailed by remember(job.id) { mutableStateOf(false) }
+        LaunchedEffect(job.id) {
+            val result = viewModel.countRecordedHours(job.id)
+            hoursFailed = result == null
+            hoursState = result
+        }
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text(stringResource(R.string.jobs_delete_title)) },
             text = {
-                Text(
-                    "\"${job.customerName.ifBlank { "Untitled job" }}\" and everything on it -- fence runs, " +
-                        "estimate, photos, expenses and time entries -- will be deleted. This can't be undone."
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(
+                            R.string.jl_delete_job_body,
+                            job.customerName.ifBlank { stringResource(R.string.home_untitled_job) }
+                        )
+                    )
+                    Text(
+                        when {
+                            hoursFailed -> stringResource(R.string.delc_hours_failed)
+                            hoursState == null -> stringResource(R.string.delc_hours_checking)
+                            hoursState == 0.0 -> stringResource(R.string.delc_hours_zero)
+                            else -> stringResource(
+                                R.string.delc_hours_present,
+                                stringResource(R.string.delc_hours_value, hoursState!!)
+                            )
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             },
             confirmButton = {
                 // Error-tinted, matching the job's own Delete Job flow: red is
