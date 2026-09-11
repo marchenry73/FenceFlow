@@ -37,7 +37,20 @@ const PROJECT = "newcrgafcptspmapacrx";
 // inventing a fourth set of fixture ids.
 const CO      = "aba5b097-afc4-48dd-9851-b50200d5e8f4"; // real company
 const OWNER   = "7bf38947-24cf-4e79-9af0-6100d04b166b"; // has SEE_MONEY
-const CREW    = "dabdbf64-8c89-4ec4-89c5-b33430462069"; // does NOT have SEE_MONEY
+// An account that genuinely does NOT have SEE_MONEY.
+//
+// This used to name a different person, who was then promoted to MANAGER --
+// a role that grants SEE_MONEY. The check carried on pointing at them and so
+// began asserting that a manager cannot read job costing, which is false and
+// which they are supposed to be able to do. It went red today and read like a
+// security regression. It was not one. A test pinned to a human breaks when
+// the human gets a new job, and on the day it breaks you cannot tell a
+// promotion from a leak.
+//
+// So the identity is no longer trusted on faith: check 3 asks the database
+// whether this account really lacks the permission before drawing any
+// conclusion from what it can read, and says the fixture has drifted if not.
+const NO_MONEY = "518fde2b"; // prefix only; resolved and verified at run time
 
 let failed = 0, checked = 0;
 const ok = (name, cond, detail = "") => {
@@ -61,6 +74,10 @@ function runSql(sql) {
   try { parsed = JSON.parse(r.stdout); } catch { throw new Error(`could not parse CLI output: ${r.stdout}`); }
   return Array.isArray(parsed) ? parsed : (parsed.rows || []);
 }
+
+// Resolves the no-money account from its id prefix at run time. A prefix
+// rather than a whole id so this file does not read as a list of people.
+const asClaimNoMoney = () => `select set_config('request.jwt.claims', json_build_object('sub', (select id from profiles where id::text like '${NO_MONEY}%' and company_id is not null limit 1), 'role','authenticated')::text, true);`;
 
 const asClaim = (sub) => `select set_config('request.jwt.claims', json_build_object('sub','${sub}','role','authenticated')::text, true);`;
 
@@ -187,9 +204,10 @@ set local role authenticated;
 insert into probe select 'OWNER', count(*) from job_costing();
 reset role;
 
-${asClaim(CREW)}
+${asClaimNoMoney()}
 set local role authenticated;
-insert into probe select 'CREW', count(*) from job_costing();
+insert into probe select 'NO_MONEY', count(*) from job_costing();
+insert into probe select 'NO_MONEY_HAS_SEE_MONEY', case when has_permission('SEE_MONEY') then 1 else 0 end;
 reset role;
 
 -- ---- PLANTED FAILURE: reproduce the exact pre-guard job_costing() body
@@ -211,9 +229,9 @@ language sql stable security definer set search_path to 'public' as $inner$
     and (from_date is null or j.created_at >= from_date)
     and (to_date is null or j.created_at <= to_date);
 $inner$;
-${asClaim(CREW)}
+${asClaimNoMoney()}
 set local role authenticated;
-insert into probe select 'CREW-WITH-PLANTED-BUG', (select count(*) from job_costing());
+insert into probe select 'NO_MONEY-WITH-PLANTED-BUG', (select count(*) from job_costing());
 reset role;
 -- undo the plant: restore the real, guarded job_costing() (supabase_job_costing_v2.sql
 -- + supabase_money_report_guard.sql, applied in that order) so anything run
@@ -316,11 +334,18 @@ select * from probe order by who;
 rollback;
 `);
   const g = (who) => gateRows.find(r => r.who === who) || {};
-  ok("PLANTED FAILURE: an unguarded scope function would hand CREW every job in the company " +
+  ok("PLANTED FAILURE: an unguarded scope function would hand an account without SEE_MONEY every job in the company " +
      "(proves this permission gate can fail)",
-    Number(g("CREW-WITH-PLANTED-BUG").n) > 0, `got ${JSON.stringify(g("CREW-WITH-PLANTED-BUG"))}`);
-  ok("the real, guarded job_costing() returns nothing for CREW (no SEE_MONEY)",
-    Number(g("CREW").n) === 0, `got ${JSON.stringify(g("CREW"))}`);
+    Number(g("NO_MONEY-WITH-PLANTED-BUG").n) > 0, `got ${JSON.stringify(g("NO_MONEY-WITH-PLANTED-BUG"))}`);
+  // Before believing the zero below, prove the account it came from really
+  // lacks SEE_MONEY. Otherwise a promoted fixture turns a correct permission
+  // into a reported breach, which is what happened on 11 September.
+  ok("the account used for check 3 genuinely lacks SEE_MONEY (fixture has not drifted)",
+    Number(g("NO_MONEY_HAS_SEE_MONEY").n) === 0,
+    "that account now HAS SEE_MONEY -- it was promoted. Point NO_MONEY at an account that does not, rather than reading this as a leak.");
+
+  ok("the real, guarded job_costing() returns nothing for an account without SEE_MONEY",
+    Number(g("NO_MONEY").n) === 0, `got ${JSON.stringify(g("NO_MONEY"))}`);
   ok("the real, guarded job_costing() still returns rows for OWNER (has SEE_MONEY)",
     Number(g("OWNER").n) > 0, `got ${JSON.stringify(g("OWNER"))}`);
 
