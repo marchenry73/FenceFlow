@@ -28,6 +28,7 @@
 //
 //   npx tsx tests/downstream-deposit-balance.test.mjs
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const dashboardSrc = readFileSync("website/dashboard.html", "utf8");
 const grabFn = (src, name) => {
@@ -46,6 +47,24 @@ const ok = (label, cond, detail = "") => {
   if (cond) { pass++; console.log(`  ok    ${label}`); }
   else { fail++; console.log(`  FAIL  ${label}${detail ? " — " + detail : ""}`); }
 };
+
+// A hand transcription is a copy, and a copy goes stale in silence. If
+// JobMoney.kt changes and nobody revisits the lines below, every check in
+// this file keeps passing while it compares the office against an app that
+// no longer exists -- the whole point of the test gone, with a green result
+// on top of it. So the Kotlin file is fingerprinted. Change it and this
+// fails on purpose, telling you to read the transcription again and then
+// move the pin. That is an annoyance exactly once per real change, and the
+// alternative is a guard that quietly stops guarding.
+const JOB_MONEY_FINGERPRINT = "5ea8a174a96dd355";
+const jobMoneyNow = createHash("sha256")
+  .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8").split(String.fromCharCode(13)).join(""))
+  .digest("hex").slice(0, 16);
+ok(
+  "JobMoney.kt is the version this file was transcribed from",
+  jobMoneyNow === JOB_MONEY_FINGERPRINT,
+  "JobMoney.kt changed (" + jobMoneyNow + "). Re-read it against the transcription below, then update JOB_MONEY_FINGERPRINT."
+);
 
 // -- Kotlin JobMoney, transcribed by hand for comparison (not imported --
 // there is no JVM here). Each line below is a direct read of

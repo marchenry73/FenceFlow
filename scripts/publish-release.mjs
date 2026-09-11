@@ -77,9 +77,26 @@ if (!notes) {
     // Against the live system, not the source: what anonymous callers can read,
     // what a quote link gives away, and whether a forged payment lands.
     ["security", [join(REPO_ROOT, "tests", "security-smoke.test.mjs")]],
+    // Everything downstream of the price. Pricing parity above proves the app
+    // and the server agree on what a fence costs; these prove they agree on
+    // what happens to that number afterwards -- posts, concrete, waste, tax,
+    // deposit, balance, pay and job cost. Each file carries its own planted
+    // failures, so a run that passes has just re-proved it was able to fail.
+    // Added because parity guarded the price and nothing guarded the arithmetic
+    // sitting on top of it, which is where a wrong number reaches a customer.
+    ["posts, concrete, waste and tax", [join(REPO_ROOT, "tests", "downstream-posts-concrete-waste-tax.test.mjs")], "tsx"],
+    ["deposit and balance", [join(REPO_ROOT, "tests", "downstream-deposit-balance.test.mjs")], "tsx"],
+    ["pay and overtime", [join(REPO_ROOT, "tests", "downstream-pay-overtime.test.mjs")], "tsx"],
+    ["job costing", [join(REPO_ROOT, "tests", "downstream-job-costing.test.mjs")]],
   ];
-  for (const [name, argv] of gates) {
-    const gate = spawnSync(process.execPath, argv, { cwd: REPO_ROOT, stdio: "inherit" });
+  for (const [name, argv, runner] of gates) {
+    // Three of these import TypeScript straight from the edge functions, which
+    // is the whole point -- they test the real shared pricing code rather than
+    // a copy of it -- so they need a loader node does not have on its own.
+    const gate = runner === "tsx"
+      ? spawnSync("npx", ["--no-install", "tsx", ...argv],
+          { cwd: REPO_ROOT, stdio: "inherit", shell: true })
+      : spawnSync(process.execPath, argv, { cwd: REPO_ROOT, stdio: "inherit" });
     if (gate.status !== 0) {
       console.error(`\nRefusing to publish: the ${name} gate is red (see above).`);
       process.exit(1);
