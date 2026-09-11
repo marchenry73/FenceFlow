@@ -189,6 +189,17 @@
     <string name="crew_change_why_example">Hay una tapa de séptico donde está dibujado</string>
     <string name="crew_send_request">Enviar</string>
 
+    <!-- Crew attention: lo que espera a esta persona, y nada más. Ver ui/crew/CrewAttention.kt. -->
+    <string name="crew_attn_title">Pendiente para ti</string>
+    <string name="crew_attn_job_today">En el horario de hoy: %1$s</string>
+    <string name="crew_attn_locate_expired">Venció el permiso de excavación (811): %1$s</string>
+    <string name="crew_attn_shift_sent_back">Te devolvieron un turno en %1$s</string>
+    <string name="crew_attn_plan_change_approved">Aprobaron tu cambio de plano en %1$s</string>
+    <string name="crew_attn_plan_change_rejected">Rechazaron tu cambio de plano en %1$s</string>
+    <string name="crew_attn_dismiss">Entendido</string>
+    <string name="crew_attn_offline_since">Sin señal. Esto es lo que había en el teléfono a las %1$s.</string>
+    <string name="crew_attn_offline_never_synced">Sin señal, y este teléfono todavía no se ha sincronizado — no hay nada con qué comparar.</string>
+
     <!-- Jobs list extras -->
     <string name="jobs_materials_catalog">Catálogo de materiales</string>
     <string name="jobs_settings">Ajustes</string>

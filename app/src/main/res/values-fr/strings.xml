@@ -189,6 +189,17 @@
     <string name="crew_change_why_example">Il y a un regard de fosse là où c\'est dessiné</string>
     <string name="crew_send_request">Envoyer</string>
 
+    <!-- Crew attention : ce qui attend cette personne, et rien d’autre. Voir ui/crew/CrewAttention.kt. -->
+    <string name="crew_attn_title">En attente de toi</string>
+    <string name="crew_attn_job_today">Au programme aujourd’hui : %1$s</string>
+    <string name="crew_attn_locate_expired">Le marquage des réseaux (811) a expiré : %1$s</string>
+    <string name="crew_attn_shift_sent_back">Un quart de travail sur %1$s t’a été renvoyé</string>
+    <string name="crew_attn_plan_change_approved">Ton changement de plan sur %1$s a été approuvé</string>
+    <string name="crew_attn_plan_change_rejected">Ton changement de plan sur %1$s a été refusé</string>
+    <string name="crew_attn_dismiss">Compris</string>
+    <string name="crew_attn_offline_since">Pas de signal. Voici ce qu’il y avait sur le téléphone à %1$s.</string>
+    <string name="crew_attn_offline_never_synced">Pas de signal, et ce téléphone ne s’est pas encore synchronisé — il n’y a rien à vérifier.</string>
+
     <!-- Jobs list extras -->
     <string name="jobs_materials_catalog">Catalogue de matériaux</string>
     <string name="jobs_settings">Réglages</string>

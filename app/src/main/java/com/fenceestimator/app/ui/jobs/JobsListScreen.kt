@@ -547,6 +547,35 @@ fun JobsListScreen(
                         }
                     }
                 }
+                // Crew's own view of "what is waiting on me" -- see
+                // ui/crew/CrewAttention.kt for why this is a closed, separate
+                // list rather than a filtered slice of the office dashboard
+                // below. Gated on the base CREW role only: a foreman already
+                // gets the fuller picture (schedule, approvals, customer
+                // contact) below, and this narrower card would only bury the
+                // things a foreman is actually meant to see first.
+                if (session.role == com.fenceestimator.app.cloud.UserRole.CREW) {
+                    item {
+                        val ackStore = remember { com.fenceestimator.app.ui.crew.CrewAttentionAckStore(app) }
+                        val attentionViewModel: com.fenceestimator.app.ui.crew.CrewAttentionViewModel = viewModel(
+                            factory = GenericViewModelFactory {
+                                com.fenceestimator.app.ui.crew.CrewAttentionViewModel(
+                                    app.repository, app.session, ackStore
+                                )
+                            }
+                        )
+                        val attentionItems by attentionViewModel.items.collectAsState()
+                        val online by app.connectivity.online.collectAsState()
+                        val sync by app.autoSync.state.collectAsState()
+                        com.fenceestimator.app.ui.crew.CrewAttentionSection(
+                            items = attentionItems,
+                            online = online,
+                            lastSyncedAt = sync.lastSyncedAt,
+                            onOpenJob = onOpenJob,
+                            onDismiss = { key -> attentionViewModel.dismiss(key) }
+                        )
+                    }
+                }
                 item {
                     HomeDashboard(
                         ownerName = profile.ownerName,

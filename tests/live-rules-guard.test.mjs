@@ -46,8 +46,13 @@ const CREW    = "dabdbf64-8c89-4ec4-89c5-b33430462069";
 const SALES   = "f7e1c214-cdd0-492a-84b4-02392b264690"; // live, but company_id is null
 const OTHER_COMPANY_EMPLOYEE = "11111111-1111-4111-8111-111111111211"; // belongs to a DIFFERENT company
 const OWN_EMPLOYEE = "c75a354a-a357-47d5-8368-c2a379928733"; // this company's own employee row
-const COMPLETED_JOB = "10b0407f-2322-476f-af96-0520dd84aea1"; // status COMPLETED, production_stage null
-const DRAFT_JOB = "93427b69-9552-4114-b25a-8e607adce480"; // status DRAFT, not approved
+// Fixtures this suite OWNS, created by supabase_rules_guard_fixtures.sql.
+// These used to be three real jobs in the real company. Two of them were
+// retired as test data on 10 September and the whole suite went red -- not
+// because a rule broke, but because the furniture moved. A guard that fails
+// whenever the business changes is one people learn to ignore.
+const COMPLETED_JOB = "44444444-0000-4000-8000-000000000001"; // ACCEPTED, sold, production may start
+const DRAFT_JOB = "44444444-0000-4000-8000-000000000002"; // DRAFT, never approved
 // A SECOND, untouched DRAFT job for check 4's "real rule" section. now() is
 // the TRANSACTION timestamp -- frozen for the whole transaction, not the
 // statement -- so once the planted-bug section above has bumped a row's
@@ -56,7 +61,7 @@ const DRAFT_JOB = "93427b69-9552-4114-b25a-8e607adce480"; // status DRAFT, not a
 // change happened even though the trigger ran perfectly. Using a job the
 // planted section never touched keeps the "real rule" before/after
 // comparison honest.
-const DRAFT_JOB_2 = "8c6b2b44-4901-4a89-8808-60a6da702a98"; // status DRAFT, not approved
+const DRAFT_JOB_2 = "44444444-0000-4000-8000-000000000003"; // DRAFT, and never written to by this suite
 // The three historical blank-employee rows this database actually has.
 const HISTORICAL_BLANK_SHIFTS = [
   "52129e05-62f7-49b0-9574-334689a5e4c1",

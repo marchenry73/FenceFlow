@@ -227,7 +227,14 @@ async function cleanup() {
       // again immediately. Scoped by both the job's sync id AND company_id
       // so this can never touch another company's row even if the id were
       // somehow wrong.
-      `update jobs set quote_approved_at = null, quote_approved_name = '', status = 'SENT' ` +
+      `update jobs set quote_approved_at = null, quote_approved_name = '', status = 'SENT', ` +
+      // The two wrong guesses this script makes on purpose -- no digits, then
+      // the wrong ones -- are real failed attempts, and five of them lock the
+      // quote for fifteen minutes. Left behind, three runs of this test lock
+      // out the fourth, and the failure reads as the product being broken
+      // rather than the test having spent the budget. A script that makes a
+      // mess deliberately has to clear it up like any other.
+      `quote_phone_attempts = 0, quote_phone_locked_until = null ` +
       `where sync_id = '11111111-1111-4111-8111-111111111411' and company_id = '${COMPANY_ID}';\n` +
       // Remove every lead this run created through lead-intake. It lands in
       // jobs (referral_source = 'Website'), not a separate leads table. The

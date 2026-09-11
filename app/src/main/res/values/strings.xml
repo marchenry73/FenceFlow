@@ -203,6 +203,17 @@
     <string name="crew_change_why_example">There\'s a septic lid where it\'s drawn</string>
     <string name="crew_send_request">Send it</string>
 
+    <!-- Crew attention: what is waiting on this one person, and nothing else. See ui/crew/CrewAttention.kt. -->
+    <string name="crew_attn_title">Waiting on you</string>
+    <string name="crew_attn_job_today">On today’s schedule: %1$s</string>
+    <string name="crew_attn_locate_expired">811 locate expired: %1$s</string>
+    <string name="crew_attn_shift_sent_back">A shift on %1$s was sent back</string>
+    <string name="crew_attn_plan_change_approved">Your plan change on %1$s was approved</string>
+    <string name="crew_attn_plan_change_rejected">Your plan change on %1$s was turned down</string>
+    <string name="crew_attn_dismiss">Got it</string>
+    <string name="crew_attn_offline_since">No signal. This is what was on the phone as of %1$s.</string>
+    <string name="crew_attn_offline_never_synced">No signal, and this phone hasn’t synced yet — there’s nothing to check against.</string>
+
     <!-- Jobs list extras -->
     <string name="jobs_materials_catalog">Materials catalog</string>
     <string name="jobs_settings">Settings</string>
