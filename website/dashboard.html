@@ -878,6 +878,23 @@
       </div>
 
       <div class="panel">
+        <h2>Weekly timesheet</h2>
+        <p class="sub">Who worked what, by week, so a shift that looks wrong is easy to
+          spot. A day marked <i>corrected</i> means the hours shown are not what the clock
+          recorded &mdash; use Clock In / Out above to see the original time and the
+          reason.</p>
+        <p class="sub" style="margin-top:6px"><b>Breaks are not recorded yet.</b> FenceFlow's
+          clock has no break button, so an unpaid break taken during a shift is not
+          subtracted anywhere on this page. The hours below are clock-in to clock-out,
+          full stop. Treat a long shift as a hint to ask, not as proof nobody stopped to eat.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Who</th><th>Week of</th><th>Days</th><th>Daily hours</th>
+            <th>Regular</th><th>Overtime</th><th>Total</th></tr></thead>
+          <tbody id="timesheetRows"></tbody></table></div>
+        <div class="empty" id="timesheetEmpty" style="display:none">No finished shifts yet.</div>
+      </div>
+
+      <div class="panel">
         <h2>Estimated pay</h2>
         <p class="sub">What these hours come to, by person and by week. This is an
           estimate from the hours in FenceFlow &mdash; it is not payroll, nothing is
@@ -5112,7 +5129,83 @@ async function renderTime(){
   const tc=done.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
   $('timeTotals').textContent = done.length
     ? `Total: ${th.toFixed(1)} hours · ${money(tc)} labor` : '';
-  renderPay();
+  // Both tables below split the same shifts into regular/overtime by week,
+  // so the threshold is fetched once here and handed to each rather than
+  // each one hitting company_settings on its own.
+  const ot = await getOtSettings();
+  renderTimesheet(ot);
+  renderPay(ot);
+}
+
+/* Overtime is read from company_settings (keys ot_after_hours / ot_multiplier)
+   the same way companySetting() already does for gate_rate and waste -- see
+   that function's comment. There is no on-screen field to set these yet, so
+   in practice they only change if someone writes the row directly, but the
+   moment a settings screen for it exists this starts reading real numbers
+   instead of the hardcoded default. Falls back to the disclosed federal
+   default (40h / 1.5x) when the company has not set one. */
+async function getOtSettings(){
+  const [otAfter, otMult] = await Promise.all([
+    companySetting('ot_after_hours', OT_AFTER_HOURS),
+    companySetting('ot_multiplier', OT_MULTIPLIER),
+  ]);
+  return { otAfter: Number(otAfter) || OT_AFTER_HOURS, otMult: Number(otMult) || OT_MULTIPLIER };
+}
+
+/* ---- weekly timesheet ---------------------------------------------------
+   A manager needs to see who worked what and spot the shift that looks
+   wrong, which the Clock In/Out table (every shift, all time, one flat list)
+   does not make easy once there are more than a handful of rows. This groups
+   the same `times` array -- no separate read -- by person and by week. */
+function renderTimesheet(ot){
+  if(!$('timesheetRows')) return;
+  const done = times.filter(t=>t.ended_at);
+  const buckets = new Map();
+  for(const t of done){
+    const who = shiftWhoName(t);
+    const ws  = weekStart(t.started_at);
+    const key = who + '|' + ws.toISOString().slice(0,10);
+    const b = buckets.get(key) || { who, ws, shifts: [] };
+    b.shifts.push(t);
+    buckets.set(key, b);
+  }
+  const rows = [...buckets.values()].map(b => {
+    const byDay = new Map();
+    for(const t of b.shifts){
+      const day = d(t.started_at).toLocaleDateString();
+      // Same test used in renderTime()'s own row: the corrected value differs
+      // from what the clock originally recorded.
+      const corrected = (t.original_started_at && t.original_started_at !== t.started_at)
+        || (t.original_ended_at && t.original_ended_at !== t.ended_at);
+      const entry = byDay.get(day) || { hours: 0, corrected: false, reason: '' };
+      entry.hours += hoursOf(t);
+      if (corrected) { entry.corrected = true; entry.reason = t.correction_reason || entry.reason; }
+      byDay.set(day, entry);
+    }
+    const total = b.shifts.reduce((s,t)=>s+hoursOf(t), 0);
+    const reg = Math.min(total, ot.otAfter);
+    const otHrs = Math.max(0, total - ot.otAfter);
+    const dayList = [...byDay.entries()]
+      .sort((a,c) => new Date(a[0]) - new Date(c[0]))
+      .map(([day, e]) => '<div>' + day + ': ' + e.hours.toFixed(2) + 'h' +
+        (e.corrected
+          ? ' <span class="sub" style="font-style:italic">(corrected'
+            + (e.reason ? ': ' + esc(e.reason) : '') + ')</span>'
+          : '')
+        + '</div>').join('');
+    return { who: b.who, ws: b.ws, days: byDay.size, dayList, reg, otHrs, total };
+  }).sort((a,b) => b.ws - a.ws || a.who.localeCompare(b.who));
+
+  $('timesheetEmpty').style.display = rows.length ? 'none' : 'block';
+  $('timesheetRows').innerHTML = rows.map(r => `<tr>
+      <td>${esc(r.who)}</td>
+      <td>${r.ws.toLocaleDateString()}</td>
+      <td>${r.days}</td>
+      <td>${r.dayList}</td>
+      <td>${r.reg.toFixed(2)}</td>
+      <td>${r.otHrs > 0 ? r.otHrs.toFixed(2) : '—'}</td>
+      <td>${r.total.toFixed(2)}</td>
+    </tr>`).join('');
 }
 
 /* ---- estimated pay -----------------------------------------------------
@@ -5136,7 +5229,7 @@ function weekStart(iso){
   return w;
 }
 
-function renderPay(){
+function renderPay(ot){
   if (!$('payWeekRows')) return;
   const done = times.filter(t => t.ended_at);
   const buckets = new Map();
@@ -5156,9 +5249,9 @@ function renderPay(){
   const rows = [...buckets.values()]
     .map(b => {
       const rate = b.rated > 0 ? b.rate / b.rated : 0;
-      const reg  = Math.min(b.hours, OT_AFTER_HOURS);
-      const ot   = Math.max(0, b.hours - OT_AFTER_HOURS);
-      return { ...b, rate, reg, ot, gross: reg * rate + ot * rate * OT_MULTIPLIER };
+      const reg  = Math.min(b.hours, ot.otAfter);
+      const otHrs = Math.max(0, b.hours - ot.otAfter);
+      return { ...b, rate, reg, ot: otHrs, gross: reg * rate + otHrs * rate * ot.otMult };
     })
     .sort((a, b) => b.ws - a.ws || a.who.localeCompare(b.who));
 
@@ -5173,10 +5266,13 @@ function renderPay(){
     </tr>`).join('');
 
   const noRate = rows.filter(r => !r.rate).length;
+  const usingDefault = ot.otAfter === OT_AFTER_HOURS && ot.otMult === OT_MULTIPLIER;
   $('payAssumption').innerHTML =
-    'Assumes overtime after ' + OT_AFTER_HOURS + ' hours in a week at ' +
-    OT_MULTIPLIER + '&times; the rate. There is no setting for this yet, so if your ' +
-    'rule differs these figures do too.' +
+    'Assumes overtime after ' + ot.otAfter + ' hours in a week at ' +
+    ot.otMult + '&times; the rate' +
+    (usingDefault
+      ? ' (the federal default -- there is no on-screen setting for this yet, so if your rule differs these figures do too).'
+      : ' (set in company settings, not the federal default -- edit the ot_after_hours / ot_multiplier keys directly if this changes).') +
     (noRate ? ' <b>' + noRate + ' week' + (noRate===1?'':'s') +
       ' cannot be costed because that person has no hourly rate on file.</b>' : '');
 }
