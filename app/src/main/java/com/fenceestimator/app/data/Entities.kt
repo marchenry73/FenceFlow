@@ -874,7 +874,20 @@ data class JobStep(
     val sortOrder: Int = 0,
     val completedAt: Long? = null,
     /** Set when the customer confirms this item during the walkthrough. */
-    val verifiedWithCustomer: Boolean = false
+    val verifiedWithCustomer: Boolean = false,
+    /**
+     * Which shipped step this is, so the UI can show it translated.
+     *
+     * [description] stays the source of truth -- it is what a live job already
+     * has recorded, in whatever language it was seeded in, and it is what a
+     * hand-typed step will ever have. Null here means exactly that: this row
+     * came from a crew member typing their own words (or from a phone that
+     * seeded before this column existed), and there is no key to look up, so
+     * it is never translated -- only shown as written. Set only at seed time
+     * from [DefaultJobSteps], never edited afterward, so a foreman's own wording
+     * for a shipped step never quietly gets replaced by the canned text.
+     */
+    val stepKey: String? = null
 )
 
 /**

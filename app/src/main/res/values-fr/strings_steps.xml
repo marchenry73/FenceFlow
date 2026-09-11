@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Translated text for the shipped on-site checklist steps (see
+         DefaultJobSteps.kt and JobStep.stepKey). Never the source of truth
+         for a job's steps — see strings_steps.xml (base) for why. -->
+
+    <!-- Walkthrough: done with the customer before anything is dug. -->
+    <string name="step_wt_walk_fence_line">Parcourez la ligne de clôture avec le client et mettez-vous d’accord sur son tracé</string>
+    <string name="step_wt_gate_locations">Confirmez l’emplacement des portails, leur largeur et le sens d’ouverture</string>
+    <string name="step_wt_height_style_color">Confirmez la hauteur, le style et la couleur de la clôture</string>
+    <string name="step_wt_mark_utilities">Repérez et marquez les arroseurs, la fosse septique et les lignes de services publics</string>
+    <string name="step_wt_old_fence_debris">Mettez-vous d’accord sur l’endroit où iront l’ancienne clôture et les débris</string>
+    <string name="step_wt_access_route">Confirmez l’itinéraire d’accès pour l’équipement et la livraison de matériaux</string>
+    <string name="step_wt_trees_slopes_obstacles">Notez les arbres, pentes ou obstacles qui changent le plan</string>
+    <string name="step_wt_debris_clearing_rule">Dites au client : nous ramassons seulement les feuilles et les débris légers. Tout ce qui demande un outil — arbustes, bacs à fleurs, remises, branches, vieux poteaux — ils doivent s’en occuper avant qu’on commence, sinon ça va sur un ordre de modification</string>
+    <string name="step_wt_customer_must_move">Notez tout ce que le client doit déplacer lui-même sur la ligne de clôture</string>
+
+    <!-- Install: the crew works through this on their own. -->
+    <string name="step_in_verify_property_line">Vérifiez la ligne de propriété avant de creuser</string>
+    <string name="step_in_confirm_utility_locates">Appelez / confirmez que le repérage des services publics est terminé</string>
+    <string name="step_in_dig_post_holes">Creusez les trous de poteaux</string>
+    <string name="step_in_set_posts_concrete">Posez les poteaux et le béton</string>
+    <string name="step_in_let_concrete_set">Laissez le béton durcir</string>
+    <string name="step_in_install_rails_panels">Installez les rails et les panneaux</string>
+    <string name="step_in_hang_gates_hardware">Posez les portails et la quincaillerie</string>
+    <string name="step_in_clean_up_haul_debris">Nettoyez le terrain et évacuez les débris</string>
+    <string name="step_in_take_after_photos">Prenez les photos après travaux</string>
+
+    <!-- Final walkthrough: done with the customer before the crew leaves, ends in a signature. -->
+    <string name="step_fw_walk_finished_fence">Parcourez la clôture terminée avec le client</string>
+    <string name="step_fw_check_gates">Vérifiez que chaque portail s’ouvre, se ferme et se verrouille bien</string>
+    <string name="step_fw_height_style_color">Confirmez que la hauteur, le style et la couleur correspondent à ce qui a été convenu</string>
+    <string name="step_fw_posts_plumb">Vérifiez que les poteaux sont d’aplomb et que la ligne est droite</string>
+    <string name="step_fw_site_clean">Confirmez que le site est propre et que tous les débris sont partis</string>
+    <string name="step_fw_point_out_corrections">Signalez tout ce que le client veut faire corriger</string>
+    <string name="step_fw_ask_for_review">Demandez un avis au client</string>
+</resources>

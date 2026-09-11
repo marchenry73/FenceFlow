@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Translated text for the shipped on-site checklist steps (see
+         DefaultJobSteps.kt and JobStep.stepKey). Never the source of truth
+         for a job's steps — see strings_steps.xml (base) for why. -->
+
+    <!-- Walkthrough: done with the customer before anything is dug. -->
+    <string name="step_wt_walk_fence_line">Camine la línea de la cerca con el cliente y acuerden por dónde va</string>
+    <string name="step_wt_gate_locations">Confirme la ubicación de los portones, el ancho y hacia qué lado abren</string>
+    <string name="step_wt_height_style_color">Confirme la altura, el estilo y el color de la cerca</string>
+    <string name="step_wt_mark_utilities">Señale y marque los aspersores, el séptico y las líneas de servicios</string>
+    <string name="step_wt_old_fence_debris">Acuerden dónde va la cerca vieja y los escombros</string>
+    <string name="step_wt_access_route">Confirme la ruta de acceso para el equipo y la entrega de material</string>
+    <string name="step_wt_trees_slopes_obstacles">Anote árboles, pendientes u obstáculos que cambien el plan</string>
+    <string name="step_wt_debris_clearing_rule">Dígale al cliente: solo recogemos hojas y basura suelta. Cualquier cosa que necesite una herramienta — arbustos, jardineras, cobertizos, ramas, postes viejos — la quitan ellos antes de empezar, o va en una orden de cambio</string>
+    <string name="step_wt_customer_must_move">Anote todo lo que el cliente debe mover él mismo en la línea de la cerca</string>
+
+    <!-- Install: the crew works through this on their own. -->
+    <string name="step_in_verify_property_line">Verifique el límite de la propiedad antes de excavar</string>
+    <string name="step_in_confirm_utility_locates">Llame / confirme que las líneas de servicios ya fueron marcadas</string>
+    <string name="step_in_dig_post_holes">Excave los hoyos para los postes</string>
+    <string name="step_in_set_posts_concrete">Coloque los postes y el concreto</string>
+    <string name="step_in_let_concrete_set">Deje que el concreto fragüe</string>
+    <string name="step_in_install_rails_panels">Instale los rieles y los paneles</string>
+    <string name="step_in_hang_gates_hardware">Cuelgue los portones y los herrajes</string>
+    <string name="step_in_clean_up_haul_debris">Limpie la propiedad y saque los escombros</string>
+    <string name="step_in_take_after_photos">Tome las fotos de después</string>
+
+    <!-- Final walkthrough: done with the customer before the crew leaves, ends in a signature. -->
+    <string name="step_fw_walk_finished_fence">Camine la cerca terminada con el cliente</string>
+    <string name="step_fw_check_gates">Verifique que cada portón abra, cierre y trabe bien</string>
+    <string name="step_fw_height_style_color">Confirme que la altura, el estilo y el color coincidan con lo acordado</string>
+    <string name="step_fw_posts_plumb">Verifique que los postes estén a plomo y la línea recta</string>
+    <string name="step_fw_site_clean">Confirme que el sitio esté limpio y sin escombros</string>
+    <string name="step_fw_point_out_corrections">Señale cualquier cosa que el cliente quiera corregir</string>
+    <string name="step_fw_ask_for_review">Pídale al cliente una reseña</string>
+</resources>

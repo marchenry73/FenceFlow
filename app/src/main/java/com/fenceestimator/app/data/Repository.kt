@@ -806,18 +806,18 @@ class Repository(private val db: AppDatabase) {
         val toAdd = mutableListOf<JobStep>()
 
         if (JobStepKind.WALKTHROUGH !in present) {
-            toAdd += DefaultJobSteps.WALKTHROUGH.mapIndexed { index, text ->
-                JobStep(jobId = jobId, kind = JobStepKind.WALKTHROUGH, description = text, sortOrder = index)
+            toAdd += DefaultJobSteps.WALKTHROUGH.mapIndexed { index, step ->
+                JobStep(jobId = jobId, kind = JobStepKind.WALKTHROUGH, description = step.text, sortOrder = index, stepKey = step.key)
             }
         }
         if (JobStepKind.INSTALL !in present) {
-            toAdd += DefaultJobSteps.INSTALL.mapIndexed { index, text ->
-                JobStep(jobId = jobId, kind = JobStepKind.INSTALL, description = text, sortOrder = index)
+            toAdd += DefaultJobSteps.INSTALL.mapIndexed { index, step ->
+                JobStep(jobId = jobId, kind = JobStepKind.INSTALL, description = step.text, sortOrder = index, stepKey = step.key)
             }
         }
         if (JobStepKind.FINAL_WALKTHROUGH !in present) {
-            toAdd += DefaultJobSteps.FINAL.mapIndexed { index, text ->
-                JobStep(jobId = jobId, kind = JobStepKind.FINAL_WALKTHROUGH, description = text, sortOrder = index)
+            toAdd += DefaultJobSteps.FINAL.mapIndexed { index, step ->
+                JobStep(jobId = jobId, kind = JobStepKind.FINAL_WALKTHROUGH, description = step.text, sortOrder = index, stepKey = step.key)
             }
         }
         if (toAdd.isNotEmpty()) jobStepDao.insertAll(toAdd)

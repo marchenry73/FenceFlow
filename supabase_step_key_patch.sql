@@ -1,0 +1,23 @@
+-- One real gap left in the launch audit's translation pass: on-site checklist
+-- steps are copied onto each job as plain text (job_steps.description), so the
+-- words are fixed in the row and no amount of translation work in the app can
+-- reach them. This adds a key alongside the text so a step the app recognises
+-- (one seeded from the shipped DefaultJobSteps list, see
+-- app/.../data/DefaultJobSteps.kt) can be shown translated on the client,
+-- while a step it does not recognise -- including every hand-typed step, and
+-- every row written before this column existed -- keeps showing exactly the
+-- text already stored.
+--
+-- Additive only. Nullable, no default. A default of '' or any other value
+-- would look like a resolvable key that happens to match nothing, which is
+-- indistinguishable from a translation bug -- the app's fallback rule is "no
+-- key means show the text," and a fake default silently breaks that rule for
+-- every existing row. Not backfilled here: matching an existing description
+-- back to one of the shipped keys is a judgment call (wording drifts, and a
+-- foreman may have edited a shipped step's text by hand elsewhere), not
+-- something a migration should guess at. See the app-side report for whether
+-- a backfill is worth doing and what it would match on.
+--
+-- description itself is untouched -- this never deletes or overwrites a
+-- single existing row's text.
+alter table job_steps add column if not exists step_key text;

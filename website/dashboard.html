@@ -947,6 +947,25 @@
           </div>
           <button class="btn btn-sm btn-grey" type="button" id="catStartSeed">Start from FenceFlow's catalog</button>
         </div>
+
+        <div class="panel" style="margin:14px 0">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div>
+              <h2 style="margin:0">Suppliers</h2>
+              <p class="sub" style="margin:4px 0 0">Who a catalog item comes from -- the same list
+                the phone app's Manufacturers screen edits. Pick one on a catalog item so whoever
+                is on the phone with the yard already knows who to call.</p>
+            </div>
+            <button class="btn btn-sm btn-grey" type="button" id="supAdd">Add supplier</button>
+          </div>
+          <div class="msg" id="supMsg"></div>
+          <div class="empty" id="supEmpty" style="display:none">No suppliers yet.</div>
+          <div class="scroll" id="supListWrap" style="margin-top:10px">
+            <table id="supList"><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Hours</th><th></th></tr></thead>
+              <tbody id="supRows"></tbody></table>
+          </div>
+        </div>
+
         <input id="catFilter" placeholder="Filter by name, fence type, category or role…" style="margin:14px 0 10px">
         <div class="msg" id="catMsg"></div>
         <div class="empty" id="catEmpty" style="display:none">No materials yet. Add them by hand
@@ -1459,6 +1478,27 @@
         <div><label>Note</label><input id="j_materials_note" placeholder="Yard says Thursday"></div>
       </div>
       <p class="sub" id="materialsWhen"></p>
+
+      <!-- Delivery and misc costs: gap #11 of the launch audit. Not a
+           purchase-order system and not a job column -- these are rows in
+           the same `expenses` table Time & Pay already reports from, so
+           they reach job_costing's other_cost with no new plumbing and no
+           way to confuse "not recorded" with a recorded zero (a row either
+           exists with a real amount, or it does not exist at all). */-->
+      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <label style="margin:0">Delivery / misc costs</label>
+        <p class="sub" style="margin:2px 0 8px">The yard's delivery fee, a permit run, anything
+          that does not fit a catalog line. Logged here so it reaches this job's cost report --
+          never the customer's price, which is computed separately and does not read this.</p>
+        <div id="jobCostRows"></div>
+        <div class="row3" style="margin-top:8px">
+          <div><select id="jc_kind"><option value="DELIVERY">Delivery</option><option value="MISC">Misc</option></select></div>
+          <div><input id="jc_desc" placeholder="What it was"></div>
+          <div><input id="jc_amount" type="number" step="0.01" placeholder="Amount ($)"></div>
+        </div>
+        <button class="btn btn-sm btn-grey" type="button" id="jcAdd" style="margin-top:8px">Add cost</button>
+        <div class="msg" id="jcMsg"></div>
+      </div>
     </div>
 
     <!-- Ready to install, or blocked, and exactly what by. -->
@@ -1677,6 +1717,15 @@
       <div id="ci_supplier_wrap" style="display:none">
         <label>Supplier price ($)</label><input id="ci_supplier" type="number" step="0.01">
       </div>
+      <div class="wiz-row2">
+        <div><label>Supplier</label><select id="ci_manufacturer">
+          <option value="">Not set</option>
+        </select></div>
+        <div id="ci_sku_wrap" style="display:none">
+          <label>Supplier SKU / part #</label>
+          <input id="ci_sku" placeholder="Whatever the yard's own system calls it">
+        </div>
+      </div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:12px">
         <input type="checkbox" id="ci_taxable" style="width:auto"> Taxable
       </label>
@@ -1688,6 +1737,31 @@
   <div class="sheet-foot">
     <button class="btn btn-grey" id="catItemDialogRetire" type="button">Retire</button>
     <button class="btn" id="catItemDialogSave" type="button">Save</button>
+  </div>
+</div></div>
+
+<!-- One manufacturers row, add or edit -- the office's copy of the phone
+     app's own Manufacturers screen. Same table, same sync_id scheme, so a
+     supplier added here shows up on the phone within a minute and vice
+     versa, same contract as catItemOverlay above. -->
+<div class="overlay" id="supOverlay"><div class="sheet" style="max-width:520px">
+  <div class="sheet-head"><strong id="supDialogTitle">Supplier</strong>
+    <button class="btn btn-sm btn-ghost" id="supDialogClose" type="button">Close</button></div>
+  <div class="sheet-body"><div class="msg" id="supDialogMsg"></div>
+    <div class="panel">
+      <label>Name</label><input id="sup_name" placeholder="Acme Fence Supply">
+      <div class="wiz-row2">
+        <div><label>Phone</label><input id="sup_phone"></div>
+        <div><label>Email</label><input id="sup_email"></div>
+      </div>
+      <label>Address</label><input id="sup_address">
+      <label>Hours</label><input id="sup_hours" placeholder="Mon-Fri 7am-4pm, Sat 8am-12pm">
+      <label>Notes</label><input id="sup_notes">
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn btn-grey" id="supDialogRetire" type="button">Retire</button>
+    <button class="btn" id="supDialogSave" type="button">Save</button>
   </div>
 </div></div>
 
@@ -1883,7 +1957,7 @@ const payCell = (rate) => employeesHavePay
 const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
-    orders=[], times=[], catalog=[], tiers=[], openJob=null, openEmp=null, planName='',
+    orders=[], times=[], catalog=[], tiers=[], manufacturers=[], openJob=null, openEmp=null, planName='',
     // Every stage a sold job has ever entered, append-only, read in full at
     // load like everything else here that is not one of the two bounded
     // tables. Production's board and its "time in stage" both come out of
@@ -3204,7 +3278,7 @@ async function loadAll(){
   const RECENT_MS = 545 * 864e5; // ~18 months
   const recentCutoffISO = new Date(Date.now() - RECENT_MS).toISOString();
 
-  const [j,e,r,i,x,p,o,tm,c,ti,se,pay,fc] = await Promise.all([
+  const [j,e,r,i,x,p,o,tm,c,ti,mf,se,pay,fc] = await Promise.all([
     q('jobs'), q('employees'), q('fence_runs'),
     // Line items rarely change after the estimate is built, so updated_at is
     // a reasonable stand-in for "recent job" here. Anything this window
@@ -3239,7 +3313,7 @@ async function loadAll(){
       [...pending.data, ...recent.data].forEach(t => byId.set(t.id, t));
       return { data: [...byId.values()], error: null };
     })(),
-    q('material_items'), q('pricing_tiers'),
+    q('material_items'), q('pricing_tiers'), q('manufacturers'),
     // job_stage_events is append-only and has no deleted_at column, so it
     // cannot go through q() above -- that helper filters every table on
     // deleted_at is null, which this table does not have and would error on.
@@ -3264,6 +3338,7 @@ async function loadAll(){
   jobs=j.data||[]; runs=r.data||[]; items=i.data||[];
   expenses=x.data||[]; punch=p.data||[]; orders=o.data||[]; times=tm.data||[];
   catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
+  manufacturers=mf&&!mf.error ? (mf.data||[]) : [];
   stageEvents = se && !se.error ? (se.data || []) : [];
   timesFullyLoaded = false;
   paymentsFullyLoaded = false;
@@ -5908,6 +5983,12 @@ function catalogItemPayload(existing, form, newSyncId){
     covers_ft: form.covers_ft,
     taxable: form.taxable,
     is_active: form.is_active,
+    // Null, not '', when nobody has picked a supplier -- material_items
+    // already treats manufacturer_sync_id as "no specific manufacturer"
+    // when null (see the app's own MaterialItem.manufacturerId), and a
+    // catalog item with no manufacturer set is the common case, not an
+    // error.
+    manufacturer_sync_id: form.manufacturer_sync_id || null,
   };
 }
 
@@ -5926,8 +6007,27 @@ function catalogHasSupplierPrice(){
   return catalog.length>0 && Object.prototype.hasOwnProperty.call(catalog[0], 'supplier_unit_price');
 }
 
-function catItemRowHtml(c, hasSupplierPrice){
+/** Same feature-detection trick as catalogHasSupplierPrice(), for the
+    supplier_sku column added by supabase_supplier_sku_patch.sql -- the
+    field simply does not render until that migration has run, rather than
+    erroring on every catalog save. Missing entirely until
+    supabase_supplier_sku_patch.sql has run, same as supplier_unit_price
+    before its own migration -- the moment the column exists, this reads
+    true with no code change here. */
+function catalogHasSupplierSku(){
+  return catalog.length>0 && Object.prototype.hasOwnProperty.call(catalog[0], 'supplier_sku');
+}
+
+/** Manufacturer name for a material_items row, or '' if none is set or the
+    manufacturer it pointed to was retired -- never a raw sync_id on screen. */
+function manufacturerName(syncId){
+  const m = manufacturers.find(x => x.sync_id === syncId);
+  return m ? m.name : '';
+}
+
+function catItemRowHtml(c, hasSupplierPrice, hasSku){
   const placeholder = (c.source_doc||'').toLowerCase().startsWith('placeholder');
+  const supName = manufacturerName(c.manufacturer_sync_id);
   return `<tr class="${c.is_active===false?'mcat-inactive':''}">
     <td>${esc(c.name)}${placeholder?' <span class="mcat-flag" title="Placeholder price — verify with your supplier">◆</span>':''}</td>
     <td>${esc((c.role||'').replace(/_/g,' '))}</td>
@@ -5936,6 +6036,8 @@ function catItemRowHtml(c, hasSupplierPrice){
     <td>${money(c.unit_price)}</td>
     <td>${c.covers_ft?c.covers_ft+' ft':'—'}</td>
     ${hasSupplierPrice?`<td>${c.supplier_unit_price!=null?money(c.supplier_unit_price):'—'}</td>`:''}
+    <td>${supName?esc(supName):'—'}</td>
+    ${hasSku?`<td>${c.supplier_sku?esc(c.supplier_sku):'—'}</td>`:''}
     <td style="text-align:center"><input type="checkbox" data-cat-active="${c.sync_id}"
       ${c.is_active!==false?'checked':''} style="width:auto" ${canEdit()?'':'disabled'}></td>
     <td style="white-space:nowrap">${canEdit() ? `
@@ -5952,7 +6054,8 @@ function catItemRowHtml(c, hasSupplierPrice){
 function catSectionHtml(g, filteredItems, expanded, hasFilter){
   const label = catFenceTypeLabel(g.type);
   const hasSupplierPrice = catalogHasSupplierPrice();
-  const colCount = hasSupplierPrice ? 8 : 7;
+  const hasSku = catalogHasSupplierSku();
+  const colCount = 8 + (hasSupplierPrice?1:0) + (hasSku?1:0);
   const rowsHtml = MATERIAL_CATEGORIES.concat(['__other__']).map(cat=>{
     const inCat = filteredItems.filter(c => cat==='__other__'
       ? !MATERIAL_CATEGORIES.includes(c.category)
@@ -5960,7 +6063,7 @@ function catSectionHtml(g, filteredItems, expanded, hasFilter){
     if(!inCat.length) return '';
     const head = cat==='__other__' ? 'OTHER' : cat;
     return `<tr class="mcat-cat-head"><td colspan="${colCount}">${esc(head)}</td></tr>`
-      + inCat.map(c=>catItemRowHtml(c, hasSupplierPrice)).join('');
+      + inCat.map(c=>catItemRowHtml(c, hasSupplierPrice, hasSku)).join('');
   }).join('');
   const missingLine = g.missing.length
     ? `<p class="mcat-missing">Missing: ${g.missing.map(r=>esc(r.replace(/_/g,' '))).join(', ')}`
@@ -5975,7 +6078,8 @@ function catSectionHtml(g, filteredItems, expanded, hasFilter){
       ${missingLine}
       ${filteredItems.length ? `<div class="scroll"><table>
         <thead><tr><th>Item</th><th>Role</th><th>Colour</th><th>Unit</th><th>Price</th><th>Covers ft</th>
-          ${hasSupplierPrice?'<th>Supplier price</th>':''}<th>Active</th><th></th></tr></thead>
+          ${hasSupplierPrice?'<th>Supplier price</th>':''}<th>Supplier</th>
+          ${hasSku?'<th>SKU</th>':''}<th>Active</th><th></th></tr></thead>
         <tbody>${rowsHtml}</tbody></table></div>`
         : `<p class="empty">${hasFilter?'Nothing here matches the filter.':'No items yet.'}</p>`}
       ${canEdit() ? `<button class="btn btn-sm" type="button" data-cat-add="${g.type}" style="margin-top:10px">Add item to ${esc(label)}</button>` : ''}
@@ -6031,6 +6135,7 @@ function renderCatalog(){
   if(!$('catFilter')) return;
   $('catEmpty').style.display = catalog.length ? 'none' : 'block';
   renderCatalogSections('catSections', $('catFilter').value);
+  renderSuppliers();
 }
 
 /** Re-reads just material_items and repaints both possible copies of the
@@ -6103,6 +6208,17 @@ function openCatItemDialog(existing, forcedType){
   const hasSupplierPrice = catalogHasSupplierPrice();
   $('ci_supplier_wrap').style.display = hasSupplierPrice ? '' : 'none';
   if(hasSupplierPrice) $('ci_supplier').value = existing?.supplier_unit_price ?? '';
+  // Manufacturers table doubles as the supplier list -- same rows the app's
+  // own Manufacturers screen edits. Rebuilt every open rather than cached,
+  // since a supplier added a minute ago has to be pickable right away.
+  const manuSel = $('ci_manufacturer');
+  manuSel.innerHTML = '<option value="">Not set</option>' + manufacturers
+    .filter(m => !m.deleted_at)
+    .map(m => `<option value="${esc(m.sync_id)}">${esc(m.name)}</option>`).join('');
+  manuSel.value = existing?.manufacturer_sync_id || '';
+  const hasSku = catalogHasSupplierSku();
+  $('ci_sku_wrap').style.display = hasSku ? '' : 'none';
+  if(hasSku) $('ci_sku').value = existing?.supplier_sku || '';
   $('catItemDialogRetire').style.display = existing ? '' : 'none';
   $('catItemDialogMsg').className='msg'; $('catItemDialogMsg').textContent='';
   $('catItemOverlay').classList.add('on');
@@ -6121,17 +6237,111 @@ async function saveCatItemDialog(){
     covers_ft: $('ci_covers').value===''? null : num($('ci_covers').value),
     taxable: $('ci_taxable').checked,
     is_active: $('ci_active').checked,
+    manufacturer_sync_id: $('ci_manufacturer').value,
   };
   if(!form.name){ msg('catItemDialogMsg', 'Give this item a name.', 'err'); return; }
   const row = catalogItemPayload(openCatItem, form, crypto.randomUUID());
   if(catalogHasSupplierPrice()){
     row.supplier_unit_price = $('ci_supplier').value==='' ? null : num($('ci_supplier').value);
   }
+  if(catalogHasSupplierSku()){
+    // Blank means not recorded, same as every other optional text field on
+    // this row -- never coerced to a placeholder string that would look
+    // like a real part number on the phone that has to quote it.
+    row.supplier_sku = $('ci_sku').value.trim() || null;
+  }
   const { error } = await db.from('material_items')
     .upsert({ ...row, company_id: profile.company_id }, { onConflict: 'company_id,sync_id' });
   if(error){ msg('catItemDialogMsg', error.message, 'err'); return; }
   $('catItemOverlay').classList.remove('on');
   await refreshCatalog();
+}
+
+/* ---------- Suppliers (manufacturers table) ----------
+   Gap #11 of the launch audit: "Catalog and manufacturer editing exist" was
+   true of the phone only -- the office had no way to add or see a supplier
+   at all, so a catalog item's manufacturer_sync_id could only ever be set
+   from the app. This is the same table, same sync_id scheme, just a second
+   editor for it -- not a new concept, and not the purchase-order system the
+   audit deliberately ruled out. */
+
+let openSupplier = null;
+
+function supRowHtml(m){
+  return `<tr class="${m.deleted_at?'mcat-inactive':''}">
+    <td>${esc(m.name)}</td><td>${esc(m.phone)||'—'}</td><td>${esc(m.email)||'—'}</td>
+    <td>${esc(m.hours)||'—'}</td>
+    <td style="white-space:nowrap">${canEdit() ? `
+      <button class="btn btn-sm btn-grey" type="button" data-sup-edit="${m.sync_id}">Edit</button>` : ''}</td>
+  </tr>`;
+}
+
+function renderSuppliers(){
+  if(!$('supRows')) return;
+  const live = manufacturers.filter(m => !m.deleted_at);
+  $('supEmpty').style.display = live.length ? 'none' : 'block';
+  $('supRows').innerHTML = live.map(supRowHtml).join('');
+  $('supRows').querySelectorAll('[data-sup-edit]').forEach(b => b.addEventListener('click', () =>
+    openSupplierDialog(manufacturers.find(m => m.sync_id === b.dataset.supEdit))));
+}
+
+/** Mirrors refreshCatalog(): re-reads just manufacturers rather than a full
+    loadAll(), then repaints both the supplier list and the catalog item
+    dialog's own supplier picker if it happens to be open. */
+async function refreshManufacturers(){
+  const { data, error } = await db.from('manufacturers').select('*').is('deleted_at', null);
+  if(!error) manufacturers = data || [];
+  renderSuppliers();
+  renderCatalog();
+}
+
+function openSupplierDialog(existing){
+  if(!canEdit()) return;
+  openSupplier = existing || null;
+  $('supDialogTitle').textContent = existing ? 'Edit supplier' : 'New supplier';
+  $('sup_name').value = existing?.name || '';
+  $('sup_phone').value = existing?.phone || '';
+  $('sup_email').value = existing?.email || '';
+  $('sup_address').value = existing?.address || '';
+  $('sup_hours').value = existing?.hours || '';
+  $('sup_notes').value = existing?.notes || '';
+  $('supDialogRetire').style.display = existing ? '' : 'none';
+  $('supDialogMsg').className = 'msg'; $('supDialogMsg').textContent = '';
+  $('supOverlay').classList.add('on');
+}
+
+async function saveSupplierDialog(){
+  if(!canEdit()) return;
+  const name = $('sup_name').value.trim();
+  if(!name){ msg('supDialogMsg', 'Give this supplier a name.', 'err'); return; }
+  const row = {
+    sync_id: openSupplier ? openSupplier.sync_id : crypto.randomUUID(),
+    name, phone: $('sup_phone').value.trim(), email: $('sup_email').value.trim(),
+    address: $('sup_address').value.trim(), hours: $('sup_hours').value.trim(),
+    notes: $('sup_notes').value.trim(),
+  };
+  const { error } = await db.from('manufacturers')
+    .upsert({ ...row, company_id: profile.company_id }, { onConflict: 'company_id,sync_id' });
+  if(error){ msg('supDialogMsg', error.message, 'err'); return; }
+  $('supOverlay').classList.remove('on');
+  await refreshManufacturers();
+}
+
+async function retireSupplierDialog(){
+  if(!canEdit() || !openSupplier) return;
+  const ok = await ask({
+    title: `Retire "${openSupplier.name}"?`,
+    body: 'Catalog items already pointing at this supplier keep their own record of it -- '
+      + 'retiring it here only stops it from being offered as a choice on new or edited items.',
+    confirmLabel: 'Retire', danger: true,
+  });
+  if(!ok) return;
+  const { error } = await db.from('manufacturers')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: 'office dashboard' })
+    .eq('company_id', profile.company_id).eq('sync_id', openSupplier.sync_id);
+  if(error){ msg('supDialogMsg', error.message, 'err'); return; }
+  $('supOverlay').classList.remove('on');
+  await refreshManufacturers();
 }
 
 /** Owner ask #1's "Start from FenceFlow's catalog" button, and its copy on
@@ -8182,6 +8392,63 @@ function renderMaterials(){
   $('materialsWhen').textContent = bits.length ? bits.join(' · ') : '';
 }
 
+/** Delivery/misc costs for the open job: rows in `expenses` carrying
+    category DELIVERY or MISC. A dedicated, narrower view than #jobExpenses
+    above (which lists every expense category, fuel and permits included),
+    because this is the one the materials/readiness story cares about --
+    "did the delivery fee get written down anywhere" is a different question
+    from "what did this job cost in total". */
+function renderJobCosts(sid){
+  const el = $('jobCostRows');
+  if(!el) return;
+  const rows = expenses.filter(e => e.job_sync_id===sid
+    && ['DELIVERY','MISC'].includes(e.category));
+  el.innerHTML = rows.length ? rows.map(e=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)">
+      <span>${e.category==='DELIVERY'?'Delivery':'Misc'}${e.description?' — '+esc(e.description):''}</span>
+      <span style="display:flex;align-items:center;gap:8px">${money(e.amount)}
+        ${canEdit()?`<button class="btn btn-sm btn-grey" type="button" data-jc-del="${e.sync_id}">Remove</button>`:''}</span>
+    </div>`).join('')
+    : '<p class="sub">None logged.</p>';
+  el.querySelectorAll('[data-jc-del]').forEach(b=>b.addEventListener('click', ()=>retireJobCost(b.dataset.jcDel)));
+}
+
+async function addJobCost(){
+  if(!canEdit() || !openJob) return;
+  const amount = num($('jc_amount').value);
+  if(!($('jc_amount').value.trim()) || !(amount > 0)){
+    msg('jcMsg', 'Enter an amount greater than zero.', 'err'); return;
+  }
+  const row = {
+    company_id: profile.company_id,
+    sync_id: crypto.randomUUID(),
+    job_sync_id: openJob.sync_id,
+    category: $('jc_kind').value,
+    description: $('jc_desc').value.trim(),
+    amount,
+    spent_at: new Date().toISOString(),
+  };
+  const { error } = await db.from('expenses').insert(row);
+  if(error){ msg('jcMsg', error.message, 'err'); return; }
+  expenses.push(row);
+  $('jc_desc').value=''; $('jc_amount').value='';
+  msg('jcMsg', 'Added.', 'ok');
+  renderJobCosts(openJob.sync_id);
+}
+
+/** Soft-delete, same convention as retireCatalogItem -- a cost logged in
+    error stays out of the total without being permanently erased, in case
+    the job's history is ever audited. */
+async function retireJobCost(syncId){
+  if(!canEdit() || !openJob) return;
+  const { error } = await db.from('expenses')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: 'office dashboard' })
+    .eq('company_id', profile.company_id).eq('sync_id', syncId);
+  if(error){ msg('jcMsg', error.message, 'err'); return; }
+  expenses = expenses.filter(e => e.sync_id !== syncId);
+  renderJobCosts(openJob.sync_id);
+}
+
 function renderContact(){
   const j = openJob;
   if (!j || !$('contactState')) return;
@@ -9432,6 +9699,8 @@ async function showJob(id){
         <span>${esc(e.description)||esc(e.category)}</span><span>${money(e.amount)}</span></div>`).join('')
       + `<div style="margin-top:8px;font-weight:700">Total: ${money(ex.reduce((s,e)=>s+(e.amount||0),0))}</div>`
     : '<div class="empty">No expenses logged.</div>';
+
+  renderJobCosts(sid);
 
   const pl=punch.filter(p=>p.job_sync_id===sid);
   $('jobPunch').innerHTML = pl.length
@@ -11098,6 +11367,14 @@ $('catItemDialogClose').addEventListener('click', () => $('catItemOverlay').clas
 $('catItemOverlay').addEventListener('click', e => { if(e.target.id==='catItemOverlay') $('catItemOverlay').classList.remove('on'); });
 $('catItemDialogSave').addEventListener('click', saveCatItemDialog);
 $('catItemDialogRetire').addEventListener('click', () => { if(openCatItem) retireCatalogItem(openCatItem.sync_id, openCatItem.name); });
+
+$('supAdd').addEventListener('click', () => openSupplierDialog(null));
+$('supDialogClose').addEventListener('click', () => $('supOverlay').classList.remove('on'));
+$('supOverlay').addEventListener('click', e => { if(e.target.id==='supOverlay') $('supOverlay').classList.remove('on'); });
+$('supDialogSave').addEventListener('click', saveSupplierDialog);
+$('supDialogRetire').addEventListener('click', retireSupplierDialog);
+
+$('jcAdd').addEventListener('click', addJobCost);
 
 /* ===================== Customer import ===================================
    The conversion path. A company switching from another product arrives with

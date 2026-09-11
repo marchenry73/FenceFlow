@@ -56,6 +56,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.EmptyState
+import com.fenceestimator.app.data.DefaultJobSteps
 import com.fenceestimator.app.data.JobStep
 import com.fenceestimator.app.data.JobStepKind
 import com.fenceestimator.app.data.PhotoKind
@@ -642,6 +643,24 @@ private fun JobStageCard(
     }
 }
 
+/**
+ * The words a crew member actually sees for one checklist item.
+ *
+ * [JobStep.description] is what the job has recorded and is never blanked --
+ * a step whose key does not resolve (a hand-typed step, or one seeded before
+ * [JobStep.stepKey] existed) falls straight back to it. Only a step the app
+ * recognises, with a key found in [DefaultJobSteps.BY_KEY], is shown through
+ * the translated resource instead. Never show a translated string unless it
+ * actually resolved from a key -- a guess dressed as a translation is worse
+ * than the customer's own language showing through.
+ */
+@Composable
+private fun JobStep.displayText(): String {
+    val key = stepKey ?: return description
+    val shipped = DefaultJobSteps.BY_KEY[key] ?: return description
+    return stringResource(shipped.res)
+}
+
 @Composable
 private fun StepSection(
     title: String,
@@ -668,7 +687,7 @@ private fun StepSection(
                     Checkbox(checked = step.checked, onCheckedChange = { onToggle(step) })
                     Column(Modifier.weight(1f)) {
                         Text(
-                            step.description,
+                            step.displayText(),
                             style = MaterialTheme.typography.bodyMedium,
                             textDecoration = if (step.checked) TextDecoration.LineThrough else null,
                             color = if (step.checked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface

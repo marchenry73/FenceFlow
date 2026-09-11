@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Translated text for the shipped on-site checklist steps (see
+         DefaultJobSteps.kt and JobStep.stepKey). Kept in its own file rather
+         than strings.xml, and NEVER used as the source of truth for a job's
+         steps — every job stores its own step text in the job_steps table,
+         seeded from DefaultJobSteps at the time the crew view was first
+         opened. These resources only let a step the app recognises (one with
+         a stepKey) be *displayed* in the crew member's language; the stored
+         description is what stays on the job either way, so an app update
+         that changes wording here never rewrites a live job's record of what
+         the crew was actually asked to do. -->
+
+    <!-- Walkthrough: done with the customer before anything is dug. -->
+    <string name="step_wt_walk_fence_line">Walk the fence line with the customer and agree on where it runs</string>
+    <string name="step_wt_gate_locations">Confirm gate locations, widths, and which way they swing</string>
+    <string name="step_wt_height_style_color">Confirm fence height, style, and color</string>
+    <string name="step_wt_mark_utilities">Point out and mark sprinklers, septic, and utility lines</string>
+    <string name="step_wt_old_fence_debris">Agree on where old fence and debris will go</string>
+    <string name="step_wt_access_route">Confirm access route for equipment and material drop</string>
+    <string name="step_wt_trees_slopes_obstacles">Note any trees, slopes, or obstacles that change the plan</string>
+    <string name="step_wt_debris_clearing_rule">Tell the customer: we clear leaves and loose debris only. Anything needing a tool — bushes, planters, sheds, tree limbs, old posts — they clear before we start, or it goes on a change order</string>
+    <string name="step_wt_customer_must_move">List anything on the fence line the customer must move themselves</string>
+
+    <!-- Install: the crew works through this on their own. -->
+    <string name="step_in_verify_property_line">Verify property line before digging</string>
+    <string name="step_in_confirm_utility_locates">Call in / confirm utility locates are clear</string>
+    <string name="step_in_dig_post_holes">Dig post holes</string>
+    <string name="step_in_set_posts_concrete">Set posts and concrete</string>
+    <string name="step_in_let_concrete_set">Let concrete set</string>
+    <string name="step_in_install_rails_panels">Install rails and panels</string>
+    <string name="step_in_hang_gates_hardware">Hang gates and hardware</string>
+    <string name="step_in_clean_up_haul_debris">Clean up property and haul debris</string>
+    <string name="step_in_take_after_photos">Take after photos</string>
+
+    <!-- Final walkthrough: done with the customer before the crew leaves, ends in a signature. -->
+    <string name="step_fw_walk_finished_fence">Walk the finished fence line with the customer</string>
+    <string name="step_fw_check_gates">Check every gate opens, closes and latches</string>
+    <string name="step_fw_height_style_color">Confirm height, style and colour match what was agreed</string>
+    <string name="step_fw_posts_plumb">Check posts are plumb and the line is straight</string>
+    <string name="step_fw_site_clean">Confirm the site is clean and all debris is gone</string>
+    <string name="step_fw_point_out_corrections">Point out anything the customer wants corrected</string>
+    <string name="step_fw_ask_for_review">Ask the customer for a review</string>
+</resources>
