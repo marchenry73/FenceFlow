@@ -2536,6 +2536,14 @@ function stillOwed(j, contractTotal){
 }
 
 let payments=[];
+// True once `payments` has been topped up to every payment_records row the
+// company has, not just the recent slice loadAll() bounds the first paint
+// to. Mirrors timesFullyLoaded: money moved is dated by received_at, not by
+// which job it belongs to, so like time entries this needs the whole table
+// rather than a per-job top-up. Reports' "All time" window and Cycles'
+// "Finished to last payment" (which looks at every job's last-ever payment,
+// not a recent one) both await ensureFullPayments() before reading payments.
+let paymentsFullyLoaded = false;
 let fieldChanges=[];
 let jobCosting=[];
 let auditTrail=[];
@@ -2943,6 +2951,22 @@ async function ensureTimesForJobs(syncIds){
   times = [...byId.values()];
 }
 
+// Same shape as ensureItemsForJobs: expenses are scoped to one job (unlike
+// payments), so topping up exactly the jobs a screen cares about is enough --
+// no need to pull the whole table the way ensureFullPayments does.
+async function ensureExpensesForJobs(syncIds){
+  const ids = [...new Set((syncIds || []).filter(Boolean))];
+  if (!ids.length) return;
+  const CHUNK = 150;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+  const results = await Promise.all(chunks.map(c =>
+    db.from('expenses').select('*').is('deleted_at', null).in('job_sync_id', c)));
+  const byId = new Map(expenses.map(e => [e.id, e]));
+  results.forEach(res => { if (!res.error) (res.data || []).forEach(e => byId.set(e.id, e)); });
+  expenses = [...byId.values()];
+}
+
 // Reports lets someone pick "All time" or hand-type a date going back years,
 // and a time entry's own started_at -- not which job it belongs to -- is
 // what decides whether it is in that window. That rules out the per-job
@@ -2964,6 +2988,28 @@ async function ensureFullTimes(){
   const liveJobs = new Set(jobs.map(j => j.sync_id));
   times = all.filter(t => liveJobs.has(t.job_sync_id));
   timesFullyLoaded = true;
+}
+
+// Same shape as ensureFullTimes, same reason: a payment's received_at, not
+// which job it belongs to, decides whether it is inside a report window or
+// counts toward "last payment" in Cycles, so a per-job top-up cannot answer
+// either question. loadAll() only bounds the first paint to the recent
+// window; this is the one-time top-up to the rest of the ledger.
+async function ensureFullPayments(){
+  if (paymentsFullyLoaded) return;
+  const PAGE = 1000;
+  const all = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await db.from('payment_records').select('*').is('deleted_at', null)
+      .order('id', { ascending: true }).range(from, from + PAGE - 1);
+    if (res.error) { console.error('ensureFullPayments failed:', res.error); return; }
+    const got = res.data || [];
+    all.push(...got);
+    if (got.length < PAGE || all.length >= PAGE * 50) break;
+  }
+  const liveJobs = new Set(jobs.map(j => j.sync_id));
+  payments = all.filter(p => liveJobs.has(p.job_sync_id));
+  paymentsFullyLoaded = true;
 }
 
 /* job_stage_events is small (one row per move, not per job) and append-only
@@ -3074,7 +3120,13 @@ async function loadAll(){
     // misses -- an old job's materials, a report reaching further back -- is
     // fetched on demand by ensureItemsForJobs, never assumed to be zero.
     q('estimate_line_items', qb => qb.gte('updated_at', recentCutoffISO)),
-    q('expenses'), q('punch_list_items'), q('change_orders'),
+    // Expenses grow per-job over a job's whole life the same way line items
+    // and time entries do, so they get the same treatment: bounded to the
+    // recent window for first paint, topped up per-job by
+    // ensureExpensesForJobs wherever a screen needs an older job's costs
+    // (showJob, and Reports/Costing for whatever jobs its window touches).
+    q('expenses', qb => qb.gte('spent_at', recentCutoffISO)),
+    q('punch_list_items'), q('change_orders'),
     // Time entries: two things must always be present regardless of age --
     // any shift still clocked in, and any shift waiting on approve/reject --
     // because the Home tab's "clocked in long" and "waiting for approval"
@@ -3105,7 +3157,14 @@ async function loadAll(){
     // Stripe payment-LINK table -- amounts in cents, with a URL and a Stripe
     // id. It is not what the app counts money from, which is why the figures
     // here never matched the app's.
-    q('payment_records'),
+    //
+    // Bounded to the recent window like line items and expenses -- Home's
+    // "collected this month" / "collected last month" tiles never look back
+    // further than that, so first paint does not need the whole ledger.
+    // Reports' "All time" and Cycles' "last payment ever" both reach further
+    // than this window and both await ensureFullPayments() before reading
+    // payments, same contract as ensureFullTimes.
+    q('payment_records', qb => qb.gte('received_at', recentCutoffISO)),
     // Plan-change requests from the field, so the home tab can say who is
     // waiting on an answer.
     q('field_changes')
@@ -3116,6 +3175,7 @@ async function loadAll(){
   catalog=c.data||[]; tiers=ti.data||[]; payments=pay.data||[];
   stageEvents = se && !se.error ? (se.data || []) : [];
   timesFullyLoaded = false;
+  paymentsFullyLoaded = false;
 
   // The employees table now carries pay (hourly_rate, pay_type,
   // per_foot_rate) behind a permission most of the company doesn't hold, so
@@ -4638,7 +4698,12 @@ async function renderJobsMap(){
    sending a net figure here would book the same money twice. This called a
    netTotal() that does not exist anywhere in this file, so the whole export
    threw before writing a line and the three buttons did nothing at all. */
-function exportQuickBooks(){
+async function exportQuickBooks(){
+  // An accounting export that silently drops payments older than loadAll()'s
+  // recent window is exactly the failure this page is trying to stop being
+  // known for: not a slow file, a wrong one, and nobody importing it into
+  // QuickBooks would have any way to tell it was short a year of payments.
+  await ensureFullPayments();
   const dt=x=>x?new Date(x).toLocaleDateString('en-US'):'';
   downloadCsv('quickbooks-customers.csv',
     ['Name','Phone','Email','Billing Address'],
@@ -6228,8 +6293,14 @@ function medianDays(pairs){
   return { value: days.length % 2 ? days[m] : (days[m-1] + days[m]) / 2, n: days.length };
 }
 
-function renderCycles(){
+async function renderCycles(){
   if (!$('cycleRows')) return;
+  // "Finished to last payment" looks at every live job's last-ever payment,
+  // not a recent one -- a job finished two years ago whose final payment
+  // fell outside loadAll()'s bounded window would otherwise show "no
+  // payment yet" for a job that was in fact paid off, which is exactly the
+  // empty-answer-reads-as-good-news failure this page has hit before.
+  await ensureFullPayments();
   const live = jobs.filter(j => !j.deleted_at);
   const lastPaymentFor = j => {
     const ps = payments.filter(p => p.job_sync_id === j.sync_id && !p.deleted_at)
@@ -6761,14 +6832,17 @@ async function renderReports(){
 
   const jobsIn=jobs.filter(j=>inPeriod(j.updated_at||j.created_at));
   // The window here can reach back years ("All time", or a hand-typed date),
-  // well past what loadAll() bounded the first paint to. Line items are
-  // scoped to one job, so topping them up for exactly the jobs this window
-  // touched is enough; a time entry's own started_at decides whether it is
-  // in the window, not which job it belongs to, so that one needs the whole
-  // table rather than a per-job fetch. Both are one-time per page load.
+  // well past what loadAll() bounded the first paint to. Line items and
+  // expenses are scoped to one job, so topping them up for exactly the jobs
+  // this window touched is enough; a time entry's or a payment's own date
+  // decides whether it is in the window, not which job it belongs to, so
+  // those two need the whole table rather than a per-job fetch. All four are
+  // one-time per page load (each guarded by its own already-loaded flag).
   await Promise.all([
     ensureItemsForJobs(jobsIn.map(j => j.sync_id)),
-    ensureFullTimes()
+    ensureExpensesForJobs(jobsIn.map(j => j.sync_id)),
+    ensureFullTimes(),
+    ensureFullPayments()
   ]);
   const syncIds=new Set(jobsIn.map(j=>j.sync_id));
   // Payments are selected by WHEN THE MONEY MOVED, not by which jobs happen to
@@ -9074,13 +9148,14 @@ async function showJob(id){
     else drawManualFeetBar(cvs, r.manual_linear_feet||0);
   });
 
-  // This job's own materials and hours are loadAll()'s recent/pending slice
-  // only if the job is recent or its shifts are still open/unapproved -- an
-  // older, fully wrapped-up job may have neither. A sheet showing "no
-  // estimate" or "no time clocked" for a job that plainly has both is the
-  // empty-answer-reads-as-good-news failure, so both are topped up for this
-  // one job before anything below reads from them.
-  await Promise.all([ensureItemsForJobs([sid]), ensureTimesForJobs([sid])]);
+  // This job's own materials, hours and expenses are loadAll()'s
+  // recent/pending slice only if the job is recent or its shifts are still
+  // open/unapproved -- an older, fully wrapped-up job may have none of that.
+  // A sheet showing "no estimate", "no time clocked" or "no expenses logged"
+  // for a job that plainly has all three is the empty-answer-reads-as-
+  // good-news failure, so all three are topped up for this one job before
+  // anything below reads from them.
+  await Promise.all([ensureItemsForJobs([sid]), ensureTimesForJobs([sid]), ensureExpensesForJobs([sid])]);
 
   const li=items.filter(i=>i.job_sync_id===sid);
   const liTotal=li.reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);

@@ -517,6 +517,66 @@ data class CloudTimeEntryPush(
  * source of truth for these while the web side is still read-mostly, which
  * avoids a half-built two-way merge quietly overwriting field data.
  */
+/**
+ * The conflict rule, per table -- written down because launch audit #37 found
+ * nobody could state it, and a rule nobody can state is a rule nobody can
+ * defend. This is the actual behaviour of the code below and in [JobSync], not
+ * an aspiration; keep it in sync with whichever function it describes.
+ *
+ * **jobs** (see [JobSync]) -- last-edit-wins on the whole row, gated by
+ * `job.updatedAt > cloudJob.updatedAtMillis()`, with two carve-outs that are
+ * never subject to the gate: `amount_paid`/`payment_status` only ever move up
+ * (the higher figure survives regardless of which side is "newer"), and
+ * `contract_total`/`priced_by`/`priced_at`/`pricing_engine_version`/
+ * `quote_sent_at` are written only by the dedicated contract-total block, on
+ * its own compare against the current cloud figure.
+ *
+ * **fence_runs** -- last-edit-wins on the whole row, gated by
+ * `run.updatedAt > cloudRun.updatedAtMillis()` ([pushFenceRuns]).
+ *
+ * **pricing_tiers**, **material_items** (catalog) -- last-edit-wins gated the
+ * same way ([pushPricingTiers], [pushCatalog]), but ONLY once a cloud row has
+ * been claimed by this row's own sync id. A tier or catalog item with no
+ * matching identity (name, or name+role+fenceType+colour) is pushed
+ * unconditionally, because a starter row seeded independently on every phone
+ * has no prior cloud copy to have gone stale against.
+ *
+ * **build_templates** -- pull-only gate, same clock, formal rather than load-
+ * bearing: this phone never edits a template, so the compare mostly guards
+ * against two pulls racing each other.
+ *
+ * **time_entries** -- NOT last-edit-wins. [pushTimeEntries] upserts every
+ * completed shift unconditionally; there is no compare against the cloud row
+ * at all on the way up. What protects an approval or rejection from being
+ * clobbered lives entirely on the pull side ([pullJobChildren]'s time-entries
+ * block): a decision already recorded locally is a one-way ratchet that a
+ * cloud row without a decision cannot undo, and a decision the cloud DOES
+ * carry always wins outright, regardless of either side's clock.
+ *
+ * **estimate_line_items**, **change_orders** -- last-edit-wins is not
+ * expressed as a push-side gate at all for these; the push always sends the
+ * current local row ([pushLineItemsThroughCrewPen] and the ordinary upsert
+ * paths), and the merge-on-pull applies whatever the cloud holds. In effect
+ * whichever side syncs last wins, with no clock compared on either end.
+ *
+ * **employees**, **manufacturers** -- unconditional upsert on every push
+ * ([pushEmployees], [pushManufacturers]); the phone is the source of truth and
+ * there is no merge to arbitrate.
+ *
+ * **field_changes** -- append-only requests plus (for the phones allowed to
+ * answer them) an update of the answer half; not a last-edit-wins table at all.
+ *
+ * The clock used everywhere above that says "gated" is `updated_at`/
+ * `lastUpdated`/`updatedAt` -- always the device's own clock on the local side
+ * ([Repository]'s save/update functions stamp it with
+ * `System.currentTimeMillis()` at edit time) compared against the server's own
+ * clock on the cloud side (`updated_at` is written by the `touch_updated_at`
+ * trigger in Postgres, never sent by the phone). A phone with a wrong clock
+ * therefore wins or loses every one of these comparisons regardless of which
+ * edit is actually newer -- confirmed still true as of this audit pass. Fixing
+ * it means changing how [Repository] stamps a local edit, which is outside
+ * this file; see the launch-audit report for the details.
+ */
 object EntitySync {
 
     /**
