@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.PriorityHigh
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Event
@@ -142,6 +143,8 @@ private fun CrewAttentionRow(
             Icons.Filled.PriorityHigh to stringResource(R.string.crew_attn_locate_expired, jobName)
         CrewAttentionItem.Kind.SHIFT_SENT_BACK ->
             Icons.Filled.CalendarMonth to stringResource(R.string.crew_attn_shift_sent_back, jobName)
+        CrewAttentionItem.Kind.HOURS_CORRECTED ->
+            Icons.Filled.Schedule to stringResource(R.string.crew_attn_hours_corrected, jobName)
         CrewAttentionItem.Kind.PLAN_CHANGE_ANSWERED ->
             (if (item.approved == true) Icons.Filled.Check else Icons.Filled.Close) to
                 stringResource(

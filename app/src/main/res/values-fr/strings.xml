@@ -1669,4 +1669,8 @@
          three separate times today. -->
     <string name="gate_offline_too_long">Ce téléphone n’a pas pu vérifier votre compte depuis un moment. Connectez-vous à internet une fois et tout revient aussitôt.</string>
     <string name="gate_block_unconfirmed">Ce téléphone n’a pas pu joindre FenceFlow depuis qu’on lui a dit que votre compte était suspendu, donc il ne sait pas si c’est toujours le cas. Connectez-vous à internet une fois, ou déconnectez-vous et reconnectez-vous, et ça se règle tout seul.</string>
+    <!-- Shown when the office corrects a shift. The person can already
+         dispute a correction; until the phone could see one had happened,
+         that meant disputing something invisible. -->
+    <string name="crew_attn_hours_corrected">Le bureau a modifié tes heures sur %1$s</string>
 </resources>

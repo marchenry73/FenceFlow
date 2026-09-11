@@ -464,6 +464,45 @@ data class CloudTimeEntry(
     @SerialName("approved_at") val approvedAt: String? = null,
     @SerialName("approved_by") val approvedBy: String = "",
     @SerialName("rejected_at") val rejectedAt: String? = null,
+    @SerialName("review_note") val reviewNote: String = "",
+    /**
+     * Read only, and that is load-bearing.
+     *
+     * These are written by the office and by a database trigger, never by a
+     * phone. They are on THIS class, which the pull decodes, and deliberately
+     * NOT on [CloudTimeEntryPush], which the upsert sends -- because
+     * PostgREST names every column explicitly, so a push carrying them would
+     * send nulls and erase the correction the office had just made. An
+     * explicit null beats a column default, which is the trap this codebase
+     * has hit before.
+     */
+    @SerialName("original_started_at") val originalStartedAt: String? = null,
+    @SerialName("original_ended_at") val originalEndedAt: String? = null,
+    @SerialName("corrected_at") val correctedAt: String? = null,
+    @SerialName("correction_reason") val correctionReason: String = ""
+)
+
+/**
+ * What a phone is allowed to send for a shift.
+ *
+ * Every field the phone legitimately owns, and none of the ones the office
+ * owns. Splitting the shapes is the only way to add a pull-only field
+ * safely: one class for both directions means every push asserts a value for
+ * every column, including the ones it knows nothing about.
+ */
+@Serializable
+data class CloudTimeEntryPush(
+    @SerialName("company_id") val companyId: String,
+    @SerialName("sync_id") val syncId: String,
+    @SerialName("job_sync_id") val jobSyncId: String,
+    @SerialName("started_at") val startedAt: String,
+    @SerialName("ended_at") val endedAt: String? = null,
+    @SerialName("hourly_rate") val hourlyRate: Double = 0.0,
+    @SerialName("employee_sync_id") val employeeSyncId: String = "",
+    val notes: String = "",
+    @SerialName("approved_at") val approvedAt: String? = null,
+    @SerialName("approved_by") val approvedBy: String = "",
+    @SerialName("rejected_at") val rejectedAt: String? = null,
     @SerialName("review_note") val reviewNote: String = ""
 )
 
@@ -1643,7 +1682,11 @@ object EntitySync {
                         approvedAt = CloudTime.parseMillis(row.approvedAt),
                         approvedBy = row.approvedBy,
                         rejectedAt = CloudTime.parseMillis(row.rejectedAt),
-                        reviewNote = row.reviewNote
+                        reviewNote = row.reviewNote,
+                        originalStartedAt = CloudTime.parseMillis(row.originalStartedAt),
+                        originalEndedAt = CloudTime.parseMillis(row.originalEndedAt),
+                        correctedAt = CloudTime.parseMillis(row.correctedAt),
+                        correctionReason = row.correctionReason
                     )
                 )
                 added++
@@ -2120,7 +2163,7 @@ private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceR
     splitRailCount = splitRailCount
 )
 
-private fun TimeEntry.toCloud(companyId: String, jobSyncId: String, employeeSyncId: String? = null) = CloudTimeEntry(
+private fun TimeEntry.toCloud(companyId: String, jobSyncId: String, employeeSyncId: String? = null) = CloudTimeEntryPush(
     companyId = companyId, syncId = syncId, jobSyncId = jobSyncId,
     employeeSyncId = employeeSyncId ?: "",
     startedAt = Instant.ofEpochMilli(startedAt).toString(),

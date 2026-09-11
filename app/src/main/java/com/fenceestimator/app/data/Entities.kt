@@ -913,7 +913,22 @@ data class TimeEntry(
     val approvedBy: String = "",
     /** Set when a shift is sent back, with the reason the crew needs to see. */
     val rejectedAt: Long? = null,
-    val reviewNote: String = ""
+    val reviewNote: String = "",
+    /**
+     * What the clock actually recorded, before the office corrected it.
+     *
+     * Written by the server, never by this phone. A correction is an
+     * addition rather than a replacement: startedAt and endedAt hold the
+     * corrected times that pay is computed from, and these hold what the
+     * clock said, so a pay dispute has something to be settled from.
+     *
+     * Null on every shift nobody has corrected, which is almost all of them.
+     */
+    val originalStartedAt: Long? = null,
+    val originalEndedAt: Long? = null,
+    /** When the office changed it, and the reason they gave. */
+    val correctedAt: Long? = null,
+    val correctionReason: String = ""
 ) {
     val isRunning: Boolean get() = endedAt == null
 

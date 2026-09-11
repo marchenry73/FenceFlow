@@ -55,7 +55,16 @@ data class CrewAttentionItem(
         SHIFT_SENT_BACK,
 
         /** A plan-change request they sent has been answered. */
-        PLAN_CHANGE_ANSWERED
+        PLAN_CHANGE_ANSWERED,
+
+        /**
+         * The office changed the hours on a shift of theirs.
+         *
+         * This is the half the dispute feature was missing. Somebody can
+         * already disagree with a correction; until the phone could see one
+         * had happened, that meant disagreeing with something invisible.
+         */
+        HOURS_CORRECTED
     }
 }
 
@@ -126,6 +135,23 @@ object CrewAttention {
                     jobId = t.jobId,
                     kind = CrewAttentionItem.Kind.SHIFT_SENT_BACK,
                     detail = t.reviewNote
+                )
+            }
+
+        // Their hours were changed. Shown whether or not the correction was
+        // in their favour -- a change that adds time is still a change to
+        // what they are owed, and finding out from the payslip is how trust
+        // in the clock goes.
+        //
+        // correctedAt is stamped by the server when the times actually move,
+        // so this cannot fire on an ordinary edit that changed nothing.
+        timeEntries.filter { it.employeeId == myEmployeeId && it.correctedAt != null && it.jobId in myJobIds }
+            .forEach { t ->
+                items += CrewAttentionItem(
+                    key = "hours_corrected:" + t.syncId + ":" + t.correctedAt,
+                    jobId = t.jobId,
+                    kind = CrewAttentionItem.Kind.HOURS_CORRECTED,
+                    detail = t.correctionReason
                 )
             }
 
