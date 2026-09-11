@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.survey
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.calculatePan
@@ -32,6 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
@@ -44,6 +46,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.OpenWith
@@ -188,6 +191,17 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
     var fullScreenDrawing by rememberSaveable { mutableStateOf(false) }
+    // Grouped floating controls (the grouped-tools/layers/property-info
+    // redesign): whether the Layers popup is open, whether the property
+    // panel is showing its expanded detail, and which paint layers are on.
+    // Fence and markers default visible so nothing changes on open unless
+    // someone deliberately hides one -- these three are read only inside
+    // the Canvas draw scope below and never reach the view model, so
+    // hiding a layer can never touch the geometry, the takeoff or the price.
+    var layersMenuOpen by remember { mutableStateOf(false) }
+    var propertyPanelExpanded by remember { mutableStateOf(false) }
+    var showFenceLayer by rememberSaveable { mutableStateOf(true) }
+    var showMarkersLayer by rememberSaveable { mutableStateOf(true) }
     var calibrationDialogPoints by remember { mutableStateOf<Pair<FencePoint, FencePoint>?>(null) }
     var gateDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     // Which segment's dimension is open for typing, if any. Lives out here
@@ -273,111 +287,12 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 return@Column
             }
 
-            // Full screen hides everything that isn't the drawing. On a phone
-            // the chrome above and below eats more than half the height, which
-            // is the difference between seeing a whole property and a third of
-            // it. The mode buttons stay -- you still have to switch tools.
+            // Full screen hides everything above the drawing. Everything
+            // else -- tools, layers, stats, undo/clear -- already floats over
+            // the canvas rather than stacking beside it, so it costs no
+            // height in either mode; only the run picker actually goes away.
             if (!fullScreenDrawing) {
                 RunSelector(runs = runs, selectedRunId = selectedRunId, onSelect = { viewModel.selectRun(it) })
-
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(
-                            when {
-                                usingGrid && satelliteOn -> R.string.misc_survey_drawing_on_satellite
-                                usingGrid -> R.string.misc_survey_drawing_on_grid
-                                else -> R.string.misc_survey_drawing_on_photo
-                            }
-                        ),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = Alignment.CenterVertically) {
-                        // Only offered instead of the grid, never alongside an
-                        // uploaded photo -- the office's calibration rule is
-                        // "only when there is no survey photo", and offering
-                        // this button when a photo already exists would invite
-                        // exactly the case that rule excludes.
-                        if (usingGrid) {
-                            FilterChip(
-                                selected = satelliteOn,
-                                onClick = { satelliteOn = !satelliteOn },
-                                label = { Text(stringResource(R.string.sat_toggle_label)) }
-                            )
-                        }
-                        OutlinedButton(onClick = {
-                            if (usingGrid) {
-                                imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                            } else {
-                                viewModel.clearSurveyImage()
-                            }
-                        }) {
-                            Text(stringResource(if (usingGrid) R.string.survey_upload_photo else R.string.survey_use_grid))
-                        }
-                    }
-                }
-                satelliteError?.let { message ->
-                    Text(
-                        message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = Space.sm)
-                    )
-                }
-                // Offline with nothing cached yet: the grid still draws (it
-                // always does, as the base layer -- see drawSurveyBackground)
-                // so tracing is never actually blocked, but silently showing
-                // the grid instead of the imagery someone asked for would look
-                // like the toggle did nothing.
-                if (satelliteOn && !online) {
-                    Text(
-                        stringResource(R.string.sat_offline_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = Space.sm)
-                    )
-                }
-
-                if (usingGrid) {
-                    val job2 = job
-                    if (job2 != null) {
-                        // How much ground the grid covers.
-                        //
-                        // A gate and a paddock are not the same drawing
-                        // problem. Fixed at 400ft, one foot was about two and a
-                        // half pixels on a phone, so a 20ft run could not be
-                        // drawn accurately and a small drag measured forty feet.
-                        Text(
-                            stringResource(R.string.misc_survey_how_big),
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = Space.sm, vertical = Space.xs)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm),
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm)
-                        ) {
-                            SurveyViewModel.GRID_SIZES_FT.forEach { size ->
-                                val selected = kotlin.math.abs(job2.gridExtentFt - size) < 0.5f
-                                FilterChip(
-                                    selected = selected,
-                                    onClick = { viewModel.setGridExtent(size) },
-                                    label = { Text(stringResource(R.string.draw_grid_size_ft, size.toInt())) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                        Text(
-                            stringResource(R.string.misc_survey_keeps_length),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = Space.sm)
-                        )
-                        DraftNumberField(
-                            stableKey = job2.id, label = stringResource(R.string.misc_survey_feet_per_square),
-                            initialValue = job2.gridFeetPerSquare,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm)
-                        ) { viewModel.setGridLineSpacingFt(it) }
-                    }
-                }
             }
 
             val visibleModes = remember(usingGrid) {
@@ -400,24 +315,6 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             LaunchedEffect(usingGrid) {
                 if (usingGrid && mode == SurveyMode.CALIBRATE) viewModel.setMode(SurveyMode.DRAW)
             }
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(Space.sm)) {
-                visibleModes.forEachIndexed { index, (m, label) ->
-                    SegmentedButton(
-                        selected = mode == m,
-                        onClick = { viewModel.setMode(m) },
-                        shape = SegmentedButtonDefaults.itemShape(index, visibleModes.size)
-                    ) { Text(stringResource(label)) }
-                }
-            }
-            if (mode == SurveyMode.ADJUST) {
-                Text(
-                    stringResource(R.string.misc_survey_adjust_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = Space.sm)
-                )
-            }
-
             val activeRun = runs.firstOrNull { it.id == selectedRunId }
             val job2 = job
             if (activeRun != null && job2 != null) {
@@ -445,9 +342,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 var loupeContentPos by remember(activeRun.id) { mutableStateOf<FencePoint?>(null) }
                 var loupeSegmentFeet by remember(activeRun.id) { mutableStateOf<List<Float>>(emptyList()) }
 
-                // Running total ABOVE the drawing area, not on top of it. Put on
-                // the canvas it covered part of the very surface you tap to draw,
-                // and swallowed those taps.
+                // Running total, read by the floating property panel that
+                // sits over the canvas rather than a bar stacked above it --
+                // see PropertyInfoPanel below.
                 val liveFeet = if (points.size >= 2) {
                     FenceGeometryEngine.analyze(
                         points,
@@ -455,39 +352,11 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         activeRun.closedLoop
                     ).totalLinearFeet
                 } else 0f
-                Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.md, vertical = Space.sm),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.Straighten, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text(
-                            if (liveFeet > 0f) "  " + stringResource(R.string.misc_feet_value, String.format("%.1f", liveFeet))
-                            else "  " + stringResource(R.string.misc_survey_tap_to_start),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        )
-                        if (liveFeet > 0f) {
-                            Text(
-                                "   " + stringResource(R.string.misc_survey_points_gates, points.size, gates.size),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                        // Full screen hides everything but the drawing, which on
-                        // a phone is the difference between seeing the whole
-                        // property and seeing a third of it.
-                        IconButton(onClick = { fullScreenDrawing = !fullScreenDrawing }) {
-                            Icon(
-                                if (fullScreenDrawing) Icons.Filled.CloseFullscreen else Icons.Filled.OpenInFull,
-                                contentDescription = stringResource(if (fullScreenDrawing) R.string.misc_survey_exit_full_screen else R.string.misc_survey_full_screen)
-                            )
-                        }
-                    }
-                }
+                // Full geometry (corners, gate count) for the property panel.
+                // Same analyze() call the Canvas draws from below -- kept as
+                // its own val here because DrawScope's copy isn't reachable
+                // from composables floating outside the Canvas.
+                val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
                 val otherRuns = runs.filter { it.id != activeRun.id }
                 val canvasContentSize = bitmap?.let { it.width to it.height }
                     ?: (SurveyViewModel.GRID_CANVAS_SIZE to SurveyViewModel.GRID_CANVAS_SIZE)
@@ -801,6 +670,14 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             job2.gridFeetPerSquare, satelliteOn, satelliteAnchor, satelliteTiles
                         )
 
+                        // Fence layer: every other run's faded line, the active
+                        // run's own line and dimensions, its vertices, and its
+                        // gates -- everything that is the fence rather than the
+                        // ground it sits on. Gated by the Layers toggle so
+                        // hiding it is a real hide, not a decoration; the
+                        // background and the in-progress calibration dots below
+                        // are unaffected because they aren't the fence.
+                        if (showFenceLayer) {
                         otherRuns.forEach { other ->
                             val otherPoints = FenceCodec.decodePoints(other.pointsEncoded)
                             if (otherPoints.size >= 2) {
@@ -1014,6 +891,15 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             )
                         }
 
+                        } // showFenceLayer
+
+                        // Markers layer: what's already sitting on the site
+                        // (the pool, the old fence, a tree) -- separate from
+                        // the fence layer above because a crew reading the
+                        // plan often wants one without the other, and hiding
+                        // it here is a real hide of the same drawCircle/
+                        // drawText calls, not a fake switch.
+                        if (showMarkersLayer) {
                         siteMarkers.forEach { marker ->
                             val c = transform.toCanvas(FencePoint(marker.x, marker.y))
                             val color = PlanColors.marker(marker.kind)
@@ -1031,50 +917,142 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 }
                             )
                         }
+                        } // showMarkersLayer
 
                         pendingCalibration.forEach { p ->
                             drawCircle(Color(0xFFFFD60A), radius = 10f, center = transform.toCanvas(p))
                         }
                     }
 
+                    // TOP-CENTER: the grouped mode tools -- Draw, Calibrate,
+                    // Gate, Mark Site, Adjust, Move View -- floating above the
+                    // canvas instead of pinned in a full-width row beneath the
+                    // top bar. Same viewModel.setMode(m) call as before, just
+                    // relocated so switching tools no longer costs the
+                    // drawing a fixed strip of height. Stays visible in full
+                    // screen too -- "the mode buttons stay" -- because
+                    // floating over the canvas has always meant it costs
+                    // nothing to keep on screen.
+                    Column(
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = Space.sm),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ModeToolGroup(
+                            visibleModes = visibleModes,
+                            mode = mode,
+                            onSelect = { viewModel.setMode(it) }
+                        )
+                        // Plain Box, not Surface, inside CanvasHint below --
+                        // Material3's Surface swallows pointer events so
+                        // clicks can't fall through to whatever is behind it,
+                        // which used to eat every tap along the strip these
+                        // hints sat on.
+                        if (mode == SurveyMode.PAN) {
+                            CanvasHint(text = stringResource(R.string.survey_drag_to_move))
+                        }
+                        if (mode == SurveyMode.ADJUST && selectedPoint == null) {
+                            CanvasHint(text = stringResource(R.string.misc_survey_adjust_canvas_hint))
+                        }
+                    }
+
+                    // TOP-END: view controls, grouped -- full screen, layers,
+                    // then zoom. Grouped together because none of them touch
+                    // the drawing itself, only how much of it and what parts
+                    // of it you can see.
                     Column(
                         modifier = Modifier.align(Alignment.TopEnd).padding(Space.sm),
                         verticalArrangement = Arrangement.spacedBy(Space.sm)
                     ) {
+                        ToolIconButton(
+                            icon = if (fullScreenDrawing) Icons.Filled.CloseFullscreen else Icons.Filled.OpenInFull,
+                            contentDescription = stringResource(
+                                if (fullScreenDrawing) R.string.misc_survey_exit_full_screen else R.string.misc_survey_full_screen
+                            ),
+                            onClick = { fullScreenDrawing = !fullScreenDrawing }
+                        )
+                        ToolIconButton(
+                            icon = Icons.Filled.Layers,
+                            contentDescription = stringResource(R.string.misc_survey_layers_button),
+                            onClick = { layersMenuOpen = true }
+                        )
                         ZoomButton(Icons.Filled.Add) { viewZoom = (viewZoom * 1.3f).coerceIn(0.25f, 12f) }
                         ZoomButton(Icons.Filled.Remove) { viewZoom = (viewZoom / 1.3f).coerceIn(0.25f, 12f) }
                         ZoomButton(Icons.Filled.MyLocation) { viewZoom = 1f; viewPan = Offset.Zero }
                     }
 
-                    // Plain Box, not Surface. Material3's Surface deliberately
-                    // swallows pointer events so clicks can't fall through to
-                    // whatever is behind it -- which meant these hints ate every
-                    // tap along the bottom of the drawing area. A Box with a
-                    // background looks the same and lets taps through.
-                    if (mode == SurveyMode.PAN) {
-                        CanvasHint(Modifier.align(Alignment.BottomCenter), stringResource(R.string.survey_drag_to_move))
-                    }
-                    if (mode == SurveyMode.ADJUST) {
-                        if (selectedPoint == null) {
-                            CanvasHint(
-                                Modifier.align(Alignment.BottomCenter),
-                                stringResource(R.string.misc_survey_adjust_canvas_hint)
+                    // BOTTOM-START: the two controls used on almost every
+                    // stroke, grouped together and kept away from Clear on
+                    // purpose -- Clear now lives inside the property panel
+                    // below, a deliberate extra tap so a thumb reaching for
+                    // Undo or the estimate can never land on the destructive
+                    // one by accident.
+                    if (!fullScreenDrawing) {
+                        Row(
+                            modifier = Modifier.align(Alignment.BottomStart).padding(Space.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ToolIconButton(
+                                icon = Icons.Filled.Undo,
+                                contentDescription = stringResource(R.string.draw_undo),
+                                onClick = { viewModel.undoLast(mode) }
                             )
-                        } else {
-                            NudgePad(
-                                modifier = Modifier.align(Alignment.BottomEnd),
-                                onNudge = { dx, dy ->
-                                    val idx = selectedPoint ?: return@NudgePad
-                                    val p = committedPoints.getOrNull(idx) ?: return@NudgePad
-                                    // One tap = one foot, in the drawing's own
-                                    // units, so the step means the same thing at
-                                    // any zoom.
-                                    val step = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
-                                    viewModel.movePoint(idx, FencePoint(p.x + dx * step, p.y + dy * step))
-                                },
-                                onDone = { selectedPoint = null }
-                            )
+                            Surface(
+                                tonalElevation = 3.dp,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.md),
+                                onClick = { onGoToEstimate(jobId) }
+                            ) {
+                                Text(
+                                    stringResource(R.string.draw_to_estimate),
+                                    modifier = Modifier.padding(horizontal = Space.md, vertical = Space.sm + Space.xs),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
+                    }
+
+                    // BOTTOM-CENTER: property information. Collapsed to a
+                    // one-line readout by default so it never competes with
+                    // the fence for space; tap it for everything that used to
+                    // sit in the panel stacked underneath the drawing --
+                    // segment lengths, snap, closed perimeter, and Clear.
+                    PropertyInfoPanel(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(Space.sm),
+                        expanded = propertyPanelExpanded,
+                        onToggleExpanded = { propertyPanelExpanded = !propertyPanelExpanded },
+                        liveFeet = liveFeet,
+                        cornerCount = geometry.cornerCount,
+                        gateCount = gates.size,
+                        pxPerFt = pxPerFt,
+                        usingGrid = usingGrid,
+                        committedPoints = committedPoints,
+                        closedLoop = activeRun.closedLoop,
+                        onClosedLoopChange = { viewModel.toggleClosedLoop(it) },
+                        snapOn = snapOn,
+                        onSnapChange = { snapOn = it; lastSnap = null },
+                        lastSnap = lastSnap,
+                        onSegmentClick = { editingSegment = it },
+                        onClear = { pendingClearPoints = true }
+                    )
+
+                    // NudgePad -- unchanged, still bottom-end, still only
+                    // while Adjust mode has a point selected; the hint for
+                    // the unselected case moved to the top group above.
+                    if (mode == SurveyMode.ADJUST && selectedPoint != null) {
+                        NudgePad(
+                            modifier = Modifier.align(Alignment.BottomEnd),
+                            onNudge = { dx, dy ->
+                                val idx = selectedPoint ?: return@NudgePad
+                                val p = committedPoints.getOrNull(idx) ?: return@NudgePad
+                                // One tap = one foot, in the drawing's own
+                                // units, so the step means the same thing at
+                                // any zoom.
+                                val step = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
+                                viewModel.movePoint(idx, FencePoint(p.x + dx * step, p.y + dy * step))
+                            },
+                            onDone = { selectedPoint = null }
+                        )
                     }
 
                     // The magnifier loupe: shown only while an Adjust-mode
@@ -1112,106 +1090,6 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     }
                 }
 
-                val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
-                Surface(tonalElevation = 2.dp) {
-                    Column(Modifier.fillMaxWidth().padding(Space.md)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Straighten, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text(
-                                // The grid has its own known scale, so there is
-                                // nothing to calibrate and nothing to warn about.
-                                // Only a survey photo can be missing a scale.
-                                text = when {
-                                    pxPerFt != null ->
-                                        "  " + stringResource(R.string.misc_survey_feet_total, String.format("%.1f", geometry.totalLinearFeet)) +
-                                            "  |  " + stringResource(R.string.misc_survey_corners_count, geometry.cornerCount) +
-                                            "  |  " + stringResource(R.string.misc_survey_gates_count, gates.size)
-                                    usingGrid -> "  " + stringResource(R.string.misc_survey_grid_to_scale)
-                                    else -> "  " + stringResource(R.string.misc_survey_tap_calibrate)
-                                },
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        // Every segment, tappable, in order.
-                        //
-                        // The dimensions on the canvas can be tapped too, but
-                        // a label on a zoomed-out drawing is a small target for
-                        // somebody standing in a yard holding a tape in the
-                        // other hand. This row is the reliable way in: it does
-                        // not need aim, it works one-handed, and it makes the
-                        // feature findable at all -- a tap-the-drawing gesture
-                        // nobody is told about is a feature nobody has.
-                        if (committedPoints.size >= 2 && pxPerFt != null && pxPerFt > 0f) {
-                            val segs = if (activeRun.closedLoop) committedPoints.size
-                                       else committedPoints.size - 1
-                            Text(
-                                stringResource(R.string.seg_len_row_title),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(Space.sm)
-                            ) {
-                                for (i in 0 until max(0, segs)) {
-                                    val feet = com.fenceestimator.app.geometry
-                                        .segmentLengthPx(committedPoints, i)?.div(pxPerFt) ?: continue
-                                    AssistChip(
-                                        onClick = { editingSegment = i },
-                                        label = {
-                                            Text(
-                                                stringResource(
-                                                    R.string.seg_len_chip,
-                                                    i + 1,
-                                                    FeetInches.formatCompact(feet)
-                                                )
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = snapOn, onCheckedChange = { snapOn = it; lastSnap = null })
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.snap_toggle))
-                                // Says what the last point was pulled onto, so
-                                // a point that moved under the finger is
-                                // explained rather than mysterious. Falls back
-                                // to what snapping does, so the switch is not a
-                                // word with no meaning attached.
-                                Text(
-                                    lastSnap?.let { snapWords(it) } ?: stringResource(R.string.snap_help),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (lastSnap != null) MaterialTheme.semantic.success
-                                            else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = activeRun.closedLoop, onCheckedChange = { viewModel.toggleClosedLoop(it) })
-                            Text(stringResource(R.string.draw_closed_perimeter))
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm)
-                        ) {
-                            OutlinedButton(onClick = { viewModel.undoLast(mode) }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Filled.Undo, contentDescription = null)
-                                Text(" " + stringResource(R.string.draw_undo))
-                            }
-                            OutlinedButton(onClick = { pendingClearPoints = true }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Filled.Clear, contentDescription = null)
-                                Text(" " + stringResource(R.string.draw_clear))
-                            }
-                            Button(onClick = { onGoToEstimate(jobId) }, modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.draw_to_estimate))
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -1303,6 +1181,28 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             },
             onDelete = { marker -> viewModel.deleteSiteMarker(marker) },
             onDismiss = { markerDialogPoint = null }
+        )
+    }
+
+    if (layersMenuOpen) {
+        LayersDialog(
+            usingGrid = usingGrid,
+            satelliteOn = satelliteOn,
+            onSatelliteToggle = { satelliteOn = it },
+            satelliteError = satelliteError,
+            online = online,
+            job2 = job,
+            onSetGridExtent = { viewModel.setGridExtent(it) },
+            onSetGridSpacing = { viewModel.setGridLineSpacingFt(it) },
+            onUploadPhoto = {
+                imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onUseGrid = { viewModel.clearSurveyImage() },
+            showFenceLayer = showFenceLayer,
+            onShowFenceLayerChange = { showFenceLayer = it },
+            showMarkersLayer = showMarkersLayer,
+            onShowMarkersLayerChange = { showMarkersLayer = it },
+            onDismiss = { layersMenuOpen = false }
         )
     }
 }
@@ -1411,6 +1311,331 @@ private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, on
     Surface(tonalElevation = 3.dp, shape = androidx.compose.foundation.shape.CircleShape) {
         IconButton(onClick = onClick) { Icon(icon, contentDescription = null) }
     }
+}
+
+/**
+ * A single floating icon control, same visual language as [ZoomButton].
+ * Used for full screen, Layers and Undo -- keeping every floating control
+ * the same shape is what makes a handful of buttons over the canvas read
+ * as a deliberate group rather than clutter that happens to be nearby.
+ */
+@Composable
+private fun ToolIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    Surface(tonalElevation = 3.dp, shape = androidx.compose.foundation.shape.CircleShape) {
+        IconButton(onClick = onClick) { Icon(icon, contentDescription = contentDescription) }
+    }
+}
+
+/**
+ * The tool switcher (Draw, Calibrate, Gate, Mark Site, Adjust, Move View),
+ * floating over the canvas instead of pinned in a full-width row beneath
+ * the top bar -- the exact same viewModel.setMode(m) call as before, just
+ * relocated so switching tools no longer reserves a fixed strip of height
+ * the drawing never gets back. Horizontally scrollable so a phone too
+ * narrow to show all six never has to shrink one to fit -- there is more
+ * room to scroll than there ever was to squeeze labels into one screen
+ * width.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModeToolGroup(
+    visibleModes: List<Pair<SurveyMode, Int>>,
+    mode: SurveyMode,
+    onSelect: (SurveyMode) -> Unit
+) {
+    Surface(tonalElevation = 4.dp, shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.md)) {
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(Space.xs)
+        ) {
+            visibleModes.forEachIndexed { index, (m, label) ->
+                SegmentedButton(
+                    selected = mode == m,
+                    onClick = { onSelect(m) },
+                    shape = SegmentedButtonDefaults.itemShape(index, visibleModes.size)
+                ) { Text(stringResource(label)) }
+            }
+        }
+    }
+}
+
+/**
+ * Property information, out of the way when drawing.
+ *
+ * Collapsed, it is one line -- the running total (or, before there's a
+ * scale, why there isn't one yet), corners and gates -- read at a glance
+ * with no tap needed, which is what used to take a whole bar above the
+ * canvas. Expanded, it holds everything that used to be a panel stacked
+ * underneath the drawing: the tappable segment-length list, snap and its
+ * explanation, closed perimeter, and Clear -- Clear deliberately last and
+ * set apart by real space from Undo and the estimate button, which float
+ * elsewhere, so a thumb reaching for either of those can never land on the
+ * destructive one instead.
+ */
+@Composable
+private fun PropertyInfoPanel(
+    modifier: Modifier = Modifier,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    liveFeet: Float,
+    cornerCount: Int,
+    gateCount: Int,
+    pxPerFt: Float?,
+    usingGrid: Boolean,
+    committedPoints: List<FencePoint>,
+    closedLoop: Boolean,
+    onClosedLoopChange: (Boolean) -> Unit,
+    snapOn: Boolean,
+    onSnapChange: (Boolean) -> Unit,
+    lastSnap: com.fenceestimator.app.geometry.SnapResult?,
+    onSegmentClick: (Int) -> Unit,
+    onClear: () -> Unit
+) {
+    Surface(
+        modifier = modifier.widthIn(max = 360.dp),
+        tonalElevation = 4.dp,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.md),
+        onClick = onToggleExpanded
+    ) {
+        Column(Modifier.padding(horizontal = Space.md, vertical = Space.sm)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Straighten, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    "  " + when {
+                        // The grid has its own known scale, so there is
+                        // nothing to calibrate and nothing to warn about.
+                        // Only a survey photo can be missing a scale.
+                        pxPerFt != null && liveFeet > 0f ->
+                            stringResource(R.string.misc_survey_feet_total, String.format("%.1f", liveFeet)) +
+                                "  |  " + stringResource(R.string.misc_survey_corners_count, cornerCount) +
+                                "  |  " + stringResource(R.string.misc_survey_gates_count, gateCount)
+                        usingGrid -> stringResource(R.string.misc_survey_grid_to_scale)
+                        pxPerFt == null -> stringResource(R.string.misc_survey_tap_calibrate)
+                        else -> stringResource(R.string.misc_survey_tap_to_start)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    if (expanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp,
+                    contentDescription = stringResource(
+                        if (expanded) R.string.misc_survey_panel_collapse else R.string.misc_survey_panel_expand
+                    )
+                )
+            }
+            if (expanded) {
+                Spacer(Modifier.height(Space.sm))
+                // Every segment, tappable, in order.
+                //
+                // The dimensions on the canvas can be tapped too, but a label
+                // on a zoomed-out drawing is a small target for somebody
+                // standing in a yard holding a tape in the other hand. This
+                // row is the reliable way in: it does not need aim, it works
+                // one-handed, and it makes the feature findable at all.
+                if (committedPoints.size >= 2 && pxPerFt != null && pxPerFt > 0f) {
+                    val segs = if (closedLoop) committedPoints.size else committedPoints.size - 1
+                    Text(
+                        stringResource(R.string.seg_len_row_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm)
+                    ) {
+                        for (i in 0 until max(0, segs)) {
+                            val feet = com.fenceestimator.app.geometry
+                                .segmentLengthPx(committedPoints, i)?.div(pxPerFt) ?: continue
+                            AssistChip(
+                                onClick = { onSegmentClick(i) },
+                                label = {
+                                    Text(
+                                        stringResource(R.string.seg_len_chip, i + 1, FeetInches.formatCompact(feet))
+                                    )
+                                }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(Space.sm))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = snapOn, onCheckedChange = onSnapChange)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.snap_toggle))
+                        // Says what the last point was pulled onto, so a
+                        // point that moved under the finger is explained
+                        // rather than mysterious. Falls back to what
+                        // snapping does, so the switch is not a word with no
+                        // meaning attached.
+                        Text(
+                            lastSnap?.let { snapWords(it) } ?: stringResource(R.string.snap_help),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (lastSnap != null) MaterialTheme.semantic.success
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = closedLoop, onCheckedChange = onClosedLoopChange)
+                    Text(stringResource(R.string.draw_closed_perimeter))
+                }
+                Spacer(Modifier.height(Space.sm))
+                // Set apart from Snap and Closed Perimeter above by real
+                // space, not just color -- Clear wipes every point and gate
+                // on this run (it still opens the same confirmation below),
+                // so it must never be the first thing a thumb finds inside
+                // this panel.
+                OutlinedButton(onClick = onClear, modifier = Modifier.align(Alignment.End)) {
+                    Icon(Icons.Filled.Clear, contentDescription = null)
+                    Text(" " + stringResource(R.string.draw_clear))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The Layers control: what paints as the background (the grid, satellite
+ * imagery, or an uploaded photo) and whether the fence or the site markers
+ * paint on top of it. Every control here is the same one that used to sit
+ * permanently above the canvas -- the grid-size chips, the feet-per-square
+ * field, the satellite toggle and its error/offline notes, the upload/use-
+ * grid button -- just asked for instead of shown, plus the two new
+ * show/hide switches for the fence and marker layers.
+ */
+@Composable
+private fun LayersDialog(
+    usingGrid: Boolean,
+    satelliteOn: Boolean,
+    onSatelliteToggle: (Boolean) -> Unit,
+    satelliteError: String?,
+    online: Boolean,
+    job2: com.fenceestimator.app.data.Job?,
+    onSetGridExtent: (Float) -> Unit,
+    onSetGridSpacing: (Float) -> Unit,
+    onUploadPhoto: () -> Unit,
+    onUseGrid: () -> Unit,
+    showFenceLayer: Boolean,
+    onShowFenceLayerChange: (Boolean) -> Unit,
+    showMarkersLayer: Boolean,
+    onShowMarkersLayerChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.misc_survey_layers_button)) },
+        text = {
+            // Scrollable: on the grid, this can hold the background choice,
+            // grid-size chips, the feet-per-square field and both layer
+            // switches at once -- more than a short phone screen guarantees
+            // an AlertDialog room for without it.
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Space.sm)
+            ) {
+                Text(
+                    stringResource(R.string.misc_survey_layers_background),
+                    style = MaterialTheme.typography.titleSmall
+                )
+                if (usingGrid) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                        // Only offered instead of the grid, never alongside an
+                        // uploaded photo -- the office's calibration rule is
+                        // "only when there is no survey photo", and offering
+                        // this button when a photo already exists would invite
+                        // exactly the case that rule excludes.
+                        FilterChip(
+                            selected = !satelliteOn,
+                            onClick = { onSatelliteToggle(false) },
+                            label = { Text(stringResource(R.string.misc_survey_layers_grid)) }
+                        )
+                        FilterChip(
+                            selected = satelliteOn,
+                            onClick = { onSatelliteToggle(true) },
+                            label = { Text(stringResource(R.string.sat_toggle_label)) }
+                        )
+                    }
+                    satelliteError?.let { message ->
+                        Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                    // Offline with nothing cached yet: the grid still draws
+                    // (it always does, as the base layer) so tracing is never
+                    // actually blocked, but silently showing the grid instead
+                    // of the imagery someone asked for would look like the
+                    // toggle did nothing.
+                    if (satelliteOn && !online) {
+                        Text(
+                            stringResource(R.string.sat_offline_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    OutlinedButton(onClick = onUploadPhoto) { Text(stringResource(R.string.survey_upload_photo)) }
+                    if (job2 != null) {
+                        Spacer(Modifier.height(Space.xs))
+                        // How much ground the grid covers.
+                        //
+                        // A gate and a paddock are not the same drawing
+                        // problem. Fixed at 400ft, one foot was about two and
+                        // a half pixels on a phone, so a 20ft run could not be
+                        // drawn accurately and a small drag measured forty
+                        // feet.
+                        Text(stringResource(R.string.misc_survey_how_big), style = MaterialTheme.typography.labelLarge)
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm)
+                        ) {
+                            SurveyViewModel.GRID_SIZES_FT.forEach { size ->
+                                val selected = kotlin.math.abs(job2.gridExtentFt - size) < 0.5f
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { onSetGridExtent(size) },
+                                    label = { Text(stringResource(R.string.draw_grid_size_ft, size.toInt())) }
+                                )
+                            }
+                        }
+                        Text(
+                            stringResource(R.string.misc_survey_keeps_length),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        DraftNumberField(
+                            stableKey = job2.id, label = stringResource(R.string.misc_survey_feet_per_square),
+                            initialValue = job2.gridFeetPerSquare,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { onSetGridSpacing(it) }
+                    }
+                } else {
+                    Text(stringResource(R.string.misc_survey_drawing_on_photo), style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = onUseGrid) { Text(stringResource(R.string.survey_use_grid)) }
+                }
+
+                Spacer(Modifier.height(Space.xs))
+                Text(
+                    stringResource(R.string.misc_survey_layers_show_section),
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = showFenceLayer, onCheckedChange = onShowFenceLayerChange)
+                    Text(stringResource(R.string.misc_survey_layers_fence))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = showMarkersLayer, onCheckedChange = onShowMarkersLayerChange)
+                    Text(stringResource(R.string.misc_survey_layers_markers))
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) { Text(stringResource(R.string.action_done)) }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

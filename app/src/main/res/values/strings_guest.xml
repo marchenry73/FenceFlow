@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Welcome screen: shown only when nobody is signed in, no guest
+         session is running, and this phone has no real local data yet. -->
+    <string name="welcome_title">Welcome to FenceFlow</string>
+    <string name="welcome_subtitle">Sign in to your company, or look around first with a sample company already set up.</string>
+    <string name="welcome_sign_in">Sign in or create an account</string>
+    <string name="welcome_try_guest">Try it without an account</string>
+    <string name="welcome_try_guest_caption">You’ll see a sample company with example jobs already in it. Everything resets in 5 minutes.</string>
+
+    <!-- Guest session countdown banner, shown for the whole session. -->
+    <string name="guest_banner_time_left">Guest demo — resets in %1$s</string>
+    <string name="guest_banner_explain">This is example data. When the timer ends, it’s all cleared and you’re back at the welcome screen.</string>
+    <string name="guest_setting_up">Setting up your sample company…</string>
+</resources>

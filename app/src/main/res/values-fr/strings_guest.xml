@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="welcome_title">Bienvenue sur FenceFlow</string>
+    <string name="welcome_subtitle">Connectez-vous à votre entreprise, ou jetez d’abord un œil avec une entreprise d’exemple déjà configurée.</string>
+    <string name="welcome_sign_in">Se connecter ou créer un compte</string>
+    <string name="welcome_try_guest">Essayer sans compte</string>
+    <string name="welcome_try_guest_caption">Vous verrez une entreprise d’exemple avec des chantiers d’exemple déjà en place. Tout est réinitialisé dans 5 minutes.</string>
+
+    <string name="guest_banner_time_left">Démo invité — réinitialisation dans %1$s</string>
+    <string name="guest_banner_explain">Ce sont des données d’exemple. Une fois le temps écoulé, elles sont effacées et vous revenez à l’écran d’accueil.</string>
+    <string name="guest_setting_up">Préparation de votre entreprise d’exemple…</string>
+</resources>

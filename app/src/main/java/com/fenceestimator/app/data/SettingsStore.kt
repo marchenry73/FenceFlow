@@ -179,7 +179,19 @@ data class BusinessProfile(
     val autoLockMinutes: Int = 0,
     val biometricUnlockEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val language: AppLanguage = AppLanguage.ENGLISH
+    val language: AppLanguage = AppLanguage.ENGLISH,
+    /**
+     * When the current guest session started, in device millis. 0 means no
+     * guest session is running.
+     *
+     * Stored here rather than in memory so the countdown survives the app
+     * being backgrounded and killed -- a contractor who switches apps for a
+     * minute must come back to the same clock, not a fresh five minutes.
+     * Device-local only, never synced: guest mode never talks to the cloud,
+     * and this field is only ever written by startGuestSession/endGuestSession
+     * below, never by [save]'s normal profile-editing path.
+     */
+    val guestSessionStartedAt: Long = 0L
 ) {
     companion object {
         fun defaultContractTerms() = DEFAULT_CONTRACT_TERMS
@@ -206,6 +218,32 @@ class SettingsStore(private val context: Context) {
             it[Keys.PRICES_REVIEWED] = true
             it[Keys.UPDATED_AT] = System.currentTimeMillis()
         }
+    }
+
+    /**
+     * Records the guest countdown's start time -- a single targeted key, like
+     * [markTourSeen], never the full [save]. Not stamped as an ordinary edit:
+     * this is device-local scaffolding for a mode that never syncs, and
+     * running it through the normal updatedAt path would make a guest demo
+     * look like a real settings change the next time this phone actually
+     * signs in and compares clocks with the cloud.
+     */
+    suspend fun startGuestSession(startedAtMillis: Long) {
+        context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = startedAtMillis }
+    }
+
+    /**
+     * Clears the guest countdown, and touches nothing else.
+     *
+     * This is deliberately NOT [clearAll]. clearAll wipes every setting on
+     * the phone, which is right when a phone changes hands between real
+     * accounts but would be wrong here: ending a guest session must not be
+     * able to erase a real business name or template this phone had before
+     * (or gets after) the guest detour. See GuestWipe for the data-row half
+     * of ending a session; this is only ever the other half, the flag.
+     */
+    suspend fun endGuestSession() {
+        context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = 0L }
     }
 
     private object Keys {
@@ -238,6 +276,7 @@ class SettingsStore(private val context: Context) {
         val BIOMETRIC_UNLOCK = booleanPreferencesKey("biometric_unlock")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val LANGUAGE = stringPreferencesKey("language")
+        val GUEST_SESSION_STARTED_AT = longPreferencesKey("guest_session_started_at")
         // How fast this crew works -- drives every duration estimate.
         val FEET_PER_DAY = doublePreferencesKey("feet_per_day")
         val WORKDAY_HOURS = doublePreferencesKey("workday_hours")
@@ -291,7 +330,8 @@ class SettingsStore(private val context: Context) {
             autoLockMinutes = prefs[Keys.AUTO_LOCK_MINUTES] ?: 0,
             biometricUnlockEnabled = prefs[Keys.BIOMETRIC_UNLOCK] ?: false,
             themeMode = runCatching { ThemeMode.valueOf(prefs[Keys.THEME_MODE] ?: "") }.getOrDefault(ThemeMode.SYSTEM),
-            language = language
+            language = language,
+            guestSessionStartedAt = prefs[Keys.GUEST_SESSION_STARTED_AT] ?: 0L
         )
     }
 
@@ -355,6 +395,7 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.BIOMETRIC_UNLOCK] = profile.biometricUnlockEnabled
             prefs[Keys.THEME_MODE] = profile.themeMode.name
             prefs[Keys.LANGUAGE] = profile.language.name
+            prefs[Keys.GUEST_SESSION_STARTED_AT] = profile.guestSessionStartedAt
         }
     }
 }

@@ -1278,6 +1278,18 @@
     <string name="misc_survey_swing_out">out</string>
     <string name="misc_survey_swing_both">both</string>
     <string name="misc_survey_gate_width_swing">%1$s ft %2$s</string>
+    <!-- Grouped floating tools / layers / property info redesign of the
+         Survey &amp; Draw screen. Kept in strings.xml (not the separate
+         strings_satellite.xml) because this is the screen's own layout,
+         not one feature bolted onto it. -->
+    <string name="misc_survey_layers_button">Layers</string>
+    <string name="misc_survey_layers_background">Background</string>
+    <string name="misc_survey_layers_grid">Grid</string>
+    <string name="misc_survey_layers_show_section">Show on the drawing</string>
+    <string name="misc_survey_layers_fence">Fence</string>
+    <string name="misc_survey_layers_markers">Site markers</string>
+    <string name="misc_survey_panel_expand">Show drawing details</string>
+    <string name="misc_survey_panel_collapse">Hide drawing details</string>
     <string name="misc_survey_adjust_canvas_hint">Drag to move, or tap a point to nudge it with the arrows</string>
     <string name="misc_survey_feet_total">%1$s ft total</string>
     <string name="misc_survey_corners_count">%1$d corners</string>

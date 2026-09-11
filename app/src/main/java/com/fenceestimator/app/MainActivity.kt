@@ -64,6 +64,11 @@ import com.fenceestimator.app.ui.settings.SettingsScreen
 import com.fenceestimator.app.ui.survey.SurveyDrawScreen
 import com.fenceestimator.app.ui.components.devBackendBadge
 import com.fenceestimator.app.ui.theme.FenceEstimatorTheme
+import com.fenceestimator.app.guest.GuestBanner
+import com.fenceestimator.app.guest.GuestSeeder
+import com.fenceestimator.app.guest.GuestSession
+import com.fenceestimator.app.guest.GuestWipe
+import com.fenceestimator.app.guest.WelcomeScreen
 
 // FragmentActivity rather than ComponentActivity: BiometricPrompt requires a
 // FragmentActivity to host its dialog. FragmentActivity is itself a
@@ -97,6 +102,103 @@ class MainActivity : FragmentActivity() {
             WithAppLanguage(profile.language) {
                 FenceEstimatorTheme(darkTheme = darkTheme) {
                     Surface(modifier = Modifier.fillMaxSize().devBackendBadge()) {
+                        // Whether a guest session is currently running, straight
+                        // off the one persisted flag -- see GuestSession/GuestWipe.
+                        val guestActive = com.fenceestimator.app.guest.GuestSession.isActive(profile)
+                        // Null until Room has answered once. Treated as "not
+                        // empty" below on purpose: judging "no real data" off a
+                        // list that hasn't loaded yet would flash the welcome
+                        // screen at a contractor with months of jobs, for the
+                        // one frame before the query returns.
+                        val jobs by app.repository.observeJobs().collectAsState(initial = null)
+                        // Set the instant a choice is made on the welcome screen,
+                        // so the screen doesn't hang around for the frames it
+                        // takes guestActive (a DataStore-backed flow) to catch up.
+                        var welcomeDismissedThisLaunch by remember { mutableStateOf(false) }
+                        var seedingGuest by remember { mutableStateOf(false) }
+                        var postWelcomeStartRoute by remember { mutableStateOf(Routes.JOBS) }
+                        // Recomposes the countdown text once a second. profile
+                        // (a DataStore flow) only changes when the flag itself is
+                        // written, which is once at the start and once at the end
+                        // -- nothing between those two moments would otherwise
+                        // ever redraw the clock.
+                        var guestNowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+
+                        // Cleans up a guest session left behind by a killed
+                        // process -- the countdown may have run out while
+                        // nothing was around to act on it. GuestWipe re-checks
+                        // every guard itself; this call is a no-op whenever the
+                        // five minutes are not actually up.
+                        LaunchedEffect(Unit) {
+                            GuestWipe.wipeIfDue(app.repository, app.settingsStore, app.session)
+                        }
+
+                        // The visible countdown, ticking once a second for as
+                        // long as a guest session is running. Keys on
+                        // guestActive rather than a fixed duration so
+                        // backgrounding and reopening the app resumes the same
+                        // loop against the same persisted start time instead of
+                        // starting a fresh timer.
+                        LaunchedEffect(guestActive) {
+                            while (guestActive) {
+                                guestNowTick = System.currentTimeMillis()
+                                if (GuestWipe.wipeIfDue(app.repository, app.settingsStore, app.session)) {
+                                    welcomeDismissedThisLaunch = false
+                                    break
+                                }
+                                kotlinx.coroutines.delay(1000)
+                            }
+                        }
+
+                        // Signing in for real while a guest session happens to
+                        // still be running (reachable from Settings > Account
+                        // inside the guest app itself) ends the countdown's
+                        // bookkeeping immediately. This clears only the flag,
+                        // never a row -- GuestWipe already refuses to delete
+                        // anything the moment somebody is signed in, so any
+                        // demo jobs already seeded are simply left in place,
+                        // still carrying their "Guest Demo" marker, for that
+                        // now-real account to see and remove itself. See the
+                        // handoff report for why this is judged safer than
+                        // trying to guess which rows to discard on their behalf.
+                        LaunchedEffect(appSession.signedIn, guestActive) {
+                            if (appSession.signedIn && guestActive) {
+                                app.settingsStore.endGuestSession()
+                            }
+                        }
+
+                        // Shown only when ALL of: nobody is signed in, no guest
+                        // session is running, and this phone looks like it has
+                        // never held real work -- the same "no work here yet"
+                        // test JobsListScreen already trusts to decide whether
+                        // to show the first-run tour (hasSeenTour false AND
+                        // updatedAt == 0L, meaning settings were never even
+                        // saved once), with jobs.isEmpty() added on top. A
+                        // contractor who deleted every job but has otherwise
+                        // touched the app even once will not see this again.
+                        val showWelcome = !appSession.signedIn && !guestActive &&
+                            !welcomeDismissedThisLaunch && jobs != null && jobs!!.isEmpty() &&
+                            !profile.hasSeenTour && profile.updatedAt == 0L
+
+                        if (showWelcome) {
+                            WelcomeScreen(
+                                seeding = seedingGuest,
+                                onSignIn = {
+                                    postWelcomeStartRoute = Routes.ACCOUNT
+                                    welcomeDismissedThisLaunch = true
+                                },
+                                onTryGuest = {
+                                    seedingGuest = true
+                                    app.applicationScope.launch {
+                                        runCatching { GuestSeeder.seed(app.repository) }
+                                        app.settingsStore.startGuestSession(System.currentTimeMillis())
+                                        postWelcomeStartRoute = Routes.JOBS
+                                        welcomeDismissedThisLaunch = true
+                                        seedingGuest = false
+                                    }
+                                }
+                            )
+                        } else {
                         var locked by remember { mutableStateOf(false) }
 
                         // Re-check on every return to the foreground; that's when a
@@ -298,6 +400,15 @@ class MainActivity : FragmentActivity() {
                                     )
                                 } else {
                                     androidx.compose.foundation.layout.Column {
+                                        // Always on, never dismissible, for as long as
+                                        // the session runs -- the owner asked for the
+                                        // countdown to be visible and honest, not a
+                                        // one-time toast someone could miss.
+                                        if (guestActive) {
+                                            GuestBanner(
+                                                remainingMs = GuestSession.remainingMs(profile, guestNowTick)
+                                            )
+                                        }
                                         // The trial says it is ending instead of just
                                         // ending. Day 14 used to be a lock with no
                                         // warning -- the first sign was being unable to
@@ -369,11 +480,12 @@ class MainActivity : FragmentActivity() {
                                                     service?.plan.orEmpty()
                                                 )
                                         ) {
-                                            FenceEstimatorNavHost()
+                                            FenceEstimatorNavHost(startDestination = postWelcomeStartRoute)
                                         }
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }
@@ -383,7 +495,7 @@ class MainActivity : FragmentActivity() {
 }
 
 @Composable
-fun FenceEstimatorNavHost() {
+fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
     val navController: NavHostController = rememberNavController()
 
     // Watched for the whole graph, so a screen closes the moment the person
@@ -402,7 +514,7 @@ fun FenceEstimatorNavHost() {
             backStack?.destination?.route.orEmpty()
     }
 
-    NavHost(navController = navController, startDestination = Routes.JOBS) {
+    NavHost(navController = navController, startDestination = startDestination) {
         composable(Routes.JOBS) {
             JobsListScreen(
                 onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) },

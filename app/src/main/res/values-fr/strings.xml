@@ -1254,6 +1254,14 @@
     <string name="misc_survey_swing_out">extérieur</string>
     <string name="misc_survey_swing_both">deux sens</string>
     <string name="misc_survey_gate_width_swing">%1$s pi %2$s</string>
+    <string name="misc_survey_layers_button">Calques</string>
+    <string name="misc_survey_layers_background">Arrière-plan</string>
+    <string name="misc_survey_layers_grid">Grille</string>
+    <string name="misc_survey_layers_show_section">Afficher sur le dessin</string>
+    <string name="misc_survey_layers_fence">Clôture</string>
+    <string name="misc_survey_layers_markers">Repères du site</string>
+    <string name="misc_survey_panel_expand">Afficher les détails du dessin</string>
+    <string name="misc_survey_panel_collapse">Masquer les détails du dessin</string>
     <string name="misc_survey_adjust_canvas_hint">Faites glisser pour déplacer, ou appuyez sur un point pour l\'ajuster avec les flèches</string>
     <string name="misc_survey_feet_total">%1$s pi au total</string>
     <string name="misc_survey_corners_count">%1$d angles</string>

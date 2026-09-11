@@ -65,7 +65,16 @@ const counts = Object.fromEntries(
     .map((r) => [r.t, Number(r.n)])
 );
 
-const present = new Set(readdirSync(folder).filter((f) => f.endsWith(".json")));
+// manifest.json is written BY the backup script, describing the run --
+// it is not a table dump. Counting it as one made every verified backup
+// report "NOT A TABLE manifest.json (dropped since the backup?)" and fail,
+// which is a verifier that cries wolf on its own output. A checker nobody
+// believes is worse than no checker, because the day it is right it reads
+// exactly like the days it was wrong.
+const NOT_A_TABLE_DUMP = new Set(["manifest.json"]);
+const present = new Set(
+  readdirSync(folder).filter((f) => f.endsWith(".json") && !NOT_A_TABLE_DUMP.has(f))
+);
 const problems = [];
 
 for (const t of tables) {

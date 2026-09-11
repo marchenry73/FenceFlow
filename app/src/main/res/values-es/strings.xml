@@ -1254,6 +1254,14 @@
     <string name="misc_survey_swing_out">afuera</string>
     <string name="misc_survey_swing_both">ambos</string>
     <string name="misc_survey_gate_width_swing">%1$s pies %2$s</string>
+    <string name="misc_survey_layers_button">Capas</string>
+    <string name="misc_survey_layers_background">Fondo</string>
+    <string name="misc_survey_layers_grid">Cuadrícula</string>
+    <string name="misc_survey_layers_show_section">Mostrar en el dibujo</string>
+    <string name="misc_survey_layers_fence">Cerca</string>
+    <string name="misc_survey_layers_markers">Marcadores del sitio</string>
+    <string name="misc_survey_panel_expand">Mostrar detalles del dibujo</string>
+    <string name="misc_survey_panel_collapse">Ocultar detalles del dibujo</string>
     <string name="misc_survey_adjust_canvas_hint">Arrastra para mover, o toca un punto para ajustarlo con las flechas</string>
     <string name="misc_survey_feet_total">%1$s pies en total</string>
     <string name="misc_survey_corners_count">%1$d esquinas</string>
