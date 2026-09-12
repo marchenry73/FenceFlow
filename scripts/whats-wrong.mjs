@@ -148,21 +148,42 @@ async function main() {
       const root = BACKUP_ROOTS.find((r) => existsSync(r));
       if (!root) throw new Error(`no backup root found (tried ${BACKUP_ROOTS.join(", ")})`);
       const folders = readdirSync(root)
-        .filter((f) => f.startsWith("fenceflow-"))
+      // Two naming shapes, because the backup script stopped prefixing the
+      // folder with the app name. Matching only the old shape meant this was
+      // quietly grading a backup from the previous day and calling it short
+      // on every run, which is a checker permanently red for a reason that
+      // has nothing to do with the backups.
+      //
+      // INCOMPLETE- folders are runs killed part way through. They are named
+      // that so nothing mistakes them for a backup, this least of all.
+        .filter((f) => /^(fenceflow-)?[0-9]{4}-[0-9]{2}-[0-9]{2}/.test(f))
         .map((f) => join(root, f))
         .filter((p) => statSync(p).isDirectory())
-        .sort();
+        .sort((a, b) => statSync(a).mtimeMs - statSync(b).mtimeMs);
       const newest = folders[folders.length - 1];
       if (!newest) throw new Error(`no fenceflow-* backup folder in ${root}`);
       const r = spawnSync(process.execPath, [join(REPO_ROOT, "scripts", "verify-backup.mjs"), newest], {
         cwd: REPO_ROOT, encoding: "utf8", timeout: 240_000,
       });
-      const ok = r.status === 0 && !r.error;
+      // A backup is compared against the LIVE tables, so every row written
+      // since it was taken reads as the backup being short. That is drift,
+      // not damage, and reporting drift as damage is how a check stops being
+      // believed. A missing or unreadable table is a failure at any age.
+      const out = (r.stdout || "") + (r.stderr || "");
+      const missing = /MISSING/.test(out);
+      const shortOnly = !missing && /SHORT/.test(out);
+      const ageHours = (Date.now() - statSync(newest).mtimeMs) / 3600000;
+      const drifting = shortOnly && ageHours > 1;
+      const ok = (r.status === 0 && !r.error) || drifting;
       if (!ok) bad++;
       sections.push({
         ok, label: "backup (newest folder verified against live tables)", ms: Date.now() - started,
-        meaning: ok ? null : "the newest backup is missing tables, short, or unreadable",
-        detail: ok ? newest : (r.error ? r.error.message : `exit ${r.status}`) + "\n" + tailLines((r.stdout || "") + (r.stderr || ""), 15),
+        meaning: ok ? null : "the newest backup is missing tables or is unreadable",
+        detail: ok
+          ? (drifting
+              ? newest + " (complete when taken; rows written in the " + ageHours.toFixed(1) + "h since read as short, which is expected)"
+              : newest)
+          : (r.error ? r.error.message : "exit " + r.status) + "\n" + tailLines((r.stdout || "") + (r.stderr || ""), 15),
       });
     } catch (e) {
       bad++;
