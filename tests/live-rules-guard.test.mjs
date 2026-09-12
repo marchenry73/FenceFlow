@@ -41,8 +41,18 @@ const PROJECT = "newcrgafcptspmapacrx";
 // it, CREW's own employee row, etc.) are internally consistent.
 const CO      = "aba5b097-afc4-48dd-9851-b50200d5e8f4"; // real company
 const OWNER   = "7bf38947-24cf-4e79-9af0-6100d04b166b";
-const MANAGER = "518fde2b-e689-4164-b900-85d8c7ca9748";
-const CREW    = "dabdbf64-8c89-4ec4-89c5-b33430462069";
+// These two were labelled by job title and the job titles moved. 518fde2b
+// was called MANAGER and is a FOREMAN; dabdbf64 was called CREW and is now a
+// MANAGER, which grants both money permissions. So the check below spent an
+// unknown length of time asserting that a manager cannot see money, which is
+// false, and it read exactly like a leak. The same drift broke the job
+// costing gate on 11 September.
+//
+// Named for the property the checks actually depend on, and asserted before
+// anything is concluded from them. A promotion now produces a sentence
+// saying the fixture drifted rather than a security alarm.
+const NO_MONEY = "518fde2b-e689-4164-b900-85d8c7ca9748"; // must lack SEE_MONEY and SEE_PAY
+const HAS_MONEY = "dabdbf64-8c89-4ec4-89c5-b33430462069"; // must hold both
 const SALES   = "f7e1c214-cdd0-492a-84b4-02392b264690"; // live, but company_id is null
 const OTHER_COMPANY_EMPLOYEE = "11111111-1111-4111-8111-111111111211"; // belongs to a DIFFERENT company
 const OWN_EMPLOYEE = "c75a354a-a357-47d5-8368-c2a379928733"; // this company's own employee row
@@ -144,9 +154,9 @@ insert into probe1 select 'SALES', can_see_pay(), can_see_employee_pay(),
   (select count(*) from employees), (select count(*) from jobs), (select count(*) from ar_aging());
 reset role;
 
-${asClaim(CREW)}
+${asClaim(NO_MONEY)}
 set local role authenticated;
-insert into probe1 select 'CREW', can_see_pay(), can_see_employee_pay(),
+insert into probe1 select 'NO_MONEY', can_see_pay(), can_see_employee_pay(),
   (select count(*) from employees), (select count(*) from jobs), (select count(*) from ar_aging());
 reset role;
 
@@ -167,8 +177,8 @@ rollback;
      `got ${JSON.stringify(row1("SALES"))}`);
   ok("OWNER sees both job money and payroll",
      row1("OWNER").can_pay === true && row1("OWNER").can_emp_pay === true, `got ${JSON.stringify(row1("OWNER"))}`);
-  ok("CREW sees neither job money nor payroll",
-     row1("CREW").can_pay === false && row1("CREW").can_emp_pay === false, `got ${JSON.stringify(row1("CREW"))}`);
+  ok("an account without SEE_MONEY or SEE_PAY sees neither job money nor payroll",
+     row1("NO_MONEY").can_pay === false && row1("NO_MONEY").can_emp_pay === false, `got ${JSON.stringify(row1("NO_MONEY"))}`);
 
   // =========================================================================
   console.log("\n2. A shift must name one of our own people:");
@@ -282,7 +292,7 @@ begin
     return true;
 end;
 $inner$;
-${asClaim(CREW)}
+${asClaim(NO_MONEY)}
 set local role authenticated;
 do $inner$
 begin
@@ -335,7 +345,7 @@ end;
 $inner$;
 
 -- ---- REAL rule ----
-${asClaim(CREW)}
+${asClaim(NO_MONEY)}
 set local role authenticated;
 do $inner$
 declare moved boolean; again boolean; events_before int; events_after int;
@@ -525,7 +535,7 @@ grant all on probe5 to authenticated;
 -- Wire the CREW profile to a real employee row and give that employee one
 -- shift, so "your own shift" and "somebody else's shift" both have a real
 -- row to test against. This is undone by the final ROLLBACK.
-update employees set profile_id = '${CREW}' where sync_id::text = '${OWN_EMPLOYEE}';
+update employees set profile_id = '${NO_MONEY}' where sync_id::text = '${OWN_EMPLOYEE}';
 insert into time_entries (company_id, sync_id, job_sync_id, employee_sync_id, started_at)
 values ('${CO}', 'aaaaaaaa-0000-0000-0000-0000000000f1', '${COMPLETED_JOB}', '${OWN_EMPLOYEE}', now() - interval '2 hours');
 
@@ -581,7 +591,7 @@ end;
 $inner$;
 
 -- ---- REAL rule ----
-${asClaim(CREW)}
+${asClaim(NO_MONEY)}
 set local role authenticated;
 do $inner$
 begin
@@ -632,7 +642,7 @@ rollback;
   const after = runSql(`
     select
       (select company_id from profiles where id = '${SALES}') as sales_company_id,
-      (select count(*) from employees where profile_id = '${CREW}') as crew_linked_employees,
+      (select count(*) from employees where profile_id = '${NO_MONEY}') as crew_linked_employees,
       (select count(*) from time_entries where sync_id::text = 'aaaaaaaa-0000-0000-0000-0000000000f1') as probe_shift_rows,
       (select count(*) from time_entries where company_id = '${CO}' and employee_sync_id = '${OTHER_COMPANY_EMPLOYEE}') as leaked_foreign_shifts,
       (select production_stage::text from jobs where sync_id::text = '${COMPLETED_JOB}') as completed_job_stage,
@@ -643,7 +653,7 @@ rollback;
   const a = after[0] || {};
   ok("SALES profile's company_id is null again (attach-to-company rolled back)",
      a.sales_company_id === null, `got ${JSON.stringify(a)}`);
-  ok("the CREW profile is not linked to any employee row (link rolled back)",
+  ok("the no-money profile is not linked to any employee row (link rolled back)",
      Number(a.crew_linked_employees) === 0, `got ${a.crew_linked_employees}`);
   ok("the probe shift row is gone", Number(a.probe_shift_rows) === 0, `got ${a.probe_shift_rows}`);
   ok("no shift attributes to the other company's employee", Number(a.leaked_foreign_shifts) === 0,
