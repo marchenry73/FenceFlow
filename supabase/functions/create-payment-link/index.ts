@@ -228,6 +228,15 @@ async function makeLink(
     const { data: openRows } = await admin
       .from("job_payments")
       .select("payment_url")
+      // Scoped to the company, and that is not decoration. A job's sync_id is
+      // generated on a phone and the database only makes it unique PER COMPANY
+      // -- jobs_company_sync_id_idx is on (company_id, sync_id), not on sync_id
+      // alone. So two companies can hold the same job id, and this lookup
+      // matched on job id, kind and amount with no company at all. It could
+      // hand one company's contractor a live checkout link belonging to another
+      // company's customer. Every other query in this file that touches
+      // job_sync_id was already scoped; this one was the exception.
+      .eq("company_id", profile.company_id)
       .eq("job_sync_id", jobSyncId)
       .eq("kind", kind)
       .eq("amount_cents", amount)

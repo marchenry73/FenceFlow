@@ -870,7 +870,10 @@
     <!-- Correcting a clock. The original is kept by the database, not by
          this page: a trigger on time_entries copies the old time into
          original_started_at the first time it moves, and refuses to let a
-         second edit overwrite it. -->
+         second edit overwrite it. The unpaid-break field lives in this same
+         sheet rather than a second dialog -- it is the same kind of edit
+         (changes what hours pay is estimated from, needs the same "who and
+         why"), so it gets the same flow instead of a competing one. -->
     <div class="sheet" id="fixTimeSheet" style="display:none">
       <div class="sheet-head"><h2>Correct this shift</h2>
         <button class="jt-clear" id="fixTimeClose">Close</button></div>
@@ -881,6 +884,10 @@
           <div><label>Started</label><input type="datetime-local" id="fixTimeStart"></div>
           <div><label>Ended</label><input type="datetime-local" id="fixTimeEnd"></div>
         </div>
+        <label>Unpaid break (minutes)</label>
+        <input id="fixTimeBreak" type="number" min="0" step="1"
+          placeholder="Leave blank -- no break recorded">
+        <p class="sub" id="fixTimeBreakNote"></p>
         <label>Why is it being changed?</label>
         <input id="fixTimeReason" placeholder="Forgot to clock in, was on site at 8:30" maxlength="200">
         <p class="sub">The clock's own times are kept. This records what you changed and why,
@@ -910,10 +917,12 @@
           spot. A day marked <i>corrected</i> means the hours shown are not what the clock
           recorded &mdash; use Clock In / Out above to see the original time and the
           reason.</p>
-        <p class="sub" style="margin-top:6px"><b>Breaks are not recorded yet.</b> FenceFlow's
-          clock has no break button, so an unpaid break taken during a shift is not
-          subtracted anywhere on this page. The hours below are clock-in to clock-out,
-          full stop. Treat a long shift as a hint to ask, not as proof nobody stopped to eat.</p>
+        <p class="sub" style="margin-top:6px"><b>Breaks are only subtracted when a manager
+          records one.</b> FenceFlow's phone clock still has no break button, so a shift
+          with no break note below is not proof nobody stopped -- it means nobody entered
+          one yet, not that the hours are already net of a break. Use Clock In / Out above
+          to add a break to a shift; once it is recorded, the hours here and the pay below
+          both drop by that amount.</p>
         <div class="scroll"><table>
           <thead><tr><th>Who</th><th>Week of</th><th>Days</th><th>Daily hours</th>
             <th>Regular</th><th>Overtime</th><th>Total</th></tr></thead>
@@ -5491,6 +5500,18 @@ function hoursOf(t){
   if(!t.started_at||!t.ended_at) return 0;
   return (d(t.ended_at)-d(t.started_at))/3600000;
 }
+/* break_minutes is nullable with no default on purpose (see
+   supabase_time_entry_breaks.sql): null means "nobody has recorded a break
+   for this shift," not "a break of zero minutes was taken." Every reader of
+   the column has to keep that distinction alive, so it goes through these
+   two functions rather than each call site doing its own `t.break_minutes||0`
+   -- that `||0` is exactly the bug this task exists to prevent. */
+function breakRecorded(t){ return t.break_minutes !== null && t.break_minutes !== undefined; }
+function breakHoursOf(t){ return breakRecorded(t) ? Number(t.break_minutes)/60 : 0; }
+// What pay is actually estimated from: clock hours minus a recorded unpaid
+// break. Floored at zero so a bad manual entry (caught at save time, but a
+// stale row could still exist) can't produce negative "hours".
+function paidHoursOf(t){ return Math.max(0, hoursOf(t) - breakHoursOf(t)); }
 function jobBySync(sid){ return jobs.find(j=>j.sync_id===sid); }
 /* A shift shows the corrected time, with the clock's own time underneath when
    the two differ. Hiding the original would make the correction invisible to
@@ -5516,17 +5537,24 @@ async function renderTime(){
       ? '<div class="sub">clock said ' + d(t.original_ended_at).toLocaleTimeString() + '</div>' : '';
     const why = t.correction_reason
       ? '<div class="sub" style="font-style:italic">' + esc(t.correction_reason) + '</div>' : '';
+    // Only shown when break_minutes is not null -- a shift with no break
+    // recorded gets no note at all here, not a "0m break" note. That silence
+    // is deliberate: it is the visible difference between "none taken" and
+    // "nobody has said."
+    const brk = breakRecorded(t)
+      ? '<div class="sub">&minus; ' + t.break_minutes + 'm unpaid break</div>' : '';
     return `<tr><td>${esc(shiftWhoName(t))}${why}</td>
       <td>${esc(j?.customer_name)||'—'}</td>
       <td>${d(t.started_at).toLocaleString()}${wasStart}</td>
       <td>${d(t.ended_at).toLocaleString()}${wasEnd}</td>
-      <td>${h.toFixed(2)}</td><td>${money(h*(t.hourly_rate||0))}</td>
+      <td>${h.toFixed(2)}${brk}</td><td>${money(paidHoursOf(t)*(t.hourly_rate||0))}</td>
       <td><button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">Correct</button></td></tr>`;
   }).join('');
   document.querySelectorAll('#timeRows .fixtime').forEach(b =>
     b.addEventListener('click', () => openFixTime(b.dataset.id)));
   const th=done.reduce((s,t)=>s+hoursOf(t),0);
-  const tc=done.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
+  // Paid hours, not clock hours -- see the money column above.
+  const tc=done.reduce((s,t)=>s+paidHoursOf(t)*(t.hourly_rate||0),0);
   $('timeTotals').textContent = done.length
     ? `Total: ${th.toFixed(1)} hours · ${money(tc)} labor` : '';
   // Both tables below split the same shifts into regular/overtime by week,
@@ -5577,35 +5605,61 @@ function renderTimesheet(ot){
       // from what the clock originally recorded.
       const corrected = (t.original_started_at && t.original_started_at !== t.started_at)
         || (t.original_ended_at && t.original_ended_at !== t.ended_at);
-      const entry = byDay.get(day) || { hours: 0, corrected: false, reason: '' };
-      entry.hours += hoursOf(t);
+      const entry = byDay.get(day) ||
+        { hours: 0, breakMin: 0, anyBreakRecorded: false, anyBreakMissing: false,
+          corrected: false, reason: '' };
+      entry.hours += paidHoursOf(t);
+      // breakMin only accumulates shifts that actually recorded one -- a
+      // missing break on one shift of the day must not silently read as a
+      // zero when summed against a recorded break on another.
+      if (breakRecorded(t)) { entry.breakMin += Number(t.break_minutes); entry.anyBreakRecorded = true; }
+      else { entry.anyBreakMissing = true; }
       if (corrected) { entry.corrected = true; entry.reason = t.correction_reason || entry.reason; }
       byDay.set(day, entry);
     }
-    const total = b.shifts.reduce((s,t)=>s+hoursOf(t), 0);
+    const total = b.shifts.reduce((s,t)=>s+paidHoursOf(t), 0);
+    const breakMinTotal = b.shifts.reduce((s,t)=>s+(breakRecorded(t)?Number(t.break_minutes):0), 0);
+    const anyBreakMissing = b.shifts.some(t => !breakRecorded(t));
     const reg = Math.min(total, ot.otAfter);
     const otHrs = Math.max(0, total - ot.otAfter);
     const dayList = [...byDay.entries()]
       .sort((a,c) => new Date(a[0]) - new Date(c[0]))
-      .map(([day, e]) => '<div>' + day + ': ' + e.hours.toFixed(2) + 'h' +
+      .map(([day, e]) => {
+        // "no break recorded" is never printed as part of the hours line --
+        // it shows once, in the week's own note below, so a day with nothing
+        // recorded doesn't read as a claim that no break was taken.
+        const breakNote = e.anyBreakRecorded
+          ? ' <span class="sub">(&minus; ' + e.breakMin + 'm break)</span>' : '';
+        return '<div>' + day + ': ' + e.hours.toFixed(2) + 'h' + breakNote +
         (e.corrected
           ? ' <span class="sub" style="font-style:italic">(corrected'
             + (e.reason ? ': ' + esc(e.reason) : '') + ')</span>'
           : '')
-        + '</div>').join('');
-    return { who: b.who, ws: b.ws, days: byDay.size, dayList, reg, otHrs, total };
+        + '</div>';
+      }).join('');
+    return { who: b.who, ws: b.ws, days: byDay.size, dayList, reg, otHrs, total,
+      breakMinTotal, anyBreakMissing };
   }).sort((a,b) => b.ws - a.ws || a.who.localeCompare(b.who));
 
   $('timesheetEmpty').style.display = rows.length ? 'none' : 'block';
-  $('timesheetRows').innerHTML = rows.map(r => `<tr>
+  $('timesheetRows').innerHTML = rows.map(r => {
+    // Same null-vs-zero rule at the week level: only say a break was
+    // subtracted when at least one shift in the week actually recorded one.
+    const breakLine = r.breakMinTotal > 0
+      ? '<div class="sub">&minus; ' + r.breakMinTotal + 'm unpaid break'
+        + (r.anyBreakMissing ? ', some shifts not recorded' : '') + '</div>'
+      : (r.anyBreakMissing
+          ? '<div class="sub">no break recorded</div>' : '');
+    return `<tr>
       <td>${esc(r.who)}</td>
       <td>${r.ws.toLocaleDateString()}</td>
       <td>${r.days}</td>
       <td>${r.dayList}</td>
-      <td>${r.reg.toFixed(2)}</td>
+      <td>${r.reg.toFixed(2)}${breakLine}</td>
       <td>${r.otHrs > 0 ? r.otHrs.toFixed(2) : '—'}</td>
       <td>${r.total.toFixed(2)}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 /* ---- estimated pay -----------------------------------------------------
@@ -5638,7 +5692,9 @@ function renderPay(ot){
     const ws  = weekStart(t.started_at);
     const key = who + '|' + ws.toISOString().slice(0,10);
     const b = buckets.get(key) || { who, ws, hours: 0, rate: 0, rated: 0 };
-    const h = hoursOf(t);
+    // Estimated pay is what an unpaid break shouldn't be counted in --
+    // paidHoursOf(), not hoursOf(), is the whole point of this task.
+    const h = paidHoursOf(t);
     b.hours += h;
     // Rate can differ between shifts. Weight it by hours rather than taking
     // the last one, so a single short shift at a different rate cannot swing
@@ -5673,6 +5729,7 @@ function renderPay(ot){
     (usingDefault
       ? ' (the federal default -- there is no on-screen setting for this yet, so if your rule differs these figures do too).'
       : ' (set in company settings, not the federal default -- edit the ot_after_hours / ot_multiplier keys directly if this changes).') +
+    ' Hours already have any recorded unpaid break taken out -- see the timesheet above for how much.' +
     (noRate ? ' <b>' + noRate + ' week' + (noRate===1?'':'s') +
       ' cannot be costed because that person has no hourly rate on file.</b>' : '');
 }
@@ -5702,6 +5759,13 @@ function openFixTime(id){
     ? 'The clock originally said: ' + orig.join(', ') + '. That does not change.' : '';
   $('fixTimeStart').value = forLocalInput(t.started_at);
   $('fixTimeEnd').value   = t.ended_at ? forLocalInput(t.ended_at) : '';
+  // Blank means "not recorded" (null), never "0" -- an empty box here must
+  // read the same as an untouched shift, not as a claim that no break was
+  // taken. Only a shift that already has break_minutes set shows a number.
+  $('fixTimeBreak').value = breakRecorded(t) ? String(t.break_minutes) : '';
+  $('fixTimeBreakNote').textContent = breakRecorded(t)
+    ? 'Currently recorded: ' + t.break_minutes + ' minutes.'
+    : 'No break recorded for this shift yet.';
   $('fixTimeReason').value = '';
   msg('fixTimeMsg','','');
   $('fixTimeSheet').style.display = 'block';
@@ -5714,7 +5778,9 @@ async function saveFixTime(){
   if (!t) return;
   const reason = $('fixTimeReason').value.trim();
   // Required, and not as box-ticking: this line is what the employee reads
-  // when their hours change, and what settles it if they disagree.
+  // when their hours change, and what settles it if they disagree. A break
+  // entry changes estimated pay exactly like a time correction does, so it
+  // gets the same "who and why" instead of a quieter path around it.
   if (reason.length < 4) return msg('fixTimeMsg','Say why it is changing.','err');
   const startVal = $('fixTimeStart').value, endVal = $('fixTimeEnd').value;
   if (!startVal || !endVal) return msg('fixTimeMsg','Both times are needed.','err');
@@ -5724,10 +5790,30 @@ async function saveFixTime(){
   // slipped date that turns eight hours into two hundred.
   if ((end - start) > 20*36e5) return msg('fixTimeMsg','That is over twenty hours. Check the dates.','err');
 
-  const { error } = await db.from('time_entries')
-    .update({ started_at: start.toISOString(), ended_at: end.toISOString(),
-              correction_reason: reason })
-    .eq('id', t.id);
+  const patch = { started_at: start.toISOString(), ended_at: end.toISOString(),
+                   correction_reason: reason };
+  // Left blank on purpose leaves break_minutes untouched -- the key is simply
+  // omitted from the patch, so a manager correcting only the times does not
+  // accidentally null out a break someone already recorded. Typing "0" is a
+  // real, distinct answer ("checked, no break taken") and is sent as 0.
+  const breakVal = $('fixTimeBreak').value.trim();
+  if (breakVal !== '') {
+    const breakMin = Number(breakVal);
+    if (!Number.isFinite(breakMin) || breakMin < 0 || !Number.isInteger(breakMin)) {
+      return msg('fixTimeMsg','Break minutes has to be a whole number, zero or more.','err');
+    }
+    // A break cannot be longer than the shift it belongs to -- the shift
+    // length is the corrected start/end just validated above, not the
+    // original clock time, since that is what pay is estimated from.
+    const shiftMin = (end - start) / 60000;
+    if (breakMin > shiftMin) {
+      return msg('fixTimeMsg','That break (' + breakMin + ' min) is longer than the shift itself ('
+        + shiftMin.toFixed(0) + ' min). Check the minutes or the shift times.', 'err');
+    }
+    patch.break_minutes = breakMin;
+  }
+
+  const { error } = await db.from('time_entries').update(patch).eq('id', t.id);
   if (error) return msg('fixTimeMsg', error.message, 'err');
   closeFixTime();
   msg('timeMsg','Shift corrected. The clock\'s own times are kept on the record.','ok');
