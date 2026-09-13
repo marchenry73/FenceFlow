@@ -524,8 +524,14 @@
      >Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></a>
   <div style="display:flex;align-items:center;gap:10px">
     <span class="who" id="who"></span>
-    <button class="btn btn-sm btn-ghost" id="refresh" style="display:none">Refresh</button>
-    <button class="btn btn-sm btn-ghost" id="signOut" style="display:none">Sign out</button>
+    <select id="langPicker" class="btn btn-sm btn-ghost" aria-label="Language" title="Language"
+            style="padding-right:6px">
+      <option value="en">EN</option>
+      <option value="es">ES</option>
+      <option value="fr">FR</option>
+    </select>
+    <button class="btn btn-sm btn-ghost" id="refresh" data-t="refresh" style="display:none">Refresh</button>
+    <button class="btn btn-sm btn-ghost" id="signOut" data-t="signOut" style="display:none">Sign out</button>
   </div>
 </header>
 
@@ -593,47 +599,47 @@
 <div id="app">
   <div class="wrap">
     <div class="tabs">
-      <button class="tab on" data-tab="dash">Dashboard</button>
-      <button class="tab" data-tab="jobs">Jobs</button>
-      <button class="tab" data-tab="cal">Calendar</button>
-      <button class="tab" data-tab="pipe">Pipeline</button>
-      <button class="tab" data-tab="prod">Production</button>
-      <button class="tab" data-tab="materials">Materials</button>
-      <button class="tab" data-tab="crew">Crew</button>
-      <button class="tab" data-tab="time">Time</button>
-      <button class="tab" data-tab="catalog">Catalog</button>
-      <button class="tab" data-tab="reports">Reports</button>
-      <button class="tab" data-tab="automation">Automation</button>
-      <button class="tab" data-tab="settings">Settings</button>
-      <button class="tab" data-tab="billing">Billing</button>
+      <button class="tab on" data-tab="dash" data-t="tabDash">Dashboard</button>
+      <button class="tab" data-tab="jobs" data-t="tabJobs">Jobs</button>
+      <button class="tab" data-tab="cal" data-t="tabCal">Calendar</button>
+      <button class="tab" data-tab="pipe" data-t="tabPipe">Pipeline</button>
+      <button class="tab" data-tab="prod" data-t="tabProd">Production</button>
+      <button class="tab" data-tab="materials" data-t="tabMaterials">Materials</button>
+      <button class="tab" data-tab="crew" data-t="tabCrew">Crew</button>
+      <button class="tab" data-tab="time" data-t="tabTime">Time</button>
+      <button class="tab" data-tab="catalog" data-t="tabCatalog">Catalog</button>
+      <button class="tab" data-tab="reports" data-t="tabReports">Reports</button>
+      <button class="tab" data-tab="automation" data-t="tabAutomation">Automation</button>
+      <button class="tab" data-tab="settings" data-t="tabSettings">Settings</button>
+      <button class="tab" data-tab="billing" data-t="tabBilling">Billing</button>
     </div>
 
     <div id="tab-dash">
       <div class="panel" id="setupPanel" style="display:none;border-left:3px solid var(--warn,#b26a00)">
-        <h2 style="margin-top:0">Finish setting up before you quote</h2>
-        <p class="sub">A quote is built out of these numbers. Until they are yours, every
+        <h2 style="margin-top:0" data-t="setupHead">Finish setting up before you quote</h2>
+        <p class="sub" data-t="setupBody">A quote is built out of these numbers. Until they are yours, every
           estimate this company produces is built on blanks &mdash; and you will not find out
           until the job is done.</p>
         <div id="setupList"></div>
       </div>
       <div class="panel" id="briefingPanel">
-        <h2 style="margin-bottom:2px">Daily briefing</h2>
-        <p class="sub" style="margin-top:0">What changed in the last 24 hours, and what needs you today
+        <h2 style="margin-bottom:2px" data-t="briefingHead">Daily briefing</h2>
+        <p class="sub" style="margin-top:0" data-t="briefingBody">What changed in the last 24 hours, and what needs you today
           &mdash; a summary of the alerts and totals below, not a new set of checks.</p>
         <div id="briefingBody"></div>
       </div>
       <div class="stats" id="stats"></div>
       <div class="panel">
-        <h2 style="margin-bottom:2px">Chase list</h2>
-        <p class="sub" style="margin-top:0">Every open lead, sent quote and unpaid approval, ranked by
+        <h2 style="margin-bottom:2px" data-t="chaseHead">Chase list</h2>
+        <p class="sub" style="margin-top:0" data-t="chaseBody">Every open lead, sent quote and unpaid approval, ranked by
           what it is worth times how long it has been waiting &mdash; so a big job that has gone quiet
           outranks a small one from this morning. Click the bar to see the math.</p>
         <div class="stats" id="chaseStats" style="margin-bottom:14px"></div>
         <div id="chaseList"></div>
       </div>
-      <div class="panel"><h2>Needs attention</h2><div id="attention"></div></div>
-      <div class="panel"><h2>This week</h2>
-        <p class="sub">The next seven days. Click a job to open it.</p>
+      <div class="panel"><h2 data-t="attentionHead">Needs attention</h2><div id="attention"></div></div>
+      <div class="panel"><h2 data-t="thisWeekHead">This week</h2>
+        <p class="sub" data-t="thisWeekBody">The next seven days. Click a job to open it.</p>
         <div id="thisWeek"></div>
       </div>
     </div>
@@ -1926,6 +1932,113 @@ const db = createClient(
 );
 
 const $ = id => document.getElementById(id);
+
+/* ---------------------------------------------------------------------
+   Translation. The app (1,243 string calls) and the customer-facing pages
+   (quote.html, lead.html) both already speak English/Spanish/French; this
+   console did not, at all -- no dictionary, no lookup, no language state.
+   Copying quote.html's convention exactly rather than inventing a second
+   one: a flat L[lang][key] table, a tr(key, ...args) lookup that falls
+   back to English and then to '' (never a raw key name on screen), and
+   %s placeholders filled in call order. The one difference is deliberate:
+   quote.html also reads ?lang= from the URL because that link gets
+   forwarded between people; this console is a signed-in workspace nobody
+   forwards, so there is no link to carry it, but it uses the SAME
+   localStorage key ('ff_lang') as the customer pages so a bilingual
+   office that also opens quote.html from this browser gets one answer,
+   not two independently-remembered ones. Only the highest-traffic
+   surfaces are covered so far -- see TL for the current key set; anything
+   without a data-t/tr() call still renders in English on purpose (a
+   missing key must fall back to English, never to a blank, so a partial
+   translation pass never produces an empty label on a money screen). */
+const TL = {
+  en: {
+    tabDash:'Dashboard', tabJobs:'Jobs', tabCal:'Calendar', tabPipe:'Pipeline',
+    tabProd:'Production', tabMaterials:'Materials', tabCrew:'Crew', tabTime:'Time',
+    tabCatalog:'Catalog', tabReports:'Reports', tabAutomation:'Automation',
+    tabSettings:'Settings', tabBilling:'Billing',
+    signOut:'Sign out', refresh:'Refresh',
+    setupHead:'Finish setting up before you quote',
+    setupBody:'A quote is built out of these numbers. Until they are yours, every estimate this company produces is built on blanks — and you will not find out until the job is done.',
+    briefingHead:'Daily briefing',
+    briefingBody:'What changed in the last 24 hours, and what needs you today — a summary of the alerts and totals below, not a new set of checks.',
+    chaseHead:'Chase list',
+    chaseBody:'Every open lead, sent quote and unpaid approval, ranked by what it is worth times how long it has been waiting — so a big job that has gone quiet outranks a small one from this morning. Click the bar to see the math.',
+    attentionHead:'Needs attention',
+    thisWeekHead:'This week',
+    thisWeekBody:'The next seven days. Click a job to open it.',
+    langLabel:'Language',
+  },
+  es: {
+    tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
+    tabProd:'Producción', tabMaterials:'Materiales', tabCrew:'Cuadrilla', tabTime:'Horas',
+    tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
+    tabSettings:'Ajustes', tabBilling:'Facturación',
+    signOut:'Cerrar sesión', refresh:'Actualizar',
+    setupHead:'Termine la configuración antes de cotizar',
+    setupBody:'Un presupuesto se arma con estos datos. Hasta que sean los suyos, cada presupuesto que haga esta empresa se construye sobre huecos en blanco — y no lo va a notar hasta que el trabajo esté terminado.',
+    briefingHead:'Resumen del día',
+    briefingBody:'Lo que cambió en las últimas 24 horas y lo que necesita su atención hoy — un resumen de las alertas y totales de abajo, no una lista nueva de revisiones.',
+    chaseHead:'Lista de seguimiento',
+    chaseBody:'Cada lead abierto, presupuesto enviado y aprobación sin pagar, ordenados por su valor multiplicado por cuánto llevan esperando — así un trabajo grande que se quedó callado pasa por delante de uno chico de esta mañana. Toque la barra para ver el cálculo.',
+    attentionHead:'Requiere atención',
+    thisWeekHead:'Esta semana',
+    thisWeekBody:'Los próximos siete días. Toque un trabajo para abrirlo.',
+    langLabel:'Idioma',
+  },
+  fr: {
+    tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
+    tabProd:'Production', tabMaterials:'Matériaux', tabCrew:'Équipe', tabTime:'Heures',
+    tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
+    tabSettings:'Paramètres', tabBilling:'Facturation',
+    signOut:'Se déconnecter', refresh:'Actualiser',
+    setupHead:'Terminez la configuration avant de faire un devis',
+    setupBody:'Un devis se construit à partir de ces chiffres. Tant qu’ils ne sont pas les vôtres, chaque devis produit par cette entreprise repose sur des cases vides — et vous ne le saurez qu’une fois le chantier terminé.',
+    briefingHead:'Point du jour',
+    briefingBody:'Ce qui a changé dans les dernières 24 heures, et ce qui demande votre attention aujourd’hui — un résumé des alertes et totaux ci-dessous, pas une nouvelle liste de vérifications.',
+    chaseHead:'Liste de relance',
+    chaseBody:'Chaque piste ouverte, devis envoyé et approbation non payée, classés selon leur valeur multipliée par le temps d’attente — un gros chantier devenu silencieux passe ainsi devant un petit datant de ce matin. Cliquez sur la barre pour voir le calcul.',
+    attentionHead:'À traiter',
+    thisWeekHead:'Cette semaine',
+    thisWeekBody:'Les sept prochains jours. Cliquez sur un chantier pour l’ouvrir.',
+    langLabel:'Langue',
+  },
+};
+
+let LANG = 'en';
+(function () {
+  let saved = '';
+  try { saved = localStorage.getItem('ff_lang') || ''; } catch (e) { /* private window */ }
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const pick = [saved, browser].find(c => c && TL[c]);
+  if (pick) LANG = pick;
+})();
+
+/* %s in order, same as quote.html -- deliberately not a template engine. */
+function tr(key) {
+  const args = [].slice.call(arguments, 1);
+  let out = (TL[LANG] && TL[LANG][key]) || TL.en[key] || '';
+  args.forEach(a => { out = out.replace('%s', a); });
+  return out;
+}
+
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.getAttribute('data-t');
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = tr(k);
+    else el.textContent = tr(k);
+  });
+  const picker = $('langPicker');
+  if (picker) picker.value = LANG;
+}
+
+function setLang(code) {
+  if (!TL[code] || code === LANG) return;
+  LANG = code;
+  try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  applyStaticText();
+}
 
 /* Asks before something irreversible, in the product's own voice.
    A browser confirm() is styled by the operating system, cannot say more than
@@ -12441,6 +12554,9 @@ $('calToday').addEventListener('click',()=>{
   calMonth = (() => { const t = new Date(); t.setDate(1); t.setHours(0,0,0,0); return t; })();
   renderCal();
 });
+
+applyStaticText();
+$('langPicker').addEventListener('change', e => setLang(e.target.value));
 
 boot();
 </script>
