@@ -690,7 +690,7 @@
     <div id="tab-cal" style="display:none">
       <div class="panel">
         <div class="panel" id="mapBox" style="display:none">
-        <h2 style="margin:0 0 8px">Jobs on the map</h2>
+        <h2 style="margin:0 0 8px" data-t="mapHead">Jobs on the map</h2>
         <p class="sub" id="mapNote" style="margin:0 0 10px"></p>
         <div id="mapCanvasWrap" style="position:relative;border-radius:10px;overflow:hidden">
           <canvas id="mapCanvas" style="display:block;width:100%"></canvas>
@@ -701,13 +701,13 @@
           <h2 id="calTitle" style="margin:0"></h2>
           <div class="nav">
             <button class="btn btn-sm btn-grey" id="calPrev">‹</button>
-            <button class="btn btn-sm btn-grey" id="calToday">Today</button>
+            <button class="btn btn-sm btn-grey" id="calToday" data-t="calTodayBtn">Today</button>
             <button class="btn btn-sm btn-grey" id="calNext">›</button>
           </div>
         </div>
         <div class="cal-sum" id="calSummary"></div>
         <div class="cal" id="cal"></div>
-        <p style="font-size:12px;color:var(--muted);margin-top:10px">Click a job to open it.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px" data-t="calFooterNote">Click a job to open it.</p>
       </div>
     </div>
 
@@ -715,17 +715,17 @@
 
     <div id="tab-prod" style="display:none">
       <div class="panel">
-        <h2 style="margin-bottom:2px">Production</h2>
-        <p class="sub" style="margin-top:0">Every sold job, where it is right now. Materials, dig,
+        <h2 style="margin-bottom:2px" data-t="prodHead">Production</h2>
+        <p class="sub" style="margin-top:0" data-t="prodBody">Every sold job, where it is right now. Materials, dig,
           set, build, punch, done &mdash; a job with no stage yet has not started.</p>
         <div class="msg" id="prodMsg"></div>
         <div class="pipe" id="prodBoard"></div>
       </div>
       <div class="panel">
-        <h2 style="margin-bottom:2px">Time in stage</h2>
+        <h2 style="margin-bottom:2px" data-t="prodTimeHead">Time in stage</h2>
         <p class="sub" style="margin-top:0" id="prodTimeNote"></p>
         <div class="scroll"><table>
-          <thead><tr><th>Stage</th><th>Jobs there now</th><th>Average time to move on</th></tr></thead>
+          <thead><tr><th data-t="prodTimeColStage">Stage</th><th data-t="prodTimeColCount">Jobs there now</th><th data-t="prodTimeColAvg">Average time to move on</th></tr></thead>
           <tbody id="prodTimeRows"></tbody></table></div>
       </div>
     </div>
@@ -2027,6 +2027,30 @@ const TL = {
     jobLabelPermitStatus:'Permit status',
     jobSecExpenses:'Expenses', jobSecPunch:'Punch List', jobSecOrders:'Change Orders',
     jobSecTime:'Time Logged', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes',
+    mapHead:'Jobs on the map', mapPlacingJobs:'Placing jobs…',
+    mapNoneNote:'No jobs could be placed yet — addresses need street, city and ZIP (use Verify address on a job).',
+    mapPinsSing:'%s job on the map — colours are pipeline stages, tap a pin to open the job.',
+    mapPinsPlur:'%s jobs on the map — colours are pipeline stages, tap a pin to open the job.',
+    calTodayBtn:'Today',
+    calSumScheduledSing:'job scheduled', calSumScheduledPlur:'jobs scheduled',
+    calSumClocked:'clocked', calSumCollected:'collected',
+    calFooterNote:'Click a job to open it.',
+    calStageNewLead:'New Lead', calStageQuoteSent:'Quote Sent', calStageApproved:'Approved',
+    calStageDepositPaid:'Deposit Paid', calStageScheduled:'Scheduled',
+    calStageInstalled:'Installed', calStagePaidFull:'Paid in Full', calStageLost:'Lost',
+    prodHead:'Production',
+    prodBody:'Every sold job, where it is right now. Materials, dig, set, build, punch, done — a job with no stage yet has not started.',
+    prodTimeHead:'Time in stage',
+    prodTimeColStage:'Stage', prodTimeColCount:'Jobs there now', prodTimeColAvg:'Average time to move on',
+    prodStageNotStarted:'Not started', prodStageMaterials:'Materials', prodStageDig:'Dig',
+    prodStageSet:'Set', prodStageBuild:'Build', prodStagePunch:'Punch', prodStageDone:'Done',
+    prodInStage:'In this stage %s',
+    prodMoveAria:'Move %s to a different production stage',
+    prodMovedMsg:'Moved to %s.',
+    prodTimeNoteHasData:'How long a sold job has stayed in each stage before moving to the next one, from every recorded move so far.',
+    prodTimeNoteEmpty:'No job has moved from one production stage to the next yet, so there is nothing to average yet — this fills in as jobs move.',
+    prodAvgNotEnough:'Not enough history yet',
+    prodAvgFormat:'%s (from %s moves)',
     timeHead:'Clock In / Out', timeColWho:'Who', timeColJob:'Job',
     timeColStarted:'Started', timeColEnded:'Ended', timeColHours:'Hours',
     timeColLabor:'Labor cost',
@@ -2246,6 +2270,30 @@ const TL = {
     jobLabelPermitStatus:'Estado del permiso',
     jobSecExpenses:'Gastos', jobSecPunch:'Lista de pendientes', jobSecOrders:'Órdenes de cambio',
     jobSecTime:'Horas registradas', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios',
+    mapHead:'Trabajos en el mapa', mapPlacingJobs:'Ubicando trabajos…',
+    mapNoneNote:'Todavía no se pudo ubicar ningún trabajo — las direcciones necesitan calle, ciudad y código postal (use Verificar dirección en un trabajo).',
+    mapPinsSing:'%s trabajo en el mapa — los colores son las etapas del embudo, toque un punto para abrir el trabajo.',
+    mapPinsPlur:'%s trabajos en el mapa — los colores son las etapas del embudo, toque un punto para abrir el trabajo.',
+    calTodayBtn:'Hoy',
+    calSumScheduledSing:'trabajo programado', calSumScheduledPlur:'trabajos programados',
+    calSumClocked:'horas marcadas', calSumCollected:'cobrado',
+    calFooterNote:'Toque un trabajo para abrirlo.',
+    calStageNewLead:'Cliente nuevo', calStageQuoteSent:'Cotización enviada', calStageApproved:'Aprobado',
+    calStageDepositPaid:'Depósito pagado', calStageScheduled:'Programado',
+    calStageInstalled:'Instalado', calStagePaidFull:'Pagado por completo', calStageLost:'Perdido',
+    prodHead:'Producción',
+    prodBody:'Cada trabajo vendido, dónde está ahora mismo. Materiales, excavar, plantar, construir, retoques, terminado — un trabajo sin etapa todavía no ha comenzado.',
+    prodTimeHead:'Tiempo en cada etapa',
+    prodTimeColStage:'Etapa', prodTimeColCount:'Trabajos ahí ahora', prodTimeColAvg:'Tiempo promedio para avanzar',
+    prodStageNotStarted:'Sin comenzar', prodStageMaterials:'Materiales', prodStageDig:'Excavar',
+    prodStageSet:'Plantar', prodStageBuild:'Construir', prodStagePunch:'Retoques', prodStageDone:'Terminado',
+    prodInStage:'En esta etapa %s',
+    prodMoveAria:'Mover %s a otra etapa de producción',
+    prodMovedMsg:'Movido a %s.',
+    prodTimeNoteHasData:'Cuánto tiempo se queda un trabajo vendido en cada etapa antes de pasar a la siguiente, con todos los movimientos registrados hasta ahora.',
+    prodTimeNoteEmpty:'Todavía ningún trabajo ha pasado de una etapa de producción a la siguiente, así que aún no hay nada que promediar — esto se va llenando conforme los trabajos avanzan.',
+    prodAvgNotEnough:'Todavía no hay suficiente historial',
+    prodAvgFormat:'%s (de %s movimientos)',
     timeHead:'Entradas y salidas', timeColWho:'Quién', timeColJob:'Trabajo',
     timeColStarted:'Entrada', timeColEnded:'Salida', timeColHours:'Horas',
     timeColLabor:'Costo de mano de obra',
@@ -2465,6 +2513,30 @@ const TL = {
     jobLabelPermitStatus:'Statut du permis',
     jobSecExpenses:'Dépenses', jobSecPunch:'Liste des correctifs', jobSecOrders:'Avenants',
     jobSecTime:'Heures enregistrées', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications',
+    mapHead:'Chantiers sur la carte', mapPlacingJobs:'Localisation des chantiers…',
+    mapNoneNote:'Aucun chantier n’a pu être placé pour l’instant — les adresses ont besoin d’une rue, d’une ville et d’un code postal (utilisez Vérifier l’adresse sur un chantier).',
+    mapPinsSing:'%s chantier sur la carte — les couleurs sont les étapes du pipeline, touchez un point pour ouvrir le chantier.',
+    mapPinsPlur:'%s chantiers sur la carte — les couleurs sont les étapes du pipeline, touchez un point pour ouvrir le chantier.',
+    calTodayBtn:'Aujourd’hui',
+    calSumScheduledSing:'chantier prévu', calSumScheduledPlur:'chantiers prévus',
+    calSumClocked:'heures pointées', calSumCollected:'encaissé',
+    calFooterNote:'Touchez un chantier pour l’ouvrir.',
+    calStageNewLead:'Nouveau client', calStageQuoteSent:'Soumission envoyée', calStageApproved:'Approuvé',
+    calStageDepositPaid:'Acompte payé', calStageScheduled:'Planifié',
+    calStageInstalled:'Installé', calStagePaidFull:'Payé en entier', calStageLost:'Perdu',
+    prodHead:'Production',
+    prodBody:'Chaque chantier vendu, où il en est en ce moment. Matériaux, creuser, planter, monter, retouches, terminé — un chantier sans étape n’a pas encore commencé.',
+    prodTimeHead:'Temps par étape',
+    prodTimeColStage:'Étape', prodTimeColCount:'Chantiers là en ce moment', prodTimeColAvg:'Temps moyen avant de passer à la suite',
+    prodStageNotStarted:'Pas commencé', prodStageMaterials:'Matériaux', prodStageDig:'Creuser',
+    prodStageSet:'Planter', prodStageBuild:'Monter', prodStagePunch:'Retouches', prodStageDone:'Terminé',
+    prodInStage:'Sur cette étape depuis %s',
+    prodMoveAria:'Déplacer %s vers une autre étape de production',
+    prodMovedMsg:'Déplacé vers %s.',
+    prodTimeNoteHasData:'Combien de temps un chantier vendu reste à chaque étape avant de passer à la suivante, d’après tous les mouvements enregistrés jusqu’ici.',
+    prodTimeNoteEmpty:'Aucun chantier n’est encore passé d’une étape de production à la suivante, donc il n’y a encore rien à faire de moyenne — ça se remplit au fur et à mesure que les chantiers avancent.',
+    prodAvgNotEnough:'Pas encore assez d’historique',
+    prodAvgFormat:'%s (sur %s mouvements)',
     timeHead:'Entrées / sorties', timeColWho:'Qui', timeColJob:'Chantier',
     timeColStarted:'Entrée', timeColEnded:'Sortie', timeColHours:'Heures',
     timeColLabor:'Coût de main-d’œuvre',
@@ -5620,11 +5692,11 @@ async function geocodeMissingJobs(){
 
 async function renderJobsMap(){
   $('mapBox').style.display='';
-  $('mapNote').textContent='Placing jobs…';
+  $('mapNote').textContent=tr('mapPlacingJobs');
   await geocodeMissingJobs();
   const pins=jobs.filter(j=>j.site_lat&&j.site_lon);
   if(!pins.length){
-    $('mapNote').textContent='No jobs could be placed yet — addresses need street, city and ZIP (use Verify address on a job).';
+    $('mapNote').textContent=tr('mapNoneNote');
     return;
   }
   const lats=pins.map(p=>p.site_lat), lons=pins.map(p=>p.site_lon);
@@ -5661,7 +5733,7 @@ async function renderJobsMap(){
     g.lineWidth=2.5; g.strokeStyle='#fff'; g.stroke();
     g.font='700 11px Barlow Condensed,sans-serif'; g.fillStyle='#12151A';
     g.strokeStyle='rgba(255,255,255,.85)'; g.lineWidth=3;
-    const label=(p.customer_name||'Job').slice(0,14);
+    const label=(p.customer_name||tr('jobUntitled')).slice(0,14);
     g.strokeText(label,x+12,y+4); g.fillText(label,x+12,y+4);
   });
   // Clicks resolve to the nearest pin within reach.
@@ -5673,11 +5745,10 @@ async function renderJobsMap(){
       if(d<bd){bd=d;best=p;}});
     if(best) showJob(best.id);
   };
-  $('mapNote').textContent=pins.length+' job'+(pins.length===1?'':'s')
-    +' on the map — colours are pipeline stages, tap a pin to open the job.';
+  $('mapNote').textContent=tr(pins.length===1?'mapPinsSing':'mapPinsPlur', pins.length);
   const used=[...new Set(pins.map(p=>stageOf(p)))];
   $('mapLegend').innerHTML=used.map(st=>
-    '<span><i style="background:'+(CAL_STAGE[st]||'#8A93A3')+'"></i>'+esc(st)+'</span>').join('');
+    '<span><i style="background:'+(CAL_STAGE[st]||'#8A93A3')+'"></i>'+esc(stageLabel(st))+'</span>').join('');
 }
 
 /* ===================== QuickBooks CSVs ====================================
@@ -5762,9 +5833,9 @@ function renderCal(){
     .filter(p=>p.received_at && inMonth(d(p.received_at)))
     .reduce((a,p)=>a+(p.amount||0),0);
   $('calSummary').innerHTML =
-    '<div><b>'+booked.length+'</b><span>job'+(booked.length===1?'':'s')+' scheduled</span></div>'
-   +'<div><b>'+monthHours.toFixed(0)+' h</b><span>clocked</span></div>'
-   +'<div><b>'+money(monthMoney)+'</b><span>collected</span></div>';
+    '<div><b>'+booked.length+'</b><span>'+esc(tr(booked.length===1?'calSumScheduledSing':'calSumScheduledPlur'))+'</span></div>'
+   +'<div><b>'+monthHours.toFixed(0)+' h</b><span>'+esc(tr('calSumClocked'))+'</span></div>'
+   +'<div><b>'+money(monthMoney)+'</b><span>'+esc(tr('calSumCollected'))+'</span></div>';
 
   // Six full weeks, Sunday to Saturday, with the neighbouring months' days
   // shown quietly rather than as holes — a schedule does not stop at midnight
@@ -5798,10 +5869,10 @@ function renderCal(){
         return '<div class="ev'+(cont?' cont':'')+'" data-id="'+j.id+'"'
           +(cont?'':' draggable="true"')
           +' style="background:'+(CAL_STAGE[stage]||'#8A93A3')+(i>=3?';display:none':'')+'"'
-          +' title="'+esc(j.customer_name||'Job')+' — '+esc(stage)
+          +' title="'+esc(j.customer_name||tr('jobUntitled'))+' — '+esc(stageLabel(stage))
           +(emp?' — '+esc(emp.name):'')+(cont?' (continues)':'')+'">'
           +(emp?'<span class="who">'+esc(initials(emp.name))+'</span>':'')
-          +esc(j.customer_name||'Job')+'</div>';
+          +esc(j.customer_name||tr('jobUntitled'))+'</div>';
       }).join('')
       +(hidden>0?'<div class="more" data-day="'+k+'">+'+hidden+' more</div>':'')
       +'</div>';
@@ -5814,7 +5885,7 @@ function renderCal(){
   // states nothing is in is noise.
   const usedStages=[...new Set([...byDay.values()].flat().map(({j})=>stageOf(j)))];
   const legend=Object.keys(CAL_STAGE).filter(st=>usedStages.includes(st))
-    .map(st=>'<span><i style="background:'+CAL_STAGE[st]+'"></i>'+esc(st)+'</span>').join('');
+    .map(st=>'<span><i style="background:'+CAL_STAGE[st]+'"></i>'+esc(stageLabel(st))+'</span>').join('');
   const legacy=document.querySelector('.cal-legend'); if(legacy) legacy.remove();
   if(legend) $('cal').insertAdjacentHTML('afterend','<div class="cal-legend">'+legend+'</div>');
 
@@ -5880,13 +5951,23 @@ function stageOf(j){
   if(j.status==='SENT') return 'Quote Sent';
   return 'New Lead';
 }
+/* stageOf() above returns a fixed English key, computed from job fields --
+   never stored. It drives CAL_STAGE colour lookups and this label map alike,
+   so only the label a person reads goes through tr(); the key itself, and
+   every place that compares against it, stays the English string. */
+const STAGE_KEYS = {
+  'New Lead':'calStageNewLead', 'Quote Sent':'calStageQuoteSent', 'Approved':'calStageApproved',
+  'Deposit Paid':'calStageDepositPaid', 'Scheduled':'calStageScheduled', 'Installed':'calStageInstalled',
+  'Paid in Full':'calStagePaidFull', 'Lost':'calStageLost',
+};
+function stageLabel(s){ return STAGE_KEYS[s] ? tr(STAGE_KEYS[s]) : s; }
 function renderPipe(){
   const stages=['New Lead','Quote Sent','Approved','Deposit Paid','Scheduled','Installed','Paid in Full','Lost'];
   $('pipe').innerHTML=stages.map(s=>{
     const list=jobs.filter(j=>stageOf(j)===s);
-    return `<div class="col"><h3><span>${s}</span><span style="color:var(--orange)">${list.length}</span></h3>
+    return `<div class="col"><h3><span>${esc(stageLabel(s))}</span><span style="color:var(--orange)">${list.length}</span></h3>
       ${list.map(j=>`<div class="card" data-id="${j.id}">
-        <strong>${esc(j.customer_name)||'Untitled'}</strong>
+        <strong>${esc(j.customer_name)||esc(tr('jobUntitled'))}</strong>
         <div style="color:var(--muted);font-size:12px">${esc(j.address)||''}</div></div>`).join('')
         || '<div style="color:var(--muted);font-size:12px">—</div>'}</div>`;
   }).join('');
@@ -5900,8 +5981,17 @@ function renderPipe(){
    has not started -- a quote, however far along, is not "waiting on
    materials" -- so "Not started" is a real column here, not a blank one. */
 const PROD_STAGES=['MATERIALS','DIG','SET','BUILD','PUNCH','DONE'];
+/* PROD_STAGES and jobs.production_stage stay the raw enum -- the phone app's
+   crew screen reads and writes those exact strings, so nothing here may ever
+   translate the value itself. This map only turns that value into the label
+   a person in the office reads; the <option value="..."> below still carries
+   the untouched English stage name. */
+const PROD_STAGE_KEYS = {
+  MATERIALS:'prodStageMaterials', DIG:'prodStageDig', SET:'prodStageSet',
+  BUILD:'prodStageBuild', PUNCH:'prodStagePunch', DONE:'prodStageDone',
+};
 function prodStageLabel(s){
-  return {MATERIALS:'Materials',DIG:'Dig',SET:'Set',BUILD:'Build',PUNCH:'Punch',DONE:'Done'}[s] || s;
+  return PROD_STAGE_KEYS[s] ? tr(PROD_STAGE_KEYS[s]) : s;
 }
 /* Under a day in hours, a day or more in days -- matches how "waited" and
    "clocked in long" already read elsewhere on this page. */
@@ -5934,7 +6024,7 @@ function renderProduction(){
   const byJobEvents = stageEventsByJob();
   const nowMs = Date.now();
 
-  const cols=[{key:null,label:'Not started'}, ...PROD_STAGES.map(s=>({key:s,label:prodStageLabel(s)}))];
+  const cols=[{key:null,label:tr('prodStageNotStarted')}, ...PROD_STAGES.map(s=>({key:s,label:prodStageLabel(s)}))];
   $('prodBoard').innerHTML = cols.map(col=>{
     const list = soldJobs.filter(j=>(j.production_stage||null)===col.key);
     return `<div class="col"><h3><span>${esc(col.label)}</span><span style="color:var(--orange)">${list.length}</span></h3>
@@ -5943,11 +6033,11 @@ function renderProduction(){
         const last = events[events.length-1];
         const since = last ? fmtDuration((nowMs - d(last.entered_at).getTime())/36e5) : null;
         return `<div class="card" data-id="${j.id}">
-          <strong>${esc(j.customer_name)||'Untitled'}</strong>
+          <strong>${esc(j.customer_name)||esc(tr('jobUntitled'))}</strong>
           <div style="color:var(--muted);font-size:12px">${esc(j.address)||''}</div>
-          ${since ? `<div style="color:var(--muted);font-size:11px;margin-top:3px">In this stage ${since}</div>` : ''}
-          <select class="prod-move" data-sid="${j.sync_id}" style="margin-top:6px;width:100%;font-size:12px" aria-label="Move ${esc(j.customer_name)||'this job'} to a different production stage">
-            ${PROD_STAGES.map(s=>`<option value="${s}"${s===col.key?' selected':''}>${prodStageLabel(s)}</option>`).join('')}
+          ${since ? `<div style="color:var(--muted);font-size:11px;margin-top:3px">${esc(tr('prodInStage', since))}</div>` : ''}
+          <select class="prod-move" data-sid="${j.sync_id}" style="margin-top:6px;width:100%;font-size:12px" aria-label="${esc(tr('prodMoveAria', j.customer_name||tr('jobUntitled')))}">
+            ${PROD_STAGES.map(s=>`<option value="${s}"${s===col.key?' selected':''}>${esc(prodStageLabel(s))}</option>`).join('')}
           </select>
         </div>`;
       }).join('') || '<div style="color:var(--muted);font-size:12px">—</div>'}</div>`;
@@ -5986,7 +6076,7 @@ async function moveProductionStage(sel){
   // rows that actually exist.
   const res = await loadStageEvents();
   if (!res.error) stageEvents = res.data || [];
-  msg('prodMsg', `Moved to ${prodStageLabel(next)}.`, 'ok');
+  msg('prodMsg', tr('prodMovedMsg', prodStageLabel(next)), 'ok');
   renderProduction();
 }
 
@@ -6004,15 +6094,15 @@ function renderProdTimeTable(byJobEvents, soldJobs){
     }
   });
   $('prodTimeNote').textContent = completed.length
-    ? 'How long a sold job has stayed in each stage before moving to the next one, from every recorded move so far.'
-    : 'No job has moved from one production stage to the next yet, so there is nothing to average yet -- this fills in as jobs move.';
+    ? tr('prodTimeNoteHasData')
+    : tr('prodTimeNoteEmpty');
   $('prodTimeRows').innerHTML = PROD_STAGES.map(s=>{
     const nowHere = soldJobs.filter(j=>j.production_stage===s).length;
     const samples = completed.filter(c=>c.stage===s).map(c=>c.hours);
     const avgText = samples.length < 2
-      ? 'Not enough history yet'
-      : `${fmtDuration(samples.reduce((a,b)=>a+b,0)/samples.length)} (from ${samples.length} moves)`;
-    return `<tr><td>${prodStageLabel(s)}</td><td>${nowHere}</td><td>${avgText}</td></tr>`;
+      ? tr('prodAvgNotEnough')
+      : tr('prodAvgFormat', fmtDuration(samples.reduce((a,b)=>a+b,0)/samples.length), samples.length);
+    return `<tr><td>${esc(prodStageLabel(s))}</td><td>${nowHere}</td><td>${esc(avgText)}</td></tr>`;
   }).join('');
 }
 
