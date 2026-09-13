@@ -755,29 +755,29 @@
 
     <div id="tab-automation" style="display:none">
       <div class="panel">
-        <h2 style="margin-bottom:2px">Automation rules</h2>
-        <p class="sub" style="margin-top:0">When something becomes true of a job, one of these can act on it
+        <h2 style="margin-bottom:2px" data-t="autoRulesHead">Automation rules</h2>
+        <p class="sub" style="margin-top:0" data-t="autoRulesBody">When something becomes true of a job, one of these can act on it
           automatically instead of waiting for someone to read a list. Every rule starts off &mdash; turn on
           the ones you want. None of these touch money or delete anything.</p>
         <div class="msg" id="automationMsg"></div>
         <div id="automationRulesRows"></div>
         <div style="margin-top:12px">
-          <button class="btn btn-sm btn-grey" id="automationRunNow">Check now</button>
+          <button class="btn btn-sm btn-grey" id="automationRunNow" data-t="autoCheckNowBtn">Check now</button>
         </div>
       </div>
       <div class="panel">
-        <h2 style="margin-bottom:2px">Flagged jobs</h2>
-        <p class="sub" style="margin-top:0">Jobs an automation rule raised a flag on. Clearing one does not
+        <h2 style="margin-bottom:2px" data-t="autoFlagsHead">Flagged jobs</h2>
+        <p class="sub" style="margin-top:0" data-t="autoFlagsBody">Jobs an automation rule raised a flag on. Clearing one does not
           change the job &mdash; it only says the office has seen it.</p>
         <div id="automationFlagsRows"></div>
       </div>
       <div class="panel">
-        <h2 style="margin-bottom:2px">Automation log</h2>
-        <p class="sub" style="margin-top:0">Every time a rule fired: which job, when, and what it did.</p>
+        <h2 style="margin-bottom:2px" data-t="autoLogHead">Automation log</h2>
+        <p class="sub" style="margin-top:0" data-t="autoLogBody">Every time a rule fired: which job, when, and what it did.</p>
         <div class="scroll"><table>
-          <thead><tr><th>When</th><th>Rule</th><th>Job</th><th>What happened</th></tr></thead>
+          <thead><tr><th data-t="autoColWhen">When</th><th data-t="autoColRule">Rule</th><th data-t="autoColJob">Job</th><th data-t="autoColWhat">What happened</th></tr></thead>
           <tbody id="automationRunsRows"></tbody></table></div>
-        <div class="empty" id="automationRunsEmpty" style="display:none">No rule has fired yet.</div>
+        <div class="empty" id="automationRunsEmpty" style="display:none" data-t="autoRunsEmptyMsg">No rule has fired yet.</div>
       </div>
     </div>
 
@@ -994,23 +994,23 @@
       <!-- Filters live in one row above the charts. -->
       <div class="panel filters">
         <div class="chips" id="repPresets">
-          <button class="chip" data-days="7">Last 7 days</button>
-          <button class="chip" data-days="30">Last 30 days</button>
-          <button class="chip on" data-days="90">Last 90 days</button>
-          <button class="chip" data-days="365">Last 12 months</button>
-          <button class="chip" data-days="0">All time</button>
+          <button class="chip" data-days="7" data-t="repLast7">Last 7 days</button>
+          <button class="chip" data-days="30" data-t="repLast30">Last 30 days</button>
+          <button class="chip on" data-days="90" data-t="repLast90">Last 90 days</button>
+          <button class="chip" data-days="365" data-t="repLast365">Last 12 months</button>
+          <button class="chip" data-days="0" data-t="repAllTime">All time</button>
         </div>
         <div class="range">
-          <div><label>From</label><input type="date" id="repFrom"></div>
-          <div><label>To</label><input type="date" id="repTo"></div>
-          <div><label>Hours of day</label>
+          <div><label data-t="repFromLabel">From</label><input type="date" id="repFrom"></div>
+          <div><label data-t="repToLabel">To</label><input type="date" id="repTo"></div>
+          <div><label data-t="repHoursOfDayLabel">Hours of day</label>
             <select id="repHours">
-              <option value="all">All hours</option>
-              <option value="early">Before 8am</option>
-              <option value="work">8am – 5pm</option>
-              <option value="late">After 5pm</option>
+              <option value="all" data-t="repHoursAll">All hours</option>
+              <option value="early" data-t="repHoursEarly">Before 8am</option>
+              <option value="work" data-t="repHoursWork">8am – 5pm</option>
+              <option value="late" data-t="repHoursLate">After 5pm</option>
             </select></div>
-          <div style="display:flex;align-items:flex-end"><button class="btn btn-sm" id="repApply">Apply</button></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn btn-sm" id="repApply" data-t="repApplyBtn">Apply</button></div>
         </div>
         <div id="repRangeLabel" class="range-label"></div>
       </div>
@@ -1022,28 +1022,28 @@
       <!-- Grouped so the page opens readable rather than as a wall of eight
            charts. Each group remembers whether you left it open. -->
       <section class="cat" data-cat="money">
-        <button class="cat-head"><span class="caret">▾</span> Money <span class="cat-sub">Revenue, costs, what you're owed</span></button>
+        <button class="cat-head"><span class="caret">▾</span> <span data-t="repMoneyHead">Money</span> <span class="cat-sub" data-t="repMoneySub">Revenue, costs, what you're owed</span></button>
         <div class="cat-body"><div class="grid2">
           <div class="panel">
-            <h2>Revenue collected</h2><p class="sub">Money received, by month</p>
+            <h2 data-t="repRevenueHead">Revenue collected</h2><p class="sub" data-t="repRevenueSub">Money received, by month</p>
             <div id="chartRevenue"></div>
           </div>
           <div class="panel">
-            <h2>Where the money goes</h2>
-            <p class="sub">What came in during this period, against the full cost of every job
+            <h2 data-t="repCostsHead">Where the money goes</h2>
+            <p class="sub" data-t="repCostsSub">What came in during this period, against the full cost of every job
               touched in it. A job you have quoted but not yet been paid for shows its costs here
               with none of its money — that is the gap, not a loss.</p>
             <div id="chartCosts"></div>
           </div>
           <div class="panel">
-            <h2>Expenses by category</h2><p class="sub">Fuel, rentals, permits and other</p>
+            <h2 data-t="repExpensesHead">Expenses by category</h2><p class="sub" data-t="repExpensesSub">Fuel, rentals, permits and other</p>
             <div id="chartExpenses"></div>
           </div>
         </div>
 
         <div class="panel pro-only" style="margin-top:12px">
-          <h2>Did each job make money?</h2>
-          <p class="sub">
+          <h2 data-t="repCostingHead">Did each job make money?</h2>
+          <p class="sub" id="repCostingBody">
             <strong>Profit</strong> is the quoted contract less materials, approved labour and
             expenses &mdash; what the job will make once it is paid in full.
             <strong>Cash</strong> is what has actually come in, less those same costs, so a job
@@ -1053,8 +1053,8 @@
           <div class="scroll">
             <table>
               <thead><tr>
-                <th>Job</th><th>Quoted</th><th>Collected</th><th>Costs</th>
-                <th>Profit</th><th>Margin</th><th>Cash</th><th>Hours</th><th>Labour vs priced</th>
+                <th data-t="repColJob">Job</th><th data-t="repColQuoted">Quoted</th><th data-t="repColCollected">Collected</th><th data-t="repColCosts">Costs</th>
+                <th data-t="repColProfit">Profit</th><th data-t="repColMargin">Margin</th><th data-t="repColCash">Cash</th><th data-t="repColHours">Hours</th><th data-t="repColLaborVsPriced">Labour vs priced</th>
               </tr></thead>
               <tbody id="costingRows"></tbody>
             </table>
@@ -1063,8 +1063,8 @@
         </div>
 
         <div class="panel" style="margin-top:12px">
-          <h2>Changes to money</h2>
-          <p class="sub">
+          <h2 data-t="repAuditHead">Changes to money</h2>
+          <p class="sub" data-t="repAuditSub">
             Every change to a price, payment, approval or pay rate &mdash; who made it
             and when. The first time two people disagree about a number, this is
             what settles it.
@@ -1072,7 +1072,7 @@
           <div class="scroll">
             <table>
               <thead><tr>
-                <th>When</th><th>Who</th><th>What</th><th>Changed</th><th>From</th><th>To</th>
+                <th data-t="autoColWhen">When</th><th data-t="repColWho">Who</th><th data-t="repColWhat">What</th><th data-t="repColChanged">Changed</th><th data-t="repColFrom">From</th><th data-t="repColTo">To</th>
               </tr></thead>
               <tbody id="auditRows"></tbody>
             </table>
@@ -1081,13 +1081,13 @@
         </div>
 
         <div class="panel pro-only" style="margin-top:12px">
-          <h2>How old the money owed is</h2>
-          <p class="sub">The same debts as the table below, grouped by how long they have been
+          <h2 data-t="repAgingHead">How old the money owed is</h2>
+          <p class="sub" data-t="repAgingSub">The same debts as the table below, grouped by how long they have been
             outstanding. Counts are in brackets.</p>
           <div id="chartAging" style="margin-bottom:22px"></div>
 
-          <h2>Who owes you</h2>
-          <p class="sub">
+          <h2 data-t="repArHead">Who owes you</h2>
+          <p class="sub" data-t="repArSub">
             Outstanding balances by how long they have been out. The oldest money
             is the hardest to collect &mdash; chase it first.
           </p>
@@ -1095,8 +1095,8 @@
           <div class="scroll">
             <table>
               <thead><tr>
-                <th>Customer</th><th>Job</th><th>Contract</th><th>Paid</th>
-                <th>Owed</th><th>Days</th><th></th>
+                <th data-t="repColCustomer">Customer</th><th data-t="repColJob">Job</th><th data-t="repColContract">Contract</th><th data-t="repColPaid">Paid</th>
+                <th data-t="repColOwed">Owed</th><th data-t="repColDays">Days</th><th></th>
               </tr></thead>
               <tbody id="arRows"></tbody>
             </table>
@@ -1106,53 +1106,53 @@
       </section>
 
       <section class="cat" data-cat="sales">
-        <button class="cat-head"><span class="caret">▾</span> Sales <span class="cat-sub">Pipeline, conversion, lead sources</span></button>
+        <button class="cat-head"><span class="caret">▾</span> <span data-t="repSalesHead">Sales</span> <span class="cat-sub" data-t="repSalesSub">Pipeline, conversion, lead sources</span></button>
         <div class="cat-body"><div class="grid2">
           <div class="panel">
-            <h2>Jobs by stage</h2><p class="sub">Everything currently in the pipeline</p>
+            <h2 data-t="repStagesHead">Jobs by stage</h2><p class="sub" data-t="repStagesSub">Everything currently in the pipeline</p>
             <div id="chartStages"></div>
           </div>
           <div class="panel">
-            <h2>Quote conversion</h2><p class="sub">How many quotes turn into work</p>
+            <h2 data-t="repFunnelHead">Quote conversion</h2><p class="sub" data-t="repFunnelSub">How many quotes turn into work</p>
             <div id="chartFunnel"></div>
           </div>
           <div class="panel">
-            <h2>Where leads come from</h2><p class="sub">Referral source on won jobs</p>
+            <h2 data-t="repLeadsHead">Where leads come from</h2><p class="sub" data-t="repLeadsSub">Referral source on won jobs</p>
             <div id="chartLeads"></div>
           </div>
         </div></div>
       </section>
 
       <section class="cat" data-cat="work">
-        <button class="cat-head"><span class="caret">▾</span> Work &amp; Crew <span class="cat-sub">Hours, fence types built</span></button>
+        <button class="cat-head"><span class="caret">▾</span> <span data-t="repWorkCrewHead">Work &amp; Crew</span> <span class="cat-sub" data-t="repWorkCrewSub">Hours, fence types built</span></button>
         <div class="cat-body"><div class="grid2">
           <div class="panel">
-            <h2>How long things take</h2>
-            <p class="sub">Median, not average: one job that sat for a year would drag
+            <h2 data-t="repCycleHead">How long things take</h2>
+            <p class="sub" data-t="repCycleSub">Median, not average: one job that sat for a year would drag
               an average somewhere no real job has ever been.</p>
             <div id="cycleRows"></div>
             <p class="sub" id="cycleNote" style="margin-top:9px"></p>
           </div></div>
 
           <div class="card"><div class="card-body">
-            <h2>Hours by crew member</h2><p class="sub">Clocked hours in this period</p>
+            <h2 data-t="repHoursByCrewHead">Hours by crew member</h2><p class="sub" data-t="repHoursByCrewSub">Clocked hours in this period</p>
             <div id="chartCrew"></div>
           </div>
           <div class="panel">
-            <h2>Fence types built</h2><p class="sub">Runs by fence type</p>
+            <h2 data-t="repFenceTypesHead">Fence types built</h2><p class="sub" data-t="repFenceTypesSub">Runs by fence type</p>
             <div id="chartTypes"></div>
           </div>
         </div></div>
       </section>
 
       <section class="cat" data-cat="people">
-        <button class="cat-head"><span class="caret">▾</span> Your people
-          <span class="cat-sub">Every hour, every job, per person</span></button>
+        <button class="cat-head"><span class="caret">▾</span> <span data-t="repPeopleHead">Your people</span>
+          <span class="cat-sub" data-t="repPeopleSub">Every hour, every job, per person</span></button>
         <div class="cat-body">
 
           <div class="panel">
-            <h2>The team in this period</h2>
-            <p class="sub">Tap anyone to open their full record. Hours and cost count
+            <h2 data-t="repTeamHead">The team in this period</h2>
+            <p class="sub" id="repTeamBody">Tap anyone to open their full record. Hours and cost count
               <strong>every clocked hour</strong>, approved or not — the approval column tells
               you which of it is settled.</p>
             <div class="people" id="peopleCards"></div>
@@ -1160,13 +1160,13 @@
 
           <div class="grid2">
             <div class="panel">
-              <h2>Hours week by week</h2>
-              <p class="sub">The whole crew's clocked hours, by week</p>
+              <h2 data-t="repHoursByWeekHead">Hours week by week</h2>
+              <p class="sub" data-t="repHoursByWeekSub">The whole crew's clocked hours, by week</p>
               <div id="chartCrewWeeks"></div>
             </div>
             <div class="panel">
-              <h2>Hours waiting on sign-off</h2>
-              <p class="sub">Unapproved hours are money standing still: the crew are not paid
+              <h2 data-t="repApprovalHead">Hours waiting on sign-off</h2>
+              <p class="sub" data-t="repApprovalSub">Unapproved hours are money standing still: the crew are not paid
                 and the job cost is understated until someone signs them off.</p>
               <div id="chartApproval"></div>
             </div>
@@ -1180,44 +1180,44 @@
       </section>
 
       <section class="cat" data-cat="detail">
-        <button class="cat-head"><span class="caret">▾</span> Detailed tables <span class="cat-sub">Crew, money owed, clock in/out</span></button>
+        <button class="cat-head"><span class="caret">▾</span> <span data-t="repDetailHead">Detailed tables</span> <span class="cat-sub" data-t="repDetailSub">Crew, money owed, clock in/out</span></button>
         <div class="cat-body">
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h2 style="margin:0">Crew detail</h2>
+          <h2 style="margin:0" data-t="repCrewDetailHead">Crew detail</h2>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-sm btn-grey" id="exportPayroll">Payroll CSV</button>
-            <button class="btn btn-sm btn-grey" id="exportCrew">Export CSV</button>
+            <button class="btn btn-sm btn-grey" id="exportPayroll" data-t="repPayrollCsvBtn">Payroll CSV</button>
+            <button class="btn btn-sm btn-grey" id="exportCrew" data-t="repExportCsvBtn">Export CSV</button>
           </div>
         </div>
-        <p class="sub">Labor cost below counts <strong>every clocked hour</strong>. Payroll CSV pays
+        <p class="sub" id="repCrewDetailBody">Labor cost below counts <strong>every clocked hour</strong>. Payroll CSV pays
           <strong>approved shifts only</strong>, so the two figures differ until every shift in this
           period has been approved.</p>
         <div class="scroll"><table>
-          <thead><tr><th>Installer</th><th>Jobs</th><th>Hours</th><th>Labor cost</th><th>Avg $/hr</th></tr></thead>
+          <thead><tr><th data-t="repColInstaller">Installer</th><th data-t="crewColJobs">Jobs</th><th data-t="repColHours">Hours</th><th data-t="timeColLabor">Labor cost</th><th data-t="repColAvgPerHr">Avg $/hr</th></tr></thead>
           <tbody id="repCrew"></tbody></table></div>
         <div class="sub" id="payrollNote" style="margin-top:8px"></div>
       </div>
 
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h2 style="margin:0">Money owed</h2>
-          <button class="btn btn-sm btn-grey" id="exportOwed">Export CSV</button>
+          <h2 style="margin:0" data-t="repMoneyOwedHead">Money owed</h2>
+          <button class="btn btn-sm btn-grey" id="exportOwed" data-t="repExportCsvBtn">Export CSV</button>
         </div>
-        <p class="sub">The same rows as "Who owes you" above, listed in full with how long each
+        <p class="sub" data-t="repMoneyOwedSub">The same rows as "Who owes you" above, listed in full with how long each
           one has been outstanding. One question, one answer.</p>
         <div class="scroll"><table>
-          <thead><tr><th>Customer</th><th>Status</th><th>Contract</th><th>Paid</th><th>Outstanding</th><th>Days</th></tr></thead>
+          <thead><tr><th data-t="repColCustomer">Customer</th><th data-t="repColStatus">Status</th><th data-t="repColContract">Contract</th><th data-t="repColPaid">Paid</th><th data-t="repColOutstanding">Outstanding</th><th data-t="repColDays">Days</th></tr></thead>
           <tbody id="repOwed"></tbody></table></div>
       </div>
 
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h2 style="margin:0">Clock in / out detail</h2>
-          <button class="btn btn-sm btn-grey" id="exportTime">Export CSV</button>
+          <h2 style="margin:0" data-t="repClockDetailHead">Clock in / out detail</h2>
+          <button class="btn btn-sm btn-grey" id="exportTime" data-t="repExportCsvBtn">Export CSV</button>
         </div>
         <div class="scroll"><table>
-          <thead><tr><th>Date</th><th>Job</th><th>In</th><th>Out</th><th>Hours</th><th>Cost</th></tr></thead>
+          <thead><tr><th data-t="repColDate">Date</th><th data-t="repColJob">Job</th><th data-t="repColIn">In</th><th data-t="repColOut">Out</th><th data-t="repColHours">Hours</th><th data-t="repColCost">Cost</th></tr></thead>
           <tbody id="repTimeRows"></tbody></table></div>
       </div>
         </div>
@@ -1335,11 +1335,11 @@
 
     <div id="tab-billing" style="display:none">
       <div class="panel">
-        <h2>Your FenceFlow Subscription</h2>
+        <h2 data-t="billSubHead">Your FenceFlow Subscription</h2>
         <div class="msg" id="billMsg"></div>
-        <p id="billState" style="font-size:15px;margin:6px 0 16px">Checking your plan…</p>
+        <p id="billState" style="font-size:15px;margin:6px 0 16px" data-t="billCheckingPlan">Checking your plan…</p>
         <div class="row2" id="planCards"></div>
-        <p style="font-size:12px;color:var(--muted);margin-top:14px">
+        <p style="font-size:12px;color:var(--muted);margin-top:14px" data-t="billHandledNote">
           Billing is handled here on the web rather than in the Android app, so none of it
           goes through Play Store billing. Card details are entered on Stripe's own checkout
           page — they never reach FenceFlow.
@@ -1347,8 +1347,8 @@
       </div>
 
       <div class="panel">
-        <h2>Getting Paid by Customers</h2>
-        <p style="font-size:14px;color:var(--muted)">
+        <h2 data-t="billGetPaidHead">Getting Paid by Customers</h2>
+        <p style="font-size:14px;color:var(--muted)" id="billGetPaidBody">
           Deposits and invoices your customers pay <em>you</em> are a separate thing from the
           FenceFlow subscription above &mdash; that money goes straight to your own account,
           never through us. Request one from any job in the app:
@@ -1356,20 +1356,20 @@
         </p>
 
         <div id="processorBox" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px">
-          <h3 style="margin:0 0 4px;font-size:15px">How you take card payments</h3>
-          <p class="sub" style="margin:0 0 10px">Use whichever you already have. Whatever you
+          <h3 style="margin:0 0 4px;font-size:15px" data-t="billProcessorHead">How you take card payments</h3>
+          <p class="sub" style="margin:0 0 10px" data-t="billProcessorBody">Use whichever you already have. Whatever you
             pick, the money goes to your account, not ours &mdash; we only record that it
             arrived so the job stops showing a balance.</p>
           <div id="processorChoices" style="display:flex;gap:8px;flex-wrap:wrap"></div>
           <div class="msg" id="processorMsg"></div>
-          <p class="sub" style="margin:10px 0 0">Take cash, a check or a card over the phone
+          <p class="sub" style="margin:10px 0 0" data-t="billProcessorCashNote">Take cash, a check or a card over the phone
             instead? Record it against the job in the app under Payment &amp; Invoice &mdash;
             nothing here has to be connected for that.</p>
         </div>
         <div class="scroll" style="margin-top:12px"><table>
-          <thead><tr><th>Job</th><th>Type</th><th>Amount</th><th>Status</th><th>Requested</th></tr></thead>
+          <thead><tr><th data-t="billColJob">Job</th><th data-t="billColType">Type</th><th data-t="billColAmount">Amount</th><th data-t="billColStatus">Status</th><th data-t="billColRequested">Requested</th></tr></thead>
           <tbody id="payRows"></tbody></table></div>
-        <div class="empty" id="payEmpty" style="display:none">No payment requests yet.</div>
+        <div class="empty" id="payEmpty" style="display:none" data-t="billPayEmptyMsg">No payment requests yet.</div>
       </div>
     </div>
   </div>
@@ -1682,76 +1682,81 @@
      on top of either the plain Settings tab or the wizard sitting behind
      it, the same DOM-order trick every overlay on this page already uses. -->
 <div class="overlay" id="catItemOverlay"><div class="sheet" style="max-width:600px">
-  <div class="sheet-head"><strong id="catItemDialogTitle">Catalog item</strong>
-    <button class="btn btn-sm btn-ghost" id="catItemDialogClose" type="button">Close</button></div>
+  <div class="sheet-head"><strong id="catItemDialogTitle" data-t="ciDialogTitleFallback">Catalog item</strong>
+    <button class="btn btn-sm btn-ghost" id="catItemDialogClose" type="button" data-t="ciCloseBtn">Close</button></div>
   <div class="sheet-body"><div class="msg" id="catItemDialogMsg"></div>
     <div class="panel">
-      <label>Name</label><input id="ci_name" placeholder="6' Dog-Ear Wood Picket, PT Pine">
+      <label data-t="ciLabelName">Name</label><input id="ci_name" data-t="ciNamePh" placeholder="6' Dog-Ear Wood Picket, PT Pine">
       <div class="wiz-row2">
-        <div><label>Fence type</label><select id="ci_fence_type">
-          <option value="VINYL">Vinyl</option><option value="WOOD">Wood</option>
-          <option value="CHAIN_LINK">Chain link</option><option value="ALUMINUM">Aluminum</option>
-          <option value="ORNAMENTAL_IRON">Ornamental iron</option>
-          <option value="SPLIT_RAIL">Split rail</option><option value="COMPOSITE">Composite</option>
-          <option value="UNIVERSAL">Universal — used by every fence</option>
+        <!-- Option VALUEs are fence_type written straight to material_items and
+             compared everywhere against the run's own fence type -- never
+             translated. Only the visible option text changes. -->
+        <div><label data-t="ciLabelFenceType">Fence type</label><select id="ci_fence_type">
+          <option value="VINYL" data-t="fenceTypeVinyl">Vinyl</option><option value="WOOD" data-t="fenceTypeWood">Wood</option>
+          <option value="CHAIN_LINK" data-t="fenceTypeChainLink">Chain link</option><option value="ALUMINUM" data-t="fenceTypeAluminum">Aluminum</option>
+          <option value="ORNAMENTAL_IRON" data-t="fenceTypeOrnamentalIron">Ornamental iron</option>
+          <option value="SPLIT_RAIL" data-t="fenceTypeSplitRail">Split rail</option><option value="COMPOSITE" data-t="fenceTypeComposite">Composite</option>
+          <option value="UNIVERSAL" data-t="catUniversalOption">Universal — used by every fence</option>
         </select></div>
-        <div><label>Category</label><select id="ci_category">
-          <option value="PANEL">Panel</option><option value="POST">Post</option>
-          <option value="CAP">Cap</option><option value="CONCRETE">Concrete</option>
-          <option value="HARDWARE">Hardware</option><option value="GATE">Gate</option>
-          <option value="TRIM">Trim</option><option value="FABRIC">Fabric</option>
-          <option value="RAIL">Rail</option><option value="PICKET">Picket</option>
-          <option value="MISC">Misc</option>
+        <div><label data-t="ciLabelCategory">Category</label><select id="ci_category">
+          <option value="PANEL" data-t="catCategoryPanel">Panel</option><option value="POST" data-t="catCategoryPost">Post</option>
+          <option value="CAP" data-t="catCategoryCap">Cap</option><option value="CONCRETE" data-t="catCategoryConcrete">Concrete</option>
+          <option value="HARDWARE" data-t="catCategoryHardware">Hardware</option><option value="GATE" data-t="catCategoryGate">Gate</option>
+          <option value="TRIM" data-t="catCategoryTrim">Trim</option><option value="FABRIC" data-t="catCategoryFabric">Fabric</option>
+          <option value="RAIL" data-t="catCategoryRail">Rail</option><option value="PICKET" data-t="catCategoryPicket">Picket</option>
+          <option value="MISC" data-t="catCategoryMisc">Misc</option>
         </select></div>
       </div>
       <div class="wiz-row2">
-        <div><label>Role</label><select id="ci_role">
-          <option value="NONE">No role (not auto-matched)</option>
-          <option value="PANEL">Panel</option><option value="GATE_PANEL">Gate panel</option>
-          <option value="LINE_POST">Line post</option><option value="END_POST">End post</option>
-          <option value="CORNER_POST">Corner post</option><option value="GATE_POST">Gate post</option>
-          <option value="POST_CAP">Post cap</option><option value="CONCRETE_BAG">Concrete bag</option>
-          <option value="HOLE_PLUG">Hole plug</option><option value="BLANK_POST">Blank post (wall-hung gate)</option>
-          <option value="HINGE_SET">Hinge set</option><option value="LATCH">Latch</option>
-          <option value="HANDLE">Handle</option><option value="BRACE">Brace</option>
-          <option value="STIFFENER">Stiffener</option><option value="TRIM">Trim</option>
-          <option value="WOOD_PICKET">Wood picket</option><option value="WOOD_RAIL">Wood rail</option>
-          <option value="GATE_FRAME_KIT">Gate frame kit</option><option value="CHAIN_FABRIC">Chain fabric</option>
-          <option value="TOP_RAIL">Top rail</option><option value="TENSION_WIRE">Tension wire</option>
-          <option value="TENSION_BAND">Tension band</option><option value="BRACE_BAND">Brace band</option>
-          <option value="RAIL_END">Rail end</option><option value="BARBED_WIRE_ARM">Barbed wire arm</option>
-          <option value="PRIVACY_SLAT">Privacy slat</option>
+        <!-- Option VALUEs are the role compared against, everywhere, by the
+             estimator's part-matching -- never translated. -->
+        <div><label data-t="ciLabelRole">Role</label><select id="ci_role">
+          <option value="NONE" data-t="ciRoleNone">No role (not auto-matched)</option>
+          <option value="PANEL" data-t="catCategoryPanel">Panel</option><option value="GATE_PANEL" data-t="ciRoleGatePanel">Gate panel</option>
+          <option value="LINE_POST" data-t="ciRoleLinePost">Line post</option><option value="END_POST" data-t="ciRoleEndPost">End post</option>
+          <option value="CORNER_POST" data-t="ciRoleCornerPost">Corner post</option><option value="GATE_POST" data-t="ciRoleGatePost">Gate post</option>
+          <option value="POST_CAP" data-t="ciRolePostCap">Post cap</option><option value="CONCRETE_BAG" data-t="ciRoleConcreteBag">Concrete bag</option>
+          <option value="HOLE_PLUG" data-t="ciRoleHolePlug">Hole plug</option><option value="BLANK_POST" data-t="ciRoleBlankPost">Blank post (wall-hung gate)</option>
+          <option value="HINGE_SET" data-t="ciRoleHingeSet">Hinge set</option><option value="LATCH" data-t="ciRoleLatch">Latch</option>
+          <option value="HANDLE" data-t="ciRoleHandle">Handle</option><option value="BRACE" data-t="ciRoleBrace">Brace</option>
+          <option value="STIFFENER" data-t="ciRoleStiffener">Stiffener</option><option value="TRIM" data-t="catCategoryTrim">Trim</option>
+          <option value="WOOD_PICKET" data-t="ciRoleWoodPicket">Wood picket</option><option value="WOOD_RAIL" data-t="ciRoleWoodRail">Wood rail</option>
+          <option value="GATE_FRAME_KIT" data-t="ciRoleGateFrameKit">Gate frame kit</option><option value="CHAIN_FABRIC" data-t="ciRoleChainFabric">Chain fabric</option>
+          <option value="TOP_RAIL" data-t="ciRoleTopRail">Top rail</option><option value="TENSION_WIRE" data-t="ciRoleTensionWire">Tension wire</option>
+          <option value="TENSION_BAND" data-t="ciRoleTensionBand">Tension band</option><option value="BRACE_BAND" data-t="ciRoleBraceBand">Brace band</option>
+          <option value="RAIL_END" data-t="ciRoleRailEnd">Rail end</option><option value="BARBED_WIRE_ARM" data-t="ciRoleBarbedWireArm">Barbed wire arm</option>
+          <option value="PRIVACY_SLAT" data-t="ciRolePrivacySlat">Privacy slat</option>
         </select></div>
-        <div><label>Colour / finish</label><input id="ci_color" placeholder="White, Black, Tan…"></div>
+        <div><label data-t="ciLabelColor">Colour / finish</label><input id="ci_color" data-t="ciColorPh" placeholder="White, Black, Tan…"></div>
       </div>
       <div class="wiz-row3">
-        <div><label>Unit</label><input id="ci_unit" placeholder="EA"></div>
-        <div><label>Unit price ($)</label><input id="ci_price" type="number" step="0.01"></div>
-        <div><label>Covers (ft)</label><input id="ci_covers" type="number" step="0.5" placeholder="Optional"></div>
+        <div><label data-t="ciLabelUnit">Unit</label><input id="ci_unit" placeholder="EA"></div>
+        <div><label data-t="ciLabelPrice">Unit price ($)</label><input id="ci_price" type="number" step="0.01"></div>
+        <div><label data-t="ciLabelCovers">Covers (ft)</label><input id="ci_covers" type="number" step="0.5" data-t="ciCoversPh" placeholder="Optional"></div>
       </div>
       <div id="ci_supplier_wrap" style="display:none">
-        <label>Supplier price ($)</label><input id="ci_supplier" type="number" step="0.01">
+        <label data-t="ciLabelSupplierPrice">Supplier price ($)</label><input id="ci_supplier" type="number" step="0.01">
       </div>
       <div class="wiz-row2">
-        <div><label>Supplier</label><select id="ci_manufacturer">
-          <option value="">Not set</option>
+        <div><label data-t="ciLabelSupplier">Supplier</label><select id="ci_manufacturer">
+          <option value="" data-t="ciNotSetOption">Not set</option>
         </select></div>
         <div id="ci_sku_wrap" style="display:none">
-          <label>Supplier SKU / part #</label>
-          <input id="ci_sku" placeholder="Whatever the yard's own system calls it">
+          <label data-t="ciLabelSku">Supplier SKU / part #</label>
+          <input id="ci_sku" data-t="ciSkuPh" placeholder="Whatever the yard's own system calls it">
         </div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:12px">
-        <input type="checkbox" id="ci_taxable" style="width:auto"> Taxable
+        <input type="checkbox" id="ci_taxable" style="width:auto"> <span data-t="ciTaxableLabel">Taxable</span>
       </label>
       <label style="display:flex;align-items:center;gap:6px;margin-top:8px">
-        <input type="checkbox" id="ci_active" style="width:auto"> Active
+        <input type="checkbox" id="ci_active" style="width:auto"> <span data-t="catColActive">Active</span>
       </label>
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-grey" id="catItemDialogRetire" type="button">Retire</button>
-    <button class="btn" id="catItemDialogSave" type="button">Save</button>
+    <button class="btn btn-grey" id="catItemDialogRetire" type="button" data-t="catRetireBtn">Retire</button>
+    <button class="btn" id="catItemDialogSave" type="button" data-t="ciSaveBtn">Save</button>
   </div>
 </div></div>
 
@@ -1760,23 +1765,23 @@
      supplier added here shows up on the phone within a minute and vice
      versa, same contract as catItemOverlay above. -->
 <div class="overlay" id="supOverlay"><div class="sheet" style="max-width:520px">
-  <div class="sheet-head"><strong id="supDialogTitle">Supplier</strong>
-    <button class="btn btn-sm btn-ghost" id="supDialogClose" type="button">Close</button></div>
+  <div class="sheet-head"><strong id="supDialogTitle" data-t="supDialogTitleFallback">Supplier</strong>
+    <button class="btn btn-sm btn-ghost" id="supDialogClose" type="button" data-t="ciCloseBtn">Close</button></div>
   <div class="sheet-body"><div class="msg" id="supDialogMsg"></div>
     <div class="panel">
-      <label>Name</label><input id="sup_name" placeholder="Acme Fence Supply">
+      <label data-t="catColSupName">Name</label><input id="sup_name" placeholder="Acme Fence Supply">
       <div class="wiz-row2">
-        <div><label>Phone</label><input id="sup_phone"></div>
-        <div><label>Email</label><input id="sup_email"></div>
+        <div><label data-t="catColSupPhone">Phone</label><input id="sup_phone"></div>
+        <div><label data-t="catColSupEmail">Email</label><input id="sup_email"></div>
       </div>
-      <label>Address</label><input id="sup_address">
-      <label>Hours</label><input id="sup_hours" placeholder="Mon-Fri 7am-4pm, Sat 8am-12pm">
-      <label>Notes</label><input id="sup_notes">
+      <label data-t="supLabelAddress">Address</label><input id="sup_address">
+      <label data-t="catColSupHours">Hours</label><input id="sup_hours" data-t="supHoursPh" placeholder="Mon-Fri 7am-4pm, Sat 8am-12pm">
+      <label data-t="supLabelNotes">Notes</label><input id="sup_notes">
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-grey" id="supDialogRetire" type="button">Retire</button>
-    <button class="btn" id="supDialogSave" type="button">Save</button>
+    <button class="btn btn-grey" id="supDialogRetire" type="button" data-t="catRetireBtn">Retire</button>
+    <button class="btn" id="supDialogSave" type="button" data-t="ciSaveBtn">Save</button>
   </div>
 </div></div>
 
@@ -1898,23 +1903,23 @@
 </div></div>
 
 <div class="overlay" id="empOverlay"><div class="sheet" style="max-width:520px">
-  <div class="sheet-head"><strong id="empTitle">Crew Member</strong>
-    <button class="btn btn-sm btn-ghost" id="closeEmp">Close</button></div>
+  <div class="sheet-head"><strong id="empTitle" data-t="empTitleFallback">Crew Member</strong>
+    <button class="btn btn-sm btn-ghost" id="closeEmp" data-t="ciCloseBtn">Close</button></div>
   <div class="sheet-body"><div class="msg" id="empMsg"></div>
     <div class="panel">
-      <label>Name</label><input id="e_name">
-      <label>Role</label><input id="e_role" placeholder="Foreman, Laborer…">
+      <label data-t="crewColName">Name</label><input id="e_name">
+      <label data-t="crewColRole">Role</label><input id="e_role" data-t="empRolePh" placeholder="Foreman, Laborer…">
       <div class="row2">
-        <div><label>Phone</label><input id="e_phone"></div>
-        <div><label>Email</label><input id="e_email"></div>
+        <div><label data-t="crewColPhone">Phone</label><input id="e_phone"></div>
+        <div><label data-t="crewColEmail">Email</label><input id="e_email"></div>
       </div>
-      <label>Hourly rate ($)</label><input id="e_hourly_rate" type="number" step="0.5">
-      <label>Notes</label><textarea id="e_notes"></textarea>
+      <label data-t="empLabelHourlyRate">Hourly rate ($)</label><input id="e_hourly_rate" type="number" step="0.5">
+      <label data-t="supLabelNotes">Notes</label><textarea id="e_notes"></textarea>
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-grey" id="deleteEmp">Delete</button>
-    <button class="btn" id="saveEmp">Save</button>
+    <button class="btn btn-grey" id="deleteEmp" data-t="empDeleteBtn">Delete</button>
+    <button class="btn" id="saveEmp" data-t="ciSaveBtn">Save</button>
   </div>
 </div></div>
 
@@ -2279,6 +2284,177 @@ const TL = {
     crewProdNoteNoPay:'Pay is not visible to your account, so a cost-per-hour figure could not be verified even if one existed. Everything above is hours, never money.',
     crewProdNoteMixedPay:'Not shown: cost per hour. Some crew have a rate on file and some read $0, and averaging real pay with a missing one produces a number that is wrong in both directions. Everything above is hours, never money.',
     crewProdNoteNoRate:'Not shown: cost per hour or any efficiency figure. No crew member has an hourly rate on file, so labour cost is $0 for every hour logged -- a number computed from that would be a $0 rate wearing a decimal point, not a measurement. Everything above is hours, never money.',
+
+    // ---- Automation tab ----
+    autoRulesHead:'Automation rules',
+    autoRulesBody:'When something becomes true of a job, one of these can act on it automatically instead of waiting for someone to read a list. Every rule starts off — turn on the ones you want. None of these touch money or delete anything.',
+    autoCheckNowBtn:'Check now',
+    autoFlagsHead:'Flagged jobs',
+    autoFlagsBody:'Jobs an automation rule raised a flag on. Clearing one does not change the job — it only says the office has seen it.',
+    autoLogHead:'Automation log',
+    autoLogBody:'Every time a rule fired: which job, when, and what it did.',
+    autoColWhen:'When', autoColRule:'Rule', autoColJob:'Job', autoColWhat:'What happened',
+    autoRunsEmptyMsg:'No rule has fired yet.',
+    autoRuleLastFired:'Last fired %s', autoRuleNeverRun:'Never run yet',
+    autoFlagsNoneMsg:'No open flags.', autoClearBtn:'Clear',
+    jobGoneLabel:'Job no longer here', autoRunDoneMsg:'Done.',
+    autoRuleOnMsg:'Rule turned on.', autoRuleOffMsg:'Rule turned off.',
+    autoRule1Label:'Materials arrive → move the job to Dig',
+    autoRule1Detail:'When a sold job’s materials are marked Received while it has not started the build (or is still sitting on Materials), moves it to Dig on the Production board -- the same move a person makes by hand there.',
+    autoRule2Label:'A sent quote goes quiet → add a note',
+    autoRule2Detail:'When a quote has been sent for 14+ days with no answer, adds a timestamped note to the job saying so.',
+    autoRule3Label:'Approved with no deposit → raise a flag',
+    autoRule3Detail:'When a job is approved with a deposit amount on it but nothing has been collected, raises a flag here for the office.',
+    autoRule4Label:'Scheduled soon, materials not ready → raise a flag',
+    autoRule4Detail:'When a job is scheduled within the next 7 days and materials are still not ordered or received, raises a flag here for the office.',
+
+    // ---- Billing tab ----
+    billSubHead:'Your FenceFlow Subscription', billCheckingPlan:'Checking your plan…',
+    billHandledNote:'Billing is handled here on the web rather than in the Android app, so none of it goes through Play Store billing. Card details are entered on Stripe\'s own checkout page — they never reach FenceFlow.',
+    billGetPaidHead:'Getting Paid by Customers',
+    billGetPaidBody:'Deposits and invoices your customers pay %s are a separate thing from the FenceFlow subscription above — that money goes straight to your own account, never through us. Request one from any job in the app: %s.',
+    billYouWord:'you', billPaymentInvoiceNav:'Payment & Invoice → Request by Card',
+    billProcessorHead:'How you take card payments',
+    billProcessorBody:'Use whichever you already have. Whatever you pick, the money goes to your account, not ours — we only record that it arrived so the job stops showing a balance.',
+    billProcessorCashNote:'Take cash, a check or a card over the phone instead? Record it against the job in the app under Payment & Invoice — nothing here has to be connected for that.',
+    billColJob:'Job', billColType:'Type', billColAmount:'Amount', billColStatus:'Status', billColRequested:'Requested',
+    billPayEmptyMsg:'No payment requests yet.',
+    billLoadErrorMsg:'We couldn\'t load your subscription just now. Nothing has changed — try Refresh in a moment, and email support if it keeps happening.',
+    billActiveLine:'Active%s%s.', billRenewsSuffix:', renews %s',
+    billPlanPickedLine:'%s plan picked — it starts%s and your card is charged then. Until then everything is free.',
+    billYourWord:'Your', billStartsOnSuffix:' on %s', billStartsWhenTrialEnds:' when the trial ends',
+    billFreeTrialWord:'Free trial', billOfPlanSuffix:' of %s', billUntilSuffix:' until %s',
+    billPickPlanSuffix:' — pick a plan before then to keep going.',
+    billPastDueMsg:'Last payment failed — update your card to stay active.',
+    billCanceledMsg:'Cancelled. Pick a plan below to start again.',
+    billNoPlanYetMsg:'No plan yet. Pick one below.',
+    billYourPlanWord:'Your plan',
+    billChoosePlanBtn:'Choose %s', billSwitchDownBtn:'Switch down to %s', billUpgradeBtn:'Upgrade to %s',
+    billPerMonth:'/month',
+    billFullAccessMsg:'Full access — every feature is included for this company.',
+    planBlurbSolo:'One person running their whole business.',
+    planBlurbCrew:'You and your crew, all on the same page.',
+    planBlurbPro:'Run the crew AND read the business.',
+    planFeatSoloLogin:'1 login — just you', planFeatUnlimitedJobs:'Unlimited jobs & estimates',
+    planFeatDrawingTakeoff:'Drawing takeoff & materials', planFeatScheduling:'Scheduling & calendar',
+    planFeatInvoices:'Invoices & branded PDF quotes', planFeatCashCheck:'Cash & check payments', planFeatOffline:'Works offline',
+    planFeatEverythingInSolo:'Everything in Solo', planFeatCrewLogins:'6 logins — you + 5 crew',
+    planFeatTimeClock:'Time clock & crew pay', planFeatCrewRoles:'Crew roles & permissions',
+    planFeatPipeline:'Pipeline board', planFeatMoneyBasics:'Money basics: collected & owed', planFeatCardLink:'Card payments by link',
+    planFeatEverythingInCrew:'Everything in Crew', planFeatUnlimitedLogins:'Unlimited logins',
+    planFeatProfitMargin:'Profit & margin analytics', planFeatCostBreakdowns:'Cost breakdowns: where money goes',
+    planFeatArAging:'AR aging — who owes, how long', planFeatDigest:'Monday morning business digest',
+    planFeatCloudBackup:'Cloud photo & document backup', planFeatPrioritySupport:'Priority support',
+    billProcStripeBlurb:'Cards, Apple Pay and Google Pay. If you already invoice through Stripe, use this.',
+    billProcSquareBlurb:'Common in the trades. If you take cards on a Square reader today, use this.',
+    billProcNotSetUpMsg:'Your owner has not set up card payments yet.',
+    billProcThroughMsg:'Card payments go through %s.',
+    billProcConnectedWord:'connected', billProcChosenWord:'chosen',
+    billConnectSquareBtn:'Connect my Square account', billConnectStripeBtn:'Connect my Stripe account',
+    billOpeningMsg:'Opening %s…', billCouldNotOpenMsg:'Could not open %s just now.',
+    billCouldNotReachMsg:'Could not reach %s: %s',
+    billChosenConnectMsg:'%s is chosen. Connect the account and card requests switch on — until then the app will tell you to take the payment another way rather than taking one nobody can record.',
+    billChosenNotConnectedMsg:'You have chosen %s, but the account is not connected yet, so card requests are still switched off.',
+    billConnectedMsg:'Connected to %s. Card requests from the app go to this account.',
+    billPaidWord:'Paid', billWaitingWord:'Waiting',
+    billOpeningCheckoutMsg:'Opening secure checkout…', billOnPlanNowMsg:'You\'re on %s now.',
+    billCouldNotStartCheckoutMsg:'Could not start checkout.',
+    billCanceledCheckoutNote:'No payment was taken and nothing has changed. Pick a plan from Billing whenever you are ready.',
+    billConfirmingPaymentMsg:'Confirming your payment with Stripe…',
+    billPaymentReceivedNote:'Payment received — your subscription is active. The receipt is on its way to your email.',
+    billPaymentPendingConfirmMsg:'Your payment went through. Stripe has not finished confirming it with us yet — press Check again in a minute. Nothing needs paying twice.',
+
+    // ---- Catalog item / supplier / crew-member dialogs ----
+    ciDialogTitleFallback:'Catalog item', ciCloseBtn:'Close',
+    ciLabelName:'Name', ciNamePh:'6\' Dog-Ear Wood Picket, PT Pine',
+    ciLabelFenceType:'Fence type',
+    fenceTypeVinyl:'Vinyl', fenceTypeWood:'Wood', fenceTypeChainLink:'Chain link', fenceTypeAluminum:'Aluminum',
+    fenceTypeOrnamentalIron:'Ornamental iron', fenceTypeSplitRail:'Split rail', fenceTypeComposite:'Composite',
+    catUniversalOption:'Universal — used by every fence',
+    ciLabelCategory:'Category',
+    catCategoryPanel:'Panel', catCategoryPost:'Post', catCategoryCap:'Cap', catCategoryConcrete:'Concrete',
+    catCategoryHardware:'Hardware', catCategoryGate:'Gate', catCategoryTrim:'Trim', catCategoryFabric:'Fabric',
+    catCategoryRail:'Rail', catCategoryPicket:'Picket', catCategoryMisc:'Misc',
+    ciLabelRole:'Role', ciRoleNone:'No role (not auto-matched)',
+    ciRoleGatePanel:'Gate panel', ciRoleLinePost:'Line post', ciRoleEndPost:'End post', ciRoleCornerPost:'Corner post',
+    ciRoleGatePost:'Gate post', ciRolePostCap:'Post cap', ciRoleConcreteBag:'Concrete bag', ciRoleHolePlug:'Hole plug',
+    ciRoleBlankPost:'Blank post (wall-hung gate)', ciRoleHingeSet:'Hinge set', ciRoleLatch:'Latch', ciRoleHandle:'Handle',
+    ciRoleBrace:'Brace', ciRoleStiffener:'Stiffener', ciRoleWoodPicket:'Wood picket', ciRoleWoodRail:'Wood rail',
+    ciRoleGateFrameKit:'Gate frame kit', ciRoleChainFabric:'Chain fabric', ciRoleTopRail:'Top rail',
+    ciRoleTensionWire:'Tension wire', ciRoleTensionBand:'Tension band', ciRoleBraceBand:'Brace band',
+    ciRoleRailEnd:'Rail end', ciRoleBarbedWireArm:'Barbed wire arm', ciRolePrivacySlat:'Privacy slat',
+    ciLabelColor:'Colour / finish', ciColorPh:'White, Black, Tan…',
+    ciLabelUnit:'Unit', ciLabelPrice:'Unit price ($)', ciLabelCovers:'Covers (ft)', ciCoversPh:'Optional',
+    ciLabelSupplierPrice:'Supplier price ($)', ciLabelSupplier:'Supplier', ciNotSetOption:'Not set',
+    ciLabelSku:'Supplier SKU / part #', ciSkuPh:'Whatever the yard\'s own system calls it',
+    ciTaxableLabel:'Taxable', ciSaveBtn:'Save',
+    ciEditTitle:'Edit catalog item', ciNewTitle:'New catalog item',
+    ciNameRequiredMsg:'Give this item a name.',
+    ciRetireQ:'Retire "%s"?', ciThisItemWord:'this item',
+    ciRetireBody:'It stops showing up to price new work with. A job already using it keeps its own numbers -- retiring an item never changes a quote that already has one.',
+
+    supDialogTitleFallback:'Supplier', supLabelAddress:'Address', supHoursPh:'Mon-Fri 7am-4pm, Sat 8am-12pm',
+    supLabelNotes:'Notes', supEditTitle:'Edit supplier', supNewTitle:'New supplier',
+    supNameRequiredMsg:'Give this supplier a name.',
+    supRetireBody:'Catalog items already pointing at this supplier keep their own record of it -- retiring it here only stops it from being offered as a choice on new or edited items.',
+
+    empTitleFallback:'Crew Member', empRolePh:'Foreman, Laborer…', empLabelHourlyRate:'Hourly rate ($)',
+    empDeleteBtn:'Delete', empNewTitle:'New Crew Member', empRateNotVisiblePh:'Not visible to your account',
+    empEmailingMsg:'Emailing %s…', empInviteEmailedMsg:'Invite emailed to %s.',
+    empEmailNotSetUpMsg:'Email is not set up yet. Give them the code by hand.',
+    empCopyCodeBtn:'Copy code', empCopiedWord:'Copied',
+    empCouldNotSendInviteMsg:'Could not send the invite just now.',
+    empRemoveQ:'Remove %s?', empRemoveBody:'Their hours and the jobs they worked on are kept. This removes them from the crew list.',
+    empRemoveBtn:'Remove',
+
+    // ---- Reports tab ----
+    repLast7:'Last 7 days', repLast30:'Last 30 days', repLast90:'Last 90 days', repLast365:'Last 12 months', repAllTime:'All time',
+    repFromLabel:'From', repToLabel:'To', repHoursOfDayLabel:'Hours of day',
+    repHoursAll:'All hours', repHoursEarly:'Before 8am', repHoursWork:'8am – 5pm', repHoursLate:'After 5pm',
+    repApplyBtn:'Apply',
+    repMoneyHead:'Money', repMoneySub:'Revenue, costs, what you\'re owed',
+    repRevenueHead:'Revenue collected', repRevenueSub:'Money received, by month',
+    repCostsHead:'Where the money goes',
+    repCostsSub:'What came in during this period, against the full cost of every job touched in it. A job you have quoted but not yet been paid for shows its costs here with none of its money — that is the gap, not a loss.',
+    repExpensesHead:'Expenses by category', repExpensesSub:'Fuel, rentals, permits and other',
+    repCostingHead:'Did each job make money?',
+    repCostingBody:'%s is the quoted contract less materials, approved labour and expenses — what the job will make once it is paid in full. %s is what has actually come in, less those same costs, so a job you have not been paid for yet shows a healthy profit and a negative cash figure. Worst first — those are the ones worth understanding.',
+    repProfitWord:'Profit', repCashWord:'Cash',
+    repColJob:'Job', repColQuoted:'Quoted', repColCollected:'Collected', repColCosts:'Costs', repColProfit:'Profit',
+    repColMargin:'Margin', repColCash:'Cash', repColHours:'Hours', repColLaborVsPriced:'Labour vs priced',
+    repAuditHead:'Changes to money',
+    repAuditSub:'Every change to a price, payment, approval or pay rate — who made it and when. The first time two people disagree about a number, this is what settles it.',
+    repColWho:'Who', repColWhat:'What', repColChanged:'Changed', repColFrom:'From', repColTo:'To',
+    repAgingHead:'How old the money owed is',
+    repAgingSub:'The same debts as the table below, grouped by how long they have been outstanding. Counts are in brackets.',
+    repArHead:'Who owes you',
+    repArSub:'Outstanding balances by how long they have been out. The oldest money is the hardest to collect — chase it first.',
+    repColCustomer:'Customer', repColContract:'Contract', repColPaid:'Paid', repColOwed:'Owed', repColDays:'Days',
+    repSalesHead:'Sales', repSalesSub:'Pipeline, conversion, lead sources',
+    repStagesHead:'Jobs by stage', repStagesSub:'Everything currently in the pipeline',
+    repFunnelHead:'Quote conversion', repFunnelSub:'How many quotes turn into work',
+    repLeadsHead:'Where leads come from', repLeadsSub:'Referral source on won jobs',
+    repWorkCrewHead:'Work & Crew', repWorkCrewSub:'Hours, fence types built',
+    repCycleHead:'How long things take',
+    repCycleSub:'Median, not average: one job that sat for a year would drag an average somewhere no real job has ever been.',
+    repHoursByCrewHead:'Hours by crew member', repHoursByCrewSub:'Clocked hours in this period',
+    repFenceTypesHead:'Fence types built', repFenceTypesSub:'Runs by fence type',
+    repPeopleHead:'Your people', repPeopleSub:'Every hour, every job, per person',
+    repTeamHead:'The team in this period',
+    repTeamBody:'Tap anyone to open their full record. Hours and cost count %s, approved or not — the approval column tells you which of it is settled.',
+    repEveryClockedHourWord:'every clocked hour',
+    repHoursByWeekHead:'Hours week by week', repHoursByWeekSub:'The whole crew\'s clocked hours, by week',
+    repApprovalHead:'Hours waiting on sign-off',
+    repApprovalSub:'Unapproved hours are money standing still: the crew are not paid and the job cost is understated until someone signs them off.',
+    repDetailHead:'Detailed tables', repDetailSub:'Crew, money owed, clock in/out',
+    repCrewDetailHead:'Crew detail', repPayrollCsvBtn:'Payroll CSV', repExportCsvBtn:'Export CSV',
+    repCrewDetailBody:'Labor cost below counts %s. Payroll CSV pays %s, so the two figures differ until every shift in this period has been approved.',
+    repApprovedShiftsOnlyWord:'approved shifts only',
+    repColInstaller:'Installer', repColAvgPerHr:'Avg $/hr',
+    repMoneyOwedHead:'Money owed',
+    repMoneyOwedSub:'The same rows as "Who owes you" above, listed in full with how long each one has been outstanding. One question, one answer.',
+    repColStatus:'Status', repColOutstanding:'Outstanding',
+    repClockDetailHead:'Clock in / out detail', repColDate:'Date', repColIn:'In', repColOut:'Out', repColCost:'Cost',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -2607,6 +2783,177 @@ const TL = {
     crewProdNoteNoPay:'El pago no es visible para su cuenta, así que una cifra de costo por hora no se podría verificar aunque existiera. Todo lo de arriba son horas, nunca dinero.',
     crewProdNoteMixedPay:'No se muestra: costo por hora. Algunos de la cuadrilla tienen una tarifa registrada y otros marcan $0, y promediar un pago real con uno faltante produce un número equivocado en ambos sentidos. Todo lo de arriba son horas, nunca dinero.',
     crewProdNoteNoRate:'No se muestra: costo por hora ni ninguna cifra de eficiencia. Ningún miembro de la cuadrilla tiene una tarifa por hora registrada, así que el costo de mano de obra es $0 para cada hora registrada -- un número calculado a partir de eso sería una tarifa de $0 disfrazada de decimal, no una medición. Todo lo de arriba son horas, nunca dinero.',
+
+    // ---- Automation tab ----
+    autoRulesHead:'Reglas de automatización',
+    autoRulesBody:'Cuando algo se vuelve cierto en un trabajo, una de estas reglas puede actuar sobre él automáticamente en lugar de esperar a que alguien lea una lista. Toda regla empieza apagada — active las que quiera. Ninguna toca dinero ni borra nada.',
+    autoCheckNowBtn:'Revisar ahora',
+    autoFlagsHead:'Trabajos marcados',
+    autoFlagsBody:'Trabajos en los que una regla de automatización levantó una marca. Descartar una no cambia el trabajo — solo indica que la oficina ya la vio.',
+    autoLogHead:'Registro de automatización',
+    autoLogBody:'Cada vez que una regla se activó: qué trabajo, cuándo, y qué hizo.',
+    autoColWhen:'Cuándo', autoColRule:'Regla', autoColJob:'Trabajo', autoColWhat:'Qué pasó',
+    autoRunsEmptyMsg:'Ninguna regla se ha activado todavía.',
+    autoRuleLastFired:'Se activó por última vez %s', autoRuleNeverRun:'Nunca se ha ejecutado',
+    autoFlagsNoneMsg:'No hay marcas abiertas.', autoClearBtn:'Descartar',
+    jobGoneLabel:'El trabajo ya no está aquí', autoRunDoneMsg:'Hecho.',
+    autoRuleOnMsg:'Regla activada.', autoRuleOffMsg:'Regla desactivada.',
+    autoRule1Label:'Llegan los materiales → mover el trabajo a Excavación',
+    autoRule1Detail:'Cuando los materiales de un trabajo vendido se marcan como Recibidos mientras la construcción no ha comenzado (o sigue en Materiales), lo mueve a Excavación en el tablero de Producción -- el mismo movimiento que alguien haría a mano ahí.',
+    autoRule2Label:'Un presupuesto enviado queda en silencio → agregar una nota',
+    autoRule2Detail:'Cuando un presupuesto lleva 14 días o más enviado sin respuesta, agrega una nota con fecha y hora al trabajo indicándolo.',
+    autoRule3Label:'Aprobado sin depósito → levantar una marca',
+    autoRule3Detail:'Cuando un trabajo se aprueba con un monto de depósito pero no se ha cobrado nada, levanta una marca aquí para la oficina.',
+    autoRule4Label:'Programado pronto, materiales no listos → levantar una marca',
+    autoRule4Detail:'Cuando un trabajo está programado dentro de los próximos 7 días y los materiales todavía no están pedidos ni recibidos, levanta una marca aquí para la oficina.',
+
+    // ---- Billing tab ----
+    billSubHead:'Su suscripción de FenceFlow', billCheckingPlan:'Revisando su plan…',
+    billHandledNote:'La facturación se maneja aquí en la web y no en la app de Android, así que nada de esto pasa por la facturación de Play Store. Los datos de la tarjeta se ingresan en la propia página de pago de Stripe — nunca llegan a FenceFlow.',
+    billGetPaidHead:'Cobrar a sus clientes',
+    billGetPaidBody:'Los depósitos y facturas que le pagan a %s son algo aparte de la suscripción de FenceFlow de arriba — ese dinero va directo a su propia cuenta, nunca pasa por nosotros. Solicite uno desde cualquier trabajo en la app: %s.',
+    billYouWord:'usted', billPaymentInvoiceNav:'Pago y factura → Solicitar por tarjeta',
+    billProcessorHead:'Cómo cobra con tarjeta',
+    billProcessorBody:'Use el que ya tenga. Elija el que elija, el dinero va a su cuenta, no a la nuestra — nosotros solo registramos que llegó para que el trabajo deje de mostrar un saldo.',
+    billProcessorCashNote:'¿Prefiere cobrar efectivo, cheque o tarjeta por teléfono? Regístrelo contra el trabajo en la app bajo Pago y factura — nada aquí necesita estar conectado para eso.',
+    billColJob:'Trabajo', billColType:'Tipo', billColAmount:'Monto', billColStatus:'Estado', billColRequested:'Solicitado',
+    billPayEmptyMsg:'Todavía no hay solicitudes de pago.',
+    billLoadErrorMsg:'No pudimos cargar su suscripción en este momento. Nada ha cambiado — intente Actualizar en un momento, y escriba a soporte si sigue pasando.',
+    billActiveLine:'Activo%s%s.', billRenewsSuffix:', se renueva %s',
+    billPlanPickedLine:'Plan %s elegido — comienza%s y su tarjeta se cobra entonces. Hasta entonces todo es gratis.',
+    billYourWord:'Su', billStartsOnSuffix:' el %s', billStartsWhenTrialEnds:' cuando termine la prueba',
+    billFreeTrialWord:'Prueba gratis', billOfPlanSuffix:' de %s', billUntilSuffix:' hasta %s',
+    billPickPlanSuffix:' — elija un plan antes de esa fecha para seguir sin interrupción.',
+    billPastDueMsg:'El último pago falló — actualice su tarjeta para seguir activo.',
+    billCanceledMsg:'Cancelado. Elija un plan abajo para empezar de nuevo.',
+    billNoPlanYetMsg:'Todavía no hay plan. Elija uno abajo.',
+    billYourPlanWord:'Su plan',
+    billChoosePlanBtn:'Elegir %s', billSwitchDownBtn:'Bajar a %s', billUpgradeBtn:'Subir a %s',
+    billPerMonth:'/mes',
+    billFullAccessMsg:'Acceso completo — todas las funciones están incluidas para esta empresa.',
+    planBlurbSolo:'Una persona manejando todo su negocio.',
+    planBlurbCrew:'Usted y su cuadrilla, todos en la misma página.',
+    planBlurbPro:'Dirija la cuadrilla Y lea el negocio.',
+    planFeatSoloLogin:'1 acceso — solo usted', planFeatUnlimitedJobs:'Trabajos y presupuestos ilimitados',
+    planFeatDrawingTakeoff:'Dibujo de medidas y materiales', planFeatScheduling:'Programación y calendario',
+    planFeatInvoices:'Facturas y presupuestos en PDF con su marca', planFeatCashCheck:'Pagos en efectivo y cheque', planFeatOffline:'Funciona sin conexión',
+    planFeatEverythingInSolo:'Todo lo de Solo', planFeatCrewLogins:'6 accesos — usted + 5 de cuadrilla',
+    planFeatTimeClock:'Reloj de horas y pago de cuadrilla', planFeatCrewRoles:'Roles y permisos de cuadrilla',
+    planFeatPipeline:'Tablero de pipeline', planFeatMoneyBasics:'Lo básico del dinero: cobrado y adeudado', planFeatCardLink:'Pagos con tarjeta por enlace',
+    planFeatEverythingInCrew:'Todo lo de Crew', planFeatUnlimitedLogins:'Accesos ilimitados',
+    planFeatProfitMargin:'Análisis de ganancia y margen', planFeatCostBreakdowns:'Desglose de costos: a dónde va el dinero',
+    planFeatArAging:'Antigüedad de cuentas por cobrar — quién debe, hace cuánto', planFeatDigest:'Resumen del negocio los lunes por la mañana',
+    planFeatCloudBackup:'Respaldo en la nube de fotos y documentos', planFeatPrioritySupport:'Soporte prioritario',
+    billProcStripeBlurb:'Tarjetas, Apple Pay y Google Pay. Si ya factura con Stripe, use este.',
+    billProcSquareBlurb:'Común en el gremio. Si ya cobra con un lector de Square, use este.',
+    billProcNotSetUpMsg:'Su dueño todavía no ha configurado los pagos con tarjeta.',
+    billProcThroughMsg:'Los pagos con tarjeta pasan por %s.',
+    billProcConnectedWord:'conectado', billProcChosenWord:'elegido',
+    billConnectSquareBtn:'Conectar mi cuenta de Square', billConnectStripeBtn:'Conectar mi cuenta de Stripe',
+    billOpeningMsg:'Abriendo %s…', billCouldNotOpenMsg:'No se pudo abrir %s en este momento.',
+    billCouldNotReachMsg:'No se pudo contactar a %s: %s',
+    billChosenConnectMsg:'%s está elegido. Conecte la cuenta y las solicitudes de tarjeta se activan — hasta entonces la app le dirá que cobre de otra forma en lugar de tomar un pago que nadie puede registrar.',
+    billChosenNotConnectedMsg:'Ha elegido %s, pero la cuenta todavía no está conectada, así que las solicitudes de tarjeta siguen apagadas.',
+    billConnectedMsg:'Conectado a %s. Las solicitudes de tarjeta de la app van a esta cuenta.',
+    billPaidWord:'Pagado', billWaitingWord:'Esperando',
+    billOpeningCheckoutMsg:'Abriendo pago seguro…', billOnPlanNowMsg:'Ahora está en el plan %s.',
+    billCouldNotStartCheckoutMsg:'No se pudo iniciar el pago.',
+    billCanceledCheckoutNote:'No se cobró nada y nada ha cambiado. Elija un plan en Facturación cuando quiera.',
+    billConfirmingPaymentMsg:'Confirmando su pago con Stripe…',
+    billPaymentReceivedNote:'Pago recibido — su suscripción está activa. El recibo va en camino a su correo.',
+    billPaymentPendingConfirmMsg:'Su pago se procesó. Stripe todavía no termina de confirmárnoslo — presione Revisar de nuevo en un minuto. No hay que pagar dos veces.',
+
+    // ---- Catalog item / supplier / crew-member dialogs ----
+    ciDialogTitleFallback:'Artículo del catálogo', ciCloseBtn:'Cerrar',
+    ciLabelName:'Nombre', ciNamePh:'Estaca de madera 6\', diente de perro, pino tratado',
+    ciLabelFenceType:'Tipo de cerca',
+    fenceTypeVinyl:'Vinilo', fenceTypeWood:'Madera', fenceTypeChainLink:'Malla ciclónica', fenceTypeAluminum:'Aluminio',
+    fenceTypeOrnamentalIron:'Hierro ornamental', fenceTypeSplitRail:'Riel partido', fenceTypeComposite:'Compuesto',
+    catUniversalOption:'Universal — usado por toda cerca',
+    ciLabelCategory:'Categoría',
+    catCategoryPanel:'Panel', catCategoryPost:'Poste', catCategoryCap:'Tapa', catCategoryConcrete:'Concreto',
+    catCategoryHardware:'Herrajes', catCategoryGate:'Portón', catCategoryTrim:'Moldura', catCategoryFabric:'Malla',
+    catCategoryRail:'Riel', catCategoryPicket:'Estaca', catCategoryMisc:'Varios',
+    ciLabelRole:'Función', ciRoleNone:'Sin función (no se empareja automáticamente)',
+    ciRoleGatePanel:'Panel de portón', ciRoleLinePost:'Poste de línea', ciRoleEndPost:'Poste final', ciRoleCornerPost:'Poste de esquina',
+    ciRoleGatePost:'Poste de portón', ciRolePostCap:'Tapa de poste', ciRoleConcreteBag:'Bolsa de concreto', ciRoleHolePlug:'Tapón de hoyo',
+    ciRoleBlankPost:'Poste ciego (portón colgado de pared)', ciRoleHingeSet:'Juego de bisagras', ciRoleLatch:'Pasador', ciRoleHandle:'Manija',
+    ciRoleBrace:'Riostra', ciRoleStiffener:'Refuerzo', ciRoleWoodPicket:'Estaca de madera', ciRoleWoodRail:'Riel de madera',
+    ciRoleGateFrameKit:'Kit de marco de portón', ciRoleChainFabric:'Malla ciclónica', ciRoleTopRail:'Riel superior',
+    ciRoleTensionWire:'Alambre tensor', ciRoleTensionBand:'Banda tensora', ciRoleBraceBand:'Banda de riostra',
+    ciRoleRailEnd:'Extremo de riel', ciRoleBarbedWireArm:'Brazo de alambre de púas', ciRolePrivacySlat:'Lámina de privacidad',
+    ciLabelColor:'Color / acabado', ciColorPh:'Blanco, negro, arena…',
+    ciLabelUnit:'Unidad', ciLabelPrice:'Precio unitario ($)', ciLabelCovers:'Cubre (pies)', ciCoversPh:'Opcional',
+    ciLabelSupplierPrice:'Precio del proveedor ($)', ciLabelSupplier:'Proveedor', ciNotSetOption:'Sin definir',
+    ciLabelSku:'SKU / número de parte del proveedor', ciSkuPh:'Como sea que lo llame el sistema del propio proveedor',
+    ciTaxableLabel:'Gravable', ciSaveBtn:'Guardar',
+    ciEditTitle:'Editar artículo del catálogo', ciNewTitle:'Nuevo artículo del catálogo',
+    ciNameRequiredMsg:'Ponga un nombre a este artículo.',
+    ciRetireQ:'¿Retirar "%s"?', ciThisItemWord:'este artículo',
+    ciRetireBody:'Deja de aparecer para presupuestar trabajo nuevo. Un trabajo que ya lo usa conserva sus propios números -- retirar un artículo nunca cambia un presupuesto que ya lo tiene.',
+
+    supDialogTitleFallback:'Proveedor', supLabelAddress:'Dirección', supHoursPh:'Lun-vie 7am-4pm, sáb 8am-12pm',
+    supLabelNotes:'Notas', supEditTitle:'Editar proveedor', supNewTitle:'Nuevo proveedor',
+    supNameRequiredMsg:'Ponga un nombre a este proveedor.',
+    supRetireBody:'Los artículos del catálogo que ya apuntan a este proveedor conservan su propio registro -- retirarlo aquí solo deja de ofrecerlo como opción en artículos nuevos o editados.',
+
+    empTitleFallback:'Miembro de la cuadrilla', empRolePh:'Capataz, obrero…', empLabelHourlyRate:'Tarifa por hora ($)',
+    empDeleteBtn:'Eliminar', empNewTitle:'Nuevo miembro de la cuadrilla', empRateNotVisiblePh:'No visible para su cuenta',
+    empEmailingMsg:'Enviando correo a %s…', empInviteEmailedMsg:'Invitación enviada por correo a %s.',
+    empEmailNotSetUpMsg:'El correo todavía no está configurado. Entregue el código a mano.',
+    empCopyCodeBtn:'Copiar código', empCopiedWord:'Copiado',
+    empCouldNotSendInviteMsg:'No se pudo enviar la invitación en este momento.',
+    empRemoveQ:'¿Quitar a %s?', empRemoveBody:'Sus horas y los trabajos en los que participó se conservan. Esto solo lo quita de la lista de cuadrilla.',
+    empRemoveBtn:'Quitar',
+
+    // ---- Reports tab ----
+    repLast7:'Últimos 7 días', repLast30:'Últimos 30 días', repLast90:'Últimos 90 días', repLast365:'Últimos 12 meses', repAllTime:'Todo el tiempo',
+    repFromLabel:'Desde', repToLabel:'Hasta', repHoursOfDayLabel:'Horario del día',
+    repHoursAll:'Todas las horas', repHoursEarly:'Antes de las 8am', repHoursWork:'8am – 5pm', repHoursLate:'Después de las 5pm',
+    repApplyBtn:'Aplicar',
+    repMoneyHead:'Dinero', repMoneySub:'Ingresos, costos, lo que le deben',
+    repRevenueHead:'Ingresos cobrados', repRevenueSub:'Dinero recibido, por mes',
+    repCostsHead:'A dónde va el dinero',
+    repCostsSub:'Lo que entró en este período, contra el costo total de cada trabajo tocado en él. Un trabajo que ya presupuestó pero todavía no le pagan muestra aquí sus costos sin nada de su dinero — eso es la brecha, no una pérdida.',
+    repExpensesHead:'Gastos por categoría', repExpensesSub:'Combustible, alquileres, permisos y otros',
+    repCostingHead:'¿Cada trabajo dejó ganancia?',
+    repCostingBody:'%s es el contrato presupuestado menos materiales, mano de obra aprobada y gastos — lo que el trabajo dejará una vez pagado en su totalidad. %s es lo que realmente ha entrado, menos esos mismos costos, así que un trabajo que todavía no le pagan muestra una ganancia saludable y una cifra de efectivo negativa. Los peores primero — son los que vale la pena entender.',
+    repProfitWord:'Ganancia', repCashWord:'Efectivo',
+    repColJob:'Trabajo', repColQuoted:'Presupuestado', repColCollected:'Cobrado', repColCosts:'Costos', repColProfit:'Ganancia',
+    repColMargin:'Margen', repColCash:'Efectivo', repColHours:'Horas', repColLaborVsPriced:'Mano de obra vs. presupuestada',
+    repAuditHead:'Cambios al dinero',
+    repAuditSub:'Todo cambio a un precio, pago, aprobación o tarifa de pago — quién lo hizo y cuándo. La primera vez que dos personas no se pongan de acuerdo sobre un número, esto lo resuelve.',
+    repColWho:'Quién', repColWhat:'Qué', repColChanged:'Cambiado', repColFrom:'De', repColTo:'A',
+    repAgingHead:'Antigüedad del dinero adeudado',
+    repAgingSub:'Las mismas deudas de la tabla de abajo, agrupadas por cuánto tiempo llevan pendientes. Los conteos van entre paréntesis.',
+    repArHead:'Quién le debe',
+    repArSub:'Saldos pendientes según cuánto tiempo llevan sin pagarse. El dinero más viejo es el más difícil de cobrar — persígalo primero.',
+    repColCustomer:'Cliente', repColContract:'Contrato', repColPaid:'Pagado', repColOwed:'Adeudado', repColDays:'Días',
+    repSalesHead:'Ventas', repSalesSub:'Pipeline, conversión, fuentes de clientes potenciales',
+    repStagesHead:'Trabajos por etapa', repStagesSub:'Todo lo que está actualmente en el pipeline',
+    repFunnelHead:'Conversión de presupuestos', repFunnelSub:'Cuántos presupuestos se convierten en trabajo',
+    repLeadsHead:'De dónde vienen los clientes potenciales', repLeadsSub:'Fuente de referencia en trabajos ganados',
+    repWorkCrewHead:'Trabajo y cuadrilla', repWorkCrewSub:'Horas, tipos de cerca construidos',
+    repCycleHead:'Cuánto tardan las cosas',
+    repCycleSub:'Mediana, no promedio: un trabajo que quedó pendiente durante un año arrastraría un promedio a un lugar donde ningún trabajo real ha estado jamás.',
+    repHoursByCrewHead:'Horas por miembro de la cuadrilla', repHoursByCrewSub:'Horas registradas en este período',
+    repFenceTypesHead:'Tipos de cerca construidos', repFenceTypesSub:'Instalaciones por tipo de cerca',
+    repPeopleHead:'Su gente', repPeopleSub:'Cada hora, cada trabajo, por persona',
+    repTeamHead:'El equipo en este período',
+    repTeamBody:'Toque a cualquiera para abrir su registro completo. Las horas y el costo cuentan %s, aprobada o no — la columna de aprobación indica cuál de ellas ya está saldada.',
+    repEveryClockedHourWord:'cada hora registrada',
+    repHoursByWeekHead:'Horas semana por semana', repHoursByWeekSub:'Las horas registradas de toda la cuadrilla, por semana',
+    repApprovalHead:'Horas pendientes de aprobación',
+    repApprovalSub:'Las horas sin aprobar son dinero detenido: la cuadrilla no cobra y el costo del trabajo está subestimado hasta que alguien las apruebe.',
+    repDetailHead:'Tablas detalladas', repDetailSub:'Cuadrilla, dinero adeudado, entrada/salida',
+    repCrewDetailHead:'Detalle de cuadrilla', repPayrollCsvBtn:'CSV de nómina', repExportCsvBtn:'Exportar CSV',
+    repCrewDetailBody:'El costo de mano de obra de abajo cuenta %s. El CSV de nómina paga %s, así que las dos cifras difieren hasta que se apruebe cada turno de este período.',
+    repApprovedShiftsOnlyWord:'solo turnos aprobados',
+    repColInstaller:'Instalador', repColAvgPerHr:'Prom. $/hora',
+    repMoneyOwedHead:'Dinero adeudado',
+    repMoneyOwedSub:'Las mismas filas de "Quién le debe" de arriba, en su totalidad con cuánto tiempo lleva pendiente cada una. Una pregunta, una respuesta.',
+    repColStatus:'Estado', repColOutstanding:'Pendiente',
+    repClockDetailHead:'Detalle de entrada / salida', repColDate:'Fecha', repColIn:'Entrada', repColOut:'Salida', repColCost:'Costo',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -2935,6 +3282,177 @@ const TL = {
     crewProdNoteNoPay:'La paie n\'est pas visible pour votre compte, donc un coût par heure ne pourrait pas être vérifié même s\'il existait. Tout ce qui précède est en heures, jamais en argent.',
     crewProdNoteMixedPay:'Non affiché : coût par heure. Certains membres de l\'équipe ont un taux enregistré et d\'autres affichent 0 $, et faire la moyenne d\'une paie réelle avec une manquante produit un chiffre faux dans les deux sens. Tout ce qui précède est en heures, jamais en argent.',
     crewProdNoteNoRate:'Non affiché : coût par heure ou tout autre indicateur d\'efficacité. Aucun membre de l\'équipe n\'a de taux horaire enregistré, donc le coût de main-d\'œuvre est de 0 $ pour chaque heure enregistrée -- un chiffre calculé à partir de cela serait un taux de 0 $ déguisé en décimale, pas une mesure. Tout ce qui précède est en heures, jamais en argent.',
+
+    // ---- Automation tab ----
+    autoRulesHead:'Règles d\'automatisation',
+    autoRulesBody:'Quand quelque chose devient vrai sur un chantier, une de ces règles peut agir automatiquement au lieu d\'attendre que quelqu\'un lise une liste. Chaque règle démarre désactivée — activez celles que vous voulez. Aucune ne touche à l\'argent ni ne supprime quoi que ce soit.',
+    autoCheckNowBtn:'Vérifier maintenant',
+    autoFlagsHead:'Chantiers signalés',
+    autoFlagsBody:'Chantiers sur lesquels une règle d\'automatisation a levé un signalement. Le régler ne change pas le chantier — cela indique seulement que le bureau l\'a vu.',
+    autoLogHead:'Journal d\'automatisation',
+    autoLogBody:'Chaque fois qu\'une règle s\'est déclenchée : quel chantier, quand, et ce qu\'elle a fait.',
+    autoColWhen:'Quand', autoColRule:'Règle', autoColJob:'Chantier', autoColWhat:'Ce qui s\'est passé',
+    autoRunsEmptyMsg:'Aucune règle ne s\'est encore déclenchée.',
+    autoRuleLastFired:'Dernier déclenchement %s', autoRuleNeverRun:'Jamais exécutée',
+    autoFlagsNoneMsg:'Aucun signalement ouvert.', autoClearBtn:'Régler',
+    jobGoneLabel:'Le chantier n\'est plus ici', autoRunDoneMsg:'Fait.',
+    autoRuleOnMsg:'Règle activée.', autoRuleOffMsg:'Règle désactivée.',
+    autoRule1Label:'Les matériaux arrivent → passer le chantier à Excavation',
+    autoRule1Detail:'Quand les matériaux d\'un chantier vendu sont marqués Reçus alors que la construction n\'a pas commencé (ou est encore à Matériaux), le passe à Excavation sur le tableau de Production -- le même geste qu\'une personne ferait à la main.',
+    autoRule2Label:'Un devis envoyé reste sans réponse → ajouter une note',
+    autoRule2Detail:'Quand un devis est envoyé depuis 14 jours ou plus sans réponse, ajoute une note horodatée au chantier pour le signaler.',
+    autoRule3Label:'Approuvé sans acompte → lever un signalement',
+    autoRule3Detail:'Quand un chantier est approuvé avec un montant d\'acompte prévu mais que rien n\'a été encaissé, lève un signalement ici pour le bureau.',
+    autoRule4Label:'Programmé bientôt, matériaux pas prêts → lever un signalement',
+    autoRule4Detail:'Quand un chantier est programmé dans les 7 prochains jours et que les matériaux ne sont toujours ni commandés ni reçus, lève un signalement ici pour le bureau.',
+
+    // ---- Billing tab ----
+    billSubHead:'Votre abonnement FenceFlow', billCheckingPlan:'Vérification de votre forfait…',
+    billHandledNote:'La facturation se fait ici sur le web plutôt que dans l\'application Android, donc rien ne passe par la facturation du Play Store. Les informations de carte sont saisies sur la page de paiement de Stripe elle-même — elles n\'atteignent jamais FenceFlow.',
+    billGetPaidHead:'Se faire payer par les clients',
+    billGetPaidBody:'Les acomptes et factures que vos clients versent %s sont distincts de l\'abonnement FenceFlow ci-dessus — cet argent va directement dans votre propre compte, jamais par nous. Demandez-en un depuis n\'importe quel chantier dans l\'app : %s.',
+    billYouWord:'à vous', billPaymentInvoiceNav:'Paiement et facture → Demander par carte',
+    billProcessorHead:'Comment vous encaissez les paiements par carte',
+    billProcessorBody:'Utilisez celui que vous avez déjà. Quel que soit votre choix, l\'argent va sur votre compte, pas le nôtre — nous ne faisons qu\'enregistrer son arrivée pour que le chantier cesse d\'afficher un solde.',
+    billProcessorCashNote:'Vous préférez prendre de l\'argent comptant, un chèque ou une carte par téléphone ? Enregistrez-le sur le chantier dans l\'app sous Paiement et facture — rien ici n\'a besoin d\'être connecté pour cela.',
+    billColJob:'Chantier', billColType:'Type', billColAmount:'Montant', billColStatus:'Statut', billColRequested:'Demandé',
+    billPayEmptyMsg:'Aucune demande de paiement pour l\'instant.',
+    billLoadErrorMsg:'Nous n\'avons pas pu charger votre abonnement pour l\'instant. Rien n\'a changé — réessayez avec Actualiser dans un moment, et écrivez au support si cela continue.',
+    billActiveLine:'Actif%s%s.', billRenewsSuffix:', renouvellement le %s',
+    billPlanPickedLine:'Forfait %s choisi — il démarre%s et votre carte sera débitée à ce moment-là. D\'ici là, tout est gratuit.',
+    billYourWord:'Votre', billStartsOnSuffix:' le %s', billStartsWhenTrialEnds:' quand l\'essai se termine',
+    billFreeTrialWord:'Essai gratuit', billOfPlanSuffix:' du forfait %s', billUntilSuffix:' jusqu\'au %s',
+    billPickPlanSuffix:' — choisissez un forfait avant cette date pour continuer sans interruption.',
+    billPastDueMsg:'Le dernier paiement a échoué — mettez à jour votre carte pour rester actif.',
+    billCanceledMsg:'Annulé. Choisissez un forfait ci-dessous pour recommencer.',
+    billNoPlanYetMsg:'Pas encore de forfait. Choisissez-en un ci-dessous.',
+    billYourPlanWord:'Votre forfait',
+    billChoosePlanBtn:'Choisir %s', billSwitchDownBtn:'Passer à %s', billUpgradeBtn:'Passer à %s supérieur',
+    billPerMonth:'/mois',
+    billFullAccessMsg:'Accès complet — toutes les fonctionnalités sont incluses pour cette entreprise.',
+    planBlurbSolo:'Une personne qui dirige toute son entreprise.',
+    planBlurbCrew:'Vous et votre équipe, tous sur la même page.',
+    planBlurbPro:'Dirigez l\'équipe ET analysez l\'entreprise.',
+    planFeatSoloLogin:'1 accès — vous seul', planFeatUnlimitedJobs:'Chantiers et devis illimités',
+    planFeatDrawingTakeoff:'Relevé de dessin et matériaux', planFeatScheduling:'Planification et calendrier',
+    planFeatInvoices:'Factures et devis PDF à votre marque', planFeatCashCheck:'Paiements comptant et chèque', planFeatOffline:'Fonctionne hors ligne',
+    planFeatEverythingInSolo:'Tout ce qui est dans Solo', planFeatCrewLogins:'6 accès — vous + 5 membres d\'équipe',
+    planFeatTimeClock:'Pointeuse et paie d\'équipe', planFeatCrewRoles:'Rôles et permissions d\'équipe',
+    planFeatPipeline:'Tableau de pipeline', planFeatMoneyBasics:'Bases financières : encaissé et dû', planFeatCardLink:'Paiements par carte via lien',
+    planFeatEverythingInCrew:'Tout ce qui est dans Crew', planFeatUnlimitedLogins:'Accès illimités',
+    planFeatProfitMargin:'Analyses de profit et marge', planFeatCostBreakdowns:'Détail des coûts : où va l\'argent',
+    planFeatArAging:'Ancienneté des créances — qui doit, depuis quand', planFeatDigest:'Résumé d\'entreprise du lundi matin',
+    planFeatCloudBackup:'Sauvegarde infonuagique des photos et documents', planFeatPrioritySupport:'Support prioritaire',
+    billProcStripeBlurb:'Cartes, Apple Pay et Google Pay. Si vous facturez déjà avec Stripe, utilisez celui-ci.',
+    billProcSquareBlurb:'Courant dans le métier. Si vous encaissez déjà avec un lecteur Square, utilisez celui-ci.',
+    billProcNotSetUpMsg:'Votre propriétaire n\'a pas encore configuré les paiements par carte.',
+    billProcThroughMsg:'Les paiements par carte passent par %s.',
+    billProcConnectedWord:'connecté', billProcChosenWord:'choisi',
+    billConnectSquareBtn:'Connecter mon compte Square', billConnectStripeBtn:'Connecter mon compte Stripe',
+    billOpeningMsg:'Ouverture de %s…', billCouldNotOpenMsg:'Impossible d\'ouvrir %s pour l\'instant.',
+    billCouldNotReachMsg:'Impossible de joindre %s : %s',
+    billChosenConnectMsg:'%s est choisi. Connectez le compte et les demandes de carte s\'activent — d\'ici là, l\'app vous dira de prendre le paiement autrement plutôt que d\'en prendre un que personne ne peut enregistrer.',
+    billChosenNotConnectedMsg:'Vous avez choisi %s, mais le compte n\'est pas encore connecté, donc les demandes de carte restent désactivées.',
+    billConnectedMsg:'Connecté à %s. Les demandes de carte de l\'app vont vers ce compte.',
+    billPaidWord:'Payé', billWaitingWord:'En attente',
+    billOpeningCheckoutMsg:'Ouverture du paiement sécurisé…', billOnPlanNowMsg:'Vous êtes maintenant sur le forfait %s.',
+    billCouldNotStartCheckoutMsg:'Impossible de démarrer le paiement.',
+    billCanceledCheckoutNote:'Aucun paiement n\'a été prélevé et rien n\'a changé. Choisissez un forfait dans Facturation quand vous serez prêt.',
+    billConfirmingPaymentMsg:'Confirmation de votre paiement avec Stripe…',
+    billPaymentReceivedNote:'Paiement reçu — votre abonnement est actif. Le reçu est en route vers votre courriel.',
+    billPaymentPendingConfirmMsg:'Votre paiement est passé. Stripe n\'a pas encore fini de nous le confirmer — appuyez de nouveau sur Vérifier dans une minute. Rien n\'a besoin d\'être payé deux fois.',
+
+    // ---- Catalog item / supplier / crew-member dialogs ----
+    ciDialogTitleFallback:'Article du catalogue', ciCloseBtn:'Fermer',
+    ciLabelName:'Nom', ciNamePh:'Piquet bois 6\', dos d\'âne, pin traité',
+    ciLabelFenceType:'Type de clôture',
+    fenceTypeVinyl:'Vinyle', fenceTypeWood:'Bois', fenceTypeChainLink:'Grillage', fenceTypeAluminum:'Aluminium',
+    fenceTypeOrnamentalIron:'Fer ornemental', fenceTypeSplitRail:'Clôture à lisses', fenceTypeComposite:'Composite',
+    catUniversalOption:'Universel — utilisé par toute clôture',
+    ciLabelCategory:'Catégorie',
+    catCategoryPanel:'Panneau', catCategoryPost:'Poteau', catCategoryCap:'Capuchon', catCategoryConcrete:'Béton',
+    catCategoryHardware:'Quincaillerie', catCategoryGate:'Portail', catCategoryTrim:'Garniture', catCategoryFabric:'Grillage',
+    catCategoryRail:'Lisse', catCategoryPicket:'Piquet', catCategoryMisc:'Divers',
+    ciLabelRole:'Rôle', ciRoleNone:'Aucun rôle (non associé automatiquement)',
+    ciRoleGatePanel:'Panneau de portail', ciRoleLinePost:'Poteau de ligne', ciRoleEndPost:'Poteau d\'extrémité', ciRoleCornerPost:'Poteau d\'angle',
+    ciRoleGatePost:'Poteau de portail', ciRolePostCap:'Capuchon de poteau', ciRoleConcreteBag:'Sac de béton', ciRoleHolePlug:'Bouchon de trou',
+    ciRoleBlankPost:'Poteau aveugle (portail fixé au mur)', ciRoleHingeSet:'Jeu de charnières', ciRoleLatch:'Loquet', ciRoleHandle:'Poignée',
+    ciRoleBrace:'Entretoise', ciRoleStiffener:'Raidisseur', ciRoleWoodPicket:'Piquet de bois', ciRoleWoodRail:'Lisse de bois',
+    ciRoleGateFrameKit:'Kit de cadre de portail', ciRoleChainFabric:'Grillage', ciRoleTopRail:'Lisse supérieure',
+    ciRoleTensionWire:'Fil de tension', ciRoleTensionBand:'Bande de tension', ciRoleBraceBand:'Bande d\'entretoise',
+    ciRoleRailEnd:'Extrémité de lisse', ciRoleBarbedWireArm:'Bras pour fil barbelé', ciRolePrivacySlat:'Latte d\'intimité',
+    ciLabelColor:'Couleur / fini', ciColorPh:'Blanc, noir, beige…',
+    ciLabelUnit:'Unité', ciLabelPrice:'Prix unitaire ($)', ciLabelCovers:'Couvre (pi)', ciCoversPh:'Facultatif',
+    ciLabelSupplierPrice:'Prix fournisseur ($)', ciLabelSupplier:'Fournisseur', ciNotSetOption:'Non défini',
+    ciLabelSku:'UGS / numéro de pièce du fournisseur', ciSkuPh:'Peu importe comment le système du fournisseur l\'appelle',
+    ciTaxableLabel:'Taxable', ciSaveBtn:'Enregistrer',
+    ciEditTitle:'Modifier l\'article du catalogue', ciNewTitle:'Nouvel article du catalogue',
+    ciNameRequiredMsg:'Donnez un nom à cet article.',
+    ciRetireQ:'Retirer « %s » ?', ciThisItemWord:'cet article',
+    ciRetireBody:'Il cesse d\'apparaître pour chiffrer de nouveaux travaux. Un chantier qui l\'utilise déjà conserve ses propres chiffres -- retirer un article ne change jamais un devis qui en a déjà un.',
+
+    supDialogTitleFallback:'Fournisseur', supLabelAddress:'Adresse', supHoursPh:'Lun-ven 7 h-16 h, sam 8 h-12 h',
+    supLabelNotes:'Notes', supEditTitle:'Modifier le fournisseur', supNewTitle:'Nouveau fournisseur',
+    supNameRequiredMsg:'Donnez un nom à ce fournisseur.',
+    supRetireBody:'Les articles du catalogue qui pointent déjà vers ce fournisseur conservent leur propre enregistrement -- le retirer ici arrête seulement de l\'offrir comme choix sur les articles nouveaux ou modifiés.',
+
+    empTitleFallback:'Membre de l\'équipe', empRolePh:'Contremaître, manœuvre…', empLabelHourlyRate:'Taux horaire ($)',
+    empDeleteBtn:'Supprimer', empNewTitle:'Nouveau membre de l\'équipe', empRateNotVisiblePh:'Non visible pour votre compte',
+    empEmailingMsg:'Envoi d\'un courriel à %s…', empInviteEmailedMsg:'Invitation envoyée par courriel à %s.',
+    empEmailNotSetUpMsg:'Le courriel n\'est pas encore configuré. Remettez le code à la main.',
+    empCopyCodeBtn:'Copier le code', empCopiedWord:'Copié',
+    empCouldNotSendInviteMsg:'Impossible d\'envoyer l\'invitation pour l\'instant.',
+    empRemoveQ:'Retirer %s ?', empRemoveBody:'Ses heures et les chantiers auxquels il ou elle a participé sont conservés. Ceci le retire seulement de la liste de l\'équipe.',
+    empRemoveBtn:'Retirer',
+
+    // ---- Reports tab ----
+    repLast7:'7 derniers jours', repLast30:'30 derniers jours', repLast90:'90 derniers jours', repLast365:'12 derniers mois', repAllTime:'Depuis toujours',
+    repFromLabel:'De', repToLabel:'À', repHoursOfDayLabel:'Heures de la journée',
+    repHoursAll:'Toutes les heures', repHoursEarly:'Avant 8 h', repHoursWork:'8 h – 17 h', repHoursLate:'Après 17 h',
+    repApplyBtn:'Appliquer',
+    repMoneyHead:'Argent', repMoneySub:'Revenus, coûts, ce qu\'on vous doit',
+    repRevenueHead:'Revenus encaissés', repRevenueSub:'Argent reçu, par mois',
+    repCostsHead:'Où va l\'argent',
+    repCostsSub:'Ce qui est entré durant cette période, comparé au coût complet de chaque chantier touché durant celle-ci. Un chantier déjà chiffré mais pas encore payé affiche ici ses coûts sans aucun de ses revenus — c\'est l\'écart, pas une perte.',
+    repExpensesHead:'Dépenses par catégorie', repExpensesSub:'Essence, locations, permis et autres',
+    repCostingHead:'Chaque chantier a-t-il été rentable ?',
+    repCostingBody:'%s est le contrat chiffré moins les matériaux, la main-d\'œuvre approuvée et les dépenses — ce que le chantier rapportera une fois payé en entier. %s est ce qui est réellement entré, moins ces mêmes coûts, donc un chantier pas encore payé affiche un bon profit et un chiffre de trésorerie négatif. Les pires en premier — ce sont ceux qui valent la peine d\'être compris.',
+    repProfitWord:'Le profit', repCashWord:'La trésorerie',
+    repColJob:'Chantier', repColQuoted:'Chiffré', repColCollected:'Encaissé', repColCosts:'Coûts', repColProfit:'Profit',
+    repColMargin:'Marge', repColCash:'Trésorerie', repColHours:'Heures', repColLaborVsPriced:'Main-d\'œuvre vs chiffrée',
+    repAuditHead:'Changements d\'argent',
+    repAuditSub:'Chaque changement à un prix, un paiement, une approbation ou un taux de paie — qui l\'a fait et quand. La première fois que deux personnes ne s\'entendent pas sur un chiffre, ceci tranche.',
+    repColWho:'Qui', repColWhat:'Quoi', repColChanged:'Changé', repColFrom:'De', repColTo:'À',
+    repAgingHead:'Ancienneté de l\'argent dû',
+    repAgingSub:'Les mêmes créances que le tableau ci-dessous, regroupées selon leur ancienneté. Les comptes sont entre parenthèses.',
+    repArHead:'Qui vous doit',
+    repArSub:'Soldes en souffrance selon leur ancienneté. L\'argent le plus vieux est le plus difficile à récupérer — poursuivez-le en premier.',
+    repColCustomer:'Client', repColContract:'Contrat', repColPaid:'Payé', repColOwed:'Dû', repColDays:'Jours',
+    repSalesHead:'Ventes', repSalesSub:'Pipeline, conversion, sources de prospects',
+    repStagesHead:'Chantiers par étape', repStagesSub:'Tout ce qui est actuellement dans le pipeline',
+    repFunnelHead:'Conversion des devis', repFunnelSub:'Combien de devis se transforment en travail',
+    repLeadsHead:'D\'où viennent les prospects', repLeadsSub:'Source de référence sur les chantiers gagnés',
+    repWorkCrewHead:'Travail et équipe', repWorkCrewSub:'Heures, types de clôtures construites',
+    repCycleHead:'Combien de temps ça prend',
+    repCycleSub:'Médiane, pas moyenne : un chantier resté en attente pendant un an tirerait une moyenne vers un endroit où aucun chantier réel n\'a jamais été.',
+    repHoursByCrewHead:'Heures par membre de l\'équipe', repHoursByCrewSub:'Heures pointées durant cette période',
+    repFenceTypesHead:'Types de clôtures construites', repFenceTypesSub:'Installations par type de clôture',
+    repPeopleHead:'Votre équipe', repPeopleSub:'Chaque heure, chaque chantier, par personne',
+    repTeamHead:'L\'équipe durant cette période',
+    repTeamBody:'Touchez n\'importe qui pour ouvrir son dossier complet. Les heures et le coût comptent %s, approuvée ou non — la colonne d\'approbation indique laquelle est réglée.',
+    repEveryClockedHourWord:'chaque heure pointée',
+    repHoursByWeekHead:'Heures semaine par semaine', repHoursByWeekSub:'Les heures pointées de toute l\'équipe, par semaine',
+    repApprovalHead:'Heures en attente d\'approbation',
+    repApprovalSub:'Les heures non approuvées sont de l\'argent immobilisé : l\'équipe n\'est pas payée et le coût du chantier est sous-estimé tant que quelqu\'un ne les approuve pas.',
+    repDetailHead:'Tableaux détaillés', repDetailSub:'Équipe, argent dû, entrée/sortie',
+    repCrewDetailHead:'Détail de l\'équipe', repPayrollCsvBtn:'CSV de paie', repExportCsvBtn:'Exporter en CSV',
+    repCrewDetailBody:'Le coût de main-d\'œuvre ci-dessous compte %s. Le CSV de paie ne paie que %s, donc les deux chiffres diffèrent tant que chaque quart de cette période n\'a pas été approuvé.',
+    repApprovedShiftsOnlyWord:'les quarts approuvés',
+    repColInstaller:'Installateur', repColAvgPerHr:'Moy. $/h',
+    repMoneyOwedHead:'Argent dû',
+    repMoneyOwedSub:'Les mêmes lignes que « Qui vous doit » ci-dessus, en entier avec l\'ancienneté de chacune. Une question, une réponse.',
+    repColStatus:'Statut', repColOutstanding:'En souffrance',
+    repClockDetailHead:'Détail d\'entrée / sortie', repColDate:'Date', repColIn:'Entrée', repColOut:'Sortie', repColCost:'Coût',
   },
 };
 
@@ -2982,6 +3500,26 @@ function applyStaticText() {
   // key's current-language value).
   const catEmpty = $('catEmpty');
   if (catEmpty) catEmpty.textContent = tr('catEmptyMsg', tr('catStartSeedBtn'));
+  // Same reason as crewLoginsBody above: "you" and the in-app menu path are
+  // emphasised with real tags, so this paragraph is filled by tr()'s %s
+  // instead of a plain data-t.
+  const billGetPaidBody = $('billGetPaidBody');
+  if (billGetPaidBody) billGetPaidBody.innerHTML = tr('billGetPaidBody',
+    '<em>' + tr('billYouWord') + '</em>',
+    '<strong>' + tr('billPaymentInvoiceNav') + '</strong>');
+  // Same reason again: Profit/Cash are bolded inline, so this paragraph is
+  // filled by tr()'s %s instead of a plain data-t.
+  const repCostingBody = $('repCostingBody');
+  if (repCostingBody) repCostingBody.innerHTML = tr('repCostingBody',
+    '<strong>' + tr('repProfitWord') + '</strong>',
+    '<strong>' + tr('repCashWord') + '</strong>');
+  const repTeamBody = $('repTeamBody');
+  if (repTeamBody) repTeamBody.innerHTML = tr('repTeamBody',
+    '<strong>' + tr('repEveryClockedHourWord') + '</strong>');
+  const repCrewDetailBody = $('repCrewDetailBody');
+  if (repCrewDetailBody) repCrewDetailBody.innerHTML = tr('repCrewDetailBody',
+    '<strong>' + tr('repEveryClockedHourWord') + '</strong>',
+    '<strong>' + tr('repApprovedShiftsOnlyWord') + '</strong>');
 }
 
 function setLang(code) {
@@ -3301,13 +3839,17 @@ function renderAlertPrefs(){
    server keeps one row per (rule, job) in automation_runs behind a unique
    constraint, so the same job crossing the same line twice cannot fire the
    same rule twice -- see run_automation_rule() in supabase_automation.sql. */
+// label/detail are looked up through tr() at render time (below) rather than
+// stored translated here, because AUTOMATION_RULE_DEFS is built once at
+// script load, before LANG is even settled -- baking tr() output into this
+// array would freeze every rule's text in whatever language happened to be
+// current at page load. `key` is also what set_automation_rule_enabled and
+// automation_runs.rule_key compare against, so it is never touched.
 const AUTOMATION_RULE_DEFS = [
   {
     key: 'materials_received_advance_stage',
-    label: 'Materials arrive → move the job to Dig',
-    detail: 'When a sold job’s materials are marked Received while it has not started '
-      + 'the build (or is still sitting on Materials), moves it to Dig on the Production '
-      + 'board -- the same move a person makes by hand there.',
+    labelKey: 'autoRule1Label',
+    detailKey: 'autoRule1Detail',
     // Same fields the Production board and the "materials missing" detector
     // already read: sold, materials received, not past the Materials stage.
     test: j => (j.status === 'ACCEPTED' || j.status === 'COMPLETED')
@@ -3316,9 +3858,8 @@ const AUTOMATION_RULE_DEFS = [
   },
   {
     key: 'quote_gone_quiet_note',
-    label: 'A sent quote goes quiet → add a note',
-    detail: 'When a quote has been sent for 14+ days with no answer, adds a timestamped '
-      + 'note to the job saying so.',
+    labelKey: 'autoRule2Label',
+    detailKey: 'autoRule2Detail',
     // Exactly the "quotes gone quiet" condition renderChase() and the
     // stale_quote attention alert already use.
     test: j => j.status === 'SENT' && j.quote_sent_at && !j.quote_approved_at
@@ -3326,17 +3867,15 @@ const AUTOMATION_RULE_DEFS = [
   },
   {
     key: 'approved_no_deposit_flag',
-    label: 'Approved with no deposit → raise a flag',
-    detail: 'When a job is approved with a deposit amount on it but nothing has been '
-      + 'collected, raises a flag here for the office.',
+    labelKey: 'autoRule3Label',
+    detailKey: 'autoRule3Detail',
     // Exactly the no_deposit attention alert's condition.
     test: j => !!j.quote_approved_at && Number(j.deposit_amount) > 0 && netPaid(j) < 0.005
   },
   {
     key: 'materials_missing_scheduled_flag',
-    label: 'Scheduled soon, materials not ready → raise a flag',
-    detail: 'When a job is scheduled within the next 7 days and materials are still not '
-      + 'ordered or received, raises a flag here for the office.',
+    labelKey: 'autoRule4Label',
+    detailKey: 'autoRule4Detail',
     // Exactly the materials_missing attention alert's condition.
     test: j => !!j.scheduled_date && d(j.scheduled_date) >= new Date()
       && d(j.scheduled_date) < new Date(Date.now() + 7 * 864e5)
@@ -3385,14 +3924,14 @@ function renderAutomation(){
     const on = !!(state && state.enabled);
     const last = ruleLastRun(def.key);
     const statusText = last
-      ? 'Last fired ' + d(last.fired_at).toLocaleString()
-      : 'Never run yet';
+      ? tr('autoRuleLastFired', d(last.fired_at).toLocaleString())
+      : tr('autoRuleNeverRun');
     return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
       <label style="display:flex;align-items:center;gap:10px;font-weight:600">
         <input type="checkbox" data-automation-key="${esc(def.key)}" ${on ? 'checked' : ''} ${editable ? '' : 'disabled'}>
-        ${esc(def.label)}
+        ${esc(tr(def.labelKey))}
       </label>
-      <div style="color:var(--muted);font-size:13px;margin:4px 0 0 26px">${esc(def.detail)}</div>
+      <div style="color:var(--muted);font-size:13px;margin:4px 0 0 26px">${esc(tr(def.detailKey))}</div>
       <div style="color:var(--muted);font-size:12px;margin:4px 0 0 26px">${esc(statusText)}</div>
     </div>`;
   }).join('');
@@ -3406,13 +3945,13 @@ function renderAutomation(){
           const j = jobBySync(f.job_sync_id);
           return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
             <span style="flex:1">
-              <strong>${esc(j?.customer_name || j?.address || 'Job no longer here')}</strong>
+              <strong>${esc(j?.customer_name || j?.address || tr('jobGoneLabel'))}</strong>
               <span style="color:var(--muted)"> — ${esc(f.message)} · ${esc(d(f.created_at).toLocaleDateString())}</span>
             </span>
-            ${editable ? `<button class="btn btn-sm btn-grey" data-automation-clear="${esc(f.id)}">Clear</button>` : ''}
+            ${editable ? `<button class="btn btn-sm btn-grey" data-automation-clear="${esc(f.id)}">${esc(tr('autoClearBtn'))}</button>` : ''}
           </div>`;
         }).join('')
-      : '<div class="empty">No open flags.</div>';
+      : `<div class="empty">${esc(tr('autoFlagsNoneMsg'))}</div>`;
     flagsEl.querySelectorAll('[data-automation-clear]').forEach(el =>
       el.addEventListener('click', () => clearAutomationFlag(el.dataset.automationClear)));
   }
@@ -3423,9 +3962,9 @@ function renderAutomation(){
       const j = jobBySync(r.job_sync_id);
       const def = AUTOMATION_RULE_DEFS.find(x => x.key === r.rule_key);
       return `<tr><td>${esc(d(r.fired_at).toLocaleString())}</td>
-        <td>${esc(def?.label || r.rule_key)}</td>
-        <td>${esc(j?.customer_name || j?.address || 'Job no longer here')}</td>
-        <td>${esc(r.result === 'done' ? (r.detail || 'Done.') : (r.result + (r.detail ? ': ' + r.detail : '')))}</td></tr>`;
+        <td>${esc(def ? tr(def.labelKey) : r.rule_key)}</td>
+        <td>${esc(j?.customer_name || j?.address || tr('jobGoneLabel'))}</td>
+        <td>${esc(r.result === 'done' ? (r.detail || tr('autoRunDoneMsg')) : (r.result + (r.detail ? ': ' + r.detail : '')))}</td></tr>`;
     }).join('');
   }
   const empty = $('automationRunsEmpty');
@@ -3443,7 +3982,7 @@ async function setAutomationRuleEnabled(key, enabled){
   if (error) { msg('automationMsg', error.message, 'err'); renderAutomation(); return; }
   await loadAutomationState();
   renderAutomation();
-  msg('automationMsg', enabled ? 'Rule turned on.' : 'Rule turned off.', 'ok');
+  msg('automationMsg', enabled ? tr('autoRuleOnMsg') : tr('autoRuleOffMsg'), 'ok');
   if (enabled) evaluateAutomationRules(true);
 }
 
@@ -3902,11 +4441,12 @@ function showBlocked(status){
  * which: picking Square records the intention, and the connection itself is an
  * OAuth round trip that has to be finished before any money can move.
  */
+// name (Stripe/Square) is a brand name, not translated. blurb is pulled
+// through tr() at render time (renderProcessor below), same reason PLANS'
+// blurb/features moved to keys: this array is built once at script load.
 const PROCESSORS = [
-  { id:'stripe', name:'Stripe',
-    blurb:'Cards, Apple Pay and Google Pay. If you already invoice through Stripe, use this.' },
-  { id:'square', name:'Square',
-    blurb:'Common in the trades. If you take cards on a Square reader today, use this.' },
+  { id:'stripe', name:'Stripe', blurbKey:'billProcStripeBlurb' },
+  { id:'square', name:'Square', blurbKey:'billProcSquareBlurb' },
 ];
 
 function renderProcessor(){
@@ -3919,8 +4459,8 @@ function renderProcessor(){
   if (!owner) {
     $('processorChoices').innerHTML =
       '<p class="sub" style="margin:0">' + (chosen === 'none'
-        ? 'Your owner has not set up card payments yet.'
-        : 'Card payments go through ' + esc(chosen.charAt(0).toUpperCase() + chosen.slice(1)) + '.')
+        ? esc(tr('billProcNotSetUpMsg'))
+        : esc(tr('billProcThroughMsg', chosen.charAt(0).toUpperCase() + chosen.slice(1))))
       + '</p>';
     return;
   }
@@ -3930,29 +4470,30 @@ function renderProcessor(){
     return `<button class="btn btn-sm ${isChosen ? '' : 'btn-grey'}" data-proc="${p.id}"
         style="flex:1 1 200px;text-align:left;padding:10px 12px">
         <strong>${p.name}</strong>${isChosen && connected
-            ? ' — connected' : isChosen ? ' — chosen' : ''}
-        <div style="font-weight:400;font-size:12.5px;opacity:.85;margin-top:2px">${esc(p.blurb)}</div>
+            ? ' — ' + esc(tr('billProcConnectedWord')) : isChosen ? ' — ' + esc(tr('billProcChosenWord')) : ''}
+        <div style="font-weight:400;font-size:12.5px;opacity:.85;margin-top:2px">${esc(tr(p.blurbKey))}</div>
       </button>`;
   }).join('');
 
   // Whichever processor is chosen gets a Connect button. Stripe used to fall
   // through to a sentence saying it was not connected, with nothing to press
   // — the flow existed for Square only, and its absence read as the product
-  // being broken rather than the button being missing.
+  // being broken rather than the button being missing. word (Square/Stripe)
+  // is a brand name and is never translated.
   const CONNECT = {
-    square: { fn: 'square-oauth',   label: 'Connect my Square account', word: 'Square' },
-    stripe: { fn: 'stripe-connect', label: 'Connect my Stripe account', word: 'Stripe' },
+    square: { fn: 'square-oauth',   labelKey: 'billConnectSquareBtn', word: 'Square' },
+    stripe: { fn: 'stripe-connect', labelKey: 'billConnectStripeBtn', word: 'Stripe' },
   };
   const c = CONNECT[chosen];
   if (c && !connected) {
     $('processorChoices').insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;margin-top:10px">
-         <button class="btn" id="connectProc">${c.label}</button>
+         <button class="btn" id="connectProc">${esc(tr(c.labelKey))}</button>
        </div>`);
     $('connectProc').addEventListener('click', async () => {
       const b = $('connectProc');
       b.disabled = true;
-      msg('processorMsg', 'Opening ' + c.word + '…', 'working');
+      msg('processorMsg', tr('billOpeningMsg', c.word), 'working');
       const { data: sess } = await db.auth.getSession();
       try {
         const res = await fetch(`${SUPA_URL}/functions/v1/${c.fn}?action=start`, {
@@ -3961,22 +4502,17 @@ function renderProcessor(){
         const body = await res.json().catch(() => ({}));
         if (body.url) { location.href = body.url; return; }
         b.disabled = false;
-        msg('processorMsg', body.error || ('Could not open ' + c.word + ' just now.'), 'err');
+        msg('processorMsg', body.error || tr('billCouldNotOpenMsg', c.word), 'err');
       } catch (e) {
         b.disabled = false;
-        msg('processorMsg', 'Could not reach ' + c.word + ': ' + (e.message || e), 'err');
+        msg('processorMsg', tr('billCouldNotReachMsg', c.word, e.message || e), 'err');
       }
     });
-    msg('processorMsg', c.word + ' is chosen. Connect the account and card requests switch on — '
-      + 'until then the app will tell you to take the payment another way rather than taking '
-      + 'one nobody can record.', 'info');
+    msg('processorMsg', tr('billChosenConnectMsg', c.word), 'info');
   } else if (chosen !== 'none' && !connected) {
-    msg('processorMsg',
-      `You have chosen ${chosen.charAt(0).toUpperCase() + chosen.slice(1)}, but the account is not `
-      + 'connected yet, so card requests are still switched off.', 'info');
+    msg('processorMsg', tr('billChosenNotConnectedMsg', chosen.charAt(0).toUpperCase() + chosen.slice(1)), 'info');
   } else if (connected) {
-    msg('processorMsg', `Connected to ${esc(paymentConn.display_name || chosen)}. `
-      + 'Card requests from the app go to this account.', 'ok');
+    msg('processorMsg', tr('billConnectedMsg', esc(paymentConn.display_name || chosen)), 'ok');
   }
 
   document.querySelectorAll('[data-proc]').forEach(b =>
@@ -4124,13 +4660,12 @@ async function settleAfterCheckout(){
   history.replaceState({}, '', location.pathname + location.hash);
 
   if (billing === 'canceled') {
-    return { note: 'No payment was taken and nothing has changed. '
-                 + 'Pick a plan from Billing whenever you are ready.', kind: 'info' };
+    return { note: tr('billCanceledCheckoutNote'), kind: 'info' };
   }
   if (billing !== 'success') return null;
 
   $('booting').style.display='flex';
-  $('booting').textContent = 'Confirming your payment with Stripe…';
+  $('booting').textContent = tr('billConfirmingPaymentMsg');
   $('app').style.display='none';
   for (let i = 0; i < 10; i++) {
     const row = await checkService(1);
@@ -4138,8 +4673,7 @@ async function settleAfterCheckout(){
     await new Promise(r => setTimeout(r, 2000));
   }
   $('booting').style.display='none';
-  return { note: 'Payment received — your subscription is active. '
-               + 'The receipt is on its way to your email.', kind: 'ok' };
+  return { note: tr('billPaymentReceivedNote'), kind: 'ok' };
 }
 
 /* ---------- topping up the first-paint slice of items / time entries -----
@@ -4276,8 +4810,7 @@ async function loadAll(){
     // Still blocked after the wait means the webhook has not landed yet. Say
     // that, rather than letting the blocked screen imply the payment failed.
     if (checkoutNote && checkoutNote.kind === 'ok') {
-      msg('billMsg', 'Your payment went through. Stripe has not finished confirming it with us '
-        + 'yet — press Check again in a minute. Nothing needs paying twice.', 'info');
+      msg('billMsg', tr('billPaymentPendingConfirmMsg'), 'info');
     } else if (checkoutNote) {
       msg('billMsg', checkoutNote.note, checkoutNote.kind);
     }
@@ -4587,13 +5120,19 @@ async function loadAll(){
 /* TEST-MODE price ids for the pre-launch dry run -- checkout accepts only
    Stripe's test cards (4242 4242 4242 4242) and moves no real money.
    Swapped for the live ids at go-live. */
+// name is never translated -- it is compared against subscription_plan from
+// the server (rank[plan.toLowerCase()] below) the same way the starter tier
+// names elsewhere in this file are left alone. blurb and features are pulled
+// through tr() where they are used (buildPlans()) rather than baked in here,
+// for the same reason AUTOMATION_RULE_DEFS moved to labelKey/detailKey: this
+// array is built once at script load, before LANG is settled.
 const PLANS = [
-  { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99',  blurb:'One person running their whole business.',
-    features:['1 login — just you','Unlimited jobs & estimates','Drawing takeoff & materials','Scheduling & calendar','Invoices & branded PDF quotes','Cash & check payments','Works offline'] },
-  { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199', blurb:'You and your crew, all on the same page.',
-    features:['Everything in Solo','6 logins — you + 5 crew','Time clock & crew pay','Crew roles & permissions','Pipeline board','Money basics: collected & owed','Card payments by link'] },
-  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349', blurb:'Run the crew AND read the business.',
-    features:['Everything in Crew','Unlimited logins','Profit & margin analytics','Cost breakdowns: where money goes','AR aging — who owes, how long','Monday morning business digest','Cloud photo & document backup','Priority support'] }
+  { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99',  blurbKey:'planBlurbSolo',
+    featureKeys:['planFeatSoloLogin','planFeatUnlimitedJobs','planFeatDrawingTakeoff','planFeatScheduling','planFeatInvoices','planFeatCashCheck','planFeatOffline'] },
+  { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199', blurbKey:'planBlurbCrew',
+    featureKeys:['planFeatEverythingInSolo','planFeatCrewLogins','planFeatTimeClock','planFeatCrewRoles','planFeatPipeline','planFeatMoneyBasics','planFeatCardLink'] },
+  { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349', blurbKey:'planBlurbPro',
+    featureKeys:['planFeatEverythingInCrew','planFeatUnlimitedLogins','planFeatProfitMargin','planFeatCostBreakdowns','planFeatArAging','planFeatDigest','planFeatCloudBackup','planFeatPrioritySupport'] }
 ];
 
 async function loadBilling(){
@@ -4611,8 +5150,7 @@ async function loadBilling(){
     // file in this repository, which is a sentence for whoever wrote the page
     // and nobody else.
     console.error('Billing status failed to load:', error);
-    state.textContent = "We couldn't load your subscription just now. Nothing has changed — "
-      + "try Refresh in a moment, and email support if it keeps happening.";
+    state.textContent = tr('billLoadErrorMsg');
   } else {
     // Two different dates, and they were both read from the same column.
     //
@@ -4623,14 +5161,17 @@ async function loadBilling(){
     // trial_ends_at, which the billing RPC did not even return until now.
     const ends  = row?.subscription_ends_at ? d(row.subscription_ends_at).toLocaleDateString() : '';
     const trial = row?.trial_ends_at ? d(row.trial_ends_at).toLocaleDateString() : '';
+    // plan is the stored subscription_plan value (Solo/Crew/Pro) -- never
+    // translated, same rule as PLANS[].name above. Everything else in these
+    // sentences goes through tr().
     state.textContent =
-      status === 'active'   ? `Active${plan?' — '+plan:''}${ends?', renews '+ends:''}.` :
+      status === 'active'   ? tr('billActiveLine', plan?' — '+plan:'', ends?tr('billRenewsSuffix',ends):'') :
       status === 'trialing' && row?.has_subscription
-                            ? `${plan || 'Your'} plan picked — it starts${trial ? ' on ' + trial : ' when the trial ends'} and your card is charged then. Until then everything is free.` :
-      status === 'trialing' ? `Free trial${plan?' of '+plan:''}${trial?' until '+trial:''}${trial ? ' — pick a plan before then to keep going.' : '.'}` :
-      status === 'past_due' ? 'Last payment failed — update your card to stay active.' :
-      status === 'canceled' ? 'Cancelled. Pick a plan below to start again.' :
-                              'No plan yet. Pick one below.';
+                            ? tr('billPlanPickedLine', plan || tr('billYourWord'), trial ? tr('billStartsOnSuffix',trial) : tr('billStartsWhenTrialEnds')) :
+      status === 'trialing' ? tr('billFreeTrialWord') + (plan?tr('billOfPlanSuffix',plan):'') + (trial?tr('billUntilSuffix',trial):'') + (trial ? tr('billPickPlanSuffix') : '.') :
+      status === 'past_due' ? tr('billPastDueMsg') :
+      status === 'canceled' ? tr('billCanceledMsg') :
+                              tr('billNoPlanYetMsg');
   }
 
   // Subscribed companies see their plan and the road up -- never the full
@@ -4649,18 +5190,20 @@ async function loadBilling(){
     // A smaller plan has to be reachable. Showing "Included in yours" and
     // nothing else meant the only way down was to cancel outright -- so a
     // company whose season ended had to leave rather than spend less.
+    // p.name (Solo/Crew/Pro) is the stored plan name and stays untranslated
+    // wherever it appears below, same rule as everywhere else in this file.
     const btn =
-      mine ? `<div style="text-align:center;font-weight:700;color:var(--teal);padding:9px 0">✓ Your plan</div>` :
+      mine ? `<div style="text-align:center;font-weight:700;color:var(--teal);padding:9px 0">✓ ${esc(tr('billYourPlanWord'))}</div>` :
       `<button class="btn" style="width:100%" data-plan="${i}"${p.id?'':' disabled'}>
-         ${!subscribed ? 'Choose '+p.name : below ? 'Switch down to '+p.name : 'Upgrade to '+p.name}
+         ${esc(!subscribed ? tr('billChoosePlanBtn',p.name) : below ? tr('billSwitchDownBtn',p.name) : tr('billUpgradeBtn',p.name))}
        </button>`;
     return `
     <div class="panel" style="margin:0;display:flex;flex-direction:column${mine?';border:2px solid var(--teal)':''}">
       <h3 style="margin:0 0 2px">${p.name}</h3>
-      <div style="font-size:26px;font-weight:800">${p.price}<span style="font-size:14px;font-weight:400;color:var(--muted)">/month</span></div>
-      <p style="font-size:13px;color:var(--muted);margin:4px 0 10px">${p.blurb}</p>
+      <div style="font-size:26px;font-weight:800">${p.price}<span style="font-size:14px;font-weight:400;color:var(--muted)">${esc(tr('billPerMonth'))}</span></div>
+      <p style="font-size:13px;color:var(--muted);margin:4px 0 10px">${esc(tr(p.blurbKey))}</p>
       <ul style="list-style:none;padding:0;margin:0 0 14px;flex:1">
-        ${p.features.map(f=>`<li style="padding:3px 0;font-size:13.5px"><span style="color:var(--teal);font-weight:700">✓</span> ${f}</li>`).join('')}
+        ${p.featureKeys.map(k=>`<li style="padding:3px 0;font-size:13.5px"><span style="color:var(--teal);font-weight:700">✓</span> ${esc(tr(k))}</li>`).join('')}
       </ul>
       ${btn}
     </div>`;
@@ -4674,7 +5217,7 @@ async function loadBilling(){
     // it falls through to the cards below, because hiding them left a
     // paying company unable to pick a plan or upgrade.
     $('planCards').innerHTML =
-      `<p style="color:var(--muted)">Full access — every feature is included for this company.</p>`;
+      `<p style="color:var(--muted)">${esc(tr('billFullAccessMsg'))}</p>`;
   } else {
     $('planCards').innerHTML = PLANS.map((p,i)=>card(p,i)).join('');
   }
@@ -4797,7 +5340,7 @@ async function loadSeats(){
 }
 
 async function startCheckout(plan){
-  msg('billMsg', 'Opening secure checkout…', 'working');
+  msg('billMsg', tr('billOpeningCheckoutMsg'), 'working');
   try {
     const { data: sess } = await db.auth.getSession();
     const res = await fetch(`${SUPA_URL}/functions/v1/create-checkout-session`, {
@@ -4810,11 +5353,12 @@ async function startCheckout(plan){
       // Changed in place on the existing subscription -- no checkout needed.
       // Stripe prorates either direction: paying up is charged for the rest of
       // the month, dropping down leaves a credit against the next invoice.
-      msg('billMsg', `You're on ${body.plan} now.`, 'ok');
+      // body.plan is the same stored plan name (Solo/Crew/Pro) -- untranslated.
+      msg('billMsg', tr('billOnPlanNowMsg', body.plan), 'ok');
       setTimeout(()=>location.reload(), 900);
     }
     else if (body.url) location.href = body.url;
-    else msg('billMsg', body.error || 'Could not start checkout.', 'err');
+    else msg('billMsg', body.error || tr('billCouldNotStartCheckoutMsg'), 'err');
   } catch (e) {
     msg('billMsg', String(e.message || e), 'err');
   }
@@ -4832,7 +5376,7 @@ async function loadJobPayments(){
       <td>${esc(j?.customer_name) || '—'}</td>
       <td>${esc(p.kind || '')}</td>
       <td>${money((p.amount_cents||0)/100)}</td>
-      <td>${paid ? '✅ Paid' : '⏳ Waiting'}</td>
+      <td>${paid ? '✅ ' + esc(tr('billPaidWord')) : '⏳ ' + esc(tr('billWaitingWord'))}</td>
       <td>${d(p.created_at).toLocaleDateString()}</td>
     </tr>`;
   }).join('');
@@ -7363,10 +7907,9 @@ async function toggleCatalogActive(syncId, active){
 async function retireCatalogItem(syncId, name){
   if(!canEdit()) return;
   const ok = await ask({
-    title: `Retire "${name||'this item'}"?`,
-    body: 'It stops showing up to price new work with. A job already using it keeps its own '
-      + 'numbers -- retiring an item never changes a quote that already has one.',
-    confirmLabel: 'Retire', danger: true,
+    title: tr('ciRetireQ', name || tr('ciThisItemWord')),
+    body: tr('ciRetireBody'),
+    confirmLabel: tr('catRetireBtn'), danger: true,
   });
   if(!ok) return;
   const { error } = await db.from('material_items')
@@ -7381,7 +7924,7 @@ async function retireCatalogItem(syncId, name){
 function openCatItemDialog(existing, forcedType){
   if(!canEdit()) return;
   openCatItem = existing || null;
-  $('catItemDialogTitle').textContent = existing ? 'Edit catalog item' : 'New catalog item';
+  $('catItemDialogTitle').textContent = existing ? tr('ciEditTitle') : tr('ciNewTitle');
   $('ci_name').value = existing?.name || '';
   $('ci_fence_type').value = existing?.fence_type || forcedType || 'VINYL';
   $('ci_category').value = existing?.category || 'MISC';
@@ -7399,7 +7942,7 @@ function openCatItemDialog(existing, forcedType){
   // own Manufacturers screen edits. Rebuilt every open rather than cached,
   // since a supplier added a minute ago has to be pickable right away.
   const manuSel = $('ci_manufacturer');
-  manuSel.innerHTML = '<option value="">Not set</option>' + manufacturers
+  manuSel.innerHTML = '<option value="">' + esc(tr('ciNotSetOption')) + '</option>' + manufacturers
     .filter(m => !m.deleted_at)
     .map(m => `<option value="${esc(m.sync_id)}">${esc(m.name)}</option>`).join('');
   manuSel.value = existing?.manufacturer_sync_id || '';
@@ -7426,7 +7969,7 @@ async function saveCatItemDialog(){
     is_active: $('ci_active').checked,
     manufacturer_sync_id: $('ci_manufacturer').value,
   };
-  if(!form.name){ msg('catItemDialogMsg', 'Give this item a name.', 'err'); return; }
+  if(!form.name){ msg('catItemDialogMsg', tr('ciNameRequiredMsg'), 'err'); return; }
   const row = catalogItemPayload(openCatItem, form, crypto.randomUUID());
   if(catalogHasSupplierPrice()){
     row.supplier_unit_price = $('ci_supplier').value==='' ? null : num($('ci_supplier').value);
@@ -7485,7 +8028,7 @@ async function refreshManufacturers(){
 function openSupplierDialog(existing){
   if(!canEdit()) return;
   openSupplier = existing || null;
-  $('supDialogTitle').textContent = existing ? 'Edit supplier' : 'New supplier';
+  $('supDialogTitle').textContent = existing ? tr('supEditTitle') : tr('supNewTitle');
   $('sup_name').value = existing?.name || '';
   $('sup_phone').value = existing?.phone || '';
   $('sup_email').value = existing?.email || '';
@@ -7500,7 +8043,7 @@ function openSupplierDialog(existing){
 async function saveSupplierDialog(){
   if(!canEdit()) return;
   const name = $('sup_name').value.trim();
-  if(!name){ msg('supDialogMsg', 'Give this supplier a name.', 'err'); return; }
+  if(!name){ msg('supDialogMsg', tr('supNameRequiredMsg'), 'err'); return; }
   const row = {
     sync_id: openSupplier ? openSupplier.sync_id : crypto.randomUUID(),
     name, phone: $('sup_phone').value.trim(), email: $('sup_email').value.trim(),
@@ -7517,10 +8060,9 @@ async function saveSupplierDialog(){
 async function retireSupplierDialog(){
   if(!canEdit() || !openSupplier) return;
   const ok = await ask({
-    title: `Retire "${openSupplier.name}"?`,
-    body: 'Catalog items already pointing at this supplier keep their own record of it -- '
-      + 'retiring it here only stops it from being offered as a choice on new or edited items.',
-    confirmLabel: 'Retire', danger: true,
+    title: tr('ciRetireQ', openSupplier.name),
+    body: tr('supRetireBody'),
+    confirmLabel: tr('catRetireBtn'), danger: true,
   });
   if(!ok) return;
   const { error } = await db.from('manufacturers')
@@ -13086,12 +13628,12 @@ function showCrewInviteNotice(html, kind){
 
 async function sendCrewInvite(emp){
   if(!emp || !emp.email) return;
-  showCrewInviteNotice(`Emailing ${esc(emp.name||emp.email)}…`, 'working');
+  showCrewInviteNotice(esc(tr('empEmailingMsg', emp.name||emp.email)), 'working');
   const { body, status } = await callInviteCrew({
     employee_sync_id: emp.sync_id, name: emp.name, email: emp.email, role: emp.role,
   });
   if(status === 200 && body.sent){
-    showCrewInviteNotice(`Invite emailed to ${esc(emp.email)}.`, 'ok');
+    showCrewInviteNotice(esc(tr('empInviteEmailedMsg', emp.email)), 'ok');
     return;
   }
   if(status === 503 && body.code){
@@ -13099,27 +13641,27 @@ async function sendCrewInvite(emp){
     // app's own Account screen already shows under "Team invite code", so
     // there is always something to hand over even with no mail provider.
     showCrewInviteNotice(
-      `${esc(body.error||'Email is not set up yet. Give them the code by hand.')}
+      `${esc(body.error||tr('empEmailNotSetUpMsg'))}
        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
          <code style="font-family:ui-monospace,monospace;background:var(--surface);border:1px solid var(--line);
                padding:4px 8px;border-radius:6px">${esc(body.code)}</code>
-         <button class="btn btn-sm btn-grey" id="crewInviteCopyBtn" type="button">Copy code</button>
+         <button class="btn btn-sm btn-grey" id="crewInviteCopyBtn" type="button">${esc(tr('empCopyCodeBtn'))}</button>
        </div>`,
       'err');
     $('crewInviteCopyBtn')?.addEventListener('click', async ()=>{
       try{ await navigator.clipboard.writeText(body.code); }catch{ /* clipboard denied; code is still on screen to select */ }
       const b=$('crewInviteCopyBtn');
-      if(b){ b.textContent='Copied'; setTimeout(()=>{ if($('crewInviteCopyBtn')) $('crewInviteCopyBtn').textContent='Copy code'; },1600); }
+      if(b){ b.textContent=tr('empCopiedWord'); setTimeout(()=>{ if($('crewInviteCopyBtn')) $('crewInviteCopyBtn').textContent=tr('empCopyCodeBtn'); },1600); }
     });
     return;
   }
-  showCrewInviteNotice(esc(body.error || 'Could not send the invite just now.'), 'err');
+  showCrewInviteNotice(esc(body.error || tr('empCouldNotSendInviteMsg')), 'err');
 }
 
 /* ---------- crew editor ---------- */
 function showEmp(id){
   openEmp = id ? employees.find(e=>String(e.id)===String(id)) : null;
-  $('empTitle').textContent = openEmp ? (openEmp.name||'Crew Member') : 'New Crew Member';
+  $('empTitle').textContent = openEmp ? (openEmp.name||tr('empTitleFallback')) : tr('empNewTitle');
   ['name','role','phone','email','notes'].forEach(k=>$('e_'+k).value=openEmp?.[k]||'');
   // The fallback roster has no rate at all -- not a zero, just absent. Typing
   // a number into that box and hitting Save would write a real rate over
@@ -13128,7 +13670,7 @@ function showEmp(id){
   const rateInput = $('e_hourly_rate');
   rateInput.value = employeesHavePay ? (openEmp?.hourly_rate ?? '') : '';
   rateInput.disabled = !employeesHavePay;
-  rateInput.placeholder = employeesHavePay ? '' : 'Not visible to your account';
+  rateInput.placeholder = employeesHavePay ? '' : tr('empRateNotVisiblePh');
   $('deleteEmp').style.display=openEmp?'inline-block':'none';
   $('empOverlay').classList.add('on');
 }
@@ -13168,9 +13710,9 @@ async function saveEmp(){
 async function deleteEmp(){
   if(!openEmp||!canEdit()) return;
   const okEmp = await ask({
-    title: `Remove ${openEmp.name||'this person'}?`,
-    body: 'Their hours and the jobs they worked on are kept. This removes them from the crew list.',
-    confirmLabel: 'Remove', danger: true
+    title: tr('empRemoveQ', openEmp.name || tr('seatThisPerson')),
+    body: tr('empRemoveBody'),
+    confirmLabel: tr('empRemoveBtn'), danger: true
   });
   if(!okEmp) return;
   // As above: marked deleted, so their clocked hours and costed jobs survive
