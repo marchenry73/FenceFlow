@@ -329,10 +329,10 @@
     <section id="view-releases" style="display:none">
       <div class="panel">
         <h2 style="margin-top:0">Releases</h2>
-        <p class="sub">What has shipped, read-only — publish a new one from the dashboard, not here.</p>
+        <p class="sub">What has shipped — publish a new one from the CLI, not here. A limited release can be promoted to everyone from this page.</p>
         <div class="scroll">
           <table>
-            <thead><tr><th>Version</th><th>Notes</th><th>Update</th><th class="nowrap">Published</th><th></th></tr></thead>
+            <thead><tr><th>Version</th><th>Notes</th><th>Update</th><th>Audience</th><th class="nowrap">Published</th><th></th></tr></thead>
             <tbody id="releaseRows"></tbody>
           </table>
         </div>
@@ -535,6 +535,7 @@ let crashes = [];
 let crashes7d = [];
 let releases = [];
 let releaseError = '';
+let releaseAudience = [];
 let drift = [];
 let editing = null;
 let pendingFactorId = null;
@@ -719,10 +720,20 @@ async function loadAll() {
 
   // app_releases has no admin RPC because it needs none: the read policy is
   // "using (true)" for anyone at all, the same as the phone itself uses to
-  // check for an update.
+  // check for an update. A 'limited' row is still readable here the same
+  // way -- this account is a platform admin, so release_visible_to_caller()
+  // is irrelevant to it; audience='everyone' or not, the row comes back.
   const rel = await db.from('app_releases').select('*').order('released_at', { ascending: false });
   releases = rel.error ? [] : (rel.data || []);
   releaseError = rel.error ? rel.error.message : '';
+
+  // Which companies each limited release actually goes to, by name. Reading
+  // app_release_audience directly returns nothing to a non-admin (its own
+  // policy is admin-only) and everything to an admin -- exactly the shape
+  // this page needs, and the same reason admin_companies() exists instead of
+  // reading companies straight.
+  const aud = await db.from('admin_release_audience').select('*');
+  releaseAudience = aud.error ? [] : (aud.data || []);
 
   await loadDrift();
   await loadMfaStatus();
@@ -1272,14 +1283,46 @@ function renderReleases() {
     return;
   }
   $('releaseNote').textContent = '';
-  $('releaseRows').innerHTML = releases.map(r => `
+  $('releaseRows').innerHTML = releases.map(r => {
+    // Everyone before this feature existed, and everyone since who publishes
+    // with no --company flag, reads as 'everyone' -- exactly what every one
+    // of these rows always meant, so this is not a new state to explain away.
+    const limited = r.audience === 'limited';
+    const names = releaseAudience.filter(a => a.release_id === r.id).map(a => a.company_name);
+    const audienceCell = !limited
+      ? '<span class="pill muted">Everyone</span>'
+      : `<span class="pill bad">Limited</span><br>` +
+        `<span style="color:var(--muted);font-size:11.5px">${names.length ? esc(names.join(', ')) : 'no companies named -- visible to nobody'}</span>`;
+    return `
     <tr>
       <td><b>${esc(r.version_name)}</b><br><span style="color:var(--muted);font-size:11.5px">build ${esc(r.version_code)}</span></td>
       <td style="white-space:normal;max-width:420px">${esc(r.notes || '—')}</td>
       <td>${r.is_mandatory ? '<span class="pill bad">Required</span>' : '<span class="pill muted">Optional</span>'}</td>
+      <td>${audienceCell}</td>
       <td class="nowrap">${day(r.released_at)}</td>
-      <td>${r.download_url ? `<a href="${esc(r.download_url)}" target="_blank" rel="noopener">Download</a>` : '—'}</td>
-    </tr>`).join('');
+      <td>${r.download_url ? `<a href="${esc(r.download_url)}" target="_blank" rel="noopener">Download</a>` : '—'}<br>
+        ${limited ? `<button data-promote="${esc(r.id)}" style="margin-top:6px">Promote to everyone</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('[data-promote]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const r = releases.find(x => x.id === b.dataset.promote);
+      const confirmed = await ask({
+        title: 'Promote this release?',
+        body: `"${r ? r.version_name : ''}" will become visible to every company, not just the ` +
+              `ones it currently goes to. This cannot be undone from here -- publishing a fresh ` +
+              `limited release is how you'd narrow it again.`,
+        confirmLabel: 'Promote',
+      });
+      if (!confirmed) return;
+      // No RLS write policy lets a browser touch app_releases or
+      // app_release_audience directly -- the same "publish from the CLI, not
+      // the app" rule this table has always had. admin_promote_release() is
+      // the one narrow, audited door through it, and it checks
+      // is_platform_admin() itself rather than trusting this button.
+      await adminAction('admin_promote_release', { target_id: b.dataset.promote }, null, b);
+    }));
 }
 
 /* ----------------------------------------------------- pricing drift ---- */

@@ -372,7 +372,20 @@ data class CloudJobStep(
      * the cloud false on the next pull, and the push after that uploaded the
      * false. The tick could never reach the cloud and always reverted.
      */
-    @SerialName("completed_at") val completedAt: String? = null
+    @SerialName("completed_at") val completedAt: String? = null,
+    /**
+     * Which shipped step this is, so a fresh install shows it translated
+     * instead of stuck in whichever language it happened to be seeded in.
+     *
+     * Null here is not "clear the cloud's key" -- it is "this row has nothing
+     * to say about the key." `explicitNulls = false` on the shared Json (see
+     * [SupabaseModule]) drops a null field from the request body entirely, so
+     * a keyless local row (hand-typed by a crew member, or seeded before this
+     * column existed) leaves whatever key the server already holds alone on
+     * push instead of blanking it. Only ever read on pull for the reverse
+     * case: a keyless cloud row must not blank a key this phone already has.
+     */
+    @SerialName("step_key") val stepKey: String? = null
 )
 
 @Serializable
@@ -854,7 +867,11 @@ object EntitySync {
                 steps += CloudJobStep(
                     companyId, it.syncId, js, it.kind.name, it.description,
                     it.checked, it.verifiedWithCustomer, it.sortOrder,
-                    it.completedAt?.let { at -> CloudTime.format(at) }
+                    it.completedAt?.let { at -> CloudTime.format(at) },
+                    // Null when this phone has no key for the step; the class
+                    // KDoc on stepKey explains why that never blanks a key the
+                    // server already holds.
+                    stepKey = it.stepKey
                 )
             }
             repository.getSiteMarkers(job.id).forEach {
@@ -1811,7 +1828,8 @@ object EntitySync {
                         description = row.description, checked = row.checked,
                         verifiedWithCustomer = row.verifiedWithCustomer,
                         sortOrder = row.sortOrder,
-                        completedAt = CloudTime.parseMillis(row.completedAt)
+                        completedAt = CloudTime.parseMillis(row.completedAt),
+                        stepKey = row.stepKey
                     )
                 )
                 added++
@@ -1843,7 +1861,13 @@ object EntitySync {
                     verifiedWithCustomer =
                         if (takeCloudTick) row.verifiedWithCustomer
                         else existing.verifiedWithCustomer,
-                    sortOrder = row.sortOrder
+                    sortOrder = row.sortOrder,
+                    // A keyless cloud row (an older phone that pulled before
+                    // this column existed, then pushed) must not blank a key
+                    // this phone already resolved -- same rule as the push
+                    // side, just in the other direction. Take the cloud key
+                    // only when it actually has one.
+                    stepKey = row.stepKey ?: existing.stepKey
                 )
                 if (merged != existing) { repository.updateJobStep(merged); added++ }
             }

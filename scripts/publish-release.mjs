@@ -8,6 +8,7 @@
  * Usage:
  *   node scripts/publish-release.mjs "What changed, in a sentence"
  *   node scripts/publish-release.mjs "Fixes a wrong total on the invoice" --urgent
+ *   node scripts/publish-release.mjs "Try the new wizard" --company <uuid> --company <uuid>
  *
  * The version number is taken from the commit count, exactly as the build
  * takes it, so the two cannot disagree. Build first, then publish -- otherwise
@@ -16,6 +17,22 @@
  * --urgent marks the update mandatory: the prompt has no "Later" and cannot be
  * dismissed. Reserve it for money and data. An app that insists on updating for
  * a colour change teaches people to ignore the one that matters.
+ *
+ * --company <uuid> (repeatable) publishes to a LIMITED audience instead of
+ * everyone -- specific companies, by id, get offered this build; nobody else
+ * does. See supabase_release_audience_patch.sql for why company is the only
+ * audience unit this schema can honestly name, and why an anonymous phone
+ * (no session yet) never sees a limited release even if its own company is
+ * on the list. A limited release does not replace or hide whatever the
+ * general population is already on -- everyone else keeps seeing the last
+ * 'everyone' release, so nobody is left with no update available at all.
+ * Promoting it to everyone once it holds up is a separate, deliberate act --
+ * from the staff console's Releases panel, not from this script.
+ *
+ * If you publish limited and never promote: the audience you named keeps
+ * getting exactly that build, forever, and everybody else stays on whatever
+ * came before it. That is a stuck rollout, not a stranded fleet -- the fix is
+ * to go promote it, not to republish.
  *
  * There is deliberately no way to publish from the app itself -- app_releases
  * has no write policy, so a compromised phone cannot tell your whole company to
@@ -39,8 +56,25 @@ const urgent = args.includes("--urgent");
 const urlFlag = args.findIndex((a) => a === "--url");
 const downloadUrl = urlFlag >= 0 ? (args[urlFlag + 1] || "") : null;
 
+// Every value that follows a --company flag, in order. Repeatable rather
+// than comma-separated so a typo in one id doesn't require re-parsing a list
+// -- each is just "the next word after --company".
+const companyIds = args
+  .map((a, i) => (a === "--company" ? args[i + 1] : null))
+  .filter((v) => v);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+for (const id of companyIds) {
+  if (!UUID_RE.test(id)) {
+    console.error(`"${id}" after --company doesn't look like a company id (uuid).`);
+    process.exit(1);
+  }
+}
+
 const notes = args
-  .filter((a, i) => a !== "--urgent" && a !== "--skip-version-check" && a !== "--dry-run" && a !== "--url" && !(urlFlag >= 0 && i === urlFlag + 1))
+  .filter((a, i) =>
+    a !== "--urgent" && a !== "--skip-version-check" && a !== "--dry-run" && a !== "--url" &&
+    a !== "--company" && !companyIds.includes(a) &&
+    !(urlFlag >= 0 && i === urlFlag + 1))
   .join(" ").trim();
 
 if (!notes) {
@@ -338,6 +372,7 @@ if (downloadUrl === null) {
 if (args.includes("--dry-run")) {
   console.log(`Would publish ${name}${urgent ? " (mandatory)" : ""}`);
   console.log(`  notes: ${notes}`);
+  console.log(`  audience: ${companyIds.length > 0 ? `limited to ${companyIds.length} compan${companyIds.length === 1 ? "y" : "ies"} (${companyIds.join(", ")})` : "everyone"}`);
   console.log(`  APK version check: ${stampedVersion() === code ? "matches" : "MISMATCH"}`);
   console.log("Nothing was uploaded or written.");
   process.exit(0);
@@ -350,16 +385,30 @@ const urlExpr = effectiveUrl === null
   ? "coalesce((select download_url from public.app_releases order by version_code desc limit 1), '')"
   : "'" + esc(effectiveUrl) + "'";
 
+const audience = companyIds.length > 0 ? "limited" : "everyone";
+
 const sql = `
-insert into public.app_releases (version_code, version_name, notes, is_mandatory, download_url)
-values (${code}, '${esc(name)}', '${esc(notes)}', ${urgent}, ${urlExpr})
+insert into public.app_releases (version_code, version_name, notes, is_mandatory, download_url, audience)
+values (${code}, '${esc(name)}', '${esc(notes)}', ${urgent}, ${urlExpr}, '${audience}')
 on conflict (version_code) do update
   set version_name  = excluded.version_name,
       notes         = excluded.notes,
       is_mandatory  = excluded.is_mandatory,
-      download_url  = excluded.download_url;
+      download_url  = excluded.download_url,
+      audience      = excluded.audience;
 
-select version_code, version_name, is_mandatory, download_url from public.app_releases
+-- Republishing the same version_code (the on conflict path above) must not
+-- leave a stale audience from a previous attempt lying around next to a new
+-- one -- so the membership list for this release is always rebuilt from
+-- scratch rather than appended to.
+delete from public.app_release_audience
+ where release_id = (select id from public.app_releases where version_code = ${code});
+${companyIds.map((id) =>
+  `insert into public.app_release_audience (release_id, company_id)
+   values ((select id from public.app_releases where version_code = ${code}), '${esc(id)}');`
+).join("\n")}
+
+select version_code, version_name, is_mandatory, download_url, audience from public.app_releases
 order by version_code desc limit 1;
 `;
 
@@ -379,6 +428,13 @@ try {
   console.log(`Published version ${name}${urgent ? "  (mandatory)" : ""}`);
   console.log(`  "${notes}"`);
 
+  if (companyIds.length > 0) {
+    console.log(`  LIMITED audience: ${companyIds.length} compan${companyIds.length === 1 ? "y" : "ies"} only.`);
+    console.log("  Nobody else will be offered this build until it is promoted from the");
+    console.log("  Releases panel in the staff console. Forgetting to promote does not");
+    console.log("  strand anyone -- everyone else just keeps seeing whatever came before.");
+  }
+
   if (hostedUrl) console.log(`  hosted at ${hostedUrl}`);
 
   // Say so loudly. A release with no link shows a prompt people cannot act on.
@@ -389,7 +445,9 @@ try {
     console.warn('  node scripts/publish-release.mjs "notes" --url "https://..."');
   }
 
-  console.log("\nEvery phone will prompt next time the app is opened.");
+  console.log(companyIds.length > 0
+    ? "\nOnly signed-in phones at the named companies will prompt next time the app is opened."
+    : "\nEvery phone will prompt next time the app is opened.");
   console.log("Make sure the APK in that folder is this build.");
 } finally {
   rmSync(file, { force: true });
