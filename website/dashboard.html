@@ -881,71 +881,71 @@
          (changes what hours pay is estimated from, needs the same "who and
          why"), so it gets the same flow instead of a competing one. -->
     <div class="sheet" id="fixTimeSheet" style="display:none">
-      <div class="sheet-head"><h2>Correct this shift</h2>
-        <button class="jt-clear" id="fixTimeClose">Close</button></div>
+      <div class="sheet-head"><h2 data-t="fixTimeHead">Correct this shift</h2>
+        <button class="jt-clear" id="fixTimeClose" data-t="fixTimeCloseBtn">Close</button></div>
       <div class="sheet-body">
         <p class="sub" id="fixTimeWho"></p>
         <p class="sub" id="fixTimeWasOriginal" style="display:none"></p>
         <div class="row2">
-          <div><label>Started</label><input type="datetime-local" id="fixTimeStart"></div>
-          <div><label>Ended</label><input type="datetime-local" id="fixTimeEnd"></div>
+          <div><label data-t="fixTimeLabelStart">Started</label><input type="datetime-local" id="fixTimeStart"></div>
+          <div><label data-t="fixTimeLabelEnd">Ended</label><input type="datetime-local" id="fixTimeEnd"></div>
         </div>
-        <label>Unpaid break (minutes)</label>
-        <input id="fixTimeBreak" type="number" min="0" step="1"
+        <label data-t="fixTimeLabelBreak">Unpaid break (minutes)</label>
+        <input id="fixTimeBreak" type="number" min="0" step="1" data-t="fixTimeBreakPh"
           placeholder="Leave blank -- no break recorded">
         <p class="sub" id="fixTimeBreakNote"></p>
-        <label>Why is it being changed?</label>
-        <input id="fixTimeReason" placeholder="Forgot to clock in, was on site at 8:30" maxlength="200">
-        <p class="sub">The clock's own times are kept. This records what you changed and why,
+        <label data-t="fixTimeLabelReason">Why is it being changed?</label>
+        <input id="fixTimeReason" data-t="fixTimeReasonPh" placeholder="Forgot to clock in, was on site at 8:30" maxlength="200">
+        <p class="sub" data-t="fixTimeBody">The clock's own times are kept. This records what you changed and why,
           and it will show on the shift from now on.</p>
         <div class="msg" id="fixTimeMsg"></div>
         <div style="margin-top:12px;display:flex;gap:8px">
-          <button class="btn" id="fixTimeSave">Save correction</button>
-          <button class="btn btn-grey" id="fixTimeCancel">Cancel</button>
+          <button class="btn" id="fixTimeSave" data-t="fixTimeSaveBtn">Save correction</button>
+          <button class="btn btn-grey" id="fixTimeCancel" data-t="fixTimeCancelBtn">Cancel</button>
         </div>
       </div>
     </div>
 
     <div id="tab-time" style="display:none">
       <div class="panel">
-        <h2>Clock In / Out</h2>
+        <h2 data-t="timeHead">Clock In / Out</h2>
         <div class="scroll"><table>
-          <thead><tr><th>Who</th><th>Job</th><th>Started</th><th>Ended</th><th>Hours</th><th>Labor cost</th><th></th></tr></thead>
+          <thead><tr><th data-t="timeColWho">Who</th><th data-t="timeColJob">Job</th><th data-t="timeColStarted">Started</th><th data-t="timeColEnded">Ended</th><th data-t="timeColHours">Hours</th><th data-t="timeColLabor">Labor cost</th><th></th></tr></thead>
           <tbody id="timeRows"></tbody></table></div>
-        <div class="empty" id="timeEmpty" style="display:none">No time logged yet. Crews clock in from the phone app.</div>
+        <div class="empty" id="timeEmpty" style="display:none" data-t="timeEmptyMsg">No time logged yet. Crews clock in from the phone app.</div>
         <div id="timeTotals" style="margin-top:12px;font-weight:600"></div>
         <div class="msg" id="timeMsg"></div>
       </div>
 
       <div class="panel">
-        <h2>Weekly timesheet</h2>
-        <p class="sub">Who worked what, by week, so a shift that looks wrong is easy to
-          spot. A day marked <i>corrected</i> means the hours shown are not what the clock
+        <h2 data-t="timesheetHead">Weekly timesheet</h2>
+        <p class="sub"><span data-t="timesheetBody1a">Who worked what, by week, so a shift that looks wrong is easy to
+          spot. A day marked </span><i data-t="timesheetBodyCorrectedWord">corrected</i><span data-t="timesheetBody1b"> means the hours shown are not what the clock
           recorded &mdash; use Clock In / Out above to see the original time and the
-          reason.</p>
-        <p class="sub" style="margin-top:6px"><b>Breaks are only subtracted when a manager
-          records one.</b> FenceFlow's phone clock still has no break button, so a shift
+          reason.</span></p>
+        <p class="sub" style="margin-top:6px"><b data-t="timesheetBody2a">Breaks are only subtracted when a manager
+          records one.</b><span data-t="timesheetBody2b"> FenceFlow's phone clock still has no break button, so a shift
           with no break note below is not proof nobody stopped -- it means nobody entered
           one yet, not that the hours are already net of a break. Use Clock In / Out above
           to add a break to a shift; once it is recorded, the hours here and the pay below
-          both drop by that amount.</p>
+          both drop by that amount.</span></p>
         <div class="scroll"><table>
-          <thead><tr><th>Who</th><th>Week of</th><th>Days</th><th>Daily hours</th>
-            <th>Regular</th><th>Overtime</th><th>Total</th></tr></thead>
+          <thead><tr><th data-t="timesheetColWho">Who</th><th data-t="timesheetColWeek">Week of</th><th data-t="timesheetColDays">Days</th><th data-t="timesheetColDaily">Daily hours</th>
+            <th data-t="timesheetColRegular">Regular</th><th data-t="timesheetColOvertime">Overtime</th><th data-t="timesheetColTotal">Total</th></tr></thead>
           <tbody id="timesheetRows"></tbody></table></div>
-        <div class="empty" id="timesheetEmpty" style="display:none">No finished shifts yet.</div>
+        <div class="empty" id="timesheetEmpty" style="display:none" data-t="timesheetEmptyMsg">No finished shifts yet.</div>
       </div>
 
       <div class="panel">
-        <h2>Estimated pay</h2>
-        <p class="sub">What these hours come to, by person and by week. This is an
+        <h2 data-t="payHead">Estimated pay</h2>
+        <p class="sub" data-t="payBody">What these hours come to, by person and by week. This is an
           estimate from the hours in FenceFlow &mdash; it is not payroll, nothing is
           filed, and nobody is paid from this screen.</p>
         <div class="scroll"><table>
-          <thead><tr><th>Who</th><th>Week of</th><th>Regular</th><th>Overtime</th>
-            <th>Rate</th><th>Estimated gross</th></tr></thead>
+          <thead><tr><th data-t="payColWho">Who</th><th data-t="payColWeek">Week of</th><th data-t="payColRegular">Regular</th><th data-t="payColOvertime">Overtime</th>
+            <th data-t="payColRate">Rate</th><th data-t="payColGross">Estimated gross</th></tr></thead>
           <tbody id="payWeekRows"></tbody></table></div>
-        <div class="empty" id="payWeekEmpty" style="display:none">No finished shifts yet.</div>
+        <div class="empty" id="payWeekEmpty" style="display:none" data-t="timesheetEmptyMsg">No finished shifts yet.</div>
         <p class="sub" id="payAssumption" style="margin-top:10px"></p>
       </div>
     </div>
@@ -2027,6 +2027,57 @@ const TL = {
     jobLabelPermitStatus:'Permit status',
     jobSecExpenses:'Expenses', jobSecPunch:'Punch List', jobSecOrders:'Change Orders',
     jobSecTime:'Time Logged', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes',
+    timeHead:'Clock In / Out', timeColWho:'Who', timeColJob:'Job',
+    timeColStarted:'Started', timeColEnded:'Ended', timeColHours:'Hours',
+    timeColLabor:'Labor cost',
+    timeEmptyMsg:'No time logged yet. Crews clock in from the phone app.',
+    timeClockSaid:'clock said %s', timeBreakNote:'&minus; %sm unpaid break',
+    timeCorrectBtn:'Correct', timeTotalsLine:'Total: %s hours · %s labor',
+    timesheetHead:'Weekly timesheet',
+    timesheetBody1a:'Who worked what, by week, so a shift that looks wrong is easy to spot. A day marked ',
+    timesheetBodyCorrectedWord:'corrected',
+    timesheetBody1b:' means the hours shown are not what the clock recorded — use Clock In / Out above to see the original time and the reason.',
+    timesheetBody2a:'Breaks are only subtracted when a manager records one.',
+    timesheetBody2b:' FenceFlow’s phone clock still has no break button, so a shift with no break note below is not proof nobody stopped — it means nobody entered one yet, not that the hours are already net of a break. Use Clock In / Out above to add a break to a shift; once it is recorded, the hours here and the pay below both drop by that amount.',
+    timesheetColWho:'Who', timesheetColWeek:'Week of', timesheetColDays:'Days',
+    timesheetColDaily:'Daily hours', timesheetColRegular:'Regular',
+    timesheetColOvertime:'Overtime', timesheetColTotal:'Total',
+    timesheetEmptyMsg:'No finished shifts yet.',
+    timesheetDayBreakNote:'(&minus; %sm break)',
+    timesheetWeekBreakNote:'&minus; %sm unpaid break',
+    timesheetSomeMissingSuffix:', some shifts not recorded',
+    timesheetNoBreakRecorded:'no break recorded',
+    payHead:'Estimated pay',
+    payBody:'What these hours come to, by person and by week. This is an estimate from the hours in FenceFlow — it is not payroll, nothing is filed, and nobody is paid from this screen.',
+    payColWho:'Who', payColWeek:'Week of', payColRegular:'Regular',
+    payColOvertime:'Overtime', payColRate:'Rate', payColGross:'Estimated gross',
+    payNoRateSet:'no rate set',
+    payAssumptionMain:'Assumes overtime after %s hours in a week at %s× the rate',
+    payAssumptionDefaultSuffix:' (the federal default — there is no on-screen setting for this yet, so if your rule differs these figures do too).',
+    payAssumptionCustomSuffix:' (set in company settings, not the federal default — edit the ot_after_hours / ot_multiplier keys directly if this changes).',
+    payAssumptionBreakNote:' Hours already have any recorded unpaid break taken out — see the timesheet above for how much.',
+    payAssumptionNoRateSing:' %s week cannot be costed because that person has no hourly rate on file.',
+    payAssumptionNoRatePlur:' %s weeks cannot be costed because that person has no hourly rate on file.',
+    fixTimeHead:'Correct this shift', fixTimeCloseBtn:'Close',
+    fixTimeLabelStart:'Started', fixTimeLabelEnd:'Ended',
+    fixTimeLabelBreak:'Unpaid break (minutes)',
+    fixTimeBreakPh:'Leave blank -- no break recorded',
+    fixTimeLabelReason:'Why is it being changed?',
+    fixTimeReasonPh:'Forgot to clock in, was on site at 8:30',
+    fixTimeBody:'The clock\'s own times are kept. This records what you changed and why, and it will show on the shift from now on.',
+    fixTimeSaveBtn:'Save correction', fixTimeCancelBtn:'Cancel',
+    fixTimeNoJob:'no job', fixTimeOriginalStarted:'started %s',
+    fixTimeOriginalEnded:'ended %s',
+    fixTimeOriginalPrefix:'The clock originally said: %s. That does not change.',
+    fixTimeBreakCurrentlyRecorded:'Currently recorded: %s minutes.',
+    fixTimeBreakNoneRecorded:'No break recorded for this shift yet.',
+    fixTimeReasonRequired:'Say why it is changing.',
+    fixTimeTimesRequired:'Both times are needed.',
+    fixTimeEndAfterStart:'The end has to come after the start.',
+    fixTimeTooLong:'That is over twenty hours. Check the dates.',
+    fixTimeBreakWhole:'Break minutes has to be a whole number, zero or more.',
+    fixTimeBreakTooLong:'That break (%s min) is longer than the shift itself (%s min). Check the minutes or the shift times.',
+    fixTimeSavedMsg:'Shift corrected. The clock\'s own times are kept on the record.',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -2103,6 +2154,57 @@ const TL = {
     jobLabelPermitStatus:'Estado del permiso',
     jobSecExpenses:'Gastos', jobSecPunch:'Lista de pendientes', jobSecOrders:'Órdenes de cambio',
     jobSecTime:'Horas registradas', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios',
+    timeHead:'Entradas y salidas', timeColWho:'Quién', timeColJob:'Trabajo',
+    timeColStarted:'Entrada', timeColEnded:'Salida', timeColHours:'Horas',
+    timeColLabor:'Costo de mano de obra',
+    timeEmptyMsg:'Todavía no hay horas registradas. Las cuadrillas marcan entrada desde el celular.',
+    timeClockSaid:'el reloj marcó %s', timeBreakNote:'&minus; %s min de descanso sin pagar',
+    timeCorrectBtn:'Corregir', timeTotalsLine:'Total: %s horas · %s de mano de obra',
+    timesheetHead:'Hoja de horas semanal',
+    timesheetBody1a:'Quién trabajó qué, por semana, para que un turno que se ve raro sea fácil de detectar. Un día marcado ',
+    timesheetBodyCorrectedWord:'corregido',
+    timesheetBody1b:' significa que las horas mostradas no son las que marcó el reloj — use Entradas y salidas arriba para ver la hora original y el motivo.',
+    timesheetBody2a:'El descanso solo se resta cuando un encargado lo registra.',
+    timesheetBody2b:' El reloj del celular de FenceFlow todavía no tiene botón de descanso, así que un turno sin nota de descanso abajo no es prueba de que nadie paró — significa que todavía nadie lo anotó, no que las horas ya tienen el descanso descontado. Use Entradas y salidas arriba para agregar un descanso a un turno; en cuanto quede registrado, las horas aquí y el pago de abajo bajan por esa cantidad.',
+    timesheetColWho:'Quién', timesheetColWeek:'Semana de', timesheetColDays:'Días',
+    timesheetColDaily:'Horas por día', timesheetColRegular:'Regulares',
+    timesheetColOvertime:'Extra', timesheetColTotal:'Total',
+    timesheetEmptyMsg:'Todavía no hay turnos terminados.',
+    timesheetDayBreakNote:'(&minus; %s min de descanso)',
+    timesheetWeekBreakNote:'&minus; %s min de descanso sin pagar',
+    timesheetSomeMissingSuffix:', a algunos turnos les falta el registro',
+    timesheetNoBreakRecorded:'sin descanso registrado',
+    payHead:'Pago estimado',
+    payBody:'A cuánto llegan estas horas, por persona y por semana. Esto es un estimado a partir de las horas en FenceFlow — no es nómina, no se declara nada, y a nadie se le paga desde esta pantalla.',
+    payColWho:'Quién', payColWeek:'Semana de', payColRegular:'Regulares',
+    payColOvertime:'Extra', payColRate:'Tarifa', payColGross:'Bruto estimado',
+    payNoRateSet:'sin tarifa fijada',
+    payAssumptionMain:'Supone tiempo extra después de %s horas en una semana, pagado a %s× la tarifa',
+    payAssumptionDefaultSuffix:' (el valor federal por defecto — todavía no hay un ajuste en pantalla para esto, así que si su regla es distinta, estos números también lo son).',
+    payAssumptionCustomSuffix:' (fijado en los ajustes de la empresa, no el valor federal por defecto — edite las claves ot_after_hours / ot_multiplier directamente si esto cambia).',
+    payAssumptionBreakNote:' A las horas ya se les descontó cualquier descanso sin pagar que esté registrado — vea la hoja de horas de arriba para saber cuánto.',
+    payAssumptionNoRateSing:' %s semana no se puede calcular el costo porque esa persona no tiene tarifa por hora registrada.',
+    payAssumptionNoRatePlur:' %s semanas no se pueden calcular el costo porque esa persona no tiene tarifa por hora registrada.',
+    fixTimeHead:'Corregir este turno', fixTimeCloseBtn:'Cerrar',
+    fixTimeLabelStart:'Entrada', fixTimeLabelEnd:'Salida',
+    fixTimeLabelBreak:'Descanso sin pagar (minutos)',
+    fixTimeBreakPh:'Déjelo en blanco si no se registró descanso',
+    fixTimeLabelReason:'¿Por qué se está cambiando?',
+    fixTimeReasonPh:'Se le olvidó marcar entrada, ya estaba en el sitio a las 8:30',
+    fixTimeBody:'Se conservan las horas que marcó el reloj. Esto registra qué cambió y por qué, y aparecerá en el turno de ahora en adelante.',
+    fixTimeSaveBtn:'Guardar corrección', fixTimeCancelBtn:'Cancelar',
+    fixTimeNoJob:'sin trabajo asignado', fixTimeOriginalStarted:'entrada %s',
+    fixTimeOriginalEnded:'salida %s',
+    fixTimeOriginalPrefix:'El reloj originalmente marcó: %s. Eso no cambia.',
+    fixTimeBreakCurrentlyRecorded:'Registrado actualmente: %s minutos.',
+    fixTimeBreakNoneRecorded:'Todavía no hay descanso registrado para este turno.',
+    fixTimeReasonRequired:'Diga por qué está cambiando.',
+    fixTimeTimesRequired:'Se necesitan las dos horas.',
+    fixTimeEndAfterStart:'La salida tiene que ser después de la entrada.',
+    fixTimeTooLong:'Eso es más de veinte horas. Revise las fechas.',
+    fixTimeBreakWhole:'Los minutos de descanso tienen que ser un número entero, cero o más.',
+    fixTimeBreakTooLong:'Ese descanso (%s min) es más largo que el turno mismo (%s min). Revise los minutos o las horas del turno.',
+    fixTimeSavedMsg:'Turno corregido. Se conservan las horas que marcó el reloj en el registro.',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -2179,6 +2281,57 @@ const TL = {
     jobLabelPermitStatus:'Statut du permis',
     jobSecExpenses:'Dépenses', jobSecPunch:'Liste des correctifs', jobSecOrders:'Avenants',
     jobSecTime:'Heures enregistrées', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications',
+    timeHead:'Entrées / sorties', timeColWho:'Qui', timeColJob:'Chantier',
+    timeColStarted:'Entrée', timeColEnded:'Sortie', timeColHours:'Heures',
+    timeColLabor:'Coût de main-d’œuvre',
+    timeEmptyMsg:'Aucune heure enregistrée pour l’instant. Les équipes pointent depuis le téléphone.',
+    timeClockSaid:'l’horloge indiquait %s', timeBreakNote:'&minus; %s min de pause non payée',
+    timeCorrectBtn:'Corriger', timeTotalsLine:'Total : %s heures · %s de main-d’œuvre',
+    timesheetHead:'Feuille de temps hebdomadaire',
+    timesheetBody1a:'Qui a travaillé quoi, par semaine, pour repérer facilement un quart qui semble anormal. Un jour marqué ',
+    timesheetBodyCorrectedWord:'corrigé',
+    timesheetBody1b:' veut dire que les heures affichées ne sont pas celles de l’horloge — utilisez Entrées / sorties ci-dessus pour voir l’heure d’origine et le motif.',
+    timesheetBody2a:'La pause n’est déduite que lorsqu’un responsable l’enregistre.',
+    timesheetBody2b:' L’horloge du téléphone de FenceFlow n’a toujours pas de bouton pause, donc un quart sans note de pause ci-dessous ne prouve pas que personne n’a arrêté — cela veut dire que personne ne l’a encore inscrite, pas que les heures sont déjà nettes d’une pause. Utilisez Entrées / sorties ci-dessus pour ajouter une pause à un quart; une fois enregistrée, les heures ici et la paie ci-dessous baissent d’autant.',
+    timesheetColWho:'Qui', timesheetColWeek:'Semaine du', timesheetColDays:'Jours',
+    timesheetColDaily:'Heures par jour', timesheetColRegular:'Régulières',
+    timesheetColOvertime:'Supplémentaires', timesheetColTotal:'Total',
+    timesheetEmptyMsg:'Aucun quart terminé pour l’instant.',
+    timesheetDayBreakNote:'(&minus; %s min de pause)',
+    timesheetWeekBreakNote:'&minus; %s min de pause non payée',
+    timesheetSomeMissingSuffix:', certains quarts non enregistrés',
+    timesheetNoBreakRecorded:'aucune pause enregistrée',
+    payHead:'Paie estimée',
+    payBody:'Ce que ces heures représentent, par personne et par semaine. C’est une estimation à partir des heures dans FenceFlow — ce n’est pas la paie officielle, rien n’est déclaré, et personne n’est payé depuis cet écran.',
+    payColWho:'Qui', payColWeek:'Semaine du', payColRegular:'Régulières',
+    payColOvertime:'Supplémentaires', payColRate:'Taux', payColGross:'Brut estimé',
+    payNoRateSet:'aucun taux fixé',
+    payAssumptionMain:'Suppose des heures supplémentaires après %s heures par semaine, payées %s× le taux',
+    payAssumptionDefaultSuffix:' (la valeur fédérale par défaut — il n’y a pas encore de réglage à l’écran pour ça, alors si votre règle est différente, ces chiffres le sont aussi).',
+    payAssumptionCustomSuffix:' (fixé dans les paramètres de l’entreprise, pas la valeur fédérale par défaut — modifiez directement les clés ot_after_hours / ot_multiplier si cela change).',
+    payAssumptionBreakNote:' Toute pause non payée déjà enregistrée est déjà déduite des heures — voir la feuille de temps ci-dessus pour le détail.',
+    payAssumptionNoRateSing:' %s semaine ne peut pas être chiffrée, car cette personne n’a pas de taux horaire enregistré.',
+    payAssumptionNoRatePlur:' %s semaines ne peuvent pas être chiffrées, car cette personne n’a pas de taux horaire enregistré.',
+    fixTimeHead:'Corriger ce quart', fixTimeCloseBtn:'Fermer',
+    fixTimeLabelStart:'Entrée', fixTimeLabelEnd:'Sortie',
+    fixTimeLabelBreak:'Pause non payée (minutes)',
+    fixTimeBreakPh:'Laisser vide -- aucune pause enregistrée',
+    fixTimeLabelReason:'Pourquoi ce changement ?',
+    fixTimeReasonPh:'A oublié de pointer, était sur le chantier à 8h30',
+    fixTimeBody:'Les heures de l’horloge elle-même sont conservées. Ceci enregistre ce que vous avez changé et pourquoi, et cela s’affichera sur le quart à partir de maintenant.',
+    fixTimeSaveBtn:'Enregistrer la correction', fixTimeCancelBtn:'Annuler',
+    fixTimeNoJob:'aucun chantier', fixTimeOriginalStarted:'entrée %s',
+    fixTimeOriginalEnded:'sortie %s',
+    fixTimeOriginalPrefix:'L’horloge indiquait à l’origine : %s. Cela ne change pas.',
+    fixTimeBreakCurrentlyRecorded:'Actuellement enregistrée : %s minutes.',
+    fixTimeBreakNoneRecorded:'Aucune pause enregistrée pour ce quart pour l’instant.',
+    fixTimeReasonRequired:'Indiquez pourquoi ça change.',
+    fixTimeTimesRequired:'Les deux heures sont nécessaires.',
+    fixTimeEndAfterStart:'La sortie doit être après l’entrée.',
+    fixTimeTooLong:'Ça fait plus de vingt heures. Vérifiez les dates.',
+    fixTimeBreakWhole:'Les minutes de pause doivent être un nombre entier, zéro ou plus.',
+    fixTimeBreakTooLong:'Cette pause (%s min) est plus longue que le quart lui-même (%s min). Vérifiez les minutes ou les heures du quart.',
+    fixTimeSavedMsg:'Quart corrigé. Les heures de l’horloge elle-même sont conservées dans le registre.',
   },
 };
 
@@ -5827,9 +5980,9 @@ async function renderTime(){
   $('timeRows').innerHTML=done.map(t=>{
     const j=jobBySync(t.job_sync_id), h=hoursOf(t);
     const wasStart = t.original_started_at && t.original_started_at !== t.started_at
-      ? '<div class="sub">clock said ' + d(t.original_started_at).toLocaleTimeString() + '</div>' : '';
+      ? '<div class="sub">' + esc(tr('timeClockSaid', d(t.original_started_at).toLocaleTimeString())) + '</div>' : '';
     const wasEnd = t.original_ended_at && t.original_ended_at !== t.ended_at
-      ? '<div class="sub">clock said ' + d(t.original_ended_at).toLocaleTimeString() + '</div>' : '';
+      ? '<div class="sub">' + esc(tr('timeClockSaid', d(t.original_ended_at).toLocaleTimeString())) + '</div>' : '';
     const why = t.correction_reason
       ? '<div class="sub" style="font-style:italic">' + esc(t.correction_reason) + '</div>' : '';
     // Only shown when break_minutes is not null -- a shift with no break
@@ -5837,13 +5990,13 @@ async function renderTime(){
     // is deliberate: it is the visible difference between "none taken" and
     // "nobody has said."
     const brk = breakRecorded(t)
-      ? '<div class="sub">&minus; ' + t.break_minutes + 'm unpaid break</div>' : '';
+      ? '<div class="sub">' + tr('timeBreakNote', t.break_minutes) + '</div>' : '';
     return `<tr><td>${esc(shiftWhoName(t))}${why}</td>
       <td>${esc(j?.customer_name)||'—'}</td>
       <td>${d(t.started_at).toLocaleString()}${wasStart}</td>
       <td>${d(t.ended_at).toLocaleString()}${wasEnd}</td>
       <td>${h.toFixed(2)}${brk}</td><td>${money(paidHoursOf(t)*(t.hourly_rate||0))}</td>
-      <td><button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">Correct</button></td></tr>`;
+      <td><button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">${esc(tr('timeCorrectBtn'))}</button></td></tr>`;
   }).join('');
   document.querySelectorAll('#timeRows .fixtime').forEach(b =>
     b.addEventListener('click', () => openFixTime(b.dataset.id)));
@@ -5851,7 +6004,7 @@ async function renderTime(){
   // Paid hours, not clock hours -- see the money column above.
   const tc=done.reduce((s,t)=>s+paidHoursOf(t)*(t.hourly_rate||0),0);
   $('timeTotals').textContent = done.length
-    ? `Total: ${th.toFixed(1)} hours · ${money(tc)} labor` : '';
+    ? tr('timeTotalsLine', th.toFixed(1), money(tc)) : '';
   // Both tables below split the same shifts into regular/overtime by week,
   // so the threshold is fetched once here and handed to each rather than
   // each one hitting company_settings on its own.
@@ -5924,10 +6077,10 @@ function renderTimesheet(ot){
         // it shows once, in the week's own note below, so a day with nothing
         // recorded doesn't read as a claim that no break was taken.
         const breakNote = e.anyBreakRecorded
-          ? ' <span class="sub">(&minus; ' + e.breakMin + 'm break)</span>' : '';
+          ? ' <span class="sub">' + tr('timesheetDayBreakNote', e.breakMin) + '</span>' : '';
         return '<div>' + day + ': ' + e.hours.toFixed(2) + 'h' + breakNote +
         (e.corrected
-          ? ' <span class="sub" style="font-style:italic">(corrected'
+          ? ' <span class="sub" style="font-style:italic">(' + esc(tr('timesheetBodyCorrectedWord'))
             + (e.reason ? ': ' + esc(e.reason) : '') + ')</span>'
           : '')
         + '</div>';
@@ -5941,10 +6094,10 @@ function renderTimesheet(ot){
     // Same null-vs-zero rule at the week level: only say a break was
     // subtracted when at least one shift in the week actually recorded one.
     const breakLine = r.breakMinTotal > 0
-      ? '<div class="sub">&minus; ' + r.breakMinTotal + 'm unpaid break'
-        + (r.anyBreakMissing ? ', some shifts not recorded' : '') + '</div>'
+      ? '<div class="sub">' + tr('timesheetWeekBreakNote', r.breakMinTotal)
+        + (r.anyBreakMissing ? tr('timesheetSomeMissingSuffix') : '') + '</div>'
       : (r.anyBreakMissing
-          ? '<div class="sub">no break recorded</div>' : '');
+          ? '<div class="sub">' + esc(tr('timesheetNoBreakRecorded')) + '</div>' : '');
     return `<tr>
       <td>${esc(r.who)}</td>
       <td>${r.ws.toLocaleDateString()}</td>
@@ -6012,21 +6165,19 @@ function renderPay(ot){
       <td>${r.ws.toLocaleDateString()}</td>
       <td>${r.reg.toFixed(2)}</td>
       <td>${r.ot > 0 ? r.ot.toFixed(2) : '—'}</td>
-      <td>${r.rate ? money(r.rate) : '<span class="sub">no rate set</span>'}</td>
+      <td>${r.rate ? money(r.rate) : '<span class="sub">'+esc(tr('payNoRateSet'))+'</span>'}</td>
       <td>${r.rate ? money(r.gross) : '—'}</td>
     </tr>`).join('');
 
   const noRate = rows.filter(r => !r.rate).length;
   const usingDefault = ot.otAfter === OT_AFTER_HOURS && ot.otMult === OT_MULTIPLIER;
   $('payAssumption').innerHTML =
-    'Assumes overtime after ' + ot.otAfter + ' hours in a week at ' +
-    ot.otMult + '&times; the rate' +
+    tr('payAssumptionMain', ot.otAfter, ot.otMult) +
     (usingDefault
-      ? ' (the federal default -- there is no on-screen setting for this yet, so if your rule differs these figures do too).'
-      : ' (set in company settings, not the federal default -- edit the ot_after_hours / ot_multiplier keys directly if this changes).') +
-    ' Hours already have any recorded unpaid break taken out -- see the timesheet above for how much.' +
-    (noRate ? ' <b>' + noRate + ' week' + (noRate===1?'':'s') +
-      ' cannot be costed because that person has no hourly rate on file.</b>' : '');
+      ? tr('payAssumptionDefaultSuffix')
+      : tr('payAssumptionCustomSuffix')) +
+    tr('payAssumptionBreakNote') +
+    (noRate ? ' <b>' + esc(tr(noRate===1?'payAssumptionNoRateSing':'payAssumptionNoRatePlur', noRate)) + '</b>' : '');
 }
 
 /* ---- correcting a shift ------------------------------------------------ */
@@ -6045,13 +6196,13 @@ function openFixTime(id){
   if (!t || !canEdit()) return;
   fixingShift = t;
   $('fixTimeWho').textContent = shiftWhoName(t) + ' · ' +
-    (jobBySync(t.job_sync_id)?.customer_name || 'no job');
+    (jobBySync(t.job_sync_id)?.customer_name || tr('fixTimeNoJob'));
   const orig = [];
-  if (t.original_started_at) orig.push('started ' + d(t.original_started_at).toLocaleString());
-  if (t.original_ended_at)   orig.push('ended ' + d(t.original_ended_at).toLocaleString());
+  if (t.original_started_at) orig.push(tr('fixTimeOriginalStarted', d(t.original_started_at).toLocaleString()));
+  if (t.original_ended_at)   orig.push(tr('fixTimeOriginalEnded', d(t.original_ended_at).toLocaleString()));
   $('fixTimeWasOriginal').style.display = orig.length ? 'block' : 'none';
   $('fixTimeWasOriginal').textContent = orig.length
-    ? 'The clock originally said: ' + orig.join(', ') + '. That does not change.' : '';
+    ? tr('fixTimeOriginalPrefix', orig.join(', ')) : '';
   $('fixTimeStart').value = forLocalInput(t.started_at);
   $('fixTimeEnd').value   = t.ended_at ? forLocalInput(t.ended_at) : '';
   // Blank means "not recorded" (null), never "0" -- an empty box here must
@@ -6059,8 +6210,8 @@ function openFixTime(id){
   // taken. Only a shift that already has break_minutes set shows a number.
   $('fixTimeBreak').value = breakRecorded(t) ? String(t.break_minutes) : '';
   $('fixTimeBreakNote').textContent = breakRecorded(t)
-    ? 'Currently recorded: ' + t.break_minutes + ' minutes.'
-    : 'No break recorded for this shift yet.';
+    ? tr('fixTimeBreakCurrentlyRecorded', t.break_minutes)
+    : tr('fixTimeBreakNoneRecorded');
   $('fixTimeReason').value = '';
   msg('fixTimeMsg','','');
   $('fixTimeSheet').style.display = 'block';
@@ -6076,14 +6227,14 @@ async function saveFixTime(){
   // when their hours change, and what settles it if they disagree. A break
   // entry changes estimated pay exactly like a time correction does, so it
   // gets the same "who and why" instead of a quieter path around it.
-  if (reason.length < 4) return msg('fixTimeMsg','Say why it is changing.','err');
+  if (reason.length < 4) return msg('fixTimeMsg',tr('fixTimeReasonRequired'),'err');
   const startVal = $('fixTimeStart').value, endVal = $('fixTimeEnd').value;
-  if (!startVal || !endVal) return msg('fixTimeMsg','Both times are needed.','err');
+  if (!startVal || !endVal) return msg('fixTimeMsg',tr('fixTimeTimesRequired'),'err');
   const start = new Date(startVal), end = new Date(endVal);
-  if (!(end > start)) return msg('fixTimeMsg','The end has to come after the start.','err');
+  if (!(end > start)) return msg('fixTimeMsg',tr('fixTimeEndAfterStart'),'err');
   // Twenty hours. Longer than any real shift, short enough to catch the
   // slipped date that turns eight hours into two hundred.
-  if ((end - start) > 20*36e5) return msg('fixTimeMsg','That is over twenty hours. Check the dates.','err');
+  if ((end - start) > 20*36e5) return msg('fixTimeMsg',tr('fixTimeTooLong'),'err');
 
   const patch = { started_at: start.toISOString(), ended_at: end.toISOString(),
                    correction_reason: reason };
@@ -6095,15 +6246,14 @@ async function saveFixTime(){
   if (breakVal !== '') {
     const breakMin = Number(breakVal);
     if (!Number.isFinite(breakMin) || breakMin < 0 || !Number.isInteger(breakMin)) {
-      return msg('fixTimeMsg','Break minutes has to be a whole number, zero or more.','err');
+      return msg('fixTimeMsg',tr('fixTimeBreakWhole'),'err');
     }
     // A break cannot be longer than the shift it belongs to -- the shift
     // length is the corrected start/end just validated above, not the
     // original clock time, since that is what pay is estimated from.
     const shiftMin = (end - start) / 60000;
     if (breakMin > shiftMin) {
-      return msg('fixTimeMsg','That break (' + breakMin + ' min) is longer than the shift itself ('
-        + shiftMin.toFixed(0) + ' min). Check the minutes or the shift times.', 'err');
+      return msg('fixTimeMsg', tr('fixTimeBreakTooLong', breakMin, shiftMin.toFixed(0)), 'err');
     }
     patch.break_minutes = breakMin;
   }
@@ -6111,7 +6261,7 @@ async function saveFixTime(){
   const { error } = await db.from('time_entries').update(patch).eq('id', t.id);
   if (error) return msg('fixTimeMsg', error.message, 'err');
   closeFixTime();
-  msg('timeMsg','Shift corrected. The clock\'s own times are kept on the record.','ok');
+  msg('timeMsg',tr('fixTimeSavedMsg'),'ok');
   await loadAll();
 }
 

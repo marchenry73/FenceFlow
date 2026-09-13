@@ -173,7 +173,20 @@ async function main() {
       const missing = /MISSING/.test(out);
       const shortOnly = !missing && /SHORT/.test(out);
       const ageHours = (Date.now() - statSync(newest).mtimeMs) / 3600000;
-      const drifting = shortOnly && ageHours > 1;
+      // An age cliff was the wrong test. Rows are written constantly, so a
+      // backup is short within minutes of being taken -- the first version of
+      // this used an hour and went red on a backup 42 minutes old. Comparing
+      // any backup against live tables can never come out clean.
+      //
+      // What separates drift from damage is the SIZE of the gap, not its age.
+      // A few rows behind is normal. A table missing a fifth of itself is a
+      // truncated dump, and a missing table is a failure at any size.
+      const gaps = [...out.matchAll(new RegExp("SHORT\\s+(\\S+): file (\\d+), live (\\d+)", "g"))]
+        .map((m) => ({ tbl: m[1], file: +m[2], live: +m[3] }))
+        .map((g) => ({ ...g, lost: g.live > 0 ? (g.live - g.file) / g.live : 0 }));
+      const worst = gaps.reduce((a, g) => (g.lost > a.lost ? g : a), { tbl: "-", lost: 0 });
+      const truncated = worst.lost > 0.2;
+      const drifting = shortOnly && !truncated;
       const ok = (r.status === 0 && !r.error) || drifting;
       if (!ok) bad++;
       sections.push({
@@ -181,7 +194,7 @@ async function main() {
         meaning: ok ? null : "the newest backup is missing tables or is unreadable",
         detail: ok
           ? (drifting
-              ? newest + " (complete when taken; rows written in the " + ageHours.toFixed(1) + "h since read as short, which is expected)"
+              ? newest + " (complete when taken; " + gaps.length + " tables have moved on since, worst " + (worst.lost * 100).toFixed(1) + "% on " + worst.tbl + ")"
               : newest)
           : (r.error ? r.error.message : "exit " + r.status) + "\n" + tailLines((r.stdout || "") + (r.stderr || ""), 15),
       });
