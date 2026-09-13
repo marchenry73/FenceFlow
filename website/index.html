@@ -489,7 +489,7 @@
       <div class="price">
         <h3>Solo</h3>
         <p class="who" data-t="whoSolo">One person running the whole business.</p>
-        <div class="amount">$99<small>/month</small></div>
+        <div class="amount">$99<small data-t='perMonth'>/month</small></div>
         <ul>
           <li data-t="liSolo1">One login</li>
           <li data-t="liSolo2">Unlimited jobs &amp; estimates</li>
@@ -506,7 +506,7 @@
         <div class="flag" data-t="flagCrew">Most fence companies</div>
         <h3>Crew</h3>
         <p class="who" data-t="whoCrew">You and a crew, all on the same page.</p>
-        <div class="amount">$199<small>/month</small></div>
+        <div class="amount">$199<small data-t='perMonth'>/month</small></div>
         <ul>
           <li data-t="liCrew1">You plus 5 crew</li>
           <li data-t="liCrew2">Everything in Solo</li>
@@ -522,7 +522,7 @@
       <div class="price">
         <h3>Pro</h3>
         <p class="who" data-t="whoPro">Run the crew and read the business.</p>
-        <div class="amount">$349<small>/month</small></div>
+        <div class="amount">$349<small data-t='perMonth'>/month</small></div>
         <ul>
           <li data-t="liPro1">Unlimited logins</li>
           <li data-t="liPro2">Everything in Crew</li>
@@ -558,6 +558,7 @@
       </div>
     </div>
     <div class="rule"></div>
+    <a href="admin.html" data-t="footStaff">FenceFlow staff sign-in</a>
     <a href="privacy.html" data-t="footPrivacy">Privacy</a>
     <a href="terms.html" data-t="footTerms">Terms</a>
     <a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a>
@@ -652,6 +653,8 @@ const L = {
     btnStartFreeTrial: 'Start free trial',
     fineprint: '14 days free, no card to start. Cancel any time — and if you do, your data stays yours and stays put.',
     footDesc: 'Estimating, crew and payments for fence contractors. Built by one, on his own jobs, in Florida.',
+    perMonth: '/month',
+    footStaff: 'FenceFlow staff sign-in',
     footPrivacy: 'Privacy', footTerms: 'Terms',
   },
   es: {
@@ -729,6 +732,8 @@ const L = {
     btnStartFreeTrial: 'Comenzar prueba gratis',
     fineprint: '14 días gratis, sin tarjeta para empezar. Cancele cuando quiera — y si lo hace, sus datos siguen siendo suyos y quedan donde están.',
     footDesc: 'Cotización, cuadrilla y pagos para instaladores de cercas. Creado por uno solo, en sus propios trabajos, en Florida.',
+    perMonth: '/mes',
+    footStaff: 'Acceso para el personal de FenceFlow',
     footPrivacy: 'Privacidad', footTerms: 'Términos',
   },
   fr: {
@@ -806,6 +811,8 @@ const L = {
     btnStartFreeTrial: 'Commencer l’essai gratuit',
     fineprint: '14 jours gratuits, sans carte pour commencer. Résiliez à tout moment — et si vous le faites, vos données restent à vous et restent en place.',
     footDesc: 'Chiffrage, équipe et paiements pour poseurs de clôtures. Créé par une seule personne, sur ses propres chantiers, en Floride.',
+    perMonth: '/mois',
+    footStaff: 'Connexion du personnel FenceFlow',
     footPrivacy: 'Confidentialité', footTerms: 'Conditions',
   },
 };
