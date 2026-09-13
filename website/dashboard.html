@@ -2455,6 +2455,156 @@ const TL = {
     repMoneyOwedSub:'The same rows as "Who owes you" above, listed in full with how long each one has been outstanding. One question, one answer.',
     repColStatus:'Status', repColOutstanding:'Outstanding',
     repClockDetailHead:'Clock in / out detail', repColDate:'Date', repColIn:'In', repColOut:'Out', repColCost:'Cost',
+    // The dynamic body of the Reports tab: audit-log labels, aging/costing/
+    // cycle rows, per-person scorecard, needs-attention alerts, and the
+    // per-metric explain popups. Every hedge below is load-bearing -- see
+    // repCostUnknownWord, repCashNegNoteWord, repXpCollectedCaveat and
+    // jobGoneLabel (reused, not duplicated, for the two "job record vanished"
+    // spots in this section).
+    repAuditActorSystem:'system',
+    repAuditTableJob:'Job', repAuditTablePayment:'Payment', repAuditTableShift:'Shift',
+    repAuditTableCrew:'Crew member', repAuditTableChangeOrder:'Change order',
+    repAuditTableEstimateLine:'Estimate line',
+    repAuditFieldStatus:'Job status', repAuditFieldPaymentStatus:'Payment status',
+    repAuditFieldDeposit:'Deposit', repAuditFieldAmountPaid:'Amount paid',
+    repAuditFieldRefunded:'Refunded', repAuditFieldLaborRate:'Labour rate per foot',
+    repAuditFieldLaborFlat:'Labour flat fee', repAuditFieldMarkup:'Markup %',
+    repAuditFieldDiscount:'Discount %', repAuditFieldMinCharge:'Minimum charge',
+    repAuditFieldTaxRate:'Tax rate %', repAuditFieldAmount:'Amount',
+    repAuditFieldMethod:'Method', repAuditFieldReceived:'Received',
+    repAuditFieldNote:'Note', repAuditFieldApproved:'Approved',
+    repAuditFieldRejected:'Rejected', repAuditFieldHourlyRate:'Hourly rate',
+    repAuditFieldStarted:'Started', repAuditFieldEnded:'Ended',
+    repAuditFieldPerFootRate:'Per-foot rate', repAuditFieldPayType:'Pay type',
+    repAuditFieldOnCrew:'On the crew', repAuditFieldExtraCost:'Extra work cost',
+    repAuditFieldMaterialCost:'Material cost', repAuditFieldSigned:'Signed',
+    repAuditFieldQuantity:'Quantity', repAuditFieldUnitPrice:'Unit price',
+    repAuditFieldSupplierPrice:'Supplier price',
+    repAuditEmptyMsg:'Nothing recorded yet. Changes from here and from the app both appear here.',
+    repArNoneMsg:'Nobody owes you anything. Rare and worth enjoying.',
+    repChaseTextBtn:'Text them', repChaseEmailBtn:'Email', repCallBtn:'Call',
+    repChaseSms:'Hi %s -- just a reminder that %s is still outstanding on your fence. Happy to take card, check or transfer, whatever suits. Thanks!',
+    repChaseThereWord:'there',
+    repArBucketCurrent:'Under 30 days', repArBucketMid:'30–60 days',
+    repArBucketLate:'60–90 days', repArBucketWorst:'Over 90 days',
+    repArBucket30:'30 to 60', repArBucket60:'60 to 90', repArBucket90:'Over 90 days',
+    repArAgingHow:'Everything still owed where the debt is %s old, added up. Age is counted from when the money became due.',
+    repArAgingRowsTitle:'Who owes it',
+    repArAgingCaption:'%s has been outstanding %s. Debt gets harder to collect the longer it sits.',
+    repArAgingCaptionClear:'Nothing has been outstanding more than 60 days.',
+    repCycleEnquiryContact:'Enquiry to first contact', repCycleQuoteApproved:'Quote sent to approved',
+    repCycleApprovedSigned:'Approved to signed', repCycleEnquiryFinished:'Enquiry to finished',
+    repCycleFinishedPaid:'Finished to last payment',
+    repCycleHours:'%s hours', repCycleDays:'%s days',
+    repCycleFromJob:'from %s job', repCycleFromJobs:'from %s jobs',
+    repCycleNoData:'not enough data yet',
+    repCycleNoteMissing:'Not shown, because FenceFlow does not record it: revenue and close rate by salesperson. A job has a crew member assigned but nobody marked as having sold it.',
+    // Hedge: zero here means nobody has an hourly rate on file, not that
+    // labour was free. Losing this line makes every unrated job look like it
+    // cost nothing to build.
+    repCostNotPriced:'not priced',
+    repCostUnknownTitle:'Hours are logged but nobody has an hourly rate on file',
+    repCostUnknownWord:'%s priced, cost unknown',
+    repCostNoHoursWord:'%s priced, no hours yet',
+    repCostVsTitle:'Priced %s, cost %s',
+    repCostOverWord:'over', repCostUnderWord:'under',
+    repCostingNoJobs:'No jobs to cost yet.',
+    repCostingCostsTitle:'Materials %s · Labour %s · Other %s',
+    repCostingPendingNote:'Labour counts approved hours only. There are %s hours still waiting for approval, so some of these jobs will look better than they are.',
+    repCostingApprovedOnlyNote:'Labour counts approved hours only.',
+    // Hedge: unrated hours make a job's margin look better than it is,
+    // because the labour it actually took is missing from the total.
+    repCostingWorkedFreeNote:' • %s hours on %s carry no cost at all, because nobody has an hourly rate on file. Those margins are overstated by the whole labour bill — set rates under Crew.',
+    repCostingWorkedFreeJob:'1 job', repCostingWorkedFreeJobs:'%s jobs',
+    repCostingSellPricesNote:' * No supplier prices recorded on this job yet, so its costs are your sell prices and the margin reads low.',
+    repCrewNotAttributed:'Not attributed', repCrewNoRole:'No role set',
+    repCrewNoOneOnShift:'No crew member on the shift',
+    repPeopleNoneMsg:'Nobody clocked any hours in this period.',
+    repPeopleHoursWord:'hours', repPeopleLabourWord:'labour',
+    repPeopleJobWord:'job', repPeopleJobsWord:'jobs',
+    repPeopleWaitingWord:'%s h waiting on sign-off',
+    repSignedOffWord:'Signed off', repWaitingWord:'Waiting', repRejectedWord:'Rejected',
+    repScNoCrewMember:'No crew member attached to these shifts',
+    // Hedge: pay is a permission gate, not a data gap -- crew never see it,
+    // so this must never be confused with "not recorded".
+    repCashNegNoteWord:'Pay is not visible to your account',
+    repScPerFoot:'%s per foot', repScPerHour:'%s an hour',
+    repScNoLongerActive:' · no longer active',
+    repScHoursLabel:'Hours', repScLabourCostLabel:'Labour cost', repScJobsLabel:'Jobs',
+    repScDaysLabel:'Days on site', repScShiftsLabel:'Shifts',
+    repScAvgShiftLabel:'Avg shift (h)', repScLongestLabel:'Longest (h)',
+    repScSignedOffPctLabel:'Signed off',
+    repScSignOffHead:'Sign-off', repScJobsWorkedHead:'Jobs worked',
+    repScEveryShiftHead:'Every shift', repScRaisedHead:'Raised from the field',
+    repScColCustomer:'Customer', repScColAddress:'Address', repScColStatus:'Status',
+    repScColShifts:'Shifts', repScColHours:'Hours', repScColLabour:'Labour',
+    repScColBetween:'Between', repScColDate:'Date', repScColJob:'Job',
+    repScColIn:'In', repScColOut:'Out', repScColRate:'Rate', repScColCost:'Cost',
+    repScColSignOff:'Sign-off', repScColBy:'By', repScColNote:'Note',
+    repScColKind:'Kind', repScColWhat:'What',
+    repScNoJobsPeriod:'No jobs in this period.', repScNoShiftsPeriod:'No shifts in this period.',
+    repScNothingRaised:'Nothing raised in this period.',
+    repScAsked:'Asked', repScReported:'Reported',
+    repScApproved:'Approved', repScTurnedDown:'Turned down',
+    repScExportShiftsBtn:'Export shifts CSV', repScExportJobsBtn:'Export jobs CSV',
+    // Hedge: the fence itself is still real work, only its record is gone --
+    // this must read as a job that vanished from the system, not as zero work.
+    repAttnUnapprovedWhat:'waiting on sign-off',
+    repAttnUnapprovedWhy:'The crew are not paid and job costs are understated until these are approved.',
+    repAttnUnapprovedTitle:'Hours waiting on sign-off',
+    repAttnUnapprovedHow:'Every finished shift nobody has approved or rejected yet, whenever it happened.',
+    repAttnUnapprovedRows:'The shifts', repAttnNobodyAttached:'Nobody attached',
+    repAttnOwedWhat:'owed for 60+ days',
+    repAttnOwedWhy:'Debt gets harder to collect the longer it sits. The table below has a Text-them button.',
+    repAttnOwedTitle:'Owed for 60 days or more',
+    repAttnOwedHow:'Everything still outstanding where the debt is at least sixty days old.',
+    repAttnQuietWhatSing:'quote gone quiet', repAttnQuietWhatPlur:'quotes gone quiet',
+    repAttnQuietWhy:'Sent over two weeks ago with no answer. A call usually settles it either way.',
+    repAttnQuietTitle:'Quotes gone quiet',
+    repAttnQuietHow:'Quotes sent more than fourteen days ago that nobody has accepted or declined.',
+    repAttnQuietRows:'The quotes',
+    repAttnQuietSms:'Hi %s, just checking in on the fence quote we sent over — any questions I can answer?',
+    repAttnOrphanWhatSing:'shift with nobody attached', repAttnOrphanWhatPlur:'shifts with nobody attached',
+    // Hedge: this is why the shift's labour reads as $0 -- not that the work
+    // was free, but that nobody is on record to carry a rate for it.
+    repAttnOrphanWhy:'These cannot carry a pay rate until someone owns them, so their labour costs read as $0.',
+    repAttnOrphanTitle:'Shifts with nobody attached',
+    repAttnOrphanHow:'Finished shifts whose crew member was never set. Open the shift in the app and pick who worked it.',
+    repAttnOrphanRows:'The shifts',
+    repAttnAllClearTitle:'All clear',
+    repAttnAllClearBody:'Nothing is sitting still — no unapproved hours, no stale debt, no quiet quotes.',
+    repHeroCollectedCaption:'Collected this period', repHeroByWeek:'by week',
+    repEstProfitLabel:'Est. profit on these jobs', repMarginLabel:'Profit margin',
+    repJobsWonLabel:'Jobs won', repCloseRateLabel:'Close rate', repHoursClockedLabel:'Hours clocked',
+    repDeltaNew:'new', repDeltaVsPrevious:'vs previous', repDeltaTenXPlus:'10x+',
+    repXpCollectedHow:'Every payment recorded against a live job, with a date inside this period. Refunds are in here too, as negatives -- that is why this can go down.',
+    // Hedge: says explicitly that a payment is matched by its own date, not
+    // by whatever the job happened to sync -- the failure mode this line
+    // exists to head off.
+    repXpCollectedCaveat:'Selected by when the money moved, not by which jobs were touched. A payment from March does not join this period because its job synced today.',
+    repXpPaymentsRowsTitle:'The payments', repXpPaymentsEmpty:'No payments landed in this period.',
+    repXpWonHow:'Jobs touched in this period whose status is Accepted or Completed.',
+    repXpJobsRowsTitle:'The jobs', repXpWonEmpty:'Nothing won in this period.',
+    repXpCloseHow:'Of the jobs you quoted in this period, the share that turned into work.',
+    repXpJobsWonMath:'Jobs won', repXpQuotesSentMath:'Quotes sent', repXpCloseRateMath:'Close rate',
+    repXpCloseNoQuotes:'No quotes in this period, so there is nothing to divide by.',
+    repXpHoursHow:'Every finished shift that started inside this period. A running timer has no end yet, so it is not counted until it is stopped.',
+    repXpShiftsRowsTitle:'The shifts', repXpHoursEmpty:'Nobody clocked in during this period.',
+    repXpNobodyAttached:'nobody attached',
+    repXpProfitHow:'The contract value of every job touched in this period, less that job\'s own materials, labour and expenses.',
+    repXpMaterialsMath:'Materials', repXpLabourMath:'Labour', repXpOtherExpensesMath:'Other expenses',
+    repXpEstProfitMath:'Estimated profit',
+    // Hedge: profit is against the contract, so a job that is quoted but
+    // unpaid must never be read as a loss.
+    repXpProfitCaveat:'Measured against the contract, not against what has been collected. A job you have quoted but not been paid for yet is not a loss.',
+    repXpMarginHow:'Estimated profit as a share of the contract value of the same jobs.',
+    repXpProfitTitle:'Estimated profit', repXpMarginTitle:'Profit margin',
+    repXpCollectedTitle:'Collected', repXpWonTitle:'Jobs won', repXpCloseTitle:'Close rate',
+    repXpHoursTitle:'Hours clocked',
+    repXpMonthHow:'Every payment recorded in this month, added up. Refunds are included as negatives, so a month with a big refund can total less than you remember taking.',
+    repXpMonthRowsTitle:'The payments in this month', repXpMonthEmpty:'No payments in this month.',
+    repXpDefaultTitle:'Where this comes from', repXpDefaultRowsTitle:'What is in it',
+    repRangeLabelTitle:'Collected and Hours count what happened inside this window. Est. profit is measured across the whole of every job touched in it.',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -2954,6 +3104,134 @@ const TL = {
     repMoneyOwedSub:'Las mismas filas de "Quién le debe" de arriba, en su totalidad con cuánto tiempo lleva pendiente cada una. Una pregunta, una respuesta.',
     repColStatus:'Estado', repColOutstanding:'Pendiente',
     repClockDetailHead:'Detalle de entrada / salida', repColDate:'Fecha', repColIn:'Entrada', repColOut:'Salida', repColCost:'Costo',
+    repAuditActorSystem:'sistema',
+    repAuditTableJob:'Trabajo', repAuditTablePayment:'Pago', repAuditTableShift:'Turno',
+    repAuditTableCrew:'Miembro de la cuadrilla', repAuditTableChangeOrder:'Orden de cambio',
+    repAuditTableEstimateLine:'Línea del presupuesto',
+    repAuditFieldStatus:'Estado del trabajo', repAuditFieldPaymentStatus:'Estado del pago',
+    repAuditFieldDeposit:'Depósito', repAuditFieldAmountPaid:'Monto pagado',
+    repAuditFieldRefunded:'Reembolsado', repAuditFieldLaborRate:'Tarifa de mano de obra por pie',
+    repAuditFieldLaborFlat:'Tarifa fija de mano de obra', repAuditFieldMarkup:'% de margen',
+    repAuditFieldDiscount:'% de descuento', repAuditFieldMinCharge:'Cargo mínimo',
+    repAuditFieldTaxRate:'% de impuesto', repAuditFieldAmount:'Monto',
+    repAuditFieldMethod:'Método', repAuditFieldReceived:'Recibido',
+    repAuditFieldNote:'Nota', repAuditFieldApproved:'Aprobado',
+    repAuditFieldRejected:'Rechazado', repAuditFieldHourlyRate:'Tarifa por hora',
+    repAuditFieldStarted:'Inicio', repAuditFieldEnded:'Fin',
+    repAuditFieldPerFootRate:'Tarifa por pie', repAuditFieldPayType:'Tipo de pago',
+    repAuditFieldOnCrew:'En la cuadrilla', repAuditFieldExtraCost:'Costo de trabajo extra',
+    repAuditFieldMaterialCost:'Costo de material', repAuditFieldSigned:'Firmado',
+    repAuditFieldQuantity:'Cantidad', repAuditFieldUnitPrice:'Precio unitario',
+    repAuditFieldSupplierPrice:'Precio del proveedor',
+    repAuditEmptyMsg:'Todavía no hay nada registrado. Los cambios de aquí y de la app aparecen ambos aquí.',
+    repArNoneMsg:'Nadie le debe nada. Poco común y vale la pena disfrutarlo.',
+    repChaseTextBtn:'Enviarle un mensaje', repChaseEmailBtn:'Correo', repCallBtn:'Llamar',
+    repChaseSms:'Hola %s -- solo un recordatorio de que %s sigue pendiente por su cerca. Podemos recibir tarjeta, cheque o transferencia, lo que le convenga. ¡Gracias!',
+    repChaseThereWord:'estimado cliente',
+    repArBucketCurrent:'Menos de 30 días', repArBucketMid:'30–60 días',
+    repArBucketLate:'60–90 días', repArBucketWorst:'Más de 90 días',
+    repArBucket30:'30 a 60', repArBucket60:'60 a 90', repArBucket90:'Más de 90 días',
+    repArAgingHow:'Todo lo que aún le deben con deuda de %s de antigüedad, sumado. La antigüedad se cuenta desde que el dinero venció.',
+    repArAgingRowsTitle:'Quién lo debe',
+    repArAgingCaption:'%s ha estado pendiente %s. Cuanto más tiempo pasa, más difícil es cobrar la deuda.',
+    repArAgingCaptionClear:'Nada ha estado pendiente por más de 60 días.',
+    repCycleEnquiryContact:'Consulta a primer contacto', repCycleQuoteApproved:'Presupuesto enviado a aprobado',
+    repCycleApprovedSigned:'Aprobado a firmado', repCycleEnquiryFinished:'Consulta a terminado',
+    repCycleFinishedPaid:'Terminado a último pago',
+    repCycleHours:'%s horas', repCycleDays:'%s días',
+    repCycleFromJob:'de %s trabajo', repCycleFromJobs:'de %s trabajos',
+    repCycleNoData:'aún no hay suficientes datos',
+    repCycleNoteMissing:'No se muestra porque FenceFlow no lo registra: ingresos y tasa de cierre por vendedor. Un trabajo tiene un miembro de la cuadrilla asignado, pero nadie marcado como quien lo vendió.',
+    repCostNotPriced:'sin presupuestar',
+    repCostUnknownTitle:'Las horas están registradas pero nadie tiene una tarifa por hora en el archivo',
+    repCostUnknownWord:'%s presupuestado, costo desconocido',
+    repCostNoHoursWord:'%s presupuestado, aún sin horas',
+    repCostVsTitle:'Presupuestado %s, costó %s',
+    repCostOverWord:'por encima', repCostUnderWord:'por debajo',
+    repCostingNoJobs:'Todavía no hay trabajos que costear.',
+    repCostingCostsTitle:'Materiales %s · Mano de obra %s · Otros %s',
+    repCostingPendingNote:'La mano de obra solo cuenta horas aprobadas. Hay %s horas todavía esperando aprobación, así que algunos de estos trabajos se verán mejor de lo que en realidad están.',
+    repCostingApprovedOnlyNote:'La mano de obra solo cuenta horas aprobadas.',
+    repCostingWorkedFreeNote:' • %s horas en %s no tienen ningún costo, porque nadie tiene una tarifa por hora en el archivo. Esos márgenes están sobrestimados por toda la mano de obra — configure las tarifas en Cuadrilla.',
+    repCostingWorkedFreeJob:'1 trabajo', repCostingWorkedFreeJobs:'%s trabajos',
+    repCostingSellPricesNote:' * Este trabajo aún no tiene precios de proveedor registrados, así que sus costos son sus precios de venta y el margen se ve bajo.',
+    repCrewNotAttributed:'Sin atribuir', repCrewNoRole:'Sin puesto asignado',
+    repCrewNoOneOnShift:'Ningún miembro de la cuadrilla en el turno',
+    repPeopleNoneMsg:'Nadie marcó horas en este período.',
+    repPeopleHoursWord:'horas', repPeopleLabourWord:'mano de obra',
+    repPeopleJobWord:'trabajo', repPeopleJobsWord:'trabajos',
+    repPeopleWaitingWord:'%s h esperando aprobación',
+    repSignedOffWord:'Aprobado', repWaitingWord:'Esperando', repRejectedWord:'Rechazado',
+    repScNoCrewMember:'Ningún miembro de la cuadrilla vinculado a estos turnos',
+    repCashNegNoteWord:'El pago no es visible para su cuenta',
+    repScPerFoot:'%s por pie', repScPerHour:'%s por hora',
+    repScNoLongerActive:' · ya no está activo',
+    repScHoursLabel:'Horas', repScLabourCostLabel:'Costo de mano de obra', repScJobsLabel:'Trabajos',
+    repScDaysLabel:'Días en obra', repScShiftsLabel:'Turnos',
+    repScAvgShiftLabel:'Turno prom. (h)', repScLongestLabel:'Más largo (h)',
+    repScSignedOffPctLabel:'Aprobado',
+    repScSignOffHead:'Aprobación', repScJobsWorkedHead:'Trabajos realizados',
+    repScEveryShiftHead:'Todos los turnos', repScRaisedHead:'Reportado desde el campo',
+    repScColCustomer:'Cliente', repScColAddress:'Dirección', repScColStatus:'Estado',
+    repScColShifts:'Turnos', repScColHours:'Horas', repScColLabour:'Mano de obra',
+    repScColBetween:'Entre', repScColDate:'Fecha', repScColJob:'Trabajo',
+    repScColIn:'Entrada', repScColOut:'Salida', repScColRate:'Tarifa', repScColCost:'Costo',
+    repScColSignOff:'Aprobación', repScColBy:'Por', repScColNote:'Nota',
+    repScColKind:'Tipo', repScColWhat:'Qué',
+    repScNoJobsPeriod:'No hay trabajos en este período.', repScNoShiftsPeriod:'No hay turnos en este período.',
+    repScNothingRaised:'Nada reportado en este período.',
+    repScAsked:'Preguntó', repScReported:'Reportó',
+    repScApproved:'Aprobado', repScTurnedDown:'Rechazado',
+    repScExportShiftsBtn:'Exportar turnos CSV', repScExportJobsBtn:'Exportar trabajos CSV',
+    repAttnUnapprovedWhat:'esperando aprobación',
+    repAttnUnapprovedWhy:'La cuadrilla no cobra y los costos del trabajo están subestimados hasta que se aprueben estas horas.',
+    repAttnUnapprovedTitle:'Horas esperando aprobación',
+    repAttnUnapprovedHow:'Todo turno terminado que nadie ha aprobado ni rechazado todavía, sin importar cuándo ocurrió.',
+    repAttnUnapprovedRows:'Los turnos', repAttnNobodyAttached:'Nadie asignado',
+    repAttnOwedWhat:'debido hace 60+ días',
+    repAttnOwedWhy:'Cuanto más tiempo pasa, más difícil es cobrar la deuda. La tabla de abajo tiene un botón para enviarle un mensaje.',
+    repAttnOwedTitle:'Debido hace 60 días o más',
+    repAttnOwedHow:'Todo lo que sigue pendiente con una deuda de al menos sesenta días de antigüedad.',
+    repAttnQuietWhatSing:'presupuesto sin respuesta', repAttnQuietWhatPlur:'presupuestos sin respuesta',
+    repAttnQuietWhy:'Enviado hace más de dos semanas sin respuesta. Una llamada suele resolverlo, sea cual sea la respuesta.',
+    repAttnQuietTitle:'Presupuestos sin respuesta',
+    repAttnQuietHow:'Presupuestos enviados hace más de catorce días que nadie ha aceptado ni rechazado.',
+    repAttnQuietRows:'Los presupuestos',
+    repAttnQuietSms:'Hola %s, solo quería saber si tiene alguna pregunta sobre el presupuesto de la cerca que le enviamos.',
+    repAttnOrphanWhatSing:'turno sin nadie asignado', repAttnOrphanWhatPlur:'turnos sin nadie asignado',
+    repAttnOrphanWhy:'Estos no pueden llevar una tarifa hasta que alguien los tenga asignados, así que su costo de mano de obra se lee como $0.',
+    repAttnOrphanTitle:'Turnos sin nadie asignado',
+    repAttnOrphanHow:'Turnos terminados a los que nunca se les asignó un miembro de la cuadrilla. Abra el turno en la app y elija quién lo trabajó.',
+    repAttnOrphanRows:'Los turnos',
+    repAttnAllClearTitle:'Todo en orden',
+    repAttnAllClearBody:'Nada está detenido — sin horas sin aprobar, sin deudas atrasadas, sin presupuestos sin respuesta.',
+    repHeroCollectedCaption:'Cobrado en este período', repHeroByWeek:'por semana',
+    repEstProfitLabel:'Ganancia est. en estos trabajos', repMarginLabel:'Margen de ganancia',
+    repJobsWonLabel:'Trabajos ganados', repCloseRateLabel:'Tasa de cierre', repHoursClockedLabel:'Horas registradas',
+    repDeltaNew:'nuevo', repDeltaVsPrevious:'vs. anterior', repDeltaTenXPlus:'10x+',
+    repXpCollectedHow:'Todo pago registrado contra un trabajo activo, con fecha dentro de este período. Los reembolsos también están aquí, como negativos -- por eso esto puede bajar.',
+    repXpCollectedCaveat:'Seleccionado por cuándo se movió el dinero, no por qué trabajos se tocaron. Un pago de marzo no se une a este período porque su trabajo se sincronizó hoy.',
+    repXpPaymentsRowsTitle:'Los pagos', repXpPaymentsEmpty:'No hubo pagos en este período.',
+    repXpWonHow:'Trabajos tocados en este período cuyo estado es Aceptado o Completado.',
+    repXpJobsRowsTitle:'Los trabajos', repXpWonEmpty:'No se ganó nada en este período.',
+    repXpCloseHow:'De los trabajos que presupuestó en este período, la parte que se convirtió en trabajo real.',
+    repXpJobsWonMath:'Trabajos ganados', repXpQuotesSentMath:'Presupuestos enviados', repXpCloseRateMath:'Tasa de cierre',
+    repXpCloseNoQuotes:'No hubo presupuestos en este período, así que no hay nada por qué dividir.',
+    repXpHoursHow:'Todo turno terminado que empezó dentro de este período. Un cronómetro en marcha aún no tiene fin, así que no se cuenta hasta que se detiene.',
+    repXpShiftsRowsTitle:'Los turnos', repXpHoursEmpty:'Nadie marcó entrada durante este período.',
+    repXpNobodyAttached:'nadie asignado',
+    repXpProfitHow:'El valor del contrato de cada trabajo tocado en este período, menos los materiales, la mano de obra y los gastos de ese mismo trabajo.',
+    repXpMaterialsMath:'Materiales', repXpLabourMath:'Mano de obra', repXpOtherExpensesMath:'Otros gastos',
+    repXpEstProfitMath:'Ganancia estimada',
+    repXpProfitCaveat:'Medido contra el contrato, no contra lo que se ha cobrado. Un trabajo que presupuestó pero aún no le pagan no es una pérdida.',
+    repXpMarginHow:'Ganancia estimada como parte del valor del contrato de los mismos trabajos.',
+    repXpProfitTitle:'Ganancia estimada', repXpMarginTitle:'Margen de ganancia',
+    repXpCollectedTitle:'Cobrado', repXpWonTitle:'Trabajos ganados', repXpCloseTitle:'Tasa de cierre',
+    repXpHoursTitle:'Horas registradas',
+    repXpMonthHow:'Todo pago registrado en este mes, sumado. Los reembolsos se incluyen como negativos, así que un mes con un reembolso grande puede sumar menos de lo que recuerda haber cobrado.',
+    repXpMonthRowsTitle:'Los pagos de este mes', repXpMonthEmpty:'No hubo pagos en este mes.',
+    repXpDefaultTitle:'De dónde sale esto', repXpDefaultRowsTitle:'Qué incluye',
+    repRangeLabelTitle:'Cobrado y Horas cuentan lo que pasó dentro de esta ventana. Ganancia est. se mide en el total de cada trabajo tocado en ella.',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -3453,6 +3731,134 @@ const TL = {
     repMoneyOwedSub:'Les mêmes lignes que « Qui vous doit » ci-dessus, en entier avec l\'ancienneté de chacune. Une question, une réponse.',
     repColStatus:'Statut', repColOutstanding:'En souffrance',
     repClockDetailHead:'Détail d\'entrée / sortie', repColDate:'Date', repColIn:'Entrée', repColOut:'Sortie', repColCost:'Coût',
+    repAuditActorSystem:'système',
+    repAuditTableJob:'Chantier', repAuditTablePayment:'Paiement', repAuditTableShift:'Quart de travail',
+    repAuditTableCrew:'Membre de l\'équipe', repAuditTableChangeOrder:'Avenant',
+    repAuditTableEstimateLine:'Ligne du devis',
+    repAuditFieldStatus:'État du chantier', repAuditFieldPaymentStatus:'État du paiement',
+    repAuditFieldDeposit:'Acompte', repAuditFieldAmountPaid:'Montant payé',
+    repAuditFieldRefunded:'Remboursé', repAuditFieldLaborRate:'Taux de main-d\'œuvre par pied',
+    repAuditFieldLaborFlat:'Forfait de main-d\'œuvre', repAuditFieldMarkup:'% de marge',
+    repAuditFieldDiscount:'% de remise', repAuditFieldMinCharge:'Frais minimum',
+    repAuditFieldTaxRate:'% de taxe', repAuditFieldAmount:'Montant',
+    repAuditFieldMethod:'Méthode', repAuditFieldReceived:'Reçu',
+    repAuditFieldNote:'Note', repAuditFieldApproved:'Approuvé',
+    repAuditFieldRejected:'Rejeté', repAuditFieldHourlyRate:'Taux horaire',
+    repAuditFieldStarted:'Début', repAuditFieldEnded:'Fin',
+    repAuditFieldPerFootRate:'Taux par pied', repAuditFieldPayType:'Type de paie',
+    repAuditFieldOnCrew:'Dans l\'équipe', repAuditFieldExtraCost:'Coût des travaux supplémentaires',
+    repAuditFieldMaterialCost:'Coût des matériaux', repAuditFieldSigned:'Signé',
+    repAuditFieldQuantity:'Quantité', repAuditFieldUnitPrice:'Prix unitaire',
+    repAuditFieldSupplierPrice:'Prix fournisseur',
+    repAuditEmptyMsg:'Rien d\'enregistré pour l\'instant. Les changements faits ici et dans l\'appli apparaissent tous deux ici.',
+    repArNoneMsg:'Personne ne vous doit rien. Rare, et ça se savoure.',
+    repChaseTextBtn:'Lui envoyer un texto', repChaseEmailBtn:'Courriel', repCallBtn:'Appeler',
+    repChaseSms:'Bonjour %s -- juste un rappel que %s est toujours dû pour votre clôture. On accepte carte, chèque ou virement, comme ça vous arrange. Merci!',
+    repChaseThereWord:'cher client',
+    repArBucketCurrent:'Moins de 30 jours', repArBucketMid:'30–60 jours',
+    repArBucketLate:'60–90 jours', repArBucketWorst:'Plus de 90 jours',
+    repArBucket30:'30 à 60', repArBucket60:'60 à 90', repArBucket90:'Plus de 90 jours',
+    repArAgingHow:'Tout ce qui reste dû dont la dette a %s d\'ancienneté, additionné. L\'ancienneté se compte à partir de l\'échéance.',
+    repArAgingRowsTitle:'Qui le doit',
+    repArAgingCaption:'%s est en souffrance depuis %s. Une dette devient plus difficile à recouvrer plus elle traîne.',
+    repArAgingCaptionClear:'Rien n\'est en souffrance depuis plus de 60 jours.',
+    repCycleEnquiryContact:'Demande au premier contact', repCycleQuoteApproved:'Devis envoyé à approuvé',
+    repCycleApprovedSigned:'Approuvé à signé', repCycleEnquiryFinished:'Demande à terminé',
+    repCycleFinishedPaid:'Terminé au dernier paiement',
+    repCycleHours:'%s heures', repCycleDays:'%s jours',
+    repCycleFromJob:'sur %s chantier', repCycleFromJobs:'sur %s chantiers',
+    repCycleNoData:'pas encore assez de données',
+    repCycleNoteMissing:'Non affiché, car FenceFlow ne l\'enregistre pas : le chiffre d\'affaires et le taux de conclusion par vendeur. Un chantier a un membre de l\'équipe assigné, mais personne n\'est marqué comme l\'ayant vendu.',
+    repCostNotPriced:'non chiffré',
+    repCostUnknownTitle:'Les heures sont enregistrées mais personne n\'a de taux horaire au dossier',
+    repCostUnknownWord:'%s chiffré, coût inconnu',
+    repCostNoHoursWord:'%s chiffré, pas encore d\'heures',
+    repCostVsTitle:'Chiffré à %s, coûté %s',
+    repCostOverWord:'au-dessus', repCostUnderWord:'en dessous',
+    repCostingNoJobs:'Aucun chantier à chiffrer pour l\'instant.',
+    repCostingCostsTitle:'Matériaux %s · Main-d\'œuvre %s · Autres %s',
+    repCostingPendingNote:'La main-d\'œuvre ne compte que les heures approuvées. Il reste %s heures en attente d\'approbation, donc certains de ces chantiers paraîtront meilleurs qu\'ils ne le sont.',
+    repCostingApprovedOnlyNote:'La main-d\'œuvre ne compte que les heures approuvées.',
+    repCostingWorkedFreeNote:' • %s heures sur %s ne portent aucun coût, car personne n\'a de taux horaire au dossier. Ces marges sont surestimées de toute la facture de main-d\'œuvre — réglez les taux dans Équipe.',
+    repCostingWorkedFreeJob:'1 chantier', repCostingWorkedFreeJobs:'%s chantiers',
+    repCostingSellPricesNote:' * Aucun prix fournisseur enregistré pour ce chantier encore, donc ses coûts sont vos prix de vente et la marge paraît basse.',
+    repCrewNotAttributed:'Non attribué', repCrewNoRole:'Aucun poste défini',
+    repCrewNoOneOnShift:'Aucun membre de l\'équipe sur le quart',
+    repPeopleNoneMsg:'Personne n\'a pointé d\'heures dans cette période.',
+    repPeopleHoursWord:'heures', repPeopleLabourWord:'main-d\'œuvre',
+    repPeopleJobWord:'chantier', repPeopleJobsWord:'chantiers',
+    repPeopleWaitingWord:'%s h en attente d\'approbation',
+    repSignedOffWord:'Approuvé', repWaitingWord:'En attente', repRejectedWord:'Rejeté',
+    repScNoCrewMember:'Aucun membre de l\'équipe rattaché à ces quarts',
+    repCashNegNoteWord:'La paie n\'est pas visible pour votre compte',
+    repScPerFoot:'%s par pied', repScPerHour:'%s de l\'heure',
+    repScNoLongerActive:' · plus actif',
+    repScHoursLabel:'Heures', repScLabourCostLabel:'Coût de main-d\'œuvre', repScJobsLabel:'Chantiers',
+    repScDaysLabel:'Jours sur place', repScShiftsLabel:'Quarts',
+    repScAvgShiftLabel:'Quart moy. (h)', repScLongestLabel:'Plus long (h)',
+    repScSignedOffPctLabel:'Approuvé',
+    repScSignOffHead:'Approbation', repScJobsWorkedHead:'Chantiers travaillés',
+    repScEveryShiftHead:'Tous les quarts', repScRaisedHead:'Signalé depuis le terrain',
+    repScColCustomer:'Client', repScColAddress:'Adresse', repScColStatus:'État',
+    repScColShifts:'Quarts', repScColHours:'Heures', repScColLabour:'Main-d\'œuvre',
+    repScColBetween:'Entre', repScColDate:'Date', repScColJob:'Chantier',
+    repScColIn:'Entrée', repScColOut:'Sortie', repScColRate:'Taux', repScColCost:'Coût',
+    repScColSignOff:'Approbation', repScColBy:'Par', repScColNote:'Note',
+    repScColKind:'Type', repScColWhat:'Quoi',
+    repScNoJobsPeriod:'Aucun chantier dans cette période.', repScNoShiftsPeriod:'Aucun quart dans cette période.',
+    repScNothingRaised:'Rien de signalé dans cette période.',
+    repScAsked:'Demandé', repScReported:'Signalé',
+    repScApproved:'Approuvé', repScTurnedDown:'Refusé',
+    repScExportShiftsBtn:'Exporter les quarts CSV', repScExportJobsBtn:'Exporter les chantiers CSV',
+    repAttnUnapprovedWhat:'en attente d\'approbation',
+    repAttnUnapprovedWhy:'L\'équipe n\'est pas payée et les coûts du chantier sont sous-estimés tant que ces heures ne sont pas approuvées.',
+    repAttnUnapprovedTitle:'Heures en attente d\'approbation',
+    repAttnUnapprovedHow:'Chaque quart terminé que personne n\'a encore approuvé ni rejeté, peu importe quand il a eu lieu.',
+    repAttnUnapprovedRows:'Les quarts', repAttnNobodyAttached:'Personne rattaché',
+    repAttnOwedWhat:'dû depuis 60+ jours',
+    repAttnOwedWhy:'Une dette devient plus difficile à recouvrer plus elle traîne. Le tableau ci-dessous a un bouton pour envoyer un texto.',
+    repAttnOwedTitle:'Dû depuis 60 jours ou plus',
+    repAttnOwedHow:'Tout ce qui reste dû avec une dette d\'au moins soixante jours d\'ancienneté.',
+    repAttnQuietWhatSing:'devis resté sans réponse', repAttnQuietWhatPlur:'devis restés sans réponse',
+    repAttnQuietWhy:'Envoyé il y a plus de deux semaines, sans réponse. Un appel règle généralement la question, dans un sens ou l\'autre.',
+    repAttnQuietTitle:'Devis restés sans réponse',
+    repAttnQuietHow:'Devis envoyés il y a plus de quatorze jours que personne n\'a accepté ni refusé.',
+    repAttnQuietRows:'Les devis',
+    repAttnQuietSms:'Bonjour %s, je fais un suivi sur le devis de clôture qu\'on vous a envoyé — avez-vous des questions?',
+    repAttnOrphanWhatSing:'quart sans personne rattaché', repAttnOrphanWhatPlur:'quarts sans personne rattaché',
+    repAttnOrphanWhy:'Ces quarts ne peuvent porter de taux tant que personne n\'y est rattaché, donc leur coût de main-d\'œuvre se lit comme 0 $.',
+    repAttnOrphanTitle:'Quarts sans personne rattaché',
+    repAttnOrphanHow:'Quarts terminés dont le membre de l\'équipe n\'a jamais été défini. Ouvrez le quart dans l\'appli et choisissez qui l\'a travaillé.',
+    repAttnOrphanRows:'Les quarts',
+    repAttnAllClearTitle:'Tout est réglé',
+    repAttnAllClearBody:'Rien ne traîne — aucune heure non approuvée, aucune dette en souffrance, aucun devis sans réponse.',
+    repHeroCollectedCaption:'Encaissé cette période', repHeroByWeek:'par semaine',
+    repEstProfitLabel:'Profit est. sur ces chantiers', repMarginLabel:'Marge bénéficiaire',
+    repJobsWonLabel:'Chantiers gagnés', repCloseRateLabel:'Taux de conclusion', repHoursClockedLabel:'Heures pointées',
+    repDeltaNew:'nouveau', repDeltaVsPrevious:'vs période précédente', repDeltaTenXPlus:'10x+',
+    repXpCollectedHow:'Chaque paiement enregistré contre un chantier actif, avec une date dans cette période. Les remboursements sont inclus ici aussi, en négatif -- c\'est pourquoi ce chiffre peut baisser.',
+    repXpCollectedCaveat:'Sélectionné selon quand l\'argent a bougé, pas selon quels chantiers ont été touchés. Un paiement de mars ne rejoint pas cette période parce que son chantier a été synchronisé aujourd\'hui.',
+    repXpPaymentsRowsTitle:'Les paiements', repXpPaymentsEmpty:'Aucun paiement reçu dans cette période.',
+    repXpWonHow:'Chantiers touchés dans cette période dont l\'état est Accepté ou Terminé.',
+    repXpJobsRowsTitle:'Les chantiers', repXpWonEmpty:'Rien de gagné dans cette période.',
+    repXpCloseHow:'Parmi les chantiers que vous avez chiffrés dans cette période, la part qui s\'est transformée en travail.',
+    repXpJobsWonMath:'Chantiers gagnés', repXpQuotesSentMath:'Devis envoyés', repXpCloseRateMath:'Taux de conclusion',
+    repXpCloseNoQuotes:'Aucun devis dans cette période, donc rien à diviser.',
+    repXpHoursHow:'Chaque quart terminé qui a commencé dans cette période. Un chronomètre en cours n\'a pas encore de fin, donc il n\'est pas compté tant qu\'il n\'est pas arrêté.',
+    repXpShiftsRowsTitle:'Les quarts', repXpHoursEmpty:'Personne n\'a pointé pendant cette période.',
+    repXpNobodyAttached:'personne rattaché',
+    repXpProfitHow:'La valeur du contrat de chaque chantier touché dans cette période, moins les matériaux, la main-d\'œuvre et les dépenses de ce même chantier.',
+    repXpMaterialsMath:'Matériaux', repXpLabourMath:'Main-d\'œuvre', repXpOtherExpensesMath:'Autres dépenses',
+    repXpEstProfitMath:'Profit estimé',
+    repXpProfitCaveat:'Mesuré par rapport au contrat, pas par rapport à ce qui a été encaissé. Un chantier que vous avez chiffré mais pas encore payé n\'est pas une perte.',
+    repXpMarginHow:'Profit estimé en part de la valeur du contrat des mêmes chantiers.',
+    repXpProfitTitle:'Profit estimé', repXpMarginTitle:'Marge bénéficiaire',
+    repXpCollectedTitle:'Encaissé', repXpWonTitle:'Chantiers gagnés', repXpCloseTitle:'Taux de conclusion',
+    repXpHoursTitle:'Heures pointées',
+    repXpMonthHow:'Chaque paiement enregistré ce mois-ci, additionné. Les remboursements sont inclus en négatif, donc un mois avec un gros remboursement peut totaliser moins que ce dont vous vous souvenez avoir encaissé.',
+    repXpMonthRowsTitle:'Les paiements de ce mois', repXpMonthEmpty:'Aucun paiement ce mois-ci.',
+    repXpDefaultTitle:'D\'où vient ce chiffre', repXpDefaultRowsTitle:'Ce qui est inclus',
+    repRangeLabelTitle:'Encaissé et Heures comptent ce qui s\'est passé dans cette fenêtre. Le profit est. se mesure sur l\'ensemble de chaque chantier touché.',
   },
 };
 
@@ -8379,27 +8785,33 @@ function inPeriod(dateStr){
  * point of this is somebody being able to answer 'who put the price up' in
  * one look, months later, without knowing the schema.
  */
-const AUDIT_FIELDS = {
-  status: 'Job status', payment_status: 'Payment status',
-  deposit_amount: 'Deposit', amount_paid: 'Amount paid',
-  refunded_amount: 'Refunded', labor_rate_per_ft: 'Labour rate per foot',
-  labor_flat_fee: 'Labour flat fee', markup_percent: 'Markup %',
-  discount_percent: 'Discount %', minimum_job_charge: 'Minimum charge',
-  tax_rate_percent: 'Tax rate %', amount: 'Amount', method: 'Method',
-  received_at: 'Received', note: 'Note', approved_at: 'Approved',
-  rejected_at: 'Rejected', hourly_rate: 'Hourly rate',
-  started_at: 'Started', ended_at: 'Ended', per_foot_rate: 'Per-foot rate',
-  pay_type: 'Pay type', is_active: 'On the crew',
-  additional_cost: 'Extra work cost', material_cost: 'Material cost',
-  signed_at: 'Signed', quantity: 'Quantity', unit_price: 'Unit price',
-  supplier_unit_price: 'Supplier price'
+// Stored field/table names, mapped to translation keys rather than English
+// text directly -- same pattern as JOB_STATUS_KEYS/jobStatusLabel(). The
+// comparison a.field/a.table_name stays the raw key from the database; only
+// the label shown to a person goes through tr().
+const AUDIT_FIELD_KEYS = {
+  status: 'repAuditFieldStatus', payment_status: 'repAuditFieldPaymentStatus',
+  deposit_amount: 'repAuditFieldDeposit', amount_paid: 'repAuditFieldAmountPaid',
+  refunded_amount: 'repAuditFieldRefunded', labor_rate_per_ft: 'repAuditFieldLaborRate',
+  labor_flat_fee: 'repAuditFieldLaborFlat', markup_percent: 'repAuditFieldMarkup',
+  discount_percent: 'repAuditFieldDiscount', minimum_job_charge: 'repAuditFieldMinCharge',
+  tax_rate_percent: 'repAuditFieldTaxRate', amount: 'repAuditFieldAmount', method: 'repAuditFieldMethod',
+  received_at: 'repAuditFieldReceived', note: 'repAuditFieldNote', approved_at: 'repAuditFieldApproved',
+  rejected_at: 'repAuditFieldRejected', hourly_rate: 'repAuditFieldHourlyRate',
+  started_at: 'repAuditFieldStarted', ended_at: 'repAuditFieldEnded', per_foot_rate: 'repAuditFieldPerFootRate',
+  pay_type: 'repAuditFieldPayType', is_active: 'repAuditFieldOnCrew',
+  additional_cost: 'repAuditFieldExtraCost', material_cost: 'repAuditFieldMaterialCost',
+  signed_at: 'repAuditFieldSigned', quantity: 'repAuditFieldQuantity', unit_price: 'repAuditFieldUnitPrice',
+  supplier_unit_price: 'repAuditFieldSupplierPrice'
 };
+function auditFieldLabel(f){ return AUDIT_FIELD_KEYS[f] ? tr(AUDIT_FIELD_KEYS[f]) : f; }
 
-const AUDIT_TABLES = {
-  jobs: 'Job', payment_records: 'Payment', time_entries: 'Shift',
-  employees: 'Crew member', change_orders: 'Change order',
-  estimate_line_items: 'Estimate line'
+const AUDIT_TABLE_KEYS = {
+  jobs: 'repAuditTableJob', payment_records: 'repAuditTablePayment', time_entries: 'repAuditTableShift',
+  employees: 'repAuditTableCrew', change_orders: 'repAuditTableChangeOrder',
+  estimate_line_items: 'repAuditTableEstimateLine'
 };
+function auditTableLabel(t){ return AUDIT_TABLE_KEYS[t] ? tr(AUDIT_TABLE_KEYS[t]) : t; }
 
 /**
  * Money owed, oldest first in spirit: the buckets lead, and chasing is one
@@ -8415,14 +8827,14 @@ function renderAging(){
   arAging.forEach(r => { buckets[r.bucket] = (buckets[r.bucket] || 0) + Number(r.owed || 0); });
 
   $('arBuckets').innerHTML = `
-    <div class="stat"><b>${money(buckets.current)}</b><span>Under 30 days</span></div>
-    <div class="stat"><b>${money(buckets['30'])}</b><span>30–60 days</span></div>
-    <div class="stat"><b>${money(buckets['60'])}</b><span>60–90 days</span></div>
-    <div class="stat"><b style="${buckets['90'] > 0 ? 'color:var(--bad,#b3261e)' : ''}">${money(buckets['90'])}</b><span>Over 90 days</span></div>`;
+    <div class="stat"><b>${money(buckets.current)}</b><span>${esc(tr('repArBucketCurrent'))}</span></div>
+    <div class="stat"><b>${money(buckets['30'])}</b><span>${esc(tr('repArBucketMid'))}</span></div>
+    <div class="stat"><b>${money(buckets['60'])}</b><span>${esc(tr('repArBucketLate'))}</span></div>
+    <div class="stat"><b style="${buckets['90'] > 0 ? 'color:var(--bad,#b3261e)' : ''}">${money(buckets['90'])}</b><span>${esc(tr('repArBucketWorst'))}</span></div>`;
 
   if (!arAging.length) {
     $('arRows').innerHTML = '';
-    $('arNote').textContent = 'Nobody owes you anything. Rare and worth enjoying.';
+    $('arNote').textContent = tr('repArNoneMsg');
     return;
   }
   $('arNote').textContent = '';
@@ -8430,10 +8842,10 @@ function renderAging(){
   $('arRows').innerHTML = arAging.map(r => {
     const late = Number(r.days_out || 0) >= 60;
     const chase = r.phone
-      ? `<button data-arsms="${esc(r.phone)}" data-arname="${esc(r.customer_name || '')}" data-arowed="${esc(money(r.owed))}">Text them</button>`
-      : (r.email ? `<a href="mailto:${esc(r.email)}"><button>Email</button></a>` : '');
+      ? `<button data-arsms="${esc(r.phone)}" data-arname="${esc(r.customer_name || '')}" data-arowed="${esc(money(r.owed))}">${esc(tr('repChaseTextBtn'))}</button>`
+      : (r.email ? `<a href="mailto:${esc(r.email)}"><button>${esc(tr('repChaseEmailBtn'))}</button></a>` : '');
     return `<tr>
-      <td><b>${esc(r.customer_name || 'Unnamed')}</b></td>
+      <td><b>${esc(r.customer_name || tr('jobUntitled'))}</b></td>
       <td style="color:var(--muted)">${esc(r.status || '')}</td>
       <td>${money(r.contract_total)}</td>
       <td>${money(r.paid)}</td>
@@ -8448,9 +8860,7 @@ function renderAging(){
   // through human hands on the way out.
   document.querySelectorAll('[data-arsms]').forEach(b =>
     b.addEventListener('click', () => {
-      const msg = `Hi ${b.dataset.arname || 'there'} -- just a reminder that ` +
-        `${b.dataset.arowed} is still outstanding on your fence. ` +
-        `Happy to take card, check or transfer, whatever suits. Thanks!`;
+      const msg = tr('repChaseSms', b.dataset.arname || tr('repChaseThereWord'), b.dataset.arowed);
       window.open(`sms:${b.dataset.arsms}?body=${encodeURIComponent(msg)}`);
     }));
 }
@@ -8458,18 +8868,17 @@ function renderAging(){
 function renderAudit(){
   if (!auditTrail.length) {
     $('auditRows').innerHTML = '';
-    $('auditNote').textContent =
-      'Nothing recorded yet. Changes from here and from the app both appear here.';
+    $('auditNote').textContent = tr('repAuditEmptyMsg');
     return;
   }
   $('auditNote').textContent = '';
   $('auditRows').innerHTML = auditTrail.map(a => {
-    const what = AUDIT_TABLES[a.table_name] || a.table_name;
+    const what = auditTableLabel(a.table_name);
     const label = a.label ? ` &middot; ${esc(a.label)}` : '';
-    const field = a.field ? (AUDIT_FIELDS[a.field] || a.field) : a.action;
+    const field = a.field ? auditFieldLabel(a.field) : a.action;
     return `<tr>
       <td style="white-space:nowrap">${day(a.at)}</td>
-      <td>${esc(a.actor_email || 'system')}</td>
+      <td>${esc(a.actor_email || tr('repAuditActorSystem'))}</td>
       <td>${esc(what)}${label}</td>
       <td>${esc(field)}</td>
       <td style="color:var(--muted)">${a.old_value == null ? '—' : esc(String(a.old_value))}</td>
@@ -8508,30 +8917,28 @@ async function renderCycles(){
   };
 
   const measures = [
-    ['Enquiry to first contact', live.map(j => [j.created_at, j.first_contact_at])],
-    ['Quote sent to approved',   live.map(j => [j.quote_sent_at, j.quote_approved_at])],
-    ['Approved to signed',       live.map(j => [j.quote_approved_at, j.signed_at])],
-    ['Enquiry to finished',      live.map(j => [j.created_at, j.final_sign_off_at])],
-    ['Finished to last payment', live.map(j => [j.final_sign_off_at, lastPaymentFor(j)])],
+    [tr('repCycleEnquiryContact'), live.map(j => [j.created_at, j.first_contact_at])],
+    [tr('repCycleQuoteApproved'),  live.map(j => [j.quote_sent_at, j.quote_approved_at])],
+    [tr('repCycleApprovedSigned'), live.map(j => [j.quote_approved_at, j.signed_at])],
+    [tr('repCycleEnquiryFinished'),live.map(j => [j.created_at, j.final_sign_off_at])],
+    [tr('repCycleFinishedPaid'),   live.map(j => [j.final_sign_off_at, lastPaymentFor(j)])],
   ];
 
   $('cycleRows').innerHTML = measures.map(([label, pairs]) => {
     const m = medianDays(pairs);
     // "Not enough data" rather than a zero. A zero here would read as instant.
     const right = m
-      ? '<b>' + (m.value < 1 ? Math.round(m.value * 24) + ' hours' : m.value.toFixed(1) + ' days') +
-        '</b> <span class="sub">from ' + m.n + (m.n === 1 ? ' job' : ' jobs') + '</span>'
-      : '<span class="sub">not enough data yet</span>';
+      ? '<b>' + esc(m.value < 1 ? tr('repCycleHours', Math.round(m.value * 24)) : tr('repCycleDays', m.value.toFixed(1))) +
+        '</b> <span class="sub">' + esc(m.n === 1 ? tr('repCycleFromJob', m.n) : tr('repCycleFromJobs', m.n)) + '</span>'
+      : '<span class="sub">' + esc(tr('repCycleNoData')) + '</span>';
     return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;' +
-           'border-bottom:1px solid var(--line-soft,transparent)"><span>' + label +
+           'border-bottom:1px solid var(--line-soft,transparent)"><span>' + esc(label) +
            '</span><span>' + right + '</span></div>';
   }).join('');
 
   // The questions the brief asks that this product cannot answer, named rather
   // than quietly missing from the page.
-  $('cycleNote').textContent =
-    'Not shown, because FenceFlow does not record it: revenue and close rate by ' +
-    'salesperson. A job has a crew member assigned but nobody marked as having sold it.';
+  $('cycleNote').textContent = tr('repCycleNoteMissing');
 }
 
 /* What the labour was priced at against what it has cost so far.
@@ -8550,18 +8957,20 @@ function labourVsQuoted(r){
   const quoted = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
                + Number(j.labor_flat_fee || 0);
   const actual = Number(r.labour_cost || 0);
-  if (quoted < 0.005) return '<span class="sub">not priced</span>';
+  if (quoted < 0.005) return '<span class="sub">' + esc(tr('repCostNotPriced')) + '</span>';
   if (actual < 0.005) {
+    // Hedge: cost here means UNKNOWN, not free -- nobody has an hourly rate
+    // on file, so this must never be read as "labour cost nothing".
     return Number(r.hours_worked || 0) > 0.05
-      ? '<span class="sub" title="Hours are logged but nobody has an hourly rate on file">' +
-        money(quoted) + ' priced, cost unknown</span>'
-      : '<span class="sub">' + money(quoted) + ' priced, no hours yet</span>';
+      ? '<span class="sub" title="' + esc(tr('repCostUnknownTitle')) + '">' +
+        esc(tr('repCostUnknownWord', money(quoted))) + '</span>'
+      : '<span class="sub">' + esc(tr('repCostNoHoursWord', money(quoted))) + '</span>';
   }
   const diff = quoted - actual;
   const over = diff < 0;
   return '<span style="' + (over ? 'color:var(--bad,#b3261e);font-weight:600' : '') + '" ' +
-    'title="Priced ' + money(quoted) + ', cost ' + money(actual) + '">' +
-    money(Math.abs(diff)) + (over ? ' over' : ' under') + '</span>';
+    'title="' + esc(tr('repCostVsTitle', money(quoted), money(actual))) + '">' +
+    money(Math.abs(diff)) + ' ' + esc(over ? tr('repCostOverWord') : tr('repCostUnderWord')) + '</span>';
 }
 
 function renderCosting(){
@@ -8576,7 +8985,7 @@ function renderCosting(){
     Number(a.projected_profit||0) - Number(b.projected_profit||0));
   if (!jobCosting.length) {
     $('costingRows').innerHTML = '';
-    $('costingNote').textContent = 'No jobs to cost yet.';
+    $('costingNote').textContent = tr('repCostingNoJobs');
     return;
   }
 
@@ -8597,11 +9006,11 @@ function renderCosting(){
     const sellCosts = r.costs_are_sell_prices === true;
 
     return `<tr>
-      <td>${esc(r.customer_name || 'Untitled')}
+      <td>${esc(r.customer_name || tr('jobUntitled'))}
           <br><span style="color:var(--muted);font-size:12px">${esc(r.status||'')}</span></td>
       <td>${money(quoted)}</td>
       <td>${money(r.collected)}</td>
-      <td title="Materials ${money(r.material_cost)} · Labour ${money(r.labour_cost)} · Other ${money(r.other_cost)}">${money(r.total_cost)}${sellCosts ? ' *' : ''}</td>
+      <td title="${esc(tr('repCostingCostsTitle', money(r.material_cost), money(r.labour_cost), money(r.other_cost)))}">${money(r.total_cost)}${sellCosts ? ' *' : ''}</td>
       <td style="${tone}">${money(profit)}</td>
       <td style="${tone}">${r.margin_percent == null ? '—' : Number(r.margin_percent).toFixed(0) + '%'}</td>
       <td style="${cash < -0.005 ? 'color:var(--muted)' : ''}">${money(cash)}</td>
@@ -8613,27 +9022,25 @@ function renderCosting(){
   // Said out loud, because a job can look cheap purely because nobody has
   // signed the hours off yet -- and that reads as profit until they do.
   $('costingNote').textContent = pendingHours > 0
-    ? `Labour counts approved hours only. There are ${pendingHours.toFixed(1)} hours ` +
-      `still waiting for approval, so some of these jobs will look better than they are.`
-    : 'Labour counts approved hours only.';
+    ? tr('repCostingPendingNote', pendingHours.toFixed(1))
+    : tr('repCostingApprovedOnlyNote');
   /* Hours worked, nothing charged for them. Every job on this page currently
      reports a margin with no labour in it, because nobody has an hourly rate
      on file -- so a fence that took a week of two men shows the same profit as
      one that built itself. A margin that quietly omits its largest cost is
      worse than no margin at all, because somebody will price the next job off
-     it. */
+     it. This hedge must survive translation: zero labour here means unrated,
+     not free. */
   const workedFree = jobCosting.filter(r =>
     Number(r.hours_worked || 0) > 0.05 && Number(r.labour_cost || 0) < 0.005);
   if (workedFree.length) {
     const hrs = workedFree.reduce((n, r) => n + Number(r.hours_worked || 0), 0);
-    $('costingNote').textContent += ' \u2022 ' + hrs.toFixed(1) + ' hours on ' +
-      workedFree.length + (workedFree.length === 1 ? ' job carry' : ' jobs carry') +
-      ' no cost at all, because nobody has an hourly rate on file. Those margins ' +
-      'are overstated by the whole labour bill \u2014 set rates under Crew.';
+    $('costingNote').textContent += tr('repCostingWorkedFreeNote', hrs.toFixed(1),
+      workedFree.length === 1 ? tr('repCostingWorkedFreeJob') : tr('repCostingWorkedFreeJobs', workedFree.length));
   }
 
   if (jobCosting.some(r=>r.costs_are_sell_prices === true)) {
-    $('costingNote').textContent += ' * No supplier prices recorded on this job yet, so its costs are your sell prices and the margin reads low.';
+    $('costingNote').textContent += tr('repCostingSellPricesNote');
   }
 }
 
@@ -8659,7 +9066,7 @@ function crewIndex(timesIn){
     const emp = shiftOwner(t);
     const key = emp ? emp.sync_id : '__none__';
     if (!idx.has(key)) idx.set(key, {
-      key, emp, name: emp ? (emp.name || 'Unnamed') : 'Not attributed',
+      key, emp, name: emp ? (emp.name || tr('crewUnnamed')) : tr('repCrewNotAttributed'),
       shifts: [], hours: 0, cost: 0, jobs: new Set(), days: new Set(),
       approvedH: 0, pendingH: 0, rejectedH: 0
     });
@@ -8685,7 +9092,7 @@ function renderPeople(timesIn){
 
   if (!crew.length){
     $('peopleCards').innerHTML =
-      '<div class="no-data">Nobody clocked any hours in this period.</div>';
+      '<div class="no-data">' + esc(tr('repPeopleNoneMsg')) + '</div>';
     $('scorecardPanel').style.display = 'none';
     noData('chartCrewWeeks','Nothing in this period.');
     noData('chartApproval','Nothing in this period.');
@@ -8696,15 +9103,15 @@ function renderPeople(timesIn){
     const live = c.emp ? c.emp.is_active !== false : false;
     const waiting = c.pendingH > 0.05
       ? '<div class="fig" style="margin-top:8px"><span class="pill wait">'
-        + c.pendingH.toFixed(1) + ' h waiting on sign-off</span></div>'
+        + esc(tr('repPeopleWaitingWord', c.pendingH.toFixed(1))) + '</span></div>'
       : '';
     return '<button class="person' + (openPerson === c.key ? ' on' : '') + '" data-person="' + esc(c.key) + '">'
       + '<div class="nm"><span class="dot ' + (live ? 'act' : 'ina') + '"></span>' + esc(c.name) + '</div>'
-      + '<div class="rl">' + esc(c.emp?.role || (c.emp ? 'No role set' : 'No crew member on the shift')) + '</div>'
+      + '<div class="rl">' + esc(c.emp?.role || (c.emp ? tr('repCrewNoRole') : tr('repCrewNoOneOnShift'))) + '</div>'
       + '<div class="fig">'
-      +   '<div><b>' + c.hours.toFixed(1) + '</b><span>hours</span></div>'
-      +   '<div><b>' + money(c.cost) + '</b><span>labour</span></div>'
-      +   '<div><b>' + c.jobs.size + '</b><span>job' + (c.jobs.size === 1 ? '' : 's') + '</span></div>'
+      +   '<div><b>' + c.hours.toFixed(1) + '</b><span>' + esc(tr('repPeopleHoursWord')) + '</span></div>'
+      +   '<div><b>' + money(c.cost) + '</b><span>' + esc(tr('repPeopleLabourWord')) + '</span></div>'
+      +   '<div><b>' + c.jobs.size + '</b><span>' + esc(c.jobs.size === 1 ? tr('repPeopleJobWord') : tr('repPeopleJobsWord')) + '</span></div>'
       + '</div>' + waiting + '</button>';
   }).join('');
 
@@ -8735,12 +9142,14 @@ function renderPeople(timesIn){
   const tot = crew.reduce((a,c) => ({
     ok: a.ok + c.approvedH, wait: a.wait + c.pendingH, no: a.no + c.rejectedH
   }), {ok:0, wait:0, no:0});
+  // Colour is looked up against the fixed English keys below, not the
+  // translated label, so a translated word can never fail to match its hue.
   barsH('chartApproval',
-    [{label:'Signed off', value: tot.ok},
-     {label:'Waiting',    value: tot.wait},
-     {label:'Rejected',   value: tot.no}].filter(r => r.value > 0.05),
+    [{label:tr('repSignedOffWord'), value: tot.ok, _k:'ok'},
+     {label:tr('repWaitingWord'),   value: tot.wait, _k:'wait'},
+     {label:tr('repRejectedWord'),  value: tot.no, _k:'no'}].filter(r => r.value > 0.05),
     v => v.toFixed(1) + ' h',
-    r => r.label === 'Signed off' ? '#1baf7a' : r.label === 'Waiting' ? '#eda100' : '#E5484D');
+    r => r._k === 'ok' ? '#1baf7a' : r._k === 'wait' ? '#eda100' : '#E5484D');
 
   renderScorecard();
 }
@@ -8755,13 +9164,16 @@ function renderScorecard(){
   const longest = shiftHours.length ? Math.max(...shiftHours) : 0;
   const avg = shiftHours.length ? c.hours / shiftHours.length : 0;
   const pct = c.hours > 0 ? (c.approvedH / c.hours) * 100 : 0;
+  // Hedge: "not visible" is a permission gate (crew never see money), and
+  // must read distinctly from "no rate on file" -- collapsing the two would
+  // tell a crew member their own pay is missing rather than hidden.
   const payLine = !c.emp
-    ? 'No crew member attached to these shifts'
+    ? tr('repScNoCrewMember')
     : !employeesHavePay
-      ? 'Pay is not visible to your account'
+      ? tr('repCashNegNoteWord')
       : (c.emp.pay_type === 'PER_FOOT'
-          ? money(c.emp.per_foot_rate || 0) + ' per foot'
-          : money(c.emp.hourly_rate || 0) + ' an hour');
+          ? tr('repScPerFoot', money(c.emp.per_foot_rate || 0))
+          : tr('repScPerHour', money(c.emp.hourly_rate || 0)));
 
   const byJob = new Map();
   c.shifts.forEach(t => {
@@ -8774,7 +9186,7 @@ function renderScorecard(){
   });
   const jobList = [...byJob.values()].sort((a,b) => b.hours - a.hours);
   const jobRows = jobList.map(b =>
-    '<tr><td>' + esc(b.job?.customer_name || 'Job no longer here') + '</td>'
+    '<tr><td>' + esc(b.job?.customer_name || tr('jobGoneLabel')) + '</td>'
     + '<td>' + esc(b.job?.address || '—') + '</td>'
     + '<td>' + esc(b.job?.status || '—') + '</td>'
     + '<td class="num">' + b.shifts + '</td>'
@@ -8783,11 +9195,13 @@ function renderScorecard(){
     + '<td>' + (b.first ? b.first.toLocaleDateString() : '—') + ' – '
              + (b.last ? b.last.toLocaleDateString() : '—') + '</td></tr>').join('');
 
+  // Colour-class names ('pill no'/'pill ok'/'pill wait') stay fixed CSS
+  // hooks; only the text inside each pill is translated.
   const shiftRows = c.shifts.map(t => {
     const j = jobBySync(t.job_sync_id), h = hoursOf(t);
-    const state = (t.rejected_at && !t.approved_at) ? '<span class="pill no">Rejected</span>'
-      : t.approved_at ? '<span class="pill ok">Signed off</span>'
-                      : '<span class="pill wait">Waiting</span>';
+    const state = (t.rejected_at && !t.approved_at) ? '<span class="pill no">' + esc(tr('repRejectedWord')) + '</span>'
+      : t.approved_at ? '<span class="pill ok">' + esc(tr('repSignedOffWord')) + '</span>'
+                      : '<span class="pill wait">' + esc(tr('repWaitingWord')) + '</span>';
     return '<tr><td>' + d(t.started_at).toLocaleDateString() + '</td>'
       + '<td>' + esc(j?.customer_name || '—') + '</td>'
       + '<td>' + d(t.started_at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) + '</td>'
@@ -8810,12 +9224,12 @@ function renderScorecard(){
   const raisedRows = mine.map(f =>
     '<tr><td>' + d(f.at).toLocaleDateString() + '</td>'
     + '<td>' + esc(jobBySync(f.job_sync_id)?.customer_name || '—') + '</td>'
-    + '<td>' + (f.is_request ? 'Asked' : 'Reported') + '</td>'
+    + '<td>' + esc(f.is_request ? tr('repScAsked') : tr('repScReported')) + '</td>'
     + '<td>' + esc(f.summary || '') + '</td>'
     + '<td>' + (f.is_request
-        ? (f.approved_at ? '<span class="pill ok">Approved</span>'
-           : f.rejected_at ? '<span class="pill no">Turned down</span>'
-           : '<span class="pill wait">Waiting</span>')
+        ? (f.approved_at ? '<span class="pill ok">' + esc(tr('repScApproved')) + '</span>'
+           : f.rejected_at ? '<span class="pill no">' + esc(tr('repScTurnedDown')) + '</span>'
+           : '<span class="pill wait">' + esc(tr('repWaitingWord')) + '</span>')
         : '') + '</td></tr>').join('');
 
   const table = (head, rows, empty) => rows
@@ -8826,55 +9240,61 @@ function renderScorecard(){
 
   $('scorecard').innerHTML =
     '<div class="sc-head"><div><h3>' + esc(c.name) + '</h3>'
-    + '<div class="meta">' + esc(c.emp?.role || 'No role set')
-    + (c.emp && c.emp.is_active === false ? ' · no longer active' : '')
+    + '<div class="meta">' + esc(c.emp?.role || tr('repCrewNoRole'))
+    + (c.emp && c.emp.is_active === false ? esc(tr('repScNoLongerActive')) : '')
     + (c.emp?.phone ? ' · ' + esc(c.emp.phone) : '')
     + (c.emp?.email ? ' · ' + esc(c.emp.email) : '')
     + '</div></div><div class="rate">' + esc(payLine) + '</div></div>'
 
     + '<div class="sc-grid">'
-    + '<div class="m"><b>' + c.hours.toFixed(1) + '</b><span>Hours</span></div>'
-    + '<div class="m"><b>' + money(c.cost) + '</b><span>Labour cost</span></div>'
-    + '<div class="m"><b>' + c.jobs.size + '</b><span>Jobs</span></div>'
-    + '<div class="m"><b>' + c.days.size + '</b><span>Days on site</span></div>'
-    + '<div class="m"><b>' + c.shifts.length + '</b><span>Shifts</span></div>'
-    + '<div class="m"><b>' + avg.toFixed(1) + '</b><span>Avg shift (h)</span></div>'
-    + '<div class="m"><b>' + longest.toFixed(1) + '</b><span>Longest (h)</span></div>'
-    + '<div class="m"><b>' + pct.toFixed(0) + '%</b><span>Signed off</span></div>'
+    + '<div class="m"><b>' + c.hours.toFixed(1) + '</b><span>' + esc(tr('repScHoursLabel')) + '</span></div>'
+    + '<div class="m"><b>' + money(c.cost) + '</b><span>' + esc(tr('repScLabourCostLabel')) + '</span></div>'
+    + '<div class="m"><b>' + c.jobs.size + '</b><span>' + esc(tr('repScJobsLabel')) + '</span></div>'
+    + '<div class="m"><b>' + c.days.size + '</b><span>' + esc(tr('repScDaysLabel')) + '</span></div>'
+    + '<div class="m"><b>' + c.shifts.length + '</b><span>' + esc(tr('repScShiftsLabel')) + '</span></div>'
+    + '<div class="m"><b>' + avg.toFixed(1) + '</b><span>' + esc(tr('repScAvgShiftLabel')) + '</span></div>'
+    + '<div class="m"><b>' + longest.toFixed(1) + '</b><span>' + esc(tr('repScLongestLabel')) + '</span></div>'
+    + '<div class="m"><b>' + pct.toFixed(0) + '%</b><span>' + esc(tr('repScSignedOffPctLabel')) + '</span></div>'
     + '</div>'
 
     + '<div class="sc-body">'
-    + '<h4>Sign-off</h4><div class="bar-mini">'
+    + '<h4>' + esc(tr('repScSignOffHead')) + '</h4><div class="bar-mini">'
     + '<i style="width:' + pctW(c.approvedH) + ';background:#1baf7a"></i>'
     + '<i style="width:' + pctW(c.pendingH)  + ';background:#eda100"></i>'
     + '<i style="width:' + pctW(c.rejectedH) + ';background:#E5484D"></i></div>'
     + '<div class="legend">'
     // A legend line for a state nothing is in is just noise on the page.
-    + [['Signed off', c.approvedH, '#1baf7a'],
-       ['Waiting',    c.pendingH,  '#eda100'],
-       ['Rejected',   c.rejectedH, '#E5484D']]
+    // Colour lookup stays on the fixed English key (r[3]), never the
+    // translated label, so the hue can't drift from the state it means.
+    + [[tr('repSignedOffWord'), c.approvedH, '#1baf7a', 'ok'],
+       [tr('repWaitingWord'),   c.pendingH,  '#eda100', 'wait'],
+       [tr('repRejectedWord'),  c.rejectedH, '#E5484D', 'no']]
       .filter(r => r[1] > 0.05)
-      .map(r => '<span><i style="background:' + r[2] + '"></i>' + r[0] + ' ' + r[1].toFixed(1) + ' h</span>')
+      .map(r => '<span><i style="background:' + r[2] + '"></i>' + esc(r[0]) + ' ' + r[1].toFixed(1) + ' h</span>')
       .join('')
     + '</div>'
 
-    + '<h4>Jobs worked</h4>'
-    + table('<th>Customer</th><th>Address</th><th>Status</th><th class="num">Shifts</th>'
-          + '<th class="num">Hours</th><th class="num">Labour</th><th>Between</th>',
-            jobRows, 'No jobs in this period.')
+    + '<h4>' + esc(tr('repScJobsWorkedHead')) + '</h4>'
+    + table('<th>' + esc(tr('repScColCustomer')) + '</th><th>' + esc(tr('repScColAddress')) + '</th><th>' + esc(tr('repScColStatus')) + '</th><th class="num">' + esc(tr('repScColShifts')) + '</th>'
+          + '<th class="num">' + esc(tr('repScColHours')) + '</th><th class="num">' + esc(tr('repScColLabour')) + '</th><th>' + esc(tr('repScColBetween')) + '</th>',
+            jobRows, tr('repScNoJobsPeriod'))
 
-    + '<h4>Every shift</h4>'
-    + table('<th>Date</th><th>Job</th><th>In</th><th>Out</th><th class="num">Hours</th>'
-          + '<th class="num">Rate</th><th class="num">Cost</th><th>Sign-off</th><th>By</th><th>Note</th>',
-            shiftRows, 'No shifts in this period.')
+    + '<h4>' + esc(tr('repScEveryShiftHead')) + '</h4>'
+    + table('<th>' + esc(tr('repScColDate')) + '</th><th>' + esc(tr('repScColJob')) + '</th><th>' + esc(tr('repScColIn')) + '</th><th>' + esc(tr('repScColOut')) + '</th><th class="num">' + esc(tr('repScColHours')) + '</th>'
+          + '<th class="num">' + esc(tr('repScColRate')) + '</th><th class="num">' + esc(tr('repScColCost')) + '</th><th>' + esc(tr('repScColSignOff')) + '</th><th>' + esc(tr('repScColBy')) + '</th><th>' + esc(tr('repScColNote')) + '</th>',
+            shiftRows, tr('repScNoShiftsPeriod'))
 
-    + '<h4>Raised from the field</h4>'
-    + table('<th>Date</th><th>Job</th><th>Kind</th><th>What</th><th></th>',
-            raisedRows, 'Nothing raised in this period.')
+    + '<h4>' + esc(tr('repScRaisedHead')) + '</h4>'
+    + table('<th>' + esc(tr('repScColDate')) + '</th><th>' + esc(tr('repScColJob')) + '</th><th>' + esc(tr('repScColKind')) + '</th><th>' + esc(tr('repScColWhat')) + '</th><th></th>',
+            raisedRows, tr('repScNothingRaised'))
 
+    // CSV export headers stay in English -- same convention as every other
+    // download on this page (jobBatchCsv, payroll.csv, crew-report.csv,
+    // outstanding.csv, time-detail.csv); the exported file is not part of
+    // the console UI these keys translate.
     + '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">'
-    + '<button class="btn btn-sm btn-grey" id="scExportShifts">Export shifts CSV</button>'
-    + '<button class="btn btn-sm btn-grey" id="scExportJobs">Export jobs CSV</button>'
+    + '<button class="btn btn-sm btn-grey" id="scExportShifts">' + esc(tr('repScExportShiftsBtn')) + '</button>'
+    + '<button class="btn btn-sm btn-grey" id="scExportJobs">' + esc(tr('repScExportJobsBtn')) + '</button>'
     + '</div></div>';
 
   const slug = c.name.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase();
@@ -8913,15 +9333,15 @@ function renderScorecard(){
 function renderAgingChart(){
   const el='chartAging';
   if(!$(el)) return;
-  if(!arAging.length) return noData(el,'Nobody owes you anything.');
+  if(!arAging.length) return noData(el,tr('repArNoneMsg'));
   // Bucketed by the server's own r.bucket field -- the same field renderAging
   // uses -- so this chart and that panel can never disagree about who is in
   // which bucket. Do not re-derive buckets from r.days_out here.
   const buckets=[
-    {key:'current', label:'Under 30 days', n:0, value:0},
-    {key:'30',      label:'30 to 60',      n:0, value:0},
-    {key:'60',      label:'60 to 90',      n:0, value:0},
-    {key:'90',      label:'Over 90 days',  n:0, value:0}
+    {key:'current', label:tr('repArBucketCurrent'), n:0, value:0},
+    {key:'30',      label:tr('repArBucket30'),      n:0, value:0},
+    {key:'60',      label:tr('repArBucket60'),      n:0, value:0},
+    {key:'90',      label:tr('repArBucket90'),      n:0, value:0}
   ];
   arAging.forEach(r=>{
     const owed=Number(r.owed||0);
@@ -8930,7 +9350,7 @@ function renderAgingChart(){
     if(b){ b.value+=owed; b.n+=1; }
   });
   const live=buckets.filter(b=>b.value>0);
-  if(!live.length) return noData(el,'Nobody owes you anything.');
+  if(!live.length) return noData(el,tr('repArNoneMsg'));
   const shade=['0.34','0.55','0.78','1'];
   barsH(el,
     live.map(b=>({label:`${b.label} (${b.n})`, value:b.value, _i:buckets.indexOf(b)})),
@@ -8942,22 +9362,25 @@ function renderAgingChart(){
     const mine = arAging.filter(r=> Number(r.owed||0) > 0 && r.bucket === b.key);
     showExplain({
       title: b.label, value: money(b.value),
-      how:'Everything still owed where the debt is ' + b.label.toLowerCase() + ' old, added up. '
-        + 'Age is counted from when the money became due.',
-      rowsTitle:'Who owes it',
+      how: tr('repArAgingHow', b.label.toLowerCase()),
+      rowsTitle: tr('repArAgingRowsTitle'),
       rows: mine.sort((a,b2)=>Number(b2.owed)-Number(a.owed)).map(r=>({
-        label:r.customer_name||'Unnamed',
-        sub:(r.status||'') + ' · ' + r.days_out + ' days',
+        label:r.customer_name||tr('jobUntitled'),
+        sub:(r.status||'') + ' · ' + tr('repCycleDays', r.days_out),
         amount: money(r.owed) }))
     });
   });
   const oldest=live[live.length-1];
+  // Same no-op .replace() as before the translation pass: oldest.label never
+  // actually carries the "(n)" suffix (that only exists on the chart's own
+  // bar labels above), so this call was already inert -- kept as-is rather
+  // than "fixed" here, since behaviour must not change.
   $(el).insertAdjacentHTML('beforeend',
-    `<p class="sub" style="margin:10px 0 0">${
+    `<p class="sub" style="margin:10px 0 0">${esc(
       (oldest.key==='60' || oldest.key==='90')
-        ? `${money(oldest.value)} has been outstanding ${oldest.label.toLowerCase().replace(' (${oldest.n})','')}. Debt gets harder to collect the longer it sits.`
-        : 'Nothing has been outstanding more than 60 days.'
-    }</p>`);
+        ? tr('repArAgingCaption', money(oldest.value), oldest.label.toLowerCase().replace(' (${oldest.n})',''))
+        : tr('repArAgingCaptionClear')
+    )}</p>`);
 }
 
 /* ===================== Where a number comes from =========================
@@ -8971,7 +9394,7 @@ function renderAgingChart(){
  *              rows:[{label,sub,amount,neg}], rowsTitle, caveat}
  */
 function showExplain(spec){
-  $('xpTitle').textContent = spec.title || 'Where this comes from';
+  $('xpTitle').textContent = spec.title || tr('repXpDefaultTitle');
   const math = (spec.math || []).map(m =>
     `<div class="${m.total ? 'tot' : ''} ${m.neg ? 'neg' : ''}">
        <span><span class="op">${esc(m.op || '')}</span>${esc(m.label)}</span>
@@ -8982,10 +9405,10 @@ function showExplain(spec){
     const tel = (r.phone || '').replace(/[^0-9+]/g, '');
     const acts = tel.length >= 7
       ? `<div class="sub" style="margin:3px 0 0">
-           <a href="tel:${tel}" style="color:var(--orange);font-weight:600">Call</a>
+           <a href="tel:${tel}" style="color:var(--orange);font-weight:600">${esc(tr('repCallBtn'))}</a>
            &nbsp;·&nbsp;
            <a href="sms:${tel}${r.smsBody ? '?&body=' + encodeURIComponent(r.smsBody) : ''}"
-              style="color:var(--orange);font-weight:600">Text them</a></div>`
+              style="color:var(--orange);font-weight:600">${esc(tr('repChaseTextBtn'))}</a></div>`
       : '';
     return `<tr><td>${esc(r.label)}${r.sub ? `<div class="sub" style="margin:2px 0 0">${esc(r.sub)}</div>` : ''}${acts}</td>
        <td class="num" style="${r.neg ? 'color:var(--red)' : ''}">${esc(r.amount || '')}</td></tr>`;
@@ -8997,10 +9420,10 @@ function showExplain(spec){
     + (math ? `<div class="xp-math">${math}</div>` : '')
     + (spec.caveat ? `<div class="xp-caveat">${esc(spec.caveat)}</div>` : '')
     + (rows
-        ? `<div class="xp-rows"><h4>${esc(spec.rowsTitle || 'What is in it')}</h4>
+        ? `<div class="xp-rows"><h4>${esc(spec.rowsTitle || tr('repXpDefaultRowsTitle'))}</h4>
              <div class="scroll"><table><tbody>${rows}</tbody></table></div></div>`
         : (spec.rowsEmpty
-            ? `<div class="xp-rows"><h4>${esc(spec.rowsTitle || 'What is in it')}</h4>
+            ? `<div class="xp-rows"><h4>${esc(spec.rowsTitle || tr('repXpDefaultRowsTitle'))}</h4>
                  <div class="no-data">${esc(spec.rowsEmpty)}</div></div>`
             : ''));
   $('xpOverlay').classList.add('on');
@@ -9083,10 +9506,9 @@ async function renderReports(){
   // Profit and margin tiles are Pro's money intelligence; Crew's hero row
   // shows the operation.
   const proTiles = !hasAdvancedReports() ? '' : `
-    <div class="stat askable" data-xp="profit"><div class="n">${money(profit)}</div><div class="l">Est. profit on these jobs</div></div>
-    <div class="stat askable" data-xp="margin"><div class="n">${margin.toFixed(0)}%</div><div class="l">Profit margin</div></div>`;
-  $('repRangeLabel').title = 'Collected and Hours count what happened inside this window. '
-    + 'Est. profit is measured across the whole of every job touched in it.';
+    <div class="stat askable" data-xp="profit"><div class="n">${money(profit)}</div><div class="l">${esc(tr('repEstProfitLabel'))}</div></div>
+    <div class="stat askable" data-xp="margin"><div class="n">${margin.toFixed(0)}%</div><div class="l">${esc(tr('repMarginLabel'))}</div></div>`;
+  $('repRangeLabel').title = tr('repRangeLabelTitle');
   // ---- movement against the same-length window immediately before -------
   // A figure alone says where you are; only the comparison says which way
   // you are going. Same length, immediately adjacent, so seasonality lies as
@@ -9108,12 +9530,12 @@ async function renderReports(){
   const deltaChip = (now, prev) => {
     if (!canCompare) return '';
     if (prev <= 0 && now <= 0) return '';
-    if (prev <= 0) return '<span class="delta up">new</span>';
+    if (prev <= 0) return '<span class="delta up">' + esc(tr('repDeltaNew')) + '</span>';
     const pct = (now - prev) / prev * 100;
     const cls = pct > 2 ? 'up' : pct < -2 ? 'down' : 'flat';
     const arrow = pct > 2 ? '▲' : pct < -2 ? '▼' : '•';
     return '<span class="delta ' + cls + '">' + arrow + ' ' +
-      (Math.abs(pct) >= 1000 ? '10x+' : Math.abs(pct).toFixed(0) + '%') + ' vs previous</span>';
+      esc((Math.abs(pct) >= 1000 ? tr('repDeltaTenXPlus') : Math.abs(pct).toFixed(0) + '%') + ' ' + tr('repDeltaVsPrevious')) + '</span>';
   };
 
   // ---- the hero band: collected, huge, with its shape --------------------
@@ -9132,10 +9554,10 @@ async function renderReports(){
       +'<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--orange)" stroke-width="2.5" '
       +'stroke-linejoin="round" stroke-linecap="round"/>'
       +'<circle cx="'+pts[pts.length-1].split(',')[0]+'" cy="'+pts[pts.length-1].split(',')[1]+'" r="4" fill="var(--orange)"/></svg>'
-      +'<div class="cap" style="text-align:right;margin-top:3px">by week</div>';
+      +'<div class="cap" style="text-align:right;margin-top:3px">'+esc(tr('repHeroByWeek'))+'</div>';
   }
   $('repHeroBand').innerHTML =
-    '<div><div class="cap">Collected this period</div>'
+    '<div><div class="cap">'+esc(tr('repHeroCollectedCaption'))+'</div>'
     +'<div class="big">'+money(collected)+'</div>'
     +deltaChip(collected, prevCollected)+'</div>'
     +'<div>'+spark+'</div>';
@@ -9146,14 +9568,14 @@ async function renderReports(){
   const unapproved = times.filter(t=>t.ended_at && !t.approved_at && !t.rejected_at);
   const unappH = unapproved.reduce((s,t)=>s+hoursOf(t),0);
   if (unappH > 0.05) attn.push({
-    n: unappH.toFixed(1)+' h', what: 'waiting on sign-off',
-    why: 'The crew are not paid and job costs are understated until these are approved.',
+    n: unappH.toFixed(1)+' h', what: tr('repAttnUnapprovedWhat'),
+    why: tr('repAttnUnapprovedWhy'),
     open: () => showExplain({
-      title:'Hours waiting on sign-off', value: unappH.toFixed(1)+' h',
-      how:'Every finished shift nobody has approved or rejected yet, whenever it happened.',
-      rowsTitle:'The shifts',
+      title: tr('repAttnUnapprovedTitle'), value: unappH.toFixed(1)+' h',
+      how: tr('repAttnUnapprovedHow'),
+      rowsTitle: tr('repAttnUnapprovedRows'),
       rows: unapproved.sort((a,b)=>d(b.started_at)-d(a.started_at)).map(t=>({
-        label: (shiftOwner(t)?.name || 'Nobody attached'),
+        label: (shiftOwner(t)?.name || tr('repAttnNobodyAttached')),
         sub: (jobBySync(t.job_sync_id)?.customer_name || '—') + ' · ' + d(t.started_at).toLocaleDateString(),
         amount: hoursOf(t).toFixed(1)+' h' }))
     })
@@ -9161,40 +9583,41 @@ async function renderReports(){
   const staleOwed = arAging.filter(r=>Number(r.owed||0)>0 && Number(r.days_out||0)>=60);
   const staleSum = staleOwed.reduce((s,r)=>s+Number(r.owed||0),0);
   if (staleSum > 0.5) attn.push({
-    n: money(staleSum), what: 'owed for 60+ days',
-    why: 'Debt gets harder to collect the longer it sits. The table below has a Text-them button.',
+    n: money(staleSum), what: tr('repAttnOwedWhat'),
+    why: tr('repAttnOwedWhy'),
     open: () => showExplain({
-      title:'Owed for 60 days or more', value: money(staleSum),
-      how:'Everything still outstanding where the debt is at least sixty days old.',
-      rowsTitle:'Who owes it',
+      title: tr('repAttnOwedTitle'), value: money(staleSum),
+      how: tr('repAttnOwedHow'),
+      rowsTitle: tr('repArAgingRowsTitle'),
       rows: staleOwed.sort((a,b)=>Number(b.owed)-Number(a.owed)).map(r=>({
-        label: r.customer_name||'Unnamed', sub: r.days_out+' days', amount: money(r.owed) }))
+        label: r.customer_name||tr('jobUntitled'), sub: tr('repCycleDays', r.days_out), amount: money(r.owed) }))
     })
   });
   const quiet = jobs.filter(j=>j.status==='SENT'
     && (Date.now()-d(j.updated_at||j.created_at).getTime()) > 14*864e5);
   if (quiet.length) attn.push({
-    n: String(quiet.length), what: quiet.length===1?'quote gone quiet':'quotes gone quiet',
-    why: 'Sent over two weeks ago with no answer. A call usually settles it either way.',
+    n: String(quiet.length), what: quiet.length===1?tr('repAttnQuietWhatSing'):tr('repAttnQuietWhatPlur'),
+    why: tr('repAttnQuietWhy'),
     open: () => showExplain({
-      title:'Quotes gone quiet', value: String(quiet.length),
-      how:'Quotes sent more than fourteen days ago that nobody has accepted or declined.',
-      rowsTitle:'The quotes',
-      rows: quiet.map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'',
+      title: tr('repAttnQuietTitle'), value: String(quiet.length),
+      how: tr('repAttnQuietHow'),
+      rowsTitle: tr('repAttnQuietRows'),
+      rows: quiet.map(j=>({ label:j.customer_name||tr('jobUntitled'), sub:j.address||'',
         amount: d(j.updated_at||j.created_at).toLocaleDateString(),
         phone: j.phone||'',
-        smsBody: 'Hi '+(j.customer_name||'').split(' ')[0]
-          +", just checking in on the fence quote we sent over — any questions I can answer?" }))
+        smsBody: tr('repAttnQuietSms', (j.customer_name||'').split(' ')[0]) }))
     })
   });
   const orphan = times.filter(t=>t.ended_at && !(t.employee_sync_id||'').trim());
   if (orphan.length) attn.push({
-    n: String(orphan.length), what: orphan.length===1?'shift with nobody attached':'shifts with nobody attached',
-    why: 'These cannot carry a pay rate until someone owns them, so their labour costs read as $0.',
+    n: String(orphan.length), what: orphan.length===1?tr('repAttnOrphanWhatSing'):tr('repAttnOrphanWhatPlur'),
+    // Hedge: labour reading as $0 here means nobody is on record to own the
+    // shift, not that the work was free -- must carry across every language.
+    why: tr('repAttnOrphanWhy'),
     open: () => showExplain({
-      title:'Shifts with nobody attached', value: String(orphan.length),
-      how:'Finished shifts whose crew member was never set. Open the shift in the app and pick who worked it.',
-      rowsTitle:'The shifts',
+      title: tr('repAttnOrphanTitle'), value: String(orphan.length),
+      how: tr('repAttnOrphanHow'),
+      rowsTitle: tr('repAttnOrphanRows'),
       rows: orphan.map(t=>({ label: jobBySync(t.job_sync_id)?.customer_name || '—',
         sub: d(t.started_at).toLocaleDateString(), amount: hoursOf(t).toFixed(1)+' h' }))
     })
@@ -9202,73 +9625,71 @@ async function renderReports(){
   $('repAttention').innerHTML = attn.length
     ? attn.map((a,i)=>'<div class="a" data-attn="'+i+'"><b>'+esc(a.n)+'</b>'
         +'<span>'+esc(a.what)+'</span><span class="why">'+esc(a.why)+'</span></div>').join('')
-    : '<div class="a clear"><b>All clear</b><span>Nothing is sitting still — no unapproved hours, '
-      +'no stale debt, no quiet quotes.</span></div>';
+    : '<div class="a clear"><b>'+esc(tr('repAttnAllClearTitle'))+'</b><span>'+esc(tr('repAttnAllClearBody'))+'</span></div>';
   document.querySelectorAll('#repAttention .a[data-attn]').forEach(el=>
     el.addEventListener('click',()=>attn[Number(el.dataset.attn)].open()));
 
   $('repHero').innerHTML=`
     ${proTiles}
-    <div class="stat askable" data-xp="won"><div class="n">${won.length}</div><div class="l">Jobs won</div>${deltaChip(won.length, prevWon)}</div>
-    <div class="stat askable" data-xp="close"><div class="n">${closing.toFixed(0)}%</div><div class="l">Close rate</div>${deltaChip(closing, prevClose)}</div>
-    <div class="stat askable" data-xp="hours"><div class="n">${hours.toFixed(0)}</div><div class="l">Hours clocked</div>${deltaChip(hours, prevHours)}</div>`;
+    <div class="stat askable" data-xp="won"><div class="n">${won.length}</div><div class="l">${esc(tr('repJobsWonLabel'))}</div>${deltaChip(won.length, prevWon)}</div>
+    <div class="stat askable" data-xp="close"><div class="n">${closing.toFixed(0)}%</div><div class="l">${esc(tr('repCloseRateLabel'))}</div>${deltaChip(closing, prevClose)}</div>
+    <div class="stat askable" data-xp="hours"><div class="n">${hours.toFixed(0)}</div><div class="l">${esc(tr('repHoursClockedLabel'))}</div>${deltaChip(hours, prevHours)}</div>`;
 
   // Every headline figure explains itself. Wired here rather than inline so
   // the wording lives in one place and can be read as a whole.
-  const jobName = sid => jobBySync(sid)?.customer_name || 'Job no longer here';
+  const jobName = sid => jobBySync(sid)?.customer_name || tr('jobGoneLabel');
   const XP = {
     collected: () => ({
-      title:'Collected', value:money(collected),
-      how:'Every payment recorded against a live job, with a date inside this period. '
-        + 'Refunds are in here too, as negatives -- that is why this can go down.',
-      caveat:'Selected by when the money moved, not by which jobs were touched. A payment '
-        + 'from March does not join this period because its job synced today.',
-      rowsTitle:'The payments', rowsEmpty:'No payments landed in this period.',
+      title: tr('repXpCollectedTitle'), value:money(collected),
+      how: tr('repXpCollectedHow'),
+      // Hedge: names exactly why Collected can fall -- refunds are negatives
+      // inside the same total, not a separate deduction.
+      caveat: tr('repXpCollectedCaveat'),
+      rowsTitle: tr('repXpPaymentsRowsTitle'), rowsEmpty: tr('repXpPaymentsEmpty'),
       rows: paymentsIn.slice().sort((a,b)=>d(b.received_at)-d(a.received_at)).map(p=>({
         label: jobName(p.job_sync_id),
         sub: d(p.received_at).toLocaleDateString() + (p.method ? ' · ' + String(p.method).replace(/_/g,' ').toLowerCase() : ''),
         amount: money(p.amount), neg: Number(p.amount) < 0 }))
     }),
     won: () => ({
-      title:'Jobs won', value:String(won.length),
-      how:'Jobs touched in this period whose status is Accepted or Completed.',
-      rowsTitle:'The jobs', rowsEmpty:'Nothing won in this period.',
-      rows: won.map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'', amount:String(j.status||'').replace(/_/g,' ') }))
+      title: tr('repXpWonTitle'), value:String(won.length),
+      how: tr('repXpWonHow'),
+      rowsTitle: tr('repXpJobsRowsTitle'), rowsEmpty: tr('repXpWonEmpty'),
+      rows: won.map(j=>({ label:j.customer_name||tr('jobUntitled'), sub:j.address||'', amount:String(j.status||'').replace(/_/g,' ') }))
     }),
     close: () => ({
-      title:'Close rate', value:closing.toFixed(0)+'%',
-      how:'Of the jobs you quoted in this period, the share that turned into work.',
-      math:[{label:'Jobs won', value:String(won.length)},
-            {label:'Quotes sent', value:String(quotes), op:'÷'},
-            {label:'Close rate', value:closing.toFixed(0)+'%', total:true}],
-      caveat: quotes ? null : 'No quotes in this period, so there is nothing to divide by.'
+      title: tr('repXpCloseTitle'), value:closing.toFixed(0)+'%',
+      how: tr('repXpCloseHow'),
+      math:[{label:tr('repXpJobsWonMath'), value:String(won.length)},
+            {label:tr('repXpQuotesSentMath'), value:String(quotes), op:'÷'},
+            {label:tr('repXpCloseRateMath'), value:closing.toFixed(0)+'%', total:true}],
+      caveat: quotes ? null : tr('repXpCloseNoQuotes')
     }),
     hours: () => ({
-      title:'Hours clocked', value:hours.toFixed(1)+' h',
-      how:'Every finished shift that started inside this period. A running timer has no '
-        + 'end yet, so it is not counted until it is stopped.',
-      rowsTitle:'The shifts', rowsEmpty:'Nobody clocked in during this period.',
+      title: tr('repXpHoursTitle'), value:hours.toFixed(1)+' h',
+      how: tr('repXpHoursHow'),
+      rowsTitle: tr('repXpShiftsRowsTitle'), rowsEmpty: tr('repXpHoursEmpty'),
       rows: timesIn.slice().sort((a,b)=>d(b.started_at)-d(a.started_at)).slice(0,200).map(t=>({
         label: jobName(t.job_sync_id),
-        sub: d(t.started_at).toLocaleDateString() + ' · ' + (shiftOwner(t)?.name || 'nobody attached'),
+        sub: d(t.started_at).toLocaleDateString() + ' · ' + (shiftOwner(t)?.name || tr('repXpNobodyAttached')),
         amount: hoursOf(t).toFixed(2)+' h' }))
     }),
     profit: () => ({
-      title:'Estimated profit', value:money(profit),
-      how:'The contract value of every job touched in this period, less that job\'s own '
-        + 'materials, labour and expenses.',
-      math:[{label:'Materials', value:money(material), op:'−', neg:true},
-            {label:'Labour', value:money(labor), op:'−', neg:true},
-            {label:'Other expenses', value:money(other), op:'−', neg:true},
-            {label:'Estimated profit', value:money(profit), total:true}],
-      caveat:'Measured against the contract, not against what has been collected. A job you '
-        + 'have quoted but not been paid for yet is not a loss.'
+      title: tr('repXpProfitTitle'), value:money(profit),
+      how: tr('repXpProfitHow'),
+      math:[{label:tr('repXpMaterialsMath'), value:money(material), op:'−', neg:true},
+            {label:tr('repXpLabourMath'), value:money(labor), op:'−', neg:true},
+            {label:tr('repXpOtherExpensesMath'), value:money(other), op:'−', neg:true},
+            {label:tr('repXpEstProfitMath'), value:money(profit), total:true}],
+      // Hedge: a quoted-but-unpaid job is not a loss -- profit is measured
+      // against the contract, never against cash collected so far.
+      caveat: tr('repXpProfitCaveat')
     }),
     margin: () => ({
-      title:'Profit margin', value:margin.toFixed(0)+'%',
-      how:'Estimated profit as a share of the contract value of the same jobs.',
-      math:[{label:'Estimated profit', value:money(profit)},
-            {label:'Profit margin', value:margin.toFixed(0)+'%', total:true}]
+      title: tr('repXpMarginTitle'), value:margin.toFixed(0)+'%',
+      how: tr('repXpMarginHow'),
+      math:[{label:tr('repXpEstProfitMath'), value:money(profit)},
+            {label:tr('repXpMarginTitle'), value:margin.toFixed(0)+'%', total:true}]
     })
   };
   document.querySelectorAll('#repHero .askable').forEach(el =>
