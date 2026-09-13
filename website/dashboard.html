@@ -1244,34 +1244,34 @@
           <span class="sub" id="leadLinkNote"></span>
         </div>
 
-        <h2>Business Settings</h2>
+        <h2 data-t="settingsFormHead">Business Settings</h2>
         <div id="setNote"></div><div class="msg" id="setMsg"></div>
         <div class="row2">
-          <div><label>Business name</label><input id="s_businessName"></div>
-          <div><label>Owner name</label><input id="s_ownerName"></div>
-          <div><label>Phone</label><input id="s_phone"></div>
-          <div><label>Email</label><input id="s_email"></div>
-          <div><label>License number</label><input id="s_license"></div>
-          <div><label>Tax rate (%)</label><input id="s_tax" type="number" step="0.1"></div>
-          <div><label>Markup (%)</label><input id="s_markup" type="number" step="0.1"></div>
-          <div><label>Labor rate ($/ft)</label><input id="s_labor" type="number" step="0.1"></div>
-          <div><label>Post spacing (ft)</label><input id="s_spacing" type="number" step="0.1"></div>
-          <div><label>Concrete bags/post</label><input id="s_bags" type="number" step="0.1"></div>
-          <div><label>Panel width (ft)</label><input id="s_pw" type="number" step="0.1"></div>
-          <div><label>Panel height (ft)</label><input id="s_ph" type="number" step="0.1"></div>
-          <div><label>Minimum job charge ($)</label><input id="s_min" type="number" step="1"></div>
+          <div><label data-t="settingsLabelBizName">Business name</label><input id="s_businessName"></div>
+          <div><label data-t="settingsLabelOwnerName">Owner name</label><input id="s_ownerName"></div>
+          <div><label data-t="settingsLabelPhone">Phone</label><input id="s_phone"></div>
+          <div><label data-t="settingsLabelEmail">Email</label><input id="s_email"></div>
+          <div><label data-t="settingsLabelLicense">License number</label><input id="s_license"></div>
+          <div><label data-t="settingsLabelTax">Tax rate (%)</label><input id="s_tax" type="number" step="0.1"></div>
+          <div><label data-t="settingsLabelMarkup">Markup (%)</label><input id="s_markup" type="number" step="0.1"></div>
+          <div><label data-t="settingsLabelLabor">Labor rate ($/ft)</label><input id="s_labor" type="number" step="0.1"></div>
+          <div><label data-t="settingsLabelSpacing">Post spacing (ft)</label><input id="s_spacing" type="number" step="0.1"></div>
+          <div><label data-t="settingsLabelBags">Concrete bags/post</label><input id="s_bags" type="number" step="0.1"></div>
+          <div><label data-t="settingsLabelPanelW">Panel width (ft)</label><input id="s_pw" type="number" step="0.1"></div>
+          <div><label data-t="settingsLabelPanelH">Panel height (ft)</label><input id="s_ph" type="number" step="0.1"></div>
+          <div><label data-t="settingsLabelMinCharge">Minimum job charge ($)</label><input id="s_min" type="number" step="1"></div>
         </div>
-        <label>Order email template</label><textarea id="s_order"></textarea>
-        <label>HOA email template</label><textarea id="s_hoa"></textarea>
-        <label>Review request message</label><textarea id="s_review"></textarea>
-        <div style="margin-top:14px"><button class="btn" id="saveSettings">Save Settings</button></div>
+        <label data-t="settingsLabelOrderTpl">Order email template</label><textarea id="s_order"></textarea>
+        <label data-t="settingsLabelHoaTpl">HOA email template</label><textarea id="s_hoa"></textarea>
+        <label data-t="settingsLabelReviewTpl">Review request message</label><textarea id="s_review"></textarea>
+        <div style="margin-top:14px"><button class="btn" id="saveSettings" data-t="settingsSaveBtn">Save Settings</button></div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px">
-          <strong>These are the starting values for every new job.</strong> Changing them here does not
-  re-price a job you have already created — open that job and change it there.<br>
-  Saved to your company account — phones pick these up on next sync.<br>
-  Post spacing, panel width, panel height and bags above also update your default Vinyl
+          <strong data-t="settingsHelpIntro">These are the starting values for every new job.</strong> <span data-t="settingsHelpIntro2">Changing them here does not
+  re-price a job you have already created — open that job and change it there.</span><br>
+  <span data-t="settingsHelpSaved">Saved to your company account — phones pick these up on next sync.</span><br>
+  <span data-t="settingsHelpVinylSync">Post spacing, panel width, panel height and bags above also update your default Vinyl
   build template below (creating one from FenceFlow's shipped Vinyl privacy 6&nbsp;ft if you
-  have none yet) — the same four numbers, now read from one place instead of two.
+  have none yet) — the same four numbers, now read from one place instead of two.</span>
         </p>
       </div>
 
@@ -1289,46 +1289,46 @@
       </div>
 
       <div class="panel">
-        <h2>Build Templates</h2>
-        <p class="sub">What a new fence run starts as — post spacing, panel height, bags of
+        <h2 data-t="settingsTplHead">Build Templates</h2>
+        <p class="sub" data-t="settingsTplBody">What a new fence run starts as — post spacing, panel height, bags of
           concrete, rails, everything. The New client wizard's "What we're building" step
           picks from these; nothing here ever prices a job.</p>
         <div class="msg" id="tplMsg"></div>
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px">
-          <h3 style="margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">Your templates</h3>
-          <button class="btn btn-sm" id="tplNew" type="button">Add a template</button>
+          <h3 style="margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)" data-t="settingsTplYoursHead">Your templates</h3>
+          <button class="btn btn-sm" id="tplNew" type="button" data-t="settingsTplAddBtn">Add a template</button>
         </div>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Type</th><th>Spec</th><th>Default</th><th></th></tr></thead>
+          <thead><tr><th data-t="settingsTplColName">Name</th><th data-t="settingsTplColType">Type</th><th data-t="settingsTplColSpec">Spec</th><th data-t="settingsTplColDefault">Default</th><th></th></tr></thead>
           <tbody id="tplMineRows"></tbody></table></div>
-        <div class="empty" id="tplMineEmpty" style="display:none">You have not added your own yet —
+        <div class="empty" id="tplMineEmpty" style="display:none" data-t="settingsTplMineEmpty">You have not added your own yet —
           use "Copy to mine" on one of FenceFlow's below, or add one from scratch.</div>
 
-        <h3 style="margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">FenceFlow templates</h3>
-        <p class="sub" style="margin:0 0 8px">The phone app's own defaults for each fence type —
+        <h3 style="margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)" data-t="settingsTplShippedHead">FenceFlow templates</h3>
+        <p class="sub" style="margin:0 0 8px" data-t="settingsTplShippedBody">The phone app's own defaults for each fence type —
           read-only. Copy one to make it yours and start editing.</p>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Type</th><th>Spec</th><th></th></tr></thead>
+          <thead><tr><th data-t="settingsTplColName">Name</th><th data-t="settingsTplColType">Type</th><th data-t="settingsTplColSpec">Spec</th><th></th></tr></thead>
           <tbody id="tplShippedRows"></tbody></table></div>
 
-        <p class="sub" style="margin-top:14px">A run copies its template when it is created;
+        <p class="sub" style="margin-top:14px" data-t="settingsTplFooterNote">A run copies its template when it is created;
           editing a template never changes a job that already has runs.</p>
       </div>
 
       <div class="panel">
-        <h2>Pricing Tiers</h2>
-        <p class="sub">The labour rate, markup and discount behind each quote — a repair rate,
+        <h2 data-t="settingsTiersHead">Pricing Tiers</h2>
+        <p class="sub" data-t="settingsTiersBody">The labour rate, markup and discount behind each quote — a repair rate,
           a full-install rate, a commercial rate, whatever tiers make sense for how you price.</p>
         <div class="msg" id="tierMsg"></div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button class="btn btn-sm" id="tierAdd" type="button">Add a tier</button>
-          <button class="btn btn-sm btn-grey" id="tierAddStarter" type="button" style="display:none">Add starter tiers</button>
+          <button class="btn btn-sm" id="tierAdd" type="button" data-t="settingsTierAddBtn">Add a tier</button>
+          <button class="btn btn-sm btn-grey" id="tierAddStarter" type="button" style="display:none" data-t="settingsTierAddStarterBtn">Add starter tiers</button>
         </div>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Labor $/ft</th><th>Markup %</th><th>Discount %</th><th></th></tr></thead>
+          <thead><tr><th data-t="settingsTierColName">Name</th><th data-t="settingsTierColLabor">Labor $/ft</th><th data-t="settingsTierColMarkup">Markup %</th><th data-t="settingsTierColDiscount">Discount %</th><th></th></tr></thead>
           <tbody id="tierRows"></tbody></table></div>
-        <div class="empty" id="tierEmpty" style="display:none">No pricing tiers yet — add one above,
+        <div class="empty" id="tierEmpty" style="display:none" data-t="settingsTierEmpty">No pricing tiers yet — add one above,
           or press "Add starter tiers" for five to start from.</div>
       </div>
     </div>
@@ -1605,25 +1605,25 @@
 <!-- One pricing tier, add or edit. Shared by the Settings panel and the
      setup wizard's own Pricing tiers step -- one dialog, one save path. -->
 <div class="overlay" id="tierOverlay"><div class="sheet" style="max-width:480px">
-  <div class="sheet-head"><strong id="tierDialogTitle">Pricing tier</strong>
-    <button class="btn btn-sm btn-ghost" id="tierDialogClose" type="button">Close</button></div>
+  <div class="sheet-head"><strong id="tierDialogTitle" data-t="tierDialogTitleDefault">Pricing tier</strong>
+    <button class="btn btn-sm btn-ghost" id="tierDialogClose" type="button" data-t="tplCloseBtn">Close</button></div>
   <div class="sheet-body"><div class="msg" id="tierDialogMsg"></div>
     <div class="panel">
-      <label>Name</label><input id="t_name" placeholder="Good, Better, Best…">
+      <label data-t="tierFieldName">Name</label><input id="t_name" placeholder="Good, Better, Best…" data-t="tierNamePh">
       <div class="row2">
-        <div><label>Labor $/ft</label><input id="t_labor_rate" type="number" step="0.1"></div>
-        <div><label>Labor flat fee ($)</label><input id="t_labor_flat" type="number" step="1"></div>
+        <div><label data-t="tierFieldLaborRate">Labor $/ft</label><input id="t_labor_rate" type="number" step="0.1"></div>
+        <div><label data-t="tierFieldLaborFlat">Labor flat fee ($)</label><input id="t_labor_flat" type="number" step="1"></div>
       </div>
       <div class="row2">
-        <div><label>Markup (%)</label><input id="t_markup" type="number" step="0.1"></div>
-        <div><label>Discount (%)</label><input id="t_discount" type="number" step="0.1"></div>
+        <div><label data-t="tierFieldMarkup">Markup (%)</label><input id="t_markup" type="number" step="0.1"></div>
+        <div><label data-t="tierFieldDiscount">Discount (%)</label><input id="t_discount" type="number" step="0.1"></div>
       </div>
-      <label>Sort order</label><input id="t_sort" type="number" step="1">
+      <label data-t="tierFieldSort">Sort order</label><input id="t_sort" type="number" step="1">
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-grey" id="tierDialogRetire" type="button">Retire</button>
-    <button class="btn" id="tierDialogSave" type="button">Save</button>
+    <button class="btn btn-grey" id="tierDialogRetire" type="button" data-t="tierRetireBtn">Retire</button>
+    <button class="btn" id="tierDialogSave" type="button" data-t="tierSaveBtn">Save</button>
   </div>
 </div></div>
 
@@ -1634,34 +1634,34 @@
      unlike the New client wizard's own build step, which only shows what
      that one run needs. -->
 <div class="overlay" id="tplOverlay"><div class="sheet" style="max-width:640px">
-  <div class="sheet-head"><strong id="tplDialogTitle">Build template</strong>
-    <button class="btn btn-sm btn-ghost" id="tplDialogClose" type="button">Close</button></div>
+  <div class="sheet-head"><strong id="tplDialogTitle" data-t="tplDialogTitleDefault">Build template</strong>
+    <button class="btn btn-sm btn-ghost" id="tplDialogClose" type="button" data-t="tplCloseBtn">Close</button></div>
   <div class="sheet-body"><div class="msg" id="tplDialogMsg"></div>
     <div class="panel">
       <div class="row2">
-        <div><label>Name</label><input id="tpl_name"></div>
-        <div><label>Fence type</label><select id="tpl_fence_type">
-          <option value="VINYL">Vinyl</option><option value="WOOD">Wood</option>
-          <option value="CHAIN_LINK">Chain link</option><option value="ALUMINUM">Aluminum</option>
-          <option value="ORNAMENTAL_IRON">Ornamental iron</option>
-          <option value="SPLIT_RAIL">Split rail</option><option value="COMPOSITE">Composite</option>
+        <div><label data-t="tplFieldName">Name</label><input id="tpl_name"></div>
+        <div><label data-t="tplFieldFenceType">Fence type</label><select id="tpl_fence_type">
+          <option value="VINYL" data-t="fenceTypeVinyl">Vinyl</option><option value="WOOD" data-t="fenceTypeWood">Wood</option>
+          <option value="CHAIN_LINK" data-t="fenceTypeChainLink">Chain link</option><option value="ALUMINUM" data-t="fenceTypeAluminum">Aluminum</option>
+          <option value="ORNAMENTAL_IRON" data-t="fenceTypeOrnamentalIron">Ornamental iron</option>
+          <option value="SPLIT_RAIL" data-t="fenceTypeSplitRail">Split rail</option><option value="COMPOSITE" data-t="fenceTypeComposite">Composite</option>
         </select></div>
       </div>
-      <label>Description</label><input id="tpl_description">
+      <label data-t="tplFieldDescription">Description</label><input id="tpl_description">
       <div class="row3">
-        <div><label>Colour / finish</label><input id="tpl_color"></div>
-        <div><label>Height (ft)</label><input id="tpl_panel_h" type="number" step="0.5"></div>
-        <div><label>Panel width (ft)</label><input id="tpl_panel_w" type="number" step="0.5"></div>
-        <div><label>Post spacing (ft)</label><input id="tpl_spacing" type="number" step="0.5"></div>
-        <div><label>Bags of concrete / post</label><input id="tpl_bags" type="number" step="0.5"></div>
+        <div><label data-t="tplFieldColor">Colour / finish</label><input id="tpl_color"></div>
+        <div><label data-t="tplFieldHeight">Height (ft)</label><input id="tpl_panel_h" type="number" step="0.5"></div>
+        <div><label data-t="tplFieldPanelWidth">Panel width (ft)</label><input id="tpl_panel_w" type="number" step="0.5"></div>
+        <div><label data-t="tplFieldSpacing">Post spacing (ft)</label><input id="tpl_spacing" type="number" step="0.5"></div>
+        <div><label data-t="tplFieldBags">Bags of concrete / post</label><input id="tpl_bags" type="number" step="0.5"></div>
       </div>
-      <p class="sub" id="tpl_spacing_note" style="margin-top:-6px;display:none">Post spacing follows panel width on this fence type.</p>
+      <p class="sub" id="tpl_spacing_note" style="margin-top:-6px;display:none" data-t="tplSpacingNote">Post spacing follows panel width on this fence type.</p>
       <div id="tpl_type_block" style="margin-top:6px"></div>
       <div class="row2" style="margin-top:10px">
-        <div><label>Gate width (ft)</label><input id="tpl_gate_w" type="number" step="0.5"></div>
-        <div><label>Gate mounting</label><select id="tpl_gate_m">
-          <option value="LINE">Line</option><option value="WALL">Wall</option>
-          <option value="LINE_TO_WALL">Line to wall</option>
+        <div><label data-t="tplFieldGateWidth">Gate width (ft)</label><input id="tpl_gate_w" type="number" step="0.5"></div>
+        <div><label data-t="tplFieldGateMount">Gate mounting</label><select id="tpl_gate_m">
+          <option value="LINE" data-t="gateMountLine">Line</option><option value="WALL" data-t="gateMountWall">Wall</option>
+          <option value="LINE_TO_WALL" data-t="gateMountLineToWall">Line to wall</option>
         </select></div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:12px">
@@ -1670,8 +1670,8 @@
     </div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-grey" id="tplDialogRetire" type="button">Retire</button>
-    <button class="btn" id="tplDialogSave" type="button">Save</button>
+    <button class="btn btn-grey" id="tplDialogRetire" type="button" data-t="tierRetireBtn">Retire</button>
+    <button class="btn" id="tplDialogSave" type="button" data-t="tierSaveBtn">Save</button>
   </div>
 </div></div>
 
@@ -2078,6 +2078,68 @@ const TL = {
     fixTimeBreakWhole:'Break minutes has to be a whole number, zero or more.',
     fixTimeBreakTooLong:'That break (%s min) is longer than the shift itself (%s min). Check the minutes or the shift times.',
     fixTimeSavedMsg:'Shift corrected. The clock\'s own times are kept on the record.',
+    settingsFormHead:'Business Settings',
+    settingsLabelBizName:'Business name', settingsLabelOwnerName:'Owner name',
+    settingsLabelPhone:'Phone', settingsLabelEmail:'Email',
+    settingsLabelLicense:'License number',
+    settingsLabelTax:'Tax rate (%)', settingsLabelMarkup:'Markup (%)',
+    settingsLabelLabor:'Labor rate ($/ft)', settingsLabelSpacing:'Post spacing (ft)',
+    settingsLabelBags:'Concrete bags/post', settingsLabelPanelW:'Panel width (ft)',
+    settingsLabelPanelH:'Panel height (ft)', settingsLabelMinCharge:'Minimum job charge ($)',
+    settingsLabelOrderTpl:'Order email template', settingsLabelHoaTpl:'HOA email template',
+    settingsLabelReviewTpl:'Review request message', settingsSaveBtn:'Save Settings',
+    settingsHelpIntro:'These are the starting values for every new job.',
+    settingsHelpIntro2:'Changing them here does not re-price a job you have already created — open that job and change it there.',
+    settingsHelpSaved:'Saved to your company account — phones pick these up on next sync.',
+    settingsHelpVinylSync:'Post spacing, panel width, panel height and bags above also update your default Vinyl build template below (creating one from FenceFlow\'s shipped Vinyl privacy 6 ft if you have none yet) — the same four numbers, now read from one place instead of two.',
+    settingsSavedMsg:'Saved. Phones pick these up on next sign-in or sync.',
+    settingsVinylUpdateFailedMsg:'Settings saved, but your standard Vinyl build did not update: %s',
+    settingsLoadFailed:'Couldn\'t load your business settings just now -- the boxes below are blank because the load failed, not because nothing is set. Switch tabs and back, or refresh, to try again.',
+    setupReminderTag:'reminder, not required', setupSetItBtn:'Set it', setupDismissBtn:'Dismiss',
+    setupDismissTitle:'Hide this reminder for you until it\'s done -- nobody else\'s checklist changes',
+    settingsTiersHead:'Pricing Tiers',
+    settingsTiersBody:'The labour rate, markup and discount behind each quote — a repair rate, a full-install rate, a commercial rate, whatever tiers make sense for how you price.',
+    settingsTierAddBtn:'Add a tier', settingsTierAddStarterBtn:'Add starter tiers',
+    settingsTierColName:'Name', settingsTierColLabor:'Labor $/ft',
+    settingsTierColMarkup:'Markup %', settingsTierColDiscount:'Discount %',
+    settingsTierEmpty:'No pricing tiers yet — add one above, or press "Add starter tiers" for five to start from.',
+    tierNeedsRatesPill:'needs your rates',
+    tierNeedsRatesTitle:'No labour rate and no flat fee on this tier yet, so it cannot price a job. Edit it and put your own numbers in.',
+    tierNotSet:'not set', tierEditBtn:'Edit', tierRetireBtn:'Retire',
+    tierDialogTitleDefault:'Pricing tier', tierDialogTitleEdit:'Edit pricing tier',
+    tierDialogTitleNew:'New pricing tier', tplCloseBtn:'Close',
+    tierFieldName:'Name', tierFieldLaborRate:'Labor $/ft', tierFieldLaborFlat:'Labor flat fee ($)',
+    tierFieldMarkup:'Markup (%)', tierFieldDiscount:'Discount (%)', tierFieldSort:'Sort order',
+    tierNamePh:'Good, Better, Best…', tierSaveBtn:'Save',
+    tierNameRequiredMsg:'Give this tier a name.',
+    tierRetireConfirmTitle:'Retire "%s"?', tierDefaultName:'this tier',
+    tierRetireConfirmBody:'It stops showing up to pick from. A job already using it keeps its own numbers -- retiring a tier never changes a quote that already has one.',
+    settingsTplHead:'Build Templates',
+    settingsTplBody:'What a new fence run starts as — post spacing, panel height, bags of concrete, rails, everything. The New client wizard\'s "What we\'re building" step picks from these; nothing here ever prices a job.',
+    settingsTplYoursHead:'Your templates', settingsTplAddBtn:'Add a template',
+    settingsTplColName:'Name', settingsTplColType:'Type', settingsTplColSpec:'Spec',
+    settingsTplColDefault:'Default',
+    settingsTplMineEmpty:'You have not added your own yet — use "Copy to mine" on one of FenceFlow\'s below, or add one from scratch.',
+    settingsTplShippedHead:'FenceFlow templates',
+    settingsTplShippedBody:'The phone app\'s own defaults for each fence type — read-only. Copy one to make it yours and start editing.',
+    settingsTplFooterNote:'A run copies its template when it is created; editing a template never changes a job that already has runs.',
+    tplUntitled:'(untitled)', tplCopyBtn:'Copy to mine',
+    tplDialogTitleDefault:'Build template', tplDialogTitleEdit:'Edit template',
+    tplDialogTitleNew:'New template',
+    tplFieldName:'Name', tplFieldFenceType:'Fence type', tplFieldDescription:'Description',
+    tplFieldColor:'Colour / finish', tplFieldHeight:'Height (ft)',
+    tplFieldPanelWidth:'Panel width (ft)', tplFieldSpacing:'Post spacing (ft)',
+    tplFieldBags:'Bags of concrete / post',
+    tplSpacingNote:'Post spacing follows panel width on this fence type.',
+    tplFieldGateWidth:'Gate width (ft)', tplFieldGateMount:'Gate mounting',
+    gateMountLine:'Line', gateMountWall:'Wall', gateMountLineToWall:'Line to wall',
+    tplDefaultLabelPrefix:'Make this my default for %s',
+    tplNameRequiredMsg:'Give this template a name.',
+    tplDefaultTemplateName:'this template',
+    tplRetireConfirmBody:'Jobs already built from it keep their own copy of the spec -- retiring a template never changes a run that already exists.',
+    fenceTypeWood:'Wood', fenceTypeVinyl:'Vinyl', fenceTypeChainLink:'Chain link',
+    fenceTypeAluminum:'Aluminum', fenceTypeOrnamentalIron:'Ornamental iron',
+    fenceTypeSplitRail:'Split rail', fenceTypeComposite:'Composite',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -2205,6 +2267,68 @@ const TL = {
     fixTimeBreakWhole:'Los minutos de descanso tienen que ser un número entero, cero o más.',
     fixTimeBreakTooLong:'Ese descanso (%s min) es más largo que el turno mismo (%s min). Revise los minutos o las horas del turno.',
     fixTimeSavedMsg:'Turno corregido. Se conservan las horas que marcó el reloj en el registro.',
+    settingsFormHead:'Datos de la empresa',
+    settingsLabelBizName:'Nombre de la empresa', settingsLabelOwnerName:'Nombre del dueño',
+    settingsLabelPhone:'Teléfono', settingsLabelEmail:'Correo electrónico',
+    settingsLabelLicense:'Número de licencia',
+    settingsLabelTax:'Impuesto (%)', settingsLabelMarkup:'Margen (%)',
+    settingsLabelLabor:'Tarifa de mano de obra ($/pie)', settingsLabelSpacing:'Espaciado de postes (pies)',
+    settingsLabelBags:'Bolsas de concreto por poste', settingsLabelPanelW:'Ancho del panel (pies)',
+    settingsLabelPanelH:'Alto del panel (pies)', settingsLabelMinCharge:'Cargo mínimo por trabajo ($)',
+    settingsLabelOrderTpl:'Plantilla de correo de pedido', settingsLabelHoaTpl:'Plantilla de correo para la HOA',
+    settingsLabelReviewTpl:'Mensaje para pedir reseñas', settingsSaveBtn:'Guardar ajustes',
+    settingsHelpIntro:'Estos son los valores iniciales de cada trabajo nuevo.',
+    settingsHelpIntro2:'Cambiarlos aquí no vuelve a calcular el precio de un trabajo que ya creó — abra ese trabajo y cámbielo ahí.',
+    settingsHelpSaved:'Se guarda en la cuenta de la empresa — los celulares lo reciben en la próxima sincronización.',
+    settingsHelpVinylSync:'El espaciado de postes, el ancho y alto del panel y las bolsas de arriba también actualizan su plantilla de construcción Vinyl predeterminada más abajo (creando una a partir del modelo Vinyl privacidad de 6 pies de FenceFlow si todavía no tiene ninguna) — los mismos cuatro números, ahora leídos de un solo lugar en vez de dos.',
+    settingsSavedMsg:'Guardado. Los celulares lo reciben en el próximo inicio de sesión o sincronización.',
+    settingsVinylUpdateFailedMsg:'Ajustes guardados, pero su plantilla estándar de Vinyl no se actualizó: %s',
+    settingsLoadFailed:'No se pudieron cargar los ajustes de la empresa en este momento -- los campos de abajo están en blanco porque falló la carga, no porque no haya nada configurado. Cambie de pestaña y vuelva, o actualice la página, para intentarlo de nuevo.',
+    setupReminderTag:'recordatorio, no obligatorio', setupSetItBtn:'Configurar', setupDismissBtn:'Ocultar',
+    setupDismissTitle:'Oculta este recordatorio solo para usted hasta que esté hecho -- la lista de nadie más cambia',
+    settingsTiersHead:'Niveles de precios',
+    settingsTiersBody:'La tarifa de mano de obra, el margen y el descuento detrás de cada presupuesto — una tarifa de reparación, una de instalación completa, una comercial, los niveles que tengan sentido para cómo usted cobra.',
+    settingsTierAddBtn:'Agregar un nivel', settingsTierAddStarterBtn:'Agregar niveles iniciales',
+    settingsTierColName:'Nombre', settingsTierColLabor:'Mano de obra $/pie',
+    settingsTierColMarkup:'Margen %', settingsTierColDiscount:'Descuento %',
+    settingsTierEmpty:'Todavía no hay niveles de precios — agregue uno arriba, o presione "Agregar niveles iniciales" para empezar con cinco.',
+    tierNeedsRatesPill:'faltan sus tarifas',
+    tierNeedsRatesTitle:'Este nivel todavía no tiene tarifa de mano de obra ni tarifa fija, así que no puede cotizar un trabajo. Edítelo y ponga sus propios números.',
+    tierNotSet:'sin definir', tierEditBtn:'Editar', tierRetireBtn:'Retirar',
+    tierDialogTitleDefault:'Nivel de precio', tierDialogTitleEdit:'Editar nivel de precio',
+    tierDialogTitleNew:'Nuevo nivel de precio', tplCloseBtn:'Cerrar',
+    tierFieldName:'Nombre', tierFieldLaborRate:'Mano de obra $/pie', tierFieldLaborFlat:'Tarifa fija de mano de obra ($)',
+    tierFieldMarkup:'Margen (%)', tierFieldDiscount:'Descuento (%)', tierFieldSort:'Orden',
+    tierNamePh:'Bueno, Mejor, Óptimo…', tierSaveBtn:'Guardar',
+    tierNameRequiredMsg:'Póngale un nombre a este nivel.',
+    tierRetireConfirmTitle:'¿Retirar "%s"?', tierDefaultName:'este nivel',
+    tierRetireConfirmBody:'Deja de aparecer para elegir. Un trabajo que ya lo esté usando conserva sus propios números -- retirar un nivel nunca cambia un presupuesto que ya lo tiene.',
+    settingsTplHead:'Plantillas de construcción',
+    settingsTplBody:'Con qué empieza un tramo de cerca nuevo — espaciado de postes, alto del panel, bolsas de concreto, rieles, todo. El paso "Qué vamos a construir" del asistente de cliente nuevo elige de aquí; nada de esto cotiza un trabajo.',
+    settingsTplYoursHead:'Sus plantillas', settingsTplAddBtn:'Agregar una plantilla',
+    settingsTplColName:'Nombre', settingsTplColType:'Tipo', settingsTplColSpec:'Especificación',
+    settingsTplColDefault:'Predeterminado',
+    settingsTplMineEmpty:'Todavía no ha agregado ninguna propia — use "Copiar a las mías" en una de las de FenceFlow abajo, o agregue una desde cero.',
+    settingsTplShippedHead:'Plantillas de FenceFlow',
+    settingsTplShippedBody:'Los valores predeterminados de la app del celular para cada tipo de cerca — solo lectura. Copie una para hacerla suya y empezar a editarla.',
+    settingsTplFooterNote:'Un tramo copia su plantilla al crearse; editar una plantilla nunca cambia un trabajo que ya tiene tramos.',
+    tplUntitled:'(sin título)', tplCopyBtn:'Copiar a las mías',
+    tplDialogTitleDefault:'Plantilla de construcción', tplDialogTitleEdit:'Editar plantilla',
+    tplDialogTitleNew:'Nueva plantilla',
+    tplFieldName:'Nombre', tplFieldFenceType:'Tipo de cerca', tplFieldDescription:'Descripción',
+    tplFieldColor:'Color / acabado', tplFieldHeight:'Alto (pies)',
+    tplFieldPanelWidth:'Ancho del panel (pies)', tplFieldSpacing:'Espaciado de postes (pies)',
+    tplFieldBags:'Bolsas de concreto por poste',
+    tplSpacingNote:'El espaciado de postes sigue el ancho del panel en este tipo de cerca.',
+    tplFieldGateWidth:'Ancho de la puerta (pies)', tplFieldGateMount:'Montaje de la puerta',
+    gateMountLine:'En línea', gateMountWall:'En pared', gateMountLineToWall:'De línea a pared',
+    tplDefaultLabelPrefix:'Hacer que esta sea mi predeterminada para %s',
+    tplNameRequiredMsg:'Póngale un nombre a esta plantilla.',
+    tplDefaultTemplateName:'esta plantilla',
+    tplRetireConfirmBody:'Los trabajos que ya se construyeron con ella conservan su propia copia de la especificación -- retirar una plantilla nunca cambia un tramo que ya existe.',
+    fenceTypeWood:'Madera', fenceTypeVinyl:'Vinilo', fenceTypeChainLink:'Malla ciclónica',
+    fenceTypeAluminum:'Aluminio', fenceTypeOrnamentalIron:'Hierro ornamental',
+    fenceTypeSplitRail:'Rieles rústicos', fenceTypeComposite:'Compuesto',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -2332,6 +2456,68 @@ const TL = {
     fixTimeBreakWhole:'Les minutes de pause doivent être un nombre entier, zéro ou plus.',
     fixTimeBreakTooLong:'Cette pause (%s min) est plus longue que le quart lui-même (%s min). Vérifiez les minutes ou les heures du quart.',
     fixTimeSavedMsg:'Quart corrigé. Les heures de l’horloge elle-même sont conservées dans le registre.',
+    settingsFormHead:'Coordonnées de l’entreprise',
+    settingsLabelBizName:'Nom de l’entreprise', settingsLabelOwnerName:'Nom du propriétaire',
+    settingsLabelPhone:'Téléphone', settingsLabelEmail:'Courriel',
+    settingsLabelLicense:'Numéro de licence',
+    settingsLabelTax:'Taxe (%)', settingsLabelMarkup:'Marge (%)',
+    settingsLabelLabor:'Taux de main-d’œuvre ($/pi)', settingsLabelSpacing:'Espacement des poteaux (pi)',
+    settingsLabelBags:'Sacs de béton par poteau', settingsLabelPanelW:'Largeur du panneau (pi)',
+    settingsLabelPanelH:'Hauteur du panneau (pi)', settingsLabelMinCharge:'Charge minimale par chantier ($)',
+    settingsLabelOrderTpl:'Modèle de courriel de commande', settingsLabelHoaTpl:'Modèle de courriel pour la copropriété',
+    settingsLabelReviewTpl:'Message de demande d’avis', settingsSaveBtn:'Enregistrer les paramètres',
+    settingsHelpIntro:'Ce sont les valeurs de départ pour chaque nouveau chantier.',
+    settingsHelpIntro2:'Les modifier ici ne recalcule pas le prix d’un chantier déjà créé — ouvrez ce chantier et changez-le là.',
+    settingsHelpSaved:'Enregistré dans le compte de l’entreprise — les téléphones le reçoivent à la prochaine synchronisation.',
+    settingsHelpVinylSync:'L’espacement des poteaux, la largeur et la hauteur du panneau et les sacs ci-dessus mettent aussi à jour votre modèle de construction Vinyle par défaut plus bas (en créant un à partir du modèle Vinyle intimité de 6 pi fourni par FenceFlow si vous n’en avez pas encore) — les quatre mêmes chiffres, désormais lus à un seul endroit plutôt que deux.',
+    settingsSavedMsg:'Enregistré. Les téléphones le reçoivent à la prochaine connexion ou synchronisation.',
+    settingsVinylUpdateFailedMsg:'Paramètres enregistrés, mais votre modèle Vinyle standard n’a pas été mis à jour : %s',
+    settingsLoadFailed:'Impossible de charger les paramètres de l’entreprise pour l’instant -- les champs ci-dessous sont vides parce que le chargement a échoué, pas parce que rien n’est configuré. Changez d’onglet et revenez, ou actualisez la page, pour réessayer.',
+    setupReminderTag:'rappel, non obligatoire', setupSetItBtn:'Configurer', setupDismissBtn:'Masquer',
+    setupDismissTitle:'Masque ce rappel seulement pour vous jusqu’à ce que ce soit fait -- la liste de personne d’autre ne change',
+    settingsTiersHead:'Paliers tarifaires',
+    settingsTiersBody:'Le taux de main-d’œuvre, la marge et le rabais derrière chaque devis — un taux de réparation, un taux d’installation complète, un taux commercial, les paliers qui ont du sens pour votre façon de facturer.',
+    settingsTierAddBtn:'Ajouter un palier', settingsTierAddStarterBtn:'Ajouter des paliers de départ',
+    settingsTierColName:'Nom', settingsTierColLabor:'Main-d’œuvre $/pi',
+    settingsTierColMarkup:'Marge %', settingsTierColDiscount:'Rabais %',
+    settingsTierEmpty:'Aucun palier tarifaire pour l’instant — ajoutez-en un ci-dessus, ou appuyez sur « Ajouter des paliers de départ » pour partir avec cinq.',
+    tierNeedsRatesPill:'tarifs à définir',
+    tierNeedsRatesTitle:'Ce palier n’a encore ni taux de main-d’œuvre ni forfait, donc il ne peut pas chiffrer un chantier. Modifiez-le et entrez vos propres chiffres.',
+    tierNotSet:'non défini', tierEditBtn:'Modifier', tierRetireBtn:'Retirer',
+    tierDialogTitleDefault:'Palier tarifaire', tierDialogTitleEdit:'Modifier le palier tarifaire',
+    tierDialogTitleNew:'Nouveau palier tarifaire', tplCloseBtn:'Fermer',
+    tierFieldName:'Nom', tierFieldLaborRate:'Main-d’œuvre $/pi', tierFieldLaborFlat:'Forfait main-d’œuvre ($)',
+    tierFieldMarkup:'Marge (%)', tierFieldDiscount:'Rabais (%)', tierFieldSort:'Ordre',
+    tierNamePh:'Bon, Meilleur, Optimal…', tierSaveBtn:'Enregistrer',
+    tierNameRequiredMsg:'Donnez un nom à ce palier.',
+    tierRetireConfirmTitle:'Retirer « %s » ?', tierDefaultName:'ce palier',
+    tierRetireConfirmBody:'Il n’apparaît plus dans la liste à choisir. Un chantier qui l’utilise déjà garde ses propres chiffres -- retirer un palier ne change jamais un devis qui l’a déjà.',
+    settingsTplHead:'Modèles de construction',
+    settingsTplBody:'Ce à partir de quoi commence une nouvelle section de clôture — espacement des poteaux, hauteur du panneau, sacs de béton, lisses, tout. L’étape « Ce qu’on construit » de l’assistant nouveau client choisit parmi ceux-ci; rien ici ne chiffre un chantier.',
+    settingsTplYoursHead:'Vos modèles', settingsTplAddBtn:'Ajouter un modèle',
+    settingsTplColName:'Nom', settingsTplColType:'Type', settingsTplColSpec:'Caractéristiques',
+    settingsTplColDefault:'Par défaut',
+    settingsTplMineEmpty:'Vous n’en avez pas encore ajouté vous-même — utilisez « Copier dans les miens » sur un des modèles FenceFlow ci-dessous, ou ajoutez-en un à partir de zéro.',
+    settingsTplShippedHead:'Modèles FenceFlow',
+    settingsTplShippedBody:'Les valeurs par défaut de l’appli du téléphone pour chaque type de clôture — lecture seule. Copiez-en un pour vous l’approprier et commencer à le modifier.',
+    settingsTplFooterNote:'Une section copie son modèle à sa création; modifier un modèle ne change jamais un chantier qui a déjà des sections.',
+    tplUntitled:'(sans titre)', tplCopyBtn:'Copier dans les miens',
+    tplDialogTitleDefault:'Modèle de construction', tplDialogTitleEdit:'Modifier le modèle',
+    tplDialogTitleNew:'Nouveau modèle',
+    tplFieldName:'Nom', tplFieldFenceType:'Type de clôture', tplFieldDescription:'Description',
+    tplFieldColor:'Couleur / fini', tplFieldHeight:'Hauteur (pi)',
+    tplFieldPanelWidth:'Largeur du panneau (pi)', tplFieldSpacing:'Espacement des poteaux (pi)',
+    tplFieldBags:'Sacs de béton par poteau',
+    tplSpacingNote:'L’espacement des poteaux suit la largeur du panneau pour ce type de clôture.',
+    tplFieldGateWidth:'Largeur du portail (pi)', tplFieldGateMount:'Fixation du portail',
+    gateMountLine:'Sur ligne', gateMountWall:'Sur mur', gateMountLineToWall:'De ligne à mur',
+    tplDefaultLabelPrefix:'En faire mon modèle par défaut pour %s',
+    tplNameRequiredMsg:'Donnez un nom à ce modèle.',
+    tplDefaultTemplateName:'ce modèle',
+    tplRetireConfirmBody:'Les chantiers déjà construits à partir de celui-ci gardent leur propre copie de la spécification -- retirer un modèle ne change jamais une section qui existe déjà.',
+    fenceTypeWood:'Bois', fenceTypeVinyl:'Vinyle', fenceTypeChainLink:'Mailles losangées',
+    fenceTypeAluminum:'Aluminium', fenceTypeOrnamentalIron:'Fer ornemental',
+    fenceTypeSplitRail:'Clôture à lisses rustiques', fenceTypeComposite:'Composite',
   },
 };
 
@@ -3403,13 +3589,13 @@ function renderSetup(){
       <span class="setup-mark setup-todo">!</span>
       <span>
         <span class="setup-what">${esc(st.label)}</span>${
-          dismissable ? ' <span style="font-size:12px;color:var(--muted)">— reminder, not required</span>' : ''}
+          dismissable ? ' <span style="font-size:12px;color:var(--muted)">— ' + esc(tr('setupReminderTag')) + '</span>' : ''}
         <div class="setup-why">${esc(st.detail)}</div>
       </span>
       <span class="setup-go" style="display:flex;gap:6px">
-        <button class="btn btn-sm btn-grey" data-setup-go="${esc(TAB[st.where_to_go] || 'settings')}">Set it</button>
+        <button class="btn btn-sm btn-grey" data-setup-go="${esc(TAB[st.where_to_go] || 'settings')}">${esc(tr('setupSetItBtn'))}</button>
         ${dismissable ? `<button class="btn btn-sm btn-grey" data-setup-dismiss="${esc(st.step)}"
-            title="Hide this reminder for you until it's done -- nobody else's checklist changes">Dismiss</button>` : ''}
+            title="${esc(tr('setupDismissTitle'))}">${esc(tr('setupDismissBtn'))}</button>` : ''}
       </span>
     </div>`;
   $('setupList').innerHTML =
@@ -8353,15 +8539,15 @@ function tierRowHtml(t){
   return `<tr>
     <td>${esc(t.name)}${needs
       ? ' <span class="pill" style="font-size:11px;color:var(--orange)"'
-        + ' title="No labour rate and no flat fee on this tier yet, so it cannot price a job. Edit it and put your own numbers in.">'
-        + 'needs your rates</span>'
+        + ' title="' + esc(tr('tierNeedsRatesTitle')) + '">'
+        + esc(tr('tierNeedsRatesPill')) + '</span>'
       : ''}</td>
-    <td>${needs ? '<span style="color:var(--muted)">not set</span>' : money(t.labor_rate_per_ft)}</td>
+    <td>${needs ? '<span style="color:var(--muted)">'+esc(tr('tierNotSet'))+'</span>' : money(t.labor_rate_per_ft)}</td>
     <td>${(t.markup_percent||0)}%</td>
     <td>${(t.discount_percent||0)}%</td>
     <td style="white-space:nowrap">${canEdit() ? `
-      <button class="btn btn-sm btn-grey" type="button" data-tier-edit="${t.sync_id}">Edit</button>
-      <button class="btn btn-sm btn-grey" type="button" data-tier-retire="${t.sync_id}">Retire</button>` : ''}</td>
+      <button class="btn btn-sm btn-grey" type="button" data-tier-edit="${t.sync_id}">${esc(tr('tierEditBtn'))}</button>
+      <button class="btn btn-sm btn-grey" type="button" data-tier-retire="${t.sync_id}">${esc(tr('tierRetireBtn'))}</button>` : ''}</td>
   </tr>`;
 }
 
@@ -8456,7 +8642,7 @@ function tierFormPayload(existing, form, newSyncId){
 
 function openTierDialog(existing){
   openTier = existing || null;
-  $('tierDialogTitle').textContent = existing ? 'Edit pricing tier' : 'New pricing tier';
+  $('tierDialogTitle').textContent = existing ? tr('tierDialogTitleEdit') : tr('tierDialogTitleNew');
   $('t_name').value = existing?.name || '';
   $('t_labor_rate').value = existing?.labor_rate_per_ft ?? '';
   $('t_labor_flat').value = existing?.labor_flat_fee ?? '';
@@ -8493,7 +8679,7 @@ async function saveTierDialog(){
     discount_percent: num($('t_discount').value),
     sort_order: Math.round(num($('t_sort').value)) || 0,
   };
-  if(!form.name){ msg('tierDialogMsg', 'Give this tier a name.', 'err'); return; }
+  if(!form.name){ msg('tierDialogMsg', tr('tierNameRequiredMsg'), 'err'); return; }
   const row = tierFormPayload(openTier, form, crypto.randomUUID());
   // Upsert by (company_id, sync_id): a new tier inserts, an edited one
   // updates in place -- the same unique index the phone's own sync relies on.
@@ -8507,10 +8693,9 @@ async function saveTierDialog(){
 async function retireTierRow(syncId, name){
   if(!canEdit()) return;
   const okRetire = await ask({
-    title: `Retire "${name||'this tier'}"?`,
-    body: 'It stops showing up to pick from. A job already using it keeps its own numbers '
-      + '-- retiring a tier never changes a quote that already has one.',
-    confirmLabel: 'Retire', danger: true
+    title: tr('tierRetireConfirmTitle', name||tr('tierDefaultName')),
+    body: tr('tierRetireConfirmBody'),
+    confirmLabel: tr('tierRetireBtn'), danger: true
   });
   if(!okRetire) return;
   const { error } = await db.from('pricing_tiers')
@@ -8576,18 +8761,18 @@ function tplSpecSummary(t){
 
 function tplMineRowHtml(t){
   return `<tr>
-    <td>${esc(t.name)||'(untitled)'}</td>
+    <td>${esc(t.name)||esc(tr('tplUntitled'))}</td>
     <td>${esc(wizFenceTypeLabel(t.fence_type))}</td>
     <td class="sub" style="font-size:12.5px">${esc(tplSpecSummary(t))}</td>
     <td style="text-align:center">
       <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-weight:400;text-transform:none;font-size:13px">
         <input type="radio" name="tpl_default_${esc(t.fence_type)}" style="width:auto"
-          data-tpl-default="${t.sync_id}" ${t.is_default?'checked':''} ${canEdit()?'':'disabled'}> Default
+          data-tpl-default="${t.sync_id}" ${t.is_default?'checked':''} ${canEdit()?'':'disabled'}> ${esc(tr('settingsTplColDefault'))}
       </label>
     </td>
     <td style="white-space:nowrap">${canEdit() ? `
-      <button class="btn btn-sm btn-grey" type="button" data-tpl-edit="${t.sync_id}">Edit</button>
-      <button class="btn btn-sm btn-grey" type="button" data-tpl-retire="${t.sync_id}">Retire</button>` : ''}</td>
+      <button class="btn btn-sm btn-grey" type="button" data-tpl-edit="${t.sync_id}">${esc(tr('tierEditBtn'))}</button>
+      <button class="btn btn-sm btn-grey" type="button" data-tpl-retire="${t.sync_id}">${esc(tr('tierRetireBtn'))}</button>` : ''}</td>
   </tr>`;
 }
 function tplShippedRowHtml(t){
@@ -8595,7 +8780,7 @@ function tplShippedRowHtml(t){
     <td>${esc(t.name)}</td>
     <td>${esc(wizFenceTypeLabel(t.fence_type))}</td>
     <td class="sub" style="font-size:12.5px">${esc(tplSpecSummary(t))}</td>
-    <td>${canEdit() ? `<button class="btn btn-sm btn-grey" type="button" data-tpl-copy="${t.sync_id}">Copy to mine</button>` : ''}</td>
+    <td>${canEdit() ? `<button class="btn btn-sm btn-grey" type="button" data-tpl-copy="${t.sync_id}">${esc(tr('tplCopyBtn'))}</button>` : ''}</td>
   </tr>`;
 }
 
@@ -8654,7 +8839,7 @@ function openTplDialog(existing, copyFrom){
     split_rail_count:2, gate_width_ft:4, gate_mounting:'LINE',
   };
 
-  $('tplDialogTitle').textContent = existing ? 'Edit template' : copyFrom ? 'Copy to mine' : 'New template';
+  $('tplDialogTitle').textContent = existing ? tr('tplDialogTitleEdit') : copyFrom ? tr('tplCopyBtn') : tr('tplDialogTitleNew');
   $('tpl_name').value = existing ? (existing.name||'') : copyFrom ? ((copyFrom.name||'') + ' — mine') : '';
   $('tpl_description').value = (existing ? existing.description : copyFrom ? copyFrom.description : '') || '';
   $('tpl_fence_type').value = tplDraftSpec.fence_type;
@@ -8677,7 +8862,7 @@ function tplRefreshTypeBlock(){
   const locked = wizLockedSpacing(tplDraftSpec.fence_type);
   $('tpl_spacing').disabled = locked;
   $('tpl_spacing_note').style.display = locked ? '' : 'none';
-  $('tpl_default_label').textContent = 'Make this my default for ' + wizFenceTypeLabel(tplDraftSpec.fence_type);
+  $('tpl_default_label').textContent = tr('tplDefaultLabelPrefix', wizFenceTypeLabel(tplDraftSpec.fence_type));
 }
 
 function tplSyncSpecFromDom(){
@@ -8697,7 +8882,7 @@ async function saveTplDialog(){
   if(!canEdit()) return;
   tplSyncSpecFromDom();
   const name = $('tpl_name').value.trim();
-  if(!name){ msg('tplDialogMsg', 'Give this template a name.', 'err'); return; }
+  if(!name){ msg('tplDialogMsg', tr('tplNameRequiredMsg'), 'err'); return; }
   const payload = Object.assign({}, tplDraftSpec, {
     name, description: $('tpl_description').value.trim(),
     is_default: $('tpl_make_default').checked,
@@ -8714,10 +8899,9 @@ async function retireTemplate(syncId){
   if(!canEdit()) return;
   const t = buildTemplates.find(x=>x.sync_id===syncId);
   const okRetire = await ask({
-    title: `Retire "${t?.name||'this template'}"?`,
-    body: 'Jobs already built from it keep their own copy of the spec -- retiring a '
-      + 'template never changes a run that already exists.',
-    confirmLabel: 'Retire', danger: true
+    title: tr('tierRetireConfirmTitle', t?.name||tr('tplDefaultTemplateName')),
+    body: tr('tplRetireConfirmBody'),
+    confirmLabel: tr('tierRetireBtn'), danger: true
   });
   if(!okRetire) return;
   const { error } = await db.rpc('retire_build_template', { p_sync_id: syncId });
@@ -10454,8 +10638,9 @@ function wizTemplateGroups(templates){
 const WIZ_STEP_NAMES = ['Who','Build','Fence line & gates','Pricing','Estimate','Schedule & paperwork','Send'];
 const WIZ_FENCE_TYPES = ['VINYL','WOOD','CHAIN_LINK','ALUMINUM','ORNAMENTAL_IRON','SPLIT_RAIL','COMPOSITE'];
 function wizFenceTypeLabel(t){
-  return { WOOD:'Wood', VINYL:'Vinyl', CHAIN_LINK:'Chain link', ALUMINUM:'Aluminum',
-    ORNAMENTAL_IRON:'Ornamental iron', COMPOSITE:'Composite', SPLIT_RAIL:'Split rail' }[t] || (t||'');
+  return { WOOD:tr('fenceTypeWood'), VINYL:tr('fenceTypeVinyl'), CHAIN_LINK:tr('fenceTypeChainLink'),
+    ALUMINUM:tr('fenceTypeAluminum'), ORNAMENTAL_IRON:tr('fenceTypeOrnamentalIron'),
+    COMPOSITE:tr('fenceTypeComposite'), SPLIT_RAIL:tr('fenceTypeSplitRail') }[t] || (t||'');
 }
 function wizLockedSpacing(fenceType){
   return ['VINYL','ALUMINUM','ORNAMENTAL_IRON'].includes(fenceType);
@@ -12556,9 +12741,7 @@ async function loadSettings(){
   } catch(e) {
     console.error('loadSettings failed:', e);
     if(note){
-      note.textContent = "Couldn't load your business settings just now -- the boxes below are "
-        + "blank because the load failed, not because nothing is set. Switch tabs and back, or "
-        + "refresh, to try again.";
+      note.textContent = tr('settingsLoadFailed');
       note.className='msg err';
     }
   }
@@ -12597,14 +12780,14 @@ async function saveSettings(){
     if(vinylPatch){
       const {error:tplErr} = await db.rpc('save_build_template', {p: vinylPatch});
       if(tplErr){
-        msg('setMsg', 'Settings saved, but your standard Vinyl build did not update: '+tplErr.message, 'err');
+        msg('setMsg', tr('settingsVinylUpdateFailedMsg', tplErr.message), 'err');
         return;
       }
       await reloadTemplates();
     }
   }
 
-  msg('setMsg','Saved. Phones pick these up on next sign-in or sync.','ok');
+  msg('setMsg',tr('settingsSavedMsg'),'ok');
   // Setting a labour rate should clear the warning about not having one,
   // now, rather than on the next full page load.
   const sp = await db.rpc('my_setup_progress');
