@@ -543,35 +543,35 @@
 <div id="serviceBanner" style="display:none"></div>
 
 <div class="auth" id="auth">
-  <h1 style="font-size:20px;margin-bottom:6px" id="authTitle">Office sign in</h1>
-  <p style="color:var(--muted);font-size:14px" id="authSub">Same account as the FenceFlow app.</p>
+  <h1 style="font-size:20px;margin-bottom:6px" id="authTitle" data-t="authTitleSignin">Office sign in</h1>
+  <p style="color:var(--muted);font-size:14px" id="authSub" data-t="authSubSignin">Same account as the FenceFlow app.</p>
   <div class="msg" id="authMsg"></div>
   <div id="signupFields" style="display:none">
-    <label>Your name</label><input type="text" id="suName" autocomplete="name">
-    <label>Company name</label><input type="text" id="suCompany" autocomplete="organization">
+    <label data-t="authYourName">Your name</label><input type="text" id="suName" autocomplete="name">
+    <label data-t="authCompanyName">Company name</label><input type="text" id="suCompany" autocomplete="organization">
     <div id="setupCodeField" style="display:none">
-      <label>Setup code <span style="color:var(--muted);font-weight:400">— if FenceFlow sent you one</span></label>
-      <input type="text" id="suSetupCode" autocomplete="off" placeholder="Leave blank if you don't have one"
+      <label data-t="authSetupCodeLabel">Setup code <span style="color:var(--muted);font-weight:400" data-t="authSetupCodeHint">— if FenceFlow sent you one</span></label>
+      <input type="text" id="suSetupCode" autocomplete="off" data-t="authSetupCodePlaceholder" placeholder="Leave blank if you don't have one"
              style="text-transform:uppercase">
-      <p style="font-size:12px;color:var(--muted);margin:4px 0 0">
+      <p style="font-size:12px;color:var(--muted);margin:4px 0 0" data-t="authSetupCodeBody">
         We may have set your business up for you already. If somebody read you a code,
         put it here and we'll connect you to it instead of starting a new one.
       </p>
     </div>
   </div>
   <div id="loginFields">
-    <label>Email</label><input type="email" id="email" autocomplete="email">
-    <label>Password</label><input type="password" id="password" autocomplete="current-password">
+    <label data-t="authEmailLabel">Email</label><input type="email" id="email" autocomplete="email">
+    <label data-t="authPasswordLabel">Password</label><input type="password" id="password" autocomplete="current-password">
   </div>
-  <div style="margin-top:14px"><button class="btn" id="signIn" style="width:100%">Sign in</button></div>
+  <div style="margin-top:14px"><button class="btn" id="signIn" style="width:100%" data-t="authSignInBtn">Sign in</button></div>
   <p style="margin-top:12px;text-align:center;font-size:13px">
-    <a href="#" id="forgotLink">Forgot your password?</a>
+    <a href="#" id="forgotLink" data-t="authForgotLink">Forgot your password?</a>
   </p>
   <p style="margin-top:4px;text-align:center;font-size:13px">
-    <a href="#" id="authToggle">New company? Start your free trial</a>
+    <a href="#" id="authToggle" data-t="authToggleSignup">New company? Start your free trial</a>
   </p>
   <p id="authSignOut" style="margin-top:4px;text-align:center;font-size:13px;display:none">
-    <a href="#" id="authSignOutLink">Sign in as someone else</a>
+    <a href="#" id="authSignOutLink" data-t="authSignOutLink">Sign in as someone else</a>
   </p>
   <!-- One sign-in for everybody. This link only changes which console you
        land on; it grants nothing. Whether the account is a platform admin is
@@ -580,9 +580,9 @@
        non-admin calling the admin functions gets zero companies where a real
        admin gets six. Choosing "admin" has never been how anyone becomes one. -->
   <p style="margin-top:8px;text-align:center">
-    <a href="index.html" style="color:var(--muted);font-size:13px">Back to site</a>
+    <a href="index.html" style="color:var(--muted);font-size:13px" data-t="authBackToSite">Back to site</a>
     <span style="color:var(--muted);font-size:13px"> &middot; </span>
-    <a href="admin.html" style="color:var(--muted);font-size:13px">FenceFlow staff sign-in</a>
+    <a href="admin.html" style="color:var(--muted);font-size:13px" data-t="authStaffSignin">FenceFlow staff sign-in</a>
   </p>
 </div>
 
@@ -2140,6 +2140,36 @@ const TL = {
     fenceTypeWood:'Wood', fenceTypeVinyl:'Vinyl', fenceTypeChainLink:'Chain link',
     fenceTypeAluminum:'Aluminum', fenceTypeOrnamentalIron:'Ornamental iron',
     fenceTypeSplitRail:'Split rail', fenceTypeComposite:'Composite',
+    authTitleSignin:'Office sign in', authSubSignin:'Same account as the FenceFlow app.',
+    authTitleSignup:'Start your free trial', authSubSignup:'14 days free. Works with the FenceFlow app too.',
+    authTitleCompany:'Start a new business',
+    authSubCompany:'You are signed in as %s, and it does not belong to a business yet. Naming one here creates a NEW business. If yours already exists under a different email, sign out below and sign in with that one instead.',
+    authThisAddress:'this address',
+    authEmailLabel:'Email', authPasswordLabel:'Password',
+    authSignInBtn:'Sign in', authBtnSignup:'Create account', authBtnCompany:'Create my company',
+    authForgotLink:'Forgot your password?',
+    authToggleSignup:'New company? Start your free trial', authToggleSignin:'Already have an account? Sign in',
+    authSignOutLink:'Sign in as someone else',
+    authBackToSite:'Back to site', authStaffSignin:'FenceFlow staff sign-in',
+    authYourName:'Your name', authCompanyName:'Company name',
+    authSetupCodeLabel:'Setup code', authSetupCodeHint:'— if FenceFlow sent you one',
+    authSetupCodePlaceholder:"Leave blank if you don't have one",
+    authSetupCodeBody:"We may have set your business up for you already. If somebody read you a code, put it here and we'll connect you to it instead of starting a new one.",
+    authErrEnterEmailPassword:'Enter your email and password.', authSigningIn:'Signing in…',
+    authErrBadCredentials:'That email and password don’t match. Use the “Forgot your password?” link below if you need a new one.',
+    authInfoConfirmEmailFirst:'Confirm the email we sent you first, then sign in here.',
+    authErrEnterCompany:'Enter your company name.',
+    authErrEnterEmailPasswordSignup:'Enter an email and a password.',
+    authErrPasswordLength:'Password needs at least 8 characters.',
+    authCreatingAccount:'Creating your account…',
+    authInfoAlmostThere:'Almost there — confirm the email we just sent you, then sign in here.',
+    authFindingBusiness:'Finding your business…',
+    authErrBadSetupCode:'That setup code is not right, or it has already been used. Check it and try again, or leave it blank and name your business instead.',
+    authSettingUp:'Setting up…',
+    authErrEnterEmailFirst:'Type your email above first, then press this.',
+    authSendingReset:'Sending…',
+    authInfoCheckEmailReset:'Check your email for a link to set a new password.',
+    authSigningOut:'Signing out…',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -2329,6 +2359,36 @@ const TL = {
     fenceTypeWood:'Madera', fenceTypeVinyl:'Vinilo', fenceTypeChainLink:'Malla ciclónica',
     fenceTypeAluminum:'Aluminio', fenceTypeOrnamentalIron:'Hierro ornamental',
     fenceTypeSplitRail:'Rieles rústicos', fenceTypeComposite:'Compuesto',
+    authTitleSignin:'Inicio de sesión de oficina', authSubSignin:'La misma cuenta que la app de FenceFlow.',
+    authTitleSignup:'Comienza tu prueba gratis', authSubSignup:'14 días gratis. También funciona con la app de FenceFlow.',
+    authTitleCompany:'Crear una nueva empresa',
+    authSubCompany:'Iniciaste sesión como %s, y esa cuenta todavía no pertenece a ninguna empresa. Nombrar una aquí crea una empresa NUEVA. Si la tuya ya existe con otro correo, cierra sesión abajo e inicia sesión con ese en su lugar.',
+    authThisAddress:'esta dirección',
+    authEmailLabel:'Correo electrónico', authPasswordLabel:'Contraseña',
+    authSignInBtn:'Iniciar sesión', authBtnSignup:'Crear cuenta', authBtnCompany:'Crear mi empresa',
+    authForgotLink:'¿Olvidaste tu contraseña?',
+    authToggleSignup:'¿Empresa nueva? Comienza tu prueba gratis', authToggleSignin:'¿Ya tienes una cuenta? Inicia sesión',
+    authSignOutLink:'Iniciar sesión como otra persona',
+    authBackToSite:'Volver al sitio', authStaffSignin:'Inicio de sesión del personal de FenceFlow',
+    authYourName:'Tu nombre', authCompanyName:'Nombre de la empresa',
+    authSetupCodeLabel:'Código de configuración', authSetupCodeHint:'— si FenceFlow te envió uno',
+    authSetupCodePlaceholder:'Déjalo en blanco si no tienes uno',
+    authSetupCodeBody:'Es posible que ya hayamos configurado tu empresa por ti. Si alguien te dio un código, ponlo aquí y te conectaremos con esa empresa en lugar de crear una nueva.',
+    authErrEnterEmailPassword:'Ingresa tu correo y contraseña.', authSigningIn:'Iniciando sesión…',
+    authErrBadCredentials:'Ese correo y contraseña no coinciden. Usa el enlace “¿Olvidaste tu contraseña?” abajo si necesitas una nueva.',
+    authInfoConfirmEmailFirst:'Primero confirma el correo que te enviamos, luego inicia sesión aquí.',
+    authErrEnterCompany:'Ingresa el nombre de tu empresa.',
+    authErrEnterEmailPasswordSignup:'Ingresa un correo y una contraseña.',
+    authErrPasswordLength:'La contraseña necesita al menos 8 caracteres.',
+    authCreatingAccount:'Creando tu cuenta…',
+    authInfoAlmostThere:'Ya casi — confirma el correo que te acabamos de enviar y luego inicia sesión aquí.',
+    authFindingBusiness:'Buscando tu empresa…',
+    authErrBadSetupCode:'Ese código de configuración no es correcto, o ya fue usado. Revísalo e intenta otra vez, o déjalo en blanco y nombra tu empresa.',
+    authSettingUp:'Configurando…',
+    authErrEnterEmailFirst:'Escribe tu correo arriba primero y luego presiona esto.',
+    authSendingReset:'Enviando…',
+    authInfoCheckEmailReset:'Revisa tu correo para el enlace con el que puedes poner una contraseña nueva.',
+    authSigningOut:'Cerrando sesión…',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -2518,6 +2578,36 @@ const TL = {
     fenceTypeWood:'Bois', fenceTypeVinyl:'Vinyle', fenceTypeChainLink:'Mailles losangées',
     fenceTypeAluminum:'Aluminium', fenceTypeOrnamentalIron:'Fer ornemental',
     fenceTypeSplitRail:'Clôture à lisses rustiques', fenceTypeComposite:'Composite',
+    authTitleSignin:'Connexion au bureau', authSubSignin:'Le même compte que l’appli FenceFlow.',
+    authTitleSignup:'Commencez votre essai gratuit', authSubSignup:'14 jours gratuits. Fonctionne aussi avec l’appli FenceFlow.',
+    authTitleCompany:'Créer une nouvelle entreprise',
+    authSubCompany:'Vous êtes connecté en tant que %s, et ce compte n’appartient encore à aucune entreprise. Nommer une entreprise ici en crée une NOUVELLE. Si la vôtre existe déjà sous un autre courriel, déconnectez-vous ci-dessous et reconnectez-vous avec celui-là.',
+    authThisAddress:'cette adresse',
+    authEmailLabel:'Courriel', authPasswordLabel:'Mot de passe',
+    authSignInBtn:'Se connecter', authBtnSignup:'Créer un compte', authBtnCompany:'Créer mon entreprise',
+    authForgotLink:'Mot de passe oublié ?',
+    authToggleSignup:'Nouvelle entreprise ? Commencez votre essai gratuit', authToggleSignin:'Déjà un compte ? Se connecter',
+    authSignOutLink:'Se connecter en tant qu’une autre personne',
+    authBackToSite:'Retour au site', authStaffSignin:'Connexion du personnel FenceFlow',
+    authYourName:'Votre nom', authCompanyName:'Nom de l’entreprise',
+    authSetupCodeLabel:'Code de configuration', authSetupCodeHint:'— si FenceFlow vous en a envoyé un',
+    authSetupCodePlaceholder:'Laissez vide si vous n’en avez pas',
+    authSetupCodeBody:'Il se peut que nous ayons déjà configuré votre entreprise pour vous. Si quelqu’un vous a communiqué un code, entrez-le ici et nous vous relierons à cette entreprise au lieu d’en créer une nouvelle.',
+    authErrEnterEmailPassword:'Entrez votre courriel et votre mot de passe.', authSigningIn:'Connexion…',
+    authErrBadCredentials:'Ce courriel et ce mot de passe ne correspondent pas. Utilisez le lien « Mot de passe oublié ? » ci-dessous si vous en avez besoin d’un nouveau.',
+    authInfoConfirmEmailFirst:'Confirmez d’abord le courriel que nous vous avons envoyé, puis connectez-vous ici.',
+    authErrEnterCompany:'Entrez le nom de votre entreprise.',
+    authErrEnterEmailPasswordSignup:'Entrez un courriel et un mot de passe.',
+    authErrPasswordLength:'Le mot de passe doit contenir au moins 8 caractères.',
+    authCreatingAccount:'Création de votre compte…',
+    authInfoAlmostThere:'Presque fini — confirmez le courriel que nous venons de vous envoyer, puis connectez-vous ici.',
+    authFindingBusiness:'Recherche de votre entreprise…',
+    authErrBadSetupCode:'Ce code de configuration est incorrect ou a déjà été utilisé. Vérifiez-le et réessayez, ou laissez-le vide et nommez votre entreprise.',
+    authSettingUp:'Configuration en cours…',
+    authErrEnterEmailFirst:'Entrez d’abord votre courriel ci-dessus, puis cliquez ici.',
+    authSendingReset:'Envoi…',
+    authInfoCheckEmailReset:'Consultez votre courriel pour le lien qui vous permettra de définir un nouveau mot de passe.',
+    authSigningOut:'Déconnexion…',
   },
 };
 
@@ -3098,17 +3188,17 @@ function setAuthMode(m){
   const su = m==='signup', co = m==='company';
   $('signupFields').style.display = (su||co) ? 'block' : 'none';
   $('loginFields').style.display  = co ? 'none' : 'block';
-  $('authTitle').textContent = co ? 'Start a new business' : su ? 'Start your free trial' : 'Office sign in';
+  $('authTitle').textContent = co ? tr('authTitleCompany') : su ? tr('authTitleSignup') : tr('authTitleSignin');
+  // The signed-in email is substituted into the translated sentence with %s,
+  // never re-rendered on top of it -- the address itself is data, not text to
+  // translate, and swapping languages must never touch it.
   $('authSub').textContent   = co
-      ? 'You are signed in as ' + (signedInEmail || 'this address')
-        + ', and it does not belong to a business yet. Naming one here creates a '
-        + 'NEW business. If yours already exists under a different email, sign out '
-        + 'below and sign in with that one instead.'
-                             : su ? '14 days free. Works with the FenceFlow app too.'
-                             : 'Same account as the FenceFlow app.';
-  $('signIn').textContent    = co ? 'Create my company' : su ? 'Create account' : 'Sign in';
-  $('authToggle').textContent = su ? 'Already have an account? Sign in'
-                              : co ? '' : 'New company? Start your free trial';
+      ? tr('authSubCompany', signedInEmail || tr('authThisAddress'))
+                             : su ? tr('authSubSignup')
+                             : tr('authSubSignin');
+  $('signIn').textContent    = co ? tr('authBtnCompany') : su ? tr('authBtnSignup') : tr('authSignInBtn');
+  $('authToggle').textContent = su ? tr('authToggleSignin')
+                              : co ? '' : tr('authToggleSignup');
   // Nothing to toggle to from "One last step" -- the empty text left a live,
   // focusable, invisible link sitting under the button.
   $('authToggle').style.display = co ? 'none' : 'inline';
@@ -3135,18 +3225,18 @@ async function signIn(){
   if(authMode==='signup')  return signUp();
   if(authMode==='company') return finishCompany();
   const email=$('email').value.trim(), password=$('password').value;
-  if(!email||!password) return msg('authMsg','Enter your email and password.','err');
-  msg('authMsg','Signing in…','working');
+  if(!email||!password) return msg('authMsg',tr('authErrEnterEmailPassword'),'err');
+  msg('authMsg',tr('authSigningIn'),'working');
   const {error}=await db.auth.signInWithPassword({email,password});
   if(error){
     // The API's own words are for developers. "Invalid login credentials"
     // tells a contractor nothing about what to do next.
     const raw=String(error.message||'');
     if(/invalid login credentials/i.test(raw)){
-      return msg('authMsg',"That email and password don't match. Use the “Forgot your password?” link below if you need a new one.",'err');
+      return msg('authMsg',tr('authErrBadCredentials'),'err');
     }
     if(/email not confirmed/i.test(raw)){
-      return msg('authMsg','Confirm the email we sent you first, then sign in here.','info');
+      return msg('authMsg',tr('authInfoConfirmEmailFirst'),'info');
     }
     return msg('authMsg',raw,'err');
   }
@@ -3156,10 +3246,10 @@ async function signIn(){
 async function signUp(){
   const email=$('email').value.trim(), password=$('password').value;
   const name=$('suName').value.trim(), company=$('suCompany').value.trim();
-  if(!company) return msg('authMsg','Enter your company name.','err');
-  if(!email||!password) return msg('authMsg','Enter an email and a password.','err');
-  if(password.length<8) return msg('authMsg','Password needs at least 8 characters.','err');
-  msg('authMsg','Creating your account…','working');
+  if(!company) return msg('authMsg',tr('authErrEnterCompany'),'err');
+  if(!email||!password) return msg('authMsg',tr('authErrEnterEmailPasswordSignup'),'err');
+  if(password.length<8) return msg('authMsg',tr('authErrPasswordLength'),'err');
+  msg('authMsg',tr('authCreatingAccount'),'working');
   const {data,error}=await db.auth.signUp({email,password});
   if(error) return msg('authMsg',error.message,'err');
   // The company is created after the session exists. If email confirmation is
@@ -3171,7 +3261,7 @@ async function signUp(){
   localStorage.setItem('ff_pending_company', JSON.stringify({name, company, email}));
   if(!data.session){
     setAuthMode('signin');
-    return msg('authMsg','Almost there — confirm the email we just sent you, then sign in here.','info');
+    return msg('authMsg',tr('authInfoAlmostThere'),'info');
   }
   await boot();
 }
@@ -3181,19 +3271,18 @@ async function finishCompany(){
   // rather than creating something new.
   const code = ($('suSetupCode')?.value || '').trim().toUpperCase();
   if (code) {
-    msg('authMsg','Finding your business…','working');
+    msg('authMsg',tr('authFindingBusiness'),'working');
     const { error } = await db.rpc('claim_company_setup',
       { setup_code: code, owner_name: $('suName').value.trim() });
     if (error) return msg('authMsg', /not valid|already been used/i.test(error.message)
-      ? 'That setup code is not right, or it has already been used. Check it and try again, '
-        + 'or leave it blank and name your business instead.'
+      ? tr('authErrBadSetupCode')
       : error.message, 'err');
     return boot();
   }
 
   const name=$('suName').value.trim(), company=$('suCompany').value.trim();
-  if(!company) return msg('authMsg','Enter your company name.','err');
-  msg('authMsg','Setting up…','working');
+  if(!company) return msg('authMsg',tr('authErrEnterCompany'),'err');
+  msg('authMsg',tr('authSettingUp'),'working');
   const {error}=await db.rpc('create_company_with_owner',
     {company_name:company, owner_name:name});
   if(error) return msg('authMsg',error.message,'err');
@@ -12856,13 +12945,13 @@ $('auth').addEventListener('keydown',e=>{
 $('forgotLink').addEventListener('click', async e => {
   e.preventDefault();
   const email=$('email').value.trim();
-  if(!email) return msg('authMsg','Type your email above first, then press this.','err');
-  msg('authMsg','Sending…','working');
+  if(!email) return msg('authMsg',tr('authErrEnterEmailFirst'),'err');
+  msg('authMsg',tr('authSendingReset'),'working');
   const {error}=await db.auth.resetPasswordForEmail(email,{
     redirectTo: location.origin + location.pathname
   });
   if(error) return msg('authMsg',error.message,'err');
-  msg('authMsg','Check your email for a link to set a new password.','info');
+  msg('authMsg',tr('authInfoCheckEmailReset'),'info');
 });
 
 $('authToggle').addEventListener('click',e=>{
@@ -12874,7 +12963,7 @@ if (location.hash === '#signup') setAuthMode('signup');
 $('signOut').addEventListener('click',async()=>{await db.auth.signOut();location.reload();});
 $('authSignOutLink').addEventListener('click',async e=>{
   e.preventDefault();
-  msg('authMsg','Signing out…','working');
+  msg('authMsg',tr('authSigningOut'),'working');
   await db.auth.signOut();
   location.reload();
 });
