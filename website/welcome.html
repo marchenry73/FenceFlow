@@ -110,82 +110,85 @@
 </head>
 <body>
 
-<header><a class="logo" href="index.html" title="Back to the FenceFlow home page">Fence<span>Flow</span></a></header>
+<header style="justify-content:space-between;display:flex;align-items:center;padding-right:22px">
+  <a class="logo" href="index.html" title="Back to the FenceFlow home page">Fence<span>Flow</span></a>
+  <span id="langPick" style="font-size:13px;color:#96A2B4"></span>
+</header>
 
 <div class="wrap">
-  <div id="loading" class="card"><h1>One moment…</h1><p class="sub" id="loadingNote">Checking your invitation.</p></div>
+  <div id="loading" class="card"><h1 data-t="oneMoment">One moment…</h1><p class="sub" id="loadingNote" data-t="checkingInvite">Checking your invitation.</p></div>
 
   <div id="needLink" class="card" style="display:none">
     <p style="margin:0 0 10px"><a class="btn" id="goDashboard" href="dashboard.html"
-       style="display:none">Go to FenceFlow and set your business up</a></p>
-    <h1 id="needTitle">Open this from your invitation email</h1>
-    <p class="sub" id="needWhy">
+       style="display:none" data-t="goSetUp">Go to FenceFlow and set your business up</a></p>
+    <h1 id="needTitle" data-t="needTitleDefault">Open this from your invitation email</h1>
+    <p class="sub" id="needWhy" data-t="needWhyDefault">
       The link in that email signs you in so nothing here has to be typed twice.
     </p>
     <!-- A dead end here is a customer who never arrives. An invitation link is
          single-use and time-limited, and some mail systems open links to scan
          them, which spends the link before the person ever clicks it. So the
          answer to a link that did not work is another link, asked for here. -->
-    <label for="againEmail">Send a fresh link to</label>
+    <label for="againEmail" data-t="sendFreshLink">Send a fresh link to</label>
     <input id="againEmail" type="email" autocomplete="email" placeholder="you@yourcompany.com">
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" id="againBtn">Email me a new link</button>
-      <a class="btn ghost" href="dashboard.html">I already have a password</a>
+      <button class="btn" id="againBtn" data-t="emailNewLink">Email me a new link</button>
+      <a class="btn ghost" href="dashboard.html" data-t="alreadyHavePassword">I already have a password</a>
     </div>
     <div class="msg" id="againMsg"></div>
   </div>
 
   <div id="flow" style="display:none">
     <div class="steps">
-      <div class="step" id="stepDetails"><b>Step 1</b>Your business</div>
-      <div class="step" id="stepAgreement"><b>Step 2</b>Service agreement</div>
-      <div class="step" id="stepPlan"><b>Step 3</b>Choose a plan</div>
+      <div class="step" id="stepDetails"><b data-t="step1Label">Step 1</b><span data-t="stepBusiness">Your business</span></div>
+      <div class="step" id="stepAgreement"><b data-t="step2Label">Step 2</b><span data-t="stepAgreementLabel">Service agreement</span></div>
+      <div class="step" id="stepPlan"><b data-t="step3Label">Step 3</b><span data-t="stepChoosePlan">Choose a plan</span></div>
     </div>
 
     <!-- 1. details -->
     <div class="card" id="cardDetails">
-      <h2>Tell us about your business</h2>
-      <p class="sub">This is what appears on the quotes and invoices you send, so use the name your customers know.</p>
-      <label for="bName">Business name</label>
+      <h2 data-t="detailsHead">Tell us about your business</h2>
+      <p class="sub" data-t="detailsSub">This is what appears on the quotes and invoices you send, so use the name your customers know.</p>
+      <label for="bName" data-t="labelBizName">Business name</label>
       <input id="bName" autocomplete="organization">
-      <label for="bPhone">Phone</label>
+      <label for="bPhone" data-t="labelPhone">Phone</label>
       <input id="bPhone" type="tel" autocomplete="tel">
-      <label for="bEmail">Email customers should reply to</label>
+      <label for="bEmail" data-t="labelReplyEmail">Email customers should reply to</label>
       <input id="bEmail" type="email" autocomplete="email">
-      <label for="bLicense">Contractor licence number <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <label for="bLicense"><span data-t="labelLicense">Contractor licence number</span> <span style="text-transform:none;font-weight:400" data-t="optional">(optional)</span></label>
       <input id="bLicense">
-      <div style="margin-top:16px"><button class="btn" id="saveDetails">Save and continue</button></div>
+      <div style="margin-top:16px"><button class="btn" id="saveDetails" data-t="saveContinue">Save and continue</button></div>
       <div class="msg" id="detailsMsg"></div>
     </div>
 
     <!-- 2. agreement -->
     <div class="card" id="cardAgreement" style="display:none">
-      <h2>Service agreement</h2>
-      <p class="sub">Short, and worth reading. Typing your name signs it.</p>
+      <h2 data-t="agreementHead">Service agreement</h2>
+      <p class="sub" data-t="agreementSub">Short, and worth reading. Typing your name signs it.</p>
       <div class="terms">
-        <h3>1. What FenceFlow is</h3>
-        <p>FenceFlow is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.</p>
-        <h3>2. Your data is yours</h3>
-        <p>Your jobs, customers, prices and photos belong to you. You can export them at any time, and nothing is deleted because a subscription lapses — if access ends, your records are still there and come back when it resumes.</p>
-        <h3>3. Payment</h3>
-        <p>Plans are billed monthly in advance and can be changed or cancelled at any time. Cancelling stops the next charge; it does not refund the current month.</p>
-        <h3>4. Money you take from your customers</h3>
-        <p>Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlow never holds your money and is not a party to those transactions.</p>
-        <h3>5. What we don't promise</h3>
-        <p>FenceFlow works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.</p>
-        <h3>6. Ending it</h3>
-        <p>You can stop at any time. We may end an account for non-payment or misuse, and will always say which, in writing, before doing so.</p>
+        <h3 data-t="term1H">1. What FenceFlow is</h3>
+        <p data-t="term1P">FenceFlow is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.</p>
+        <h3 data-t="term2H">2. Your data is yours</h3>
+        <p data-t="term2P">Your jobs, customers, prices and photos belong to you. You can export them at any time, and nothing is deleted because a subscription lapses — if access ends, your records are still there and come back when it resumes.</p>
+        <h3 data-t="term3H">3. Payment</h3>
+        <p data-t="term3P">Plans are billed monthly in advance and can be changed or cancelled at any time. Cancelling stops the next charge; it does not refund the current month.</p>
+        <h3 data-t="term4H">4. Money you take from your customers</h3>
+        <p data-t="term4P">Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlow never holds your money and is not a party to those transactions.</p>
+        <h3 data-t="term5H">5. What we don't promise</h3>
+        <p data-t="term5P">FenceFlow works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.</p>
+        <h3 data-t="term6H">6. Ending it</h3>
+        <p data-t="term6P">You can stop at any time. We may end an account for non-payment or misuse, and will always say which, in writing, before doing so.</p>
       </div>
-      <label for="signName">Type your full name to sign</label>
+      <label for="signName" data-t="labelSignName">Type your full name to sign</label>
       <input id="signName" autocomplete="name">
-      <div style="margin-top:16px"><button class="btn" id="signBtn">Sign agreement</button></div>
+      <div style="margin-top:16px"><button class="btn" id="signBtn" data-t="signAgreement">Sign agreement</button></div>
       <div class="msg" id="signMsg"></div>
     </div>
 
     <!-- 3. plan -->
     <div class="card" id="cardPlan" style="display:none">
-      <h2>Choose your plan</h2>
-      <p class="sub">14 days free. We take card details now so nothing stops on day 15 — the
+      <h2 data-t="planHead">Choose your plan</h2>
+      <p class="sub" data-t="planSub">14 days free. We take card details now so nothing stops on day 15 — the
         first charge is 14 days from today, and cancelling before then costs nothing.</p>
       <div class="plans" id="planCards"></div>
       <div class="msg" id="planMsg"></div>
@@ -193,13 +196,13 @@
 
     <!-- done -->
     <div class="card" id="cardDone" style="display:none">
-      <h2>You're all set</h2>
+      <h2 data-t="doneHead">You're all set</h2>
       <div class="done-note" id="doneNote"></div>
-      <p class="sub" style="margin-top:14px">
+      <p class="sub" style="margin-top:14px" data-t="doneInstall">
         Install the FenceFlow app on your phone and sign in with this same email.
         Everything you set up here is already waiting.
       </p>
-      <a class="btn" href="dashboard.html">Open my dashboard</a>
+      <a class="btn" href="dashboard.html" data-t="openDashboard">Open my dashboard</a>
     </div>
   </div>
 </div>
@@ -217,14 +220,245 @@ const say = (el, text, kind) => { const e = $(el); e.textContent = text; e.class
 
 const AGREEMENT_VERSION = '2026-08-v1';
 
-/* Same plans and the same test-mode price ids the dashboard uses. */
+/* This is the room a paying customer walks into right after signing up, and
+   the office they are about to run has spoken Spanish and French for months.
+   Mechanism copied from website/quote.html: a flat table keyed by language,
+   %s substitution, an English fallback so a missing key renders English
+   rather than blank or a key name, and the language carried in the URL
+   (?lang=) so an invitation forwarded to someone else keeps its language. */
+const L = {
+  en: {
+    oneMoment: 'One moment…', checkingInvite: 'Checking your invitation.',
+    goSetUp: 'Go to FenceFlow and set your business up',
+    needTitleDefault: 'Open this from your invitation email',
+    needWhyDefault: 'The link in that email signs you in so nothing here has to be typed twice.',
+    sendFreshLink: 'Send a fresh link to', emailNewLink: 'Email me a new link',
+    alreadyHavePassword: 'I already have a password',
+    step1Label: 'Step 1', step2Label: 'Step 2', step3Label: 'Step 3',
+    stepBusiness: 'Your business', stepAgreementLabel: 'Service agreement', stepChoosePlan: 'Choose a plan',
+    detailsHead: 'Tell us about your business',
+    detailsSub: 'This is what appears on the quotes and invoices you send, so use the name your customers know.',
+    labelBizName: 'Business name', labelPhone: 'Phone', labelReplyEmail: 'Email customers should reply to',
+    labelLicense: 'Contractor licence number', optional: '(optional)', saveContinue: 'Save and continue',
+    agreementHead: 'Service agreement', agreementSub: 'Short, and worth reading. Typing your name signs it.',
+    term1H: '1. What FenceFlow is',
+    term1P: 'FenceFlow is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.',
+    term2H: '2. Your data is yours',
+    term2P: 'Your jobs, customers, prices and photos belong to you. You can export them at any time, and nothing is deleted because a subscription lapses — if access ends, your records are still there and come back when it resumes.',
+    term3H: '3. Payment',
+    term3P: 'Plans are billed monthly in advance and can be changed or cancelled at any time. Cancelling stops the next charge; it does not refund the current month.',
+    term4H: '4. Money you take from your customers',
+    term4P: 'Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlow never holds your money and is not a party to those transactions.',
+    term5H: '5. What we don’t promise',
+    term5P: 'FenceFlow works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.',
+    term6H: '6. Ending it',
+    term6P: 'You can stop at any time. We may end an account for non-payment or misuse, and will always say which, in writing, before doing so.',
+    labelSignName: 'Type your full name to sign', signAgreement: 'Sign agreement',
+    planHead: 'Choose your plan',
+    planSub: '14 days free. We take card details now so nothing stops on day 15 — the first charge is 14 days from today, and cancelling before then costs nothing.',
+    doneHead: 'You’re all set',
+    doneInstall: 'Install the FenceFlow app on your phone and sign in with this same email. Everything you set up here is already waiting.',
+    openDashboard: 'Open my dashboard',
+    featSolo1: '1 login — just you', featSolo2: 'Unlimited jobs & estimates', featSolo3: 'Drawing takeoff & materials',
+    featSolo4: 'Invoices & branded PDF quotes', featSolo5: 'Works offline',
+    featCrew1: 'Everything in Solo', featCrew2: '6 logins — you + 5 crew', featCrew3: 'Time clock & crew pay',
+    featCrew4: 'Pipeline board', featCrew5: 'Card payments by link',
+    featPro1: 'Everything in Crew', featPro2: 'Unlimited logins', featPro3: 'Profit & margin analytics',
+    featPro4: 'AR aging & Monday digest', featPro5: 'Priority support',
+    startPlanBtn: 'Start %s — card details next',
+    openingCheckout: 'Opening secure checkout…', couldNotStartCheckout: 'Could not start checkout.',
+    noPaymentTaken: 'No payment was taken. Pick a plan whenever you are ready.',
+    doneNoteText: 'Your business is set up, the agreement is signed, and your plan is running.',
+    confirmingPayment: 'Confirming your payment with Stripe…',
+    typeEmailInvite: 'Type the email your invitation went to.',
+    sending: 'Sending…',
+    sentCheckDevice: 'Sent. Open it from the same device if you can — that keeps everything in one place.',
+    bizNeedsName: 'Your business needs a name.', saving: 'Saving…',
+    typeNameToSign: 'Type your name to sign.', signing: 'Signing…',
+    otpExpired: 'That link has expired. They last a short while on purpose.',
+    accessDenied: 'That link has already been used, or it expired.',
+    linkDidNotWork: 'That link did not work.',
+    linkStoppedWorking: 'That link has stopped working',
+    sendAnotherHint: ' Send yourself another and it will land in the same inbox.',
+    nothingToSetUp: 'Nothing to set up here yet',
+    noBusinessYet: 'There is no business on this account yet, and this page is only for finishing one we set up for you.',
+  },
+  es: {
+    oneMoment: 'Un momento…', checkingInvite: 'Comprobando su invitación.',
+    goSetUp: 'Ir a FenceFlow y configurar su empresa',
+    needTitleDefault: 'Abra esto desde su correo de invitación',
+    needWhyDefault: 'El enlace de ese correo le inicia sesión para que no tenga que escribir nada dos veces.',
+    sendFreshLink: 'Enviar un enlace nuevo a', emailNewLink: 'Enviarme un enlace nuevo',
+    alreadyHavePassword: 'Ya tengo una contraseña',
+    step1Label: 'Paso 1', step2Label: 'Paso 2', step3Label: 'Paso 3',
+    stepBusiness: 'Su empresa', stepAgreementLabel: 'Contrato de servicio', stepChoosePlan: 'Elija un plan',
+    detailsHead: 'Cuéntenos sobre su empresa',
+    detailsSub: 'Esto es lo que aparece en los presupuestos y facturas que envía, así que use el nombre que sus clientes conocen.',
+    labelBizName: 'Nombre de la empresa', labelPhone: 'Teléfono', labelReplyEmail: 'Correo al que deben responder los clientes',
+    labelLicense: 'Número de licencia de contratista', optional: '(opcional)', saveContinue: 'Guardar y continuar',
+    agreementHead: 'Contrato de servicio', agreementSub: 'Breve, y vale la pena leerlo. Escribir su nombre lo firma.',
+    term1H: '1. Qué es FenceFlow',
+    term1P: 'FenceFlow es software para cotizar y llevar el trabajo de cercas. Es una herramienta que usted usa; el trabajo de cercas, los presupuestos que envía y los contratos que firma con sus propios clientes siguen siendo enteramente suyos.',
+    term2H: '2. Sus datos son suyos',
+    term2P: 'Sus trabajos, clientes, precios y fotos le pertenecen. Puede exportarlos en cualquier momento, y nada se borra porque una suscripción venza — si el acceso se detiene, sus registros siguen ahí y vuelven cuando se reanuda.',
+    term3H: '3. Pago',
+    term3P: 'Los planes se facturan mensualmente por adelantado y se pueden cambiar o cancelar en cualquier momento. Cancelar detiene el próximo cobro; no reembolsa el mes en curso.',
+    term4H: '4. El dinero que cobra a sus clientes',
+    term4P: 'Los pagos con tarjeta los gestiona Stripe y van de su cliente a Stripe y de ahí a su banco. FenceFlow nunca retiene su dinero ni es parte de esas transacciones.',
+    term5H: '5. Lo que no prometemos',
+    term5P: 'FenceFlow calcula cantidades y precios a partir de lo que usted le indica. Revisar un presupuesto antes de enviarlo a un cliente es su responsabilidad, y las cifras que produce no sustituyen su propio criterio.',
+    term6H: '6. Cómo termina',
+    term6P: 'Puede darse de baja en cualquier momento. Podemos cerrar una cuenta por falta de pago o mal uso, y siempre diremos cuál, por escrito, antes de hacerlo.',
+    labelSignName: 'Escriba su nombre completo para firmar', signAgreement: 'Firmar contrato',
+    planHead: 'Elija su plan',
+    planSub: '14 días gratis. Pedimos los datos de la tarjeta ahora para que nada se detenga el día 15 — el primer cobro es a los 14 días desde hoy, y cancelar antes no cuesta nada.',
+    doneHead: 'Todo listo',
+    doneInstall: 'Instale la app de FenceFlow en su teléfono e inicie sesión con este mismo correo. Todo lo que configuró aquí ya le está esperando.',
+    openDashboard: 'Abrir mi panel',
+    featSolo1: '1 inicio de sesión — solo usted', featSolo2: 'Trabajos y presupuestos ilimitados', featSolo3: 'Conteo de materiales por dibujo',
+    featSolo4: 'Facturas y presupuestos en PDF con su marca', featSolo5: 'Funciona sin conexión',
+    featCrew1: 'Todo lo de Solo', featCrew2: '6 inicios de sesión — usted + 5 de cuadrilla', featCrew3: 'Reloj de horas y pago de cuadrilla',
+    featCrew4: 'Tablero de flujo de trabajo', featCrew5: 'Pagos con tarjeta por enlace',
+    featPro1: 'Todo lo de Crew', featPro2: 'Inicios de sesión ilimitados', featPro3: 'Análisis de ganancia y margen',
+    featPro4: 'Antigüedad de cobros y resumen de los lunes', featPro5: 'Soporte prioritario',
+    startPlanBtn: 'Comenzar %s — datos de la tarjeta a continuación',
+    openingCheckout: 'Abriendo pago seguro…', couldNotStartCheckout: 'No se pudo iniciar el pago.',
+    noPaymentTaken: 'No se realizó ningún cobro. Elija un plan cuando esté listo.',
+    doneNoteText: 'Su empresa está configurada, el contrato está firmado y su plan está activo.',
+    confirmingPayment: 'Confirmando su pago con Stripe…',
+    typeEmailInvite: 'Escriba el correo al que llegó su invitación.',
+    sending: 'Enviando…',
+    sentCheckDevice: 'Enviado. Ábralo desde el mismo dispositivo si puede — así todo queda en un solo lugar.',
+    bizNeedsName: 'Su empresa necesita un nombre.', saving: 'Guardando…',
+    typeNameToSign: 'Escriba su nombre para firmar.', signing: 'Firmando…',
+    otpExpired: 'Ese enlace ha caducado. Duran poco a propósito.',
+    accessDenied: 'Ese enlace ya se usó, o caducó.',
+    linkDidNotWork: 'Ese enlace no funcionó.',
+    linkStoppedWorking: 'Ese enlace dejó de funcionar',
+    sendAnotherHint: ' Envíese otro y llegará a la misma bandeja de entrada.',
+    nothingToSetUp: 'Nada que configurar aquí todavía',
+    noBusinessYet: 'Todavía no hay ninguna empresa en esta cuenta, y esta página es solo para terminar de configurar una que ya preparamos para usted.',
+  },
+  fr: {
+    oneMoment: 'Un instant…', checkingInvite: 'Vérification de votre invitation.',
+    goSetUp: 'Aller sur FenceFlow et configurer votre entreprise',
+    needTitleDefault: 'Ouvrez ceci depuis votre e-mail d’invitation',
+    needWhyDefault: 'Le lien de cet e-mail vous connecte pour que rien n’ait à être ressaisi.',
+    sendFreshLink: 'Envoyer un nouveau lien à', emailNewLink: 'M’envoyer un nouveau lien',
+    alreadyHavePassword: 'J’ai déjà un mot de passe',
+    step1Label: 'Étape 1', step2Label: 'Étape 2', step3Label: 'Étape 3',
+    stepBusiness: 'Votre entreprise', stepAgreementLabel: 'Contrat de service', stepChoosePlan: 'Choisir un forfait',
+    detailsHead: 'Parlez-nous de votre entreprise',
+    detailsSub: 'C’est ce qui apparaît sur les devis et factures que vous envoyez, utilisez donc le nom que vos clients connaissent.',
+    labelBizName: 'Nom de l’entreprise', labelPhone: 'Téléphone', labelReplyEmail: 'E-mail auquel les clients doivent répondre',
+    labelLicense: 'Numéro de licence d’entrepreneur', optional: '(facultatif)', saveContinue: 'Enregistrer et continuer',
+    agreementHead: 'Contrat de service', agreementSub: 'Court, et qui mérite d’être lu. Saisir votre nom le signe.',
+    term1H: '1. Ce qu’est FenceFlow',
+    term1P: 'FenceFlow est un logiciel pour chiffrer et gérer le travail de clôture. C’est un outil que vous utilisez ; le travail de clôture, les devis que vous envoyez et les contrats que vous signez avec vos propres clients restent entièrement les vôtres.',
+    term2H: '2. Vos données vous appartiennent',
+    term2P: 'Vos chantiers, clients, prix et photos vous appartiennent. Vous pouvez les exporter à tout moment, et rien n’est supprimé parce qu’un abonnement expire — si l’accès s’arrête, vos données restent là et reviennent à la reprise.',
+    term3H: '3. Paiement',
+    term3P: 'Les forfaits sont facturés mensuellement à l’avance et peuvent être modifiés ou annulés à tout moment. Annuler arrête le prochain prélèvement ; cela ne rembourse pas le mois en cours.',
+    term4H: '4. L’argent que vous prenez à vos clients',
+    term4P: 'Les paiements par carte sont gérés par Stripe et vont de votre client à Stripe puis à votre banque. FenceFlow ne détient jamais votre argent et n’est partie à aucune de ces transactions.',
+    term5H: '5. Ce que nous ne promettons pas',
+    term5P: 'FenceFlow calcule les quantités et les prix à partir de ce que vous lui indiquez. Vérifier un devis avant de l’envoyer à un client reste votre responsabilité, et les chiffres produits ne remplacent pas votre propre jugement.',
+    term6H: '6. Comment y mettre fin',
+    term6P: 'Vous pouvez arrêter à tout moment. Nous pouvons clore un compte pour non-paiement ou usage abusif, et nous préciserons toujours lequel, par écrit, avant de le faire.',
+    labelSignName: 'Saisissez votre nom complet pour signer', signAgreement: 'Signer le contrat',
+    planHead: 'Choisissez votre forfait',
+    planSub: '14 jours gratuits. Nous prenons les coordonnées de la carte maintenant pour que rien ne s’arrête au jour 15 — le premier prélèvement a lieu 14 jours après aujourd’hui, et annuler avant ne coûte rien.',
+    doneHead: 'C’est prêt',
+    doneInstall: 'Installez l’appli FenceFlow sur votre téléphone et connectez-vous avec ce même e-mail. Tout ce que vous avez configuré ici vous attend déjà.',
+    openDashboard: 'Ouvrir mon tableau de bord',
+    featSolo1: '1 identifiant — juste vous', featSolo2: 'Chantiers et devis illimités', featSolo3: 'Métré et matériaux par dessin',
+    featSolo4: 'Factures et devis PDF à votre nom', featSolo5: 'Fonctionne hors ligne',
+    featCrew1: 'Tout ce qu’il y a dans Solo', featCrew2: '6 identifiants — vous + 5 membres d’équipe', featCrew3: 'Pointeuse et paie d’équipe',
+    featCrew4: 'Tableau de pipeline', featCrew5: 'Paiements par carte via un lien',
+    featPro1: 'Tout ce qu’il y a dans Crew', featPro2: 'Identifiants illimités', featPro3: 'Analyse de rentabilité et de marge',
+    featPro4: 'Antériorité des créances et point du lundi', featPro5: 'Support prioritaire',
+    startPlanBtn: 'Démarrer %s — coordonnées de carte ensuite',
+    openingCheckout: 'Ouverture du paiement sécurisé…', couldNotStartCheckout: 'Impossible de démarrer le paiement.',
+    noPaymentTaken: 'Aucun paiement n’a été prélevé. Choisissez un forfait quand vous serez prêt.',
+    doneNoteText: 'Votre entreprise est configurée, le contrat est signé et votre forfait est actif.',
+    confirmingPayment: 'Confirmation de votre paiement avec Stripe…',
+    typeEmailInvite: 'Saisissez l’e-mail auquel votre invitation a été envoyée.',
+    sending: 'Envoi…',
+    sentCheckDevice: 'Envoyé. Ouvrez-le depuis le même appareil si possible — tout reste ainsi au même endroit.',
+    bizNeedsName: 'Votre entreprise a besoin d’un nom.', saving: 'Enregistrement…',
+    typeNameToSign: 'Saisissez votre nom pour signer.', signing: 'Signature…',
+    otpExpired: 'Ce lien a expiré. Ils ne durent qu’un moment, exprès.',
+    accessDenied: 'Ce lien a déjà été utilisé, ou il a expiré.',
+    linkDidNotWork: 'Ce lien n’a pas fonctionné.',
+    linkStoppedWorking: 'Ce lien a cessé de fonctionner',
+    sendAnotherHint: ' Envoyez-vous-en un autre et il arrivera dans la même boîte de réception.',
+    nothingToSetUp: 'Rien à configurer ici pour l’instant',
+    noBusinessYet: 'Il n’y a pas encore d’entreprise sur ce compte, et cette page ne sert qu’à finaliser celle que nous avons préparée pour vous.',
+  },
+};
+
+let LANG = 'en';
+(function () {
+  let asked = '';
+  try {
+    asked = (new URLSearchParams(location.search).get('lang') || '').slice(0, 2).toLowerCase();
+  } catch (e) { /* no URL API: fall through to the browser's own answer */ }
+  let saved = '';
+  try { saved = localStorage.getItem('ff_lang') || ''; } catch (e) { /* private window */ }
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const pick = [asked, saved, browser].find(c => c && L[c]);
+  if (pick) LANG = pick;
+})();
+
+function tr(key) {
+  const args = [].slice.call(arguments, 1);
+  let out = (L[LANG] && L[LANG][key]) || L.en[key] || '';
+  args.forEach(a => { out = out.replace('%s', a); });
+  return out;
+}
+
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.getAttribute('data-t');
+    if (el.tagName === 'INPUT') el.placeholder = tr(k); else el.textContent = tr(k);
+  });
+}
+
+function setLang(code) {
+  if (!L[code]) return;
+  try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('lang', code);
+    location.href = u.toString();
+    return;
+  } catch (e) { /* older browser: the stored value still carries it */ }
+  location.reload();
+}
+
+applyStaticText();
+(function () {
+  const el = $('langPick');
+  if (!el) return;
+  el.innerHTML = ['en', 'es', 'fr'].map(c =>
+    c === LANG ? '<b>' + c.toUpperCase() + '</b>'
+               : '<a href="#" data-lang="' + c + '" style="color:inherit">' + c.toUpperCase() + '</a>'
+  ).join(' · ');
+  el.querySelectorAll('a[data-lang]').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
+})();
+
+/* Same plans and the same test-mode price ids the dashboard uses. Feature
+   wording is translated; the plan name and price are not — they are the
+   two things checked against what billing actually enforces. */
 const PLANS = [
   { id:'price_1U7mFrGqwrQdTkvZMG0hiB5c', name:'Solo',  price:'$99',
-    features:['1 login — just you','Unlimited jobs & estimates','Drawing takeoff & materials','Invoices & branded PDF quotes','Works offline'] },
+    features:[tr('featSolo1'),tr('featSolo2'),tr('featSolo3'),tr('featSolo4'),tr('featSolo5')] },
   { id:'price_1U7mFrGqwrQdTkvZFiDE4gIN', name:'Crew',  price:'$199',
-    features:['Everything in Solo','6 logins — you + 5 crew','Time clock & crew pay','Pipeline board','Card payments by link'] },
+    features:[tr('featCrew1'),tr('featCrew2'),tr('featCrew3'),tr('featCrew4'),tr('featCrew5')] },
   { id:'price_1U7mFsGqwrQdTkvZfqiYPkqo', name:'Pro',   price:'$349',
-    features:['Everything in Crew','Unlimited logins','Profit & margin analytics','AR aging & Monday digest','Priority support'] }
+    features:[tr('featPro1'),tr('featPro2'),tr('featPro3'),tr('featPro4'),tr('featPro5')] }
 ];
 
 let state = { details:false, agreement:false, plan:false };
@@ -257,18 +491,18 @@ function linkProblem() {
   const desc = frag.get('error_description') || query.get('error_description');
   if (!code && !desc) return null;
   const plain = {
-    otp_expired: 'That link has expired. They last a short while on purpose.',
-    access_denied: 'That link has already been used, or it expired.',
+    otp_expired: tr('otpExpired'),
+    access_denied: tr('accessDenied'),
   }[code];
-  return plain || (desc ? decodeURIComponent(desc.replace(/\+/g, ' ')) : 'That link did not work.');
+  return plain || (desc ? decodeURIComponent(desc.replace(/\+/g, ' ')) : tr('linkDidNotWork'));
 }
 
 function showNeedLink(reason) {
   $('loading').style.display = 'none';
   $('needLink').style.display = 'block';
   if (reason) {
-    $('needTitle').textContent = 'That link has stopped working';
-    $('needWhy').textContent = reason + ' Send yourself another and it will land in the same inbox.';
+    $('needTitle').textContent = tr('linkStoppedWorking');
+    $('needWhy').textContent = reason + tr('sendAnotherHint');
   }
 }
 
@@ -305,9 +539,8 @@ async function boot() {
   // The dashboard is where a business gets created or claimed with a setup
   // code, so that is where they belong.
   if (!prof?.company_id && !invitedCompany) {
-    showNeedLink('There is no business on this account yet, and this page is only for '
-      + 'finishing one we set up for you.');
-    $('needTitle').textContent = 'Nothing to set up here yet';
+    showNeedLink(tr('noBusinessYet'));
+    $('needTitle').textContent = tr('nothingToSetUp');
     $('goDashboard').style.display = 'inline-block';
     return;
   }
@@ -338,7 +571,7 @@ async function boot() {
   };
   state = await read();
   if (returned === 'success' && !state.plan) {
-    $('loadingNote').textContent = 'Confirming your payment with Stripe…';
+    $('loadingNote').textContent = tr('confirmingPayment');
     for (let i = 0; i < 10 && !state.plan; i++) {
       await new Promise(r => setTimeout(r, 2000));
       state = await read();
@@ -378,11 +611,10 @@ function render() {
 
   if (stage === 'plan') renderPlans();
   if (stage === 'plan' && new URLSearchParams(location.search).get('billing') === 'canceled') {
-    say('planMsg', 'No payment was taken. Pick a plan whenever you are ready.', 'info');
+    say('planMsg', tr('noPaymentTaken'), 'info');
   }
   if (stage === 'done') {
-    $('doneNote').textContent =
-      'Your business is set up, the agreement is signed, and your plan is running.';
+    $('doneNote').textContent = tr('doneNoteText');
   }
 }
 
@@ -392,7 +624,7 @@ function renderPlans() {
       <h3>${esc(p.name)}</h3>
       <div class="amt">${esc(p.price)}<small>/month</small></div>
       <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
-      <button class="btn" data-plan="${i}">Start ${esc(p.name)} — card details next</button>
+      <button class="btn" data-plan="${i}">${esc(tr('startPlanBtn', p.name))}</button>
     </div>`).join('');
   document.querySelectorAll('#planCards button[data-plan]').forEach(b =>
     b.addEventListener('click', () => choosePlan(PLANS[+b.dataset.plan])));
@@ -400,8 +632,8 @@ function renderPlans() {
 
 $('saveDetails').addEventListener('click', async () => {
   const name = $('bName').value.trim();
-  if (!name) return say('detailsMsg', 'Your business needs a name.', 'err');
-  say('detailsMsg', 'Saving…');
+  if (!name) return say('detailsMsg', tr('bizNeedsName'), 'err');
+  say('detailsMsg', tr('saving'));
   const { error } = await db.rpc('complete_company_details', {
     biz_name: name,
     biz_phone: $('bPhone').value.trim(),
@@ -416,8 +648,8 @@ $('saveDetails').addEventListener('click', async () => {
 
 $('signBtn').addEventListener('click', async () => {
   const typed = $('signName').value.trim();
-  if (!typed) return say('signMsg', 'Type your name to sign.', 'err');
-  say('signMsg', 'Signing…');
+  if (!typed) return say('signMsg', tr('typeNameToSign'), 'err');
+  say('signMsg', tr('signing'));
   const { error } = await db.rpc('sign_service_agreement', {
     typed_name: typed, version: AGREEMENT_VERSION
   });
@@ -428,7 +660,7 @@ $('signBtn').addEventListener('click', async () => {
 });
 
 async function choosePlan(plan) {
-  say('planMsg', 'Opening secure checkout…');
+  say('planMsg', tr('openingCheckout'));
   try {
     const { data: sess } = await db.auth.getSession();
     const res = await fetch(`${SUPA_URL}/functions/v1/create-checkout-session`, {
@@ -439,7 +671,7 @@ async function choosePlan(plan) {
     const body = await res.json();
     if (body.url) location.href = body.url;
     else if (body.upgraded) { state.plan = true; render(); }
-    else say('planMsg', body.error || 'Could not start checkout.', 'err');
+    else say('planMsg', body.error || tr('couldNotStartCheckout'), 'err');
   } catch (e) {
     say('planMsg', String(e.message || e), 'err');
   }
@@ -447,14 +679,14 @@ async function choosePlan(plan) {
 
 $('againBtn').addEventListener('click', async () => {
   const email = $('againEmail').value.trim();
-  if (!email) return say('againMsg', 'Type the email your invitation went to.', 'err');
-  say('againMsg', 'Sending…');
+  if (!email) return say('againMsg', tr('typeEmailInvite'), 'err');
+  say('againMsg', tr('sending'));
   const { error } = await db.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: location.origin + location.pathname }
   });
   if (error) return say('againMsg', error.message, 'err');
-  say('againMsg', 'Sent. Open it from the same device if you can — that keeps everything in one place.', 'ok');
+  say('againMsg', tr('sentCheckDevice'), 'ok');
 });
 
 boot();

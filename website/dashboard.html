@@ -520,7 +520,14 @@
 <body>
 
 <header>
-  <a class="logo" href="index.html" title="Back to the FenceFlow home page"
+  <!-- The name goes HOME inside the office, not off it.
+       It used to leave for the marketing site, which is the one place
+       somebody already working never wants to end up -- clicking the logo
+       in a workspace means "take me back to the start of this", not "log me
+       out of what I was doing". The way out to the public site is its own
+       link beside it, so both are reachable and neither is a surprise. -->
+  <a class="logo" href="#" id="brandHome" data-t-title="brandHomeTitle"
+     title="Back to your dashboard"
      >Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></a>
   <div style="display:flex;align-items:center;gap:10px">
     <span class="who" id="who"></span>
@@ -530,6 +537,8 @@
       <option value="es">ES</option>
       <option value="fr">FR</option>
     </select>
+    <!-- The public site, reachable but not where the logo lands. -->
+    <a class="btn btn-sm btn-ghost" href="index.html" id="publicSite" data-t="publicSite">Home page</a>
     <button class="btn btn-sm btn-ghost" id="refresh" data-t="refresh" style="display:none">Refresh</button>
     <button class="btn btn-sm btn-ghost" id="signOut" data-t="signOut" style="display:none">Sign out</button>
   </div>
@@ -1963,6 +1972,7 @@ const TL = {
     tabCatalog:'Catalog', tabReports:'Reports', tabAutomation:'Automation',
     tabSettings:'Settings', tabBilling:'Billing',
     signOut:'Sign out', refresh:'Refresh',
+    publicSite:'Home page', brandHomeTitle:'Back to your dashboard',
     setupHead:'Finish setting up before you quote',
     setupBody:'A quote is built out of these numbers. Until they are yours, every estimate this company produces is built on blanks — and you will not find out until the job is done.',
     briefingHead:'Daily briefing',
@@ -2612,6 +2622,7 @@ const TL = {
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     signOut:'Cerrar sesión', refresh:'Actualizar',
+    publicSite:'Página principal', brandHomeTitle:'Volver a tu panel',
     setupHead:'Termine la configuración antes de cotizar',
     setupBody:'Un presupuesto se arma con estos datos. Hasta que sean los suyos, cada presupuesto que haga esta empresa se construye sobre huecos en blanco — y no lo va a notar hasta que el trabajo esté terminado.',
     briefingHead:'Resumen del día',
@@ -3239,6 +3250,7 @@ const TL = {
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     signOut:'Se déconnecter', refresh:'Actualiser',
+    publicSite:'Page d’accueil', brandHomeTitle:'Retour à votre tableau de bord',
     setupHead:'Terminez la configuration avant de faire un devis',
     setupBody:'Un devis se construit à partir de ces chiffres. Tant qu’ils ne sont pas les vôtres, chaque devis produit par cette entreprise repose sur des cases vides — et vous ne le saurez qu’une fois le chantier terminé.',
     briefingHead:'Point du jour',
@@ -3885,6 +3897,14 @@ function applyStaticText() {
     const k = el.getAttribute('data-t');
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = tr(k);
     else el.textContent = tr(k);
+  });
+  // Tooltips, separately. A title is read by a person and by a screen reader,
+  // so leaving it English while the label beside it is Spanish is the kind of
+  // half-translation that reads as a bug. Separate from data-t on purpose: the
+  // logo carries a tooltip but its inner markup must never be replaced by
+  // textContent.
+  document.querySelectorAll('[data-t-title]').forEach(el => {
+    el.title = tr(el.getAttribute('data-t-title'));
   });
   const picker = $('langPicker');
   if (picker) picker.value = LANG;
@@ -14257,6 +14277,19 @@ function applyPlanGates(){
 }
 
 /* ---------- nav ---------- */
+// Clicking the name returns to the Dashboard tab rather than reloading the
+// page. A reload would throw away everything loadAll() fetched and make the
+// cheapest gesture on the page the most expensive one.
+document.addEventListener("click", (e) => {
+  const brand = e.target.closest("#brandHome");
+  if (!brand) return;
+  e.preventDefault();
+  // Only once there is an office to go back to. Before sign-in the tabs do
+  // not exist, and switching to one would leave the header pointing at a
+  // tab nobody can see.
+  if (document.querySelector('.tab[data-tab="dash"]')) switchTab("dash");
+});
+
 function switchTab(name){
   // Tiles and "Needs attention" rows jump straight to a tab, and they knew
   // nothing about plans -- so a Solo owner clicking a tile landed on a tab

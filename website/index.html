@@ -247,10 +247,11 @@
   <div class="wrap">
     <div class="logo">Fence<span>Flow</span></div>
     <nav>
-      <a href="#what">What it does</a>
-      <a href="#how">How a job runs</a>
-      <a href="#pricing">Pricing</a>
-      <a href="dashboard.html" class="btn btn-line">Sign in</a>
+      <a href="#what" data-t="navWhat">What it does</a>
+      <a href="#how" data-t="navHow">How a job runs</a>
+      <a href="#pricing" data-t="navPricing">Pricing</a>
+      <a href="dashboard.html" class="btn btn-line" data-t="navSignIn">Sign in</a>
+      <span id="langPick" style="font-size:13px;color:#AFBACB"></span>
     </nav>
   </div>
 </header>
@@ -258,17 +259,17 @@
 <div class="hero">
   <div class="wrap">
     <div>
-      <div class="eyebrow">For fence contractors</div>
-      <h1>Draw the fence.<br><em>Get the material list.</em></h1>
-      <p class="lede">Trace the line — on a survey, a blank grid, or straight off a
+      <div class="eyebrow" data-t="eyebrowContractors">For fence contractors</div>
+      <h1><span data-t="heroLine1">Draw the fence.</span><br><em data-t="heroLine2">Get the material list.</em></h1>
+      <p class="lede" data-t="heroLede">Trace the line — on a survey, a blank grid, or straight off a
         satellite photo — and every post, panel, concrete bag and gate latch is counted
         and priced from your own supplier list.</p>
       <div class="hero-cta">
-        <a href="#pricing" class="btn">Start your free trial</a>
-        <a href="#what" class="btn btn-line" style="padding:15px 26px;font-size:16px">See what it does</a>
+        <a href="#pricing" class="btn" data-t="ctaTrial">Start your free trial</a>
+        <a href="#what" class="btn btn-line" style="padding:15px 26px;font-size:16px" data-t="ctaSee">See what it does</a>
       </div>
-      <p class="hero-note"><b>Built by a fence contractor</b>, on his own jobs ·
-        Works with no signal · Unlimited jobs on every plan</p>
+      <p class="hero-note"><b data-t="heroNoteBold">Built by a fence contractor</b><span data-t="heroNoteRest">, on his own jobs ·
+        Works with no signal · Unlimited jobs on every plan</span></p>
     </div>
 
     <!-- Not a screenshot. A drawing of the one idea the product is built on:
@@ -312,13 +313,13 @@
       </svg>
 
       <div class="tally" id="tally">
-        <div><span>Line posts</span><b data-count="31">0</b></div>
-        <div><span>Corner posts</span><b data-count="2">0</b></div>
-        <div><span>End posts</span><b data-count="2">0</b></div>
-        <div><span>Gate posts</span><b data-count="2">0</b></div>
-        <div><span>Panels</span><b data-count="34">0</b></div>
-        <div><span>Concrete bags</span><b data-count="37">0</b></div>
-        <div class="t-total"><span>248 ft priced from your catalog</span><b data-money="9840">$0</b></div>
+        <div><span data-t="tLinePosts">Line posts</span><b data-count="31">0</b></div>
+        <div><span data-t="tCornerPosts">Corner posts</span><b data-count="2">0</b></div>
+        <div><span data-t="tEndPosts">End posts</span><b data-count="2">0</b></div>
+        <div><span data-t="tGatePosts">Gate posts</span><b data-count="2">0</b></div>
+        <div><span data-t="tPanels">Panels</span><b data-count="34">0</b></div>
+        <div><span data-t="tConcrete">Concrete bags</span><b data-count="37">0</b></div>
+        <div class="t-total"><span data-t="tFooter">248 ft priced from your catalog</span><b data-money="9840">$0</b></div>
       </div>
     </div>
   </div>
@@ -328,22 +329,22 @@
 <section class="dark">
   <div class="wrap problem rise">
     <div>
-      <div class="eyebrow">Why not the general one</div>
-      <p class="quote">Fence work is measured in feet, not in visits — and general
-        job software has no idea what a linear foot is.
-        <small>Contractors who run fencing on generalist tools describe rebuilding the same
+      <div class="eyebrow" data-t="eyebrowWhyNot">Why not the general one</div>
+      <p class="quote"><span data-t="problemQuoteMain">Fence work is measured in feet, not in visits — and general
+        job software has no idea what a linear foot is.</span>
+        <small data-t="problemQuoteSmall">Contractors who run fencing on generalist tools describe rebuilding the same
           post-and-panel arithmetic on every single quote, or paying to have the software
           customised into faking it.</small></p>
     </div>
     <div class="versus">
-      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>Type every line item by hand, every quote</span></div>
-      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>Drive to the property before you can price it</span></div>
-      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>A three-day install logged as three unrelated appointments</span></div>
-      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only">With generalist software: </span><span>Permits and HOA approvals kept in a custom field, or a notebook</span></div>
-      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Posts, panels, concrete and hardware counted from the line</span></div>
-      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Measure it off a satellite photo before you leave the shop</span></div>
-      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Multi-day installs, crew by crew, on one calendar</span></div>
-      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only">With FenceFlow: </span><span>Permit numbers, HOA status and 811 locates on the job itself</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only" data-t="srGeneralist">With generalist software: </span><span data-t="cmpNo1">Type every line item by hand, every quote</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only" data-t="srGeneralist">With generalist software: </span><span data-t="cmpNo2">Drive to the property before you can price it</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only" data-t="srGeneralist">With generalist software: </span><span data-t="cmpNo3">A three-day install logged as three unrelated appointments</span></div>
+      <div class="no"><span class="mark" aria-hidden="true">—</span><span class="sr-only" data-t="srGeneralist">With generalist software: </span><span data-t="cmpNo4">Permits and HOA approvals kept in a custom field, or a notebook</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only" data-t="srFenceFlow">With FenceFlow: </span><span data-t="cmpYes1">Posts, panels, concrete and hardware counted from the line</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only" data-t="srFenceFlow">With FenceFlow: </span><span data-t="cmpYes2">Measure it off a satellite photo before you leave the shop</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only" data-t="srFenceFlow">With FenceFlow: </span><span data-t="cmpYes3">Multi-day installs, crew by crew, on one calendar</span></div>
+      <div class="yes"><span class="mark" aria-hidden="true">✓</span><span class="sr-only" data-t="srFenceFlow">With FenceFlow: </span><span data-t="cmpYes4">Permit numbers, HOA status and 811 locates on the job itself</span></div>
     </div>
   </div>
 </section>
@@ -352,90 +353,90 @@
 <section id="what">
   <div class="wrap">
     <div class="rise">
-      <h2>Everything from the first call to the last payment</h2>
-      <p class="sub">One app instead of a clipboard, a spreadsheet and three other
+      <h2 data-t="whatHead">Everything from the first call to the last payment</h2>
+      <p class="sub" data-t="whatSub">One app instead of a clipboard, a spreadsheet and three other
         subscriptions — and none of it borrowed from a plumbing product.</p>
     </div>
     <div class="bento rise">
 
       <div class="tile big">
-        <div class="kicker">Estimating</div>
-        <h3>Takeoff from the line you drew</h3>
-        <p>Tap each corner on a photographed survey or a scaled grid. Line posts, corners,
+        <div class="kicker" data-t="kEstimating">Estimating</div>
+        <h3 data-t="h1Takeoff">Takeoff from the line you drew</h3>
+        <p data-t="pTakeoff">Tap each corner on a photographed survey or a scaled grid. Line posts, corners,
           ends, gate posts, panels or pickets, rails, caps, concrete and gate hardware are
           counted from the geometry — then priced from your own supplier catalog, per
           manufacturer, at your markup. Not a guess, and not typed in twice.</p>
       </div>
 
       <div class="tile">
-        <div class="kicker">Estimating <span class="new">New</span></div>
-        <h3>Measure from a satellite photo</h3>
-        <p>Click corner to corner on the property from your desk. Length in feet, straight
+        <div class="kicker"><span data-t="kEstimating">Estimating</span> <span class="new" data-t="badgeNew">New</span></div>
+        <h3 data-t="h1Satellite">Measure from a satellite photo</h3>
+        <p data-t="pSatellite">Click corner to corner on the property from your desk. Length in feet, straight
           into a quote — without driving out to look at it.</p>
       </div>
 
       <div class="tile wide">
-        <div class="kicker">Winning the job</div>
-        <h3>A quote page that sells for you</h3>
-        <p>The customer opens a link and sees their own house from above with the new fence
+        <div class="kicker" data-t="kWinning">Winning the job</div>
+        <h3 data-t="h1QuotePage">A quote page that sells for you</h3>
+        <p data-t="pQuotePage">The customer opens a link and sees their own house from above with the new fence
           standing on it in 3D — plus the total and the deposit, and nothing else. Your
           costs, your suppliers and your margin never leave the office.</p>
       </div>
 
       <div class="tile wide">
-        <div class="kicker">Protection</div>
-        <h3>It argues with you before the customer does</h3>
-        <p>Flags a thin margin, a deposit that will not cover the materials, missing
+        <div class="kicker" data-t="kProtection">Protection</div>
+        <h3 data-t="h1Argues">It argues with you before the customer does</h3>
+        <p data-t="pArgues">Flags a thin margin, a deposit that will not cover the materials, missing
           concrete, or a quote built before your prices were set. Change orders get their
           own signed, dated record, so “I never agreed to that” costs you nothing.</p>
       </div>
 
       <div class="tile">
-        <div class="kicker">Crew</div>
-        <h3>The truck knows the day</h3>
-        <p>Address, what is being built, the walkthrough, the checklist, and before-and-after
+        <div class="kicker" data-t="kCrew">Crew</div>
+        <h3 data-t="h1TruckKnows">The truck knows the day</h3>
+        <p data-t="pTruckKnows">Address, what is being built, the walkthrough, the checklist, and before-and-after
           photos that upload themselves.</p>
       </div>
 
       <div class="tile">
-        <div class="kicker">Crew</div>
-        <h3>Hours that become job costing</h3>
-        <p>Clock in against the job. Profit reports use the hours actually worked, not the
+        <div class="kicker" data-t="kCrew">Crew</div>
+        <h3 data-t="h1HoursCosting">Hours that become job costing</h3>
+        <p data-t="pHoursCosting">Clock in against the job. Profit reports use the hours actually worked, not the
           ones you hoped for when quoting.</p>
       </div>
 
       <div class="tile">
-        <div class="kicker">Money</div>
-        <h3>Cards, deposits, invoices</h3>
-        <p>Your own Stripe or Square account. The money goes to you — FenceFlow
+        <div class="kicker" data-t="kMoney">Money</div>
+        <h3 data-t="h1CardsDeposits">Cards, deposits, invoices</h3>
+        <p data-t="pCardsDeposits">Your own Stripe or Square account. The money goes to you — FenceFlow
           only records that it arrived and closes the balance.</p>
       </div>
 
       <div class="tile wide">
-        <div class="kicker">Paperwork Florida actually needs</div>
-        <h3>Permits, HOA and 811 on the job</h3>
-        <p>Permit number and status, HOA approval with a pre-filled request email, and the
+        <div class="kicker" data-t="kPaperwork">Paperwork Florida actually needs</div>
+        <h3 data-t="h1Permits">Permits, HOA and 811 on the job</h3>
+        <p data-t="pPermits">Permit number and status, HOA approval with a pre-filled request email, and the
           811 locate with its expiry — attached to the job, not remembered.</p>
       </div>
 
       <div class="tile">
-        <div class="kicker">Getting work <span class="new">New</span></div>
-        <h3>A get-a-quote link</h3>
-        <p>Put it on your truck, your cards, your Facebook page. Requests arrive as leads in
+        <div class="kicker"><span data-t="kGettingWork">Getting work</span> <span class="new" data-t="badgeNew">New</span></div>
+        <h3 data-t="h1QuoteLink">A get-a-quote link</h3>
+        <p data-t="pQuoteLink">Put it on your truck, your cards, your Facebook page. Requests arrive as leads in
           your pipeline, not in your inbox.</p>
       </div>
 
       <div class="tile">
-        <div class="kicker">No lock-in</div>
-        <h3>Your data stays exportable</h3>
-        <p>Customers, jobs and pay records export to CSV whenever you want them —
+        <div class="kicker" data-t="kNoLockIn">No lock-in</div>
+        <h3 data-t="h1DataExport">Your data stays exportable</h3>
+        <p data-t="pDataExport">Customers, jobs and pay records export to CSV whenever you want them —
           not just if you cancel.</p>
       </div>
 
       <div class="tile">
-        <div class="kicker">Field-ready</div>
-        <h3>Works with no signal</h3>
-        <p>Everything runs on the phone and syncs when you are back in range. No dead app
+        <div class="kicker" data-t="kFieldReady">Field-ready</div>
+        <h3 data-t="h1NoSignal">Works with no signal</h3>
+        <p data-t="pNoSignal">Everything runs on the phone and syncs when you are back in range. No dead app
           standing in a field.</p>
       </div>
 
@@ -447,29 +448,29 @@
 <section class="paper" id="how">
   <div class="wrap">
     <div class="rise">
-      <h2>How a job runs</h2>
-      <p class="sub">The same order you already work in — nothing to re-learn.</p>
+      <h2 data-t="howHead">How a job runs</h2>
+      <p class="sub" data-t="howSub">The same order you already work in — nothing to re-learn.</p>
     </div>
     <div class="steps rise">
       <div class="stepc">
-        <h3>Take the call</h3>
-        <p>Customer and address. Photograph the survey, or start on a scaled grid.</p>
+        <h3 data-t="step1H">Take the call</h3>
+        <p data-t="step1P">Customer and address. Photograph the survey, or start on a scaled grid.</p>
       </div>
       <div class="stepc">
-        <h3>Draw the fence</h3>
-        <p>Tap the corners. Drop gates. Mark the pool, the easement, the tree they want kept.</p>
+        <h3 data-t="step2H">Draw the fence</h3>
+        <p data-t="step2P">Tap the corners. Drop gates. Mark the pool, the easement, the tree they want kept.</p>
       </div>
       <div class="stepc">
-        <h3>Send the quote</h3>
-        <p>Materials counted and priced. The customer sees it in 3D and signs on their phone.</p>
+        <h3 data-t="step3H">Send the quote</h3>
+        <p data-t="step3P">Materials counted and priced. The customer sees it in 3D and signs on their phone.</p>
       </div>
       <div class="stepc">
-        <h3>Run the install</h3>
-        <p>Assign the crew, block out the days, work the checklist, photograph the finish.</p>
+        <h3 data-t="step4H">Run the install</h3>
+        <p data-t="step4P">Assign the crew, block out the days, work the checklist, photograph the finish.</p>
       </div>
       <div class="stepc">
-        <h3>Get paid</h3>
-        <p>Deposit up front, balance on completion, and what the job actually made.</p>
+        <h3 data-t="step5H">Get paid</h3>
+        <p data-t="step5P">Deposit up front, balance on completion, and what the job actually made.</p>
       </div>
     </div>
   </div>
@@ -479,64 +480,64 @@
 <section id="pricing">
   <div class="wrap">
     <div class="rise">
-      <h2>Priced per company, not per person</h2>
-      <p class="sub">Every plan includes the phone app, the office, unlimited jobs and
+      <h2 data-t="pricingHead">Priced per company, not per person</h2>
+      <p class="sub" data-t="pricingSub">Every plan includes the phone app, the office, unlimited jobs and
         unlimited estimates. Add a crew member and the bill does not move.</p>
     </div>
     <div class="prices rise">
 
       <div class="price">
         <h3>Solo</h3>
-        <p class="who">One person running the whole business.</p>
+        <p class="who" data-t="whoSolo">One person running the whole business.</p>
         <div class="amount">$99<small>/month</small></div>
         <ul>
-          <li>One login</li>
-          <li>Unlimited jobs &amp; estimates</li>
-          <li>Drawing takeoff &amp; materials</li>
-          <li>Scheduling and calendar</li>
-          <li>Invoices &amp; branded PDF quotes</li>
-          <li>Cash and check payments</li>
-          <li>Works offline</li>
+          <li data-t="liSolo1">One login</li>
+          <li data-t="liSolo2">Unlimited jobs &amp; estimates</li>
+          <li data-t="liSolo3">Drawing takeoff &amp; materials</li>
+          <li data-t="liSolo4">Scheduling and calendar</li>
+          <li data-t="liSolo5">Invoices &amp; branded PDF quotes</li>
+          <li data-t="liSolo6">Cash and check payments</li>
+          <li data-t="liSolo7">Works offline</li>
         </ul>
-        <a href="dashboard.html#signup" class="btn">Start free trial</a>
+        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start free trial</a>
       </div>
 
       <div class="price on">
-        <div class="flag">Most fence companies</div>
+        <div class="flag" data-t="flagCrew">Most fence companies</div>
         <h3>Crew</h3>
-        <p class="who">You and a crew, all on the same page.</p>
+        <p class="who" data-t="whoCrew">You and a crew, all on the same page.</p>
         <div class="amount">$199<small>/month</small></div>
         <ul>
-          <li>You plus 5 crew</li>
-          <li>Everything in Solo</li>
-          <li>Time clock &amp; crew pay</li>
-          <li>Crew roles &amp; permissions</li>
-          <li>Pipeline board</li>
-          <li>Money basics: collected &amp; owed</li>
-          <li>Card payments by link</li>
+          <li data-t="liCrew1">You plus 5 crew</li>
+          <li data-t="liCrew2">Everything in Solo</li>
+          <li data-t="liCrew3">Time clock &amp; crew pay</li>
+          <li data-t="liCrew4">Crew roles &amp; permissions</li>
+          <li data-t="liCrew5">Pipeline board</li>
+          <li data-t="liCrew6">Money basics: collected &amp; owed</li>
+          <li data-t="liCrew7">Card payments by link</li>
         </ul>
-        <a href="dashboard.html#signup" class="btn">Start free trial</a>
+        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start free trial</a>
       </div>
 
       <div class="price">
         <h3>Pro</h3>
-        <p class="who">Run the crew and read the business.</p>
+        <p class="who" data-t="whoPro">Run the crew and read the business.</p>
         <div class="amount">$349<small>/month</small></div>
         <ul>
-          <li>Unlimited logins</li>
-          <li>Everything in Crew</li>
-          <li>Profit &amp; margin analytics</li>
-          <li>Cost breakdowns: where money goes</li>
-          <li>Who owes you, and how long</li>
-          <li>Monday morning business digest</li>
-          <li>Cloud photo &amp; document backup</li>
-          <li>Priority support</li>
+          <li data-t="liPro1">Unlimited logins</li>
+          <li data-t="liPro2">Everything in Crew</li>
+          <li data-t="liPro3">Profit &amp; margin analytics</li>
+          <li data-t="liPro4">Cost breakdowns: where money goes</li>
+          <li data-t="liPro5">Who owes you, and how long</li>
+          <li data-t="liPro6">Monday morning business digest</li>
+          <li data-t="liPro7">Cloud photo &amp; document backup</li>
+          <li data-t="liPro8">Priority support</li>
         </ul>
-        <a href="dashboard.html#signup" class="btn">Start free trial</a>
+        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start free trial</a>
       </div>
 
     </div>
-    <p class="fineprint">14 days free, no card to start. Cancel any time — and if you do,
+    <p class="fineprint" data-t="fineprint">14 days free, no card to start. Cancel any time — and if you do,
       your data stays yours and stays put.</p>
   </div>
 </section>
@@ -546,25 +547,323 @@
     <div class="cols">
       <div>
         <div class="logo" style="margin-bottom:10px">Fence<span>Flow</span></div>
-        <p style="max-width:34ch">Estimating, crew and payments for fence contractors.
+        <p style="max-width:34ch" data-t="footDesc">Estimating, crew and payments for fence contractors.
           Built by one, on his own jobs, in Florida.</p>
       </div>
       <div>
-        <a href="#what">What it does</a>
-        <a href="#how">How a job runs</a>
-        <a href="#pricing">Pricing</a>
-        <a href="dashboard.html">Sign in</a>
+        <a href="#what" data-t="navWhat">What it does</a>
+        <a href="#how" data-t="navHow">How a job runs</a>
+        <a href="#pricing" data-t="navPricing">Pricing</a>
+        <a href="dashboard.html" data-t="navSignIn">Sign in</a>
       </div>
     </div>
     <div class="rule"></div>
-    <a href="privacy.html">Privacy</a>
-    <a href="terms.html">Terms</a>
+    <a href="privacy.html" data-t="footPrivacy">Privacy</a>
+    <a href="terms.html" data-t="footTerms">Terms</a>
     <a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a>
     <p style="margin-top:14px">&copy; <span id="yr"></span> FenceFlow.</p>
   </div>
 </footer>
 
 <script>
+/* This is the page a contractor decides to buy from, and a large share of
+   the trade in Florida and Texas speaks Spanish first. The app and the
+   quote a customer signs have spoken three languages for months; this page
+   — the one that has to earn the click before any of that — did not.
+
+   Mechanism copied from website/quote.html: a flat table keyed by language,
+   %s substitution, an English fallback so a missing key never renders blank
+   or a key name, and the language carried in the URL (?lang=) so a link
+   shared on a truck door or a Facebook post keeps working the same way for
+   whoever it reaches next. */
+const L = {
+  en: {
+    navWhat: 'What it does', navHow: 'How a job runs', navPricing: 'Pricing', navSignIn: 'Sign in',
+    eyebrowContractors: 'For fence contractors',
+    heroLine1: 'Draw the fence.', heroLine2: 'Get the material list.',
+    heroLede: 'Trace the line — on a survey, a blank grid, or straight off a satellite photo — and every post, panel, concrete bag and gate latch is counted and priced from your own supplier list.',
+    ctaTrial: 'Start your free trial', ctaSee: 'See what it does',
+    heroNoteBold: 'Built by a fence contractor',
+    heroNoteRest: ', on his own jobs · Works with no signal · Unlimited jobs on every plan',
+    tLinePosts: 'Line posts', tCornerPosts: 'Corner posts', tEndPosts: 'End posts',
+    tGatePosts: 'Gate posts', tPanels: 'Panels', tConcrete: 'Concrete bags',
+    tFooter: '248 ft priced from your catalog',
+    eyebrowWhyNot: 'Why not the general one',
+    problemQuoteMain: 'Fence work is measured in feet, not in visits — and general job software has no idea what a linear foot is.',
+    problemQuoteSmall: 'Contractors who run fencing on generalist tools describe rebuilding the same post-and-panel arithmetic on every single quote, or paying to have the software customised into faking it.',
+    srGeneralist: 'With generalist software: ', srFenceFlow: 'With FenceFlow: ',
+    cmpNo1: 'Type every line item by hand, every quote',
+    cmpNo2: 'Drive to the property before you can price it',
+    cmpNo3: 'A three-day install logged as three unrelated appointments',
+    cmpNo4: 'Permits and HOA approvals kept in a custom field, or a notebook',
+    cmpYes1: 'Posts, panels, concrete and hardware counted from the line',
+    cmpYes2: 'Measure it off a satellite photo before you leave the shop',
+    cmpYes3: 'Multi-day installs, crew by crew, on one calendar',
+    cmpYes4: 'Permit numbers, HOA status and 811 locates on the job itself',
+    whatHead: 'Everything from the first call to the last payment',
+    whatSub: 'One app instead of a clipboard, a spreadsheet and three other subscriptions — and none of it borrowed from a plumbing product.',
+    kEstimating: 'Estimating', kWinning: 'Winning the job', kProtection: 'Protection',
+    kCrew: 'Crew', kMoney: 'Money', kPaperwork: 'Paperwork Florida actually needs',
+    kGettingWork: 'Getting work', kNoLockIn: 'No lock-in', kFieldReady: 'Field-ready',
+    badgeNew: 'New',
+    h1Takeoff: 'Takeoff from the line you drew',
+    pTakeoff: 'Tap each corner on a photographed survey or a scaled grid. Line posts, corners, ends, gate posts, panels or pickets, rails, caps, concrete and gate hardware are counted from the geometry — then priced from your own supplier catalog, per manufacturer, at your markup. Not a guess, and not typed in twice.',
+    h1Satellite: 'Measure from a satellite photo',
+    pSatellite: 'Click corner to corner on the property from your desk. Length in feet, straight into a quote — without driving out to look at it.',
+    h1QuotePage: 'A quote page that sells for you',
+    pQuotePage: 'The customer opens a link and sees their own house from above with the new fence standing on it in 3D — plus the total and the deposit, and nothing else. Your costs, your suppliers and your margin never leave the office.',
+    h1Argues: 'It argues with you before the customer does',
+    pArgues: 'Flags a thin margin, a deposit that will not cover the materials, missing concrete, or a quote built before your prices were set. Change orders get their own signed, dated record, so “I never agreed to that” costs you nothing.',
+    h1TruckKnows: 'The truck knows the day',
+    pTruckKnows: 'Address, what is being built, the walkthrough, the checklist, and before-and-after photos that upload themselves.',
+    h1HoursCosting: 'Hours that become job costing',
+    pHoursCosting: 'Clock in against the job. Profit reports use the hours actually worked, not the ones you hoped for when quoting.',
+    h1CardsDeposits: 'Cards, deposits, invoices',
+    pCardsDeposits: 'Your own Stripe or Square account. The money goes to you — FenceFlow only records that it arrived and closes the balance.',
+    h1Permits: 'Permits, HOA and 811 on the job',
+    pPermits: 'Permit number and status, HOA approval with a pre-filled request email, and the 811 locate with its expiry — attached to the job, not remembered.',
+    h1QuoteLink: 'A get-a-quote link',
+    pQuoteLink: 'Put it on your truck, your cards, your Facebook page. Requests arrive as leads in your pipeline, not in your inbox.',
+    h1DataExport: 'Your data stays exportable',
+    pDataExport: 'Customers, jobs and pay records export to CSV whenever you want them — not just if you cancel.',
+    h1NoSignal: 'Works with no signal',
+    pNoSignal: 'Everything runs on the phone and syncs when you are back in range. No dead app standing in a field.',
+    howHead: 'How a job runs', howSub: 'The same order you already work in — nothing to re-learn.',
+    step1H: 'Take the call', step1P: 'Customer and address. Photograph the survey, or start on a scaled grid.',
+    step2H: 'Draw the fence', step2P: 'Tap the corners. Drop gates. Mark the pool, the easement, the tree they want kept.',
+    step3H: 'Send the quote', step3P: 'Materials counted and priced. The customer sees it in 3D and signs on their phone.',
+    step4H: 'Run the install', step4P: 'Assign the crew, block out the days, work the checklist, photograph the finish.',
+    step5H: 'Get paid', step5P: 'Deposit up front, balance on completion, and what the job actually made.',
+    pricingHead: 'Priced per company, not per person',
+    pricingSub: 'Every plan includes the phone app, the office, unlimited jobs and unlimited estimates. Add a crew member and the bill does not move.',
+    whoSolo: 'One person running the whole business.',
+    liSolo1: 'One login', liSolo2: 'Unlimited jobs & estimates', liSolo3: 'Drawing takeoff & materials',
+    liSolo4: 'Scheduling and calendar', liSolo5: 'Invoices & branded PDF quotes',
+    liSolo6: 'Cash and check payments', liSolo7: 'Works offline',
+    flagCrew: 'Most fence companies', whoCrew: 'You and a crew, all on the same page.',
+    liCrew1: 'You plus 5 crew', liCrew2: 'Everything in Solo', liCrew3: 'Time clock & crew pay',
+    liCrew4: 'Crew roles & permissions', liCrew5: 'Pipeline board',
+    liCrew6: 'Money basics: collected & owed', liCrew7: 'Card payments by link',
+    whoPro: 'Run the crew and read the business.',
+    liPro1: 'Unlimited logins', liPro2: 'Everything in Crew', liPro3: 'Profit & margin analytics',
+    liPro4: 'Cost breakdowns: where money goes', liPro5: 'Who owes you, and how long',
+    liPro6: 'Monday morning business digest', liPro7: 'Cloud photo & document backup',
+    liPro8: 'Priority support',
+    btnStartFreeTrial: 'Start free trial',
+    fineprint: '14 days free, no card to start. Cancel any time — and if you do, your data stays yours and stays put.',
+    footDesc: 'Estimating, crew and payments for fence contractors. Built by one, on his own jobs, in Florida.',
+    footPrivacy: 'Privacy', footTerms: 'Terms',
+  },
+  es: {
+    navWhat: 'Qué hace', navHow: 'Cómo se lleva un trabajo', navPricing: 'Precios', navSignIn: 'Iniciar sesión',
+    eyebrowContractors: 'Para instaladores de cercas',
+    heroLine1: 'Dibuje la cerca.', heroLine2: 'Reciba la lista de materiales.',
+    heroLede: 'Trace la línea — sobre un plano, una cuadrícula en blanco, o directamente sobre una foto satelital — y cada poste, panel, bolsa de concreto y bisagra de portón se cuenta y se cotiza con su propia lista de proveedores.',
+    ctaTrial: 'Comience su prueba gratis', ctaSee: 'Vea qué hace',
+    heroNoteBold: 'Creado por un instalador de cercas',
+    heroNoteRest: ', en sus propios trabajos · Funciona sin señal · Trabajos ilimitados en todos los planes',
+    tLinePosts: 'Postes de línea', tCornerPosts: 'Postes de esquina', tEndPosts: 'Postes de remate',
+    tGatePosts: 'Postes de portón', tPanels: 'Paneles', tConcrete: 'Bolsas de concreto',
+    tFooter: '248 pies cotizados con su catálogo',
+    eyebrowWhyNot: 'Por qué no el software general',
+    problemQuoteMain: 'El trabajo de cercas se mide en pies, no en visitas — y el software general no sabe qué es un pie lineal.',
+    problemQuoteSmall: 'Los contratistas que trabajan cercas con herramientas genéricas cuentan que rehacen la misma aritmética de postes y paneles en cada presupuesto, o pagan para que el software se personalice y lo simule.',
+    srGeneralist: 'Con software genérico: ', srFenceFlow: 'Con FenceFlow: ',
+    cmpNo1: 'Escribir cada línea a mano, en cada presupuesto',
+    cmpNo2: 'Ir a la propiedad antes de poder cotizarla',
+    cmpNo3: 'Una instalación de tres días registrada como tres citas sin relación',
+    cmpNo4: 'Permisos y aprobaciones de la HOA en un campo personalizado, o en una libreta',
+    cmpYes1: 'Postes, paneles, concreto y herrajes contados desde la línea',
+    cmpYes2: 'Mídala desde una foto satelital antes de salir del taller',
+    cmpYes3: 'Instalaciones de varios días, cuadrilla por cuadrilla, en un solo calendario',
+    cmpYes4: 'Número de permiso, estado de la HOA y localización 811 en el propio trabajo',
+    whatHead: 'Todo, desde la primera llamada hasta el último pago',
+    whatSub: 'Una sola app en vez de una tablilla, una hoja de cálculo y otras tres suscripciones — y nada de eso prestado de un producto para plomeros.',
+    kEstimating: 'Cotización', kWinning: 'Ganar el trabajo', kProtection: 'Protección',
+    kCrew: 'Cuadrilla', kMoney: 'Dinero', kPaperwork: 'El papeleo que Florida realmente exige',
+    kGettingWork: 'Conseguir trabajo', kNoLockIn: 'Sin ataduras', kFieldReady: 'Listo para el campo',
+    badgeNew: 'Nuevo',
+    h1Takeoff: 'Conteo de materiales desde la línea que dibujó',
+    pTakeoff: 'Toque cada esquina sobre un plano fotografiado o una cuadrícula a escala. Postes de línea, esquinas, remates, postes de portón, paneles o tablas, rieles, tapas, concreto y herrajes de portón se cuentan a partir de la geometría — y luego se cotizan con su propio catálogo de proveedores, por fabricante, con su margen. No es una estimación al ojo, y no se escribe dos veces.',
+    h1Satellite: 'Mida desde una foto satelital',
+    pSatellite: 'Marque esquina por esquina sobre la propiedad desde su escritorio. El largo en pies pasa directo a un presupuesto — sin ir a verlo en persona.',
+    h1QuotePage: 'Una página de presupuesto que vende por usted',
+    pQuotePage: 'El cliente abre un enlace y ve su propia casa desde arriba con la cerca nueva puesta en 3D — más el total y el depósito, y nada más. Sus costos, sus proveedores y su margen nunca salen de la oficina.',
+    h1Argues: 'Le pone objeciones antes de que lo haga el cliente',
+    pArgues: 'Señala un margen ajustado, un depósito que no cubrirá los materiales, concreto faltante, o un presupuesto hecho antes de fijar sus precios. Las órdenes de cambio quedan con su propio registro firmado y fechado, para que un “yo nunca acepté eso” no le cueste nada.',
+    h1TruckKnows: 'La camioneta sabe el plan del día',
+    pTruckKnows: 'Dirección, qué se va a construir, el recorrido inicial, la lista de tareas, y fotos de antes y después que se suben solas.',
+    h1HoursCosting: 'Las horas se convierten en costo del trabajo',
+    pHoursCosting: 'Marque entrada contra el trabajo. Los reportes de ganancia usan las horas realmente trabajadas, no las que esperaba al cotizar.',
+    h1CardsDeposits: 'Tarjetas, depósitos, facturas',
+    pCardsDeposits: 'Su propia cuenta de Stripe o Square. El dinero llega a usted — FenceFlow solo registra que llegó y cierra el saldo.',
+    h1Permits: 'Permisos, HOA y 811 en el trabajo',
+    pPermits: 'Número y estado del permiso, aprobación de la HOA con un correo de solicitud ya redactado, y la localización 811 con su vencimiento — todo adjunto al trabajo, no en la memoria de nadie.',
+    h1QuoteLink: 'Un enlace para pedir presupuesto',
+    pQuoteLink: 'Póngalo en su camioneta, sus tarjetas, su página de Facebook. Las solicitudes llegan como leads a su flujo de trabajo, no a su correo.',
+    h1DataExport: 'Sus datos siguen siendo exportables',
+    pDataExport: 'Clientes, trabajos y registros de pago se exportan a CSV cuando usted quiera — no solo si cancela.',
+    h1NoSignal: 'Funciona sin señal',
+    pNoSignal: 'Todo corre en el teléfono y se sincroniza al volver a tener cobertura. Ninguna app muerta parada en un terreno.',
+    howHead: 'Cómo se lleva un trabajo', howSub: 'El mismo orden en que ya trabaja — nada nuevo que aprender.',
+    step1H: 'Reciba la llamada', step1P: 'Cliente y dirección. Fotografíe el plano, o empiece en una cuadrícula a escala.',
+    step2H: 'Dibuje la cerca', step2P: 'Toque las esquinas. Coloque los portones. Marque la piscina, la servidumbre, el árbol que quieren conservar.',
+    step3H: 'Envíe el presupuesto', step3P: 'Materiales contados y cotizados. El cliente lo ve en 3D y firma desde su teléfono.',
+    step4H: 'Realice la instalación', step4P: 'Asigne la cuadrilla, reserve los días, siga la lista de tareas, fotografíe el resultado.',
+    step5H: 'Cobre', step5P: 'Depósito por adelantado, saldo al terminar, y lo que el trabajo realmente dejó de ganancia.',
+    pricingHead: 'Precio por empresa, no por persona',
+    pricingSub: 'Todos los planes incluyen la app del teléfono, la oficina, trabajos ilimitados y presupuestos ilimitados. Agregar un miembro de la cuadrilla no mueve la factura.',
+    whoSolo: 'Una persona llevando todo el negocio.',
+    liSolo1: 'Un inicio de sesión', liSolo2: 'Trabajos y presupuestos ilimitados', liSolo3: 'Conteo de materiales por dibujo',
+    liSolo4: 'Programación y calendario', liSolo5: 'Facturas y presupuestos en PDF con su marca',
+    liSolo6: 'Pagos en efectivo y cheque', liSolo7: 'Funciona sin conexión',
+    flagCrew: 'La mayoría de las empresas de cercas', whoCrew: 'Usted y su cuadrilla, todos en la misma página.',
+    liCrew1: 'Usted más 5 miembros de cuadrilla', liCrew2: 'Todo lo de Solo', liCrew3: 'Reloj de horas y pago de cuadrilla',
+    liCrew4: 'Roles y permisos de cuadrilla', liCrew5: 'Tablero de flujo de trabajo',
+    liCrew6: 'Lo básico del dinero: cobrado y pendiente', liCrew7: 'Pagos con tarjeta por enlace',
+    whoPro: 'Dirija la cuadrilla y entienda el negocio.',
+    liPro1: 'Inicios de sesión ilimitados', liPro2: 'Todo lo de Crew', liPro3: 'Análisis de ganancia y margen',
+    liPro4: 'Desglose de costos: a dónde va el dinero', liPro5: 'Quién le debe, y desde cuándo',
+    liPro6: 'Resumen del negocio los lunes por la mañana', liPro7: 'Respaldo en la nube de fotos y documentos',
+    liPro8: 'Soporte prioritario',
+    btnStartFreeTrial: 'Comenzar prueba gratis',
+    fineprint: '14 días gratis, sin tarjeta para empezar. Cancele cuando quiera — y si lo hace, sus datos siguen siendo suyos y quedan donde están.',
+    footDesc: 'Cotización, cuadrilla y pagos para instaladores de cercas. Creado por uno solo, en sus propios trabajos, en Florida.',
+    footPrivacy: 'Privacidad', footTerms: 'Términos',
+  },
+  fr: {
+    navWhat: 'Ce que ça fait', navHow: 'Le déroulé d’un chantier', navPricing: 'Tarifs', navSignIn: 'Connexion',
+    eyebrowContractors: 'Pour les poseurs de clôtures',
+    heroLine1: 'Dessinez la clôture.', heroLine2: 'Obtenez la liste de matériaux.',
+    heroLede: 'Tracez la ligne — sur un plan, une grille vierge, ou directement sur une photo satellite — et chaque poteau, panneau, sac de béton et loquet de portail est compté et chiffré à partir de votre propre liste de fournisseurs.',
+    ctaTrial: 'Commencer votre essai gratuit', ctaSee: 'Voir ce que ça fait',
+    heroNoteBold: 'Créé par un poseur de clôtures',
+    heroNoteRest: ', sur ses propres chantiers · Fonctionne sans réseau · Chantiers illimités sur tous les forfaits',
+    tLinePosts: 'Poteaux de ligne', tCornerPosts: 'Poteaux d’angle', tEndPosts: 'Poteaux d’extrémité',
+    tGatePosts: 'Poteaux de portail', tPanels: 'Panneaux', tConcrete: 'Sacs de béton',
+    tFooter: '248 pieds chiffrés avec votre catalogue',
+    eyebrowWhyNot: 'Pourquoi pas un logiciel généraliste',
+    problemQuoteMain: 'Le travail de clôture se mesure en pieds, pas en visites — et un logiciel de gestion généraliste n’a aucune idée de ce qu’est un pied linéaire.',
+    problemQuoteSmall: 'Les poseurs de clôtures qui utilisent des outils généralistes disent refaire le même calcul de poteaux et panneaux à chaque devis, ou payer pour faire personnaliser le logiciel afin de le simuler.',
+    srGeneralist: 'Avec un logiciel généraliste : ', srFenceFlow: 'Avec FenceFlow : ',
+    cmpNo1: 'Saisir chaque ligne à la main, à chaque devis',
+    cmpNo2: 'Se déplacer sur place avant de pouvoir chiffrer',
+    cmpNo3: 'Une pose de trois jours enregistrée comme trois rendez-vous sans lien',
+    cmpNo4: 'Permis et accords de copropriété gardés dans un champ personnalisé, ou un carnet',
+    cmpYes1: 'Poteaux, panneaux, béton et quincaillerie comptés depuis la ligne',
+    cmpYes2: 'Mesurez-la depuis une photo satellite avant de quitter l’atelier',
+    cmpYes3: 'Poses sur plusieurs jours, équipe par équipe, sur un seul calendrier',
+    cmpYes4: 'Numéro de permis, statut de copropriété et repérage des réseaux sur le chantier lui-même',
+    whatHead: 'Tout, du premier appel jusqu’au dernier paiement',
+    whatSub: 'Une seule appli au lieu d’un bloc-notes, d’un tableur et de trois autres abonnements — et rien de tout ça emprunté à un logiciel de plombier.',
+    kEstimating: 'Chiffrage', kWinning: 'Décrocher le chantier', kProtection: 'Protection',
+    kCrew: 'Équipe', kMoney: 'Argent', kPaperwork: 'Les papiers que la Floride exige vraiment',
+    kGettingWork: 'Trouver des chantiers', kNoLockIn: 'Aucun engagement forcé', kFieldReady: 'Prêt pour le terrain',
+    badgeNew: 'Nouveau',
+    h1Takeoff: 'Le métré à partir de la ligne que vous avez tracée',
+    pTakeoff: 'Touchez chaque angle sur un plan photographié ou une grille à l’échelle. Poteaux de ligne, angles, extrémités, poteaux de portail, panneaux ou lattes, lisses, chapeaux, béton et quincaillerie de portail sont comptés à partir de la géométrie — puis chiffrés avec votre propre catalogue fournisseur, par fabricant, à votre marge. Pas une estimation à l’œil, et pas ressaisi deux fois.',
+    h1Satellite: 'Mesurez depuis une photo satellite',
+    pSatellite: 'Cliquez d’un angle à l’autre sur la propriété depuis votre bureau. La longueur en pieds passe directement dans un devis — sans vous déplacer pour la voir.',
+    h1QuotePage: 'Une page de devis qui vend à votre place',
+    pQuotePage: 'Le client ouvre un lien et voit sa propre maison vue du dessus avec la nouvelle clôture posée en 3D — plus le total et l’acompte, et rien d’autre. Vos coûts, vos fournisseurs et votre marge ne quittent jamais le bureau.',
+    h1Argues: 'Il vous contredit avant que le client ne le fasse',
+    pArgues: 'Signale une marge trop juste, un acompte qui ne couvrira pas les matériaux, du béton manquant, ou un devis fait avant la mise à jour de vos prix. Les avenants gardent leur propre trace signée et datée, pour qu’un « je n’ai jamais accepté ça » ne vous coûte rien.',
+    h1TruckKnows: 'Le camion connaît le programme du jour',
+    pTruckKnows: 'Adresse, ce qui doit être construit, la visite initiale, la liste de contrôle, et des photos avant-après qui se téléversent toutes seules.',
+    h1HoursCosting: 'Les heures deviennent du coût de chantier',
+    pHoursCosting: 'Pointez sur le chantier. Les rapports de rentabilité utilisent les heures réellement travaillées, pas celles espérées au moment du devis.',
+    h1CardsDeposits: 'Cartes, acomptes, factures',
+    pCardsDeposits: 'Votre propre compte Stripe ou Square. L’argent va directement à vous — FenceFlow ne fait qu’enregistrer son arrivée et solder le compte.',
+    h1Permits: 'Permis, copropriété et repérage des réseaux sur le chantier',
+    pPermits: 'Numéro et statut du permis, accord de copropriété avec un e-mail de demande pré-rempli, et le repérage des réseaux avec sa date d’expiration — rattachés au chantier, pas gardés en mémoire.',
+    h1QuoteLink: 'Un lien pour demander un devis',
+    pQuoteLink: 'Mettez-le sur votre camion, vos cartes, votre page Facebook. Les demandes arrivent comme prospects dans votre pipeline, pas dans votre boîte mail.',
+    h1DataExport: 'Vos données restent exportables',
+    pDataExport: 'Clients, chantiers et paiements s’exportent en CSV quand vous le voulez — pas seulement en cas de résiliation.',
+    h1NoSignal: 'Fonctionne sans réseau',
+    pNoSignal: 'Tout tourne sur le téléphone et se synchronise dès que la couverture revient. Aucune appli figée sur un terrain.',
+    howHead: 'Le déroulé d’un chantier', howSub: 'Le même ordre que vous suivez déjà — rien à réapprendre.',
+    step1H: 'Prendre l’appel', step1P: 'Client et adresse. Photographiez le plan, ou partez d’une grille à l’échelle.',
+    step2H: 'Dessiner la clôture', step2P: 'Touchez les angles. Placez les portails. Repérez la piscine, la servitude, l’arbre à conserver.',
+    step3H: 'Envoyer le devis', step3P: 'Matériaux comptés et chiffrés. Le client le voit en 3D et signe depuis son téléphone.',
+    step4H: 'Réaliser la pose', step4P: 'Affectez l’équipe, bloquez les jours, suivez la liste de contrôle, photographiez le résultat.',
+    step5H: 'Être payé', step5P: 'Acompte au départ, solde à la fin, et ce que le chantier a vraiment rapporté.',
+    pricingHead: 'Tarifé par entreprise, pas par personne',
+    pricingSub: 'Chaque forfait inclut l’appli mobile, le bureau, des chantiers et des devis illimités. Ajouter un membre d’équipe ne change pas la facture.',
+    whoSolo: 'Une seule personne qui dirige toute l’entreprise.',
+    liSolo1: 'Un seul identifiant', liSolo2: 'Chantiers et devis illimités', liSolo3: 'Métré et matériaux par dessin',
+    liSolo4: 'Planning et calendrier', liSolo5: 'Factures et devis PDF à votre nom',
+    liSolo6: 'Paiements en espèces et par chèque', liSolo7: 'Fonctionne hors ligne',
+    flagCrew: 'La plupart des entreprises de clôture', whoCrew: 'Vous et une équipe, tous sur la même page.',
+    liCrew1: 'Vous plus 5 membres d’équipe', liCrew2: 'Tout ce qu’il y a dans Solo', liCrew3: 'Pointeuse et paie d’équipe',
+    liCrew4: 'Rôles et permissions d’équipe', liCrew5: 'Tableau de pipeline',
+    liCrew6: 'Suivi de base de l’argent : encaissé et dû', liCrew7: 'Paiements par carte via un lien',
+    whoPro: 'Diriger l’équipe et lire l’activité de l’entreprise.',
+    liPro1: 'Identifiants illimités', liPro2: 'Tout ce qu’il y a dans Crew', liPro3: 'Analyse de rentabilité et de marge',
+    liPro4: 'Répartition des coûts : où va l’argent', liPro5: 'Qui vous doit de l’argent, et depuis quand',
+    liPro6: 'Point hebdomadaire de l’activité le lundi', liPro7: 'Sauvegarde des photos et documents dans le cloud',
+    liPro8: 'Support prioritaire',
+    btnStartFreeTrial: 'Commencer l’essai gratuit',
+    fineprint: '14 jours gratuits, sans carte pour commencer. Résiliez à tout moment — et si vous le faites, vos données restent à vous et restent en place.',
+    footDesc: 'Chiffrage, équipe et paiements pour poseurs de clôtures. Créé par une seule personne, sur ses propres chantiers, en Floride.',
+    footPrivacy: 'Confidentialité', footTerms: 'Conditions',
+  },
+};
+
+let LANG = 'en';
+(function () {
+  let asked = '';
+  try {
+    asked = (new URLSearchParams(location.search).get('lang') || '').slice(0, 2).toLowerCase();
+  } catch (e) { /* no URL API: fall through to the browser's own answer */ }
+  let saved = '';
+  try { saved = localStorage.getItem('ff_lang') || ''; } catch (e) { /* private window */ }
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const pick = [asked, saved, browser].find(c => c && L[c]);
+  if (pick) LANG = pick;
+})();
+
+/* %s in order, same as quote.html — kept even though no string here uses it
+   yet, so the two mechanisms stay identical rather than drifting apart. */
+function tr(key) {
+  const args = [].slice.call(arguments, 1);
+  let out = (L[LANG] && L[LANG][key]) || L.en[key] || '';
+  args.forEach(a => { out = out.replace('%s', a); });
+  return out;
+}
+
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.getAttribute('data-t');
+    if (el.tagName === 'INPUT') el.placeholder = tr(k); else el.textContent = tr(k);
+  });
+}
+
+function setLang(code) {
+  if (!L[code]) return;
+  try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('lang', code);
+    location.href = u.toString();
+    return;
+  } catch (e) { /* older browser: the stored value still carries it */ }
+  location.reload();
+}
+
+applyStaticText();
+(function(){
+  const el = document.getElementById('langPick');
+  if (!el) return;
+  el.innerHTML = ['en','es','fr'].map(c =>
+    c === LANG ? '<b>'+c.toUpperCase()+'</b>'
+               : '<a href="#" data-lang="'+c+'" style="color:inherit">'+c.toUpperCase()+'</a>'
+  ).join(' · ');
+  el.querySelectorAll('a[data-lang]').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
+})();
+
   document.getElementById('yr').textContent = new Date().getFullYear();
 
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
