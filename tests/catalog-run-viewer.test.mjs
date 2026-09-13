@@ -54,7 +54,23 @@ const code = [
   ].map(grab),
 ].join('\n\n');
 
-const M = new Function(code + `
+// These helpers now render their labels through the page translator, which is
+// defined far outside the slice this harness evaluates. Without it the test
+// dies with "tr is not defined" -- a translation pass broke it, not a change
+// in the logic it exists to guard. The real TL table is lifted from the page
+// and read in English here, so the assertions still compare against the words
+// the page actually ships rather than a stub that could drift from them.
+const tlStart = src.indexOf("const TL = {");
+let tlDepth = 0, tlEnd = -1;
+for (let i = src.indexOf("{", tlStart); i < src.length; i++) {
+  if (src[i] === "{") tlDepth++;
+  else if (src[i] === "}") { tlDepth--; if (tlDepth === 0) { tlEnd = i + 1; break; } }
+}
+const TL_EN = eval("(" + src.slice(src.indexOf("{", tlStart), tlEnd) + ")").en;
+const trShim = "const tr = (k, ...a) => { let s = (" + JSON.stringify(TL_EN) +
+  ")[k] ?? k; for (const v of a) s = s.replace('%s', v); return s; };";
+
+const M = new Function(trShim + code + `
   return { CATALOG_FENCE_TYPES, MATERIAL_CATEGORIES, CATALOG_SEED,
     wizFenceTypeLabel, catFenceTypeLabel,
     catalogSeedCounts, catalogExpectedRoles, catalogMissingRoles,

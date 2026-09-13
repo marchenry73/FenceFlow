@@ -732,24 +732,24 @@
 
     <div id="tab-materials" style="display:none">
       <div class="panel">
-        <h2 style="margin-bottom:2px">What to buy</h2>
-        <p class="sub" style="margin-top:0">Every sold job that still needs materials ordered or received,
+        <h2 style="margin-bottom:2px" data-t="matBuyHead">What to buy</h2>
+        <p class="sub" style="margin-top:0" data-t="matBuyBody">Every sold job that still needs materials ordered or received,
           rolled up into one buy list. Quantities come straight from each job's line items &mdash; no lead
           times or delivery dates are shown here because this database does not record any.</p>
         <div class="msg" id="materialsMsg"></div>
         <div class="scroll"><table>
-          <thead><tr><th>Item</th><th>Unit</th><th>Total quantity</th><th>Needed by</th><th>Jobs</th></tr></thead>
+          <thead><tr><th data-t="matColItem">Item</th><th data-t="matColUnit">Unit</th><th data-t="matColQty">Total quantity</th><th data-t="matColNeededBy">Needed by</th><th data-t="matColJobs">Jobs</th></tr></thead>
           <tbody id="materialsBuyRows"></tbody></table></div>
-        <div class="empty" id="materialsBuyEmpty" style="display:none">Nothing to buy right now.</div>
+        <div class="empty" id="materialsBuyEmpty" style="display:none" data-t="matBuyEmptyMsg">Nothing to buy right now.</div>
       </div>
       <div class="panel">
-        <h2 style="margin-bottom:2px">By job</h2>
-        <p class="sub" style="margin-top:0">Same jobs, one row each, so you can see what is blocking a
+        <h2 style="margin-bottom:2px" data-t="matByJobHead">By job</h2>
+        <p class="sub" style="margin-top:0" data-t="matByJobBody">Same jobs, one row each, so you can see what is blocking a
           specific truck roll.</p>
         <div class="scroll"><table>
-          <thead><tr><th>Job</th><th>Scheduled</th><th>Materials status</th><th>Line items</th></tr></thead>
+          <thead><tr><th data-t="matColJob">Job</th><th data-t="matColScheduled">Scheduled</th><th data-t="matColMatStatus">Materials status</th><th data-t="matColLineItems">Line items</th></tr></thead>
           <tbody id="materialsJobRows"></tbody></table></div>
-        <div class="empty" id="materialsJobEmpty" style="display:none">Nothing to buy right now.</div>
+        <div class="empty" id="materialsJobEmpty" style="display:none" data-t="matBuyEmptyMsg">Nothing to buy right now.</div>
       </div>
     </div>
 
@@ -784,12 +784,12 @@
     <div id="tab-crew" style="display:none">
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h2 style="margin:0">Crew &amp; Employees</h2><button class="btn btn-sm" id="newEmp">+ Add</button>
+          <h2 style="margin:0" data-t="crewHead">Crew &amp; Employees</h2><button class="btn btn-sm" id="newEmp" data-t="crewAddBtn">+ Add</button>
         </div>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Rate</th><th></th></tr></thead>
+          <thead><tr><th data-t="crewColName">Name</th><th data-t="crewColRole">Role</th><th data-t="crewColPhone">Phone</th><th data-t="crewColEmail">Email</th><th data-t="crewColRate">Rate</th><th></th></tr></thead>
           <tbody id="empRows"></tbody></table></div>
-        <div class="empty" id="empEmpty" style="display:none">No crew members yet.</div>
+        <div class="empty" id="empEmpty" style="display:none" data-t="crewEmptyMsg">No crew members yet.</div>
         <!-- Result of the last invite-crew call: "Invite emailed to X", or,
              when MAIL_API_KEY isn't set yet, the code to hand over by hand
              with a Copy button. Same .msg/.msg.ok/.msg.err classes as every
@@ -805,13 +805,13 @@
            calendar and job editor already write and read, so "on a job"
            here means the same thing it means there. -->
       <div class="panel" style="margin-top:12px">
-        <h2 style="margin:0 0 8px">Who's free this week</h2>
-        <p class="sub" style="margin-top:0">Matched against each job's scheduled date and estimated
+        <h2 style="margin:0 0 8px" data-t="crewFreeHead">Who's free this week</h2>
+        <p class="sub" style="margin-top:0" data-t="crewFreeBody">Matched against each job's scheduled date and estimated
           duration &mdash; the same site-days the calendar counts.</p>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>This week</th></tr></thead>
+          <thead><tr><th data-t="crewColName">Name</th><th data-t="crewColThisWeek">This week</th></tr></thead>
           <tbody id="crewFreeRows"></tbody></table></div>
-        <div class="empty" id="crewFreeEmpty" style="display:none">No active crew members.</div>
+        <div class="empty" id="crewFreeEmpty" style="display:none" data-t="crewFreeEmptyMsg">No active crew members.</div>
       </div>
 
       <!-- §17 Q3/Q4: an invitation that never landed, and someone who has
@@ -821,36 +821,36 @@
            what a shift can prove: whether one has ever been logged, and how
            long since the last one. -->
       <div class="panel" style="margin-top:12px">
-        <h2 style="margin:0 0 8px">Needs a look</h2>
-        <p class="sub" style="margin-top:0">Nobody with a shift in the last
-          <span id="crewDormantDays"></span> days, or nobody who has ever clocked one.
+        <h2 style="margin:0 0 8px" data-t="crewNeedsLookHead">Needs a look</h2>
+        <p class="sub" style="margin-top:0"><span data-t="crewDormantBody1">Nobody with a shift in the last
+          </span><span id="crewDormantDays"></span><span data-t="crewDormantBody2"> days, or nobody who has ever clocked one.
           FenceFlow does not record when an invite was sent or whether someone has ever signed
           in, so this reads clocked time only &mdash; not login activity, and it is not proof
-          anyone has left.</p>
+          anyone has left.</span></p>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Status</th><th>Detail</th></tr></thead>
+          <thead><tr><th data-t="crewColName">Name</th><th data-t="crewColStatus">Status</th><th data-t="crewColDetail">Detail</th></tr></thead>
           <tbody id="crewStatusRows"></tbody></table></div>
-        <div class="empty" id="crewStatusEmpty" style="display:none">Everyone active has clocked in recently.</div>
+        <div class="empty" id="crewStatusEmpty" style="display:none" data-t="crewStatusEmptyMsg">Everyone active has clocked in recently.</div>
       </div>
 
       <!-- §17 Q1: hours, not "productivity" -- see renderCrewProductivity()
            for why no dollar figure appears here. -->
       <div class="panel" style="margin-top:12px">
-        <h2 style="margin:0 0 8px">Hours logged</h2>
+        <h2 style="margin:0 0 8px" data-t="crewHoursHead">Hours logged</h2>
         <p class="sub" style="margin-top:0" id="crewProdNote"></p>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Hours (all time)</th><th>Jobs</th><th>Avg hours / job</th><th>Vs. the job estimate</th></tr></thead>
+          <thead><tr><th data-t="crewColName">Name</th><th data-t="crewColHoursAllTime">Hours (all time)</th><th data-t="crewColJobs">Jobs</th><th data-t="crewColAvgHours">Avg hours / job</th><th data-t="crewColVsEstimate">Vs. the job estimate</th></tr></thead>
           <tbody id="crewProdRows"></tbody></table></div>
-        <div class="empty" id="crewProdEmpty" style="display:none">No shifts logged yet.</div>
+        <div class="empty" id="crewProdEmpty" style="display:none" data-t="crewProdEmptyMsg">No shifts logged yet.</div>
       </div>
 
       <!-- Employees are people you pay; logins are seats you pay for. They are
            not the same list, and the plan is priced on this one. -->
       <div class="panel" style="margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <h2 style="margin:0">App logins</h2><span id="seatCount" class="range-label"></span>
+          <h2 style="margin:0" data-t="crewLoginsHead">App logins</h2><span id="seatCount" class="range-label"></span>
         </div>
-        <p class="sub">
+        <p class="sub" id="crewLoginsBody">
           Everyone who can sign in to FenceFlow for this company. What somebody
           is decides what they can see and do: <strong>Crew</strong> record their
           own work and nothing else; <strong>Foreman</strong> also schedule and
@@ -860,12 +860,12 @@
           made &mdash; their jobs, hours and notes all stay exactly where they are.
         </p>
         <div class="scroll"><table>
-          <thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
+          <thead><tr><th data-t="crewColName">Name</th><th data-t="crewColSeatRole">Role</th><th></th></tr></thead>
           <tbody id="seatRows"></tbody></table></div>
         <div class="msg" id="seatMsg"></div>
         <div id="removedPanel" style="display:none;margin-top:14px">
-          <h3 style="font-size:14px;margin:0 0 4px">People you have removed</h3>
-          <p class="sub">They cannot get back in with the old code. Everything they recorded is
+          <h3 style="font-size:14px;margin:0 0 4px" data-t="crewRemovedHead">People you have removed</h3>
+          <p class="sub" data-t="crewRemovedBody">They cannot get back in with the old code. Everything they recorded is
             still here. If you removed somebody by mistake, let them back in and they can use
             the same code again.</p>
           <div id="removedRows"></div>
@@ -954,34 +954,34 @@
       <div class="panel cat-editor">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div>
-            <h2 style="margin:0">Materials Catalog</h2>
-            <p class="sub" style="margin:4px 0 0">One part list per fence type, so there's no
+            <h2 style="margin:0" data-t="catCatalogHead">Materials Catalog</h2>
+            <p class="sub" style="margin:4px 0 0" data-t="catCatalogBody">One part list per fence type, so there's no
               confusion about which panel, post or gate belongs to which build. Edit here or in
               the phone app under Catalog — both write the same list and sync to each other
               within a minute of either one going online.</p>
           </div>
-          <button class="btn btn-sm btn-grey" type="button" id="catStartSeed">Start from FenceFlow's catalog</button>
+          <button class="btn btn-sm btn-grey" type="button" id="catStartSeed" data-t="catStartSeedBtn">Start from FenceFlow's catalog</button>
         </div>
 
         <div class="panel" style="margin:14px 0">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div>
-              <h2 style="margin:0">Suppliers</h2>
-              <p class="sub" style="margin:4px 0 0">Who a catalog item comes from -- the same list
+              <h2 style="margin:0" data-t="catSuppliersHead">Suppliers</h2>
+              <p class="sub" style="margin:4px 0 0" data-t="catSuppliersBody">Who a catalog item comes from -- the same list
                 the phone app's Manufacturers screen edits. Pick one on a catalog item so whoever
                 is on the phone with the yard already knows who to call.</p>
             </div>
-            <button class="btn btn-sm btn-grey" type="button" id="supAdd">Add supplier</button>
+            <button class="btn btn-sm btn-grey" type="button" id="supAdd" data-t="catSupAddBtn">Add supplier</button>
           </div>
           <div class="msg" id="supMsg"></div>
-          <div class="empty" id="supEmpty" style="display:none">No suppliers yet.</div>
+          <div class="empty" id="supEmpty" style="display:none" data-t="catSupEmptyMsg">No suppliers yet.</div>
           <div class="scroll" id="supListWrap" style="margin-top:10px">
-            <table id="supList"><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Hours</th><th></th></tr></thead>
+            <table id="supList"><thead><tr><th data-t="catColSupName">Name</th><th data-t="catColSupPhone">Phone</th><th data-t="catColSupEmail">Email</th><th data-t="catColSupHours">Hours</th><th></th></tr></thead>
               <tbody id="supRows"></tbody></table>
           </div>
         </div>
 
-        <input id="catFilter" placeholder="Filter by name, fence type, category or role…" style="margin:14px 0 10px">
+        <input id="catFilter" data-t="catFilterPh" placeholder="Filter by name, fence type, category or role…" style="margin:14px 0 10px">
         <div class="msg" id="catMsg"></div>
         <div class="empty" id="catEmpty" style="display:none">No materials yet. Add them by hand
           below, import a price list from Jobs, or press "Start from FenceFlow's catalog" above
@@ -2194,6 +2194,91 @@ const TL = {
     authSendingReset:'Sending…',
     authInfoCheckEmailReset:'Check your email for a link to set a new password.',
     authSigningOut:'Signing out…',
+    matBuyHead:'What to buy',
+    matBuyBody:'Every sold job that still needs materials ordered or received, rolled up into one buy list. Quantities come straight from each job\'s line items — no lead times or delivery dates are shown here because this database does not record any.',
+    matColItem:'Item', matColUnit:'Unit', matColQty:'Total quantity', matColNeededBy:'Needed by', matColJobs:'Jobs',
+    matBuyEmptyMsg:'Nothing to buy right now.',
+    matByJobHead:'By job',
+    matByJobBody:'Same jobs, one row each, so you can see what is blocking a specific truck roll.',
+    matColJob:'Job', matColScheduled:'Scheduled', matColMatStatus:'Materials status', matColLineItems:'Line items',
+    matUntitledJob:'Untitled job', matUnnamedItem:'(unnamed item)',
+    matNotScheduled:'not scheduled', matOverdueSuffix:' (overdue)',
+    matItemsSing:'%s item', matItemsPlur:'%s items',
+    matItemsUnknown:'unknown — could not load',
+    matStatusOrderedNotReceived:'Ordered, not received', matStatusNotOrdered:'Not ordered',
+    matCouldNotLoadSing:'Could not load line items for %s job',
+    matCouldNotLoadPlur:'Could not load line items for %s jobs',
+    matCouldNotLoadSuffix:' — %s. Left out of the totals below as unknown, not counted as needing nothing.',
+    crewHead:'Crew & Employees', crewAddBtn:'+ Add',
+    crewColName:'Name', crewColRole:'Role', crewColPhone:'Phone', crewColEmail:'Email', crewColRate:'Rate',
+    crewEmptyMsg:'No crew members yet.',
+    crewFreeHead:'Who\'s free this week',
+    crewFreeBody:'Matched against each job\'s scheduled date and estimated duration — the same site-days the calendar counts.',
+    crewColThisWeek:'This week',
+    crewFreeEmptyMsg:'No active crew members.',
+    crewNeedsLookHead:'Needs a look',
+    crewDormantBody1:'Nobody with a shift in the last ',
+    crewDormantBody2:' days, or nobody who has ever clocked one. FenceFlow does not record when an invite was sent or whether someone has ever signed in, so this reads clocked time only — not login activity, and it is not proof anyone has left.',
+    crewColStatus:'Status', crewColDetail:'Detail',
+    crewStatusEmptyMsg:'Everyone active has clocked in recently.',
+    crewHoursHead:'Hours logged',
+    crewColHoursAllTime:'Hours (all time)', crewColJobs:'Jobs', crewColAvgHours:'Avg hours / job', crewColVsEstimate:'Vs. the job estimate',
+    crewProdEmptyMsg:'No shifts logged yet.',
+    crewLoginsHead:'App logins',
+    crewLoginsBody:'Everyone who can sign in to FenceFlow for this company. What somebody is decides what they can see and do: %s record their own work and nothing else; %s also schedule and approve hours; %s and %s see the money; %s handles payments and refunds. Removing someone frees their seat and keeps every record they made — their jobs, hours and notes all stay exactly where they are.',
+    crewRoleCrewWord:'Crew', crewRoleForemanWord:'Foreman', crewRoleSalesWord:'Sales',
+    crewRoleManagerWord:'Manager', crewRoleAccountantWord:'Accountant',
+    crewColSeatRole:'Role',
+    crewRemovedHead:'People you have removed',
+    crewRemovedBody:'They cannot get back in with the old code. Everything they recorded is still here. If you removed somebody by mistake, let them back in and they can use the same code again.',
+    catCatalogHead:'Materials Catalog',
+    catCatalogBody:'One part list per fence type, so there\'s no confusion about which panel, post or gate belongs to which build. Edit here or in the phone app under Catalog — both write the same list and sync to each other within a minute of either one going online.',
+    catStartSeedBtn:'Start from FenceFlow\'s catalog',
+    catSuppliersHead:'Suppliers',
+    catSuppliersBody:'Who a catalog item comes from -- the same list the phone app\'s Manufacturers screen edits. Pick one on a catalog item so whoever is on the phone with the yard already knows who to call.',
+    catSupAddBtn:'Add supplier',
+    catSupEmptyMsg:'No suppliers yet.',
+    catColSupName:'Name', catColSupPhone:'Phone', catColSupEmail:'Email', catColSupHours:'Hours',
+    catFilterPh:'Filter by name, fence type, category or role…',
+    catEmptyMsg:'No materials yet. Add them by hand below, import a price list from Jobs, or press "%s" above for a typical starting set you can then correct.',
+    catColItem:'Item', catColRole:'Role', catColColour:'Colour', catColUnit:'Unit', catColPrice:'Price', catColCoversFt:'Covers ft',
+    catColSupplierPrice:'Supplier price', catColSupplier:'Supplier', catColSku:'SKU', catColActive:'Active',
+    catEditBtn:'Edit', catRetireBtn:'Retire',
+    catItemsSing:'%s item', catItemsPlur:'%s items',
+    catNothingFilterMsg:'Nothing here matches the filter.', catNoItemsYetMsg:'No items yet.',
+    catAddItemToBtn:'Add item to %s',
+    catMissingPrefix:'Missing: ', catMissingSuffix:' — the estimate will flag these as unmatched until one is priced.',
+    catAllRolesPricedMsg:'Every role this fence type needs has a priced item.',
+    catUniversalLabel:'Universal',
+    catPlaceholderFlagTitle:'Placeholder price — verify with your supplier',
+    seatUsedOfCap:'%s of %s used', seatNoLimit:'%s in use — no limit on this plan',
+    seatUnnamed:'Unnamed', seatRemovedOn:'— removed %s', seatLetBackInBtn:'Let them back in',
+    seatRejoinOk:'They can join again with the same code. It does not use a seat until they do.',
+    seatYou:'You', seatRemoveBtn:'Remove',
+    seatAskedToBe:'asked to be %s',
+    seatRoleOwner:'Owner', seatRoleManager:'Manager', seatRoleForeman:'Foreman',
+    seatRoleSales:'Sales', seatRoleAccountant:'Accountant', seatRoleCrew:'Crew',
+    seatNowRole:'%s is now %s. Their phone picks this up next time it syncs.',
+    seatRemovePersonQ:'Remove %s?',
+    seatRemoveBody:'They lose access on their phone straight away. Everything they recorded — jobs, hours, notes — stays exactly where it is, and their seat is freed. The code they joined with stops working for them, and you can let them back in later if you change your mind.',
+    seatRemovedOk:'%s removed. That seat is free.',
+    seatThisPerson:'this person', seatThey:'they',
+    crewUnnamed:'Unnamed', crewOffCrew:'Off the crew', crewPayNotVisible:'Not visible',
+    crewPayNotVisibleTitle:'Pay is not visible to your account',
+    crewResendInviteBtn:'Resend invite',
+    crewOnClock:'On the clock %sh', crewJobFallback:'a job',
+    crewFreeAllWeek:'Free all week', crewUnknownDate:'?',
+    crewNewNoShift:'Added to the crew. No shift on record yet.',
+    crewNotStarted:'Not started', crewGoneQuiet:'Gone quiet',
+    crewLastClockedIn:'Last clocked in %s days ago',
+    crewVarianceOver:'%sh over estimate', crewVarianceUnder:'%sh under estimate', crewVarianceOn:'%sh on estimate',
+    crewVarianceTitle:'%sh estimated, %sh logged, across %s solo-assigned job',
+    crewVarianceTitlePlur:'%sh estimated, %sh logged, across %s solo-assigned jobs',
+    crewVarianceNotEnoughTitle:'Either no job was assigned to this person alone, or none of those jobs had an estimated-hours figure on file',
+    crewVarianceNotEnough:'Not enough solo-assigned, estimated jobs',
+    crewProdNoteNoPay:'Pay is not visible to your account, so a cost-per-hour figure could not be verified even if one existed. Everything above is hours, never money.',
+    crewProdNoteMixedPay:'Not shown: cost per hour. Some crew have a rate on file and some read $0, and averaging real pay with a missing one produces a number that is wrong in both directions. Everything above is hours, never money.',
+    crewProdNoteNoRate:'Not shown: cost per hour or any efficiency figure. No crew member has an hourly rate on file, so labour cost is $0 for every hour logged -- a number computed from that would be a $0 rate wearing a decimal point, not a measurement. Everything above is hours, never money.',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -2437,6 +2522,91 @@ const TL = {
     authSendingReset:'Enviando…',
     authInfoCheckEmailReset:'Revisa tu correo para el enlace con el que puedes poner una contraseña nueva.',
     authSigningOut:'Cerrando sesión…',
+    matBuyHead:'Qué comprar',
+    matBuyBody:'Cada trabajo vendido que todavía necesita materiales pedidos o recibidos, junto en una sola lista de compra. Las cantidades salen directo de las partidas de cada trabajo — no se muestran tiempos de entrega ni fechas de envío porque esta base de datos no registra ninguno de los dos.',
+    matColItem:'Artículo', matColUnit:'Unidad', matColQty:'Cantidad total', matColNeededBy:'Se necesita para', matColJobs:'Trabajos',
+    matBuyEmptyMsg:'No hay nada que comprar por ahora.',
+    matByJobHead:'Por trabajo',
+    matByJobBody:'Los mismos trabajos, una fila cada uno, para ver qué está deteniendo una salida de camión en particular.',
+    matColJob:'Trabajo', matColScheduled:'Programado', matColMatStatus:'Estado de materiales', matColLineItems:'Partidas',
+    matUntitledJob:'Trabajo sin nombre', matUnnamedItem:'(artículo sin nombre)',
+    matNotScheduled:'sin programar', matOverdueSuffix:' (atrasado)',
+    matItemsSing:'%s artículo', matItemsPlur:'%s artículos',
+    matItemsUnknown:'desconocido — no se pudo cargar',
+    matStatusOrderedNotReceived:'Pedido, no recibido', matStatusNotOrdered:'No pedido',
+    matCouldNotLoadSing:'No se pudieron cargar las partidas de %s trabajo',
+    matCouldNotLoadPlur:'No se pudieron cargar las partidas de %s trabajos',
+    matCouldNotLoadSuffix:' — %s. Se dejaron fuera de los totales de abajo como desconocidos, no como que no necesitan nada.',
+    crewHead:'Cuadrilla y empleados', crewAddBtn:'+ Agregar',
+    crewColName:'Nombre', crewColRole:'Puesto', crewColPhone:'Teléfono', crewColEmail:'Correo', crewColRate:'Tarifa',
+    crewEmptyMsg:'Todavía no hay miembros de la cuadrilla.',
+    crewFreeHead:'Quién está libre esta semana',
+    crewFreeBody:'Comparado con la fecha programada y la duración estimada de cada trabajo — los mismos días de obra que cuenta el calendario.',
+    crewColThisWeek:'Esta semana',
+    crewFreeEmptyMsg:'No hay miembros de cuadrilla activos.',
+    crewNeedsLookHead:'Hay que revisar',
+    crewDormantBody1:'Nadie con un turno en los últimos ',
+    crewDormantBody2:' días, o alguien que nunca ha marcado uno. FenceFlow no registra cuándo se envió una invitación ni si alguien alguna vez inició sesión, así que esto solo refleja horas marcadas — no actividad de inicio de sesión, y no es prueba de que alguien se haya ido.',
+    crewColStatus:'Estado', crewColDetail:'Detalle',
+    crewStatusEmptyMsg:'Todo el personal activo ha marcado turno recientemente.',
+    crewHoursHead:'Horas registradas',
+    crewColHoursAllTime:'Horas (histórico)', crewColJobs:'Trabajos', crewColAvgHours:'Horas prom. / trabajo', crewColVsEstimate:'Vs. lo estimado del trabajo',
+    crewProdEmptyMsg:'Todavía no hay turnos registrados.',
+    crewLoginsHead:'Accesos a la app',
+    crewLoginsBody:'Todos los que pueden iniciar sesión en FenceFlow para esta empresa. Lo que alguien es decide qué puede ver y hacer: %s registra su propio trabajo y nada más; %s también programa y aprueba horas; %s y %s ven el dinero; %s maneja pagos y reembolsos. Quitar a alguien libera su acceso y conserva todo lo que registró — sus trabajos, horas y notas quedan exactamente donde están.',
+    crewRoleCrewWord:'Cuadrilla', crewRoleForemanWord:'Capataz', crewRoleSalesWord:'Ventas',
+    crewRoleManagerWord:'Gerente', crewRoleAccountantWord:'Contador',
+    crewColSeatRole:'Puesto',
+    crewRemovedHead:'Personas que ha quitado',
+    crewRemovedBody:'No pueden volver a entrar con el código anterior. Todo lo que registraron sigue aquí. Si quitó a alguien por error, déjelo entrar de nuevo y puede usar el mismo código otra vez.',
+    catCatalogHead:'Catálogo de materiales',
+    catCatalogBody:'Una lista de partes por tipo de cerca, para que no haya confusión sobre qué panel, poste o portón corresponde a cuál construcción. Edite aquí o en la app del teléfono en Catálogo — ambos escriben la misma lista y se sincronizan entre sí dentro de un minuto de que cualquiera de los dos esté en línea.',
+    catStartSeedBtn:'Empezar con el catálogo de FenceFlow',
+    catSuppliersHead:'Proveedores',
+    catSuppliersBody:'De dónde viene un artículo del catálogo -- la misma lista que edita la pantalla de Fabricantes de la app del teléfono. Elija uno en un artículo del catálogo para que quien esté al teléfono con el patio ya sepa a quién llamar.',
+    catSupAddBtn:'Agregar proveedor',
+    catSupEmptyMsg:'Todavía no hay proveedores.',
+    catColSupName:'Nombre', catColSupPhone:'Teléfono', catColSupEmail:'Correo', catColSupHours:'Horario',
+    catFilterPh:'Filtrar por nombre, tipo de cerca, categoría o puesto…',
+    catEmptyMsg:'Todavía no hay materiales. Agréguelos a mano abajo, importe una lista de precios desde Trabajos, o presione "%s" arriba para un conjunto inicial típico que luego puede corregir.',
+    catColItem:'Artículo', catColRole:'Puesto', catColColour:'Color', catColUnit:'Unidad', catColPrice:'Precio', catColCoversFt:'Cubre pies',
+    catColSupplierPrice:'Precio del proveedor', catColSupplier:'Proveedor', catColSku:'SKU', catColActive:'Activo',
+    catEditBtn:'Editar', catRetireBtn:'Retirar',
+    catItemsSing:'%s artículo', catItemsPlur:'%s artículos',
+    catNothingFilterMsg:'Nada aquí coincide con el filtro.', catNoItemsYetMsg:'Todavía no hay artículos.',
+    catAddItemToBtn:'Agregar artículo a %s',
+    catMissingPrefix:'Falta: ', catMissingSuffix:' — el presupuesto marcará estos como no encontrados hasta que uno tenga precio.',
+    catAllRolesPricedMsg:'Este tipo de cerca ya tiene un artículo con precio para cada puesto que necesita.',
+    catUniversalLabel:'Universal',
+    catPlaceholderFlagTitle:'Precio de referencia — confirme con su proveedor',
+    seatUsedOfCap:'%s de %s usados', seatNoLimit:'%s en uso — sin límite en este plan',
+    seatUnnamed:'Sin nombre', seatRemovedOn:'— quitado el %s', seatLetBackInBtn:'Dejarlo entrar de nuevo',
+    seatRejoinOk:'Puede unirse otra vez con el mismo código. No usa un acceso hasta que lo haga.',
+    seatYou:'Usted', seatRemoveBtn:'Quitar',
+    seatAskedToBe:'pidió ser %s',
+    seatRoleOwner:'Propietario', seatRoleManager:'Gerente', seatRoleForeman:'Capataz',
+    seatRoleSales:'Ventas', seatRoleAccountant:'Contador', seatRoleCrew:'Cuadrilla',
+    seatNowRole:'%s ahora es %s. Su teléfono lo recibe la próxima vez que sincroniza.',
+    seatRemovePersonQ:'¿Quitar a %s?',
+    seatRemoveBody:'Pierde acceso en su teléfono de inmediato. Todo lo que registró — trabajos, horas, notas — se queda exactamente donde está, y su acceso queda libre. El código con el que se unió deja de funcionar para él, y puede dejarlo entrar de nuevo más tarde si cambia de opinión.',
+    seatRemovedOk:'%s quitado. Ese acceso está libre.',
+    seatThisPerson:'esta persona', seatThey:'él/ella',
+    crewUnnamed:'Sin nombre', crewOffCrew:'Fuera de la cuadrilla', crewPayNotVisible:'No visible',
+    crewPayNotVisibleTitle:'El pago no es visible para su cuenta',
+    crewResendInviteBtn:'Reenviar invitación',
+    crewOnClock:'En turno %sh', crewJobFallback:'un trabajo',
+    crewFreeAllWeek:'Libre toda la semana', crewUnknownDate:'?',
+    crewNewNoShift:'Agregado a la cuadrilla. Todavía no hay ningún turno registrado.',
+    crewNotStarted:'No ha empezado', crewGoneQuiet:'Dejó de aparecer',
+    crewLastClockedIn:'Último turno marcado hace %s días',
+    crewVarianceOver:'%sh por encima de lo estimado', crewVarianceUnder:'%sh por debajo de lo estimado', crewVarianceOn:'%sh según lo estimado',
+    crewVarianceTitle:'%sh estimadas, %sh registradas, en %s trabajo asignado en solitario',
+    crewVarianceTitlePlur:'%sh estimadas, %sh registradas, en %s trabajos asignados en solitario',
+    crewVarianceNotEnoughTitle:'O ningún trabajo se asignó a esta persona sola, o ninguno de esos trabajos tenía una cifra de horas estimadas registrada',
+    crewVarianceNotEnough:'No hay suficientes trabajos asignados en solitario y estimados',
+    crewProdNoteNoPay:'El pago no es visible para su cuenta, así que una cifra de costo por hora no se podría verificar aunque existiera. Todo lo de arriba son horas, nunca dinero.',
+    crewProdNoteMixedPay:'No se muestra: costo por hora. Algunos de la cuadrilla tienen una tarifa registrada y otros marcan $0, y promediar un pago real con uno faltante produce un número equivocado en ambos sentidos. Todo lo de arriba son horas, nunca dinero.',
+    crewProdNoteNoRate:'No se muestra: costo por hora ni ninguna cifra de eficiencia. Ningún miembro de la cuadrilla tiene una tarifa por hora registrada, así que el costo de mano de obra es $0 para cada hora registrada -- un número calculado a partir de eso sería una tarifa de $0 disfrazada de decimal, no una medición. Todo lo de arriba son horas, nunca dinero.',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -2680,6 +2850,91 @@ const TL = {
     authSendingReset:'Envoi…',
     authInfoCheckEmailReset:'Consultez votre courriel pour le lien qui vous permettra de définir un nouveau mot de passe.',
     authSigningOut:'Déconnexion…',
+    matBuyHead:'À acheter',
+    matBuyBody:'Chaque chantier vendu qui attend encore des matériaux commandés ou reçus, regroupé en une seule liste d\'achat. Les quantités viennent directement des lignes de chaque chantier — aucun délai de livraison ni date de livraison n\'est affiché ici, car cette base de données n\'en enregistre aucun.',
+    matColItem:'Article', matColUnit:'Unité', matColQty:'Quantité totale', matColNeededBy:'Requis pour', matColJobs:'Chantiers',
+    matBuyEmptyMsg:'Rien à acheter pour le moment.',
+    matByJobHead:'Par chantier',
+    matByJobBody:'Les mêmes chantiers, une ligne chacun, pour voir ce qui bloque un envoi de camion en particulier.',
+    matColJob:'Chantier', matColScheduled:'Prévu', matColMatStatus:'État des matériaux', matColLineItems:'Lignes',
+    matUntitledJob:'Chantier sans titre', matUnnamedItem:'(article sans nom)',
+    matNotScheduled:'non prévu', matOverdueSuffix:' (en retard)',
+    matItemsSing:'%s article', matItemsPlur:'%s articles',
+    matItemsUnknown:'inconnu — échec du chargement',
+    matStatusOrderedNotReceived:'Commandé, non reçu', matStatusNotOrdered:'Non commandé',
+    matCouldNotLoadSing:'Impossible de charger les lignes de %s chantier',
+    matCouldNotLoadPlur:'Impossible de charger les lignes de %s chantiers',
+    matCouldNotLoadSuffix:' — %s. Laissés hors des totaux ci-dessous comme inconnus, pas comme n\'ayant besoin de rien.',
+    crewHead:'Équipe et employés', crewAddBtn:'+ Ajouter',
+    crewColName:'Nom', crewColRole:'Poste', crewColPhone:'Téléphone', crewColEmail:'Courriel', crewColRate:'Taux',
+    crewEmptyMsg:'Pas encore de membre d\'équipe.',
+    crewFreeHead:'Qui est libre cette semaine',
+    crewFreeBody:'Comparé à la date prévue et à la durée estimée de chaque chantier — les mêmes jours de chantier que compte le calendrier.',
+    crewColThisWeek:'Cette semaine',
+    crewFreeEmptyMsg:'Aucun membre d\'équipe actif.',
+    crewNeedsLookHead:'À vérifier',
+    crewDormantBody1:'Personne n\'a fait de quart dans les derniers ',
+    crewDormantBody2:' jours, ou quelqu\'un n\'en a jamais pointé un. FenceFlow n\'enregistre pas la date d\'envoi d\'une invitation ni si quelqu\'un s\'est déjà connecté, donc ceci ne reflète que les heures pointées — pas l\'activité de connexion, et ce n\'est pas une preuve que quelqu\'un est parti.',
+    crewColStatus:'État', crewColDetail:'Détail',
+    crewStatusEmptyMsg:'Tout le personnel actif a pointé récemment.',
+    crewHoursHead:'Heures enregistrées',
+    crewColHoursAllTime:'Heures (total)', crewColJobs:'Chantiers', crewColAvgHours:'Heures moy. / chantier', crewColVsEstimate:'Vs. l\'estimation du chantier',
+    crewProdEmptyMsg:'Aucun quart enregistré pour l\'instant.',
+    crewLoginsHead:'Accès à l\'appli',
+    crewLoginsBody:'Tous ceux qui peuvent se connecter à FenceFlow pour cette entreprise. Ce que quelqu\'un est décide ce qu\'il peut voir et faire : %s enregistre son propre travail et rien d\'autre; %s planifie aussi et approuve les heures; %s et %s voient l\'argent; %s gère les paiements et les remboursements. Retirer quelqu\'un libère son accès et conserve tout ce qu\'il a enregistré — ses chantiers, heures et notes restent exactement où ils sont.',
+    crewRoleCrewWord:'Équipe', crewRoleForemanWord:'Contremaître', crewRoleSalesWord:'Ventes',
+    crewRoleManagerWord:'Gérant', crewRoleAccountantWord:'Comptable',
+    crewColSeatRole:'Poste',
+    crewRemovedHead:'Personnes retirées',
+    crewRemovedBody:'Elles ne peuvent plus entrer avec l\'ancien code. Tout ce qu\'elles ont enregistré est encore là. Si vous avez retiré quelqu\'un par erreur, laissez-le revenir et il pourra réutiliser le même code.',
+    catCatalogHead:'Catalogue de matériaux',
+    catCatalogBody:'Une liste de pièces par type de clôture, pour qu\'il n\'y ait pas de confusion sur quel panneau, poteau ou portail va avec quelle construction. Modifiez ici ou dans l\'appli du téléphone sous Catalogue — les deux écrivent la même liste et se synchronisent dans la minute suivant la connexion de l\'un ou l\'autre.',
+    catStartSeedBtn:'Partir du catalogue de FenceFlow',
+    catSuppliersHead:'Fournisseurs',
+    catSuppliersBody:'D\'où vient un article du catalogue -- la même liste que modifie l\'écran Fabricants de l\'appli du téléphone. Choisissez-en un sur un article du catalogue pour que la personne au téléphone avec la cour sache déjà qui appeler.',
+    catSupAddBtn:'Ajouter un fournisseur',
+    catSupEmptyMsg:'Pas encore de fournisseur.',
+    catColSupName:'Nom', catColSupPhone:'Téléphone', catColSupEmail:'Courriel', catColSupHours:'Heures',
+    catFilterPh:'Filtrer par nom, type de clôture, catégorie ou poste…',
+    catEmptyMsg:'Pas encore de matériaux. Ajoutez-les à la main ci-dessous, importez une liste de prix depuis Chantiers, ou appuyez sur « %s » ci-dessus pour un ensemble de départ typique que vous pourrez ensuite corriger.',
+    catColItem:'Article', catColRole:'Poste', catColColour:'Couleur', catColUnit:'Unité', catColPrice:'Prix', catColCoversFt:'Couvre (pi)',
+    catColSupplierPrice:'Prix fournisseur', catColSupplier:'Fournisseur', catColSku:'UGS', catColActive:'Actif',
+    catEditBtn:'Modifier', catRetireBtn:'Retirer',
+    catItemsSing:'%s article', catItemsPlur:'%s articles',
+    catNothingFilterMsg:'Rien ici ne correspond au filtre.', catNoItemsYetMsg:'Pas encore d\'article.',
+    catAddItemToBtn:'Ajouter un article à %s',
+    catMissingPrefix:'Manquant : ', catMissingSuffix:' — l\'estimation signalera ceux-ci comme non associés tant qu\'aucun n\'a de prix.',
+    catAllRolesPricedMsg:'Ce type de clôture a déjà un article avec prix pour chaque poste requis.',
+    catUniversalLabel:'Universel',
+    catPlaceholderFlagTitle:'Prix de référence — à confirmer avec votre fournisseur',
+    seatUsedOfCap:'%s sur %s utilisés', seatNoLimit:'%s en cours d\'utilisation — aucune limite sur ce forfait',
+    seatUnnamed:'Sans nom', seatRemovedOn:'— retiré le %s', seatLetBackInBtn:'Le laisser revenir',
+    seatRejoinOk:'Il peut revenir avec le même code. Cela n\'utilise pas de place tant qu\'il ne le fait pas.',
+    seatYou:'Vous', seatRemoveBtn:'Retirer',
+    seatAskedToBe:'a demandé à être %s',
+    seatRoleOwner:'Propriétaire', seatRoleManager:'Gérant', seatRoleForeman:'Contremaître',
+    seatRoleSales:'Ventes', seatRoleAccountant:'Comptable', seatRoleCrew:'Équipe',
+    seatNowRole:'%s est maintenant %s. Son téléphone le reçoit à la prochaine synchronisation.',
+    seatRemovePersonQ:'Retirer %s ?',
+    seatRemoveBody:'Il perd l\'accès sur son téléphone immédiatement. Tout ce qu\'il a enregistré — chantiers, heures, notes — reste exactement où c\'est, et sa place est libérée. Le code avec lequel il s\'est joint cesse de fonctionner pour lui, et vous pouvez le laisser revenir plus tard si vous changez d\'avis.',
+    seatRemovedOk:'%s retiré. Cette place est libre.',
+    seatThisPerson:'cette personne', seatThey:'il/elle',
+    crewUnnamed:'Sans nom', crewOffCrew:'Hors de l\'équipe', crewPayNotVisible:'Non visible',
+    crewPayNotVisibleTitle:'La paie n\'est pas visible pour votre compte',
+    crewResendInviteBtn:'Renvoyer l\'invitation',
+    crewOnClock:'En poste depuis %sh', crewJobFallback:'un chantier',
+    crewFreeAllWeek:'Libre toute la semaine', crewUnknownDate:'?',
+    crewNewNoShift:'Ajouté à l\'équipe. Aucun quart enregistré pour l\'instant.',
+    crewNotStarted:'Pas commencé', crewGoneQuiet:'Silence radio',
+    crewLastClockedIn:'Dernier quart pointé il y a %s jours',
+    crewVarianceOver:'%sh de plus que prévu', crewVarianceUnder:'%sh de moins que prévu', crewVarianceOn:'%sh conforme aux prévisions',
+    crewVarianceTitle:'%sh estimées, %sh enregistrées, sur %s chantier assigné en solo',
+    crewVarianceTitlePlur:'%sh estimées, %sh enregistrées, sur %s chantiers assignés en solo',
+    crewVarianceNotEnoughTitle:'Soit aucun chantier n\'a été assigné à cette personne seule, soit aucun de ces chantiers n\'avait d\'heures estimées enregistrées',
+    crewVarianceNotEnough:'Pas assez de chantiers assignés en solo et estimés',
+    crewProdNoteNoPay:'La paie n\'est pas visible pour votre compte, donc un coût par heure ne pourrait pas être vérifié même s\'il existait. Tout ce qui précède est en heures, jamais en argent.',
+    crewProdNoteMixedPay:'Non affiché : coût par heure. Certains membres de l\'équipe ont un taux enregistré et d\'autres affichent 0 $, et faire la moyenne d\'une paie réelle avec une manquante produit un chiffre faux dans les deux sens. Tout ce qui précède est en heures, jamais en argent.',
+    crewProdNoteNoRate:'Non affiché : coût par heure ou tout autre indicateur d\'efficacité. Aucun membre de l\'équipe n\'a de taux horaire enregistré, donc le coût de main-d\'œuvre est de 0 $ pour chaque heure enregistrée -- un chiffre calculé à partir de cela serait un taux de 0 $ déguisé en décimale, pas une mesure. Tout ce qui précède est en heures, jamais en argent.',
   },
 };
 
@@ -2709,6 +2964,24 @@ function applyStaticText() {
   });
   const picker = $('langPicker');
   if (picker) picker.value = LANG;
+  // Not a plain data-t: the sentence bolds each role word, and tr()'s %s
+  // substitution has no way to carry markup through textContent -- so this
+  // one paragraph is filled with innerHTML instead, same escape-free
+  // treatment the crewInviteNotice status line already uses for its own
+  // 503 case.
+  const loginsBody = $('crewLoginsBody');
+  if (loginsBody) loginsBody.innerHTML = tr('crewLoginsBody',
+    '<strong>' + tr('crewRoleCrewWord') + '</strong>',
+    '<strong>' + tr('crewRoleForemanWord') + '</strong>',
+    '<strong>' + tr('crewRoleSalesWord') + '</strong>',
+    '<strong>' + tr('crewRoleManagerWord') + '</strong>',
+    '<strong>' + tr('crewRoleAccountantWord') + '</strong>');
+  // Same reason as crewLoginsBody: the sentence quotes the Start-from-seed
+  // button's own translated label mid-string, so it is filled by tr()'s %s
+  // rather than by a plain data-t (which has no way to interpolate another
+  // key's current-language value).
+  const catEmpty = $('catEmpty');
+  if (catEmpty) catEmpty.textContent = tr('catEmptyMsg', tr('catStartSeedBtn'));
 }
 
 function setLang(code) {
@@ -2753,7 +3026,7 @@ const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
 // prevent -- margins computed from it would be silently overstated.
 const payCell = (rate) => employeesHavePay
   ? (rate ? money(rate) + '/hr' : '—')
-  : '<span title="Pay is not visible to your account">Not visible</span>';
+  : `<span title="${esc(tr('crewPayNotVisibleTitle'))}">${esc(tr('crewPayNotVisible'))}</span>`;
 const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
@@ -4417,6 +4690,16 @@ async function loadBilling(){
    Nothing ever released a seat: a company that took on help for a season hit
    its cap with two people working, and could not drop to a smaller plan
    either, because the plan change is refused while over the new cap. */
+/* Translated display name for a company_members role -- the raw enum
+   (OWNER/MANAGER/FOREMAN/SALES/ACCOUNTANT/CREW) is what is sent to
+   set_member_role and compared against r.role/r.requested_role everywhere
+   in loadSeats(); this only changes what shows on screen, same shape as
+   jobStatusLabel(). */
+function seatRoleLabel(role){
+  return { OWNER:tr('seatRoleOwner'), MANAGER:tr('seatRoleManager'), FOREMAN:tr('seatRoleForeman'),
+    SALES:tr('seatRoleSales'), ACCOUNTANT:tr('seatRoleAccountant'), CREW:tr('seatRoleCrew') }[role] || role;
+}
+
 async function loadSeats(){
   const caps = { solo:1, crew:6 };
   const cap = caps[planName];
@@ -4429,8 +4712,8 @@ async function loadSeats(){
   const rows = error ? [] : (data || []);
 
   $('seatCount').textContent = cap
-    ? `${rows.length} of ${cap} used`
-    : `${rows.length} in use — no limit on this plan`;
+    ? tr('seatUsedOfCap', rows.length, cap)
+    : tr('seatNoLimit', rows.length);
 
   const me = profile?.id;
   const owner = profile?.role === 'OWNER';
@@ -4446,16 +4729,16 @@ async function loadSeats(){
     $('removedRows').innerHTML = list.map(r => `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;
                   padding:6px 0;border-top:1px solid var(--line)">
-        <span>${esc(r.full_name) || 'Unnamed'}
-          <span style="color:var(--muted);font-size:12px">— removed ${day(r.removed_at)}</span></span>
-        <button class="btn btn-sm btn-grey" data-rejoin="${esc(r.id)}">Let them back in</button>
+        <span>${esc(r.full_name) || tr('seatUnnamed')}
+          <span style="color:var(--muted);font-size:12px">${esc(tr('seatRemovedOn', day(r.removed_at)))}</span></span>
+        <button class="btn btn-sm btn-grey" data-rejoin="${esc(r.id)}">${esc(tr('seatLetBackInBtn'))}</button>
       </div>`).join('');
     document.querySelectorAll('[data-rejoin]').forEach(b =>
       b.addEventListener('click', async () => {
         b.disabled = true;
         const { error } = await db.rpc('allow_rejoin', { member_id: b.dataset.rejoin });
         if (error) { b.disabled = false; return msg('seatMsg', error.message, 'err'); }
-        msg('seatMsg', 'They can join again with the same code. It does not use a seat until they do.', 'ok');
+        msg('seatMsg', tr('seatRejoinOk'), 'ok');
         await loadSeats();
       }));
   } else {
@@ -4467,17 +4750,17 @@ async function loadSeats(){
     const roleCell = (owner && !isMe && r.role !== 'OWNER')
       ? `<select data-role="${r.id}" class="role-pick">${
           ROLES.map(x => `<option value="${x}"${x === r.role ? ' selected' : ''}>${
-            x.charAt(0) + x.slice(1).toLowerCase()}</option>`).join('')
+            esc(seatRoleLabel(x))}</option>`).join('')
         }</select>${r.requested_role && r.requested_role !== r.role
-          ? ` <span class="pill warn" style="font-size:11px">asked to be ${
-              esc(r.requested_role.charAt(0) + r.requested_role.slice(1).toLowerCase())}</span>`
+          ? ` <span class="pill warn" style="font-size:11px">${
+              esc(tr('seatAskedToBe', seatRoleLabel(r.requested_role)))}</span>`
           : ''}`
-      : `${esc(r.role.charAt(0) + r.role.slice(1).toLowerCase())}`;
+      : `${esc(seatRoleLabel(r.role))}`;
     const action = (owner && !isMe)
-      ? `<button class="btn btn-sm" data-seat="${r.id}">Remove</button>`
-      : `<span style="color:var(--muted);font-size:13px">${isMe ? 'You' : ''}</span>`;
+      ? `<button class="btn btn-sm" data-seat="${r.id}">${esc(tr('seatRemoveBtn'))}</button>`
+      : `<span style="color:var(--muted);font-size:13px">${isMe ? esc(tr('seatYou')) : ''}</span>`;
     return `<tr>
-      <td>${esc(r.full_name || 'Unnamed')}</td>
+      <td>${esc(r.full_name || tr('seatUnnamed'))}</td>
       <td>${roleCell}</td>
       <td style="text-align:right">${action}</td>
     </tr>`;
@@ -4485,34 +4768,30 @@ async function loadSeats(){
 
   document.querySelectorAll('#seatRows select[data-role]').forEach(sel =>
     sel.addEventListener('change', async () => {
-      const who = rows.find(r => r.id === sel.dataset.role)?.full_name || 'they';
+      const who = rows.find(r => r.id === sel.dataset.role)?.full_name || tr('seatThey');
       const wanted = sel.value;
       sel.disabled = true;
       const { error } = await db.rpc('set_member_role',
         { member_id: sel.dataset.role, new_role: wanted });
       sel.disabled = false;
       if (error) { await loadSeats(); return msg('seatMsg', error.message, 'err'); }
-      msg('seatMsg', `${who} is now ${wanted.charAt(0)}${wanted.slice(1).toLowerCase()}. `
-        + 'Their phone picks this up next time it syncs.', 'ok');
+      msg('seatMsg', tr('seatNowRole', who, seatRoleLabel(wanted)), 'ok');
       await loadSeats();
     }));
 
   document.querySelectorAll('#seatRows button[data-seat]').forEach(b =>
     b.addEventListener('click', async () => {
       const row = rows.find(r => r.id === b.dataset.seat);
-      const who = row?.full_name || 'this person';
+      const who = row?.full_name || tr('seatThisPerson');
       const okRemove = await ask({
-        title: `Remove ${who}?`,
-        body: 'They lose access on their phone straight away. Everything they recorded — jobs, ' +
-              'hours, notes — stays exactly where it is, and their seat is freed. ' +
-              'The code they joined with stops working for them, and you can let them ' +
-              'back in later if you change your mind.',
-        confirmLabel: 'Remove', danger: true
+        title: tr('seatRemovePersonQ', who),
+        body: tr('seatRemoveBody'),
+        confirmLabel: tr('seatRemoveBtn'), danger: true
       });
       if (!okRemove) return;
       const { error } = await db.rpc('release_seat', { member_id: b.dataset.seat });
       if (error) return msg('seatMsg', error.message, 'err');
-      msg('seatMsg', `${who} removed. That seat is free.`, 'ok');
+      msg('seatMsg', tr('seatRemovedOk', who), 'ok');
       await loadSeats();
     }));
 }
@@ -5129,6 +5408,14 @@ function renderBriefing(){
    value now says which job sync_ids failed to load (a chunk error), and
    this screen names those jobs rather than folding them into the totals as
    if they needed nothing. */
+/* Translated label for a job's materials_status on the buyer's "by job" list.
+   Only the label changes -- j.materials_status stays the raw stored value
+   everywhere it is compared (the ACCEPTED/RECEIVED/NOT_NEEDED filter above,
+   the readiness check, the phone app), same shape as jobStatusLabel(). */
+function materialsStatusLabel(status){
+  return status === 'ORDERED' ? tr('matStatusOrderedNotReceived') : tr('matStatusNotOrdered');
+}
+
 async function renderProcurement(){
   if (!$('materialsBuyRows')) return;
   const nowMs = Date.now();
@@ -5155,7 +5442,7 @@ async function renderProcurement(){
   knownJobs.forEach(j => {
     const neededBy = j.scheduled_date ? d(j.scheduled_date) : null;
     items.filter(i => i.job_sync_id === j.sync_id).forEach(i => {
-      const description = i.description || '(unnamed item)';
+      const description = i.description || tr('matUnnamedItem');
       const unit = i.unit || '';
       const key = description + '|' + unit;
       if (!buy.has(key)) buy.set(key, { description, unit, qty: 0, jobs: new Map(), neededBy: null });
@@ -5177,17 +5464,15 @@ async function renderProcurement(){
   });
 
   msg('materialsMsg', unknownJobs.length
-    ? 'Could not load line items for ' + unknownJobs.length + ' job'
-      + (unknownJobs.length === 1 ? '' : 's') + ' — '
-      + unknownJobs.map(j => j.customer_name || j.address || 'Untitled job').join(', ')
-      + '. Left out of the totals below as unknown, not counted as needing nothing.'
+    ? tr(unknownJobs.length === 1 ? 'matCouldNotLoadSing' : 'matCouldNotLoadPlur', unknownJobs.length)
+      + tr('matCouldNotLoadSuffix', unknownJobs.map(j => j.customer_name || j.address || tr('matUntitledJob')).join(', '))
     : '', unknownJobs.length ? 'err' : 'info');
 
   $('materialsBuyRows').innerHTML = rows.map(r => {
-    const jobNames = [...r.jobs.values()].map(j => j.customer_name || j.address || 'Untitled job');
+    const jobNames = [...r.jobs.values()].map(j => j.customer_name || j.address || tr('matUntitledJob'));
     const neededByText = r.neededBy
-      ? r.neededBy.toLocaleDateString() + (r.neededBy.getTime() < nowMs ? ' (overdue)' : '')
-      : 'not scheduled';
+      ? r.neededBy.toLocaleDateString() + (r.neededBy.getTime() < nowMs ? tr('matOverdueSuffix') : '')
+      : tr('matNotScheduled');
     return `<tr><td>${esc(r.description)}</td><td>${esc(r.unit)}</td>`
       + `<td>${r.qty}</td><td>${esc(neededByText)}</td>`
       + `<td>${esc(jobNames.join(', '))}</td></tr>`;
@@ -5195,15 +5480,15 @@ async function renderProcurement(){
   if (!rows.length) $('materialsBuyEmpty').style.display = 'block';
 
   $('materialsJobRows').innerHTML = candidates.map(j => {
-    const name = j.customer_name || j.address || 'Untitled job';
-    const scheduled = j.scheduled_date ? d(j.scheduled_date).toLocaleDateString() : 'not scheduled';
-    const statusLabel = j.materials_status === 'ORDERED' ? 'Ordered, not received' : 'Not ordered';
+    const name = j.customer_name || j.address || tr('matUntitledJob');
+    const scheduled = j.scheduled_date ? d(j.scheduled_date).toLocaleDateString() : tr('matNotScheduled');
+    const statusLabel = materialsStatusLabel(j.materials_status);
     let itemsLabel;
     if (failedIds.has(j.sync_id)) {
-      itemsLabel = '<span style="color:var(--bad,#b3261e)">unknown — could not load</span>';
+      itemsLabel = `<span style="color:var(--bad,#b3261e)">${esc(tr('matItemsUnknown'))}</span>`;
     } else {
       const n = items.filter(i => i.job_sync_id === j.sync_id).length;
-      itemsLabel = n + ' item' + (n === 1 ? '' : 's');
+      itemsLabel = esc(tr(n === 1 ? 'matItemsSing' : 'matItemsPlur', n));
     }
     return `<tr><td>${esc(name)}</td><td>${esc(scheduled)}</td><td>${esc(statusLabel)}</td><td>${itemsLabel}</td></tr>`;
   }).join('');
@@ -6119,8 +6404,8 @@ function workingNow(e){
   if (!shift) return '';
   const job = jobBySync(shift.job_sync_id);
   const hrs = Math.max(0, (Date.now() - d(shift.started_at).getTime()) / 36e5);
-  return '<div class="sub" style="color:var(--good,#2e6b4e)">On the clock ' +
-    hrs.toFixed(1) + 'h' + (job ? ' &middot; ' + esc(job.customer_name || 'a job') : '') + '</div>';
+  return '<div class="sub" style="color:var(--good,#2e6b4e)">' + esc(tr('crewOnClock', hrs.toFixed(1)))
+    + (job ? ' &middot; ' + esc(job.customer_name || tr('crewJobFallback')) : '') + '</div>';
 }
 
 function renderEmployees(){
@@ -6134,11 +6419,11 @@ function renderEmployees(){
   const active = e => e.is_active !== false;
   $('empRows').innerHTML=employees.map(e=>`
     <tr class="click" data-id="${e.id}"${active(e)?'':' style="opacity:.55"'}>
-      <td><strong>${esc(e.name)||'Unnamed'}</strong>${active(e)?''
-        :' <span class="pill" style="font-size:11px">Off the crew</span>'}${workingNow(e)}</td><td>${esc(e.role)||'—'}</td>
+      <td><strong>${esc(e.name)||esc(tr('crewUnnamed'))}</strong>${active(e)?''
+        :` <span class="pill" style="font-size:11px">${esc(tr('crewOffCrew'))}</span>`}${workingNow(e)}</td><td>${esc(e.role)||'—'}</td>
       <td>${esc(e.phone)||'—'}</td><td>${esc(e.email)||'—'}</td>
       <td>${payCell(e.hourly_rate)}</td>
-      <td>${e.email?`<button class="btn btn-sm btn-grey resend-invite" data-id="${e.id}">Resend invite</button>`:''}</td>
+      <td>${e.email?`<button class="btn btn-sm btn-grey resend-invite" data-id="${e.id}">${esc(tr('crewResendInviteBtn'))}</button>`:''}</td>
       </tr>`).join('');
   document.querySelectorAll('#empRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showEmp(tr.dataset.id)));
@@ -6195,11 +6480,11 @@ function renderCrewAvailability(){
   $('crewFreeEmpty').style.display = active.length ? 'none' : 'block';
   $('crewFreeRows').innerHTML = rows.map(({e,onJobs})=>{
     const status = onJobs.length
-      ? esc(onJobs.map(j=>(j.customer_name||'Job')+' ('
-          + (j.scheduled_date ? d(j.scheduled_date).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '?')
+      ? esc(onJobs.map(j=>(j.customer_name||tr('jobTitleFallback'))+' ('
+          + (j.scheduled_date ? d(j.scheduled_date).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : tr('crewUnknownDate'))
           + ')').join(', '))
-      : '<span class="pill ok">Free all week</span>';
-    return '<tr><td>'+(esc(e.name)||'Unnamed')+'</td><td>'+status+'</td></tr>';
+      : `<span class="pill ok">${esc(tr('crewFreeAllWeek'))}</span>`;
+    return '<tr><td>'+(esc(e.name)||esc(tr('crewUnnamed')))+'</td><td>'+status+'</td></tr>';
   }).join('');
 }
 
@@ -6216,19 +6501,19 @@ async function renderCrewStatus(){
   const now=Date.now();
   const rows=active.map(e=>{
     const mine = e.sync_id ? times.filter(t=>t.employee_sync_id===e.sync_id && t.started_at) : [];
-    if(!mine.length) return {e, kind:'new', label:'Added to the crew. No shift on record yet.'};
+    if(!mine.length) return {e, kind:'new', label:tr('crewNewNoShift')};
     const last = mine.reduce((a,t)=> d(t.started_at)>d(a.started_at)?t:a);
     const daysSince = Math.floor((now - d(last.started_at).getTime())/864e5);
     if(daysSince < CREW_DORMANT_DAYS) return null;
     const job = jobBySync(last.job_sync_id);
-    return {e, kind:'quiet', label:'Last clocked in ' + daysSince + ' days ago'
-      + (job ? ' &middot; ' + esc(job.customer_name || 'a job') : '') + '.'};
+    return {e, kind:'quiet', label:tr('crewLastClockedIn', daysSince)
+      + (job ? ' &middot; ' + esc(job.customer_name || tr('crewJobFallback')) : '') + '.'};
   }).filter(Boolean);
   $('crewDormantDays').textContent = CREW_DORMANT_DAYS;
   $('crewStatusEmpty').style.display = rows.length ? 'none' : 'block';
   $('crewStatusRows').innerHTML = rows.map(r=>
-    '<tr><td>'+(esc(r.e.name)||'Unnamed')+'</td><td>'
-    + (r.kind==='new' ? '<span class="pill warn">Not started</span>' : '<span class="pill wait">Gone quiet</span>')
+    '<tr><td>'+(esc(r.e.name)||esc(tr('crewUnnamed')))+'</td><td>'
+    + (r.kind==='new' ? `<span class="pill warn">${esc(tr('crewNotStarted'))}</span>` : `<span class="pill wait">${esc(tr('crewGoneQuiet'))}</span>`)
     + '</td><td>'+r.label+'</td></tr>').join('');
 }
 
@@ -6286,12 +6571,13 @@ function renderCrewProductivity(){
     const vsEstimate = v.soloJobs
       ? (()=>{ const diff = v.estHours - v.actualHours; const over = diff < -0.05;
           const under = diff > 0.05;
-          const text = Math.abs(diff).toFixed(1) + 'h ' + (over ? 'over' : under ? 'under' : 'on') + ' estimate';
+          const text = esc(tr(over ? 'crewVarianceOver' : under ? 'crewVarianceUnder' : 'crewVarianceOn', Math.abs(diff).toFixed(1)));
+          const titleKey = v.soloJobs===1 ? 'crewVarianceTitle' : 'crewVarianceTitlePlur';
           return '<span' + (over ? ' style="color:var(--bad,#b3261e)"' : '') + ' title="'
-            + v.estHours.toFixed(1) + 'h estimated, ' + v.actualHours.toFixed(1) + 'h logged, across '
-            + v.soloJobs + ' solo-assigned job' + (v.soloJobs===1?'':'s') + '">' + text + '</span>'; })()
-      : '<span class="sub" title="Either no job was assigned to this person alone, or none of those jobs had an estimated-hours figure on file">Not enough solo-assigned, estimated jobs</span>';
-    return `<tr><td>${esc(r.e.name)||'Unnamed'}</td><td>${r.hours.toFixed(1)}</td>`
+            + esc(tr(titleKey, v.estHours.toFixed(1), v.actualHours.toFixed(1), v.soloJobs))
+            + '">' + text + '</span>'; })()
+      : `<span class="sub" title="${esc(tr('crewVarianceNotEnoughTitle'))}">${esc(tr('crewVarianceNotEnough'))}</span>`;
+    return `<tr><td>${esc(r.e.name)||esc(tr('crewUnnamed'))}</td><td>${r.hours.toFixed(1)}</td>`
       + `<td>${r.jobs}</td><td>${avgPerJob.toFixed(1)}</td><td>${vsEstimate}</td></tr>`;
   }).join('');
 
@@ -6302,10 +6588,10 @@ function renderCrewProductivity(){
   const anyRateOnFile = employeesHavePay && employees.some(e =>
     Number(e.hourly_rate||0) > 0 || (e.pay_type === 'PER_FOOT' && Number(e.per_foot_rate||0) > 0));
   $('crewProdNote').textContent = !employeesHavePay
-    ? 'Pay is not visible to your account, so a cost-per-hour figure could not be verified even if one existed. Everything above is hours, never money.'
+    ? tr('crewProdNoteNoPay')
     : anyRateOnFile
-      ? 'Not shown: cost per hour. Some crew have a rate on file and some read $0, and averaging real pay with a missing one produces a number that is wrong in both directions. Everything above is hours, never money.'
-      : 'Not shown: cost per hour or any efficiency figure. No crew member has an hourly rate on file, so labour cost is $0 for every hour logged -- a number computed from that would be a $0 rate wearing a decimal point, not a measurement. Everything above is hours, never money.';
+      ? tr('crewProdNoteMixedPay')
+      : tr('crewProdNoteNoRate');
 }
 
 /* ---------- time ---------- */
@@ -6658,7 +6944,7 @@ const CATALOG_FENCE_TYPES = ['VINYL','WOOD','CHAIN_LINK','ALUMINUM','ORNAMENTAL_
 const MATERIAL_CATEGORIES = ['PANEL','POST','CAP','CONCRETE','HARDWARE','GATE','TRIM','FABRIC','RAIL','PICKET','MISC'];
 
 function catFenceTypeLabel(t){
-  return t==='UNIVERSAL' ? 'Universal' : wizFenceTypeLabel(t);
+  return t==='UNIVERSAL' ? tr('catUniversalLabel') : wizFenceTypeLabel(t);
 }
 
 /**
@@ -6924,8 +7210,13 @@ function manufacturerName(syncId){
 function catItemRowHtml(c, hasSupplierPrice, hasSku){
   const placeholder = (c.source_doc||'').toLowerCase().startsWith('placeholder');
   const supName = manufacturerName(c.manufacturer_sync_id);
+  // The diamond flag is the confirmed-vs-unconfirmed price signal: a
+  // placeholder (seeded, never priced by this company's own supplier) gets
+  // the flag and its title, a confirmed row gets neither. Only the title
+  // text is translated -- c.source_doc itself, the stored flag the phone
+  // app and catalogSeedRowsToAdd() both read, is never touched.
   return `<tr class="${c.is_active===false?'mcat-inactive':''}">
-    <td>${esc(c.name)}${placeholder?' <span class="mcat-flag" title="Placeholder price — verify with your supplier">◆</span>':''}</td>
+    <td>${esc(c.name)}${placeholder?` <span class="mcat-flag" title="${esc(tr('catPlaceholderFlagTitle'))}">◆</span>`:''}</td>
     <td>${esc((c.role||'').replace(/_/g,' '))}</td>
     <td>${esc(c.color_or_finish)||'—'}</td>
     <td>${esc(c.unit)}</td>
@@ -6937,8 +7228,8 @@ function catItemRowHtml(c, hasSupplierPrice, hasSku){
     <td style="text-align:center"><input type="checkbox" data-cat-active="${c.sync_id}"
       ${c.is_active!==false?'checked':''} style="width:auto" ${canEdit()?'':'disabled'}></td>
     <td style="white-space:nowrap">${canEdit() ? `
-      <button class="btn btn-sm btn-grey" type="button" data-cat-edit="${c.sync_id}">Edit</button>
-      <button class="btn btn-sm btn-grey" type="button" data-cat-retire="${c.sync_id}">Retire</button>` : ''}</td>
+      <button class="btn btn-sm btn-grey" type="button" data-cat-edit="${c.sync_id}">${esc(tr('catEditBtn'))}</button>
+      <button class="btn btn-sm btn-grey" type="button" data-cat-retire="${c.sync_id}">${esc(tr('catRetireBtn'))}</button>` : ''}</td>
   </tr>`;
 }
 
@@ -6962,23 +7253,23 @@ function catSectionHtml(g, filteredItems, expanded, hasFilter){
       + inCat.map(c=>catItemRowHtml(c, hasSupplierPrice, hasSku)).join('');
   }).join('');
   const missingLine = g.missing.length
-    ? `<p class="mcat-missing">Missing: ${g.missing.map(r=>esc(r.replace(/_/g,' '))).join(', ')}`
-      + ' — the estimate will flag these as unmatched until one is priced.</p>'
-    : `<p class="mcat-missing ok">Every role this fence type needs has a priced item.</p>`;
+    ? `<p class="mcat-missing">${esc(tr('catMissingPrefix'))}${g.missing.map(r=>esc(r.replace(/_/g,' '))).join(', ')}`
+      + esc(tr('catMissingSuffix')) + '</p>'
+    : `<p class="mcat-missing ok">${esc(tr('catAllRolesPricedMsg'))}</p>`;
   return `<div class="mcat ${expanded?'':'closed'}">
     <button type="button" class="mcat-head" data-cat-toggle="${g.type}">
       <span class="caret">▾</span><strong>${esc(label)}</strong>
-      <span class="mcat-count">${g.items.length} item${g.items.length===1?'':'s'}</span>
+      <span class="mcat-count">${esc(tr(g.items.length===1?'catItemsSing':'catItemsPlur', g.items.length))}</span>
     </button>
     <div class="mcat-body">
       ${missingLine}
       ${filteredItems.length ? `<div class="scroll"><table>
-        <thead><tr><th>Item</th><th>Role</th><th>Colour</th><th>Unit</th><th>Price</th><th>Covers ft</th>
-          ${hasSupplierPrice?'<th>Supplier price</th>':''}<th>Supplier</th>
-          ${hasSku?'<th>SKU</th>':''}<th>Active</th><th></th></tr></thead>
+        <thead><tr><th>${esc(tr('catColItem'))}</th><th>${esc(tr('catColRole'))}</th><th>${esc(tr('catColColour'))}</th><th>${esc(tr('catColUnit'))}</th><th>${esc(tr('catColPrice'))}</th><th>${esc(tr('catColCoversFt'))}</th>
+          ${hasSupplierPrice?`<th>${esc(tr('catColSupplierPrice'))}</th>`:''}<th>${esc(tr('catColSupplier'))}</th>
+          ${hasSku?`<th>${esc(tr('catColSku'))}</th>`:''}<th>${esc(tr('catColActive'))}</th><th></th></tr></thead>
         <tbody>${rowsHtml}</tbody></table></div>`
-        : `<p class="empty">${hasFilter?'Nothing here matches the filter.':'No items yet.'}</p>`}
-      ${canEdit() ? `<button class="btn btn-sm" type="button" data-cat-add="${g.type}" style="margin-top:10px">Add item to ${esc(label)}</button>` : ''}
+        : `<p class="empty">${hasFilter?esc(tr('catNothingFilterMsg')):esc(tr('catNoItemsYetMsg'))}</p>`}
+      ${canEdit() ? `<button class="btn btn-sm" type="button" data-cat-add="${g.type}" style="margin-top:10px">${esc(tr('catAddItemToBtn', label))}</button>` : ''}
     </div>
   </div>`;
 }
@@ -7023,7 +7314,7 @@ function renderCatalogSections(containerId, filterValue){
     const expanded = hasFilter ? true : !catCollapsed.has(g.type);
     return catSectionHtml(g, filteredItems, expanded, hasFilter);
   }).join('');
-  el.innerHTML = html || (catalog.length ? '<p class="empty">Nothing matches your filter.</p>' : '');
+  el.innerHTML = html || (catalog.length ? `<p class="empty">${esc(tr('catNothingFilterMsg'))}</p>` : '');
   wireCatSectionsIn(el);
 }
 
@@ -7168,7 +7459,7 @@ function supRowHtml(m){
     <td>${esc(m.name)}</td><td>${esc(m.phone)||'—'}</td><td>${esc(m.email)||'—'}</td>
     <td>${esc(m.hours)||'—'}</td>
     <td style="white-space:nowrap">${canEdit() ? `
-      <button class="btn btn-sm btn-grey" type="button" data-sup-edit="${m.sync_id}">Edit</button>` : ''}</td>
+      <button class="btn btn-sm btn-grey" type="button" data-sup-edit="${m.sync_id}">${esc(tr('catEditBtn'))}</button>` : ''}</td>
   </tr>`;
 }
 
