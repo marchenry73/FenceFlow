@@ -213,6 +213,57 @@ async function makeLink(
       return json({ error: "Card payments are part of the Crew plan. Upgrade in the dashboard's Billing tab." }, 403);
     }
 
+    // A link may not ask for more than the job still owes.
+    //
+    // The office door takes its amount from the request body and checked only
+    // that it was a number of at least fifty cents. Nothing recomputed it and
+    // nothing capped it, so whatever the client sent became a real charge on a
+    // real card. A report already exists that finds links exceeding the
+    // contract total, which means this was known to be possible -- but a report
+    // finds it after the customer has been asked, and by then it is a phone
+    // call from somebody who trusted the number.
+    //
+    // This is not about a dishonest contractor. An owner overcharging their own
+    // customer is their business, not a privilege they lack. It is about the
+    // ordinary mistake: the app and the quote page disagree about what a
+    // part-paid deposit means -- one offers the rest of the deposit, the other
+    // the rest of the job -- so Request Payment can raise a five-figure link
+    // when somebody meant to ask for a few hundred.
+    //
+    // Deliberately silent when the total is unknown. A job with no contract
+    // total yet is normal early on, and refusing a deposit because the job has
+    // not been priced would break the common case to prevent an unusual one.
+    // The customer-facing door needs none of this: it never trusts a supplied
+    // figure, it recomputes from stored data.
+    const { data: jobRow } = await admin
+      .from("jobs")
+      .select("contract_total, amount_paid, refunded_amount")
+      .eq("company_id", profile.company_id)
+      .eq("sync_id", jobSyncId)
+      .maybeSingle();
+
+    const contractTotal = Number(jobRow?.contract_total ?? 0);
+    if (contractTotal > 0) {
+      const netPaid = Math.max(0,
+        Number(jobRow?.amount_paid ?? 0) - Number(jobRow?.refunded_amount ?? 0));
+      // Dollars in the jobs table, cents on the wire. Getting this backwards
+      // would either refuse every honest request or cap nothing at all.
+      const stillOwedCents = Math.round((contractTotal - netPaid) * 100);
+      // A pound of slack for rounding between the two units, and no more.
+      if (stillOwedCents > 0 && amount > stillOwedCents + 100) {
+        return json({
+          error: "That is more than this job still owes (" +
+            (stillOwedCents / 100).toFixed(2) +
+            "). Check the amount before asking the customer for it.",
+        }, 400);
+      }
+      if (stillOwedCents <= 0) {
+        return json({
+          error: "This job is already paid in full. Nothing further is owed.",
+        }, 400);
+      }
+    }
+
     // Already asked for, and not yet paid? Hand back the same link.
     //
     // A homeowner pressing "Pay deposit" twice made two rows carrying the same

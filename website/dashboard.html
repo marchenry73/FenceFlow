@@ -647,21 +647,21 @@
     <div id="tab-jobs" style="display:none">
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h2 style="margin:0">Jobs</h2>
+          <h2 style="margin:0" data-t="jobsHead">Jobs</h2>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-sm btn-grey" id="openMap">Map</button>
-            <button class="btn btn-sm btn-grey" id="qboExport">QuickBooks CSVs</button>
-            <button class="btn btn-sm btn-grey" id="openImport">Import their data</button>
-            <button class="btn btn-sm" id="newJob">+ New Job</button>
+            <button class="btn btn-sm btn-grey" id="openMap" data-t="jobsMapBtn">Map</button>
+            <button class="btn btn-sm btn-grey" id="qboExport" data-t="jobsQboBtn">QuickBooks CSVs</button>
+            <button class="btn btn-sm btn-grey" id="openImport" data-t="jobsImportBtn">Import their data</button>
+            <button class="btn btn-sm" id="newJob" data-t="jobsNewBtn">+ New Job</button>
           </div>
         </div>
         <div class="msg" id="jobsMsg"></div>
         <div class="jt">
-          <input type="search" id="jobSearch" placeholder="Search a customer or address"
+          <input type="search" id="jobSearch" data-t="jobSearchPh" placeholder="Search a customer or address"
                  autocomplete="off" aria-label="Search jobs">
           <div class="chips" id="jobStatusChips"></div>
           <span class="jt-count" id="jobsCount"></span>
-          <button class="jt-clear" id="jobsClear" style="display:none">Clear</button>
+          <button class="jt-clear" id="jobsClear" data-t="jobsClearBtn" style="display:none">Clear</button>
         </div>
         <div class="jb" id="jobBatch" style="display:none">
           <span class="jb-n" id="jobSelN"></span>
@@ -670,17 +670,17 @@
             <select id="jobBatchCrew" aria-label="Assign the selected jobs to a crew member"></select>
             <input type="date" id="jobBatchDate" aria-label="Schedule the selected jobs">
           </span>
-          <button class="btn btn-sm btn-grey" id="jobBatchCsv">Export these</button>
-          <button class="jt-clear spacer" id="jobSelClear">Clear selection</button>
+          <button class="btn btn-sm btn-grey" id="jobBatchCsv" data-t="jobBatchExportBtn">Export these</button>
+          <button class="jt-clear spacer" id="jobSelClear" data-t="jobBatchClearBtn">Clear selection</button>
         </div>
         <div class="scroll"><table>
           <thead><tr>
             <th class="selcol"><input type="checkbox" id="jobSelAll" aria-label="Select every job shown"></th>
-            <th class="sortable" data-sort="customer" tabindex="0" aria-sort="none">Customer<span class="arw"></span></th>
-            <th class="sortable" data-sort="address" tabindex="0" aria-sort="none">Address<span class="arw"></span></th>
-            <th class="sortable" data-sort="status" tabindex="0" aria-sort="none">Status<span class="arw"></span></th>
-            <th class="sortable" data-sort="scheduled" tabindex="0" aria-sort="none">Scheduled<span class="arw"></span></th>
-            <th class="sortable" data-sort="paid" tabindex="0" aria-sort="none">Paid<span class="arw"></span></th>
+            <th class="sortable" data-sort="customer" tabindex="0" aria-sort="none"><span data-t="jobColCustomer">Customer</span><span class="arw"></span></th>
+            <th class="sortable" data-sort="address" tabindex="0" aria-sort="none"><span data-t="jobColAddress">Address</span><span class="arw"></span></th>
+            <th class="sortable" data-sort="status" tabindex="0" aria-sort="none"><span data-t="jobColStatus">Status</span><span class="arw"></span></th>
+            <th class="sortable" data-sort="scheduled" tabindex="0" aria-sort="none"><span data-t="jobColScheduled">Scheduled</span><span class="arw"></span></th>
+            <th class="sortable" data-sort="paid" tabindex="0" aria-sort="none"><span data-t="jobColPaid">Paid</span><span class="arw"></span></th>
           </tr></thead>
           <tbody id="jobRows"></tbody></table></div>
         <div class="empty" id="jobsEmpty" style="display:none">No jobs yet.</div>
@@ -1378,119 +1378,119 @@
 <!-- Job editor -->
 <div class="overlay" id="jobOverlay"><div class="sheet">
   <div class="sheet-head">
-    <strong id="jobTitle">Job</strong>
-    <button class="btn btn-sm btn-ghost" id="closeJob">Close</button>
+    <strong id="jobTitle" data-t="jobTitleFallback">Job</strong>
+    <button class="btn btn-sm btn-ghost" id="closeJob" data-t="jobCloseBtn">Close</button>
   </div>
   <div class="sheet-body">
     <div class="msg" id="jobMsg"></div><div id="jobReadonly"></div>
 
-    <div class="panel"><h2>Progress</h2><div id="jobProgress"></div></div>
+    <div class="panel"><h2 data-t="jobSecProgress">Progress</h2><div id="jobProgress"></div></div>
 
-    <div class="panel"><h2>Customer</h2>
+    <div class="panel"><h2 data-t="jobSecCustomer">Customer</h2>
       <div class="row2">
-        <div><label>Customer name</label><input id="j_customer_name"></div>
-        <div><label>Phone</label><input id="j_phone"></div>
+        <div><label data-t="jobLabelCustomerName">Customer name</label><input id="j_customer_name"></div>
+        <div><label data-t="jobLabelPhone">Phone</label><input id="j_phone"></div>
       </div>
-      <label>Property address</label><input id="j_address" placeholder="Street, City, ST ZIP">
+      <label data-t="jobLabelAddress">Property address</label><input id="j_address" data-t="jobAddressPh" placeholder="Street, City, ST ZIP">
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-grey" id="j_addr_verify" type="button">Verify address</button>
+        <button class="btn btn-sm btn-grey" id="j_addr_verify" type="button" data-t="jobVerifyAddrBtn">Verify address</button>
         <span class="sub" id="j_addr_result"></span>
       </div>
       <div class="row2">
-        <div><label>Email</label><input id="j_email"></div>
-        <div><label>How they found us</label><input id="j_referral_source"></div>
+        <div><label data-t="jobLabelEmail">Email</label><input id="j_email"></div>
+        <div><label data-t="jobLabelReferral">How they found us</label><input id="j_referral_source"></div>
       </div>
-      <label>Notes</label><textarea id="j_notes"></textarea>
+      <label data-t="jobLabelNotes">Notes</label><textarea id="j_notes"></textarea>
     </div>
 
-    <div class="panel"><h2>Fence Runs</h2>
-      <button class="btn btn-sm btn-grey" id="openSat" style="margin-bottom:10px">Measure from satellite</button>
+    <div class="panel"><h2 data-t="jobSecRuns">Fence Runs</h2>
+      <button class="btn btn-sm btn-grey" id="openSat" data-t="jobMeasureSatBtn" style="margin-bottom:10px">Measure from satellite</button>
       <div id="jobRuns"></div></div>
-    <div class="panel"><h2>Photos &amp; Documents</h2>
-      <p class="sub" style="margin:0 0 8px">What the crew photographed on site, the signed
+    <div class="panel"><h2 data-t="jobSecPhotos">Photos &amp; Documents</h2>
+      <p class="sub" data-t="jobPhotosBody" style="margin:0 0 8px">What the crew photographed on site, the signed
         signature, and the survey the fence was drawn on — straight from the phones.</p>
-      <div id="jobPhotos" class="empty">Loading…</div>
+      <div id="jobPhotos" class="empty" data-t="jobPhotosLoading">Loading…</div>
     </div>
-    <div class="panel"><h2>Estimate</h2><div id="jobItems"></div>
+    <div class="panel"><h2 data-t="jobSecEstimate">Estimate</h2><div id="jobItems"></div>
       <!-- The office never carries the pricing formula -- it asks price-job,
            the same TypeScript port of EstimateEngine.kt the phone runs, and
            renders exactly what comes back. A dry_run previews; nothing here
            is written until "Keep this price" commits it. -->
       <div style="margin-top:12px">
-        <button class="btn btn-sm btn-grey" id="repriceOffice" type="button">Re-price at the office</button>
+        <button class="btn btn-sm btn-grey" id="repriceOffice" type="button" data-t="jobRepriceBtn">Re-price at the office</button>
         <div class="msg" id="officePricingMsg"></div>
         <div id="officePricingResult"></div>
       </div>
     </div>
 
-    <div class="panel"><h2>Pricing</h2>
+    <div class="panel"><h2 data-t="jobSecPricing">Pricing</h2>
       <div class="readout" id="j_total_readout" style="margin-bottom:10px"></div>
       <p class="sub" id="j_priced_by_readout" style="margin-top:0"></p>
       <div class="row3">
-        <div><label>Tax rate (%)</label><input id="j_tax_rate_percent" type="number" step="0.1"></div>
-        <div><label>Markup (%)</label><input id="j_markup_percent" type="number" step="0.1"></div>
-        <div><label>Discount (%)</label><input id="j_discount_percent" type="number" step="0.1"></div>
-        <div><label>Labor $/ft</label><input id="j_labor_rate_per_ft" type="number" step="0.1"></div>
-        <div><label>Labor flat fee ($)</label><input id="j_labor_flat_fee" type="number" step="1"></div>
-        <div><label>Minimum charge ($)</label><input id="j_minimum_job_charge" type="number" step="1"></div>
+        <div><label data-t="jobLabelTaxRate">Tax rate (%)</label><input id="j_tax_rate_percent" type="number" step="0.1"></div>
+        <div><label data-t="jobLabelMarkup">Markup (%)</label><input id="j_markup_percent" type="number" step="0.1"></div>
+        <div><label data-t="jobLabelDiscount">Discount (%)</label><input id="j_discount_percent" type="number" step="0.1"></div>
+        <div><label data-t="jobLabelLaborRate">Labor $/ft</label><input id="j_labor_rate_per_ft" type="number" step="0.1"></div>
+        <div><label data-t="jobLabelLaborFlat">Labor flat fee ($)</label><input id="j_labor_flat_fee" type="number" step="1"></div>
+        <div><label data-t="jobLabelMinCharge">Minimum charge ($)</label><input id="j_minimum_job_charge" type="number" step="1"></div>
       </div>
     </div>
 
-    <div class="panel"><h2>Schedule &amp; Status</h2>
+    <div class="panel"><h2 data-t="jobSecSchedule">Schedule &amp; Status</h2>
       <div class="row2">
-        <div><label>Status</label><select id="j_status">
-          <option value="DRAFT">Draft</option><option value="SENT">Sent</option>
-          <option value="ACCEPTED">Accepted</option><option value="COMPLETED">Completed</option>
-          <option value="DECLINED">Declined</option></select></div>
-        <div><label>Scheduled date</label><input id="j_scheduled_date" type="date"></div>
-        <div><label>Estimated hours</label><input id="j_estimated_duration_hours" type="number" step="0.5"></div>
-        <div><label>Assigned crew</label><select id="j_assigned_employee_id"></select></div>
+        <div><label data-t="jobLabelStatus">Status</label><select id="j_status">
+          <option value="DRAFT" data-t="jobOptDraft">Draft</option><option value="SENT" data-t="jobOptSent">Sent</option>
+          <option value="ACCEPTED" data-t="jobOptAccepted">Accepted</option><option value="COMPLETED" data-t="jobOptCompleted">Completed</option>
+          <option value="DECLINED" data-t="jobOptDeclined">Declined</option></select></div>
+        <div><label data-t="jobLabelScheduledDate">Scheduled date</label><input id="j_scheduled_date" type="date"></div>
+        <div><label data-t="jobLabelEstHours">Estimated hours</label><input id="j_estimated_duration_hours" type="number" step="0.5"></div>
+        <div><label data-t="jobLabelAssignedCrew">Assigned crew</label><select id="j_assigned_employee_id"></select></div>
       </div>
     </div>
 
-    <div class="panel"><h2>Payment</h2>
+    <div class="panel"><h2 data-t="jobSecPayment">Payment</h2>
       <div class="row3">
-        <div><label>Deposit ($)</label><input id="j_deposit_amount" type="number" step="1"></div>
-        <div><label>Amount paid</label>
+        <div><label data-t="jobLabelDeposit">Deposit ($)</label><input id="j_deposit_amount" type="number" step="1"></div>
+        <div><label data-t="jobLabelAmountPaid">Amount paid</label>
           <div id="j_paid_readout" class="readout"></div></div>
-        <div><label>Payment status</label><select id="j_payment_status">
-          <option value="UNPAID">Unpaid</option><option value="DEPOSIT_PAID">Deposit paid</option>
-          <option value="PAID_IN_FULL">Paid in full</option></select></div>
+        <div><label data-t="jobLabelPayStatus">Payment status</label><select id="j_payment_status">
+          <option value="UNPAID" data-t="jobOptUnpaid">Unpaid</option><option value="DEPOSIT_PAID" data-t="jobOptDepositPaid">Deposit paid</option>
+          <option value="PAID_IN_FULL" data-t="jobOptPaidFull">Paid in full</option></select></div>
       </div>
     </div>
 
-    <div class="panel"><h2>Customer quote page</h2>
-      <p class="sub">A link for the homeowner: the quote, their fence in 3D, and an Approve
+    <div class="panel"><h2 data-t="jobSecQuotePage">Customer quote page</h2>
+      <p class="sub" data-t="jobQuotePageBody">A link for the homeowner: the quote, their fence in 3D, and an Approve
         button that signs with their name. No app, no account &mdash; the link is the key, so
         only send it to them.</p>
       <div class="readout" id="q_link" style="user-select:all;overflow-wrap:anywhere"></div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
-        <button class="btn btn-sm" id="q_copy">Copy link</button>
-        <button class="btn btn-sm btn-grey" id="q_open">Preview it</button>
+        <button class="btn btn-sm" id="q_copy" data-t="jobCopyLinkBtn">Copy link</button>
+        <button class="btn btn-sm btn-grey" id="q_open" data-t="jobPreviewBtn">Preview it</button>
       </div>
       <p class="sub" id="q_status" style="margin-top:9px"></p>
       <div class="msg err" id="q_block" style="display:none"></div>
       <p class="sub" id="q_provisional" style="display:none;margin-top:9px"></p>
     </div>
 
-    <div class="panel"><h2>First contact</h2>
+    <div class="panel"><h2 data-t="jobSecFirstContact">First contact</h2>
       <div id="contactState" style="font-weight:600"></div>
-      <p class="sub">Speed to lead is the number a contractor sales operation lives on.
+      <p class="sub" data-t="jobFirstContactBody">Speed to lead is the number a contractor sales operation lives on.
         An enquiry answered within the hour converts several times better than the same
         one answered tomorrow.</p>
-      <button class="btn btn-sm" id="markContacted" style="display:none">I have contacted them</button>
+      <button class="btn btn-sm" id="markContacted" data-t="jobMarkContactedBtn" style="display:none">I have contacted them</button>
       <div class="msg" id="contactMsg"></div>
     </div>
 
-    <div class="panel"><h2>Materials</h2>
+    <div class="panel"><h2 data-t="jobSecMaterials">Materials</h2>
       <div class="row2">
-        <div><label>Status</label><select id="j_materials_status">
-          <option value="NOT_ORDERED">Not ordered</option>
-          <option value="ORDERED">Ordered</option>
-          <option value="RECEIVED">Received</option>
-          <option value="NOT_NEEDED">Not needed</option>
+        <div><label data-t="jobLabelMatStatus">Status</label><select id="j_materials_status">
+          <option value="NOT_ORDERED" data-t="jobOptNotOrdered">Not ordered</option>
+          <option value="ORDERED" data-t="jobOptOrdered">Ordered</option>
+          <option value="RECEIVED" data-t="jobOptReceived">Received</option>
+          <option value="NOT_NEEDED" data-t="jobOptNotNeeded">Not needed</option>
         </select></div>
-        <div><label>Note</label><input id="j_materials_note" placeholder="Yard says Thursday"></div>
+        <div><label data-t="jobLabelMatNote">Note</label><input id="j_materials_note" data-t="jobMatNotePh" placeholder="Yard says Thursday"></div>
       </div>
       <p class="sub" id="materialsWhen"></p>
 
@@ -1501,50 +1501,50 @@
            way to confuse "not recorded" with a recorded zero (a row either
            exists with a real amount, or it does not exist at all). */-->
       <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
-        <label style="margin:0">Delivery / misc costs</label>
-        <p class="sub" style="margin:2px 0 8px">The yard's delivery fee, a permit run, anything
+        <label style="margin:0" data-t="jobLabelDeliveryMisc">Delivery / misc costs</label>
+        <p class="sub" data-t="jobDeliveryMiscBody" style="margin:2px 0 8px">The yard's delivery fee, a permit run, anything
           that does not fit a catalog line. Logged here so it reaches this job's cost report --
           never the customer's price, which is computed separately and does not read this.</p>
         <div id="jobCostRows"></div>
         <div class="row3" style="margin-top:8px">
-          <div><select id="jc_kind"><option value="DELIVERY">Delivery</option><option value="MISC">Misc</option></select></div>
-          <div><input id="jc_desc" placeholder="What it was"></div>
-          <div><input id="jc_amount" type="number" step="0.01" placeholder="Amount ($)"></div>
+          <div><select id="jc_kind"><option value="DELIVERY" data-t="jobOptDelivery">Delivery</option><option value="MISC" data-t="jobOptMisc">Misc</option></select></div>
+          <div><input id="jc_desc" data-t="jobCostDescPh" placeholder="What it was"></div>
+          <div><input id="jc_amount" type="number" step="0.01" data-t="jobCostAmountPh" placeholder="Amount ($)"></div>
         </div>
-        <button class="btn btn-sm btn-grey" type="button" id="jcAdd" style="margin-top:8px">Add cost</button>
+        <button class="btn btn-sm btn-grey" type="button" id="jcAdd" data-t="jobAddCostBtn" style="margin-top:8px">Add cost</button>
         <div class="msg" id="jcMsg"></div>
       </div>
     </div>
 
     <!-- Ready to install, or blocked, and exactly what by. -->
-    <div class="panel"><h2>Ready for installation</h2>
+    <div class="panel"><h2 data-t="jobSecReady">Ready for installation</h2>
       <div id="readyVerdict" style="font-weight:700;margin-bottom:8px"></div>
       <div id="readyList"></div>
       <p class="sub" id="readyNote" style="margin-top:9px"></p>
     </div>
 
-    <div class="panel"><h2>HOA &amp; Permits</h2>
+    <div class="panel"><h2 data-t="jobSecHoa">HOA &amp; Permits</h2>
       <div class="row3">
-        <div><label>HOA name</label><input id="j_hoa_name"></div>
-        <div><label>HOA email</label><input id="j_hoa_email"></div>
-        <div><label>HOA status</label><select id="j_hoa_approval_status">
-          <option value="NOT_REQUIRED">Not required</option><option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option><option value="DENIED">Denied</option></select></div>
-        <div><label>Permit number</label><input id="j_permit_number"></div>
-        <div><label>Permit status</label><select id="j_permit_status">
-          <option value="NOT_REQUIRED">Not required</option><option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option></select></div>
+        <div><label data-t="jobLabelHoaName">HOA name</label><input id="j_hoa_name"></div>
+        <div><label data-t="jobLabelHoaEmail">HOA email</label><input id="j_hoa_email"></div>
+        <div><label data-t="jobLabelHoaStatus">HOA status</label><select id="j_hoa_approval_status">
+          <option value="NOT_REQUIRED" data-t="jobOptNotRequired">Not required</option><option value="PENDING" data-t="jobOptPending">Pending</option>
+          <option value="APPROVED" data-t="jobOptApproved">Approved</option><option value="DENIED" data-t="jobOptDenied">Denied</option></select></div>
+        <div><label data-t="jobLabelPermitNumber">Permit number</label><input id="j_permit_number"></div>
+        <div><label data-t="jobLabelPermitStatus">Permit status</label><select id="j_permit_status">
+          <option value="NOT_REQUIRED" data-t="jobOptNotRequired">Not required</option><option value="PENDING" data-t="jobOptPending">Pending</option>
+          <option value="APPROVED" data-t="jobOptApproved">Approved</option></select></div>
       </div>
     </div>
 
-    <div class="panel"><h2>Expenses</h2><div id="jobExpenses"></div></div>
-    <div class="panel"><h2>Punch List</h2><div id="jobPunch"></div></div>
-    <div class="panel"><h2>Change Orders</h2><div id="jobOrders"></div></div>
-    <div class="panel"><h2>Time Logged</h2><div id="jobTime"></div></div>
+    <div class="panel"><h2 data-t="jobSecExpenses">Expenses</h2><div id="jobExpenses"></div></div>
+    <div class="panel"><h2 data-t="jobSecPunch">Punch List</h2><div id="jobPunch"></div></div>
+    <div class="panel"><h2 data-t="jobSecOrders">Change Orders</h2><div id="jobOrders"></div></div>
+    <div class="panel"><h2 data-t="jobSecTime">Time Logged</h2><div id="jobTime"></div></div>
   </div>
   <div class="sheet-foot">
-    <button class="btn btn-grey" id="deleteJob">Delete</button>
-    <button class="btn" id="saveJob">Save Changes</button>
+    <button class="btn btn-grey" id="deleteJob" data-t="jobDeleteBtn">Delete</button>
+    <button class="btn" id="saveJob" data-t="jobSaveBtn">Save Changes</button>
   </div>
 </div></div>
 
@@ -1968,6 +1968,65 @@ const TL = {
     thisWeekHead:'This week',
     thisWeekBody:'The next seven days. Click a job to open it.',
     langLabel:'Language',
+    jobsHead:'Jobs', jobsMapBtn:'Map', jobsQboBtn:'QuickBooks CSVs',
+    jobsImportBtn:'Import their data', jobsNewBtn:'+ New Job',
+    jobSearchPh:'Search a customer or address', jobsClearBtn:'Clear',
+    jobColCustomer:'Customer', jobColAddress:'Address', jobColStatus:'Status',
+    jobColScheduled:'Scheduled', jobColPaid:'Paid',
+    jobsEmptyNone:'No jobs yet.',
+    jobsEmptyFiltered:'No jobs match that. Clear the search or pick a different status.',
+    jobsCountAllSing:'%s job', jobsCountAllPlur:'%s jobs',
+    jobsCountFilteredSing:'%s of %s job', jobsCountFilteredPlur:'%s of %s jobs',
+    jobWizardBadge:'Finish setting up', jobUntitled:'Untitled', jobNoValue:'—',
+    jobBatchSelectedSing:'%s job selected', jobBatchSelectedPlur:'%s jobs selected',
+    jobBatchHidden:'(%s not shown by this filter)',
+    jobBatchAssignPlaceholder:'Assign crew…', jobBatchUnassigned:'Unassigned',
+    jobBatchExportBtn:'Export these', jobBatchClearBtn:'Clear selection',
+    jobStatusAll:'All', jobStatusDraft:'Draft', jobStatusSent:'Sent',
+    jobStatusAccepted:'Accepted', jobStatusCompleted:'Completed', jobStatusDeclined:'Declined',
+    jobExportedSing:'%s job exported.', jobExportedPlur:'%s jobs exported.',
+    jobTitleFallback:'Job', jobCloseBtn:'Close',
+    jobSecProgress:'Progress', jobSecCustomer:'Customer',
+    jobLabelCustomerName:'Customer name', jobLabelPhone:'Phone',
+    jobLabelAddress:'Property address', jobAddressPh:'Street, City, ST ZIP',
+    jobVerifyAddrBtn:'Verify address', jobLabelEmail:'Email',
+    jobLabelReferral:'How they found us', jobLabelNotes:'Notes',
+    jobSecRuns:'Fence Runs', jobMeasureSatBtn:'Measure from satellite',
+    jobSecPhotos:'Photos & Documents',
+    jobPhotosBody:'What the crew photographed on site, the signed signature, and the survey the fence was drawn on — straight from the phones.',
+    jobPhotosLoading:'Loading…',
+    jobSecEstimate:'Estimate', jobRepriceBtn:'Re-price at the office',
+    jobSecPricing:'Pricing', jobLabelTaxRate:'Tax rate (%)', jobLabelMarkup:'Markup (%)',
+    jobLabelDiscount:'Discount (%)', jobLabelLaborRate:'Labor $/ft',
+    jobLabelLaborFlat:'Labor flat fee ($)', jobLabelMinCharge:'Minimum charge ($)',
+    jobSecSchedule:'Schedule & Status', jobLabelStatus:'Status',
+    jobOptDraft:'Draft', jobOptSent:'Sent', jobOptAccepted:'Accepted',
+    jobOptCompleted:'Completed', jobOptDeclined:'Declined',
+    jobLabelScheduledDate:'Scheduled date', jobLabelEstHours:'Estimated hours',
+    jobLabelAssignedCrew:'Assigned crew',
+    jobSecPayment:'Payment', jobLabelDeposit:'Deposit ($)', jobLabelAmountPaid:'Amount paid',
+    jobLabelPayStatus:'Payment status', jobOptUnpaid:'Unpaid',
+    jobOptDepositPaid:'Deposit paid', jobOptPaidFull:'Paid in full',
+    jobSecQuotePage:'Customer quote page',
+    jobQuotePageBody:'A link for the homeowner: the quote, their fence in 3D, and an Approve button that signs with their name. No app, no account — the link is the key, so only send it to them.',
+    jobCopyLinkBtn:'Copy link', jobPreviewBtn:'Preview it',
+    jobSecFirstContact:'First contact',
+    jobFirstContactBody:'Speed to lead is the number a contractor sales operation lives on. An enquiry answered within the hour converts several times better than the same one answered tomorrow.',
+    jobMarkContactedBtn:'I have contacted them',
+    jobSecMaterials:'Materials', jobLabelMatStatus:'Status',
+    jobOptNotOrdered:'Not ordered', jobOptOrdered:'Ordered', jobOptReceived:'Received',
+    jobOptNotNeeded:'Not needed', jobLabelMatNote:'Note', jobMatNotePh:'Yard says Thursday',
+    jobLabelDeliveryMisc:'Delivery / misc costs',
+    jobDeliveryMiscBody:'The yard\'s delivery fee, a permit run, anything that does not fit a catalog line. Logged here so it reaches this job\'s cost report — never the customer\'s price, which is computed separately and does not read this.',
+    jobOptDelivery:'Delivery', jobOptMisc:'Misc', jobCostDescPh:'What it was',
+    jobCostAmountPh:'Amount ($)', jobAddCostBtn:'Add cost',
+    jobSecReady:'Ready for installation', jobSecHoa:'HOA & Permits',
+    jobLabelHoaName:'HOA name', jobLabelHoaEmail:'HOA email', jobLabelHoaStatus:'HOA status',
+    jobOptNotRequired:'Not required', jobOptPending:'Pending', jobOptApproved:'Approved',
+    jobOptDenied:'Denied', jobLabelPermitNumber:'Permit number',
+    jobLabelPermitStatus:'Permit status',
+    jobSecExpenses:'Expenses', jobSecPunch:'Punch List', jobSecOrders:'Change Orders',
+    jobSecTime:'Time Logged', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -1985,6 +2044,65 @@ const TL = {
     thisWeekHead:'Esta semana',
     thisWeekBody:'Los próximos siete días. Toque un trabajo para abrirlo.',
     langLabel:'Idioma',
+    jobsHead:'Trabajos', jobsMapBtn:'Mapa', jobsQboBtn:'CSV para QuickBooks',
+    jobsImportBtn:'Importar sus datos', jobsNewBtn:'+ Nuevo trabajo',
+    jobSearchPh:'Buscar un cliente o dirección', jobsClearBtn:'Borrar',
+    jobColCustomer:'Cliente', jobColAddress:'Dirección', jobColStatus:'Estado',
+    jobColScheduled:'Programado', jobColPaid:'Pagado',
+    jobsEmptyNone:'Todavía no hay trabajos.',
+    jobsEmptyFiltered:'Nada coincide con eso. Borre la búsqueda o elija otro estado.',
+    jobsCountAllSing:'%s trabajo', jobsCountAllPlur:'%s trabajos',
+    jobsCountFilteredSing:'%s de %s trabajo', jobsCountFilteredPlur:'%s de %s trabajos',
+    jobWizardBadge:'Falta terminar la configuración', jobUntitled:'Sin nombre', jobNoValue:'—',
+    jobBatchSelectedSing:'%s trabajo seleccionado', jobBatchSelectedPlur:'%s trabajos seleccionados',
+    jobBatchHidden:'(%s no se muestran con este filtro)',
+    jobBatchAssignPlaceholder:'Asignar cuadrilla…', jobBatchUnassigned:'Sin asignar',
+    jobBatchExportBtn:'Exportar estos', jobBatchClearBtn:'Quitar selección',
+    jobStatusAll:'Todos', jobStatusDraft:'Borrador', jobStatusSent:'Enviado',
+    jobStatusAccepted:'Aceptado', jobStatusCompleted:'Terminado', jobStatusDeclined:'Rechazado',
+    jobExportedSing:'%s trabajo exportado.', jobExportedPlur:'%s trabajos exportados.',
+    jobTitleFallback:'Trabajo', jobCloseBtn:'Cerrar',
+    jobSecProgress:'Progreso', jobSecCustomer:'Cliente',
+    jobLabelCustomerName:'Nombre del cliente', jobLabelPhone:'Teléfono',
+    jobLabelAddress:'Dirección de la propiedad', jobAddressPh:'Calle, ciudad, estado, código postal',
+    jobVerifyAddrBtn:'Verificar dirección', jobLabelEmail:'Correo electrónico',
+    jobLabelReferral:'Cómo nos encontró', jobLabelNotes:'Notas',
+    jobSecRuns:'Tramos de cerca', jobMeasureSatBtn:'Medir desde satélite',
+    jobSecPhotos:'Fotos y documentos',
+    jobPhotosBody:'Lo que la cuadrilla fotografió en el sitio, la firma del cliente y el plano sobre el que se dibujó la cerca — directo de los teléfonos.',
+    jobPhotosLoading:'Cargando…',
+    jobSecEstimate:'Presupuesto', jobRepriceBtn:'Recalcular precio en la oficina',
+    jobSecPricing:'Precios', jobLabelTaxRate:'Impuesto (%)', jobLabelMarkup:'Margen (%)',
+    jobLabelDiscount:'Descuento (%)', jobLabelLaborRate:'Mano de obra $/pie',
+    jobLabelLaborFlat:'Tarifa fija de mano de obra ($)', jobLabelMinCharge:'Cargo mínimo ($)',
+    jobSecSchedule:'Programación y estado', jobLabelStatus:'Estado',
+    jobOptDraft:'Borrador', jobOptSent:'Enviado', jobOptAccepted:'Aceptado',
+    jobOptCompleted:'Terminado', jobOptDeclined:'Rechazado',
+    jobLabelScheduledDate:'Fecha programada', jobLabelEstHours:'Horas estimadas',
+    jobLabelAssignedCrew:'Cuadrilla asignada',
+    jobSecPayment:'Pago', jobLabelDeposit:'Depósito ($)', jobLabelAmountPaid:'Monto pagado',
+    jobLabelPayStatus:'Estado del pago', jobOptUnpaid:'Sin pagar',
+    jobOptDepositPaid:'Depósito pagado', jobOptPaidFull:'Pagado en su totalidad',
+    jobSecQuotePage:'Página de presupuesto del cliente',
+    jobQuotePageBody:'Un enlace para el propietario: el presupuesto, su cerca en 3D y un botón de Aprobar que firma con su nombre. Sin app, sin cuenta — el enlace es la llave, así que envíeselo solo a él.',
+    jobCopyLinkBtn:'Copiar enlace', jobPreviewBtn:'Vista previa',
+    jobSecFirstContact:'Primer contacto',
+    jobFirstContactBody:'La velocidad de respuesta es el número del que vive una operación de ventas de cercas. Una consulta respondida dentro de la primera hora convierte varias veces mejor que esa misma respondida mañana.',
+    jobMarkContactedBtn:'Ya los contacté',
+    jobSecMaterials:'Materiales', jobLabelMatStatus:'Estado',
+    jobOptNotOrdered:'Sin pedir', jobOptOrdered:'Pedido', jobOptReceived:'Recibido',
+    jobOptNotNeeded:'No se necesita', jobLabelMatNote:'Nota', jobMatNotePh:'El depósito dice el jueves',
+    jobLabelDeliveryMisc:'Entrega / gastos varios',
+    jobDeliveryMiscBody:'El flete del depósito, un trámite de permiso, cualquier cosa que no encaje en una línea del catálogo. Se registra aquí para que llegue al reporte de costos de este trabajo — nunca al precio del cliente, que se calcula por separado y no lee esto.',
+    jobOptDelivery:'Entrega', jobOptMisc:'Varios', jobCostDescPh:'Qué fue',
+    jobCostAmountPh:'Monto ($)', jobAddCostBtn:'Agregar costo',
+    jobSecReady:'Listo para instalar', jobSecHoa:'HOA y permisos',
+    jobLabelHoaName:'Nombre de la HOA', jobLabelHoaEmail:'Correo de la HOA', jobLabelHoaStatus:'Estado de la HOA',
+    jobOptNotRequired:'No se requiere', jobOptPending:'Pendiente', jobOptApproved:'Aprobado',
+    jobOptDenied:'Denegado', jobLabelPermitNumber:'Número de permiso',
+    jobLabelPermitStatus:'Estado del permiso',
+    jobSecExpenses:'Gastos', jobSecPunch:'Lista de pendientes', jobSecOrders:'Órdenes de cambio',
+    jobSecTime:'Horas registradas', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -2002,6 +2120,65 @@ const TL = {
     thisWeekHead:'Cette semaine',
     thisWeekBody:'Les sept prochains jours. Cliquez sur un chantier pour l’ouvrir.',
     langLabel:'Langue',
+    jobsHead:'Chantiers', jobsMapBtn:'Carte', jobsQboBtn:'CSV QuickBooks',
+    jobsImportBtn:'Importer leurs données', jobsNewBtn:'+ Nouveau chantier',
+    jobSearchPh:'Rechercher un client ou une adresse', jobsClearBtn:'Effacer',
+    jobColCustomer:'Client', jobColAddress:'Adresse', jobColStatus:'Statut',
+    jobColScheduled:'Prévu', jobColPaid:'Payé',
+    jobsEmptyNone:'Aucun chantier pour l’instant.',
+    jobsEmptyFiltered:'Rien ne correspond. Effacez la recherche ou choisissez un autre statut.',
+    jobsCountAllSing:'%s chantier', jobsCountAllPlur:'%s chantiers',
+    jobsCountFilteredSing:'%s sur %s chantier', jobsCountFilteredPlur:'%s sur %s chantiers',
+    jobWizardBadge:'Configuration à terminer', jobUntitled:'Sans nom', jobNoValue:'—',
+    jobBatchSelectedSing:'%s chantier sélectionné', jobBatchSelectedPlur:'%s chantiers sélectionnés',
+    jobBatchHidden:'(%s non affichés par ce filtre)',
+    jobBatchAssignPlaceholder:'Assigner une équipe…', jobBatchUnassigned:'Non assigné',
+    jobBatchExportBtn:'Exporter ceux-ci', jobBatchClearBtn:'Effacer la sélection',
+    jobStatusAll:'Tous', jobStatusDraft:'Brouillon', jobStatusSent:'Envoyé',
+    jobStatusAccepted:'Accepté', jobStatusCompleted:'Terminé', jobStatusDeclined:'Refusé',
+    jobExportedSing:'%s chantier exporté.', jobExportedPlur:'%s chantiers exportés.',
+    jobTitleFallback:'Chantier', jobCloseBtn:'Fermer',
+    jobSecProgress:'Avancement', jobSecCustomer:'Client',
+    jobLabelCustomerName:'Nom du client', jobLabelPhone:'Téléphone',
+    jobLabelAddress:'Adresse du chantier', jobAddressPh:'Rue, ville, province, code postal',
+    jobVerifyAddrBtn:'Vérifier l’adresse', jobLabelEmail:'Courriel',
+    jobLabelReferral:'Comment il nous a trouvés', jobLabelNotes:'Notes',
+    jobSecRuns:'Sections de clôture', jobMeasureSatBtn:'Mesurer par satellite',
+    jobSecPhotos:'Photos et documents',
+    jobPhotosBody:'Ce que l’équipe a photographié sur place, la signature du client et le plan sur lequel la clôture a été tracée — directement des téléphones.',
+    jobPhotosLoading:'Chargement…',
+    jobSecEstimate:'Devis', jobRepriceBtn:'Recalculer le prix au bureau',
+    jobSecPricing:'Tarification', jobLabelTaxRate:'Taxe (%)', jobLabelMarkup:'Marge (%)',
+    jobLabelDiscount:'Rabais (%)', jobLabelLaborRate:'Main-d’œuvre $/pi',
+    jobLabelLaborFlat:'Forfait main-d’œuvre ($)', jobLabelMinCharge:'Charge minimale ($)',
+    jobSecSchedule:'Calendrier et statut', jobLabelStatus:'Statut',
+    jobOptDraft:'Brouillon', jobOptSent:'Envoyé', jobOptAccepted:'Accepté',
+    jobOptCompleted:'Terminé', jobOptDeclined:'Refusé',
+    jobLabelScheduledDate:'Date prévue', jobLabelEstHours:'Heures estimées',
+    jobLabelAssignedCrew:'Équipe assignée',
+    jobSecPayment:'Paiement', jobLabelDeposit:'Dépôt ($)', jobLabelAmountPaid:'Montant payé',
+    jobLabelPayStatus:'Statut du paiement', jobOptUnpaid:'Non payé',
+    jobOptDepositPaid:'Dépôt payé', jobOptPaidFull:'Payé en totalité',
+    jobSecQuotePage:'Page de devis client',
+    jobQuotePageBody:'Un lien pour le client : le devis, sa clôture en 3D et un bouton Approuver qui signe avec son nom. Sans app, sans compte — le lien fait office de clé, alors ne l’envoyez qu’à lui.',
+    jobCopyLinkBtn:'Copier le lien', jobPreviewBtn:'Aperçu',
+    jobSecFirstContact:'Premier contact',
+    jobFirstContactBody:'La rapidité de réponse est le chiffre qui fait vivre une équipe de vente en clôture. Une demande traitée dans l’heure se convertit bien mieux que la même demande traitée le lendemain.',
+    jobMarkContactedBtn:'Je les ai contactés',
+    jobSecMaterials:'Matériaux', jobLabelMatStatus:'Statut',
+    jobOptNotOrdered:'Non commandé', jobOptOrdered:'Commandé', jobOptReceived:'Reçu',
+    jobOptNotNeeded:'Pas nécessaire', jobLabelMatNote:'Note', jobMatNotePh:'La cour dit jeudi',
+    jobLabelDeliveryMisc:'Livraison / frais divers',
+    jobDeliveryMiscBody:'Les frais de livraison de la cour, une démarche de permis, tout ce qui ne correspond pas à une ligne du catalogue. Noté ici pour figurer au rapport de coûts de ce chantier — jamais dans le prix du client, qui est calculé séparément et ne lit pas ceci.',
+    jobOptDelivery:'Livraison', jobOptMisc:'Divers', jobCostDescPh:'De quoi il s’agissait',
+    jobCostAmountPh:'Montant ($)', jobAddCostBtn:'Ajouter un coût',
+    jobSecReady:'Prêt pour l’installation', jobSecHoa:'Copropriété et permis',
+    jobLabelHoaName:'Nom de l’association', jobLabelHoaEmail:'Courriel de l’association', jobLabelHoaStatus:'Statut de l’association',
+    jobOptNotRequired:'Non requis', jobOptPending:'En attente', jobOptApproved:'Approuvé',
+    jobOptDenied:'Refusé', jobLabelPermitNumber:'Numéro de permis',
+    jobLabelPermitStatus:'Statut du permis',
+    jobSecExpenses:'Dépenses', jobSecPunch:'Liste des correctifs', jobSecOrders:'Avenants',
+    jobSecTime:'Heures enregistrées', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications',
   },
 };
 
@@ -4707,6 +4884,11 @@ const jobView = { q:'', status:'ALL', sort:'scheduled', dir:'asc' };
 /* The order the pipeline moves in, so sorting by status walks a job's life
    rather than the alphabet. */
 const JOB_STATUS_ORDER = ['DRAFT','SENT','ACCEPTED','COMPLETED','DECLINED'];
+/* Status values stay the raw enum (they drive the pill's CSS class and the
+   batch-write payload) -- only the label shown to a person is translated. */
+const JOB_STATUS_KEYS = { DRAFT:'jobStatusDraft', SENT:'jobStatusSent', ACCEPTED:'jobStatusAccepted',
+  COMPLETED:'jobStatusCompleted', DECLINED:'jobStatusDeclined' };
+function jobStatusLabel(st){ return JOB_STATUS_KEYS[st] ? tr(JOB_STATUS_KEYS[st]) : st; }
 
 function jobsMatching(){
   const q = jobView.q.trim().toLowerCase();
@@ -4754,16 +4936,16 @@ function renderJobBatch(shown){
   const n = jobSel.size;
   $('jobBatch').style.display = n ? 'flex' : 'none';
   if(!n) return;
-  $('jobSelN').textContent = n + (n===1?' job selected':' jobs selected');
+  $('jobSelN').textContent = tr(n===1?'jobBatchSelectedSing':'jobBatchSelectedPlur', n);
   // Said out loud, because acting on jobs a filter is currently hiding is
   // exactly the surprise a batch action must not spring on anybody.
   const hidden = n - shown.filter(j=>jobSel.has(String(j.id))).length;
-  $('jobSelHidden').textContent = hidden ? '(' + hidden + ' not shown by this filter)' : '';
+  $('jobSelHidden').textContent = hidden ? tr('jobBatchHidden', hidden) : '';
   $('jobBatchWrite').style.display = canEdit() ? 'flex' : 'none';
 
   const crew = $('jobBatchCrew');
   const keep = crew.value;
-  crew.innerHTML = '<option value="">Assign crew…</option><option value="__none__">Unassigned</option>'
+  crew.innerHTML = '<option value="">'+esc(tr('jobBatchAssignPlaceholder'))+'</option><option value="__none__">'+esc(tr('jobBatchUnassigned'))+'</option>'
     + employees.filter(e=>e.is_active !== false)
         .map(e=>'<option value="'+esc(e.sync_id)+'">'+ (esc(e.name)||'Unnamed') +'</option>').join('');
   crew.value = keep;
@@ -4780,7 +4962,7 @@ function renderJobStatusChips(){
     '<button class="chip'+(jobView.status===st?' on':'')+'" data-st="'+st+'">'+
     esc(label)+' <span style="opacity:.65">'+n+'</span></button>';
   $('jobStatusChips').innerHTML =
-    chip('ALL','All',jobs.length) + present.map(st=>chip(st,st.charAt(0)+st.slice(1).toLowerCase(),counts[st])).join('');
+    chip('ALL',tr('jobStatusAll'),jobs.length) + present.map(st=>chip(st,jobStatusLabel(st),counts[st])).join('');
 }
 
 function renderJobSortHeaders(){
@@ -4805,12 +4987,12 @@ function renderJobs(){
   const empty = $('jobsEmpty');
   empty.style.display = shown.length ? 'none' : 'block';
   empty.textContent = jobs.length === 0
-    ? 'No jobs yet.'
-    : 'No jobs match that. Clear the search or pick a different status.';
+    ? tr('jobsEmptyNone')
+    : tr('jobsEmptyFiltered');
 
   $('jobsCount').textContent = filtering
-    ? shown.length + ' of ' + jobs.length + (jobs.length === 1 ? ' job' : ' jobs')
-    : jobs.length + (jobs.length === 1 ? ' job' : ' jobs');
+    ? tr(jobs.length === 1 ? 'jobsCountFilteredSing' : 'jobsCountFilteredPlur', shown.length, jobs.length)
+    : tr(jobs.length === 1 ? 'jobsCountAllSing' : 'jobsCountAllPlur', jobs.length);
   $('jobsClear').style.display = filtering ? '' : 'none';
 
   renderJobStatusChips();
@@ -4822,10 +5004,10 @@ function renderJobs(){
     <tr class="click" data-id="${j.id}">
       <td class="selcol"><input type="checkbox" class="jobtick" data-id="${j.id}"
           ${jobSel.has(String(j.id))?'checked':''} aria-label="Select this job"></td>
-      <td><strong>${esc(j.customer_name)||'Untitled'}</strong></td>
-      <td>${esc(j.address)||'—'}</td>
-      <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span>
-        ${j.wizard_step ? '<span class="pill" style="background:var(--warn-bg);color:var(--warn-fg);margin-left:4px;white-space:nowrap">Finish setting up</span>' : ''}</td>
+      <td><strong>${esc(j.customer_name)||tr('jobUntitled')}</strong></td>
+      <td>${esc(j.address)||tr('jobNoValue')}</td>
+      <td><span class="pill ${esc(j.status)}">${esc(jobStatusLabel(j.status))}</span>
+        ${j.wizard_step ? '<span class="pill" style="background:var(--warn-bg);color:var(--warn-fg);margin-left:4px;white-space:nowrap">'+esc(tr('jobWizardBadge'))+'</span>' : ''}</td>
       <td>${j.scheduled_date?d(j.scheduled_date).toLocaleDateString():'—'}</td>
       <td>${money(netPaid(j))}</td></tr>`).join('');
   document.querySelectorAll('#jobRows tr').forEach(tr=>
@@ -4894,7 +5076,7 @@ $('jobBatchCsv').addEventListener('click', ()=>{
       j.scheduled_date ? d(j.scheduled_date).toLocaleDateString() : '',
       netPaid(j).toFixed(2)
     ]));
-  msg('jobsMsg', picked.length + (picked.length===1?' job exported.':' jobs exported.'), 'ok');
+  msg('jobsMsg', tr(picked.length===1?'jobExportedSing':'jobExportedPlur', picked.length), 'ok');
 });
 
 /* One write path for every batch change: confirm with the count in the
