@@ -17,6 +17,13 @@
  *       -> scripts/verify-backup.mjs, run here against the newest backup folder
  *   - money quietly disagreeing with itself
  *       -> tests/money-report-guard.test.mjs
+ *   - the whole company side of the product failing with nothing watching
+ *       -> tests/company-golden-path.test.mjs and
+ *          tests/company-crew-golden-path.test.mjs, both of which existed and
+ *          passed but were run by nothing at all until they were added here
+ *
+ * These two are minutes rather than seconds (see runNode's timeout note), so
+ * `node scripts/whats-wrong.mjs` is no longer a ten-second command.
  *
  * Plus five checks that were genuinely dark before this file existed --
  * nothing on this system watched for them at all (see the comment above each
@@ -58,17 +65,40 @@ const BACKUP_ROOTS = ["D:/FenceFlowBackups", "C:/Users/march/FenceFlowBackups"];
 let bad = 0;
 const sections = [];
 
-function runNode(label, meaning, relPath) {
+/** `timeoutMs` is per-test because the two company golden-path files are an
+ *  order of magnitude slower than everything else here: each of their ~10
+ *  probes is its own `supabase db query` process, and the whole file lands
+ *  around four to six minutes. Under the shared 240s they were killed mid-run
+ *  and reported as broken, which is the same failure mode the backup section
+ *  below already carries a comment about -- a checker permanently red for a
+ *  reason that has nothing to do with what it watches stops being believed. */
+function runNode(label, meaning, relPath, timeoutMs = 240_000) {
   const started = Date.now();
   const r = spawnSync(process.execPath, [join(REPO_ROOT, relPath)], {
-    cwd: REPO_ROOT, encoding: "utf8", timeout: 240_000,
+    cwd: REPO_ROOT, encoding: "utf8", timeout: timeoutMs,
   });
   const ms = Date.now() - started;
   const ok = r.status === 0 && !r.error;
   if (!ok) bad++;
+  // Exit 2 is this repo's shared "could not run at all" code -- health-check,
+  // live-rules-guard, money-report-guard and both company files all use it for
+  // the catch around main(). It is not the same news as exit 1. The first live
+  // run of the two company files here lost one probe to a bare
+  // "supabase db query failed: Initialising login role..." with no error body;
+  // reporting that as "crew roles are broken" would be announcing a rule
+  // failure over a network hiccup, and a checker that cries wolf stops being
+  // read. Still counted as bad -- unknown is not healthy, it is just not the
+  // same accusation.
+  //
+  // A timeout kill belongs in the same bucket. spawnSync reports it as
+  // ETIMEDOUT with a null status, and reading that as "exit non-zero, rule
+  // broken" is how three sections here spent their time accusing live database
+  // rules of being broken when the only thing that had happened was the clock
+  // running out. A killed run tells us nothing; say so.
+  const couldNotRun = r.status === 2 || r.error?.code === "ETIMEDOUT";
   sections.push({
     ok, label, ms,
-    meaning: ok ? null : meaning,
+    meaning: ok ? null : couldNotRun ? `could not run -- unknown, NOT proven broken (if it had run: ${meaning})` : meaning,
     detail: ok
       ? "healthy"
       : (r.error ? r.error.message : `exit ${r.status}`) +
@@ -136,9 +166,28 @@ function darkCheck(label, meaning, probeSql, canarySql) {
 async function main() {
   // ---- reused, not duplicated ------------------------------------------
   runNode("health-check", "the pages, the update, the quote/lead functions, or mail are down", "tests/health-check.mjs");
-  runNode("live-rules-guard", "a live database rule (payroll split, shift ownership, production stage, quote-approval phone gate, or shift disputes) is silently broken", "tests/live-rules-guard.test.mjs");
-  runNode("money-report-guard", "ar_aging() or job_costing() is quietly wrong for at least one job", "tests/money-report-guard.test.mjs");
+  // These two outgrew the shared 240s some time ago and nobody noticed, because
+  // being killed at the deadline looks exactly like failing. Measured on this
+  // machine against the live project: live-rules-guard 5m52s, money-report-guard
+  // 9m27s, both passing. Every probe in them is its own `supabase db query`
+  // process and the CLI spends most of a minute on each. So whats-wrong has been
+  // announcing "a live database rule is silently broken" on a stopwatch, which
+  // is the same false alarm the backup section below already carries a comment
+  // about -- and worse, because a rule failure is the kind of news somebody acts
+  // on. Timeouts are ~1.6x the measured run, not a guess at a round number.
+  runNode("live-rules-guard", "a live database rule (payroll split, shift ownership, production stage, quote-approval phone gate, or shift disputes) is silently broken", "tests/live-rules-guard.test.mjs", 600_000);
+  runNode("money-report-guard", "ar_aging() or job_costing() is quietly wrong for at least one job", "tests/money-report-guard.test.mjs", 900_000);
   runNode("golden-path", "the core quote-to-payment flow no longer works end to end against the live function", "tests/golden-path.test.mjs");
+  // The COMPANY half of the golden path. Both files were written, both pass,
+  // and until now neither was run by anything -- golden-path.test.mjs above
+  // covers only the customer side (enquiry, quote, approval), so signup and
+  // onboarding progress, server-side pricing against the real engine,
+  // production-stage gating, the payment-to-job-total ledger, crew roles and
+  // permission overrides, scheduling permission, the time clock, corrections,
+  // disputes and job costing's dependence on approved hours were all watched
+  // by nobody. A test nobody runs is a test that is not protecting anything.
+  runNode("company-golden-path", "signup/onboarding, server-side pricing, production-stage gating or the payment-to-job-total ledger is broken for a whole company", "tests/company-golden-path.test.mjs", 900_000);
+  runNode("company-crew-golden-path", "crew roles, scheduling permission, the time clock, shift corrections/disputes, or job costing's approved-hours rule is broken", "tests/company-crew-golden-path.test.mjs", 900_000);
   runNode("security-smoke", "an anonymous caller can read or write something they shouldn't", "tests/security-smoke.test.mjs");
 
   // ---- backup: verify the newest folder actually on disk ----------------
@@ -162,8 +211,13 @@ async function main() {
         .sort((a, b) => statSync(a).mtimeMs - statSync(b).mtimeMs);
       const newest = folders[folders.length - 1];
       if (!newest) throw new Error(`no fenceflow-* backup folder in ${root}`);
+      // Same stopwatch problem as live-rules-guard above: verify-backup reads
+      // every table's live count through the CLI, one query at a time, and was
+      // being killed at 240s and reported as "the newest backup is missing
+      // tables or is unreadable" -- an accusation about the backups made
+      // entirely on the clock.
       const r = spawnSync(process.execPath, [join(REPO_ROOT, "scripts", "verify-backup.mjs"), newest], {
-        cwd: REPO_ROOT, encoding: "utf8", timeout: 240_000,
+        cwd: REPO_ROOT, encoding: "utf8", timeout: 900_000,
       });
       // A backup is compared against the LIVE tables, so every row written
       // since it was taken reads as the backup being short. That is drift,

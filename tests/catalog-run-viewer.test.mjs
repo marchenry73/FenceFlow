@@ -142,8 +142,170 @@ const near = (label, got, want, tol) => {
     + 'own item(...) calls', M.catalogSeedCounts(), kotlinCounts);
   eq('92 seed items total (19+10+18+14+11+8+10+2)',
     M.CATALOG_SEED.length, Object.values(kotlinCounts).reduce((a,b)=>a+b,0));
-  ok('every seed row carries a source_doc flagging REAL vs PLACEHOLDER pricing',
+  // Necessary but nowhere near sufficient -- see the source_doc value
+  // comparison below for why this passing meant very little on its own.
+  ok('every seed row carries a source_doc at all',
     M.CATALOG_SEED.every(r => r.source_doc && r.source_doc.length>0));
+
+  /* ---- source_doc VALUES, not counts and not non-emptiness --------------
+
+     The two checks above compare how MANY rows each side has and ask only
+     that the office copy's source_doc is a non-empty string. Both pass
+     unchanged while the office page labels a row something the phone never
+     writes, which is exactly how the two drifted apart on this one field.
+
+     source_doc is not decoration, and it is not a display string either: it is
+     STORED on every seeded catalog row, and isPlaceholderPrice() in SeedData.kt
+     matches it by exact equality to decide whether a price is flagged unverified
+     before a quote goes out. SeedData.kt's own note records what that costs when
+     it is wrong -- sixteen rows once shipped under "From a real supplier quote",
+     which the check deliberately does NOT match, so they "passed the
+     unverified-price check in silence and could be quoted off untouched".
+
+     Whichever wording each side seeds, it is the one its customers' rows keep.
+     PLACEHOLDER is kept alive only so catalogs seeded by OLDER builds keep
+     answering the same way; a copy of the seed still stamping it on rows created
+     today is writing a legacy value into new companies, indistinguishable
+     afterwards from a catalog seeded in 2025. Every future narrowing of
+     isPlaceholderPrice() -- exactly the narrowing that retired the supplier-quote
+     wording -- then lands on whichever half drifted.
+
+     Both sides are read from their own file and compared only against each
+     other. No expected string is typed into this test, so whatever wording
+     the two files settle on, this asks one thing: that they say the same. */
+
+  // Kotlin string escapes, so `5\"x5\" Co-Ex Line Post` compares equal to the
+  // same characters after JavaScript has already unescaped the office copy.
+  const unescapeKt = (s) => s.replace(/\\(u[0-9a-fA-F]{4}|.)/g, (m, c) =>
+    c[0] === 'u' ? String.fromCharCode(parseInt(c.slice(1), 16))
+    : ({ n: '\n', t: '\t', r: '\r', b: '\b', '\\': '\\', '"': '"', "'": "'", $: '$' }[c] ?? c));
+
+  // SEEDED / PLACEHOLDER, read from SeedData.kt rather than restated here --
+  // the point is to compare two files, not to compare both against a third
+  // copy of the string living in a test.
+  const KT_CONSTS = Object.fromEntries(
+    [...kt.matchAll(/const val ([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"((?:[^"\\]|\\.)*)"/g)]
+      .map(m => [m[1], unescapeKt(m[2])]));
+
+  /* Every item(...) call in a seed function, in file order, with the name it
+     gives and the source_doc it resolves to. The paren scan skips string
+     literals deliberately: "Wood Gate Frame Kit, Steel-Reinforced (up to 4'W)"
+     carries an unbalanced-looking paren inside quotes, and a naive depth
+     counter swallows the rest of the list from there. */
+  const ktItems = (body) => {
+    const out = [];
+    const re = /\bitem\(/g;
+    let m;
+    while ((m = re.exec(body))) {
+      const open = m.index + m[0].length - 1;
+      let depth = 0, end = -1;
+      for (let j = open; j < body.length; j++) {
+        if (body[j] === '"') {
+          j++;
+          while (j < body.length && body[j] !== '"') { if (body[j] === '\\') j++; j++; }
+          continue;
+        }
+        if (body[j] === '(') depth++;
+        else if (body[j] === ')') { depth--; if (!depth) { end = j; break; } }
+      }
+      if (end < 0) throw new Error('unbalanced item( call in SeedData.kt');
+      const args = body.slice(open + 1, end);
+      // The name is the fourth positional argument and the first string
+      // literal in the call; unit/colorOrFinish are named and come after it.
+      const nameM = args.match(/"((?:[^"\\]|\\.)*)"/);
+      const docM = args.match(/sourceDoc\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([A-Za-z_][A-Za-z0-9_]*))/);
+      if (!nameM) throw new Error('item(...) with no name literal in SeedData.kt');
+      if (!docM) throw new Error('item(...) with no sourceDoc in SeedData.kt: ' + nameM[1]);
+      const doc = docM[1] !== undefined ? unescapeKt(docM[1]) : KT_CONSTS[docM[2]];
+      if (doc === undefined) throw new Error('sourceDoc names a constant this file could not '
+        + 'find in SeedData.kt: ' + docM[2]);
+      out.push({ name: unescapeKt(nameM[1]), source_doc: doc });
+      re.lastIndex = end;
+    }
+    return out;
+  };
+
+  const kotlinSeed = {
+    VINYL: ktItems(grabKtFn('vinylItems')),
+    WOOD: ktItems(grabKtFn('woodItems')),
+    CHAIN_LINK: ktItems(grabKtFn('chainLinkItems')),
+    ALUMINUM: ktItems(grabKtFn('aluminumItems')),
+    ORNAMENTAL_IRON: ktItems(grabKtFn('ornamentalIronItems')),
+    SPLIT_RAIL: ktItems(grabKtFn('splitRailItems')),
+    COMPOSITE: ktItems(grabKtFn('compositeItems')),
+    UNIVERSAL: ktItems(grabKtFn('universalItems')),
+  };
+
+  /* Pairs the two lists per fence type, in each file's own order, and reports
+     a NAME mismatch separately from a SOURCE_DOC one. Without that split, one
+     row inserted on one side slides every later pair by one and reports thirty
+     label drifts that do not exist -- a checker crying about the wrong thing
+     is a checker nobody reads twice. */
+  const compareSourceDocs = (office) => {
+    const problems = [];
+    for (const [type, ktRows] of Object.entries(kotlinSeed)) {
+      const webRows = office.filter(r => r.fence_type === type);
+      if (ktRows.length !== webRows.length) {
+        problems.push({ kind: 'count', type, kt: ktRows.length, web: webRows.length });
+        continue;
+      }
+      for (let i = 0; i < ktRows.length; i++) {
+        if (ktRows[i].name !== webRows[i].name) {
+          problems.push({ kind: 'name', type, at: i, kt: ktRows[i].name, web: webRows[i].name });
+          continue;
+        }
+        if (ktRows[i].source_doc !== webRows[i].source_doc) {
+          problems.push({ kind: 'source_doc', type, item: ktRows[i].name,
+            kt: ktRows[i].source_doc, web: webRows[i].source_doc });
+        }
+      }
+    }
+    return problems;
+  };
+
+  const realProblems = compareSourceDocs(M.CATALOG_SEED);
+
+  /* CANARY. The label SeedData.kt's own comment records as the one that used to
+     ship -- the wording that told a brand-new company somebody else's negotiated
+     price had been verified. Planted on a COPY, never on CATALOG_SEED itself and
+     never on the file, so there is nothing to restore: the real comparison above
+     already ran against the untouched array.
+
+     The plant deliberately goes on a row the comparison currently calls CLEAN,
+     found rather than assumed. Planting on index 0 was the first version and it
+     is a trap: if that row is already one of the disagreements, the plant swaps
+     one problem for another, the count does not move, and a canary that proves
+     the check works reports the check is broken. */
+  const OLD_WRONG_LABEL = 'From a real supplier quote';
+  // Every name already implicated in a disagreement, from either side: a
+  // 'name' problem names two different rows and both are unusable as a plant
+  // target. A 'count' problem makes its whole fence type unusable, because the
+  // comparison skips that type entirely and the plant would land nowhere.
+  const dirty = new Set(realProblems.flatMap(p =>
+    p.kind === 'source_doc' ? [p.item] : p.kind === 'name' ? [p.kt, p.web] : []));
+  const dirtyTypes = new Set(realProblems.filter(p => p.kind === 'count').map(p => p.type));
+  const plantIdx = M.CATALOG_SEED.findIndex(
+    r => !dirty.has(r.name) && !dirtyTypes.has(r.fence_type) && r.source_doc !== OLD_WRONG_LABEL);
+  ok('CANARY: there is a clean seed row to plant the old label on '
+    + '(without one the canary below proves nothing)', plantIdx >= 0);
+  const plantedProblems = compareSourceDocs(
+    M.CATALOG_SEED.map((r, i) => (i === plantIdx ? { ...r, source_doc: OLD_WRONG_LABEL } : r)));
+  ok('CANARY: the old "From a real supplier quote" label, planted on one clean office row, is '
+    + 'reported as a source_doc mismatch (proves this comparison can fail)',
+    plantIdx >= 0 && plantedProblems.some(p =>
+      p.kind === 'source_doc' && p.web === OLD_WRONG_LABEL
+      && p.item === M.CATALOG_SEED[plantIdx].name));
+  ok('CANARY: planting exactly one wrong label adds exactly one problem -- the comparison '
+    + 'is reacting to the plant, not to noise',
+    plantIdx >= 0 && plantedProblems.length === realProblems.length + 1);
+
+  const shown = realProblems.slice(0, 6);
+  ok('office CATALOG_SEED and SeedData.kt agree on the source_doc of every seed row'
+    + (realProblems.length
+      ? '\n      ' + realProblems.length + ' disagreement(s); first ' + shown.length + ':\n      '
+        + shown.map(p => JSON.stringify(p)).join('\n      ')
+      : ''),
+    realProblems.length === 0);
 }
 
 /* ---------- catFenceTypeLabel ---------- */

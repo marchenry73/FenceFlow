@@ -37,6 +37,11 @@ const OWNER_ID  = "99999999-2000-4000-8000-0000000000b1"; // synthetic OWNER of 
 const MGR_ID    = "99999999-2000-4000-8000-0000000000b2"; // synthetic MANAGER, no MANAGE_ACCESS override
 const CREW_A_ID = "99999999-2000-4000-8000-0000000000b3"; // synthetic CREW -- "their own" shift
 const CREW_B_ID = "99999999-2000-4000-8000-0000000000b4"; // synthetic CREW -- a DIFFERENT person's shift
+// Section 3 only. SALES is the one stock role that holds SEE_MONEY and NOT
+// SCHEDULE_AND_ASSIGN (supabase_permissions_patch.sql), which is what makes it
+// the only honest subject for the assignment guard -- see that section's own
+// note on the restrictive SELECT policy.
+const SALES_ID  = "99999999-2000-4000-8000-0000000000b5"; // synthetic SALES
 const EMP_A_SYNC = "99999999-2000-4000-8000-0000000000c1"; // employees.sync_id for CREW_A
 const EMP_B_SYNC = "99999999-2000-4000-8000-0000000000c2"; // employees.sync_id for CREW_B
 const SHIFT_SYNC = "99999999-2000-4000-8000-0000000000d1"; // time_entries.sync_id, CREW_A's shift
@@ -86,6 +91,16 @@ insert into profiles(id, company_id, role, full_name) values
 insert into employees(company_id, sync_id, name, profile_id, hourly_rate, is_active) values
   ('${ZZ_BUSY}', '${EMP_A_SYNC}', 'ZZ TEST Crew A', '${CREW_A_ID}', 22, true),
   ('${ZZ_BUSY}', '${EMP_B_SYNC}', 'ZZ TEST Crew B', '${CREW_B_ID}', 30, true);
+`;
+
+// Deliberately NOT folded into FIXTURES. Only section 3 needs a SALES account,
+// and every other section resolves permissions and counts rows against the set
+// of people FIXTURES describes -- quietly adding a sixth profile to all of them
+// is how a check starts measuring something nobody asked it to.
+const SALES_FIXTURE = `
+insert into auth.users(id) values ('${SALES_ID}');
+insert into profiles(id, company_id, role, full_name) values
+  ('${SALES_ID}', '${ZZ_BUSY}', 'SALES', 'ZZ TEST Crew Sales');
 `;
 
 async function main() {
@@ -293,35 +308,173 @@ rollback;
      JSON.stringify(row2("the OWNER promotes CREW_B to MANAGER")));
 
   // =========================================================================
-  console.log("\n3. SCHEDULING -- FINDING, not a planted-and-restored check:");
-  console.log("   jobs_update carries `company_id = current_company_id()` and NOTHING else --");
-  console.log("   no role or permission test at all (confirmed by reading pg_policies live).");
-  console.log("   supabase_views_and_admin_patch.sql already found and partly fixed this for");
-  console.log("   customer_name/address/phone/customer_id (protect_customer_identity trigger),");
-  console.log("   but assigned_employee_sync_id -- the column scheduling actually writes -- has");
-  console.log("   no equivalent guard. A plain CREW member, with no SCHEDULE_AND_ASSIGN");
-  console.log("   permission at all, can reassign any job in the company by writing the column");
-  console.log("   directly. This is demonstrated below as a real, RLS-scoped write -- not a");
-  console.log("   rule this file invents and then proves can fail, because no such rule exists");
-  console.log("   to plant against. It is reported here, not fixed: fixing RLS/triggers is");
-  console.log("   outside this task's file ownership.");
+  console.log("\n3. SCHEDULING -- reassigning a job needs SCHEDULE_AND_ASSIGN:");
+  console.log("   (guard_job_assignment, supabase_approval_and_assignment_guard.sql. jobs_update");
+  console.log("    is still `company_id = current_company_id()` and nothing else, so the policy");
+  console.log("    grants the write; the trigger is what takes assigned_employee_sync_id back.");
+  console.log("    A trigger and not a policy because crew must keep updating their own jobs to");
+  console.log("    push a production stage -- only these columns are refused.)");
+  console.log("");
+  console.log("   The refused subject is a SALES account, NOT a crew member, and that choice is");
+  console.log("   the whole assertion. jobs carries a RESTRICTIVE SELECT policy");
+  console.log("   (jobs_money_hidden_from_crew: has_permission('SEE_MONEY')). A CREW caller");
+  console.log("   cannot see the row at all, so their UPDATE ... WHERE matches nothing and");
+  console.log("   returns zero rows touched and no error -- which is indistinguishable from the");
+  console.log("   assignment guard refusing, and would have proved the money lockdown while");
+  console.log("   claiming to prove scheduling. SALES holds SEE_MONEY and does NOT hold");
+  console.log("   SCHEDULE_AND_ASSIGN, so the row is visible and the guard is the only thing");
+  console.log("   that can stop the write. That confound is measured below, not assumed.");
 
   const check3 = runSql(`
 begin;
 ${FIXTURES}
-${asClaim(CREW_A_ID)}
-set local role authenticated;
-update jobs set assigned_employee_sync_id = '${EMP_A_SYNC}'
-  where company_id = '${ZZ_BUSY}' and sync_id = '${JOB_ACCEPTED}';
-reset role;
-select (select assigned_employee_sync_id from jobs where sync_id = '${JOB_ACCEPTED}') as now_assigned;
+${SALES_FIXTURE}
+create temp table probe3(label text, touched int, refused text, assigned text) on commit drop;
+grant all on probe3 to authenticated;
+
+-- ---- CONFOUND CONTROL: how many rows each candidate subject can even SEE.
+-- Measured rather than asserted from memory, because the whole choice of a
+-- SALES subject rests on it: if SALES could not see the row either, every
+-- "0 rows touched" below would mean nothing.
+do $g3v$
+declare seen int;
+begin
+  perform set_config('request.jwt.claims',
+    json_build_object('sub','${CREW_A_ID}','role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into seen from jobs where sync_id = '${JOB_ACCEPTED}' and company_id = '${ZZ_BUSY}';
+  execute 'reset role';
+  insert into probe3 values ('CONFOUND: rows a CREW caller can see', seen, null, null);
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub','${SALES_ID}','role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into seen from jobs where sync_id = '${JOB_ACCEPTED}' and company_id = '${ZZ_BUSY}';
+  execute 'reset role';
+  insert into probe3 values ('CONFOUND: rows a SALES caller can see', seen, null, null);
+end $g3v$;
+
+-- ---- PLANTED FAILURE: drop the guard trigger, leaving jobs_update's bare
+-- company_id test as the only thing in the way -- the state this section
+-- originally reported as a finding. The same SALES account must now succeed.
+drop trigger if exists job_assignment_needs_permission on jobs;
+
+do $g3a$
+declare n int;
+begin
+  perform set_config('request.jwt.claims',
+    json_build_object('sub','${SALES_ID}','role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    update jobs set assigned_employee_sync_id = '${EMP_A_SYNC}'
+      where sync_id = '${JOB_ACCEPTED}' and company_id = '${ZZ_BUSY}';
+    -- An UPDATE that matches no rows raises nothing at all. Counting the rows
+    -- it actually touched is the only way to tell "the write was allowed"
+    -- from "the row was never visible to this caller" -- reading the absence
+    -- of an error as permission granted is exactly how this section came to
+    -- report a finding it had never measured.
+    get diagnostics n = row_count;
+    execute 'reset role';
+    insert into probe3 values ('PLANTED-BUG: guard dropped, SALES reassigns', n, null,
+      (select assigned_employee_sync_id from jobs where sync_id = '${JOB_ACCEPTED}'));
+  exception when others then
+    execute 'reset role';
+    insert into probe3 values ('PLANTED-BUG: guard dropped, SALES reassigns', 0, SQLERRM, null);
+  end;
+end $g3a$;
+
+-- undo the plant: restore the real trigger (supabase_approval_and_assignment_guard.sql)
+drop trigger if exists job_assignment_needs_permission on jobs;
+create trigger job_assignment_needs_permission
+  before update on jobs
+  for each row execute function public.guard_job_assignment();
+
+-- Put the column back to unset before the real cases, so the read-back below
+-- can only be showing a write that just happened. This runs as the outer
+-- (non-authenticated) role, which guard_job_assignment deliberately waves
+-- through -- current_user is checked, not auth.uid(), so a definer-owned
+-- server job stays possible without that same hole opening for anon.
+update jobs set assigned_employee_sync_id = null where sync_id = '${JOB_ACCEPTED}';
+
+-- ---- REAL RULE: SALES can see the row and still cannot reassign it.
+do $g3b$
+declare n int;
+begin
+  perform set_config('request.jwt.claims',
+    json_build_object('sub','${SALES_ID}','role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    update jobs set assigned_employee_sync_id = '${EMP_A_SYNC}'
+      where sync_id = '${JOB_ACCEPTED}' and company_id = '${ZZ_BUSY}';
+    get diagnostics n = row_count;
+    execute 'reset role';
+    insert into probe3 values ('REAL RULE: SALES reassigns a job', n, null,
+      (select assigned_employee_sync_id from jobs where sync_id = '${JOB_ACCEPTED}'));
+  exception when others then
+    execute 'reset role';
+    insert into probe3 values ('REAL RULE: SALES reassigns a job', 0, SQLERRM,
+      (select assigned_employee_sync_id from jobs where sync_id = '${JOB_ACCEPTED}'));
+  end;
+end $g3b$;
+
+-- ---- REAL RULE, positive half: a MANAGER holds both SEE_MONEY (so the row is
+-- visible) and SCHEDULE_AND_ASSIGN. Scheduling must still work, or the guard
+-- has simply broken the feature rather than gated it.
+do $g3c$
+declare n int;
+begin
+  perform set_config('request.jwt.claims',
+    json_build_object('sub','${MGR_ID}','role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    update jobs set assigned_employee_sync_id = '${EMP_B_SYNC}'
+      where sync_id = '${JOB_ACCEPTED}' and company_id = '${ZZ_BUSY}';
+    get diagnostics n = row_count;
+    execute 'reset role';
+    insert into probe3 values ('REAL RULE: MANAGER reassigns a job', n, null,
+      (select assigned_employee_sync_id from jobs where sync_id = '${JOB_ACCEPTED}'));
+  exception when others then
+    execute 'reset role';
+    insert into probe3 values ('REAL RULE: MANAGER reassigns a job', 0, SQLERRM,
+      (select assigned_employee_sync_id from jobs where sync_id = '${JOB_ACCEPTED}'));
+  end;
+end $g3c$;
+
+select label, touched, refused, assigned from probe3 order by label;
 rollback;
 `);
-  console.log(`  FINDING  a plain CREW member (no SCHEDULE_AND_ASSIGN permission) reassigned ` +
-    `job ${JOB_ACCEPTED} to themselves via a direct UPDATE -- assigned_employee_sync_id is now ` +
-    `${JSON.stringify(check3[0]?.now_assigned)}. Scheduling has no server-side permission gate; ` +
-    `the app hiding the button is the only thing standing between a crew phone and reassigning ` +
-    `any job in the company.`);
+  const row3 = (name) => check3.find(r => r.label === name) || {};
+  const crewSees = row3("CONFOUND: rows a CREW caller can see");
+  const salesSees = row3("CONFOUND: rows a SALES caller can see");
+  const planted3 = row3("PLANTED-BUG: guard dropped, SALES reassigns");
+  const salesReal = row3("REAL RULE: SALES reassigns a job");
+  const mgrReal = row3("REAL RULE: MANAGER reassigns a job");
+
+  ok("CONFOUND: a SALES caller can see the job row (1) -- so a refusal below is the " +
+     "assignment guard, not the money lockdown hiding the row",
+     Number(salesSees.touched) === 1, JSON.stringify(salesSees));
+  ok("CONFOUND: a CREW caller cannot see it (0) -- the reason CREW is the wrong subject " +
+     "for this check, measured rather than assumed",
+     Number(crewSees.touched) === 0, JSON.stringify(crewSees));
+  ok("PLANTED FAILURE: with job_assignment_needs_permission dropped, SALES reassigns the " +
+     "job anyway -- 1 row touched, column written (proves this check can fail)",
+     Number(planted3.touched) === 1 && planted3.assigned === EMP_A_SYNC && !planted3.refused,
+     JSON.stringify(planted3));
+  // Both halves asserted together on purpose. Zero rows alone would also be
+  // what an invisible row looks like; a refusal alone could be raised by
+  // anything. Zero rows AND a 42501 naming the permission is the guard.
+  ok("REAL RULE: SALES (SEE_MONEY, no SCHEDULE_AND_ASSIGN) is refused -- 0 rows touched " +
+     "AND an explicit error naming SCHEDULE_AND_ASSIGN, not silence",
+     Number(salesReal.touched) === 0 &&
+     typeof salesReal.refused === "string" &&
+     salesReal.refused.includes("SCHEDULE_AND_ASSIGN"),
+     JSON.stringify(salesReal));
+  ok("REAL RULE: the refused write left assigned_employee_sync_id unset",
+     salesReal.assigned === null, JSON.stringify(salesReal));
+  ok("REAL RULE, positive half: a MANAGER (holds SCHEDULE_AND_ASSIGN) reassigns the job -- " +
+     "1 row touched, no error, the column now names the employee they chose",
+     Number(mgrReal.touched) === 1 && !mgrReal.refused && mgrReal.assigned === EMP_B_SYNC,
+     JSON.stringify(mgrReal));
 
   // =========================================================================
   console.log("\n4. THE TIME CLOCK -- a shift must name a person:");
@@ -629,14 +782,14 @@ rollback;
      JSON.stringify(row6("CREW_A (the real owner) disputes their own shift")));
 
   // =========================================================================
-  console.log("\n7. THE TIME CLOCK -- FINDING: nothing stops a crew member approving their own hours:");
-  console.log("   time_entries_update is `company_id = current_company_id()` only, exactly like");
-  console.log("   jobs_update in section 3 -- no APPROVE_TIME check, and no trigger analogous to");
-  console.log("   protect_customer_identity guards approved_at/approved_by. So the same crew");
-  console.log("   member whose hours these are can set approved_at directly, which is the exact");
-  console.log("   column job_costing()'s labour_cost gates on (section 8). Demonstrated as a");
-  console.log("   real write, not invented and proven-failable, because no guard exists to plant");
-  console.log("   against.");
+  console.log("\n7. THE TIME CLOCK -- approving hours needs APPROVE_TIME:");
+  console.log("   (guard_time_entry_approval, the other half of the same patch section 3 checks.");
+  console.log("    time_entries_update is `company_id = current_company_id()` only, exactly like");
+  console.log("    jobs_update -- no APPROVE_TIME check in the policy -- so the same crew member");
+  console.log("    whose hours these are could set approved_at directly, which is the exact");
+  console.log("    column job_costing()'s labour_cost gates on (section 8). Started life here as");
+  console.log("    a bare FINDING; it is an assertion now because a permission that is only");
+  console.log("    described is a permission nobody is enforcing.)");
 
   const check7 = runSql(`
 begin;
@@ -876,8 +1029,8 @@ rollback;
   console.log("\nFinally: prove nothing survived.");
   const after = runSql(`
     select
-      (select count(*) from auth.users where id in ('${OWNER_ID}','${MGR_ID}','${CREW_A_ID}','${CREW_B_ID}')) as synthetic_users,
-      (select count(*) from profiles where id in ('${OWNER_ID}','${MGR_ID}','${CREW_A_ID}','${CREW_B_ID}')) as synthetic_profiles,
+      (select count(*) from auth.users where id in ('${OWNER_ID}','${MGR_ID}','${CREW_A_ID}','${CREW_B_ID}','${SALES_ID}')) as synthetic_users,
+      (select count(*) from profiles where id in ('${OWNER_ID}','${MGR_ID}','${CREW_A_ID}','${CREW_B_ID}','${SALES_ID}')) as synthetic_profiles,
       (select count(*) from employees where sync_id in ('${EMP_A_SYNC}','${EMP_B_SYNC}')) as synthetic_employees,
       (select count(*) from time_entries where sync_id = '${SHIFT_SYNC}' or employee_sync_id in ('${EMP_A_SYNC}','${EMP_B_SYNC}')) as synthetic_time_entries,
       (select assigned_employee_sync_id from jobs where sync_id = '${JOB_ACCEPTED}') as job_accepted_assignment,
@@ -889,6 +1042,8 @@ rollback;
          and position('profile_id = auth.uid()' in prosrc) > 0) as dispute_still_scoped,
       (select count(*) from pg_trigger where tgname = 'time_entry_needs_a_person'
          and tgrelid = 'public.time_entries'::regclass and not tgisinternal) as needs_a_person_trigger_present,
+      (select count(*) from pg_trigger where tgname = 'job_assignment_needs_permission'
+         and tgrelid = 'public.jobs'::regclass and not tgisinternal) as assignment_trigger_present,
       (select count(*) from companies where id = '${ZZ_BUSY}') as zz_busy_still_present;
   `);
   const a = after[0] || {};
@@ -896,7 +1051,8 @@ rollback;
   ok("no synthetic profile survived", Number(a.synthetic_profiles) === 0, `got ${a.synthetic_profiles}`);
   ok("no synthetic employee survived", Number(a.synthetic_employees) === 0, `got ${a.synthetic_employees}`);
   ok("no synthetic time_entries row survived", Number(a.synthetic_time_entries) === 0, `got ${a.synthetic_time_entries}`);
-  ok("JOB_ACCEPTED's assignment rolled back to unset (the section-3 finding's write did not persist)",
+  ok("JOB_ACCEPTED's assignment rolled back to unset (section 3's successful MANAGER " +
+     "reassignment did not persist)",
      a.job_accepted_assignment === null, `got ${JSON.stringify(a.job_accepted_assignment)}`);
   ok("has_permission() is back to its real, MANAGER-aware definition, not a planted one",
      a.has_permission_still_real === "has_permission", `got ${JSON.stringify(a.has_permission_still_real)}`);
@@ -906,6 +1062,9 @@ rollback;
      a.dispute_still_scoped === "dispute_my_shift", `got ${JSON.stringify(a.dispute_still_scoped)}`);
   ok("time_entry_needs_a_person trigger is present (the drop-and-restore in section 4 left it in place)",
      Number(a.needs_a_person_trigger_present) === 1, `got ${a.needs_a_person_trigger_present}`);
+  ok("job_assignment_needs_permission trigger is present (the drop-and-restore in section 3 " +
+     "left it in place)",
+     Number(a.assignment_trigger_present) === 1, `got ${a.assignment_trigger_present}`);
   ok("ZZ_BUSY itself is untouched (not deleted)", Number(a.zz_busy_still_present) === 1,
      `got ${a.zz_busy_still_present}`);
 
