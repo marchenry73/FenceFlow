@@ -680,6 +680,7 @@ const TL = {
     colNotes:'Notes', colUpdate:'Update', colAudience:'Audience', colPublished:'Published',
     releaseNoneYet:'No releases recorded yet.', releaseEveryone:'Everyone', releaseLimited:'Limited',
     releaseNoCompaniesNamed:'no companies named -- visible to nobody',
+    releaseNotYetVisible:'no phone can see it until %s',
     releaseRequired:'Required', releaseOptional:'Optional', releaseDownload:'Download',
     releasePromoteBtn:'Promote to everyone', releaseBuildLabel:'build %s',
 
@@ -851,6 +852,7 @@ const TL = {
     colNotes:'Notas', colUpdate:'Actualización', colAudience:'Audiencia', colPublished:'Publicada',
     releaseNoneYet:'Todavía no hay versiones registradas.', releaseEveryone:'Todos', releaseLimited:'Limitada',
     releaseNoCompaniesNamed:'no se nombró ninguna empresa — visible para nadie',
+    releaseNotYetVisible:'ningún teléfono puede verla hasta el %s',
     releaseRequired:'Obligatoria', releaseOptional:'Opcional', releaseDownload:'Descargar',
     releasePromoteBtn:'Promover a todos', releaseBuildLabel:'compilación %s',
 
@@ -1022,6 +1024,7 @@ const TL = {
     colNotes:'Notes', colUpdate:'Mise à jour', colAudience:'Public', colPublished:'Publiée',
     releaseNoneYet:'Aucune version enregistrée pour l\'instant.', releaseEveryone:'Tout le monde', releaseLimited:'Limitée',
     releaseNoCompaniesNamed:'aucune entreprise nommée — visible pour personne',
+    releaseNotYetVisible:'aucun téléphone ne peut la voir avant le %s',
     releaseRequired:'Obligatoire', releaseOptional:'Optionnelle', releaseDownload:'Télécharger',
     releasePromoteBtn:'Promouvoir à tout le monde', releaseBuildLabel:'build %s',
 
@@ -1324,12 +1327,21 @@ async function loadAll() {
   const errs7 = await db.rpc('admin_error_summary', { days: 7 });
   crashes7d = errs7.error ? [] : (errs7.data || []);
 
-  // app_releases has no admin RPC because it needs none: the read policy is
-  // "using (true)" for anyone at all, the same as the phone itself uses to
-  // check for an update. A 'limited' row is still readable here the same
-  // way -- this account is a platform admin, so release_visible_to_caller()
-  // is irrelevant to it; audience='everyone' or not, the row comes back.
-  const rel = await db.from('app_releases').select('*').order('released_at', { ascending: false });
+  // admin_releases() rather than the table. app_releases_read is the PHONE's
+  // policy and has no platform-admin clause in it: for a 'limited' row it
+  // asks release_visible_to_caller(), i.e. "is the caller's own company on
+  // this release's list". This account is one signed-in person in one
+  // company like anybody else, so it saw only the rollouts it had happened to
+  // aim at its own company -- a build staged to any other company came back
+  // as no row at all. A release that does not render has no Promote button,
+  // and promoting is the one thing this view exists to do. The RPC is
+  // SECURITY DEFINER behind is_platform_admin(), and refuses a
+  // non-admin outright instead of answering with an empty list. It also
+  // returns rows whose available_from is still ahead, which the policy hides
+  // from everyone including whoever scheduled them; renderReleases() labels
+  // those rather than letting a rollout that has not started pass for a live
+  // one. See supabase_admin_sees_every_release.sql.
+  const rel = await db.rpc('admin_releases');
   releases = rel.error ? [] : (rel.data || []);
   releaseError = rel.error ? rel.error.message : '';
 
@@ -1908,12 +1920,20 @@ function renderReleases() {
     // of these rows always meant, so this is not a new state to explain away.
     const limited = r.audience === 'limited';
     const names = releaseAudience.filter(a => a.release_id === r.id).map(a => a.company_name);
-    const audienceCell = !limited
+    // available_from is enforced in the read policy, so until it passes no
+    // phone can see this row whatever its audience says. admin_releases()
+    // hands it over early because the person who scheduled it has to be able
+    // to find it -- which means this is now the only row on the page that can
+    // be published and still reach nobody. Drawn as plain "Everyone" it would
+    // be indistinguishable from a rollout that is already out there.
+    const pending = r.available_from && new Date(r.available_from) > new Date();
+    const audienceCell = (!limited
       ? `<span class="pill muted">${esc(tr('releaseEveryone'))}</span>`
       : `<span class="pill bad">${esc(tr('releaseLimited'))}</span><br>` +
         // names are stored company names -- passed through esc() untranslated,
         // exactly like every other company name on this page.
-        `<span style="color:var(--muted);font-size:11.5px">${names.length ? esc(names.join(', ')) : esc(tr('releaseNoCompaniesNamed'))}</span>`;
+        `<span style="color:var(--muted);font-size:11.5px">${names.length ? esc(names.join(', ')) : esc(tr('releaseNoCompaniesNamed'))}</span>`)
+      + (pending ? `<br><span class="pill warn">${esc(tr('releaseNotYetVisible', day(r.available_from)))}</span>` : '');
     return `
     <tr>
       <td><b>${esc(r.version_name)}</b><br><span style="color:var(--muted);font-size:11.5px">${esc(tr('releaseBuildLabel', r.version_code))}</span></td>
