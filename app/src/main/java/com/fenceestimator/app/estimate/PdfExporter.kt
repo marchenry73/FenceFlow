@@ -78,6 +78,17 @@ private class PdfLabels(language: AppLanguage) {
     val jobReference = pick("JOB REFERENCE", "REFERENCIA DEL TRABAJO", "RÉFÉRENCE DU CHANTIER")
     val minimumCharge = pick("Minimum job charge", "Cargo mínimo del trabajo", "Forfait minimum de chantier")
     val warrantyPeriod = pick("one year", "un año", "un an")
+    val haulAway = pick(
+        "Haul away",
+        "Retiro de escombros",
+        "Enlèvement des débris"
+    )
+    /** Takes the footage already formatted, so the number never changes with the language. */
+    fun gatesLine(feet: String) = pick(
+        "Gates (" + feet + " ft)",
+        "Portones (" + feet + " pies)",
+        "Portails (" + feet + " pi)"
+    )
     val approvedExtraWork = pick(
         "Approved extra work",
         "Trabajo adicional aprobado",
@@ -385,14 +396,14 @@ object PdfExporter {
         // customer reading a total larger than the lines above it is a customer
         // about to phone and argue, and they would be right to.
         if (totals.gateCharge > 0.0) {
-            totalRow("Gates (${"%.0f".format(totals.gateFeet)} ft)", currency.format(totals.gateCharge))
+            totalRow(labels.gatesLine("%.0f".format(totals.gateFeet)), currency.format(totals.gateCharge))
         }
         if (totals.teardownCost > 0.0) {
             totalRow(labels.teardown, currency.format(totals.teardownCost - totals.trashHaulFee))
         }
-        if (totals.trashHaulFee > 0.0) totalRow("Haul away", currency.format(totals.trashHaulFee))
+        if (totals.trashHaulFee > 0.0) totalRow(labels.haulAway, currency.format(totals.trashHaulFee))
         if (totals.changeOrderCost > 0.0) {
-            totalRow("Approved extra work", currency.format(totals.changeOrderCost))
+            totalRow(labels.approvedExtraWork, currency.format(totals.changeOrderCost))
         }
         if (totals.markupAmount > 0.0) totalRow("${labels.markup} (${job.markupPercent}%)", currency.format(totals.markupAmount))
         if (totals.discountAmount > 0.0) {
