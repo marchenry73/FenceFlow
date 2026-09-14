@@ -12,7 +12,8 @@
 <link rel="canonical" href="https://fenceflowapp.com/privacy.html">
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.7;color:#12151A;max-width:760px;margin:0 auto;padding:40px 24px}
-  header{background:#0F1826;color:#fff;margin:-40px -24px 32px;padding:20px 24px}
+  header{background:#0F1826;color:#fff;margin:-40px -24px 32px;padding:20px 24px;
+         display:flex;align-items:center;justify-content:space-between;gap:12px}
   .logo{font-weight:800;font-size:19px}.logo span{color:#FF5A1F}
   h1{font-size:30px;margin-bottom:6px;letter-spacing:-0.5px}
   h2{font-size:19px;margin:28px 0 8px}
@@ -22,170 +23,554 @@
   .box{background:#F7F8FA;border:1px solid #E3E7ED;border-radius:10px;padding:16px;margin:18px 0}
   a{color:#B23800}
   footer{margin-top:40px;padding-top:20px;border-top:1px solid #E3E7ED;font-size:14px;color:#5A6472}
+  /* The language picker sits in the dark header, so it inherits white, not
+     the orange link colour used in the body. */
+  #langPick{font-size:13px;color:#AFBACB;letter-spacing:.5px;white-space:nowrap}
+  #langPick a{color:inherit;text-decoration:none}
+  #langPick a:hover{text-decoration:underline}
+  #langPick b{color:#fff}
+  /* The translation notice is the most important line on a translated legal
+     page, so it is given the brand orange and placed above the summary box
+     rather than left to blend in with the body text. */
+  .langnote{background:#FFF9F5;border:1px solid #F3D3BE;border-left:4px solid #FF5A1F;
+            border-radius:10px;padding:14px 16px;margin:0 0 20px;font-size:15px}
+  [hidden]{display:none !important}
 </style>
 </head>
 <body>
-<header><div class="logo">Fence<span>Flow</span></div></header>
+<header>
+  <div class="logo">Fence<span>Flow</span></div>
+  <span id="langPick"></span>
+</header>
 
-<h1>Privacy Policy</h1>
+<h1 data-t="h1Privacy">Privacy Policy</h1>
 <!--
   This date is deliberately hard-coded. It used to be filled in by JavaScript
   with whatever today was, so the page always claimed to have been updated
   moments ago. People rely on that date to know whether the terms changed since
   they last read them, so a date that moves on its own is worse than no date.
-  Change it by hand when the policy actually changes.
+  Change it by hand when the policy actually changes — in the datetime
+  attribute below, which is the one the page reads.
 -->
-<p class="updated">Last updated: August 17, 2026</p>
+<p class="updated"><span data-t="updatedLabel">Last updated:</span>
+  <time id="updated" datetime="2026-08-17">August 17, 2026</time></p>
 
-<div class="box">
-  <strong>The short version:</strong> FenceFlow stores your fencing business's own data so you can run jobs.
-  We do not sell your data, we do not use it for advertising, and we do not share it with anyone
-  except the services listed below that are required to make the app work.
+<!--
+  Legal text is the one place where a translation can become the thing the
+  business is held to. This notice says in the reader's own language that it
+  is not, and links to the English original, so a Spanish or French reader is
+  never left guessing which version counts.
+-->
+<div class="langnote">
+  <strong data-t="langNoteLead">Translation notice:</strong>
+  <span data-t="langNoteBody">This page is also published in Spanish and French. Those translations are provided for convenience only. The English version is the binding version and prevails if the two differ.</span>
+  <a class="en-link" href="privacy.html?lang=en" data-t="langNoteLink">Read the English version</a>
 </div>
 
-<h2>Who this covers</h2>
-<p>
+<div class="box">
+  <strong data-t="shortLead">The short version:</strong>
+  <span data-t="shortBody">FenceFlow stores your fencing business's own data so you can run jobs.
+  We do not sell your data, we do not use it for advertising, and we do not share it with anyone
+  except the services listed below that are required to make the app work.</span>
+</div>
+
+<h2 data-t="h2Who">Who this covers</h2>
+<p data-t="whoBody">
   FenceFlow is used by fencing contractors. Two kinds of people appear in it: the
-  <strong>contractor and their crew</strong>, who hold accounts, and the contractor's
-  <strong>customers</strong>, whose details the contractor enters to quote and complete work.
+  contractor and their crew, who hold accounts, and the contractor's
+  customers, whose details the contractor enters to quote and complete work.
 </p>
 
-<h2>What we collect</h2>
+<h2 data-t="h2Collect">What we collect</h2>
 <ul>
-  <li><strong>Account information</strong> — email address and password for anyone who signs in. Passwords are stored hashed by our authentication provider; we never see them.</li>
-  <li><strong>Business information</strong> — company name, phone, email, licence number, pricing defaults, and message templates.</li>
-  <li><strong>Job information entered by the contractor</strong> — customer name, address, phone, email, notes, fence measurements and drawings, materials, prices, schedules, payment amounts, and signatures.</li>
-  <li><strong>Crew information</strong> — names, roles, contact details, pay rates, and clock in/out times.</li>
-  <li><strong>Photos</strong> taken in the app of job sites and completed work.</li>
-  <li><strong>Device information</strong> for notifications — a push token identifying the device, so job alerts can reach it.</li>
+  <li><strong data-t="collAccountL">Account information</strong> — <span data-t="collAccountR">email address and password for anyone who signs in. Passwords are stored hashed by our authentication provider; we never see them.</span></li>
+  <li><strong data-t="collBusinessL">Business information</strong> — <span data-t="collBusinessR">company name, phone, email, licence number, pricing defaults, and message templates.</span></li>
+  <li><strong data-t="collJobL">Job information entered by the contractor</strong> — <span data-t="collJobR">customer name, address, phone, email, notes, fence measurements and drawings, materials, prices, schedules, payment amounts, and signatures.</span></li>
+  <li><strong data-t="collCrewL">Crew information</strong> — <span data-t="collCrewR">names, roles, contact details, pay rates, and clock in/out times.</span></li>
+  <li><strong data-t="collPhotosL">Photos</strong> <span data-t="collPhotosR">taken in the app of job sites and completed work.</span></li>
+  <li><strong data-t="collDeviceL">Device information</strong> <span data-t="collDeviceR">for notifications — a push token identifying the device, so job alerts can reach it.</span></li>
 </ul>
-<p>
-  We do <strong>not</strong> collect location tracking, contacts, browsing activity, or advertising identifiers.
+<p data-t="collectNot">
+  We do not collect location tracking, contacts, browsing activity, or advertising identifiers.
 </p>
 
-<h2>Payment information</h2>
+<h2 data-t="h2Payment">Payment information</h2>
 <p>
-  FenceFlow never receives, stores, or processes card numbers. When you take a card payment, the customer
-  enters their card details directly with the payment provider you connected — <strong>Square</strong> or <strong>Stripe</strong> —
-  and the money goes from them to that provider to your bank. We store only the amounts you record, the date,
+  <span data-t="payBodyA">FenceFlow never receives, stores, or processes card numbers. When you take a card payment, the customer
+  enters their card details directly with the payment provider you connected —</span>
+  <strong>Square</strong> <span data-t="wordOr">or</span> <strong>Stripe</strong>
+  <span data-t="payBodyB">— and the money goes from them to that provider to your bank. We store only the amounts you record, the date,
   the method, and a link to the payment page. Card numbers, expiry dates, and security codes never reach our
-  servers or your device.
+  servers or your device.</span>
 </p>
 <p>
-  Whichever you connect handles that card data under its own privacy policy, as the business responsible for it:
-  <a href="https://squareup.com/us/en/legal/general/privacy">Square</a> or
+  <span data-t="payProviderPolicy">Whichever you connect handles that card data under its own privacy policy, as the business responsible for it:</span>
+  <a href="https://squareup.com/us/en/legal/general/privacy">Square</a> <span data-t="wordOr">or</span>
   <a href="https://stripe.com/privacy">Stripe</a>.
 </p>
 
-<h2>How we use it</h2>
+<h2 data-t="h2Use">How we use it</h2>
 <ul>
-  <li>To run the features you use: estimating, scheduling, invoicing, reporting.</li>
-  <li>To sync your data between your own devices and your crew's devices.</li>
-  <li>To send notifications about jobs you or your crew are working on.</li>
-  <li>To provide support when you ask for it.</li>
+  <li data-t="useLi1">To run the features you use: estimating, scheduling, invoicing, reporting.</li>
+  <li data-t="useLi2">To sync your data between your own devices and your crew's devices.</li>
+  <li data-t="useLi3">To send notifications about jobs you or your crew are working on.</li>
+  <li data-t="useLi4">To provide support when you ask for it.</li>
 </ul>
-<p>We do not use your data to train advertising models, and we do not sell it.</p>
+<p data-t="useNot">We do not use your data to train advertising models, and we do not sell it.</p>
 
-<h2>Who we share it with</h2>
+<h2 data-t="h2Share">Who we share it with</h2>
 <ul>
-  <li><strong>Supabase</strong> — hosts the database and handles sign-in.</li>
-  <li><strong>Google Firebase</strong> — delivers push notifications. Receives the device push token and a short
-      message such as a job name; not your customer records.</li>
-  <li><strong>Square</strong> or <strong>Stripe</strong> — processes card payments through your own account there, if you choose to take them.</li>
-  <li><strong>Address lookup services</strong> — see below.</li>
+  <li><strong>Supabase</strong> — <span data-t="shareSupabase">hosts the database and handles sign-in.</span></li>
+  <li><strong>Google Firebase</strong> — <span data-t="shareFirebase">delivers push notifications. Receives the device push token and a short
+      message such as a job name; not your customer records.</span></li>
+  <li><strong>Square</strong> <span data-t="wordOr">or</span> <strong>Stripe</strong> — <span data-t="shareProcessor">processes card payments through your own account there, if you choose to take them.</span></li>
+  <li><strong data-t="shareLookupL">Address lookup services</strong> — <span data-t="shareLookupR">see below.</span></li>
 </ul>
-<p>
+<p data-t="shareBody">
   We share data with these providers only as needed to operate the service. We do not sell or rent your
   information to anyone, and we do not share it with advertisers or data brokers.
 </p>
 
-<h2>Address lookup</h2>
+<h2 data-t="h2Lookup">Address lookup</h2>
 <p>
-  When you type a job address, the app offers suggestions to complete it. To do that it sends
-  <strong>the address text you are typing</strong> — and nothing else — to one or more of:
+  <span data-t="lookupA">When you type a job address, the app offers suggestions to complete it. To do that it sends</span>
+  <strong data-t="lookupStrong">the address text you are typing</strong>
+  <span data-t="lookupB">— and nothing else — to one or more of:</span>
 </p>
 <ul>
-  <li><strong>United States Census Bureau geocoder</strong> — a US government address service.</li>
-  <li><strong>Photon</strong>, operated by Komoot, and <strong>Nominatim</strong>, operated by the OpenStreetMap
-      Foundation — both built on OpenStreetMap data.</li>
+  <li><strong>United States Census Bureau geocoder</strong> — <span data-t="lkCensus">a US government address service.</span></li>
+  <li><strong>Photon</strong><span data-t="lkPhoton">, operated by Komoot, and</span> <strong>Nominatim</strong><span data-t="lkNominatim">, operated by the OpenStreetMap
+      Foundation — both built on OpenStreetMap data.</span></li>
 </ul>
-<p>
+<p data-t="lookupTail">
   No customer name, phone number, email, job details, or account information is sent with the lookup, and the
   request carries nothing identifying your account. These services may log the query and the requesting IP
   address under their own policies. The lookup runs while you type in the address field; it does not run
   anywhere else in the app.
 </p>
 
-<h2>Where your data lives, and for how long</h2>
-<p>
+<h2 data-t="h2Where">Where your data lives, and for how long</h2>
+<p data-t="whereBody">
   Data is stored on Supabase's servers, in the United States, and on the devices signed in to your company.
   It stays until you remove it or close your account.
 </p>
 
-<h2>Deleting things, and the trash bin</h2>
+<h2 data-t="h2Trash">Deleting things, and the trash bin</h2>
 <p>
-  Deleting a job, customer, or crew record does <strong>not</strong> erase it straight away. It is marked as
-  deleted, disappears from the app on every device, and moves to a <strong>trash bin</strong> that the account
-  owner can open. This is deliberate: it means a mistake on one phone, or a tap by the wrong person, can be
-  undone rather than costing a business its records.
+  <span data-t="trashP1a">Deleting a job, customer, or crew record does not erase it straight away.</span>
+  <span data-t="trashP1b">It is marked as deleted, disappears from the app on every device, and moves to a</span>
+  <strong data-t="trashBin">trash bin</strong>
+  <span data-t="trashP1c">that the account owner can open. This is deliberate: it means a mistake on one phone, or a tap by the wrong person, can be
+  undone rather than costing a business its records.</span>
 </p>
 <p>
-  Items stay in the trash bin until the owner empties it. <strong>Emptying the trash is permanent</strong> —
-  the record is erased from our servers and cannot be recovered by you or by us.
+  <span data-t="trashP2a">Items stay in the trash bin until the owner empties it.</span>
+  <strong data-t="trashP2b">Emptying the trash is permanent</strong>
+  <span data-t="trashP2c">— the record is erased from our servers and cannot be recovered by you or by us.</span>
 </p>
-<p>
+<p data-t="trashP3">
   So if your intention is that something is genuinely gone — because a customer asked you to erase their
   details, for instance — deleting it is the first step and emptying the trash is the second.
 </p>
 
-<h2>Deleting your account and data</h2>
+<h2 data-t="h2Delete">Deleting your account and data</h2>
 <p>
-  You can request deletion of your account and all associated business data at any time by emailing
-  <a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a> from the address on your account. We will
-  confirm and complete the deletion within 30 days, including anything sitting in the trash bin.
+  <span data-t="deleteP1a">You can request deletion of your account and all associated business data at any time by emailing</span>
+  <a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a>
+  <span data-t="deleteP1b">from the address on your account. We will confirm and complete the deletion within 30 days, including anything sitting in the trash bin.</span>
 </p>
-<p>
+<p data-t="deleteP2">
   You can also export your data first — see below — so closing the account does not mean losing your records.
 </p>
 
-<h2>Getting your data out</h2>
-<p>
+<h2 data-t="h2Export">Getting your data out</h2>
+<p data-t="exportBody">
   Your records are yours. You can export your jobs, customers, payments, expenses, and crew hours from the app
   at any time, in a spreadsheet format that opens in Excel, Google Sheets, or Numbers. You do not need to ask
   us, and you do not need an active subscription to take your data with you.
 </p>
 
-<h2>Your customers' information</h2>
-<p>
+<h2 data-t="h2Customers">Your customers' information</h2>
+<p data-t="customersBody">
   If you are a contractor using FenceFlow, the customer details you enter are yours and you remain
   responsible for them. You should only enter information you are entitled to hold, and you should tell your
   customers how you use it. On request, we will help you export or delete any customer record.
 </p>
 
-<h2>Security</h2>
-<p>
+<h2 data-t="h2Security">Security</h2>
+<p data-t="securityBody">
   Data is encrypted in transit. Access is restricted at the database level so each business can only reach
   its own records, and crew accounts see less than owners and managers. No system is perfectly secure, and
   we will notify affected users promptly if we become aware of a breach involving personal data.
 </p>
 
-<h2>Children</h2>
-<p>FenceFlow is a business tool and is not directed at children under 13. We do not knowingly collect their data.</p>
+<h2 data-t="h2Children">Children</h2>
+<p data-t="childrenBody">FenceFlow is a business tool and is not directed at children under 13. We do not knowingly collect their data.</p>
 
-<h2>Changes</h2>
-<p>
+<h2 data-t="h2Changes">Changes</h2>
+<p data-t="changesBody">
   If this policy changes materially, we will update the date above and notify account holders by email
   before the change takes effect.
 </p>
 
-<h2>Contact</h2>
+<h2 data-t="h2Contact">Contact</h2>
 <p>
-  Questions about this policy or your data: <a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a>
+  <span data-t="contactBody">Questions about this policy or your data:</span>
+  <a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a>
 </p>
 
 <footer>
-  <a href="index.html">Home</a> &nbsp;·&nbsp; <a href="terms.html">Terms of Service</a>
+  <a href="index.html" data-t="footHome">Home</a> &nbsp;·&nbsp; <a href="terms.html" data-t="footTerms">Terms of Service</a>
 </footer>
+
+<script>
+/* Mechanism copied from website/index.html, which took it from quote.html: a
+   flat table keyed by language, %s substitution, an English fallback so a
+   missing key never renders blank or a key name, and the language carried in
+   the URL (?lang=) so a forwarded link keeps its language. This page is
+   forwarded more than most — it is what a customer is sent when they ask what
+   happens to their details, and what an app store listing points at — so the
+   URL parameter is the part that matters here.
+
+   Brand and service names (FenceFlow, Square, Stripe, Supabase, Google
+   Firebase, Photon, Komoot, Nominatim, OpenStreetMap, the United States Census
+   Bureau), e-mail addresses and URLs are left out of the table on purpose:
+   translating a name is how a reader ends up searching for a company that does
+   not exist. */
+const L = {
+  en: {
+    h1Privacy: 'Privacy Policy',
+    updatedLabel: 'Last updated:',
+    langNoteLead: 'Translation notice:',
+    langNoteBody: 'This page is also published in Spanish and French. Those translations are provided for convenience only. The English version is the binding version and prevails if the two differ.',
+    langNoteLink: 'Read the English version',
+    shortLead: 'The short version:',
+    shortBody: "FenceFlow stores your fencing business's own data so you can run jobs. We do not sell your data, we do not use it for advertising, and we do not share it with anyone except the services listed below that are required to make the app work.",
+    h2Who: 'Who this covers',
+    whoBody: "FenceFlow is used by fencing contractors. Two kinds of people appear in it: the contractor and their crew, who hold accounts, and the contractor's customers, whose details the contractor enters to quote and complete work.",
+    h2Collect: 'What we collect',
+    collAccountL: 'Account information',
+    collAccountR: 'email address and password for anyone who signs in. Passwords are stored hashed by our authentication provider; we never see them.',
+    collBusinessL: 'Business information',
+    collBusinessR: 'company name, phone, email, licence number, pricing defaults, and message templates.',
+    collJobL: 'Job information entered by the contractor',
+    collJobR: 'customer name, address, phone, email, notes, fence measurements and drawings, materials, prices, schedules, payment amounts, and signatures.',
+    collCrewL: 'Crew information',
+    collCrewR: 'names, roles, contact details, pay rates, and clock in/out times.',
+    collPhotosL: 'Photos',
+    collPhotosR: 'taken in the app of job sites and completed work.',
+    collDeviceL: 'Device information',
+    collDeviceR: 'for notifications — a push token identifying the device, so job alerts can reach it.',
+    collectNot: 'We do not collect location tracking, contacts, browsing activity, or advertising identifiers.',
+    h2Payment: 'Payment information',
+    payBodyA: 'FenceFlow never receives, stores, or processes card numbers. When you take a card payment, the customer enters their card details directly with the payment provider you connected —',
+    wordOr: 'or',
+    payBodyB: '— and the money goes from them to that provider to your bank. We store only the amounts you record, the date, the method, and a link to the payment page. Card numbers, expiry dates, and security codes never reach our servers or your device.',
+    payProviderPolicy: 'Whichever you connect handles that card data under its own privacy policy, as the business responsible for it:',
+    h2Use: 'How we use it',
+    useLi1: 'To run the features you use: estimating, scheduling, invoicing, reporting.',
+    useLi2: "To sync your data between your own devices and your crew's devices.",
+    useLi3: 'To send notifications about jobs you or your crew are working on.',
+    useLi4: 'To provide support when you ask for it.',
+    useNot: 'We do not use your data to train advertising models, and we do not sell it.',
+    h2Share: 'Who we share it with',
+    shareSupabase: 'hosts the database and handles sign-in.',
+    shareFirebase: 'delivers push notifications. Receives the device push token and a short message such as a job name; not your customer records.',
+    shareProcessor: 'processes card payments through your own account there, if you choose to take them.',
+    shareLookupL: 'Address lookup services',
+    shareLookupR: 'see below.',
+    shareBody: 'We share data with these providers only as needed to operate the service. We do not sell or rent your information to anyone, and we do not share it with advertisers or data brokers.',
+    h2Lookup: 'Address lookup',
+    lookupA: 'When you type a job address, the app offers suggestions to complete it. To do that it sends',
+    lookupStrong: 'the address text you are typing',
+    lookupB: '— and nothing else — to one or more of:',
+    lkCensus: 'a US government address service.',
+    lkPhoton: ', operated by Komoot, and',
+    lkNominatim: ', operated by the OpenStreetMap Foundation — both built on OpenStreetMap data.',
+    lookupTail: 'No customer name, phone number, email, job details, or account information is sent with the lookup, and the request carries nothing identifying your account. These services may log the query and the requesting IP address under their own policies. The lookup runs while you type in the address field; it does not run anywhere else in the app.',
+    h2Where: 'Where your data lives, and for how long',
+    whereBody: "Data is stored on Supabase's servers, in the United States, and on the devices signed in to your company. It stays until you remove it or close your account.",
+    h2Trash: 'Deleting things, and the trash bin',
+    trashP1a: 'Deleting a job, customer, or crew record does not erase it straight away.',
+    trashP1b: 'It is marked as deleted, disappears from the app on every device, and moves to a',
+    trashBin: 'trash bin',
+    trashP1c: 'that the account owner can open. This is deliberate: it means a mistake on one phone, or a tap by the wrong person, can be undone rather than costing a business its records.',
+    trashP2a: 'Items stay in the trash bin until the owner empties it.',
+    trashP2b: 'Emptying the trash is permanent',
+    trashP2c: '— the record is erased from our servers and cannot be recovered by you or by us.',
+    trashP3: 'So if your intention is that something is genuinely gone — because a customer asked you to erase their details, for instance — deleting it is the first step and emptying the trash is the second.',
+    h2Delete: 'Deleting your account and data',
+    deleteP1a: 'You can request deletion of your account and all associated business data at any time by emailing',
+    deleteP1b: 'from the address on your account. We will confirm and complete the deletion within 30 days, including anything sitting in the trash bin.',
+    deleteP2: 'You can also export your data first — see below — so closing the account does not mean losing your records.',
+    h2Export: 'Getting your data out',
+    exportBody: 'Your records are yours. You can export your jobs, customers, payments, expenses, and crew hours from the app at any time, in a spreadsheet format that opens in Excel, Google Sheets, or Numbers. You do not need to ask us, and you do not need an active subscription to take your data with you.',
+    h2Customers: "Your customers' information",
+    customersBody: 'If you are a contractor using FenceFlow, the customer details you enter are yours and you remain responsible for them. You should only enter information you are entitled to hold, and you should tell your customers how you use it. On request, we will help you export or delete any customer record.',
+    h2Security: 'Security',
+    securityBody: 'Data is encrypted in transit. Access is restricted at the database level so each business can only reach its own records, and crew accounts see less than owners and managers. No system is perfectly secure, and we will notify affected users promptly if we become aware of a breach involving personal data.',
+    h2Children: 'Children',
+    childrenBody: 'FenceFlow is a business tool and is not directed at children under 13. We do not knowingly collect their data.',
+    h2Changes: 'Changes',
+    changesBody: 'If this policy changes materially, we will update the date above and notify account holders by email before the change takes effect.',
+    h2Contact: 'Contact',
+    contactBody: 'Questions about this policy or your data:',
+    footHome: 'Home',
+    footTerms: 'Terms of Service',
+  },
+  es: {
+    h1Privacy: 'Política de Privacidad',
+    updatedLabel: 'Última actualización:',
+    langNoteLead: 'Aviso sobre la traducción:',
+    langNoteBody: 'Esta traducción se facilita únicamente por comodidad. La versión en inglés es la versión vinculante y prevalece si ambas difieren.',
+    langNoteLink: 'Leer la versión en inglés',
+    shortLead: 'En resumen:',
+    shortBody: 'FenceFlow almacena los datos propios de su empresa de cercas para que usted pueda llevar sus trabajos. No vendemos sus datos, no los usamos para publicidad, y no los compartimos con nadie salvo con los servicios enumerados abajo que son necesarios para que la app funcione.',
+    h2Who: 'A quién cubre',
+    whoBody: 'FenceFlow lo usan instaladores de cercas. En él aparecen dos tipos de personas: el contratista y su cuadrilla, que tienen cuentas, y los clientes del contratista, cuyos datos el contratista introduce para cotizar y completar el trabajo.',
+    h2Collect: 'Qué recopilamos',
+    collAccountL: 'Información de la cuenta',
+    collAccountR: 'dirección de correo y contraseña de cualquier persona que inicie sesión. Las contraseñas las almacena con hash nuestro proveedor de autenticación; nosotros nunca las vemos.',
+    collBusinessL: 'Información de la empresa',
+    collBusinessR: 'nombre de la empresa, teléfono, correo, número de licencia, precios predeterminados, y plantillas de mensajes.',
+    collJobL: 'Información del trabajo introducida por el contratista',
+    collJobR: 'nombre del cliente, dirección, teléfono, correo, notas, medidas y dibujos de la cerca, materiales, precios, calendarios, importes de pago, y firmas.',
+    collCrewL: 'Información de la cuadrilla',
+    collCrewR: 'nombres, roles, datos de contacto, tarifas de pago, y horas de entrada y salida.',
+    collPhotosL: 'Fotos',
+    collPhotosR: 'tomadas en la app de los sitios de trabajo y del trabajo terminado.',
+    collDeviceL: 'Información del dispositivo',
+    collDeviceR: 'para las notificaciones — un token de envío que identifica el dispositivo, para que los avisos de trabajo puedan llegarle.',
+    collectNot: 'No recopilamos rastreo de ubicación, contactos, actividad de navegación, ni identificadores publicitarios.',
+    h2Payment: 'Información de pago',
+    payBodyA: 'FenceFlow nunca recibe, almacena ni procesa números de tarjeta. Cuando usted cobra con tarjeta, el cliente introduce los datos de su tarjeta directamente con el proveedor de pagos que usted conectó —',
+    wordOr: 'o',
+    payBodyB: '— y el dinero va de ellos a ese proveedor y a su banco. Nosotros solo guardamos los importes que usted registra, la fecha, el método, y un enlace a la página de pago. Los números de tarjeta, las fechas de vencimiento y los códigos de seguridad nunca llegan a nuestros servidores ni a su dispositivo.',
+    payProviderPolicy: 'El que usted conecte trata esos datos de tarjeta bajo su propia política de privacidad, como la empresa responsable de ellos:',
+    h2Use: 'Cómo la usamos',
+    useLi1: 'Para hacer funcionar las funciones que usted usa: cotización, programación, facturación, reportes.',
+    useLi2: 'Para sincronizar sus datos entre sus propios dispositivos y los de su cuadrilla.',
+    useLi3: 'Para enviar notificaciones sobre los trabajos en los que usted o su cuadrilla están trabajando.',
+    useLi4: 'Para dar soporte cuando usted lo pide.',
+    useNot: 'No usamos sus datos para entrenar modelos publicitarios, y no los vendemos.',
+    h2Share: 'Con quién la compartimos',
+    shareSupabase: 'aloja la base de datos y gestiona el inicio de sesión.',
+    shareFirebase: 'entrega las notificaciones push. Recibe el token de envío del dispositivo y un mensaje corto como el nombre de un trabajo; no sus registros de clientes.',
+    shareProcessor: 'procesa los pagos con tarjeta a través de su propia cuenta allí, si usted decide aceptarlos.',
+    shareLookupL: 'Servicios de búsqueda de direcciones',
+    shareLookupR: 'ver abajo.',
+    shareBody: 'Compartimos datos con estos proveedores solo en la medida necesaria para operar el servicio. No vendemos ni alquilamos su información a nadie, y no la compartimos con anunciantes ni con intermediarios de datos.',
+    h2Lookup: 'Búsqueda de direcciones',
+    lookupA: 'Cuando usted escribe la dirección de un trabajo, la app ofrece sugerencias para completarla. Para hacerlo envía',
+    lookupStrong: 'el texto de la dirección que está escribiendo',
+    lookupB: '— y nada más — a uno o varios de los siguientes:',
+    lkCensus: 'un servicio de direcciones del gobierno de EE. UU.',
+    lkPhoton: ', operado por Komoot, y',
+    lkNominatim: ', operado por la OpenStreetMap Foundation — ambos construidos sobre datos de OpenStreetMap.',
+    lookupTail: 'Con la búsqueda no se envía ningún nombre de cliente, número de teléfono, correo, detalle del trabajo ni información de la cuenta, y la solicitud no lleva nada que identifique su cuenta. Estos servicios pueden registrar la consulta y la dirección IP que la solicita conforme a sus propias políticas. La búsqueda se ejecuta mientras usted escribe en el campo de dirección; no se ejecuta en ninguna otra parte de la app.',
+    h2Where: 'Dónde viven sus datos, y por cuánto tiempo',
+    whereBody: 'Los datos se almacenan en los servidores de Supabase, en los Estados Unidos, y en los dispositivos que hayan iniciado sesión en su empresa. Permanecen hasta que usted los elimine o cierre su cuenta.',
+    h2Trash: 'Eliminar cosas, y la papelera',
+    trashP1a: 'Eliminar un trabajo, un cliente o un registro de cuadrilla no lo borra de inmediato.',
+    trashP1b: 'Se marca como eliminado, desaparece de la app en todos los dispositivos, y pasa a una',
+    trashBin: 'papelera',
+    trashP1c: 'que el titular de la cuenta puede abrir. Esto es deliberado: significa que un error en un teléfono, o un toque de la persona equivocada, se puede deshacer en lugar de costarle a una empresa sus registros.',
+    trashP2a: 'Los elementos permanecen en la papelera hasta que el titular la vacía.',
+    trashP2b: 'Vaciar la papelera es permanente',
+    trashP2c: '— el registro se borra de nuestros servidores y no puede recuperarlo ni usted ni nosotros.',
+    trashP3: 'Así que si su intención es que algo desaparezca de verdad — porque un cliente le pidió borrar sus datos, por ejemplo — eliminarlo es el primer paso y vaciar la papelera es el segundo.',
+    h2Delete: 'Eliminar su cuenta y sus datos',
+    deleteP1a: 'Puede solicitar la eliminación de su cuenta y de todos los datos de negocio asociados en cualquier momento escribiendo a',
+    deleteP1b: 'desde la dirección que figura en su cuenta. Confirmaremos y completaremos la eliminación en un plazo de 30 días, incluido todo lo que esté en la papelera.',
+    deleteP2: 'También puede exportar sus datos primero — ver abajo — para que cerrar la cuenta no signifique perder sus registros.',
+    h2Export: 'Sacar sus datos',
+    exportBody: 'Sus registros son suyos. Puede exportar sus trabajos, clientes, pagos, gastos y horas de cuadrilla desde la app en cualquier momento, en un formato de hoja de cálculo que se abre en Excel, Google Sheets o Numbers. No necesita pedírnoslo, y no necesita una suscripción activa para llevarse sus datos.',
+    h2Customers: 'La información de sus clientes',
+    customersBody: 'Si usted es un contratista que usa FenceFlow, los datos de cliente que introduce son suyos y usted sigue siendo responsable de ellos. Solo debe introducir información que tenga derecho a tener, y debe informar a sus clientes de cómo la usa. A petición suya, le ayudaremos a exportar o eliminar cualquier registro de cliente.',
+    h2Security: 'Seguridad',
+    securityBody: 'Los datos se cifran en tránsito. El acceso está restringido a nivel de la base de datos para que cada empresa solo pueda llegar a sus propios registros, y las cuentas de cuadrilla ven menos que las de titulares y encargados. Ningún sistema es perfectamente seguro, y avisaremos sin demora a los usuarios afectados si tenemos conocimiento de una brecha que afecte a datos personales.',
+    h2Children: 'Menores',
+    childrenBody: 'FenceFlow es una herramienta de negocio y no está dirigida a menores de 13 años. No recopilamos sus datos a sabiendas.',
+    h2Changes: 'Cambios',
+    changesBody: 'Si esta política cambia de forma sustancial, actualizaremos la fecha de arriba y avisaremos por correo a los titulares de cuenta antes de que el cambio entre en vigor.',
+    h2Contact: 'Contacto',
+    contactBody: 'Preguntas sobre esta política o sus datos:',
+    footHome: 'Inicio',
+    footTerms: 'Términos del Servicio',
+  },
+  fr: {
+    h1Privacy: 'Politique de confidentialité',
+    updatedLabel: 'Dernière mise à jour :',
+    langNoteLead: 'Avis concernant la traduction :',
+    langNoteBody: 'Cette traduction est fournie uniquement à titre de commodité. Seule la version anglaise fait foi et prévaut en cas de divergence entre les deux.',
+    langNoteLink: 'Lire la version anglaise',
+    shortLead: 'En résumé :',
+    shortBody: 'FenceFlow conserve les données propres à votre entreprise de clôtures afin que vous puissiez gérer vos chantiers. Nous ne vendons pas vos données, nous ne les utilisons pas à des fins publicitaires, et nous ne les partageons avec personne, à l’exception des services énumérés ci-dessous qui sont nécessaires au fonctionnement de l’application.',
+    h2Who: 'Qui est concerné',
+    whoBody: 'FenceFlow est utilisé par des poseurs de clôtures. Deux types de personnes y figurent : l’entrepreneur et son équipe, qui possèdent des comptes, et les clients de l’entrepreneur, dont l’entrepreneur saisit les coordonnées pour établir un devis et réaliser les travaux.',
+    h2Collect: 'Ce que nous collectons',
+    collAccountL: 'Informations de compte',
+    collAccountR: 'adresse e-mail et mot de passe de toute personne qui se connecte. Les mots de passe sont stockés sous forme de hachage par notre fournisseur d’authentification ; nous ne les voyons jamais.',
+    collBusinessL: 'Informations sur l’entreprise',
+    collBusinessR: 'nom de l’entreprise, téléphone, e-mail, numéro de licence, tarifs par défaut, et modèles de messages.',
+    collJobL: 'Informations sur le chantier saisies par l’entrepreneur',
+    collJobR: 'nom du client, adresse, téléphone, e-mail, notes, mesures et dessins de la clôture, matériaux, prix, plannings, montants des paiements, et signatures.',
+    collCrewL: 'Informations sur l’équipe',
+    collCrewR: 'noms, rôles, coordonnées, taux de rémunération, et heures de pointage.',
+    collPhotosL: 'Photos',
+    collPhotosR: 'prises dans l’application des chantiers et des travaux terminés.',
+    collDeviceL: 'Informations sur l’appareil',
+    collDeviceR: 'pour les notifications — un jeton d’envoi identifiant l’appareil, afin que les alertes de chantier puissent lui parvenir.',
+    collectNot: 'Nous ne collectons pas de suivi de localisation, de contacts, d’activité de navigation, ni d’identifiants publicitaires.',
+    h2Payment: 'Informations de paiement',
+    payBodyA: 'FenceFlow ne reçoit, ne stocke et ne traite jamais de numéros de carte. Lorsque vous encaissez un paiement par carte, le client saisit les données de sa carte directement auprès du prestataire de paiement que vous avez connecté —',
+    wordOr: 'ou',
+    payBodyB: '— et l’argent va d’eux à ce prestataire, puis à votre banque. Nous ne conservons que les montants que vous enregistrez, la date, le moyen de paiement, et un lien vers la page de paiement. Les numéros de carte, les dates d’expiration et les codes de sécurité n’atteignent jamais nos serveurs ni votre appareil.',
+    payProviderPolicy: 'Celui que vous connectez traite ces données de carte sous sa propre politique de confidentialité, en tant qu’entreprise qui en est responsable :',
+    h2Use: 'Comment nous l’utilisons',
+    useLi1: 'Pour faire fonctionner les fonctionnalités que vous utilisez : chiffrage, planification, facturation, rapports.',
+    useLi2: 'Pour synchroniser vos données entre vos propres appareils et ceux de votre équipe.',
+    useLi3: 'Pour envoyer des notifications concernant les chantiers sur lesquels vous ou votre équipe travaillez.',
+    useLi4: 'Pour fournir une assistance lorsque vous la demandez.',
+    useNot: 'Nous n’utilisons pas vos données pour entraîner des modèles publicitaires, et nous ne les vendons pas.',
+    h2Share: 'Avec qui nous les partageons',
+    shareSupabase: 'héberge la base de données et gère la connexion.',
+    shareFirebase: 'délivre les notifications push. Reçoit le jeton d’envoi de l’appareil et un message court tel qu’un nom de chantier ; pas vos fiches clients.',
+    shareProcessor: 'traite les paiements par carte via votre propre compte chez eux, si vous choisissez d’en accepter.',
+    shareLookupL: 'Services de recherche d’adresses',
+    shareLookupR: 'voir ci-dessous.',
+    shareBody: 'Nous ne partageons des données avec ces prestataires que dans la mesure nécessaire au fonctionnement du service. Nous ne vendons ni ne louons vos informations à quiconque, et nous ne les partageons pas avec des annonceurs ni des courtiers en données.',
+    h2Lookup: 'Recherche d’adresses',
+    lookupA: 'Lorsque vous saisissez l’adresse d’un chantier, l’application propose des suggestions pour la compléter. Pour cela, elle envoie',
+    lookupStrong: 'le texte de l’adresse que vous êtes en train de saisir',
+    lookupB: '— et rien d’autre — à un ou plusieurs des services suivants :',
+    lkCensus: 'un service d’adresses du gouvernement des États-Unis.',
+    lkPhoton: ', exploité par Komoot, et',
+    lkNominatim: ', exploité par la OpenStreetMap Foundation — tous deux construits sur les données OpenStreetMap.',
+    lookupTail: 'Aucun nom de client, numéro de téléphone, e-mail, détail de chantier ni information de compte n’est envoyé avec la recherche, et la requête ne comporte rien qui identifie votre compte. Ces services peuvent journaliser la requête et l’adresse IP qui la demande, selon leurs propres politiques. La recherche s’exécute pendant que vous saisissez dans le champ d’adresse ; elle ne s’exécute nulle part ailleurs dans l’application.',
+    h2Where: 'Où vivent vos données, et pour combien de temps',
+    whereBody: 'Les données sont stockées sur les serveurs de Supabase, aux États-Unis, et sur les appareils connectés à votre entreprise. Elles y restent jusqu’à ce que vous les supprimiez ou fermiez votre compte.',
+    h2Trash: 'Supprimer des éléments, et la corbeille',
+    trashP1a: 'Supprimer un chantier, un client ou une fiche d’équipe ne l’efface pas immédiatement.',
+    trashP1b: 'L’élément est marqué comme supprimé, disparaît de l’application sur tous les appareils, et passe dans une',
+    trashBin: 'corbeille',
+    trashP1c: 'que le titulaire du compte peut ouvrir. C’est délibéré : cela signifie qu’une erreur sur un téléphone, ou une touche par la mauvaise personne, peut être annulée plutôt que de coûter ses fiches à une entreprise.',
+    trashP2a: 'Les éléments restent dans la corbeille jusqu’à ce que le titulaire la vide.',
+    trashP2b: 'Vider la corbeille est définitif',
+    trashP2c: '— la fiche est effacée de nos serveurs et ne peut être récupérée ni par vous ni par nous.',
+    trashP3: 'Donc si votre intention est qu’un élément disparaisse réellement — parce qu’un client vous a demandé d’effacer ses coordonnées, par exemple — le supprimer est la première étape et vider la corbeille est la seconde.',
+    h2Delete: 'Supprimer votre compte et vos données',
+    deleteP1a: 'Vous pouvez demander la suppression de votre compte et de toutes les données d’entreprise associées à tout moment en écrivant à',
+    deleteP1b: 'depuis l’adresse figurant sur votre compte. Nous confirmerons et effectuerons la suppression dans un délai de 30 jours, y compris tout ce qui se trouve dans la corbeille.',
+    deleteP2: 'Vous pouvez aussi exporter vos données au préalable — voir ci-dessous — afin que fermer le compte ne signifie pas perdre vos fiches.',
+    h2Export: 'Récupérer vos données',
+    exportBody: 'Vos fiches vous appartiennent. Vous pouvez exporter vos chantiers, clients, paiements, dépenses et heures d’équipe depuis l’application à tout moment, dans un format tableur qui s’ouvre dans Excel, Google Sheets ou Numbers. Vous n’avez pas besoin de nous le demander, ni d’un abonnement actif pour emporter vos données.',
+    h2Customers: 'Les informations de vos clients',
+    customersBody: 'Si vous êtes un entrepreneur utilisant FenceFlow, les coordonnées de clients que vous saisissez sont les vôtres et vous en restez responsable. Vous ne devez saisir que des informations que vous avez le droit de détenir, et vous devez indiquer à vos clients comment vous les utilisez. Sur demande, nous vous aiderons à exporter ou à supprimer toute fiche client.',
+    h2Security: 'Sécurité',
+    securityBody: 'Les données sont chiffrées en transit. L’accès est restreint au niveau de la base de données afin que chaque entreprise ne puisse atteindre que ses propres fiches, et les comptes d’équipe voient moins que les propriétaires et les responsables. Aucun système n’est parfaitement sûr, et nous préviendrons rapidement les utilisateurs concernés si nous avons connaissance d’une violation portant sur des données personnelles.',
+    h2Children: 'Enfants',
+    childrenBody: 'FenceFlow est un outil professionnel et ne s’adresse pas aux enfants de moins de 13 ans. Nous ne collectons pas sciemment leurs données.',
+    h2Changes: 'Modifications',
+    changesBody: 'Si cette politique change de manière substantielle, nous mettrons à jour la date ci-dessus et préviendrons les titulaires de comptes par e-mail avant que le changement ne prenne effet.',
+    h2Contact: 'Contact',
+    contactBody: 'Questions sur cette politique ou sur vos données :',
+    footHome: 'Accueil',
+    footTerms: 'Conditions d’utilisation',
+  },
+};
+
+let LANG = 'en';
+(function () {
+  let asked = '';
+  try {
+    asked = (new URLSearchParams(location.search).get('lang') || '').slice(0, 2).toLowerCase();
+  } catch (e) { /* no URL API: fall through to the browser's own answer */ }
+  let saved = '';
+  try { saved = localStorage.getItem('ff_lang') || ''; } catch (e) { /* private window */ }
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const pick = [asked, saved, browser].find(c => c && L[c]);
+  if (pick) LANG = pick;
+})();
+
+/* %s in order, same as index.html and quote.html — kept even though no string
+   here uses it yet, so the three mechanisms stay identical rather than
+   drifting apart. */
+function tr(key) {
+  const args = [].slice.call(arguments, 1);
+  let out = (L[LANG] && L[LANG][key]) || L.en[key] || '';
+  args.forEach(a => { out = out.replace('%s', a); });
+  return out;
+}
+
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.getAttribute('data-t');
+    if (el.tagName === 'INPUT') el.placeholder = tr(k); else el.textContent = tr(k);
+  });
+}
+
+function setLang(code) {
+  if (!L[code]) return;
+  try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('lang', code);
+    location.href = u.toString();
+    return;
+  } catch (e) { /* older browser: the stored value still carries it */ }
+  location.reload();
+}
+
+applyStaticText();
+
+/* The "last updated" date has exactly one home: the datetime attribute in the
+   markup. Formatting it per language from that single value is safe; keeping a
+   copy of it in each of the three tables is not, because the next hand-edit
+   would change one and leave two claiming the policy is older than it is —
+   the same lie the old JavaScript date told, just slower to notice. */
+(function () {
+  const t = document.getElementById('updated');
+  if (!t) return;
+  try {
+    const p = (t.getAttribute('datetime') || '').split('-').map(Number);
+    const d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    t.textContent = new Intl.DateTimeFormat(LANG, {
+      year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC'
+    }).format(d);
+  } catch (e) { /* no Intl, or a malformed attribute: the English literal stands */ }
+})();
+
+/* The link to the English original is pinned to English by definition, so it
+   is excluded from the rewrite below and hidden when English is already what
+   you are reading. */
+document.querySelectorAll('.en-link').forEach(a => { a.hidden = (LANG === 'en'); });
+
+/* Internal links have to carry the language too. index.html links here without
+   ?lang=, and localStorage covers that, but a reader who follows Privacy →
+   Terms in a private window would otherwise drop back to English halfway
+   through a legal document without being told why. */
+(function () {
+  const internal = { 'index.html': 1, 'privacy.html': 1, 'terms.html': 1 };
+  document.querySelectorAll('a[href]').forEach(a => {
+    if (a.classList.contains('en-link')) return;
+    const href = a.getAttribute('href');
+    if (internal[href]) a.setAttribute('href', href + '?lang=' + LANG);
+  });
+})();
+
+(function () {
+  const el = document.getElementById('langPick');
+  if (!el) return;
+  el.innerHTML = ['en', 'es', 'fr'].map(c =>
+    c === LANG ? '<b>' + c.toUpperCase() + '</b>'
+               : '<a href="#" data-lang="' + c + '">' + c.toUpperCase() + '</a>'
+  ).join(' · ');
+  el.querySelectorAll('a[data-lang]').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
+})();
+</script>
 
 </body>
 </html>

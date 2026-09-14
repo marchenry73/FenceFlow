@@ -12,7 +12,8 @@
 <link rel="canonical" href="https://fenceflowapp.com/terms.html">
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.7;color:#12151A;max-width:760px;margin:0 auto;padding:40px 24px}
-  header{background:#0F1826;color:#fff;margin:-40px -24px 32px;padding:20px 24px}
+  header{background:#0F1826;color:#fff;margin:-40px -24px 32px;padding:20px 24px;
+         display:flex;align-items:center;justify-content:space-between;gap:12px}
   .logo{font-weight:800;font-size:19px}.logo span{color:#FF5A1F}
   h1{font-size:30px;margin-bottom:6px;letter-spacing:-0.5px}
   h2{font-size:19px;margin:28px 0 8px}
@@ -22,129 +23,197 @@
   .box{background:#FFF4E5;border:1px solid #FFD9A8;border-radius:10px;padding:16px;margin:18px 0}
   a{color:#B23800}
   footer{margin-top:40px;padding-top:20px;border-top:1px solid #E3E7ED;font-size:14px;color:#5A6472}
+  /* The language picker sits in the dark header, so it inherits white, not
+     the orange link colour used in the body. */
+  #langPick{font-size:13px;color:#AFBACB;letter-spacing:.5px;white-space:nowrap}
+  #langPick a{color:inherit;text-decoration:none}
+  #langPick a:hover{text-decoration:underline}
+  #langPick b{color:#fff}
+  /* The translation notice is the most important line on a translated legal
+     page, so it is given the brand orange and placed above the warning box
+     rather than left to blend in with the body text. */
+  .langnote{background:#FFF9F5;border:1px solid #F3D3BE;border-left:4px solid #FF5A1F;
+            border-radius:10px;padding:14px 16px;margin:0 0 20px;font-size:15px}
+  /* Marks a clause that is deliberately left in English. Without this line a
+     Spanish or French reader hitting an English paragraph would reasonably
+     assume the page is half-finished rather than that the wording is held
+     back on purpose. */
+  .en-only-note{font-size:13px;color:#5A6472;font-style:italic;margin:16px 0 4px}
+  [hidden]{display:none !important}
 </style>
 </head>
 <body>
-<header><div class="logo">Fence<span>Flow</span></div></header>
+<header>
+  <div class="logo">Fence<span>Flow</span></div>
+  <span id="langPick"></span>
+</header>
 
-<h1>Terms of Service</h1>
-<!-- Hard-coded on purpose; see the note in privacy.html. Update by hand. -->
-<p class="updated">Last updated: August 17, 2026</p>
+<h1 data-t="h1Terms">Terms of Service</h1>
+<!-- Hard-coded on purpose; see the note in privacy.html. Update by hand, in
+     the datetime attribute below, which is the one the page reads. -->
+<p class="updated"><span data-t="updatedLabel">Last updated:</span>
+  <time id="updated" datetime="2026-08-17">August 17, 2026</time></p>
 
-<div class="box">
-  <strong>Read this part especially:</strong> FenceFlow produces estimates and material counts to help you
-  quote work. They are calculations from what you drew and the prices you entered — not a guaranteed takeoff.
-  You are responsible for checking quantities, pricing, permits, and code compliance before you order
-  materials or build.
+<!--
+  This is a contract. A translation of a contract can be argued to be the text
+  the business is bound by, so the page has to say plainly, in the reader's own
+  language, that it is not — and hand them the English original. Four clauses
+  below go further and stay in English entirely; see the notes on each.
+-->
+<div class="langnote">
+  <strong data-t="langNoteLead">Translation notice:</strong>
+  <span data-t="langNoteBody">This page is also published in Spanish and French. Those translations are provided for convenience only. The English version is the binding version and prevails if the two differ.</span>
+  <a class="en-link" href="terms.html?lang=en" data-t="langNoteLink">Read the English version</a>
 </div>
 
-<h2>1. Agreement</h2>
-<p>By creating an account or using FenceFlow, you agree to these terms. If you do not agree, do not use the service.</p>
+<div class="box">
+  <strong data-t="boxLead">Read this part especially:</strong>
+  <span data-t="boxBody">FenceFlow produces estimates and material counts to help you
+  quote work. They are calculations from what you drew and the prices you entered — not a guaranteed takeoff.
+  You are responsible for checking quantities, pricing, permits, and code compliance before you order
+  materials or build.</span>
+</div>
 
-<h2>2. What FenceFlow is</h2>
-<p>
+<h2 data-t="h2_1">1. Agreement</h2>
+<p data-t="t1">By creating an account or using FenceFlow, you agree to these terms. If you do not agree, do not use the service.</p>
+
+<h2 data-t="h2_2">2. What FenceFlow is</h2>
+<p data-t="t2">
   FenceFlow is software for fencing contractors to draw fence layouts, estimate materials, schedule and run
   jobs, track crew time, and record payments. It is a tool for your business. It does not perform the work,
   supply materials, or provide professional advice.
 </p>
 
-<h2>3. Your account</h2>
+<h2 data-t="h2_3">3. Your account</h2>
 <ul>
-  <li>You must give accurate account information and keep your password secure.</li>
-  <li>You are responsible for everything done under your account, including by crew members you invite.</li>
-  <li>Owners and managers can see and change more than crew accounts. Choose access levels carefully.</li>
-  <li>Tell us promptly if you believe your account has been accessed without permission.</li>
+  <li data-t="t3a">You must give accurate account information and keep your password secure.</li>
+  <li data-t="t3b">You are responsible for everything done under your account, including by crew members you invite.</li>
+  <li data-t="t3c">Owners and managers can see and change more than crew accounts. Choose access levels carefully.</li>
+  <li data-t="t3d">Tell us promptly if you believe your account has been accessed without permission.</li>
 </ul>
 
-<h2>4. Estimates, measurements, and material counts</h2>
-<p>
+<h2 data-t="h2_4">4. Estimates, measurements, and material counts</h2>
+<p data-t="t4a">
   Quantities are generated from the line you draw, the scale you set, and the specifications and prices you
   enter. Errors in any of those produce errors in the result. Site conditions, waste, slope, obstructions,
   and supplier availability are not accounted for automatically.
 </p>
 <p>
-  <strong>You must verify every estimate before relying on it.</strong> We are not responsible for material
-  shortages, over-ordering, mispriced quotes, or lost profit arising from figures produced by the app.
+  <strong data-t="t4Verify">You must verify every estimate before relying on it.</strong>
+</p>
+<!--
+  English only. This sentence excludes our liability for a class of losses, and
+  "lost profit" has no single rendering in Spanish or French that carries the
+  same scope — lucro cesante and manque à gagner each import a doctrine of
+  their own. A weaker exclusion in translation is a promise the business never
+  made, so the wording is held back rather than guessed at.
+-->
+<p class="en-only-note" data-t="enOnlyNote">This clause is shown in English only.</p>
+<p>
+  We are not responsible for material shortages, over-ordering, mispriced quotes, or lost profit arising
+  from figures produced by the app.
 </p>
 
-<h2>5. Codes, permits, and compliance</h2>
+<h2 data-t="h2_5">5. Codes, permits, and compliance</h2>
 <p>
-  Fence height limits, setbacks, corner visibility rules, pool barrier requirements, permits, and HOA
+  <span data-t="t5a">Fence height limits, setbacks, corner visibility rules, pool barrier requirements, permits, and HOA
   approvals vary by location and change over time. FenceFlow does not contain a legal code database and
   does not tell you what is permitted where you are working. Any reference material or external link in the
-  app is general information, not legal advice. <strong>Confirming compliance is entirely your
-  responsibility.</strong>
+  app is general information, not legal advice.</span>
+  <strong data-t="t5b">Confirming compliance is entirely your responsibility.</strong>
 </p>
 
-<h2>6. Payments to you</h2>
+<h2 data-t="h2_6">6. Payments to you</h2>
 <p>
-  FenceFlow does not process payments and never holds your money. Card payments are handled by
-  <strong>Square</strong> or <strong>Stripe</strong> through the account you connect; your relationship for those transactions is with that
-  provider under their terms, and their fees apply. We are not responsible for their availability, holds,
-  chargebacks, payout timing, or account decisions.
+  <span data-t="t6a">FenceFlow does not process payments and never holds your money. Card payments are handled by</span>
+  <strong>Square</strong> <span data-t="wordOr">or</span> <strong>Stripe</strong>
+  <span data-t="t6b">through the account you connect; your relationship for those transactions is with that
+  provider under their terms, and their fees apply.</span>
+</p>
+<!--
+  English only, for the same reason as section 4: this is a liability
+  exclusion, and "holds" and "chargebacks" are payment-industry terms whose
+  translated equivalents do not map cleanly onto what Square and Stripe
+  actually do.
+-->
+<p class="en-only-note" data-t="enOnlyNote">This clause is shown in English only.</p>
+<p>
+  We are not responsible for their availability, holds, chargebacks, payout timing, or account decisions.
 </p>
 <p>
-  Payment amounts recorded in the app are a record for your own bookkeeping. Where the app's figure and your
-  provider's statement disagree, <strong>the provider's statement is the authoritative one.</strong>
+  <span data-t="t6c">Payment amounts recorded in the app are a record for your own bookkeeping. Where the app's figure and your
+  provider's statement disagree,</span>
+  <strong data-t="t6d">the provider's statement is the authoritative one.</strong>
 </p>
 
-<h2>6a. Contracts, invoices, and documents the app produces</h2>
+<h2 data-t="h2_6a">6a. Contracts, invoices, and documents the app produces</h2>
 <p>
-  FenceFlow generates contracts, estimates, invoices, and change orders from templates and from what you
-  enter. <strong>These are starting points, not legal documents prepared for your situation.</strong> We are
-  not a law firm and this is not legal advice. Contract requirements for home-improvement work — mandatory
+  <span data-t="t6aa">FenceFlow generates contracts, estimates, invoices, and change orders from templates and from what you
+  enter.</span>
+  <strong data-t="t6ab">These are starting points, not legal documents prepared for your situation.</strong>
+  <span data-t="t6ac">We are not a law firm and this is not legal advice. Contract requirements for home-improvement work — mandatory
   disclosures, cancellation rights, deposit limits, lien notices, warranty language — vary by state and by
-  the size of the job, and getting them wrong can make a contract unenforceable or expose you to penalties.
+  the size of the job, and getting them wrong can make a contract unenforceable or expose you to penalties.</span>
 </p>
-<p>
+<p data-t="t6ad">
   Have a lawyer in your state review the contract template before you use it with customers, and edit the
   wording to match what your state requires. You are responsible for the documents you send out under your
   own business name.
 </p>
-<p>
+<p data-t="t6ae">
   Signatures captured in the app record that someone signed on a device at a time. Whether that constitutes a
   binding signature depends on your jurisdiction and the transaction.
 </p>
 
-<h2>7. Subscription and billing</h2>
+<h2 data-t="h2_7">7. Subscription and billing</h2>
 <ul>
-  <li>Paid plans are billed monthly in advance unless stated otherwise.</li>
-  <li>You can cancel at any time; access continues to the end of the paid period.</li>
-  <li>Fees are non-refundable except where required by law.</li>
-  <li>We will give at least 30 days' notice by email before changing prices.</li>
+  <li data-t="t7a">Paid plans are billed monthly in advance unless stated otherwise.</li>
+  <li data-t="t7b">You can cancel at any time; access continues to the end of the paid period.</li>
+  <li data-t="t7c">Fees are non-refundable except where required by law.</li>
+  <li data-t="t7d">We will give at least 30 days' notice by email before changing prices.</li>
 </ul>
 
-<h2>8. Your data</h2>
+<h2 data-t="h2_8">8. Your data</h2>
 <p>
-  Your business and customer data remains yours. We store and process it to run the service as described in
-  our <a href="privacy.html">Privacy Policy</a>.
+  <span data-t="t8a">Your business and customer data remains yours. We store and process it to run the service as described in
+  our</span> <a href="privacy.html" data-t="t8Privacy">Privacy Policy</a>.
 </p>
-<p>
+<p data-t="t8b">
   You can export everything at any time from Settings, as spreadsheets that open outside this app, without
   asking us and without an active subscription. Deletion is described in the Privacy Policy — note that
   deleted items sit in a trash bin until the account owner empties it.
 </p>
-<p>
+<p data-t="t8c">
   Keep your own backups of anything you cannot afford to lose. The app has both an export and a backup
   feature; neither helps if it is never run.
 </p>
 
-<h2>9. Acceptable use</h2>
+<h2 data-t="h2_9">9. Acceptable use</h2>
 <ul>
-  <li>Do not use FenceFlow for anything unlawful.</li>
-  <li>Do not enter other people's personal information without the right to do so.</li>
-  <li>Do not attempt to access another business's data, or to disrupt or reverse-engineer the service.</li>
-  <li>Do not resell or rebrand the service without a written agreement.</li>
+  <li data-t="t9a">Do not use FenceFlow for anything unlawful.</li>
+  <li data-t="t9b">Do not enter other people's personal information without the right to do so.</li>
+  <li data-t="t9c">Do not attempt to access another business's data, or to disrupt or reverse-engineer the service.</li>
+  <li data-t="t9d">Do not resell or rebrand the service without a written agreement.</li>
 </ul>
 
-<h2>10. Availability</h2>
-<p>
+<h2 data-t="h2_10">10. Availability</h2>
+<p data-t="t10">
   We aim to keep FenceFlow available but do not guarantee uninterrupted service. Maintenance, outages at our
   hosting providers, and faults can interrupt access. Much of the app works offline on your device and syncs
   when a connection returns.
 </p>
 
-<h2>11. Limitation of liability</h2>
+<h2 data-t="h2_11">11. Limitation of liability</h2>
+<!--
+  English only, and the clearest case of it on the page. "As is", "warranties
+  of any kind", "indirect, incidental, or consequential damages" and "to the
+  fullest extent permitted by law" are each terms with settled meaning in US
+  contract law and no safe one-to-one equivalent in Spanish or French. A
+  translation that narrowed any of them would hand back a cap the business
+  never agreed to give up. The heading is translated so the section can still
+  be found; the operative wording is not.
+-->
+<p class="en-only-note" data-t="enOnlyNote">This clause is shown in English only.</p>
 <p>
   To the fullest extent permitted by law, FenceFlow is provided "as is" without warranties of any kind. We
   are not liable for indirect, incidental, or consequential damages, including lost profits, lost jobs, or
@@ -153,26 +222,33 @@
 </p>
 <p>Nothing here excludes liability that cannot lawfully be excluded.</p>
 
-<h2>12. Suspension and termination</h2>
-<p>
+<h2 data-t="h2_12">12. Suspension and termination</h2>
+<p data-t="t12">
   You may stop using the service at any time. We may suspend or close an account that breaches these terms
   or is used unlawfully, and will give notice and a chance to export your data where reasonably possible.
 </p>
 
-<h2>13. Changes to these terms</h2>
-<p>
+<h2 data-t="h2_13">13. Changes to these terms</h2>
+<p data-t="t13">
   We may update these terms. Material changes will be notified by email or in the app before taking effect.
   Continuing to use FenceFlow after that means you accept the updated terms.
 </p>
 
-<h2>14. Governing law</h2>
+<h2 data-t="h2_14">14. Governing law</h2>
 <!--
   PLACEHOLDER -- must be filled in before anyone outside the company signs up.
   A terms page with no governing law clause leaves the venue for any dispute
   open to argument, which is the opposite of what this section is for. It should
   name the state the business is registered in. Not filled in automatically
   because guessing a jurisdiction is worse than leaving it visibly blank.
+
+  English only as well. Choice of law, venue and severability decide which
+  courtroom an argument happens in; "without regard to its conflict of law
+  rules" and "unenforceable" are terms of art, and a translation of them could
+  be read as consent to a different forum. Fill in the placeholders here, in
+  English, and the translated pages pick up the change with no second edit.
 -->
+<p class="en-only-note" data-t="enOnlyNote">This clause is shown in English only.</p>
 <p>
   These terms are governed by the laws of the State of <strong>[STATE]</strong>, without regard to its
   conflict of law rules. Any dispute will be brought in the state or federal courts located in
@@ -182,12 +258,316 @@
   If any part of these terms is found unenforceable, the rest continues to apply.
 </p>
 
-<h2>15. Contact</h2>
+<h2 data-t="h2_15">15. Contact</h2>
 <p><a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a></p>
 
 <footer>
-  <a href="index.html">Home</a> &nbsp;·&nbsp; <a href="privacy.html">Privacy Policy</a>
+  <a href="index.html" data-t="footHome">Home</a> &nbsp;·&nbsp; <a href="privacy.html" data-t="footPrivacy">Privacy Policy</a>
 </footer>
+
+<script>
+/* Mechanism copied from website/index.html, which took it from quote.html: a
+   flat table keyed by language, %s substitution, an English fallback so a
+   missing key never renders blank or a key name, and the language carried in
+   the URL (?lang=) so a forwarded link keeps its language. A contractor is
+   sent this link before signing up, and it is linked from the app, the quote
+   page and the public site, so the URL parameter is what keeps a reader in the
+   language they started in.
+
+   Four clauses have no entry in this table at all — sections 4 (the liability
+   sentence), 6 (the provider sentence), 11 and 14. They are plain markup with
+   no data-t, so they render in English in every language. That is deliberate;
+   see the comments beside each of them. */
+const L = {
+  en: {
+    h1Terms: 'Terms of Service',
+    updatedLabel: 'Last updated:',
+    langNoteLead: 'Translation notice:',
+    langNoteBody: 'This page is also published in Spanish and French. Those translations are provided for convenience only. The English version is the binding version and prevails if the two differ.',
+    langNoteLink: 'Read the English version',
+    enOnlyNote: 'This clause is shown in English only.',
+    boxLead: 'Read this part especially:',
+    boxBody: 'FenceFlow produces estimates and material counts to help you quote work. They are calculations from what you drew and the prices you entered — not a guaranteed takeoff. You are responsible for checking quantities, pricing, permits, and code compliance before you order materials or build.',
+    h2_1: '1. Agreement',
+    t1: 'By creating an account or using FenceFlow, you agree to these terms. If you do not agree, do not use the service.',
+    h2_2: '2. What FenceFlow is',
+    t2: 'FenceFlow is software for fencing contractors to draw fence layouts, estimate materials, schedule and run jobs, track crew time, and record payments. It is a tool for your business. It does not perform the work, supply materials, or provide professional advice.',
+    h2_3: '3. Your account',
+    t3a: 'You must give accurate account information and keep your password secure.',
+    t3b: 'You are responsible for everything done under your account, including by crew members you invite.',
+    t3c: 'Owners and managers can see and change more than crew accounts. Choose access levels carefully.',
+    t3d: 'Tell us promptly if you believe your account has been accessed without permission.',
+    h2_4: '4. Estimates, measurements, and material counts',
+    t4a: 'Quantities are generated from the line you draw, the scale you set, and the specifications and prices you enter. Errors in any of those produce errors in the result. Site conditions, waste, slope, obstructions, and supplier availability are not accounted for automatically.',
+    t4Verify: 'You must verify every estimate before relying on it.',
+    h2_5: '5. Codes, permits, and compliance',
+    t5a: 'Fence height limits, setbacks, corner visibility rules, pool barrier requirements, permits, and HOA approvals vary by location and change over time. FenceFlow does not contain a legal code database and does not tell you what is permitted where you are working. Any reference material or external link in the app is general information, not legal advice.',
+    t5b: 'Confirming compliance is entirely your responsibility.',
+    h2_6: '6. Payments to you',
+    t6a: 'FenceFlow does not process payments and never holds your money. Card payments are handled by',
+    wordOr: 'or',
+    t6b: 'through the account you connect; your relationship for those transactions is with that provider under their terms, and their fees apply.',
+    t6c: "Payment amounts recorded in the app are a record for your own bookkeeping. Where the app's figure and your provider's statement disagree,",
+    t6d: "the provider's statement is the authoritative one.",
+    h2_6a: '6a. Contracts, invoices, and documents the app produces',
+    t6aa: 'FenceFlow generates contracts, estimates, invoices, and change orders from templates and from what you enter.',
+    t6ab: 'These are starting points, not legal documents prepared for your situation.',
+    t6ac: 'We are not a law firm and this is not legal advice. Contract requirements for home-improvement work — mandatory disclosures, cancellation rights, deposit limits, lien notices, warranty language — vary by state and by the size of the job, and getting them wrong can make a contract unenforceable or expose you to penalties.',
+    t6ad: 'Have a lawyer in your state review the contract template before you use it with customers, and edit the wording to match what your state requires. You are responsible for the documents you send out under your own business name.',
+    t6ae: 'Signatures captured in the app record that someone signed on a device at a time. Whether that constitutes a binding signature depends on your jurisdiction and the transaction.',
+    h2_7: '7. Subscription and billing',
+    t7a: 'Paid plans are billed monthly in advance unless stated otherwise.',
+    t7b: 'You can cancel at any time; access continues to the end of the paid period.',
+    t7c: 'Fees are non-refundable except where required by law.',
+    t7d: "We will give at least 30 days' notice by email before changing prices.",
+    h2_8: '8. Your data',
+    t8a: 'Your business and customer data remains yours. We store and process it to run the service as described in our',
+    t8Privacy: 'Privacy Policy',
+    t8b: 'You can export everything at any time from Settings, as spreadsheets that open outside this app, without asking us and without an active subscription. Deletion is described in the Privacy Policy — note that deleted items sit in a trash bin until the account owner empties it.',
+    t8c: 'Keep your own backups of anything you cannot afford to lose. The app has both an export and a backup feature; neither helps if it is never run.',
+    h2_9: '9. Acceptable use',
+    t9a: 'Do not use FenceFlow for anything unlawful.',
+    t9b: "Do not enter other people's personal information without the right to do so.",
+    t9c: "Do not attempt to access another business's data, or to disrupt or reverse-engineer the service.",
+    t9d: 'Do not resell or rebrand the service without a written agreement.',
+    h2_10: '10. Availability',
+    t10: 'We aim to keep FenceFlow available but do not guarantee uninterrupted service. Maintenance, outages at our hosting providers, and faults can interrupt access. Much of the app works offline on your device and syncs when a connection returns.',
+    h2_11: '11. Limitation of liability',
+    h2_12: '12. Suspension and termination',
+    t12: 'You may stop using the service at any time. We may suspend or close an account that breaches these terms or is used unlawfully, and will give notice and a chance to export your data where reasonably possible.',
+    h2_13: '13. Changes to these terms',
+    t13: 'We may update these terms. Material changes will be notified by email or in the app before taking effect. Continuing to use FenceFlow after that means you accept the updated terms.',
+    h2_14: '14. Governing law',
+    h2_15: '15. Contact',
+    footHome: 'Home',
+    footPrivacy: 'Privacy Policy',
+  },
+  es: {
+    h1Terms: 'Términos del Servicio',
+    updatedLabel: 'Última actualización:',
+    langNoteLead: 'Aviso sobre la traducción:',
+    langNoteBody: 'Esta traducción se facilita únicamente por comodidad. La versión en inglés es la versión vinculante y prevalece si ambas difieren.',
+    langNoteLink: 'Leer la versión en inglés',
+    enOnlyNote: 'Esta cláusula se muestra únicamente en inglés.',
+    boxLead: 'Lea esta parte con especial atención:',
+    boxBody: 'FenceFlow produce presupuestos y conteos de materiales para ayudarle a cotizar trabajos. Son cálculos a partir de lo que usted dibujó y de los precios que usted introdujo — no un conteo garantizado. Usted es responsable de comprobar las cantidades, los precios, los permisos y el cumplimiento del código antes de pedir materiales o construir.',
+    h2_1: '1. Acuerdo',
+    t1: 'Al crear una cuenta o usar FenceFlow, usted acepta estos términos. Si no está de acuerdo, no use el servicio.',
+    h2_2: '2. Qué es FenceFlow',
+    t2: 'FenceFlow es software para que los instaladores de cercas dibujen trazados de cerca, calculen materiales, programen y lleven trabajos, registren las horas de la cuadrilla y anoten los pagos. Es una herramienta para su negocio. No realiza el trabajo, no suministra materiales, ni presta asesoramiento profesional.',
+    h2_3: '3. Su cuenta',
+    t3a: 'Debe dar información de cuenta exacta y mantener su contraseña segura.',
+    t3b: 'Usted es responsable de todo lo que se haga bajo su cuenta, incluido lo que hagan los miembros de cuadrilla que usted invite.',
+    t3c: 'Los titulares y encargados pueden ver y cambiar más que las cuentas de cuadrilla. Elija los niveles de acceso con cuidado.',
+    t3d: 'Avísenos sin demora si cree que se ha accedido a su cuenta sin permiso.',
+    h2_4: '4. Presupuestos, medidas y conteos de materiales',
+    t4a: 'Las cantidades se generan a partir de la línea que usted dibuja, la escala que usted fija, y las especificaciones y precios que usted introduce. Un error en cualquiera de ellos produce un error en el resultado. Las condiciones del sitio, el desperdicio, la pendiente, los obstáculos y la disponibilidad del proveedor no se tienen en cuenta automáticamente.',
+    t4Verify: 'Debe verificar cada presupuesto antes de basarse en él.',
+    h2_5: '5. Códigos, permisos y cumplimiento',
+    t5a: 'Los límites de altura de cerca, los retiros, las reglas de visibilidad en esquina, los requisitos de barrera de piscina, los permisos y las aprobaciones de la HOA varían según el lugar y cambian con el tiempo. FenceFlow no contiene una base de datos de códigos legales y no le dice qué está permitido donde usted trabaja. Cualquier material de referencia o enlace externo en la app es información general, no asesoramiento jurídico.',
+    t5b: 'Confirmar el cumplimiento es enteramente su responsabilidad.',
+    h2_6: '6. Pagos que usted recibe',
+    t6a: 'FenceFlow no procesa pagos y nunca retiene su dinero. Los pagos con tarjeta los gestionan',
+    wordOr: 'o',
+    t6b: 'a través de la cuenta que usted conecte; su relación por esas transacciones es con ese proveedor bajo los términos de ellos, y se aplican sus comisiones.',
+    t6c: 'Los importes de pago registrados en la app son un registro para su propia contabilidad. Cuando la cifra de la app y el estado de cuenta de su proveedor no coincidan,',
+    t6d: 'el estado de cuenta del proveedor es el que prevalece.',
+    h2_6a: '6a. Contratos, facturas y documentos que produce la app',
+    t6aa: 'FenceFlow genera contratos, presupuestos, facturas y órdenes de cambio a partir de plantillas y de lo que usted introduce.',
+    t6ab: 'Son puntos de partida, no documentos legales preparados para su situación.',
+    t6ac: 'No somos un bufete de abogados y esto no es asesoramiento jurídico. Los requisitos de contrato para obras de mejoras del hogar — divulgaciones obligatorias, derechos de cancelación, límites de depósito, avisos de gravamen, texto de la garantía — varían según el estado y según el tamaño del trabajo, y equivocarse en ellos puede hacer que un contrato sea inexigible o exponerle a sanciones.',
+    t6ad: 'Haga que un abogado de su estado revise la plantilla de contrato antes de usarla con clientes, y edite la redacción para que coincida con lo que exige su estado. Usted es responsable de los documentos que envía bajo su propio nombre comercial.',
+    t6ae: 'Las firmas capturadas en la app registran que alguien firmó en un dispositivo en un momento dado. Si eso constituye una firma vinculante depende de su jurisdicción y de la transacción.',
+    h2_7: '7. Suscripción y facturación',
+    t7a: 'Los planes de pago se facturan mensualmente por adelantado salvo que se indique otra cosa.',
+    t7b: 'Puede cancelar en cualquier momento; el acceso continúa hasta el final del periodo pagado.',
+    t7c: 'Las cuotas no son reembolsables salvo cuando la ley lo exija.',
+    t7d: 'Avisaremos por correo con al menos 30 días de antelación antes de cambiar los precios.',
+    h2_8: '8. Sus datos',
+    t8a: 'Sus datos de negocio y de clientes siguen siendo suyos. Los almacenamos y tratamos para prestar el servicio tal como se describe en nuestra',
+    t8Privacy: 'Política de Privacidad',
+    t8b: 'Puede exportarlo todo en cualquier momento desde Ajustes, como hojas de cálculo que se abren fuera de esta app, sin pedírnoslo y sin una suscripción activa. La eliminación se describe en la Política de Privacidad — tenga en cuenta que los elementos eliminados quedan en una papelera hasta que el titular de la cuenta la vacía.',
+    t8c: 'Guarde sus propios respaldos de todo lo que no pueda permitirse perder. La app tiene tanto una función de exportación como una de respaldo; ninguna sirve si nunca se ejecuta.',
+    h2_9: '9. Uso aceptable',
+    t9a: 'No use FenceFlow para nada ilícito.',
+    t9b: 'No introduzca información personal de otras personas sin tener derecho a hacerlo.',
+    t9c: 'No intente acceder a los datos de otra empresa, ni interrumpir el servicio o someterlo a ingeniería inversa.',
+    t9d: 'No revenda el servicio ni lo ofrezca bajo otra marca sin un acuerdo por escrito.',
+    h2_10: '10. Disponibilidad',
+    t10: 'Procuramos mantener FenceFlow disponible pero no garantizamos un servicio ininterrumpido. El mantenimiento, las caídas de nuestros proveedores de alojamiento y las fallas pueden interrumpir el acceso. Gran parte de la app funciona sin conexión en su dispositivo y se sincroniza cuando vuelve la conexión.',
+    h2_11: '11. Limitación de responsabilidad',
+    h2_12: '12. Suspensión y terminación',
+    t12: 'Puede dejar de usar el servicio en cualquier momento. Podemos suspender o cerrar una cuenta que incumpla estos términos o que se use de forma ilícita, y daremos aviso y una oportunidad de exportar sus datos cuando sea razonablemente posible.',
+    h2_13: '13. Cambios a estos términos',
+    t13: 'Podemos actualizar estos términos. Los cambios sustanciales se notificarán por correo o en la app antes de que entren en vigor. Seguir usando FenceFlow después de eso significa que usted acepta los términos actualizados.',
+    h2_14: '14. Ley aplicable',
+    h2_15: '15. Contacto',
+    footHome: 'Inicio',
+    footPrivacy: 'Política de Privacidad',
+  },
+  fr: {
+    h1Terms: 'Conditions d’utilisation',
+    updatedLabel: 'Dernière mise à jour :',
+    langNoteLead: 'Avis concernant la traduction :',
+    langNoteBody: 'Cette traduction est fournie uniquement à titre de commodité. Seule la version anglaise fait foi et prévaut en cas de divergence entre les deux.',
+    langNoteLink: 'Lire la version anglaise',
+    enOnlyNote: 'Cette clause est présentée uniquement en anglais.',
+    boxLead: 'Lisez particulièrement cette partie :',
+    boxBody: 'FenceFlow produit des devis et des métrés de matériaux pour vous aider à chiffrer des travaux. Ce sont des calculs à partir de ce que vous avez dessiné et des prix que vous avez saisis — pas un métré garanti. Il vous appartient de vérifier les quantités, les prix, les permis et la conformité aux règles de construction avant de commander des matériaux ou de construire.',
+    h2_1: '1. Accord',
+    t1: 'En créant un compte ou en utilisant FenceFlow, vous acceptez ces conditions. Si vous ne les acceptez pas, n’utilisez pas le service.',
+    h2_2: '2. Ce qu’est FenceFlow',
+    t2: 'FenceFlow est un logiciel permettant aux poseurs de clôtures de dessiner des tracés de clôture, d’estimer les matériaux, de planifier et de gérer des chantiers, de suivre le temps de l’équipe et d’enregistrer les paiements. C’est un outil pour votre entreprise. Il n’exécute pas les travaux, ne fournit pas de matériaux, et ne donne pas de conseil professionnel.',
+    h2_3: '3. Votre compte',
+    t3a: 'Vous devez fournir des informations de compte exactes et garder votre mot de passe en sécurité.',
+    t3b: 'Vous êtes responsable de tout ce qui est fait depuis votre compte, y compris par les membres d’équipe que vous invitez.',
+    t3c: 'Les propriétaires et les responsables peuvent voir et modifier plus que les comptes d’équipe. Choisissez les niveaux d’accès avec soin.',
+    t3d: 'Prévenez-nous rapidement si vous pensez que votre compte a été consulté sans autorisation.',
+    h2_4: '4. Devis, mesures et métrés de matériaux',
+    t4a: 'Les quantités sont générées à partir de la ligne que vous dessinez, de l’échelle que vous définissez, et des spécifications et prix que vous saisissez. Une erreur dans l’un de ces éléments produit une erreur dans le résultat. Les conditions du site, les chutes, la pente, les obstacles et la disponibilité chez le fournisseur ne sont pas pris en compte automatiquement.',
+    t4Verify: 'Vous devez vérifier chaque devis avant de vous y fier.',
+    h2_5: '5. Règles de construction, permis et conformité',
+    t5a: 'Les limites de hauteur de clôture, les reculs, les règles de visibilité aux angles, les exigences de barrière de piscine, les permis et les accords de copropriété varient selon le lieu et changent avec le temps. FenceFlow ne contient pas de base de données réglementaire et ne vous dit pas ce qui est autorisé là où vous travaillez. Tout document de référence ou lien externe dans l’application est une information générale, pas un avis juridique.',
+    t5b: 'Confirmer la conformité relève entièrement de votre responsabilité.',
+    h2_6: '6. Paiements qui vous sont versés',
+    t6a: 'FenceFlow ne traite pas les paiements et ne détient jamais votre argent. Les paiements par carte sont traités par',
+    wordOr: 'ou',
+    t6b: 'via le compte que vous connectez ; votre relation pour ces transactions est avec ce prestataire selon ses propres conditions, et ses frais s’appliquent.',
+    t6c: 'Les montants de paiement enregistrés dans l’application constituent une trace pour votre propre comptabilité. Lorsque le chiffre de l’application et le relevé de votre prestataire divergent,',
+    t6d: 'c’est le relevé du prestataire qui fait foi.',
+    h2_6a: '6a. Contrats, factures et documents produits par l’application',
+    t6aa: 'FenceFlow génère des contrats, des devis, des factures et des avenants à partir de modèles et de ce que vous saisissez.',
+    t6ab: 'Ce sont des points de départ, pas des documents juridiques préparés pour votre situation.',
+    t6ac: 'Nous ne sommes pas un cabinet d’avocats et ceci n’est pas un avis juridique. Les exigences contractuelles pour les travaux d’amélioration de l’habitat — mentions obligatoires, droits de rétractation, plafonds d’acompte, avis de privilège, formulation de la garantie — varient selon l’État et selon la taille du chantier, et s’y tromper peut rendre un contrat inexécutable ou vous exposer à des sanctions.',
+    t6ad: 'Faites relire le modèle de contrat par un avocat de votre État avant de l’utiliser avec des clients, et modifiez la formulation pour qu’elle corresponde à ce que votre État exige. Vous êtes responsable des documents que vous envoyez sous votre propre nom commercial.',
+    t6ae: 'Les signatures recueillies dans l’application attestent que quelqu’un a signé sur un appareil à un moment donné. La question de savoir si cela constitue une signature contraignante dépend de votre juridiction et de la transaction.',
+    h2_7: '7. Abonnement et facturation',
+    t7a: 'Les formules payantes sont facturées mensuellement d’avance sauf indication contraire.',
+    t7b: 'Vous pouvez résilier à tout moment ; l’accès se poursuit jusqu’à la fin de la période payée.',
+    t7c: 'Les frais ne sont pas remboursables sauf lorsque la loi l’exige.',
+    t7d: 'Nous donnerons un préavis d’au moins 30 jours par e-mail avant de modifier les prix.',
+    h2_8: '8. Vos données',
+    t8a: 'Vos données d’entreprise et de clients restent les vôtres. Nous les stockons et les traitons pour faire fonctionner le service, comme décrit dans notre',
+    t8Privacy: 'Politique de confidentialité',
+    t8b: 'Vous pouvez tout exporter à tout moment depuis les Réglages, sous forme de tableurs qui s’ouvrent en dehors de cette application, sans nous le demander et sans abonnement actif. La suppression est décrite dans la Politique de confidentialité — notez que les éléments supprimés restent dans une corbeille jusqu’à ce que le titulaire du compte la vide.',
+    t8c: 'Conservez vos propres sauvegardes de tout ce que vous ne pouvez pas vous permettre de perdre. L’application dispose à la fois d’une fonction d’exportation et d’une fonction de sauvegarde ; ni l’une ni l’autre ne sert si elle n’est jamais lancée.',
+    h2_9: '9. Usage acceptable',
+    t9a: 'N’utilisez pas FenceFlow à des fins illicites.',
+    t9b: 'Ne saisissez pas les informations personnelles d’autrui sans en avoir le droit.',
+    t9c: 'Ne tentez pas d’accéder aux données d’une autre entreprise, ni de perturber le service ou d’en faire l’ingénierie inverse.',
+    t9d: 'Ne revendez pas le service et n’en changez pas la marque sans accord écrit.',
+    h2_10: '10. Disponibilité',
+    t10: 'Nous cherchons à maintenir FenceFlow disponible mais ne garantissons pas un service ininterrompu. La maintenance, les pannes chez nos hébergeurs et les défaillances peuvent interrompre l’accès. Une grande partie de l’application fonctionne hors ligne sur votre appareil et se synchronise dès qu’une connexion revient.',
+    h2_11: '11. Limitation de responsabilité',
+    h2_12: '12. Suspension et résiliation',
+    t12: 'Vous pouvez cesser d’utiliser le service à tout moment. Nous pouvons suspendre ou fermer un compte qui enfreint ces conditions ou qui est utilisé de manière illicite, et nous donnerons un préavis et une possibilité d’exporter vos données lorsque cela est raisonnablement possible.',
+    h2_13: '13. Modifications de ces conditions',
+    t13: 'Nous pouvons mettre à jour ces conditions. Les modifications substantielles seront notifiées par e-mail ou dans l’application avant leur entrée en vigueur. Continuer à utiliser FenceFlow après cela signifie que vous acceptez les conditions mises à jour.',
+    h2_14: '14. Droit applicable',
+    h2_15: '15. Contact',
+    footHome: 'Accueil',
+    footPrivacy: 'Politique de confidentialité',
+  },
+};
+
+let LANG = 'en';
+(function () {
+  let asked = '';
+  try {
+    asked = (new URLSearchParams(location.search).get('lang') || '').slice(0, 2).toLowerCase();
+  } catch (e) { /* no URL API: fall through to the browser's own answer */ }
+  let saved = '';
+  try { saved = localStorage.getItem('ff_lang') || ''; } catch (e) { /* private window */ }
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const pick = [asked, saved, browser].find(c => c && L[c]);
+  if (pick) LANG = pick;
+})();
+
+/* %s in order, same as index.html and quote.html — kept even though no string
+   here uses it yet, so the three mechanisms stay identical rather than
+   drifting apart. */
+function tr(key) {
+  const args = [].slice.call(arguments, 1);
+  let out = (L[LANG] && L[LANG][key]) || L.en[key] || '';
+  args.forEach(a => { out = out.replace('%s', a); });
+  return out;
+}
+
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.getAttribute('data-t');
+    if (el.tagName === 'INPUT') el.placeholder = tr(k); else el.textContent = tr(k);
+  });
+}
+
+function setLang(code) {
+  if (!L[code]) return;
+  try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('lang', code);
+    location.href = u.toString();
+    return;
+  } catch (e) { /* older browser: the stored value still carries it */ }
+  location.reload();
+}
+
+applyStaticText();
+
+/* The "last updated" date has exactly one home: the datetime attribute in the
+   markup. Formatting it per language from that single value is safe; keeping a
+   copy of it in each of the three tables is not, because the next hand-edit
+   would change one and leave two claiming the terms are older than they are —
+   the same lie the old JavaScript date told, just slower to notice. */
+(function () {
+  const t = document.getElementById('updated');
+  if (!t) return;
+  try {
+    const p = (t.getAttribute('datetime') || '').split('-').map(Number);
+    const d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    t.textContent = new Intl.DateTimeFormat(LANG, {
+      year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC'
+    }).format(d);
+  } catch (e) { /* no Intl, or a malformed attribute: the English literal stands */ }
+})();
+
+/* An English reader is already reading the English clause, so the "shown in
+   English only" markers and the link to the English original would be noise —
+   and a marker on a paragraph that looks no different from its neighbours
+   reads as a bug. Hidden rather than emptied, so the strings stay in the
+   table for the fallback to find. */
+(function () {
+  const englishReader = (LANG === 'en');
+  document.querySelectorAll('.en-only-note, .en-link')
+    .forEach(el => { el.hidden = englishReader; });
+})();
+
+/* Internal links have to carry the language too. index.html links here without
+   ?lang=, and localStorage covers that, but a reader who follows Terms →
+   Privacy in a private window would otherwise drop back to English halfway
+   through a legal document without being told why. The link to the English
+   original is excluded: it is pinned to ?lang=en by definition. */
+(function () {
+  const internal = { 'index.html': 1, 'privacy.html': 1, 'terms.html': 1 };
+  document.querySelectorAll('a[href]').forEach(a => {
+    if (a.classList.contains('en-link')) return;
+    const href = a.getAttribute('href');
+    if (internal[href]) a.setAttribute('href', href + '?lang=' + LANG);
+  });
+})();
+
+(function () {
+  const el = document.getElementById('langPick');
+  if (!el) return;
+  el.innerHTML = ['en', 'es', 'fr'].map(c =>
+    c === LANG ? '<b>' + c.toUpperCase() + '</b>'
+               : '<a href="#" data-lang="' + c + '">' + c.toUpperCase() + '</a>'
+  ).join(' · ');
+  el.querySelectorAll('a[data-lang]').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
+})();
+</script>
 
 </body>
 </html>
