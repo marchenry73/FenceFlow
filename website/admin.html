@@ -195,26 +195,35 @@
   <a class="logo" href="index.html" title="Back to the FenceFlow home page">Fence<span>Flow</span><small>Admin</small></a>
   <div class="search-wrap" id="searchWrap" style="display:none">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-    <input id="search" type="search" placeholder="Search companies — name, email, plan, status">
+    <input id="search" type="search" data-t="searchPh" placeholder="Search companies — name, email, plan, status">
   </div>
   <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
+    <!-- Same mechanism and same localStorage key ('ff_lang') as dashboard.html,
+         so picking a language once here or in the office answers for both --
+         this page has no link between them to carry a query parameter on, and
+         it does not need one. -->
+    <select id="langPicker" class="ghost small" aria-label="Language" title="Language" style="padding-right:6px">
+      <option value="en">EN</option>
+      <option value="es">ES</option>
+      <option value="fr">FR</option>
+    </select>
     <span class="who" id="who" style="display:none"></span>
-    <button class="ghost small" id="signOut" style="display:none">Sign out</button>
+    <button class="ghost small" id="signOut" data-t="signOut" style="display:none">Sign out</button>
   </div>
 </header>
 
 <main id="gate">
   <!-- Ordinary sign-in. -->
   <div id="signInPanel" class="panel gate">
-    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit">Sign in</h2>
+    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit" data-t="signInHead">Sign in</h2>
     <div class="msg" id="gateMsg"></div>
-    <label>Email</label><input id="email" type="email" autocomplete="username">
-    <label>Password</label><input id="password" type="password" autocomplete="current-password">
+    <label data-t="emailLabel">Email</label><input id="email" type="email" autocomplete="username">
+    <label data-t="passwordLabel">Password</label><input id="password" type="password" autocomplete="current-password">
     <div style="margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <button class="primary" id="signIn">Sign in</button>
-      <a href="#" id="forgotLink" style="font-size:13px;color:var(--muted)">Forgot your password?</a>
+      <button class="primary" id="signIn" data-t="signInBtn">Sign in</button>
+      <a href="#" id="forgotLink" style="font-size:13px;color:var(--muted)" data-t="forgotLink">Forgot your password?</a>
     </div>
-    <p style="font-size:12px;color:var(--muted);margin-top:18px">
+    <p style="font-size:12px;color:var(--muted);margin-top:18px" data-t="signInFootnote">
       Only an account flagged as a platform admin can see anything here. That flag is set
       by hand in the database and nothing in the app can grant it.
     </p>
@@ -225,98 +234,96 @@
        a sign-in, and the account gets a new password before anything else
        loads. -->
   <div id="recoveryPanel" class="panel gate" style="display:none">
-    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit">Set a new password</h2>
+    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit" data-t="recoveryHead">Set a new password</h2>
     <div class="msg" id="recoveryMsg"></div>
-    <label>New password</label><input id="newPassword" type="password" autocomplete="new-password">
-    <label>Confirm password</label><input id="newPassword2" type="password" autocomplete="new-password">
-    <div style="margin-top:14px"><button class="primary" id="setPassword">Set password and continue</button></div>
+    <label data-t="newPasswordLabel">New password</label><input id="newPassword" type="password" autocomplete="new-password">
+    <label data-t="confirmPasswordLabel">Confirm password</label><input id="newPassword2" type="password" autocomplete="new-password">
+    <div style="margin-top:14px"><button class="primary" id="setPassword" data-t="setPasswordBtn">Set password and continue</button></div>
   </div>
 
   <!-- The step-up gate: an account with two-factor turned on lands here
        before the companies list, the crash reports, or anything else this
        page knows is ever asked for. -->
   <div id="mfaChallengePanel" class="panel gate" style="display:none">
-    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit">Enter your code</h2>
-    <p style="color:var(--muted);font-size:14px;margin:0 0 10px">
+    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit" data-t="mfaChallengeHead">Enter your code</h2>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 10px" data-t="mfaChallengeBody">
       Two-factor is on for this account. Open your authenticator app and type the
       current 6-digit code.
     </p>
     <div class="msg" id="mfaChallengeMsg"></div>
-    <label>Code</label>
+    <label data-t="codeLabel">Code</label>
     <input id="mfaChallengeCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
-    <div style="margin-top:14px"><button class="primary" id="mfaChallengeSubmit">Verify and continue</button></div>
+    <div style="margin-top:14px"><button class="primary" id="mfaChallengeSubmit" data-t="mfaVerifyContinueBtn">Verify and continue</button></div>
   </div>
 </main>
 
 <div id="app" class="shell" style="display:none">
   <nav class="rail">
-    <button data-view="overview" class="on" type="button">Overview</button>
-    <button data-view="companies" type="button">Companies</button>
-    <button data-view="crashes" type="button">Crashes</button>
-    <button data-view="releases" type="button">Releases</button>
-    <button data-view="drift" type="button">Pricing drift</button>
-    <button data-view="account" type="button">Account</button>
+    <button data-view="overview" class="on" type="button" data-t="navOverview">Overview</button>
+    <button data-view="companies" type="button" data-t="navCompanies">Companies</button>
+    <button data-view="crashes" type="button" data-t="navCrashes">Crashes</button>
+    <button data-view="releases" type="button" data-t="navReleases">Releases</button>
+    <button data-view="drift" type="button" data-t="navDrift">Pricing drift</button>
+    <button data-view="account" type="button" data-t="navAccount">Account</button>
   </nav>
 
   <div class="content">
 
     <section id="view-overview">
       <div class="panel">
-        <h2 style="margin-top:0">Overview</h2>
-        <p class="sub">Your clients, not theirs — who's paying, who isn't, and what to do about it.</p>
+        <h2 style="margin-top:0" data-t="overviewHead">Overview</h2>
+        <p class="sub" data-t="overviewSub">Your clients, not theirs — who's paying, who isn't, and what to do about it.</p>
         <div id="companiesFloorNote" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;
           background:color-mix(in srgb, #C98A00 18%, transparent);color:#8A5A00;font-size:13px"></div>
         <div class="stats" id="stats"></div>
       </div>
       <div class="panel">
-        <h2 style="margin-top:0">How suspension works</h2>
-        <p style="color:var(--muted);font-size:14px;margin:0">
-          Stripe reports a failed payment and the company moves to <b>past due</b>. They keep
-          working through the grace period — cutting a crew off mid-installation over a failed
-          card punishes the customer standing in the yard, not the person who owes you.
-          When the grace period runs out, <b>Suspend</b> stops the service. Suspension is
-          always yours to press; nothing here suspends anyone automatically.
-        </p>
+        <h2 style="margin-top:0" data-t="suspensionHowHead">How suspension works</h2>
+        <!-- Not a plain data-t: "past due" and "Suspend" are bolded inline, and
+             tr()'s %s substitution has no way to carry markup through
+             textContent, so this paragraph is filled by JS with innerHTML
+             (same treatment as dashboard.html's crewLoginsBody). -->
+        <p style="color:var(--muted);font-size:14px;margin:0" id="suspensionHowBody"></p>
       </div>
     </section>
 
     <section id="view-companies" style="display:none">
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <h2 style="margin:0">Client companies</h2>
+          <h2 style="margin:0" data-t="companiesHead">Client companies</h2>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="primary" id="addCompany" type="button">Add a company</button>
-            <button id="refresh" type="button">Refresh</button>
-            <button id="exportCsv" type="button">Export CSV</button>
+            <button class="primary" id="addCompany" type="button" data-t="addCompanyBtn">Add a company</button>
+            <button id="refresh" type="button" data-t="refreshBtn">Refresh</button>
+            <button id="exportCsv" type="button" data-t="exportCsvBtn">Export CSV</button>
           </div>
         </div>
         <div class="msg" id="msg"></div>
         <div class="scroll">
           <table>
             <thead><tr>
-              <th data-sort="name">Company</th>
-              <th data-sort="subscription_status">Status</th>
-              <th>Onboarding</th>
-              <th data-sort="subscription_plan">Plan</th>
-              <th data-sort="monthly_price">$/mo</th>
-              <th data-sort="people">Seats</th>
-              <th data-sort="jobs">Jobs</th>
-              <th data-sort="last_seen">Last seen</th>
-              <th>Version</th>
-              <th>Renews / ends</th>
+              <th data-sort="name" data-t="colCompany">Company</th>
+              <th data-sort="subscription_status" data-t="colStatus">Status</th>
+              <th data-t="colOnboarding">Onboarding</th>
+              <th data-sort="subscription_plan" data-t="colPlan">Plan</th>
+              <th data-sort="monthly_price" data-t="colPriceMo">$/mo</th>
+              <th data-sort="people" data-t="colSeats">Seats</th>
+              <th data-sort="jobs" data-t="colJobs">Jobs</th>
+              <th data-sort="last_seen" data-t="colLastSeen">Last seen</th>
+              <th data-t="colVersion">Version</th>
+              <th data-t="colRenewsEnds">Renews / ends</th>
               <th></th>
             </tr></thead>
             <tbody id="rows"></tbody>
           </table>
         </div>
-        <div class="msg" id="empty" style="display:none">No client companies yet.</div>
+        <div class="msg" id="empty" style="display:none" data-t="companiesEmpty">No client companies yet.</div>
       </div>
     </section>
 
     <section id="view-crashes" style="display:none">
       <div class="panel">
-        <h2 style="margin-top:0">Crashes</h2>
-        <p class="sub">
+        <h2 style="margin-top:0" data-t="crashesHead">Crashes</h2>
+        <p class="sub" data-t="crashesSub">
           Grouped, newest first, last 14 days. Unhandled ones sit at the top.
           Nobody reports a crash — they just stop using the app — so this
           is the only place you find out.
@@ -328,11 +335,11 @@
 
     <section id="view-releases" style="display:none">
       <div class="panel">
-        <h2 style="margin-top:0">Releases</h2>
-        <p class="sub">What has shipped — publish a new one from the CLI, not here. A limited release can be promoted to everyone from this page.</p>
+        <h2 style="margin-top:0" data-t="releasesHead">Releases</h2>
+        <p class="sub" data-t="releasesSub">What has shipped — publish a new one from the CLI, not here. A limited release can be promoted to everyone from this page.</p>
         <div class="scroll">
           <table>
-            <thead><tr><th>Version</th><th>Notes</th><th>Update</th><th>Audience</th><th class="nowrap">Published</th><th></th></tr></thead>
+            <thead><tr><th data-t="colVersion">Version</th><th data-t="colNotes">Notes</th><th data-t="colUpdate">Update</th><th data-t="colAudience">Audience</th><th class="nowrap" data-t="colPublished">Published</th><th></th></tr></thead>
             <tbody id="releaseRows"></tbody>
           </table>
         </div>
@@ -342,14 +349,14 @@
 
     <section id="view-drift" style="display:none">
       <div class="panel">
-        <h2 style="margin-top:0">Pricing drift</h2>
-        <p class="sub">Where the office's price and the phone's on-site price disagreed on the same job.</p>
+        <h2 style="margin-top:0" data-t="driftHead">Pricing drift</h2>
+        <p class="sub" data-t="driftSub">Where the office's price and the phone's on-site price disagreed on the same job.</p>
         <div class="msg" id="driftNote" style="margin-bottom:10px"></div>
         <div class="scroll">
           <table>
             <thead><tr>
-              <th>Company</th><th>Job</th><th>How far apart</th>
-              <th>Engines</th><th class="nowrap">Noted</th><th></th>
+              <th data-t="colCompany">Company</th><th data-t="colJob">Job</th><th data-t="colHowFarApart">How far apart</th>
+              <th data-t="colEngines">Engines</th><th class="nowrap" data-t="colNoted">Noted</th><th></th>
             </tr></thead>
             <tbody id="driftRows"></tbody>
           </table>
@@ -359,32 +366,32 @@
 
     <section id="view-account" style="display:none">
       <div class="panel">
-        <h2 style="margin-top:0">Account</h2>
-        <p class="sub">Your own sign-in to this console — password and two-factor.</p>
+        <h2 style="margin-top:0" data-t="accountHead">Account</h2>
+        <p class="sub" data-t="accountSub">Your own sign-in to this console — password and two-factor.</p>
 
         <div class="mfa-status">
-          <span class="pill muted" id="mfaPill">Checking…</span>
+          <span class="pill muted" id="mfaPill" data-t="mfaChecking">Checking…</span>
           <span id="mfaText" style="color:var(--muted);font-size:13.5px"></span>
         </div>
 
         <div id="mfaOff">
-          <button class="primary" id="mfaTurnOn" type="button">Turn on two-factor</button>
+          <button class="primary" id="mfaTurnOn" type="button" data-t="mfaTurnOnBtn">Turn on two-factor</button>
         </div>
 
         <div id="mfaEnrollBox" style="display:none">
-          <p style="font-size:13.5px;color:var(--muted)">
+          <p style="font-size:13.5px;color:var(--muted)" data-t="mfaEnrollBody">
             Scan this with an authenticator app (Google Authenticator, 1Password, Authy…),
             or type the secret in by hand.
           </p>
           <div class="qr-box">
-            <img id="mfaQr" alt="Two-factor QR code">
+            <img id="mfaQr" alt="Two-factor QR code" data-t-title="mfaQrAlt" title="Two-factor QR code">
             <div>
               <div class="secret" id="mfaSecret"></div>
-              <label>Enter the 6-digit code it shows</label>
+              <label data-t="mfaEnrollCodeLabel">Enter the 6-digit code it shows</label>
               <input id="mfaEnrollCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
               <div style="margin-top:10px;display:flex;gap:8px">
-                <button class="primary" id="mfaVerifyEnroll" type="button">Verify and turn on</button>
-                <button id="mfaCancelEnroll" type="button">Cancel</button>
+                <button class="primary" id="mfaVerifyEnroll" type="button" data-t="mfaVerifyTurnOnBtn">Verify and turn on</button>
+                <button id="mfaCancelEnroll" type="button" data-t="cancelBtn">Cancel</button>
               </div>
             </div>
           </div>
@@ -392,13 +399,13 @@
         </div>
 
         <div id="mfaOn" style="display:none">
-          <p style="font-size:13.5px;color:var(--muted);margin-bottom:6px">
+          <p style="font-size:13.5px;color:var(--muted);margin-bottom:6px" data-t="mfaOnBody">
             Two-factor is on. Turning it off needs one more code from your app, so a stolen
             or left-open session alone cannot switch it off.
           </p>
-          <label>Current 6-digit code</label>
+          <label data-t="mfaCurrentCodeLabel">Current 6-digit code</label>
           <input id="mfaOffCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
-          <div style="margin-top:10px"><button class="danger" id="mfaTurnOff" type="button">Turn off two-factor</button></div>
+          <div style="margin-top:10px"><button class="danger" id="mfaTurnOff" type="button" data-t="mfaTurnOffBtn">Turn off two-factor</button></div>
         </div>
 
         <div class="msg" id="mfaMsg"></div>
@@ -412,7 +419,7 @@
   <h3 id="stackTitle"></h3>
   <pre id="stackBody"></pre>
   <div style="margin-top:12px;text-align:right">
-    <button id="stackClose" type="button">Close</button>
+    <button id="stackClose" type="button" data-t="closeBtn">Close</button>
   </div>
 </dialog>
 
@@ -423,88 +430,93 @@
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;cursor:pointer;
            text-transform:none;letter-spacing:0;font-weight:400;color:var(--text)">
       <input type="checkbox" id="askHold" style="width:auto;margin-top:3px">
-      <span>Hold this one — <b>do not</b> lift it automatically when they pay.
-        Use for a dispute or misuse, not for an unpaid invoice.</span>
+      <!-- Not a plain data-t: "do not" is bolded inline, filled by JS with
+           innerHTML the same way suspensionHowBody and the dashboard's
+           crewLoginsBody are -- tr()'s %s has no way to carry markup through
+           textContent. -->
+      <span id="askHoldLabel"></span>
     </label>
   </div>
   <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
-    <button id="askNo" type="button">Cancel</button>
+    <button id="askNo" type="button" data-t="cancelBtn">Cancel</button>
     <button id="askYes" class="primary" type="button"></button>
   </div>
 </dialog>
 
 <dialog id="newDialog" style="max-width:min(430px,92vw)">
-  <h3>Bring a company on</h3>
-  <p style="color:var(--muted);font-size:14px;margin:0 0 4px">
+  <h3 data-t="newDialogHead">Bring a company on</h3>
+  <p style="color:var(--muted);font-size:14px;margin:0 0 4px" data-t="newDialogBody">
     They get an email with a link that signs them in and walks them through
     their details, the agreement and choosing a plan. You can follow how far
     they get from this list.
   </p>
-  <label>Company name</label>
-  <input id="newName" placeholder="Coastal Fence &amp; Gate">
-  <label>Owner's email</label>
+  <label data-t="newDialogNameLabel">Company name</label>
+  <input id="newName" data-t="newDialogNamePh" placeholder="Coastal Fence &amp; Gate">
+  <label data-t="newDialogEmailLabel">Owner's email</label>
   <input id="newEmail" type="email" placeholder="name@theircompany.com">
-  <p style="color:var(--muted);font-size:12.5px;margin:8px 0 0">
+  <p style="color:var(--muted);font-size:12.5px;margin:8px 0 0" data-t="newDialogEmailHint">
     Leave the email blank to create the company without inviting anyone — you
     can send the invitation later.
   </p>
   <div class="msg" id="newMsg" style="min-height:1.2em;margin-top:8px"></div>
   <div style="margin-top:12px;text-align:right;display:flex;gap:8px;justify-content:flex-end">
-    <button id="newCancel" type="button">Cancel</button>
-    <button class="primary" id="newCreate" type="button">Create &amp; invite</button>
+    <button id="newCancel" type="button" data-t="cancelBtn">Cancel</button>
+    <button class="primary" id="newCreate" type="button" data-t="newDialogCreateBtn">Create &amp; invite</button>
   </div>
 </dialog>
 
 <dialog id="setupDialog">
-  <h3>Send them this code</h3>
-  <p style="color:var(--muted);font-size:14px;margin:0 0 10px">
-    <b id="setupFor"></b> has been created. They sign up in the app themselves,
-    then enter this code to become the owner of their company.
-  </p>
+  <h3 data-t="setupDialogHead">Send them this code</h3>
+  <!-- Not a plain data-t: the company name is interpolated and "has been
+       created" is bolded around it, so this paragraph is filled by JS with
+       tr()'s %s substitution the same as the other markup-bearing strings on
+       this page. -->
+  <p style="color:var(--muted);font-size:14px;margin:0 0 10px" id="setupDialogBody"></p>
   <div id="setupCode" style="font:600 26px/1.3 ui-monospace,monospace;letter-spacing:.08em;
        padding:14px;text-align:center;background:var(--paper);border:1px solid var(--line);border-radius:6px"></div>
-  <p style="color:var(--muted);font-size:13px;margin:10px 0 0">
-    It works once, and it is not shown again. If it goes astray, delete the
-    company and make a new one. Their trial does not start until you press
-    <b>Start trial</b>.
-  </p>
+  <!-- Same reason: "Start trial" quotes the quick-action button's own
+       translated label mid-sentence. -->
+  <p style="color:var(--muted);font-size:13px;margin:10px 0 0" id="setupDialogFootnote"></p>
   <div style="margin-top:14px;text-align:right">
-    <button class="primary" id="setupDone" type="button">Done</button>
+    <button class="primary" id="setupDone" type="button" data-t="doneBtn">Done</button>
   </div>
 </dialog>
 
 <dialog id="editDialog">
   <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span id="editTitle">Client</span>
-    <button class="small" id="copyId" type="button" title="Copy this company's id">Copy id</button>
+    <button class="small" id="copyId" type="button" data-t-title="copyIdTitle" title="Copy this company's id" data-t="copyIdBtn">Copy id</button>
   </h3>
   <!-- Populated per company: reinstate/suspend, start or extend a trial, grant
        open access, copy the setup code -- the handful of things you actually
        come here to do, using the same admin_* RPCs as the row buttons. -->
   <div class="qa-row" id="qaRow"></div>
   <div class="row2">
-    <div><label>Plan</label>
+    <div><label data-t="editPlanLabel">Plan</label>
       <select id="e_plan">
-        <option value="">No plan — nothing unlocked</option>
-        <option value="solo">Solo — 1 login</option>
-        <option value="crew">Crew — 6 logins</option>
-        <option value="pro">Pro — unlimited logins</option>
+        <!-- Stored values ('', 'solo', 'crew', 'pro') never change -- only the
+             visible option text is translated, same as the plan-name rule
+             everywhere else on this page. -->
+        <option value="" data-t="planOptNone">No plan — nothing unlocked</option>
+        <option value="solo" data-t="planOptSolo">Solo — 1 login</option>
+        <option value="crew" data-t="planOptCrew">Crew — 6 logins</option>
+        <option value="pro" data-t="planOptPro">Pro — unlimited logins</option>
       </select>
-      <span id="e_planNote" style="display:none;font-size:11px;color:var(--muted)">Set by Stripe — change it there, not here.</span>
+      <span id="e_planNote" style="display:none;font-size:11px;color:var(--muted)" data-t="setByStripeNote">Set by Stripe — change it there, not here.</span>
     </div>
-    <div><label>Price per month ($)</label><input id="e_price" type="number" step="1">
-      <span id="e_priceNote" style="display:none;font-size:11px;color:var(--muted)">Set by Stripe — change it there, not here.</span>
+    <div><label data-t="editPriceLabel">Price per month ($)</label><input id="e_price" type="number" step="1">
+      <span id="e_priceNote" style="display:none;font-size:11px;color:var(--muted)" data-t="setByStripeNote">Set by Stripe — change it there, not here.</span>
     </div>
-    <div><label>Contact email</label><input id="e_contact" type="email" placeholder="where the invitation goes"></div>
-    <div><label>Billing email</label><input id="e_email" type="email" placeholder="where receipts go"></div>
-    <div><label>Grace period ends</label><input id="e_grace" type="date"></div>
+    <div><label data-t="editContactLabel">Contact email</label><input id="e_contact" type="email" data-t="editContactPh" placeholder="where the invitation goes"></div>
+    <div><label data-t="editBillingLabel">Billing email</label><input id="e_email" type="email" data-t="editBillingPh" placeholder="where receipts go"></div>
+    <div><label data-t="editGraceLabel">Grace period ends</label><input id="e_grace" type="date"></div>
   </div>
-  <label>Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
+  <label data-t="editNotesLabel">Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
   <div class="msg" id="editMsg"></div>
   <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-    <button id="e_cancel" type="button">Cancel</button>
-    <button class="danger" id="e_suspend" type="button">Suspend</button>
-    <button class="primary" id="e_save" type="button">Save</button>
+    <button id="e_cancel" type="button" data-t="cancelBtn">Cancel</button>
+    <button class="danger" id="e_suspend" type="button" data-t="suspendBtn">Suspend</button>
+    <button class="primary" id="e_save" type="button" data-t="saveBtn">Save</button>
   </div>
 </dialog>
 
@@ -523,6 +535,602 @@ const d = v => v ? new Date(v) : null;
 const day = v => { const x = d(v); return x ? x.toLocaleDateString() : '—'; };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, m =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
+
+/* ------------------------------------------------------- language ---- */
+/* Same mechanism as dashboard.html, copied rather than reinvented: a flat
+   TL table keyed by language, tr(key, ...args) with %s substitution that
+   falls back to English and then to an empty string, data-t/data-t-title
+   walked onto the DOM by applyStaticText(), and the choice stored under the
+   SAME localStorage key ('ff_lang') dashboard.html and the customer-facing
+   pages already use -- so whichever of them this one operator's browser
+   picked a language on last, this page opens already agreeing with it.
+   There is no URL language parameter here on purpose: nobody forwards a
+   link to this page the way a quote gets forwarded, so there is nothing to
+   carry a language choice across a person who never signed in.
+
+   What is NOT in here: plan names, subscription statuses, suspended
+   reasons and company/engine names. Those are compared or stored --
+   subscription_status drives the switch in statusPill(), suspended_reason
+   is compared to 'HOLD', subscription_plan is looked up in PLAN_PRICE and
+   the seat-cap table, and the raw plan/engine strings are rendered
+   straight from the row in a couple of places. Only the label wrapped
+   around a stored value is ever translated; the value itself is never
+   touched, exactly the same rule the plan tiers, production stages and
+   catalog units follow on the other pages. */
+const TL = {
+  en: {
+    searchPh:'Search companies — name, email, plan, status',
+    signOut:'Sign out',
+    langLabel:'Language',
+
+    signInHead:'Sign in', emailLabel:'Email', passwordLabel:'Password',
+    signInBtn:'Sign in', forgotLink:'Forgot your password?',
+    signInFootnote:'Only an account flagged as a platform admin can see anything here. That flag is set by hand in the database and nothing in the app can grant it.',
+    gateLinkExpired:'That link has expired or was already used — request a new one.',
+    gateSigningIn:'Signing in…', gateTypeEmailFirst:'Type your email above first, then press this.',
+    gateSending:'Sending…', gateCheckEmail:'Check your email for a link to set a new password.',
+    notAdminNotice:'This page is for the owner of FenceFlow, not for a fencing company. Your own jobs and customers are on the %s — you are still signed in there.',
+    notAdminLinkText:'FenceFlow dashboard',
+
+    recoveryHead:'Set a new password', newPasswordLabel:'New password', confirmPasswordLabel:'Confirm password',
+    setPasswordBtn:'Set password and continue',
+    recoveryAtLeast8:'At least 8 characters.', recoveryMismatch:'Those two do not match.',
+    savingEllipsis:'Saving…',
+
+    mfaChallengeHead:'Enter your code',
+    mfaChallengeBody:'Two-factor is on for this account. Open your authenticator app and type the current 6-digit code.',
+    codeLabel:'Code', mfaVerifyContinueBtn:'Verify and continue',
+    sixDigitCode:'Enter the 6-digit code.', checkingEllipsis:'Checking…',
+    mfaNoFactorFound:'No two-factor method found on this account.',
+
+    navOverview:'Overview', navCompanies:'Companies', navCrashes:'Crashes',
+    navReleases:'Releases', navDrift:'Pricing drift', navAccount:'Account',
+
+    overviewHead:'Overview',
+    overviewSub:'Your clients, not theirs — who\'s paying, who isn\'t, and what to do about it.',
+    suspensionHowHead:'How suspension works',
+    suspensionHowBody:'Stripe reports a failed payment and the company moves to %s. They keep working through the grace period — cutting a crew off mid-installation over a failed card punishes the customer standing in the yard, not the person who owes you. When the grace period runs out, %s stops the service. Suspension is always yours to press; nothing here suspends anyone automatically.',
+    pastDueWord:'past due',
+
+    companiesHead:'Client companies', addCompanyBtn:'Add a company',
+    refreshBtn:'Refresh', exportCsvBtn:'Export CSV',
+    colCompany:'Company', colStatus:'Status', colOnboarding:'Onboarding', colPlan:'Plan',
+    colPriceMo:'$/mo', colSeats:'Seats', colJobs:'Jobs', colLastSeen:'Last seen',
+    colVersion:'Version', colRenewsEnds:'Renews / ends',
+    daysCount:'%s days', trialEndedOn:'trial ended %s',
+    companiesEmpty:'No client companies yet.', companiesEmptyFiltered:'No company matches "%s".',
+    companiesLoading:'Loading…', workingEllipsis:'Working…',
+
+    kpiAtLeast:'at least',
+    kpiFloorNote:'Showing the first %s of %s companies — every number below is at least this many, not the full count.',
+    kpiCompanies:'Companies', kpiOnTrial:'On trial', kpiPaying:'Paying', kpiSuspended:'Suspended',
+    kpiMrrListPrice:'MRR at list price', kpiUnpricedNote:'%s active with no recognised plan, not counted',
+    kpiCrashes7d:'Crashes, 7 days', kpiAppVersionsField:'App versions in the field',
+
+    onbInvited:'Invited', onbSignedIn:'Signed in', onbAgreementSigned:'Agreement signed',
+    onbPlanChosen:'Plan chosen', onbUpRunning:'Up and running',
+    onbWaitingPrefix:'Waiting: ', onbNotStartedPrefix:'Not started — ',
+
+    pillSuspended:'Suspended', pillSuspendedHeld:'held — only you can lift it',
+    pillSuspendedUnpaid:'unpaid — lifts when they pay',
+    pillActive:'Active', pillTrial:'Trial', pillPastDue:'Past due',
+    pillPastDueNote:'still working, in grace', pillCancelled:'Cancelled',
+    pillInvited:'Invited', pillInvitedNote:'not started yet', pillNoPlan:'No plan',
+
+    versionTitle:'App version on their phones',
+    rowUnnamedCompany:'Unnamed',
+
+    reinstateBtn:'Reinstate', startTrialBtn:'Start trial', extendBtn:'+14 days',
+    makeCustomerBtn:'Make customer', chasePaymentBtn:'Chase payment',
+    suspendBtn:'Suspend', unsuspendBtn:'Un-suspend',
+    inviteBtn:'Invite', reinviteBtn:'Re-invite', manageBtn:'Manage',
+    grantOpenAccessBtn:'Grant open access', copySetupCodeBtn:'Copy setup code',
+
+    confirmStartTrialTitle:'Start the trial?',
+    confirmStartTrialBody:'%s gets fourteen days from now. They are not charged anything, and you can extend it later if they need longer.',
+    confirmStartTrialShortBody:'%s gets fourteen days from now. They are not charged anything.',
+    confirmStartTrialLabel:'Start 14 days',
+    confirmExtendTitle:'Add another fortnight?',
+    confirmExtendBody:'%s would run free until %s. Nothing is charged, and you can add more time again later.',
+    confirmExtendShortBody:'%s would run free until %s.',
+    confirmExtendLabel:'Extend to %s',
+    legacyPlanSuffix:' — unrecognised, no seat limit',
+    confirmReinstateTitle:'Reinstate %s?',
+    confirmReinstateBody:'Their crews get access back straight away. The plan, the price and the billing state are left exactly as they are — this only lifts the suspension.',
+    confirmGrantTitle:'Give open-ended access?',
+    confirmGrantBodyShort:'%s keeps working with no trial clock and no plan required.',
+    confirmGrantBodyLong:'%s keeps working with no trial clock and no plan required. Use this for someone you are carrying deliberately, not as a way to fix a billing problem.',
+    confirmGrantLabel:'Grant access',
+    confirmSuspendTitle:'Suspend %s?',
+    confirmSuspendBody:'Their crews lose access straight away. Nothing is deleted — every job, payment and photo stays exactly where it is and comes back the moment access returns. By default paying lifts this by itself.',
+    askHoldLabel:'Hold this one — %s lift it automatically when they pay. Use for a dispute or misuse, not for an unpaid invoice.',
+    doNotWord:'do not',
+    confirmResendInviteTitle:'Re-send the invitation?', confirmSendInviteTitle:'Send the invitation?',
+    confirmInviteBody:'An email goes to %s for %s right away.',
+    confirmInviteAlreadySuffix:' They already have one from before -- this sends another.',
+    reinviteConfirmLabel:'Re-send', sendConfirmLabel:'Send',
+    confirmPromoteTitle:'Promote this release?',
+    confirmPromoteBody:'"%s" will become visible to every company, not just the ones it currently goes to. This cannot be undone from here -- publishing a fresh limited release is how you\'d narrow it again.',
+    promoteBtn:'Promote',
+    confirmMoneyChangeTitle:'Change what %s pays?',
+    confirmMoneyChangeBody:'%s. They are not told, and nothing here takes a payment — it changes what the next bill is worked out from.',
+    confirmMoneyChangeLabel:'Change it',
+    moneyChangePlanLine:'plan: %s becomes %s', moneyChangePriceLine:'price: %s becomes %s',
+    moneyChangeGraceUntil:'free access until %s', moneyChangeGraceRemoved:'free access removed',
+    moneyChangeNoneWord:'none', editNothingChanged:'Nothing was changed.',
+    companyFallbackWord:'this company',
+
+    inviteAddContactFirst:'Add a contact email in Manage first, then invite.',
+    inviteSending:'Sending to %s…', inviteSent:'Invitation sent to %s.',
+    inviteMailRefused:'The mail server refused it (%s).', inviteCouldNotSend:'Could not send it.',
+    inviteCouldNotReach:'Could not reach the mail server: %s',
+    newMsgGiveName:'Give the company a name.',
+    newMsgCreatingInviting:'Creating and sending the invitation…', newMsgCreating:'Creating…',
+    newMsgCreatedNotSent:'Company created, but the invitation did not send: %s',
+
+    crashesHead:'Crashes',
+    crashesSub:'Grouped, newest first, last 14 days. Unhandled ones sit at the top. Nobody reports a crash — they just stop using the app — so this is the only place you find out.',
+    crashNoneLast14:'No crashes in the last 14 days.', crashViewStack:'View stack trace',
+    crashLblScreen:'Screen', crashLblCount:'Count', crashLblPhones:'Phones',
+    crashLblFirstSeen:'First seen', crashMarkSeen:'Mark seen', crashHandled:'Handled',
+    crashNoMessage:'(no message)', crashNoStackRecorded:'(none recorded)',
+
+    releasesHead:'Releases',
+    releasesSub:'What has shipped — publish a new one from the CLI, not here. A limited release can be promoted to everyone from this page.',
+    colNotes:'Notes', colUpdate:'Update', colAudience:'Audience', colPublished:'Published',
+    releaseNoneYet:'No releases recorded yet.', releaseEveryone:'Everyone', releaseLimited:'Limited',
+    releaseNoCompaniesNamed:'no companies named -- visible to nobody',
+    releaseRequired:'Required', releaseOptional:'Optional', releaseDownload:'Download',
+    releasePromoteBtn:'Promote to everyone', releaseBuildLabel:'build %s',
+
+    driftHead:'Pricing drift',
+    driftSub:'Where the office\'s price and the phone\'s on-site price disagreed on the same job.',
+    colJob:'Job', colHowFarApart:'How far apart', colEngines:'Engines', colNoted:'Noted',
+    driftNoteBody:'Full cross-company visibility needs a platform-admin read policy on %s (something like %s, the same shape as the one on %s), or a SECURITY DEFINER %s RPC the way crashes and companies already have. Neither exists yet -- %s is scoped to %s, so this table can only ever show rows your own account happens to be allowed to see, typically none.',
+    driftNoneVisible:'Nothing visible to this account.', driftApart:'%s apart',
+    driftMarkFailed:'Could not mark it: %s',
+
+    accountHead:'Account', accountSub:'Your own sign-in to this console — password and two-factor.',
+    mfaChecking:'Checking…',
+    mfaTurnOnBtn:'Turn on two-factor',
+    mfaEnrollBody:'Scan this with an authenticator app (Google Authenticator, 1Password, Authy…), or type the secret in by hand.',
+    mfaQrAlt:'Two-factor QR code', mfaEnrollCodeLabel:'Enter the 6-digit code it shows',
+    mfaVerifyTurnOnBtn:'Verify and turn on', cancelBtn:'Cancel',
+    mfaOnBody:'Two-factor is on. Turning it off needs one more code from your app, so a stolen or left-open session alone cannot switch it off.',
+    mfaCurrentCodeLabel:'Current 6-digit code', mfaTurnOffBtn:'Turn off two-factor',
+    mfaEnrollPreparing:'Preparing…', mfaPillOn:'ON', mfaPillOff:'OFF', mfaPillUnknown:'Unknown',
+    mfaOnRequired:'Two-factor is required on every sign-in to this account.',
+    mfaOffWarning:'Anyone with this password alone can sign in. Turning two-factor on asks for a code from your phone too.',
+    mfaOffEnterCodeFirst:'Enter the current 6-digit code first.',
+
+    closeBtn:'Close', doneBtn:'Done', confirmDefaultLabel:'Confirm',
+    newDialogHead:'Bring a company on',
+    newDialogBody:'They get an email with a link that signs them in and walks them through their details, the agreement and choosing a plan. You can follow how far they get from this list.',
+    newDialogNameLabel:'Company name', newDialogNamePh:'Coastal Fence & Gate',
+    newDialogEmailLabel:'Owner\'s email',
+    newDialogEmailHint:'Leave the email blank to create the company without inviting anyone — you can send the invitation later.',
+    newDialogCreateBtn:'Create & invite',
+    setupDialogHead:'Send them this code',
+    setupDialogBody:'%s has been created. They sign up in the app themselves, then enter this code to become the owner of their company.',
+    setupDialogFootnote:'It works once, and it is not shown again. If it goes astray, delete the company and make a new one. Their trial does not start until you press %s.',
+
+    copyIdBtn:'Copy id', copyIdTitle:'Copy this company\'s id',
+    editPlanLabel:'Plan', planOptNone:'No plan — nothing unlocked',
+    planOptSolo:'Solo — 1 login', planOptCrew:'Crew — 6 logins', planOptPro:'Pro — unlimited logins',
+    setByStripeNote:'Set by Stripe — change it there, not here.',
+    editPriceLabel:'Price per month ($)', editContactLabel:'Contact email',
+    editContactPh:'where the invitation goes', editBillingLabel:'Billing email',
+    editBillingPh:'where receipts go', editGraceLabel:'Grace period ends',
+    editNotesLabel:'Notes (only you see these)', saveBtn:'Save',
+    editUnnamedCompany:'Unnamed company',
+
+    copyLookingUp:'Looking it up…',
+    copyNoUnusedCode:'No unused setup code on file -- invite by email instead, or add a company again.',
+    copySetupCodeCopied:'Setup code copied.', copyCodeFallback:'Code: %s',
+    copyIdCopied:'Copied', copyIdFailed:'Copy failed',
+  },
+  es: {
+    searchPh:'Buscar empresas — nombre, correo, plan, estado',
+    signOut:'Cerrar sesión',
+    langLabel:'Idioma',
+
+    signInHead:'Iniciar sesión', emailLabel:'Correo electrónico', passwordLabel:'Contraseña',
+    signInBtn:'Iniciar sesión', forgotLink:'¿Olvidó su contraseña?',
+    signInFootnote:'Solo una cuenta marcada como administrador de la plataforma puede ver algo aquí. Esa marca se pone a mano en la base de datos y nada en la aplicación puede otorgarla.',
+    gateLinkExpired:'Ese enlace venció o ya se usó — solicite uno nuevo.',
+    gateSigningIn:'Iniciando sesión…', gateTypeEmailFirst:'Escriba su correo arriba primero y luego presione esto.',
+    gateSending:'Enviando…', gateCheckEmail:'Revise su correo para ver un enlace y crear una nueva contraseña.',
+    notAdminNotice:'Esta página es para el dueño de FenceFlow, no para una empresa de cercas. Sus propios trabajos y clientes están en el %s — sigue con la sesión iniciada ahí.',
+    notAdminLinkText:'panel de FenceFlow',
+
+    recoveryHead:'Crear una nueva contraseña', newPasswordLabel:'Nueva contraseña', confirmPasswordLabel:'Confirmar contraseña',
+    setPasswordBtn:'Guardar contraseña y continuar',
+    recoveryAtLeast8:'Al menos 8 caracteres.', recoveryMismatch:'Esas dos no coinciden.',
+    savingEllipsis:'Guardando…',
+
+    mfaChallengeHead:'Ingrese su código',
+    mfaChallengeBody:'La verificación en dos pasos está activada en esta cuenta. Abra su aplicación de autenticación y escriba el código de 6 dígitos actual.',
+    codeLabel:'Código', mfaVerifyContinueBtn:'Verificar y continuar',
+    sixDigitCode:'Ingrese el código de 6 dígitos.', checkingEllipsis:'Comprobando…',
+    mfaNoFactorFound:'No se encontró ningún método de verificación en dos pasos en esta cuenta.',
+
+    navOverview:'Resumen', navCompanies:'Empresas', navCrashes:'Fallos',
+    navReleases:'Versiones', navDrift:'Diferencia de precios', navAccount:'Cuenta',
+
+    overviewHead:'Resumen',
+    overviewSub:'Sus clientes, no los de ellos — quién paga, quién no, y qué hacer al respecto.',
+    suspensionHowHead:'Cómo funciona la suspensión',
+    suspensionHowBody:'Stripe informa un pago fallido y la empresa pasa a %s. Siguen trabajando durante el período de gracia — cortarle el acceso a una cuadrilla en medio de una instalación por una tarjeta rechazada castiga al cliente que está en el patio, no a quien le debe a usted. Cuando se acaba el período de gracia, %s detiene el servicio. La suspensión siempre la decide usted; nada aquí suspende a nadie automáticamente.',
+    pastDueWord:'vencido',
+
+    companiesHead:'Empresas clientes', addCompanyBtn:'Agregar una empresa',
+    refreshBtn:'Actualizar', exportCsvBtn:'Exportar CSV',
+    colCompany:'Empresa', colStatus:'Estado', colOnboarding:'Incorporación', colPlan:'Plan',
+    colPriceMo:'$/mes', colSeats:'Cupos', colJobs:'Trabajos', colLastSeen:'Última vez visto',
+    colVersion:'Versión', colRenewsEnds:'Renueva / termina',
+    daysCount:'%s días', trialEndedOn:'la prueba terminó %s',
+    companiesEmpty:'Todavía no hay empresas clientes.', companiesEmptyFiltered:'Ninguna empresa coincide con "%s".',
+    companiesLoading:'Cargando…', workingEllipsis:'Procesando…',
+
+    kpiAtLeast:'al menos',
+    kpiFloorNote:'Mostrando las primeras %s de %s empresas — cada número de abajo es al menos este, no el total.',
+    kpiCompanies:'Empresas', kpiOnTrial:'En prueba', kpiPaying:'Pagando', kpiSuspended:'Suspendidas',
+    kpiMrrListPrice:'MRR a precio de lista', kpiUnpricedNote:'%s activas sin plan reconocido, no contadas',
+    kpiCrashes7d:'Fallos, 7 días', kpiAppVersionsField:'Versiones de la app en uso',
+
+    onbInvited:'Invitada', onbSignedIn:'Inició sesión', onbAgreementSigned:'Acuerdo firmado',
+    onbPlanChosen:'Plan elegido', onbUpRunning:'Funcionando',
+    onbWaitingPrefix:'Esperando: ', onbNotStartedPrefix:'Sin empezar — ',
+
+    pillSuspended:'Suspendida', pillSuspendedHeld:'retenida — solo usted puede levantarla',
+    pillSuspendedUnpaid:'sin pagar — se levanta cuando paguen',
+    pillActive:'Activa', pillTrial:'Prueba', pillPastDue:'Vencida',
+    pillPastDueNote:'sigue funcionando, en gracia', pillCancelled:'Cancelada',
+    pillInvited:'Invitada', pillInvitedNote:'todavía sin empezar', pillNoPlan:'Sin plan',
+
+    versionTitle:'Versión de la app en sus teléfonos',
+    rowUnnamedCompany:'Sin nombre',
+
+    reinstateBtn:'Reincorporar', startTrialBtn:'Iniciar prueba', extendBtn:'+14 días',
+    makeCustomerBtn:'Convertir en cliente', chasePaymentBtn:'Reclamar pago',
+    suspendBtn:'Suspender', unsuspendBtn:'Levantar suspensión',
+    inviteBtn:'Invitar', reinviteBtn:'Reenviar invitación', manageBtn:'Gestionar',
+    grantOpenAccessBtn:'Otorgar acceso abierto', copySetupCodeBtn:'Copiar código de configuración',
+
+    confirmStartTrialTitle:'¿Iniciar la prueba?',
+    confirmStartTrialBody:'%s tendrá catorce días a partir de ahora. No se les cobra nada, y puede extenderla después si necesitan más tiempo.',
+    confirmStartTrialShortBody:'%s tendrá catorce días a partir de ahora. No se les cobra nada.',
+    confirmStartTrialLabel:'Iniciar 14 días',
+    confirmExtendTitle:'¿Agregar otras dos semanas?',
+    confirmExtendBody:'%s seguiría gratis hasta el %s. No se cobra nada, y puede agregar más tiempo después.',
+    confirmExtendShortBody:'%s seguiría gratis hasta el %s.',
+    confirmExtendLabel:'Extender hasta el %s',
+    legacyPlanSuffix:' — no reconocido, sin límite de cupos',
+    confirmReinstateTitle:'¿Reincorporar a %s?',
+    confirmReinstateBody:'Sus cuadrillas recuperan el acceso de inmediato. El plan, el precio y el estado de facturación quedan exactamente como están — esto solo levanta la suspensión.',
+    confirmGrantTitle:'¿Otorgar acceso sin fecha de vencimiento?',
+    confirmGrantBodyShort:'%s sigue funcionando sin reloj de prueba ni plan obligatorio.',
+    confirmGrantBodyLong:'%s sigue funcionando sin reloj de prueba ni plan obligatorio. Use esto para alguien que decide mantener deliberadamente, no como forma de arreglar un problema de facturación.',
+    confirmGrantLabel:'Otorgar acceso',
+    confirmSuspendTitle:'¿Suspender a %s?',
+    confirmSuspendBody:'Sus cuadrillas pierden el acceso de inmediato. No se borra nada — cada trabajo, pago y foto queda exactamente donde está y vuelve en cuanto se restablezca el acceso. Por defecto, pagar levanta esto por sí solo.',
+    askHoldLabel:'Retener esta — %s la levante automáticamente cuando paguen. Úselo para una disputa o mal uso, no para una factura sin pagar.',
+    doNotWord:'no',
+    confirmResendInviteTitle:'¿Reenviar la invitación?', confirmSendInviteTitle:'¿Enviar la invitación?',
+    confirmInviteBody:'Se envía un correo a %s para %s de inmediato.',
+    confirmInviteAlreadySuffix:' Ya tienen una de antes — esto envía otra.',
+    reinviteConfirmLabel:'Reenviar', sendConfirmLabel:'Enviar',
+    confirmPromoteTitle:'¿Promover esta versión?',
+    confirmPromoteBody:'"%s" pasará a ser visible para todas las empresas, no solo las que la reciben ahora. Esto no se puede deshacer desde aquí — publicar una nueva versión limitada es la forma de reducirla de nuevo.',
+    promoteBtn:'Promover',
+    confirmMoneyChangeTitle:'¿Cambiar lo que paga %s?',
+    confirmMoneyChangeBody:'%s. No se les avisa, y esto no cobra ningún pago — cambia sobre qué se calcula la próxima factura.',
+    confirmMoneyChangeLabel:'Cambiarlo',
+    moneyChangePlanLine:'plan: %s pasa a ser %s', moneyChangePriceLine:'precio: %s pasa a ser %s',
+    moneyChangeGraceUntil:'acceso gratis hasta el %s', moneyChangeGraceRemoved:'se quita el acceso gratis',
+    moneyChangeNoneWord:'ninguno', editNothingChanged:'No se cambió nada.',
+    companyFallbackWord:'esta empresa',
+
+    inviteAddContactFirst:'Agregue un correo de contacto en Gestionar primero, y luego invite.',
+    inviteSending:'Enviando a %s…', inviteSent:'Invitación enviada a %s.',
+    inviteMailRefused:'El servidor de correo la rechazó (%s).', inviteCouldNotSend:'No se pudo enviar.',
+    inviteCouldNotReach:'No se pudo comunicar con el servidor de correo: %s',
+    newMsgGiveName:'Póngale un nombre a la empresa.',
+    newMsgCreatingInviting:'Creando y enviando la invitación…', newMsgCreating:'Creando…',
+    newMsgCreatedNotSent:'La empresa se creó, pero la invitación no se envió: %s',
+
+    crashesHead:'Fallos',
+    crashesSub:'Agrupados, los más recientes primero, últimos 14 días. Los no atendidos quedan arriba. Nadie reporta un fallo — simplemente dejan de usar la app — así que este es el único lugar donde se entera.',
+    crashNoneLast14:'No hubo fallos en los últimos 14 días.', crashViewStack:'Ver traza de la pila',
+    crashLblScreen:'Pantalla', crashLblCount:'Cantidad', crashLblPhones:'Teléfonos',
+    crashLblFirstSeen:'Primera vez visto', crashMarkSeen:'Marcar como visto', crashHandled:'Atendido',
+    crashNoMessage:'(sin mensaje)', crashNoStackRecorded:'(no se registró ninguna)',
+
+    releasesHead:'Versiones',
+    releasesSub:'Lo que se ha publicado — publique una nueva desde la CLI, no aquí. Una versión limitada se puede promover a todos desde esta página.',
+    colNotes:'Notas', colUpdate:'Actualización', colAudience:'Audiencia', colPublished:'Publicada',
+    releaseNoneYet:'Todavía no hay versiones registradas.', releaseEveryone:'Todos', releaseLimited:'Limitada',
+    releaseNoCompaniesNamed:'no se nombró ninguna empresa — visible para nadie',
+    releaseRequired:'Obligatoria', releaseOptional:'Opcional', releaseDownload:'Descargar',
+    releasePromoteBtn:'Promover a todos', releaseBuildLabel:'compilación %s',
+
+    driftHead:'Diferencia de precios',
+    driftSub:'Dónde el precio de la oficina y el precio del teléfono en el sitio no coincidieron en el mismo trabajo.',
+    colJob:'Trabajo', colHowFarApart:'Qué tan lejos', colEngines:'Motores', colNoted:'Notado',
+    driftNoteBody:'La visibilidad completa entre empresas necesita una política de lectura de administrador de plataforma sobre %s (algo como %s, con la misma forma que la que existe sobre %s), o una RPC %s con SECURITY DEFINER de la misma forma que ya tienen los fallos y las empresas. Ninguna existe todavía -- %s está limitada a %s, así que esta tabla solo puede mostrar las filas que su propia cuenta tenga permiso de ver, típicamente ninguna.',
+    driftNoneVisible:'Nada visible para esta cuenta.', driftApart:'%s de diferencia',
+    driftMarkFailed:'No se pudo marcar: %s',
+
+    accountHead:'Cuenta', accountSub:'Su propio inicio de sesión en esta consola — contraseña y verificación en dos pasos.',
+    mfaChecking:'Comprobando…',
+    mfaTurnOnBtn:'Activar la verificación en dos pasos',
+    mfaEnrollBody:'Escanee esto con una aplicación de autenticación (Google Authenticator, 1Password, Authy…), o escriba la clave secreta a mano.',
+    mfaQrAlt:'Código QR de verificación en dos pasos', mfaEnrollCodeLabel:'Ingrese el código de 6 dígitos que muestra',
+    mfaVerifyTurnOnBtn:'Verificar y activar', cancelBtn:'Cancelar',
+    mfaOnBody:'La verificación en dos pasos está activada. Para desactivarla se necesita otro código más de su aplicación, así que una sesión robada o dejada abierta no basta para apagarla.',
+    mfaCurrentCodeLabel:'Código actual de 6 dígitos', mfaTurnOffBtn:'Desactivar la verificación en dos pasos',
+    mfaEnrollPreparing:'Preparando…', mfaPillOn:'ACTIVADA', mfaPillOff:'DESACTIVADA', mfaPillUnknown:'Desconocido',
+    mfaOnRequired:'La verificación en dos pasos es obligatoria en cada inicio de sesión de esta cuenta.',
+    mfaOffWarning:'Cualquiera que tenga solo esta contraseña puede iniciar sesión. Activar la verificación en dos pasos también pide un código de su teléfono.',
+    mfaOffEnterCodeFirst:'Ingrese primero el código actual de 6 dígitos.',
+
+    closeBtn:'Cerrar', doneBtn:'Listo', confirmDefaultLabel:'Confirmar',
+    newDialogHead:'Sumar una empresa',
+    newDialogBody:'Reciben un correo con un enlace que los inicia sesión y los guía por sus datos, el acuerdo y la elección del plan. Puede seguir hasta dónde llegan desde esta lista.',
+    newDialogNameLabel:'Nombre de la empresa', newDialogNamePh:'Coastal Fence & Gate',
+    newDialogEmailLabel:'Correo del dueño',
+    newDialogEmailHint:'Deje el correo en blanco para crear la empresa sin invitar a nadie — puede enviar la invitación después.',
+    newDialogCreateBtn:'Crear e invitar',
+    setupDialogHead:'Envíeles este código',
+    setupDialogBody:'%s ha sido creada. Ellos mismos se registran en la app y luego ingresan este código para volverse dueños de su empresa.',
+    setupDialogFootnote:'Funciona una sola vez, y no se vuelve a mostrar. Si se pierde, borre la empresa y cree una nueva. Su prueba no empieza hasta que usted presione %s.',
+
+    copyIdBtn:'Copiar id', copyIdTitle:'Copiar el id de esta empresa',
+    editPlanLabel:'Plan', planOptNone:'Sin plan — nada desbloqueado',
+    planOptSolo:'Solo — 1 inicio de sesión', planOptCrew:'Crew — 6 inicios de sesión', planOptPro:'Pro — inicios de sesión ilimitados',
+    setByStripeNote:'Lo fija Stripe — cámbielo ahí, no aquí.',
+    editPriceLabel:'Precio por mes ($)', editContactLabel:'Correo de contacto',
+    editContactPh:'a dónde va la invitación', editBillingLabel:'Correo de facturación',
+    editBillingPh:'a dónde van los recibos', editGraceLabel:'El período de gracia termina',
+    editNotesLabel:'Notas (solo usted las ve)', saveBtn:'Guardar',
+    editUnnamedCompany:'Empresa sin nombre',
+
+    copyLookingUp:'Buscándolo…',
+    copyNoUnusedCode:'No hay ningún código de configuración sin usar registrado — invite por correo en su lugar, o agregue la empresa de nuevo.',
+    copySetupCodeCopied:'Código de configuración copiado.', copyCodeFallback:'Código: %s',
+    copyIdCopied:'Copiado', copyIdFailed:'No se pudo copiar',
+  },
+  fr: {
+    searchPh:'Rechercher des entreprises — nom, courriel, forfait, statut',
+    signOut:'Se déconnecter',
+    langLabel:'Langue',
+
+    signInHead:'Connexion', emailLabel:'Courriel', passwordLabel:'Mot de passe',
+    signInBtn:'Se connecter', forgotLink:'Mot de passe oublié ?',
+    signInFootnote:'Seul un compte marqué comme administrateur de la plateforme peut voir quoi que ce soit ici. Cette marque est posée à la main dans la base de données et rien dans l\'application ne peut l\'accorder.',
+    gateLinkExpired:'Ce lien a expiré ou a déjà été utilisé — demandez-en un nouveau.',
+    gateSigningIn:'Connexion…', gateTypeEmailFirst:'Écrivez d\'abord votre courriel ci-dessus, puis appuyez ici.',
+    gateSending:'Envoi…', gateCheckEmail:'Consultez votre courriel pour un lien qui permet de définir un nouveau mot de passe.',
+    notAdminNotice:'Cette page est pour le propriétaire de FenceFlow, pas pour une entreprise de clôtures. Vos propres chantiers et clients se trouvent sur le %s — vous y êtes toujours connecté.',
+    notAdminLinkText:'tableau de bord FenceFlow',
+
+    recoveryHead:'Définir un nouveau mot de passe', newPasswordLabel:'Nouveau mot de passe', confirmPasswordLabel:'Confirmer le mot de passe',
+    setPasswordBtn:'Enregistrer le mot de passe et continuer',
+    recoveryAtLeast8:'Au moins 8 caractères.', recoveryMismatch:'Les deux ne correspondent pas.',
+    savingEllipsis:'Enregistrement…',
+
+    mfaChallengeHead:'Entrez votre code',
+    mfaChallengeBody:'La vérification en deux étapes est activée pour ce compte. Ouvrez votre application d\'authentification et tapez le code actuel à 6 chiffres.',
+    codeLabel:'Code', mfaVerifyContinueBtn:'Vérifier et continuer',
+    sixDigitCode:'Entrez le code à 6 chiffres.', checkingEllipsis:'Vérification…',
+    mfaNoFactorFound:'Aucune méthode de vérification en deux étapes trouvée pour ce compte.',
+
+    navOverview:'Aperçu', navCompanies:'Entreprises', navCrashes:'Plantages',
+    navReleases:'Versions', navDrift:'Écart de prix', navAccount:'Compte',
+
+    overviewHead:'Aperçu',
+    overviewSub:'Vos clients, pas les leurs — qui paie, qui ne paie pas, et quoi faire à ce sujet.',
+    suspensionHowHead:'Comment fonctionne la suspension',
+    suspensionHowBody:'Stripe signale un paiement refusé et l\'entreprise passe à %s. Elle continue de travailler pendant la période de grâce — couper l\'accès d\'une équipe en pleine installation à cause d\'une carte refusée pénalise le client debout dans sa cour, pas la personne qui vous doit de l\'argent. Une fois la période de grâce écoulée, %s arrête le service. La suspension, c\'est toujours vous qui l\'appuyez; rien ici ne suspend personne automatiquement.',
+    pastDueWord:'en retard',
+
+    companiesHead:'Entreprises clientes', addCompanyBtn:'Ajouter une entreprise',
+    refreshBtn:'Actualiser', exportCsvBtn:'Exporter en CSV',
+    colCompany:'Entreprise', colStatus:'Statut', colOnboarding:'Intégration', colPlan:'Forfait',
+    colPriceMo:'$/mois', colSeats:'Postes', colJobs:'Chantiers', colLastSeen:'Vu pour la dernière fois',
+    colVersion:'Version', colRenewsEnds:'Renouvelle / se termine',
+    daysCount:'%s jours', trialEndedOn:'essai terminé le %s',
+    companiesEmpty:'Aucune entreprise cliente pour l\'instant.', companiesEmptyFiltered:'Aucune entreprise ne correspond à « %s ».',
+    companiesLoading:'Chargement…', workingEllipsis:'Traitement…',
+
+    kpiAtLeast:'au moins',
+    kpiFloorNote:'Affiche les %s premières entreprises sur %s — chaque nombre ci-dessous est au moins celui-ci, pas le total complet.',
+    kpiCompanies:'Entreprises', kpiOnTrial:'À l\'essai', kpiPaying:'Payantes', kpiSuspended:'Suspendues',
+    kpiMrrListPrice:'MRR au prix de liste', kpiUnpricedNote:'%s actives sans forfait reconnu, non comptées',
+    kpiCrashes7d:'Plantages, 7 jours', kpiAppVersionsField:'Versions de l\'appli en circulation',
+
+    onbInvited:'Invitée', onbSignedIn:'Connectée', onbAgreementSigned:'Entente signée',
+    onbPlanChosen:'Forfait choisi', onbUpRunning:'Opérationnelle',
+    onbWaitingPrefix:'En attente : ', onbNotStartedPrefix:'Pas commencé — ',
+
+    pillSuspended:'Suspendue', pillSuspendedHeld:'retenue — vous seul pouvez la lever',
+    pillSuspendedUnpaid:'impayée — se lève dès le paiement',
+    pillActive:'Active', pillTrial:'Essai', pillPastDue:'En retard',
+    pillPastDueNote:'continue de fonctionner, en grâce', pillCancelled:'Annulée',
+    pillInvited:'Invitée', pillInvitedNote:'pas encore commencé', pillNoPlan:'Aucun forfait',
+
+    versionTitle:'Version de l\'appli sur leurs téléphones',
+    rowUnnamedCompany:'Sans nom',
+
+    reinstateBtn:'Réintégrer', startTrialBtn:'Démarrer l\'essai', extendBtn:'+14 jours',
+    makeCustomerBtn:'Convertir en client', chasePaymentBtn:'Relancer le paiement',
+    suspendBtn:'Suspendre', unsuspendBtn:'Lever la suspension',
+    inviteBtn:'Inviter', reinviteBtn:'Réinviter', manageBtn:'Gérer',
+    grantOpenAccessBtn:'Accorder un accès ouvert', copySetupCodeBtn:'Copier le code de configuration',
+
+    confirmStartTrialTitle:'Démarrer l\'essai ?',
+    confirmStartTrialBody:'%s aura quatorze jours à partir de maintenant. Rien ne leur est facturé, et vous pourrez prolonger plus tard s\'il leur en faut plus.',
+    confirmStartTrialShortBody:'%s aura quatorze jours à partir de maintenant. Rien ne leur est facturé.',
+    confirmStartTrialLabel:'Démarrer 14 jours',
+    confirmExtendTitle:'Ajouter deux autres semaines ?',
+    confirmExtendBody:'%s resterait gratuit jusqu\'au %s. Rien n\'est facturé, et vous pourrez ajouter du temps encore plus tard.',
+    confirmExtendShortBody:'%s resterait gratuit jusqu\'au %s.',
+    confirmExtendLabel:'Prolonger jusqu\'au %s',
+    legacyPlanSuffix:' — non reconnu, aucune limite de postes',
+    confirmReinstateTitle:'Réintégrer %s ?',
+    confirmReinstateBody:'Ses équipes retrouvent l\'accès immédiatement. Le forfait, le prix et l\'état de facturation restent exactement tels quels — ceci ne fait que lever la suspension.',
+    confirmGrantTitle:'Accorder un accès sans échéance ?',
+    confirmGrantBodyShort:'%s continue de fonctionner sans compte à rebours d\'essai ni forfait requis.',
+    confirmGrantBodyLong:'%s continue de fonctionner sans compte à rebours d\'essai ni forfait requis. À utiliser pour quelqu\'un que vous portez délibérément, pas comme façon de régler un problème de facturation.',
+    confirmGrantLabel:'Accorder l\'accès',
+    confirmSuspendTitle:'Suspendre %s ?',
+    confirmSuspendBody:'Ses équipes perdent l\'accès immédiatement. Rien n\'est supprimé — chaque chantier, paiement et photo reste exactement où il est et revient dès que l\'accès est rétabli. Par défaut, payer lève ceci tout seul.',
+    askHoldLabel:'Retenir celle-ci — %s la lever automatiquement quand ils paient. À utiliser pour un litige ou un abus, pas pour une facture impayée.',
+    doNotWord:'ne pas',
+    confirmResendInviteTitle:'Renvoyer l\'invitation ?', confirmSendInviteTitle:'Envoyer l\'invitation ?',
+    confirmInviteBody:'Un courriel part vers %s pour %s immédiatement.',
+    confirmInviteAlreadySuffix:' Ils en ont déjà une d\'avant — ceci en envoie une autre.',
+    reinviteConfirmLabel:'Renvoyer', sendConfirmLabel:'Envoyer',
+    confirmPromoteTitle:'Promouvoir cette version ?',
+    confirmPromoteBody:'« %s » deviendra visible pour toutes les entreprises, pas seulement celles qui la reçoivent actuellement. Ceci ne peut pas être annulé d\'ici — publier une nouvelle version limitée est la façon de la restreindre à nouveau.',
+    promoteBtn:'Promouvoir',
+    confirmMoneyChangeTitle:'Changer ce que paie %s ?',
+    confirmMoneyChangeBody:'%s. Ils ne sont pas prévenus, et ceci ne prélève aucun paiement — cela change la base de calcul de la prochaine facture.',
+    confirmMoneyChangeLabel:'Changer',
+    moneyChangePlanLine:'forfait : %s devient %s', moneyChangePriceLine:'prix : %s devient %s',
+    moneyChangeGraceUntil:'accès gratuit jusqu\'au %s', moneyChangeGraceRemoved:'accès gratuit retiré',
+    moneyChangeNoneWord:'aucun', editNothingChanged:'Rien n\'a été changé.',
+    companyFallbackWord:'cette entreprise',
+
+    inviteAddContactFirst:'Ajoutez d\'abord un courriel de contact dans Gérer, puis invitez.',
+    inviteSending:'Envoi à %s…', inviteSent:'Invitation envoyée à %s.',
+    inviteMailRefused:'Le serveur de courriel l\'a refusée (%s).', inviteCouldNotSend:'Impossible de l\'envoyer.',
+    inviteCouldNotReach:'Impossible de joindre le serveur de courriel : %s',
+    newMsgGiveName:'Donnez un nom à l\'entreprise.',
+    newMsgCreatingInviting:'Création et envoi de l\'invitation…', newMsgCreating:'Création…',
+    newMsgCreatedNotSent:'Entreprise créée, mais l\'invitation n\'a pas été envoyée : %s',
+
+    crashesHead:'Plantages',
+    crashesSub:'Regroupés, les plus récents en premier, 14 derniers jours. Ceux non traités restent en haut. Personne ne signale un plantage — les gens arrêtent simplement d\'utiliser l\'appli — c\'est donc le seul endroit où vous l\'apprenez.',
+    crashNoneLast14:'Aucun plantage dans les 14 derniers jours.', crashViewStack:'Voir la pile d\'appels',
+    crashLblScreen:'Écran', crashLblCount:'Nombre', crashLblPhones:'Téléphones',
+    crashLblFirstSeen:'Vu la première fois', crashMarkSeen:'Marquer comme traité', crashHandled:'Traité',
+    crashNoMessage:'(aucun message)', crashNoStackRecorded:'(aucune enregistrée)',
+
+    releasesHead:'Versions',
+    releasesSub:'Ce qui a été publié — publiez-en une nouvelle depuis la CLI, pas ici. Une version limitée peut être promue à tout le monde depuis cette page.',
+    colNotes:'Notes', colUpdate:'Mise à jour', colAudience:'Public', colPublished:'Publiée',
+    releaseNoneYet:'Aucune version enregistrée pour l\'instant.', releaseEveryone:'Tout le monde', releaseLimited:'Limitée',
+    releaseNoCompaniesNamed:'aucune entreprise nommée — visible pour personne',
+    releaseRequired:'Obligatoire', releaseOptional:'Optionnelle', releaseDownload:'Télécharger',
+    releasePromoteBtn:'Promouvoir à tout le monde', releaseBuildLabel:'build %s',
+
+    driftHead:'Écart de prix',
+    driftSub:'Où le prix du bureau et le prix du téléphone sur place n\'étaient pas d\'accord sur le même chantier.',
+    colJob:'Chantier', colHowFarApart:'Écart', colEngines:'Moteurs', colNoted:'Noté',
+    driftNoteBody:'Une visibilité complète entre entreprises a besoin d\'une politique de lecture admin-plateforme sur %s (quelque chose comme %s, de la même forme que celle sur %s), ou d\'une RPC %s en SECURITY DEFINER comme les plantages et les entreprises en ont déjà une. Aucune n\'existe encore -- %s est limitée à %s, donc cette table ne peut montrer que les lignes que votre propre compte a le droit de voir, généralement aucune.',
+    driftNoneVisible:'Rien de visible pour ce compte.', driftApart:'%s d\'écart',
+    driftMarkFailed:'Impossible de marquer : %s',
+
+    accountHead:'Compte', accountSub:'Votre propre connexion à cette console — mot de passe et vérification en deux étapes.',
+    mfaChecking:'Vérification…',
+    mfaTurnOnBtn:'Activer la vérification en deux étapes',
+    mfaEnrollBody:'Scannez ceci avec une application d\'authentification (Google Authenticator, 1Password, Authy…), ou tapez la clé secrète à la main.',
+    mfaQrAlt:'Code QR de vérification en deux étapes', mfaEnrollCodeLabel:'Entrez le code à 6 chiffres affiché',
+    mfaVerifyTurnOnBtn:'Vérifier et activer', cancelBtn:'Annuler',
+    mfaOnBody:'La vérification en deux étapes est activée. La désactiver demande un code de plus depuis votre application, donc une session volée ou laissée ouverte ne suffit pas à elle seule pour l\'éteindre.',
+    mfaCurrentCodeLabel:'Code actuel à 6 chiffres', mfaTurnOffBtn:'Désactiver la vérification en deux étapes',
+    mfaEnrollPreparing:'Préparation…', mfaPillOn:'ACTIVÉE', mfaPillOff:'DÉSACTIVÉE', mfaPillUnknown:'Inconnu',
+    mfaOnRequired:'La vérification en deux étapes est exigée à chaque connexion à ce compte.',
+    mfaOffWarning:'Quiconque a seulement ce mot de passe peut se connecter. Activer la vérification en deux étapes demande aussi un code depuis votre téléphone.',
+    mfaOffEnterCodeFirst:'Entrez d\'abord le code actuel à 6 chiffres.',
+
+    closeBtn:'Fermer', doneBtn:'Terminé', confirmDefaultLabel:'Confirmer',
+    newDialogHead:'Ajouter une entreprise',
+    newDialogBody:'Ils reçoivent un courriel avec un lien qui les connecte et les guide à travers leurs coordonnées, l\'entente et le choix d\'un forfait. Vous pouvez suivre où ils en sont depuis cette liste.',
+    newDialogNameLabel:'Nom de l\'entreprise', newDialogNamePh:'Coastal Fence & Gate',
+    newDialogEmailLabel:'Courriel du propriétaire',
+    newDialogEmailHint:'Laissez le courriel vide pour créer l\'entreprise sans inviter personne — vous pourrez envoyer l\'invitation plus tard.',
+    newDialogCreateBtn:'Créer et inviter',
+    setupDialogHead:'Envoyez-leur ce code',
+    setupDialogBody:'%s a été créée. Ils s\'inscrivent eux-mêmes dans l\'appli, puis entrent ce code pour devenir propriétaires de leur entreprise.',
+    setupDialogFootnote:'Il ne fonctionne qu\'une fois, et n\'est plus jamais affiché. S\'il s\'égare, supprimez l\'entreprise et recommencez. Leur essai ne démarre pas avant que vous appuyiez sur %s.',
+
+    copyIdBtn:'Copier l\'id', copyIdTitle:'Copier l\'id de cette entreprise',
+    editPlanLabel:'Forfait', planOptNone:'Aucun forfait — rien de débloqué',
+    planOptSolo:'Solo — 1 connexion', planOptCrew:'Crew — 6 connexions', planOptPro:'Pro — connexions illimitées',
+    setByStripeNote:'Fixé par Stripe — changez-le là-bas, pas ici.',
+    editPriceLabel:'Prix par mois ($)', editContactLabel:'Courriel de contact',
+    editContactPh:'où l\'invitation est envoyée', editBillingLabel:'Courriel de facturation',
+    editBillingPh:'où les reçus sont envoyés', editGraceLabel:'Fin de la période de grâce',
+    editNotesLabel:'Notes (vous seul les voyez)', saveBtn:'Enregistrer',
+    editUnnamedCompany:'Entreprise sans nom',
+
+    copyLookingUp:'Recherche…',
+    copyNoUnusedCode:'Aucun code de configuration inutilisé enregistré — invitez par courriel à la place, ou ajoutez l\'entreprise de nouveau.',
+    copySetupCodeCopied:'Code de configuration copié.', copyCodeFallback:'Code : %s',
+    copyIdCopied:'Copié', copyIdFailed:'Échec de la copie',
+  },
+};
+
+let LANG = 'en';
+(function () {
+  let saved = '';
+  try { saved = localStorage.getItem('ff_lang') || ''; } catch (e) { /* private window */ }
+  const browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  const pick = [saved, browser].find(c => c && TL[c]);
+  if (pick) LANG = pick;
+})();
+
+/* %s in order, same as dashboard.html -- deliberately not a template engine. */
+function tr(key) {
+  const args = [].slice.call(arguments, 1);
+  let out = (TL[LANG] && TL[LANG][key]) || TL.en[key] || '';
+  args.forEach(a => { out = out.replace('%s', a); });
+  return out;
+}
+
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.getAttribute('data-t');
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = tr(k);
+    else el.textContent = tr(k);
+  });
+  document.querySelectorAll('[data-t-title]').forEach(el => {
+    el.title = tr(el.getAttribute('data-t-title'));
+    // The QR image carries both a tooltip and alt text for a screen reader --
+    // data-t-title only ever sets .title elsewhere on this page, so the img
+    // needs this one extra line rather than a second data attribute.
+    if (el.tagName === 'IMG') el.alt = tr(el.getAttribute('data-t-title'));
+  });
+  const picker = $('langPicker');
+  if (picker) picker.value = LANG;
+
+  // Not plain data-t: each bolds a word or two mid-sentence, and tr()'s %s
+  // substitution has no way to carry markup through textContent -- the same
+  // reason dashboard.html's crewLoginsBody is filled this way rather than
+  // with a plain data-t.
+  $('suspensionHowBody').innerHTML = tr('suspensionHowBody',
+    '<b>' + tr('pastDueWord') + '</b>', '<b>' + tr('suspendBtn') + '</b>');
+  $('askHoldLabel').innerHTML = tr('askHoldLabel', '<b>' + tr('doNotWord') + '</b>');
+}
+
+function setLang(code) {
+  if (!TL[code] || code === LANG) return;
+  LANG = code;
+  try { localStorage.setItem('ff_lang', code); } catch (e) {}
+  applyStaticText();
+  // Everything drawn from clients/crashes/releases/drift is built with tr()
+  // calls inside its own render function, so a language switch has to
+  // re-run those too, not just the static markup -- otherwise the header
+  // and nav would change language while every table stayed in the old one.
+  if ($('app').style.display !== 'none') {
+    renderKpis(); renderCompaniesTable(); renderCrashes(); renderReleases(); renderDrift();
+  }
+}
+
+applyStaticText();
 
 let clients = [];
 // Set by loadAll() when admin_companies_count disagrees with the number of
@@ -564,7 +1172,7 @@ if (inRecovery) showGate('recoveryPanel');
 // on screen explaining why the password form never showed up.
 else if (/error=/.test(location.hash)) {
   showGate('signInPanel');
-  $('gateMsg').textContent = 'That link has expired or was already used — request a new one.';
+  $('gateMsg').textContent = tr('gateLinkExpired');
 }
 
 // A second, asynchronous confirmation of the same thing. The hash check above
@@ -579,7 +1187,7 @@ db.auth.onAuthStateChange((event) => {
 });
 
 async function signIn() {
-  $('gateMsg').textContent = 'Signing in…';
+  $('gateMsg').textContent = tr('gateSigningIn');
   const { error } = await db.auth.signInWithPassword({
     email: $('email').value.trim(), password: $('password').value
   });
@@ -589,20 +1197,20 @@ async function signIn() {
 
 async function requestPasswordReset() {
   const email = $('email').value.trim();
-  if (!email) { $('gateMsg').textContent = 'Type your email above first, then press this.'; return; }
-  $('gateMsg').textContent = 'Sending…';
+  if (!email) { $('gateMsg').textContent = tr('gateTypeEmailFirst'); return; }
+  $('gateMsg').textContent = tr('gateSending');
   const { error } = await db.auth.resetPasswordForEmail(email, {
     redirectTo: location.origin + '/admin.html'
   });
   if (error) { $('gateMsg').textContent = error.message; return; }
-  $('gateMsg').textContent = 'Check your email for a link to set a new password.';
+  $('gateMsg').textContent = tr('gateCheckEmail');
 }
 
 async function submitNewPassword() {
   const p1 = $('newPassword').value, p2 = $('newPassword2').value;
-  if (p1.length < 8) { $('recoveryMsg').textContent = 'At least 8 characters.'; return; }
-  if (p1 !== p2) { $('recoveryMsg').textContent = 'Those two do not match.'; return; }
-  $('recoveryMsg').textContent = 'Saving…';
+  if (p1.length < 8) { $('recoveryMsg').textContent = tr('recoveryAtLeast8'); return; }
+  if (p1 !== p2) { $('recoveryMsg').textContent = tr('recoveryMismatch'); return; }
+  $('recoveryMsg').textContent = tr('savingEllipsis');
   const { error } = await db.auth.updateUser({ password: p1 });
   if (error) { $('recoveryMsg').textContent = error.message; return; }
   // The recovery link's session is a real, signed-in session for this user --
@@ -616,12 +1224,12 @@ async function submitNewPassword() {
 
 async function submitMfaChallenge() {
   const code = $('mfaChallengeCode').value.trim();
-  if (!/^\d{6}$/.test(code)) { $('mfaChallengeMsg').textContent = 'Enter the 6-digit code.'; return; }
-  $('mfaChallengeMsg').textContent = 'Checking…';
+  if (!/^\d{6}$/.test(code)) { $('mfaChallengeMsg').textContent = tr('sixDigitCode'); return; }
+  $('mfaChallengeMsg').textContent = tr('checkingEllipsis');
   const { data: factors, error: fErr } = await db.auth.mfa.listFactors();
   if (fErr) { $('mfaChallengeMsg').textContent = fErr.message; return; }
   const factor = (factors?.totp || []).find(f => f.status === 'verified');
-  if (!factor) { $('mfaChallengeMsg').textContent = 'No two-factor method found on this account.'; return; }
+  if (!factor) { $('mfaChallengeMsg').textContent = tr('mfaNoFactorFound'); return; }
   const { error } = await db.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
   if (error) { $('mfaChallengeMsg').textContent = error.message; return; }
   $('mfaChallengeMsg').textContent = '';
@@ -663,10 +1271,8 @@ async function afterSignedIn(session) {
     // that: every admin function checks is_platform_admin on the server, and
     // RLS refuses the data regardless of what this page believes.
     showGate('signInPanel');
-    $('gateMsg').innerHTML =
-      'This page is for the owner of FenceFlow, not for a fencing company. ' +
-      'Your own jobs and customers are on the ' +
-      '<a href="dashboard.html">FenceFlow dashboard</a> — you are still signed in there.';
+    $('gateMsg').innerHTML = tr('notAdminNotice',
+      '<a href="dashboard.html">' + tr('notAdminLinkText') + '</a>');
     return;
   }
 
@@ -688,7 +1294,7 @@ function switchView(name) {
 
 /* ---------------------------------------------------------------- data ---- */
 async function loadAll() {
-  $('msg').textContent = 'Loading…';
+  $('msg').textContent = tr('companiesLoading');
   // admin_companies() rather than the platform_clients view: it carries the
   // computed 'allowed' the app itself gates on, plus days left on trial, so
   // this page and the phone can never disagree about who has access.
@@ -824,34 +1430,36 @@ function renderKpis() {
   // so it is a floor, not a figure, and has to say so right where it's read,
   // not in a tooltip or the console.
   const truncated = typeof companiesTruncated === 'number';
-  const floorMark = truncated ? ' <span class="note">at least</span>' : '';
+  const floorMark = truncated ? ` <span class="note">${esc(tr('kpiAtLeast'))}</span>` : '';
 
   $('companiesFloorNote').style.display = truncated ? '' : 'none';
   if (truncated) {
-    $('companiesFloorNote').textContent =
-      `Showing the first ${clients.length.toLocaleString()} of ${companiesTruncated.toLocaleString()} companies — ` +
-      `every number below is at least this many, not the full count.`;
+    $('companiesFloorNote').textContent = tr('kpiFloorNote',
+      clients.length.toLocaleString(), companiesTruncated.toLocaleString());
   }
 
   $('stats').innerHTML = `
-    <div class="stat"><b>${clients.length}${floorMark}</b><span>Companies</span></div>
-    <div class="stat"><b>${trialing.length}${floorMark}</b><span>On trial</span></div>
-    <div class="stat"><b>${paying.length}${floorMark}</b><span>Paying</span></div>
-    <div class="stat"><b>${suspended.length}${floorMark}</b><span>Suspended</span></div>
-    <div class="stat"><b>${money(mrr)}${floorMark}</b><span>MRR at list price</span>${
-      unpriced ? `<span class="note">${unpriced} active with no recognised plan, not counted</span>` : ''
+    <div class="stat"><b>${clients.length}${floorMark}</b><span>${esc(tr('kpiCompanies'))}</span></div>
+    <div class="stat"><b>${trialing.length}${floorMark}</b><span>${esc(tr('kpiOnTrial'))}</span></div>
+    <div class="stat"><b>${paying.length}${floorMark}</b><span>${esc(tr('kpiPaying'))}</span></div>
+    <div class="stat"><b>${suspended.length}${floorMark}</b><span>${esc(tr('kpiSuspended'))}</span></div>
+    <div class="stat"><b>${money(mrr)}${floorMark}</b><span>${esc(tr('kpiMrrListPrice'))}</span>${
+      unpriced ? `<span class="note">${esc(tr('kpiUnpricedNote', unpriced))}</span>` : ''
     }</div>
-    <div class="stat"><b>${crashCount7}</b><span>Crashes, 7 days</span></div>
-    <div class="stat"><b>${versions.size || '—'}</b><span>App versions in the field</span></div>`;
+    <div class="stat"><b>${crashCount7}</b><span>${esc(tr('kpiCrashes7d'))}</span></div>
+    <div class="stat"><b>${versions.size || '—'}</b><span>${esc(tr('kpiAppVersionsField'))}</span></div>`;
 }
 
 /* -------------------------------------------------------- companies ---- */
 function onboardingTrack(c) {
+  // Labels only -- the .on booleans that actually drive the caption and the
+  // dot colours are computed straight off the row's own timestamps and
+  // subscription_status, never off this translated text.
   const steps = [
-    { on: !!c.invited_at,          label: 'Invited' },
-    { on: !!c.joined_at,           label: 'Signed in' },
-    { on: !!c.agreement_signed_at, label: 'Agreement signed' },
-    { on: ['active', 'trialing'].includes(c.subscription_status), label: 'Plan chosen' },
+    { on: !!c.invited_at,          label: tr('onbInvited') },
+    { on: !!c.joined_at,           label: tr('onbSignedIn') },
+    { on: !!c.agreement_signed_at, label: tr('onbAgreementSigned') },
+    { on: ['active', 'trialing'].includes(c.subscription_status), label: tr('onbPlanChosen') },
   ];
   const beads = steps.map(s =>
     `<span title="${esc(s.label)}" style="width:9px;height:9px;border-radius:50%;display:inline-block;
@@ -859,29 +1467,32 @@ function onboardingTrack(c) {
   const next = steps.find(s => !s.on);
   const done = steps.every(s => s.on);
   const caption = done
-    ? 'Up and running'
-    : (steps[0].on ? 'Waiting: ' : 'Not started — ') + (next ? next.label.toLowerCase() : '');
+    ? tr('onbUpRunning')
+    : (steps[0].on ? tr('onbWaitingPrefix') : tr('onbNotStartedPrefix')) + (next ? next.label.toLowerCase() : '');
   return `<div style="display:flex;gap:4px;align-items:center">${beads}</div>
     <span style="font-size:11.5px;color:${done ? 'var(--teal)' : 'var(--muted)'}">${esc(caption)}</span>`;
 }
 
 function statusPill(c) {
+  // The pill text is translated; the branch it comes from never is --
+  // c.suspended_reason and c.subscription_status stay raw stored values,
+  // compared exactly as before.
   if (c.suspended) {
     const held = c.suspended_reason === 'HOLD';
-    return `<span class="pill bad">Suspended</span>` +
-      `<br><span style="font-size:11px;color:var(--muted)">${held
-        ? 'held — only you can lift it'
-        : 'unpaid — lifts when they pay'}</span>`;
+    return `<span class="pill bad">${esc(tr('pillSuspended'))}</span>` +
+      `<br><span style="font-size:11px;color:var(--muted)">${esc(held
+        ? tr('pillSuspendedHeld')
+        : tr('pillSuspendedUnpaid'))}</span>`;
   }
   switch (c.subscription_status) {
-    case 'active':   return '<span class="pill ok">Active</span>';
-    case 'trialing': return '<span class="pill ok">Trial</span>';
-    case 'past_due': return '<span class="pill warn">Past due</span>' +
-      '<br><span style="font-size:11px;color:var(--muted)">still working, in grace</span>';
-    case 'canceled': return '<span class="pill bad">Cancelled</span>';
-    case 'pending':  return '<span class="pill muted">Invited</span>' +
-      '<br><span style="font-size:11px;color:var(--muted)">not started yet</span>';
-    default:         return '<span class="pill muted">No plan</span>';
+    case 'active':   return `<span class="pill ok">${esc(tr('pillActive'))}</span>`;
+    case 'trialing': return `<span class="pill ok">${esc(tr('pillTrial'))}</span>`;
+    case 'past_due': return `<span class="pill warn">${esc(tr('pillPastDue'))}</span>` +
+      `<br><span style="font-size:11px;color:var(--muted)">${esc(tr('pillPastDueNote'))}</span>`;
+    case 'canceled': return `<span class="pill bad">${esc(tr('pillCancelled'))}</span>`;
+    case 'pending':  return `<span class="pill muted">${esc(tr('pillInvited'))}</span>` +
+      `<br><span style="font-size:11px;color:var(--muted)">${esc(tr('pillInvitedNote'))}</span>`;
+    default:         return `<span class="pill muted">${esc(tr('pillNoPlan'))}</span>`;
   }
 }
 
@@ -897,7 +1508,7 @@ function versionCell(c) {
     ? `${esc(c.oldest_app_version)}–${esc(c.newest_app_version)}`
     : esc(c.newest_app_version);
   return `<span style="font-size:12.5px;color:${behind ? 'var(--red)' : 'inherit'}"
-    title="App version on their phones">v${spread}</span>`;
+    title="${esc(tr('versionTitle'))}">v${spread}</span>`;
 }
 
 function accessButton(c) {
@@ -910,22 +1521,27 @@ function accessButton(c) {
   // permanent grant. A company that owed money came back as a customer paying
   // nothing, with no trial clock and no plan, and no sign on the row that it
   // had happened.
+  //
+  // Only the button text below is translated -- the data-* attributes the
+  // click handlers key off (data-unsuspend, data-start, data-extend, ...)
+  // and the c.subscription_status / c.allowed / c.trial_ends_at checks that
+  // choose which button to show are untouched.
   if (c.suspended) {
-    return `<button class="primary" data-unsuspend="${c.id}" type="button">Reinstate</button>`;
+    return `<button class="primary" data-unsuspend="${c.id}" type="button">${esc(tr('reinstateBtn'))}</button>`;
   }
   if (c.subscription_status === 'pending' || (!c.allowed && !c.trial_ends_at)) {
-    return `<button class="primary" data-start="${c.id}" type="button">Start trial</button>`;
+    return `<button class="primary" data-start="${c.id}" type="button">${esc(tr('startTrialBtn'))}</button>`;
   }
   if (c.subscription_status === 'trialing') {
-    return `<button data-extend="${c.id}" type="button">+14 days</button>
-            <button class="primary" data-grant="${c.id}" type="button">Make customer</button>`;
+    return `<button data-extend="${c.id}" type="button">${esc(tr('extendBtn'))}</button>
+            <button class="primary" data-grant="${c.id}" type="button">${esc(tr('makeCustomerBtn'))}</button>`;
   }
   // Past due is the one status with something to say before something to do.
   if (c.subscription_status === 'past_due') {
-    return `<button data-chase="${c.id}" type="button">Chase payment</button>
-            <button class="danger" data-suspend="${c.id}" type="button">Suspend</button>`;
+    return `<button data-chase="${c.id}" type="button">${esc(tr('chasePaymentBtn'))}</button>
+            <button class="danger" data-suspend="${c.id}" type="button">${esc(tr('suspendBtn'))}</button>`;
   }
-  return `<button class="danger" data-suspend="${c.id}" type="button">Suspend</button>`;
+  return `<button class="danger" data-suspend="${c.id}" type="button">${esc(tr('suspendBtn'))}</button>`;
 }
 
 function compareClients(a, b) {
@@ -947,11 +1563,17 @@ function renderCompaniesTable() {
   filtered.sort(compareClients);
 
   $('empty').style.display = filtered.length ? 'none' : 'block';
-  $('empty').textContent = q ? `No company matches "${$('search').value.trim()}".` : 'No client companies yet.';
+  $('empty').textContent = q ? tr('companiesEmptyFiltered', $('search').value.trim()) : tr('companiesEmpty');
 
+  // c.subscription_plan is rendered raw a few lines down -- the stored plan
+  // string itself, not a label -- exactly like c.name and c.email above it.
+  // It is deliberately never routed through tr(): the dropdown in the
+  // Manage dialog has translated option text for the same three plans, but
+  // this cell is the value on the row, not a label, and stays untranslated
+  // for the same reason a company's own name does.
   $('rows').innerHTML = filtered.map(c => `
     <tr>
-      <td><b>${esc(c.name || 'Unnamed')}</b><br>
+      <td><b>${esc(c.name || tr('rowUnnamedCompany'))}</b><br>
           <span style="color:var(--muted);font-size:12px">${esc(c.email || '')}</span></td>
       <td>${statusPill(c)}</td>
       <td>${onboardingTrack(c)}</td>
@@ -961,17 +1583,17 @@ function renderCompaniesTable() {
       <td class="nowrap">${c.jobs}</td>
       <td class="nowrap">${day(c.last_seen)}</td>
       <td>${versionCell(c)}</td>
-      <td class="nowrap">${c.days_left != null ? c.days_left + ' days'
+      <td class="nowrap">${c.days_left != null ? tr('daysCount', c.days_left)
              : c.subscription_ends_at ? day(c.subscription_ends_at)
-             : c.trial_ends_at ? `<span style="color:var(--muted)">trial ended ${day(c.trial_ends_at)}</span>`
+             : c.trial_ends_at ? `<span style="color:var(--muted)">${esc(tr('trialEndedOn', day(c.trial_ends_at)))}</span>`
              : '—'}</td>
       <td style="white-space:nowrap">
         ${accessButton(c)}
         ${c.joined_at ? '' :
           `<button data-invite="${c.id}" data-email="${esc(c.invited_email || c.email || c.billing_email || '')}"
              data-name="${esc(c.name || '')}" data-reinvite="${c.invited_at ? '1' : '0'}"
-             type="button">${c.invited_at ? 'Re-invite' : 'Invite'}</button>`}
-        <button data-edit="${c.id}" type="button">Manage</button>
+             type="button">${c.invited_at ? esc(tr('reinviteBtn')) : esc(tr('inviteBtn'))}</button>`}
+        <button data-edit="${c.id}" type="button">${esc(tr('manageBtn'))}</button>
       </td>
     </tr>`).join('');
 
@@ -982,15 +1604,14 @@ function renderCompaniesTable() {
   document.querySelectorAll('[data-edit]').forEach(b =>
     b.addEventListener('click', () => openEdit(b.dataset.edit)));
 
-  const named = id => (clients.find(c => c.id === id) || {}).name || 'this company';
+  const named = id => (clients.find(c => c.id === id) || {}).name || tr('companyFallbackWord');
 
   document.querySelectorAll('[data-start]').forEach(b =>
     b.addEventListener('click', () => adminAction(
       'admin_start_trial', { target: b.dataset.start, days: 14 }, {
-        title: 'Start the trial?',
-        body: `${named(b.dataset.start)} gets fourteen days from now. They are not charged ` +
-              `anything, and you can extend it later if they need longer.`,
-        confirmLabel: 'Start 14 days'
+        title: tr('confirmStartTrialTitle'),
+        body: tr('confirmStartTrialBody', named(b.dataset.start)),
+        confirmLabel: tr('confirmStartTrialLabel')
       }, b)));
 
   // The new end date is named before it is granted, not after. This was the
@@ -1002,10 +1623,9 @@ function renderCompaniesTable() {
         ? new Date(c.trial_ends_at) : new Date();
       const to = new Date(from.getTime() + 14 * 86400000);
       adminAction('admin_extend_trial', { target: b.dataset.extend, days: 14 }, {
-        title: 'Add another fortnight?',
-        body: `${named(b.dataset.extend)} would run free until ${day(to.toISOString())}. ` +
-              `Nothing is charged, and you can add more time again later.`,
-        confirmLabel: 'Extend to ' + day(to.toISOString())
+        title: tr('confirmExtendTitle'),
+        body: tr('confirmExtendBody', named(b.dataset.extend), day(to.toISOString())),
+        confirmLabel: tr('confirmExtendLabel', day(to.toISOString()))
       }, b);
     }));
 
@@ -1013,30 +1633,25 @@ function renderCompaniesTable() {
   document.querySelectorAll('[data-unsuspend]').forEach(b =>
     b.addEventListener('click', () => adminAction(
       'admin_unsuspend', { target: b.dataset.unsuspend }, {
-        title: `Reinstate ${named(b.dataset.unsuspend)}?`,
-        body: 'Their crews get access back straight away. The plan, the price and ' +
-              'the billing state are left exactly as they are — this only lifts ' +
-              'the suspension.',
-        confirmLabel: 'Reinstate'
+        title: tr('confirmReinstateTitle', named(b.dataset.unsuspend)),
+        body: tr('confirmReinstateBody'),
+        confirmLabel: tr('reinstateBtn')
       }, b)));
 
   document.querySelectorAll('[data-grant]').forEach(b =>
     b.addEventListener('click', () => adminAction(
       'admin_grant_access', { target: b.dataset.grant, note: null }, {
-        title: 'Give open-ended access?',
-        body: `${named(b.dataset.grant)} keeps working with no trial clock and no plan required. ` +
-              `Use this for someone you are carrying deliberately, not as a way to fix a billing problem.`,
-        confirmLabel: 'Grant access'
+        title: tr('confirmGrantTitle'),
+        body: tr('confirmGrantBodyLong', named(b.dataset.grant)),
+        confirmLabel: tr('confirmGrantLabel')
       }, b)));
 
   document.querySelectorAll('[data-suspend]').forEach(b =>
     b.addEventListener('click', () => adminAction(
       'admin_suspend', { target: b.dataset.suspend, note: null }, {
-        title: `Suspend ${named(b.dataset.suspend)}?`,
-        body: 'Their crews lose access straight away. Nothing is deleted — every job, payment ' +
-              'and photo stays exactly where it is and comes back the moment access returns. ' +
-              'By default paying lifts this by itself.',
-        confirmLabel: 'Suspend',
+        title: tr('confirmSuspendTitle', named(b.dataset.suspend)),
+        body: tr('confirmSuspendBody'),
+        confirmLabel: tr('suspendBtn'),
         danger: true,
         withHold: true
       }, b)));
@@ -1055,7 +1670,7 @@ function renderCompaniesTable() {
  *
  * Resolves to false when cancelled, or the (possibly empty) options object.
  */
-function ask({ title, body, confirmLabel = 'Confirm', danger = false, withHold = false }) {
+function ask({ title, body, confirmLabel = tr('confirmDefaultLabel'), danger = false, withHold = false }) {
   return new Promise(resolve => {
     $('askTitle').textContent = title;
     $('askBody').textContent = body;
@@ -1100,8 +1715,8 @@ async function adminAction(fn, args, confirmOpts, btn) {
   // "Working…" in small grey text at the very top of the panel -- off screen
   // if the row is far down the list. On a slow connection the button looks
   // dead, so it gets pressed again, and +14 days hands out a month.
-  if (btn) { btn.disabled = true; btn.dataset.was = btn.textContent; btn.textContent = 'Working…'; }
-  $('msg').textContent = 'Working…';
+  if (btn) { btn.disabled = true; btn.dataset.was = btn.textContent; btn.textContent = tr('workingEllipsis'); }
+  $('msg').textContent = tr('workingEllipsis');
   let error;
   try {
     ({ error } = await db.rpc(fn, call));
@@ -1132,10 +1747,10 @@ function createCompany() {
 async function submitNewCompany() {
   const name = $('newName').value.trim();
   const email = $('newEmail').value.trim();
-  if (!name) { $('newMsg').textContent = 'Give the company a name.'; return; }
+  if (!name) { $('newMsg').textContent = tr('newMsgGiveName'); return; }
 
   $('newCreate').disabled = true;
-  $('newMsg').textContent = email ? 'Creating and sending the invitation…' : 'Creating…';
+  $('newMsg').textContent = email ? tr('newMsgCreatingInviting') : tr('newMsgCreating');
 
   const { data, error } = await db.rpc('admin_create_company', {
     company_name: name, contact_email: email || null
@@ -1157,9 +1772,9 @@ async function submitNewCompany() {
       });
       const body = await res.json();
       if (body.sent) invited = true;
-      else $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (body.error || 'unknown');
+      else $('newMsg').textContent = tr('newMsgCreatedNotSent', body.error || 'unknown');
     } catch (e) {
-      $('newMsg').textContent = 'Company created, but the invitation did not send: ' + (e.message || e);
+      $('newMsg').textContent = tr('newMsgCreatedNotSent', e.message || e);
     }
   }
 
@@ -1168,14 +1783,18 @@ async function submitNewCompany() {
 
   if (invited) {
     $('newDialog').close();
-    $('msg').textContent = `Invitation sent to ${email}.`;
+    $('msg').textContent = tr('inviteSent', email);
     setTimeout(() => { $('msg').textContent = ''; }, 4000);
     return;
   }
   if (!email && code) {
     $('newDialog').close();
     $('setupCode').textContent = code;
-    $('setupFor').textContent = name;
+    // Bold-around-a-name and a mid-sentence quoted button label, same reason
+    // suspensionHowBody and setupDialogFootnote's own %s are filled this way
+    // instead of a plain data-t.
+    $('setupDialogBody').innerHTML = tr('setupDialogBody', '<b>' + esc(name) + '</b>');
+    $('setupDialogFootnote').innerHTML = tr('setupDialogFootnote', '<b>' + esc(tr('startTrialBtn')) + '</b>');
     $('setupDialog').showModal();
   }
 }
@@ -1184,7 +1803,7 @@ async function submitNewCompany() {
 async function inviteCompany(id, name, existingEmail, alreadyInvited) {
   const email = (existingEmail || '').trim();
   if (!email) {
-    $('msg').textContent = 'Add a contact email in Manage first, then invite.';
+    $('msg').textContent = tr('inviteAddContactFirst');
     setTimeout(() => { $('msg').textContent = ''; }, 4000);
     return;
   }
@@ -1193,14 +1812,14 @@ async function inviteCompany(id, name, existingEmail, alreadyInvited) {
   // it and letting the click be undone is the same bar every other
   // customer-facing action on this page already clears.
   const ok = await ask({
-    title: (alreadyInvited ? 'Re-send the invitation?' : 'Send the invitation?'),
-    body: `An email goes to ${email} for ${name || 'this company'} right away.` +
-          (alreadyInvited ? ' They already have one from before -- this sends another.' : ''),
-    confirmLabel: alreadyInvited ? 'Re-send' : 'Send'
+    title: (alreadyInvited ? tr('confirmResendInviteTitle') : tr('confirmSendInviteTitle')),
+    body: tr('confirmInviteBody', email, name || tr('companyFallbackWord')) +
+          (alreadyInvited ? tr('confirmInviteAlreadySuffix') : ''),
+    confirmLabel: alreadyInvited ? tr('reinviteConfirmLabel') : tr('sendConfirmLabel')
   });
   if (!ok) return;
 
-  $('msg').textContent = `Sending to ${email}…`;
+  $('msg').textContent = tr('inviteSending', email);
   const { data: sess } = await db.auth.getSession();
 
   let note;
@@ -1211,11 +1830,11 @@ async function inviteCompany(id, name, existingEmail, alreadyInvited) {
       body: JSON.stringify({ companyId: id, email, companyName: name })
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) note = body.error || `The mail server refused it (${res.status}).`;
+    if (!res.ok) note = body.error || tr('inviteMailRefused', res.status);
     else if (body.warning) note = body.warning;
-    else note = body.sent ? `Invitation sent to ${email}.` : (body.error || 'Could not send it.');
+    else note = body.sent ? tr('inviteSent', email) : (body.error || tr('inviteCouldNotSend'));
   } catch (e) {
-    note = 'Could not reach the mail server: ' + String(e.message || e);
+    note = tr('inviteCouldNotReach', String(e.message || e));
   }
   await loadAll();
   $('msg').textContent = note;
@@ -1230,36 +1849,36 @@ async function inviteCompany(id, name, existingEmail, alreadyInvited) {
 function renderCrashes() {
   if (!crashes.length) {
     $('errRows').innerHTML = '';
-    $('errNote').textContent = 'No crashes in the last 14 days.';
+    $('errNote').textContent = tr('crashNoneLast14');
     return;
   }
   $('errNote').textContent = '';
 
   $('errRows').innerHTML = crashes.map((c, i) => {
     const open = c.any_unseen;
-    const message = c.message || '(no message)';
+    const message = c.message || tr('crashNoMessage');
     return `<div class="crash-row${open ? '' : ' handled'}">
       <div class="crash-msg">
         <b title="${esc(message)}">${esc(message)}</b>
-        <button class="linklike" data-stack="${i}" type="button">View stack trace</button>
+        <button class="linklike" data-stack="${i}" type="button">${esc(tr('crashViewStack'))}</button>
       </div>
-      <div><span class="lbl">Screen</span><span class="truncate" title="${esc(c.where_at || '—')}">${esc(c.where_at || '—')}</span></div>
-      <div><span class="lbl">Count</span><b>${c.occurrences}</b></div>
-      <div><span class="lbl">Phones</span>${c.devices}</div>
-      <div><span class="lbl">Version</span><span class="truncate" title="${esc(c.latest_version || '—')}">${esc(c.latest_version || '—')}</span></div>
-      <div><span class="lbl">First seen</span>${day(c.first_seen)}</div>
-      <div><span class="lbl">Last seen</span>${day(c.last_seen)}</div>
+      <div><span class="lbl">${esc(tr('crashLblScreen'))}</span><span class="truncate" title="${esc(c.where_at || '—')}">${esc(c.where_at || '—')}</span></div>
+      <div><span class="lbl">${esc(tr('crashLblCount'))}</span><b>${c.occurrences}</b></div>
+      <div><span class="lbl">${esc(tr('crashLblPhones'))}</span>${c.devices}</div>
+      <div><span class="lbl">${esc(tr('colVersion'))}</span><span class="truncate" title="${esc(c.latest_version || '—')}">${esc(c.latest_version || '—')}</span></div>
+      <div><span class="lbl">${esc(tr('crashLblFirstSeen'))}</span>${day(c.first_seen)}</div>
+      <div><span class="lbl">${esc(tr('colLastSeen'))}</span>${day(c.last_seen)}</div>
       <div>${open
-        ? `<button class="small" data-seen="${i}" type="button">Mark seen</button>`
-        : '<span class="pill muted">Handled</span>'}</div>
+        ? `<button class="small" data-seen="${i}" type="button">${esc(tr('crashMarkSeen'))}</button>`
+        : `<span class="pill muted">${esc(tr('crashHandled'))}</span>`}</div>
     </div>`;
   }).join('');
 
   document.querySelectorAll('[data-stack]').forEach(a =>
     a.addEventListener('click', () => {
       const c = crashes[a.dataset.stack];
-      $('stackTitle').textContent = c.message || '(no message)';
-      $('stackBody').textContent = c.sample_stack || '(none recorded)';
+      $('stackTitle').textContent = c.message || tr('crashNoMessage');
+      $('stackBody').textContent = c.sample_stack || tr('crashNoStackRecorded');
       $('stackDialog').showModal();
     }));
 
@@ -1279,7 +1898,7 @@ function renderReleases() {
   }
   if (!releases.length) {
     $('releaseRows').innerHTML = '';
-    $('releaseNote').textContent = 'No releases recorded yet.';
+    $('releaseNote').textContent = tr('releaseNoneYet');
     return;
   }
   $('releaseNote').textContent = '';
@@ -1290,18 +1909,20 @@ function renderReleases() {
     const limited = r.audience === 'limited';
     const names = releaseAudience.filter(a => a.release_id === r.id).map(a => a.company_name);
     const audienceCell = !limited
-      ? '<span class="pill muted">Everyone</span>'
-      : `<span class="pill bad">Limited</span><br>` +
-        `<span style="color:var(--muted);font-size:11.5px">${names.length ? esc(names.join(', ')) : 'no companies named -- visible to nobody'}</span>`;
+      ? `<span class="pill muted">${esc(tr('releaseEveryone'))}</span>`
+      : `<span class="pill bad">${esc(tr('releaseLimited'))}</span><br>` +
+        // names are stored company names -- passed through esc() untranslated,
+        // exactly like every other company name on this page.
+        `<span style="color:var(--muted);font-size:11.5px">${names.length ? esc(names.join(', ')) : esc(tr('releaseNoCompaniesNamed'))}</span>`;
     return `
     <tr>
-      <td><b>${esc(r.version_name)}</b><br><span style="color:var(--muted);font-size:11.5px">build ${esc(r.version_code)}</span></td>
+      <td><b>${esc(r.version_name)}</b><br><span style="color:var(--muted);font-size:11.5px">${esc(tr('releaseBuildLabel', r.version_code))}</span></td>
       <td style="white-space:normal;max-width:420px">${esc(r.notes || '—')}</td>
-      <td>${r.is_mandatory ? '<span class="pill bad">Required</span>' : '<span class="pill muted">Optional</span>'}</td>
+      <td>${r.is_mandatory ? `<span class="pill bad">${esc(tr('releaseRequired'))}</span>` : `<span class="pill muted">${esc(tr('releaseOptional'))}</span>`}</td>
       <td>${audienceCell}</td>
       <td class="nowrap">${day(r.released_at)}</td>
-      <td>${r.download_url ? `<a href="${esc(r.download_url)}" target="_blank" rel="noopener">Download</a>` : '—'}<br>
-        ${limited ? `<button data-promote="${esc(r.id)}" style="margin-top:6px">Promote to everyone</button>` : ''}</td>
+      <td>${r.download_url ? `<a href="${esc(r.download_url)}" target="_blank" rel="noopener">${esc(tr('releaseDownload'))}</a>` : '—'}<br>
+        ${limited ? `<button data-promote="${esc(r.id)}" style="margin-top:6px">${esc(tr('releasePromoteBtn'))}</button>` : ''}</td>
     </tr>`;
   }).join('');
 
@@ -1309,11 +1930,9 @@ function renderReleases() {
     b.addEventListener('click', async () => {
       const r = releases.find(x => x.id === b.dataset.promote);
       const confirmed = await ask({
-        title: 'Promote this release?',
-        body: `"${r ? r.version_name : ''}" will become visible to every company, not just the ` +
-              `ones it currently goes to. This cannot be undone from here -- publishing a fresh ` +
-              `limited release is how you'd narrow it again.`,
-        confirmLabel: 'Promote',
+        title: tr('confirmPromoteTitle'),
+        body: tr('confirmPromoteBody', r ? r.version_name : ''),
+        confirmLabel: tr('promoteBtn'),
       });
       if (!confirmed) return;
       // No RLS write policy lets a browser touch app_releases or
@@ -1327,16 +1946,17 @@ function renderReleases() {
 
 /* ----------------------------------------------------- pricing drift ---- */
 function renderDrift() {
-  $('driftNote').innerHTML =
-    'Full cross-company visibility needs a platform-admin read policy on <code>pricing_drift</code> ' +
-    '(something like <code>using (is_platform_admin())</code>, the same shape as the one on ' +
-    '<code>companies</code>), or a SECURITY DEFINER <code>admin_pricing_drift()</code> RPC the way crashes ' +
-    'and companies already have. Neither exists yet -- <code>pricing_drift_read</code> is scoped to ' +
-    '<code>company_id = current_company_id()</code>, so this table can only ever show rows your own ' +
-    'account happens to be allowed to see, typically none.';
+  // Every <code> segment travels as its own %s argument so the six identifiers
+  // inside them -- table, function and policy names a person would actually
+  // grep the migrations for -- are never touched by translation, only the
+  // English prose explaining them.
+  $('driftNote').innerHTML = tr('driftNoteBody',
+    '<code>pricing_drift</code>', '<code>using (is_platform_admin())</code>', '<code>companies</code>',
+    '<code>admin_pricing_drift()</code>', '<code>pricing_drift_read</code>',
+    '<code>company_id = current_company_id()</code>');
 
   if (!drift.length) {
-    $('driftRows').innerHTML = `<tr><td colspan="7" style="color:var(--muted)">Nothing visible to this account.</td></tr>`;
+    $('driftRows').innerHTML = `<tr><td colspan="7" style="color:var(--muted)">${esc(tr('driftNoneVisible'))}</td></tr>`;
     return;
   }
   /* The gap, not the totals.
@@ -1356,10 +1976,15 @@ function renderDrift() {
     const base = Math.max(Math.abs(a), Math.abs(b));
     const pct = base > 0.005 ? (gap / base) * 100 : 0;
     const bad = pct >= 1;
+    // The word "apart" is translated; the dollar amount and the percentage
+    // are formatted the same way in every language -- never a figure this
+    // page is told not to touch.
     return '<span style="' + (bad ? 'color:#b3261e;font-weight:600' : '') + '">' +
-      money(gap) + ' apart' + (base > 0.005 ? ' (' + pct.toFixed(1) + '%)' : '') + '</span>';
+      esc(tr('driftApart', money(gap))) + (base > 0.005 ? ' (' + pct.toFixed(1) + '%)' : '') + '</span>';
   };
 
+  // r.office_engine / r.phone_engine are raw stored identifiers (which pricing
+  // engine ran), not labels -- esc()'d like a company name, never tr()'d.
   $('driftRows').innerHTML = drift.map(r => `
     <tr>
       <td class="nowrap" title="${esc(r.company_id)}">${esc((r.company_id || '').slice(0, 8))}…</td>
@@ -1367,7 +1992,7 @@ function renderDrift() {
       <td>${driftGap(r)}</td>
       <td>${esc(r.office_engine)} / ${esc(r.phone_engine)}</td>
       <td class="nowrap">${day(r.noted_at)}</td>
-      <td><button class="small" data-drift-seen="${r.id}" type="button">Mark seen</button></td>
+      <td><button class="small" data-drift-seen="${r.id}" type="button">${esc(tr('crashMarkSeen'))}</button></td>
     </tr>`).join('');
 
   document.querySelectorAll('[data-drift-seen]').forEach(b =>
@@ -1377,7 +2002,7 @@ function renderDrift() {
       // Said out loud. It used to fail silently, which leaves the row looking
       // unhandled with no reason given -- so the next person clicks it again,
       // and again, and concludes the button does nothing.
-      if (error) { b.textContent = 'Could not mark it: ' + error.message; return; }
+      if (error) { b.textContent = tr('driftMarkFailed', error.message); return; }
       await loadDrift(); renderDrift();
     }));
 }
@@ -1399,83 +2024,81 @@ async function drawerAction(fn, args, confirmOpts) {
 
 async function copySetupCode() {
   if (!editing) return;
-  $('editMsg').textContent = 'Looking it up…';
+  $('editMsg').textContent = tr('copyLookingUp');
   const { data, error } = await db.from('company_setup_codes')
     .select('code').eq('company_id', editing.id).is('used_at', null)
     .order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error) { $('editMsg').textContent = error.message; return; }
   if (!data) {
-    $('editMsg').textContent = 'No unused setup code on file -- invite by email instead, or add a company again.';
+    $('editMsg').textContent = tr('copyNoUnusedCode');
     return;
   }
   try {
     await navigator.clipboard.writeText(data.code);
-    $('editMsg').textContent = 'Setup code copied.';
+    $('editMsg').textContent = tr('copySetupCodeCopied');
   } catch {
-    $('editMsg').textContent = 'Code: ' + data.code;
+    $('editMsg').textContent = tr('copyCodeFallback', data.code);
   }
 }
 
 function buildQuickActions(c) {
   const row = $('qaRow');
   row.innerHTML = '';
-  const named = c.name || 'this company';
+  const named = c.name || tr('companyFallbackWord');
 
   if (c.suspended) {
-    row.appendChild(drawerButton('Reinstate', () => drawerAction(
+    row.appendChild(drawerButton(tr('reinstateBtn'), () => drawerAction(
       'admin_unsuspend', { target: c.id }, {
-        title: `Reinstate ${named}?`,
-        body: 'Their crews get access back straight away. The plan, the price and the ' +
-              'billing state are left exactly as they are — this only lifts the suspension.',
-        confirmLabel: 'Reinstate'
+        title: tr('confirmReinstateTitle', named),
+        body: tr('confirmReinstateBody'),
+        confirmLabel: tr('reinstateBtn')
       }), 'primary'));
     return;
   }
 
   if (c.subscription_status === 'pending' || (!c.allowed && !c.trial_ends_at)) {
-    row.appendChild(drawerButton('Start trial', () => drawerAction(
+    row.appendChild(drawerButton(tr('startTrialBtn'), () => drawerAction(
       'admin_start_trial', { target: c.id, days: 14 }, {
-        title: 'Start the trial?',
-        body: `${named} gets fourteen days from now. They are not charged anything.`,
-        confirmLabel: 'Start 14 days'
+        title: tr('confirmStartTrialTitle'),
+        body: tr('confirmStartTrialShortBody', named),
+        confirmLabel: tr('confirmStartTrialLabel')
       }), 'primary'));
   }
   if (c.subscription_status === 'trialing') {
     const from = c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? new Date(c.trial_ends_at) : new Date();
     const to = new Date(from.getTime() + 14 * 86400000);
-    row.appendChild(drawerButton('+14 days', () => drawerAction(
+    row.appendChild(drawerButton(tr('extendBtn'), () => drawerAction(
       'admin_extend_trial', { target: c.id, days: 14 }, {
-        title: 'Add another fortnight?',
-        body: `${named} would run free until ${day(to.toISOString())}.`,
-        confirmLabel: 'Extend to ' + day(to.toISOString())
+        title: tr('confirmExtendTitle'),
+        body: tr('confirmExtendShortBody', named, day(to.toISOString())),
+        confirmLabel: tr('confirmExtendLabel', day(to.toISOString()))
       })));
-    row.appendChild(drawerButton('Make customer', () => drawerAction(
+    row.appendChild(drawerButton(tr('makeCustomerBtn'), () => drawerAction(
       'admin_grant_access', { target: c.id, note: null }, {
-        title: 'Give open-ended access?',
-        body: `${named} keeps working with no trial clock and no plan required.`,
-        confirmLabel: 'Grant access'
+        title: tr('confirmGrantTitle'),
+        body: tr('confirmGrantBodyShort', named),
+        confirmLabel: tr('confirmGrantLabel')
       }), 'primary'));
   } else {
-    row.appendChild(drawerButton('Grant open access', () => drawerAction(
+    row.appendChild(drawerButton(tr('grantOpenAccessBtn'), () => drawerAction(
       'admin_grant_access', { target: c.id, note: null }, {
-        title: 'Give open-ended access?',
-        body: `${named} keeps working with no trial clock and no plan required. Use this for ` +
-              `someone you are carrying deliberately, not as a way to fix a billing problem.`,
-        confirmLabel: 'Grant access'
+        title: tr('confirmGrantTitle'),
+        body: tr('confirmGrantBodyLong', named),
+        confirmLabel: tr('confirmGrantLabel')
       })));
   }
   if (c.subscription_status === 'past_due') {
-    row.appendChild(drawerButton('Chase payment', () => chase(c.id)));
+    row.appendChild(drawerButton(tr('chasePaymentBtn'), () => chase(c.id)));
   }
   if (!c.joined_at) {
-    row.appendChild(drawerButton('Copy setup code', copySetupCode));
+    row.appendChild(drawerButton(tr('copySetupCodeBtn'), copySetupCode));
   }
 }
 
 function openEdit(id) {
   editing = clients.find(c => c.id === id);
   if (!editing) return;
-  $('editTitle').textContent = editing.name || 'Unnamed company';
+  $('editTitle').textContent = editing.name || tr('editUnnamedCompany');
   buildQuickActions(editing);
 
   // Only what the server understands. Anything already in the column that is
@@ -1487,7 +2110,9 @@ function openEdit(id) {
   if (legacy) legacy.remove();
   if (plan && !known.includes(plan.toLowerCase())) {
     const o = document.createElement('option');
-    o.value = plan; o.textContent = plan + ' — unrecognised, no seat limit';
+    // plan itself is the raw stored value and stays untranslated; only the
+    // explanatory suffix around it is.
+    o.value = plan; o.textContent = plan + tr('legacyPlanSuffix');
     o.dataset.legacy = '1';
     $('e_plan').appendChild(o);
   }
@@ -1503,14 +2128,14 @@ function openEdit(id) {
   $('e_email').value = editing.billing_email || editing.email || '';
   $('e_grace').value = editing.grace_ends_at ? editing.grace_ends_at.slice(0, 10) : '';
   $('e_notes').value = editing.admin_notes || '';
-  $('e_suspend').textContent = editing.suspended ? 'Un-suspend' : 'Suspend';
+  $('e_suspend').textContent = editing.suspended ? tr('unsuspendBtn') : tr('suspendBtn');
   $('editMsg').textContent = '';
   $('editDialog').showModal();
 }
 
 async function saveEdit() {
   if (!editing) return;
-  $('editMsg').textContent = 'Saving…';
+  $('editMsg').textContent = tr('savingEllipsis');
   const patch = {
     // An empty box is an empty string, never null. companies.email is NOT NULL
     // with a '' default, so "|| null" made Save changes fail outright on any
@@ -1535,35 +2160,39 @@ async function saveEdit() {
      changed note or contact address saves as it always did -- confirming
      everything is how people learn to click through confirmations without
      reading them. */
+  // The two raw stored plan strings (editing.subscription_plan,
+  // patch.subscription_plan) travel through moneyChangePlanLine's %s
+  // untouched -- only "plan:" / "becomes" around them is translated, and
+  // 'none' below is this function's own fallback word for an empty plan,
+  // not a value stored anywhere, so it is translated too.
   const moneyChanges = [];
   if ('subscription_plan' in patch && patch.subscription_plan !== (editing.subscription_plan || '')) {
-    moneyChanges.push('plan: ' + (editing.subscription_plan || 'none') +
-                      ' becomes ' + (patch.subscription_plan || 'none'));
+    moneyChanges.push(tr('moneyChangePlanLine',
+      editing.subscription_plan || tr('moneyChangeNoneWord'),
+      patch.subscription_plan || tr('moneyChangeNoneWord')));
   }
   if ('monthly_price' in patch && Number(patch.monthly_price) !== Number(editing.monthly_price || 0)) {
-    moneyChanges.push('price: ' + money(editing.monthly_price || 0) +
-                      ' becomes ' + money(patch.monthly_price));
+    moneyChanges.push(tr('moneyChangePriceLine', money(editing.monthly_price || 0), money(patch.monthly_price)));
   }
   const graceBefore = editing.grace_ends_at ? new Date(editing.grace_ends_at).getTime() : 0;
   const graceAfter = patch.grace_ends_at ? new Date(patch.grace_ends_at).getTime() : 0;
   if (graceBefore !== graceAfter) {
     moneyChanges.push(graceAfter
-      ? 'free access until ' + new Date(graceAfter).toLocaleDateString()
-      : 'free access removed');
+      ? tr('moneyChangeGraceUntil', new Date(graceAfter).toLocaleDateString())
+      : tr('moneyChangeGraceRemoved'));
   }
 
   if (moneyChanges.length) {
     const ok = await ask({
-      title: 'Change what ' + (editing.name || 'this company') + ' pays?',
+      title: tr('confirmMoneyChangeTitle', editing.name || tr('companyFallbackWord')),
       // The company's own name in the question, because a wrong row is the
       // mistake this is here to catch, and the name is the only thing that
       // tells you which row you are on.
-      body: moneyChanges.join('. ') + '. They are not told, and nothing here ' +
-            'takes a payment — it changes what the next bill is worked out from.',
-      confirmLabel: 'Change it',
+      body: tr('confirmMoneyChangeBody', moneyChanges.join('. ')),
+      confirmLabel: tr('confirmMoneyChangeLabel'),
       danger: true,
     });
-    if (!ok) { $('editMsg').textContent = 'Nothing was changed.'; return; }
+    if (!ok) { $('editMsg').textContent = tr('editNothingChanged'); return; }
   }
 
   const { error } = await db.from('companies').update(patch).eq('id', editing.id);
@@ -1580,17 +2209,15 @@ async function toggleSuspend() {
   let args = { target: editing.id };
   if (turningOn) {
     const answer = await ask({
-      title: `Suspend ${editing.name}?`,
-      body: 'Their crews lose access straight away. Nothing is deleted — every job, payment ' +
-            'and photo stays exactly where it is and comes back the moment access returns. ' +
-            'By default paying lifts this by itself.',
-      confirmLabel: 'Suspend', danger: true, withHold: true
+      title: tr('confirmSuspendTitle', editing.name),
+      body: tr('confirmSuspendBody'),
+      confirmLabel: tr('suspendBtn'), danger: true, withHold: true
     });
     if (!answer) return;
     args = { target: editing.id, note: null, hold: !!answer.hold };
   }
 
-  $('editMsg').textContent = 'Working…';
+  $('editMsg').textContent = tr('workingEllipsis');
   const { error } = await db.rpc(turningOn ? 'admin_suspend' : 'admin_unsuspend', args);
   if (error) { $('editMsg').textContent = error.message; return; }
   $('editMsg').textContent = '';
@@ -1602,14 +2229,25 @@ async function copyCompanyId() {
   if (!editing) return;
   try {
     await navigator.clipboard.writeText(editing.id);
-    $('copyId').textContent = 'Copied';
+    $('copyId').textContent = tr('copyIdCopied');
   } catch {
-    $('copyId').textContent = 'Copy failed';
+    $('copyId').textContent = tr('copyIdFailed');
   }
-  setTimeout(() => { $('copyId').textContent = 'Copy id'; }, 1400);
+  setTimeout(() => { $('copyId').textContent = tr('copyIdBtn'); }, 1400);
 }
 
 /* ----------------------------------------------------- chasing payment ---- */
+// Deliberately NOT run through tr(): this is an email drafted TO a customer,
+// not console chrome read BY the admin, and the two have no reason to share
+// a language. This page's picker remembers the admin's own preference (the
+// same ff_lang the office and the customer-facing pages read); the company
+// on the other end of this email never chose that value, so translating the body
+// to match whatever language the admin's browser is currently in would send
+// a Spanish or French collections notice to an English-speaking customer (or
+// the reverse) with no relationship to what they actually read. There is no
+// per-company language on file to draft this in instead, so it stays in
+// English, matching what a fencing company outside Quebec or a Spanish-
+// speaking market overwhelmingly is.
 function chase(id) {
   const c = clients.find(x => x.id === id);
   if (!c) return;
@@ -1637,6 +2275,10 @@ function csvSafeCell(v) {
   return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
 }
 
+// Column headers stay in English on purpose. They are machine-facing --
+// the row underneath is what a spreadsheet or a script keys off of by
+// name -- not console prose, so there is no data-t/tr() here the way there
+// is on the table these rows are drawn from.
 function exportCsv() {
   const head = ['CompanyId', 'Company', 'Status', 'Plan', 'MonthlyPrice', 'Seats', 'Jobs', 'LastSeen', 'Suspended', 'BillingEmail'];
   const rows = clients.map(c => [
@@ -1656,11 +2298,11 @@ function exportCsv() {
 /* ------------------------------------------------------------- account ---- */
 function renderMfaStatus() {
   const on = !!mfaFactor;
-  $('mfaPill').textContent = mfaListError ? 'Unknown' : (on ? 'ON' : 'OFF');
+  $('mfaPill').textContent = mfaListError ? tr('mfaPillUnknown') : (on ? tr('mfaPillOn') : tr('mfaPillOff'));
   $('mfaPill').className = 'pill ' + (mfaListError ? 'muted' : (on ? 'ok' : 'muted'));
   $('mfaText').textContent = mfaListError ? mfaListError : (on
-    ? 'Two-factor is required on every sign-in to this account.'
-    : 'Anyone with this password alone can sign in. Turning two-factor on asks for a code from your phone too.');
+    ? tr('mfaOnRequired')
+    : tr('mfaOffWarning'));
   $('mfaOff').style.display = on ? 'none' : '';
   $('mfaOn').style.display = on ? '' : 'none';
   $('mfaEnrollBox').style.display = 'none';
@@ -1668,7 +2310,7 @@ function renderMfaStatus() {
 }
 
 async function startMfaEnroll() {
-  $('mfaEnrollMsg').textContent = 'Preparing…';
+  $('mfaEnrollMsg').textContent = tr('mfaEnrollPreparing');
   // A second attempt at enrolling before finishing the first leaves an
   // unverified factor behind, and Supabase refuses a new TOTP enrollment
   // while one already exists. Clearing any stale, never-verified attempt
@@ -1689,8 +2331,8 @@ async function startMfaEnroll() {
 
 async function verifyMfaEnroll() {
   const code = $('mfaEnrollCode').value.trim();
-  if (!/^\d{6}$/.test(code)) { $('mfaEnrollMsg').textContent = 'Enter the 6-digit code.'; return; }
-  $('mfaEnrollMsg').textContent = 'Checking…';
+  if (!/^\d{6}$/.test(code)) { $('mfaEnrollMsg').textContent = tr('sixDigitCode'); return; }
+  $('mfaEnrollMsg').textContent = tr('checkingEllipsis');
   const { error } = await db.auth.mfa.challengeAndVerify({ factorId: pendingFactorId, code });
   if (error) { $('mfaEnrollMsg').textContent = error.message; return; }
   pendingFactorId = null;
@@ -1708,8 +2350,8 @@ function cancelMfaEnroll() {
 async function turnOffMfa() {
   const code = $('mfaOffCode').value.trim();
   if (!mfaFactor) return;
-  if (!/^\d{6}$/.test(code)) { $('mfaMsg').textContent = 'Enter the current 6-digit code first.'; return; }
-  $('mfaMsg').textContent = 'Checking…';
+  if (!/^\d{6}$/.test(code)) { $('mfaMsg').textContent = tr('mfaOffEnterCodeFirst'); return; }
+  $('mfaMsg').textContent = tr('checkingEllipsis');
   const { error: vErr } = await db.auth.mfa.challengeAndVerify({ factorId: mfaFactor.id, code });
   if (vErr) { $('mfaMsg').textContent = vErr.message; return; }
   const { error } = await db.auth.mfa.unenroll({ factorId: mfaFactor.id });
@@ -1739,6 +2381,7 @@ document.querySelectorAll('#view-companies th[data-sort]').forEach(th => {
 });
 
 $('search').addEventListener('input', renderCompaniesTable);
+$('langPicker').addEventListener('change', e => setLang(e.target.value));
 
 $('signIn').addEventListener('click', signIn);
 $('password').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
