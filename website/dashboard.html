@@ -2271,7 +2271,7 @@ const TL = {
     catMissingPrefix:'Missing: ', catMissingSuffix:' — the estimate will flag these as unmatched until one is priced.',
     catAllRolesPricedMsg:'Every role this fence type needs has a priced item.',
     catUniversalLabel:'Universal',
-    catPlaceholderFlagTitle:'Placeholder price — verify with your supplier',
+    catPlaceholderFlagTitle:'Unverified price — verify with your supplier',
     seatUsedOfCap:'%s of %s used', seatNoLimit:'%s in use — no limit on this plan',
     seatUnnamed:'Unnamed', seatRemovedOn:'— removed %s', seatLetBackInBtn:'Let them back in',
     seatRejoinOk:'They can join again with the same code. It does not use a seat until they do.',
@@ -4038,6 +4038,13 @@ let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[
     // means every alert is on, so a page load before the prefs fetch settles
     // (or a database without the table yet) behaves exactly as it always has.
     mutedAlerts = new Set(),
+    // Which "needs attention" alerts THIS user has marked seen, and at which
+    // fingerprint -- a Map of alert key -> fingerprint, read from
+    // notification_prefs.seen_alerts (supabase_alerts_seen.sql). Same table,
+    // same policies, same person as mutedAlerts above. Starts empty, so a
+    // page load before the prefs fetch settles shows everything rather than
+    // hiding an alert it has no evidence was ever dismissed.
+    seenAlerts = new Map(),
     // True once `times` has been topped up to every time_entries row the
     // company has, not just the recent/pending slice loadAll() bounds the
     // first paint to. Set by ensureFullTimes(), which every screen that
@@ -4100,13 +4107,31 @@ const alertOn = key => !mutedAlerts.has(key);
 
 /* ---------- "seen" state for the Needs-attention list -- launch audit §28 ----
    Muting (above) is "never show me this kind of alert again". This is the
-   other half: "I have seen THIS one, for now". There is no seen_alerts (or
-   similar) column on notification_prefs or anywhere else in the database --
-   adding one is a schema change this file does not own -- so this lives in
-   the browser's own localStorage. It does not follow a user to another
-   computer and does not survive clearing site data; that is a real
-   limitation, stated here rather than hidden, not a bug to work around with
-   a guess at a table shape that may not match what actually gets built.
+   other half: "I have seen THIS one, for now".
+
+   This used to live only in localStorage, under a comment saying no column
+   existed to put it in. One does: notification_prefs.seen_alerts, added by
+   supabase_alerts_seen.sql and live in production (jsonb, not null, default
+   '{}'), alongside the mute preferences this user's row already holds --
+   written through mark_alert_seen(alert_key, fingerprint), which is SECURITY
+   DEFINER, scoped to auth.uid(), granted to authenticated and revoked from
+   anon. Verified against the database before this was wired to it, both the
+   column and the function. The store was built for exactly this and nothing
+   was reading it, so clearing the list at the desk left every one of them
+   waiting on the laptop that evening -- which is how people learn to stop
+   reading the list.
+
+   The server is the truth; localStorage stays underneath it as a cache, and
+   the two are unioned rather than one replacing the other. Both directions of
+   that matter. Reading: dismissals made by older builds are already sitting
+   in localStorage and should not all reappear the day this ships. Writing:
+   the local copy is written first and unconditionally, so a dismissal made
+   with the network down still holds on this machine after a reload instead of
+   silently evaporating -- the button must not look like it worked and then
+   not have.
+
+   There is no un-dismiss, here or in the RPC (jsonb ||, never a delete), so a
+   union can only ever hide an alert the person has already dismissed once.
 
    Keyed by (alert key, fingerprint) rather than by key alone, so dismissing
    "quote gone quiet" for a job does not also hide it forever the NEXT time
@@ -4122,15 +4147,33 @@ function loadSeenAlerts(){
 }
 function isAlertSeen(item){
   if (!item.key) return false;
-  const seen = loadSeenAlerts();
-  return seen.has(item.key) && seen.get(item.key) === String(item.fp ?? '');
+  const fp = String(item.fp ?? '');
+  // seenAlerts is this user's row from the database; the local cache covers
+  // dismissals this browser made before the column was wired up, and any made
+  // while the write could not go through.
+  if (seenAlerts.get(item.key) === fp) return true;
+  return loadSeenAlerts().get(item.key) === fp;
 }
-function dismissAlert(key, fp){
+async function dismissAlert(key, fp){
   if (!key) return;
-  const seen = loadSeenAlerts();
-  seen.set(key, String(fp ?? ''));
-  try { localStorage.setItem(seenAlertsKey(), JSON.stringify([...seen])); } catch (e) {}
+  const stamp = String(fp ?? '');
+  // In memory and on disk first, then repaint, then the network. The list has
+  // to close over the row the moment it is pressed; waiting on a round trip
+  // to hide it would make a working button feel broken.
+  seenAlerts.set(key, stamp);
+  const local = loadSeenAlerts();
+  local.set(key, stamp);
+  try { localStorage.setItem(seenAlertsKey(), JSON.stringify([...local])); } catch (e) {}
   renderDash();
+  try {
+    const { error } = await db.rpc('mark_alert_seen', { alert_key: key, fingerprint: stamp });
+    // Not surfaced on screen: the dismissal is real on this machine either
+    // way, and the only thing lost is that it will not follow the person to
+    // another one. An error banner over a list they just tidied would be
+    // worse than the console line, which is there for whoever is debugging
+    // why a dismissal did not travel.
+    if (error) console.warn('mark_alert_seen failed; dismissal is local only:', error.message);
+  } catch (e) { console.warn('mark_alert_seen failed; dismissal is local only:', e); }
 }
 // Colour per severity tier, not per boolean -- a dispute with money already
 // gone and a quote that has merely gone quiet both used to render as the
@@ -4181,6 +4224,7 @@ function notifyOfNewAlerts(items){
 async function loadNotifPrefs(){
   mutedAlerts = new Set();
   dismissedSetupSteps = new Set();
+  seenAlerts = new Map();
   if (!profile?.id) return;
   try {
     // Same tolerant-missing-table shape as the other optional reads in
@@ -4188,10 +4232,25 @@ async function loadNotifPrefs(){
     // database that has not had supabase_notification_prefs.sql (and its
     // dismissed_setup_steps follow-up) run against it) is treated as "no
     // preferences saved", not a page error.
+    //
+    // seen_alerts is selected here because nothing else reads it -- the
+    // column shipped (supabase_alerts_seen.sql) and this select was never
+    // widened to include it, so the cross-device half of the Seen button
+    // wrote nowhere and read nothing. A database without that migration
+    // errors the whole select, which lands in the same "no preferences
+    // saved" branch: every alert shows, nothing is hidden on no evidence,
+    // and the local cache in isAlertSeen() still carries this browser's own
+    // dismissals.
     const { data, error } = await db.from('notification_prefs')
-      .select('muted_alerts,dismissed_setup_steps').eq('user_id', profile.id).maybeSingle();
+      .select('muted_alerts,dismissed_setup_steps,seen_alerts').eq('user_id', profile.id).maybeSingle();
     if (!error && data?.muted_alerts) mutedAlerts = new Set(data.muted_alerts);
     if (!error && data?.dismissed_setup_steps) dismissedSetupSteps = new Set(data.dismissed_setup_steps);
+    // jsonb object, {"stale_quote:<job sync id>": "<fingerprint>"} -- both
+    // sides forced to String so a fingerprint that went in as a number still
+    // compares equal to the one isAlertSeen() builds from the live row.
+    if (!error && data?.seen_alerts && typeof data.seen_alerts === 'object') {
+      seenAlerts = new Map(Object.entries(data.seen_alerts).map(([k, v]) => [k, String(v ?? '')]));
+    }
   } catch (e) { /* table not there yet -- every alert stays on, every reminder stays showing */ }
 }
 
@@ -5905,9 +5964,9 @@ function renderDash(){
     const b = document.querySelector(`.tab[data-tab="${tab}"]`);
     return (b && b.style.display === 'none') ? '' : tab;
   };
-  const tile = (tab, n, label, delta) => {
+  const tile = (tab, n, label, delta, focus) => {
     const to = tileTo(tab);
-    return `<div class="stat${to ? ' click' : ''}"${to ? ` data-go="${to}"` : ''}>` +
+    return `<div class="stat${to ? ' click' : ''}"${to ? ` data-go="${to}"` : ''}${focus ? ` data-focus="${focus}"` : ''}>` +
            `<div class="n">${n}</div><div class="l">${label}</div>${delta||''}</div>`;
   };
   /* The two a manager checks before anything else, and neither was anywhere on
@@ -5929,10 +5988,37 @@ function renderDash(){
     tile('time', onTheClock.length, onTheClock.length === 1 ? 'On the clock now' : 'On the clock now') +
     tile('cal', soon.length, 'Scheduled next 7 days') +
     tile('pipe', won, 'Jobs won this month', monthDelta(won, wonPrev)) +
-    tile('reports', money(collected), 'Collected this month', monthDelta(collected, collectedPrev)) +
+    tile('reports', money(collected), 'Collected this month', monthDelta(collected, collectedPrev), 'collected') +
     tile('jobs', money(owedTotal), 'Still owed');
   document.querySelectorAll('.stat.click').forEach(s=>
-    s.addEventListener('click',()=>switchTab(s.dataset.go)));
+    s.addEventListener('click',()=>{
+      switchTab(s.dataset.go);
+      // "Collected this month" used to drop you on Reports showing its own
+      // default ninety-day window, so the figure you clicked and the figure you
+      // landed on were different numbers with the same name -- and the same
+      // words on the Reports band opened a list of jobs instead. Two routes to
+      // one figure that disagreed about both the window and the destination.
+      //
+      // Clicking it now sets Reports to the month the tile was counting and
+      // opens the same breakdown, so the number you tapped is the number you
+      // get. Nothing here computes money: it moves the window the existing
+      // renderReports() already honours.
+      if (s.dataset.focus === 'collected') {
+        const to = new Date(); to.setHours(23,59,59,999);
+        const from = new Date(to.getFullYear(), to.getMonth(), 1); from.setHours(0,0,0,0);
+        repFrom = from; repTo = to;
+        $('repFrom').value = from.toISOString().slice(0,10);
+        $('repTo').value = to.toISOString().slice(0,10);
+        // A month is not one of the presets, so no chip stays lit -- the same
+        // rule the hand-typed range already follows.
+        document.querySelectorAll('#repPresets .chip').forEach(x=>x.classList.remove('on'));
+        renderReports();
+        // The band's own handler is wired inside renderReports, so ask for it
+        // after rather than duplicating what it shows.
+        const band = $('repHeroBand');
+        if (band) band.click();
+      }
+    }));
 
   // Per job and clickable, in the order it costs money -- the same list the
   // phone's home screen shows, so the owner sees one story on both. The old
@@ -7939,124 +8025,155 @@ function catFenceTypeLabel(t){
  * The phone's own starting catalog (app/src/main/java/com/fenceestimator/
  * app/data/SeedData.kt), reproduced as data rather than retyped by hand --
  * this array was generated straight off that file's item(...) calls so the
- * name, unit, price, taxable, coversFt, colour and REAL/PLACEHOLDER source
- * flag of every row match it exactly. tests/catalog-run-viewer.test.mjs
- * pins the count per fence type against this same source so the two cannot
- * quietly drift apart. VINYL prices are the user's real FloriFence
- * documents; WOOD, CHAIN_LINK, ALUMINUM, ORNAMENTAL_IRON, SPLIT_RAIL and
- * COMPOSITE are placeholders at typical Tampa-market rates, flagged as such
- * in source_doc so a company using them knows to check before quoting off
- * them.
+ * name, unit, price, taxable, coversFt, colour and source_doc flag of every
+ * row match it exactly. tests/catalog-run-viewer.test.mjs pins the count per
+ * fence type against this same source so the two cannot quietly drift apart.
+ *
+ * Every row is unverified, and says so. Sixteen of them (fourteen VINYL, both
+ * UNIVERSAL) used to read "From a real supplier quote", copied off one
+ * company's FloriFence paperwork. That was true for that company and false
+ * for every stranger who signs up: somebody else's negotiated price wearing a
+ * label that says "checked". Worse, it was load-bearing -- unverifiedPricesOn()
+ * below and SeedData.isPlaceholderPrice() on the phone both decide from this
+ * string, so those sixteen sailed through the unverified-price gate and a new
+ * company could quote a customer off prices nobody had ever confirmed. They
+ * now carry SeedData.kt's own SEEDED wording, which is what the phone was
+ * already corrected to; this array is the office copy that drifted.
+ *
+ * "Placeholder — verify with your supplier" stays on the rest for the same
+ * reason SeedData.kt keeps it: catalogs seeded by older builds must keep
+ * answering the same way. Match both, and only these two -- a company that
+ * has since checked a row and left the old wording on it should not have that
+ * row re-flagged underneath them.
  */
 const CATALOG_SEED = [
   // ---- VINYL (19 items) ----
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - White",unit:"EA",unit_price:52.35,taxable:false,covers_ft:6,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - White",unit:"EA",unit_price:71.4,taxable:true,covers_ft:8,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"POST",role:"END_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex End Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"POST",role:"CORNER_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Corner Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"POST",role:"GATE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Gate Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"CAP",role:"POST_CAP",fence_type:"VINYL",name:"5\" External Pyramid PVC Post Cap, White",unit:"EA",unit_price:0.74,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"GATE",role:"GATE_PANEL",fence_type:"VINYL",name:"Regular PVC Gate 6'H x 5'W, White",unit:"EA",unit_price:145.05,taxable:false,covers_ft:5,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"HARDWARE",role:"HINGE_SET",fence_type:"VINYL",name:"Self-Closing Hinge Set (box, 12 pairs)",unit:"BOX",unit_price:32.25,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"HARDWARE",role:"LATCH",fence_type:"VINYL",name:"Two-Way Latch (box of 20)",unit:"BOX",unit_price:25.87,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"From a real supplier quote"},
-  {category:"HARDWARE",role:"HANDLE",fence_type:"VINYL",name:"7\" SS Gate Handle (box of 50)",unit:"BOX",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"From a real supplier quote"},
-  {category:"HARDWARE",role:"BRACE",fence_type:"VINYL",name:"Gate Support Brace, 8'",unit:"EA",unit_price:6.5,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"HARDWARE",role:"STIFFENER",fence_type:"VINYL",name:"5\" Econo Stiffener x 8'(H)",unit:"EA",unit_price:52.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"From a real supplier quote"},
-  {category:"TRIM",role:"TRIM",fence_type:"VINYL",name:"7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White",unit:"EA",unit_price:2,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Tan",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Tan",source_doc:"Placeholder — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Gray",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Gray",source_doc:"Placeholder — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - Tan",unit:"EA",unit_price:73.9,taxable:true,covers_ft:8,color_or_finish:"Tan",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Tan",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Tan",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Gray",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Gray",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - White",unit:"EA",unit_price:52.35,taxable:false,covers_ft:6,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - White",unit:"EA",unit_price:71.4,taxable:true,covers_ft:8,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex End Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Corner Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Gate Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"VINYL",name:"5\" External Pyramid PVC Post Cap, White",unit:"EA",unit_price:0.74,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_PANEL",fence_type:"VINYL",name:"Regular PVC Gate 6'H x 5'W, White",unit:"EA",unit_price:145.05,taxable:false,covers_ft:5,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"VINYL",name:"Self-Closing Hinge Set (box, 12 pairs)",unit:"BOX",unit_price:32.25,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"VINYL",name:"Two-Way Latch (box of 20)",unit:"BOX",unit_price:25.87,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HANDLE",fence_type:"VINYL",name:"7\" SS Gate Handle (box of 50)",unit:"BOX",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"BRACE",fence_type:"VINYL",name:"Gate Support Brace, 8'",unit:"EA",unit_price:6.5,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"STIFFENER",fence_type:"VINYL",name:"5\" Econo Stiffener x 8'(H)",unit:"EA",unit_price:52.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"TRIM",role:"TRIM",fence_type:"VINYL",name:"7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White",unit:"EA",unit_price:2,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Tan",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Tan",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Gray",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Gray",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - Tan",unit:"EA",unit_price:73.9,taxable:true,covers_ft:8,color_or_finish:"Tan",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Tan",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Tan",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Gray",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Gray",source_doc:"Starting price — verify with your supplier"},
 
   // ---- WOOD (10 items) ----
-  {category:"PICKET",role:"WOOD_PICKET",fence_type:"WOOD",name:"6' Dog-Ear Wood Picket, Pressure-Treated Pine",unit:"EA",unit_price:3.25,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"RAIL",role:"WOOD_RAIL",fence_type:"WOOD",name:"2x4x8' Pressure-Treated Rail",unit:"EA",unit_price:6.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"END_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"CORNER_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"GATE_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"CAP",role:"POST_CAP",fence_type:"WOOD",name:"4x4 Wood Post Cap",unit:"EA",unit_price:2.25,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"WOOD",name:"Wood Gate Frame Kit, Steel-Reinforced (up to 4'W)",unit:"EA",unit_price:65,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"HINGE_SET",fence_type:"WOOD",name:"Heavy-Duty T-Hinge Pair",unit:"PAIR",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"LATCH",fence_type:"WOOD",name:"Wood Gate Latch",unit:"EA",unit_price:9,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PICKET",role:"WOOD_PICKET",fence_type:"WOOD",name:"6' Dog-Ear Wood Picket, Pressure-Treated Pine",unit:"EA",unit_price:3.25,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"RAIL",role:"WOOD_RAIL",fence_type:"WOOD",name:"2x4x8' Pressure-Treated Rail",unit:"EA",unit_price:6.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"WOOD",name:"4x4x8' Pressure-Treated Post",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"WOOD",name:"4x4 Wood Post Cap",unit:"EA",unit_price:2.25,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"WOOD",name:"Wood Gate Frame Kit, Steel-Reinforced (up to 4'W)",unit:"EA",unit_price:65,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"WOOD",name:"Heavy-Duty T-Hinge Pair",unit:"PAIR",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"WOOD",name:"Wood Gate Latch",unit:"EA",unit_price:9,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
 
   // ---- CHAIN_LINK (18 items) ----
-  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 4' (per LF)",unit:"LF",unit_price:3.1,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 6' (per LF)",unit:"LF",unit_price:4.35,taxable:true,covers_ft:6,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 8' (per LF)",unit:"LF",unit_price:5.6,taxable:true,covers_ft:8,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"RAIL",role:"TOP_RAIL",fence_type:"CHAIN_LINK",name:"1-3/8\" Top Rail (per LF)",unit:"LF",unit_price:2.1,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"MISC",role:"TENSION_WIRE",fence_type:"CHAIN_LINK",name:"7-Gauge Bottom Tension Wire (per LF)",unit:"LF",unit_price:0.55,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"CHAIN_LINK",name:"1-5/8\" Galvanized Line Post, 8'",unit:"EA",unit_price:11.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"END_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"CORNER_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"GATE_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"CAP",role:"POST_CAP",fence_type:"CHAIN_LINK",name:"Line Post Cap",unit:"EA",unit_price:1.1,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"TENSION_BAND",fence_type:"CHAIN_LINK",name:"Tension Band",unit:"EA",unit_price:1.05,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"BRACE_BAND",fence_type:"CHAIN_LINK",name:"Brace Band",unit:"EA",unit_price:1.35,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"RAIL_END",fence_type:"CHAIN_LINK",name:"Rail End Cup",unit:"EA",unit_price:1.6,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"BARBED_WIRE_ARM",fence_type:"CHAIN_LINK",name:"3-Strand Barbed Wire Arm",unit:"EA",unit_price:8.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"FABRIC",role:"PRIVACY_SLAT",fence_type:"CHAIN_LINK",name:"Privacy Slats (per LF)",unit:"LF",unit_price:2.9,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"CHAIN_LINK",name:"Chain Link Walk Gate Frame, 4'W, Galvanized",unit:"EA",unit_price:85,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"HINGE_SET",fence_type:"CHAIN_LINK",name:"Chain Link Gate Hinge Set",unit:"SET",unit_price:12.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"LATCH",fence_type:"CHAIN_LINK",name:"Chain Link Fork Latch",unit:"EA",unit_price:9.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 4' (per LF)",unit:"LF",unit_price:3.1,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 6' (per LF)",unit:"LF",unit_price:4.35,taxable:true,covers_ft:6,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"FABRIC",role:"CHAIN_FABRIC",fence_type:"CHAIN_LINK",name:"Galvanized Chain Link Fabric, 8' (per LF)",unit:"LF",unit_price:5.6,taxable:true,covers_ft:8,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"RAIL",role:"TOP_RAIL",fence_type:"CHAIN_LINK",name:"1-3/8\" Top Rail (per LF)",unit:"LF",unit_price:2.1,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"MISC",role:"TENSION_WIRE",fence_type:"CHAIN_LINK",name:"7-Gauge Bottom Tension Wire (per LF)",unit:"LF",unit_price:0.55,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"CHAIN_LINK",name:"1-5/8\" Galvanized Line Post, 8'",unit:"EA",unit_price:11.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"CHAIN_LINK",name:"2\" Galvanized Terminal Post, 8'",unit:"EA",unit_price:19.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"CHAIN_LINK",name:"Line Post Cap",unit:"EA",unit_price:1.1,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"TENSION_BAND",fence_type:"CHAIN_LINK",name:"Tension Band",unit:"EA",unit_price:1.05,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"BRACE_BAND",fence_type:"CHAIN_LINK",name:"Brace Band",unit:"EA",unit_price:1.35,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"RAIL_END",fence_type:"CHAIN_LINK",name:"Rail End Cup",unit:"EA",unit_price:1.6,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"BARBED_WIRE_ARM",fence_type:"CHAIN_LINK",name:"3-Strand Barbed Wire Arm",unit:"EA",unit_price:8.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"FABRIC",role:"PRIVACY_SLAT",fence_type:"CHAIN_LINK",name:"Privacy Slats (per LF)",unit:"LF",unit_price:2.9,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"CHAIN_LINK",name:"Chain Link Walk Gate Frame, 4'W, Galvanized",unit:"EA",unit_price:85,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"CHAIN_LINK",name:"Chain Link Gate Hinge Set",unit:"SET",unit_price:12.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"CHAIN_LINK",name:"Chain Link Fork Latch",unit:"EA",unit_price:9.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
 
   // ---- ALUMINUM (14 items) ----
-  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, Black",unit:"EA",unit_price:95,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 8'W, Rackable, Black",unit:"EA",unit_price:118,taxable:true,covers_ft:8,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"END_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"CORNER_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"GATE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"CAP",role:"POST_CAP",fence_type:"ALUMINUM",name:"Aluminum Post Cap, Flat, Black",unit:"EA",unit_price:3.5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"GATE",role:"GATE_PANEL",fence_type:"ALUMINUM",name:"Aluminum Walk Gate 6'H x 4'W, Black",unit:"EA",unit_price:175,taxable:true,covers_ft:4,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"HINGE_SET",fence_type:"ALUMINUM",name:"Aluminum Gate Hinge Set, Self-Closing",unit:"SET",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"LATCH",fence_type:"ALUMINUM",name:"Aluminum Gate Latch, Self-Latching",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, White",unit:"EA",unit_price:99,taxable:true,covers_ft:6,color_or_finish:"White",source_doc:"Placeholder — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, Bronze",unit:"EA",unit_price:99,taxable:true,covers_ft:6,color_or_finish:"Bronze",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', White",unit:"EA",unit_price:23,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Bronze",unit:"EA",unit_price:23,taxable:true,covers_ft:null,color_or_finish:"Bronze",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, Black",unit:"EA",unit_price:95,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 8'W, Rackable, Black",unit:"EA",unit_price:118,taxable:true,covers_ft:8,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Black",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"ALUMINUM",name:"Aluminum Post Cap, Flat, Black",unit:"EA",unit_price:3.5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_PANEL",fence_type:"ALUMINUM",name:"Aluminum Walk Gate 6'H x 4'W, Black",unit:"EA",unit_price:175,taxable:true,covers_ft:4,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"ALUMINUM",name:"Aluminum Gate Hinge Set, Self-Closing",unit:"SET",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"ALUMINUM",name:"Aluminum Gate Latch, Self-Latching",unit:"EA",unit_price:22,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, White",unit:"EA",unit_price:99,taxable:true,covers_ft:6,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ALUMINUM",name:"Aluminum Fence Panel 6'H x 6'W, Rackable, Bronze",unit:"EA",unit_price:99,taxable:true,covers_ft:6,color_or_finish:"Bronze",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', White",unit:"EA",unit_price:23,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ALUMINUM",name:"3\" Aluminum Post, 6', Bronze",unit:"EA",unit_price:23,taxable:true,covers_ft:null,color_or_finish:"Bronze",source_doc:"Starting price — verify with your supplier"},
 
   // ---- ORNAMENTAL_IRON (11 items) ----
-  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 4'H x 6'W, Black",unit:"EA",unit_price:135,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 4'H x 8'W, Black",unit:"EA",unit_price:165,taxable:true,covers_ft:8,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 6'H x 6'W, Black",unit:"EA",unit_price:175,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"END_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"CORNER_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"GATE_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"CAP",role:"POST_CAP",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Post Cap, Black",unit:"EA",unit_price:6,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"GATE",role:"GATE_PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Walk Gate 4'H x 4'W, Black",unit:"EA",unit_price:210,taxable:true,covers_ft:4,color_or_finish:"Black",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"HINGE_SET",fence_type:"ORNAMENTAL_IRON",name:"Heavy Iron Gate Hinge Set",unit:"SET",unit_price:24,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"LATCH",fence_type:"ORNAMENTAL_IRON",name:"Self-Latching Iron Gate Latch",unit:"EA",unit_price:19,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 4'H x 6'W, Black",unit:"EA",unit_price:135,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 4'H x 8'W, Black",unit:"EA",unit_price:165,taxable:true,covers_ft:8,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Panel 6'H x 6'W, Black",unit:"EA",unit_price:175,taxable:true,covers_ft:6,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"ORNAMENTAL_IRON",name:"4\"x4\" Steel Post, 6', Black",unit:"EA",unit_price:32,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Post Cap, Black",unit:"EA",unit_price:6,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_PANEL",fence_type:"ORNAMENTAL_IRON",name:"Ornamental Steel Walk Gate 4'H x 4'W, Black",unit:"EA",unit_price:210,taxable:true,covers_ft:4,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"ORNAMENTAL_IRON",name:"Heavy Iron Gate Hinge Set",unit:"SET",unit_price:24,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"ORNAMENTAL_IRON",name:"Self-Latching Iron Gate Latch",unit:"EA",unit_price:19,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
 
   // ---- SPLIT_RAIL (8 items) ----
-  {category:"RAIL",role:"WOOD_RAIL",fence_type:"SPLIT_RAIL",name:"8' Round Wood Split Rail",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"END_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"CORNER_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"GATE_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Frame Kit, 10'W",unit:"EA",unit_price:95,taxable:true,covers_ft:10,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"HINGE_SET",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Hinge Set",unit:"SET",unit_price:12,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"LATCH",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Latch",unit:"EA",unit_price:7,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"RAIL",role:"WOOD_RAIL",fence_type:"SPLIT_RAIL",name:"8' Round Wood Split Rail",unit:"EA",unit_price:9.5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"SPLIT_RAIL",name:"5\" Round Wood Post, 7'",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Frame Kit, 10'W",unit:"EA",unit_price:95,taxable:true,covers_ft:10,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Hinge Set",unit:"SET",unit_price:12,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"SPLIT_RAIL",name:"Split-Rail Gate Latch",unit:"EA",unit_price:7,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
 
   // ---- COMPOSITE (10 items) ----
-  {category:"PICKET",role:"WOOD_PICKET",fence_type:"COMPOSITE",name:"6' Composite Privacy Board",unit:"EA",unit_price:9.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"RAIL",role:"WOOD_RAIL",fence_type:"COMPOSITE",name:"Composite Rail, 8'",unit:"EA",unit_price:16,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"LINE_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"END_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"CORNER_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"POST",role:"GATE_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"CAP",role:"POST_CAP",fence_type:"COMPOSITE",name:"Composite Post Cap",unit:"EA",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"COMPOSITE",name:"Composite Gate Frame Kit (up to 4'W)",unit:"EA",unit_price:145,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"HINGE_SET",fence_type:"COMPOSITE",name:"Composite Gate Hinge Set",unit:"SET",unit_price:18,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
-  {category:"HARDWARE",role:"LATCH",fence_type:"COMPOSITE",name:"Composite Gate Latch",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Placeholder — verify with your supplier"},
+  {category:"PICKET",role:"WOOD_PICKET",fence_type:"COMPOSITE",name:"6' Composite Privacy Board",unit:"EA",unit_price:9.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"RAIL",role:"WOOD_RAIL",fence_type:"COMPOSITE",name:"Composite Rail, 8'",unit:"EA",unit_price:16,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"LINE_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"END_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"CORNER_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"POST",role:"GATE_POST",fence_type:"COMPOSITE",name:"4x4 Composite Post w/ Aluminum Insert, 8'",unit:"EA",unit_price:28,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"CAP",role:"POST_CAP",fence_type:"COMPOSITE",name:"Composite Post Cap",unit:"EA",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_FRAME_KIT",fence_type:"COMPOSITE",name:"Composite Gate Frame Kit (up to 4'W)",unit:"EA",unit_price:145,taxable:true,covers_ft:4,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"HINGE_SET",fence_type:"COMPOSITE",name:"Composite Gate Hinge Set",unit:"SET",unit_price:18,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"HARDWARE",role:"LATCH",fence_type:"COMPOSITE",name:"Composite Gate Latch",unit:"EA",unit_price:14,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
 
   // ---- UNIVERSAL (2 items) ----
-  {category:"CONCRETE",role:"CONCRETE_BAG",fence_type:"UNIVERSAL",name:"Concrete Mix 60lb Bag",unit:"EA",unit_price:4.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"From a real supplier quote"},
-  {category:"MISC",role:"HOLE_PLUG",fence_type:"UNIVERSAL",name:"5/8\" Hole Plug, White",unit:"EA",unit_price:0.15,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"From a real supplier quote"},
+  {category:"CONCRETE",role:"CONCRETE_BAG",fence_type:"UNIVERSAL",name:"Concrete Mix 60lb Bag",unit:"EA",unit_price:4.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
+  {category:"MISC",role:"HOLE_PLUG",fence_type:"UNIVERSAL",name:"5/8\" Hole Plug, White",unit:"EA",unit_price:0.15,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
 ];
+
+/** True for a catalog row still carrying the price FenceFlow shipped rather
+    than one this company confirmed -- SeedData.isPlaceholderPrice(), same
+    rule, so the phone and the office cannot disagree about which rows are
+    checked.
+
+    One predicate on purpose. Two lived here before: the ◆ flag on the catalog
+    table tested only 'placeholder', while the send gate below tested both
+    labels. After the sixteen VINYL/UNIVERSAL rows were relabelled off "From a
+    real supplier quote", that gap would have shown an owner a clean, unflagged
+    row and then refused to send the quote priced off it, with the table
+    insisting nothing was wrong.
+
+    A row whose source_doc is anything else -- blank, an import note, a
+    company's own wording -- is the company's business and is left alone; only
+    the two strings FenceFlow itself writes count as unverified. */
+function isSeededUnverifiedPrice(sourceDoc){
+  return /^(Starting price|Placeholder)/.test(String(sourceDoc || ''));
+}
 
 /** How many CATALOG_SEED rows carry each fence type -- the pin
     tests/catalog-run-viewer.test.mjs checks against SeedData.kt's own
@@ -8196,13 +8313,15 @@ function manufacturerName(syncId){
 }
 
 function catItemRowHtml(c, hasSupplierPrice, hasSku){
-  const placeholder = (c.source_doc||'').toLowerCase().startsWith('placeholder');
+  const placeholder = isSeededUnverifiedPrice(c.source_doc);
   const supName = manufacturerName(c.manufacturer_sync_id);
-  // The diamond flag is the confirmed-vs-unconfirmed price signal: a
-  // placeholder (seeded, never priced by this company's own supplier) gets
-  // the flag and its title, a confirmed row gets neither. Only the title
-  // text is translated -- c.source_doc itself, the stored flag the phone
-  // app and catalogSeedRowsToAdd() both read, is never touched.
+  // The diamond flag is the confirmed-vs-unconfirmed price signal: a seeded
+  // row, never priced by this company's own supplier, gets the flag and its
+  // title, a confirmed row gets neither. Read through
+  // isSeededUnverifiedPrice() rather than testing the string here, so this
+  // and unverifiedPricesOn()'s send gate can never flag different rows. Only
+  // the title text is translated -- c.source_doc itself, the stored flag the
+  // phone app and catalogSeedRowsToAdd() both read, is never touched.
   return `<tr class="${c.is_active===false?'mcat-inactive':''}">
     <td>${esc(c.name)}${placeholder?` <span class="mcat-flag" title="${esc(tr('catPlaceholderFlagTitle'))}">◆</span>`:''}</td>
     <td>${esc((c.role||'').replace(/_/g,' '))}</td>
@@ -8531,9 +8650,15 @@ async function startFromSeedCatalog(){
   }
   const ok = await ask({
     title: `Add ${toAdd.length} starter item${toAdd.length===1?'':'s'}?`,
+    // No "pulled from real supplier invoices" here any more. Sixteen rows did
+    // carry a real quote's prices -- one company's, from paperwork this
+    // company has never seen -- and saying so invited the reader to treat
+    // them as checked when the whole point of the seed catalog is that none
+    // of it is. Every row goes in flagged unverified, and the estimate
+    // refuses to send a quote built on one until somebody confirms it.
     body: "Adds FenceFlow's own catalog for whatever you don't already have -- typical "
-      + 'Tampa-market prices, some pulled from real supplier invoices and some placeholders '
-      + 'clearly flagged to verify. Nothing already in your catalog is touched.',
+      + 'Tampa-market starting prices, every one flagged for you to check against your own '
+      + 'supplier before you quote off it. Nothing already in your catalog is touched.',
     confirmLabel: 'Add them',
   });
   if(!ok) return;
@@ -10478,7 +10603,7 @@ function quoteLinkFor(j){
 function unverifiedPricesOn(job){
   if (!job || !Array.isArray(catalog) || !Array.isArray(items)) return [];
   const seeded = new Set(catalog
-    .filter(m => /^(Starting price|Placeholder)/.test(String(m.source_doc || '')))
+    .filter(m => isSeededUnverifiedPrice(m.source_doc))
     .map(m => String(m.name || '').trim().toLowerCase()));
   if (!seeded.size) return [];
   const names = new Set();
@@ -13002,7 +13127,16 @@ async function wizCommitEstimate(){
   await wizRenderStep();
 }
 
-/* ---------- step 6: schedule and paperwork ---------- */
+/* ---------- step 6: schedule and paperwork ----------
+   The Deposit box below is the real one: it writes jobs.deposit_amount, which
+   is the figure depositFigures() (supabase/functions/_shared/quote-deposit.ts)
+   hands both the quote page and the card processor. Its label used to end
+   "leave blank to use the quote page's own rule (materials and tax, rounded up
+   to the next hundred)", describing a fallback that file deleted on purpose:
+   quote-view invented that number and printed it under "Deposit to begin",
+   create-payment-link read the stored zero, and pressing Pay answered "There is
+   nothing to pay on this quote yet" -- in front of the customer. Blank means
+   blank now, and the label says so. */
 
 function wizStepScheduleHtml(){
   const j = wiz.job;
@@ -13018,7 +13152,7 @@ function wizStepScheduleHtml(){
       </div>
     </div>
     <div class="panel"><h2>Deposit</h2>
-      <label>Deposit ($) — leave blank to use the quote page's own rule (materials and tax, rounded up to the next $100)</label>
+      <label>Deposit ($) — leave blank to ask for nothing up front. Whatever you put here is what the quote page asks the customer to pay to begin.</label>
       <input id="wz_deposit" type="number" step="1" value="${j.deposit_amount?j.deposit_amount:''}">
     </div>
     <div class="panel"><h2>HOA &amp; permits</h2>
@@ -13277,19 +13411,36 @@ function swRatesHtml(){
       <div><label>Minimum job charge ($)</label><input id="sw_min" type="number" step="1" value="${s.min_job_charge ?? ''}"></div>
       <div><label>Gate rate ($/ft)</label><input id="sw_gate_rate" type="number" step="0.5" value="${s.gate_rate ?? 20}"></div>
       <div><label>Waste (%)</label><input id="sw_waste" type="number" step="0.5" value="${s.waste ?? 0}"></div>
-      <div><label>Deposit (%)</label><input id="sw_deposit" type="number" step="1" value="${s.deposit_percent ?? 0}"></div>
     </div>
-    <p class="sub" style="margin-top:8px">Deposit at 0% is not "no deposit" -- it means the quote
-      page falls back to its own rule instead (round the total up to the next $100). Set a real
-      percentage here only if you want a fixed cut rather than that rule.</p>
+    <p class="sub" style="margin-top:8px">Deposits are set per job, not here -- on the Deposit step
+      of the New client wizard, or in the job's own Deposit ($) box. Leave it blank and the quote
+      page asks for nothing up front.</p>
   </div>`;
 }
+/* Deposit (%) used to sit in the grid above and is gone.
+   It was decoration: `deposit_percent` was written into company_settings and
+   read by nothing -- not the pricing engine, not quote-view, not
+   create-payment-link, not the phone. An owner could type 30 and every quote
+   would still ask for exactly what the old field said it would not, nothing.
+   The paragraph under it was worse than the field: it promised a fallback
+   ("round the total up to the next $100") that
+   supabase/functions/_shared/quote-deposit.ts deleted on purpose, because the
+   two sides of it disagreed and the homeowner was shown a deposit the Pay
+   button then refused to take.
+   It was NOT made real instead. Real means seeding jobs.deposit_amount from
+   percent x contract total, and jobs.deposit_amount IS the figure
+   depositFigures() hands the card processor -- so that change asks a customer
+   for money nobody asked for today. That needs a decision from March, not a
+   patch from here.
+   Companies that already saved a deposit_percent keep it: save_company_settings
+   merges (settings || excluded.settings), so dropping the key from this payload
+   leaves the stored one alone. It was inert before and is inert now. */
 async function swSaveRates(){
   const payload = {
     labor_rate: num($('sw_labor_rate').value), labor_flat_fee: num($('sw_labor_flat').value),
     markup: num($('sw_markup').value), tax_rate: num($('sw_tax').value),
     min_job_charge: num($('sw_min').value), gate_rate: num($('sw_gate_rate').value),
-    waste: num($('sw_waste').value), deposit_percent: num($('sw_deposit').value),
+    waste: num($('sw_waste').value),
   };
   Object.assign(sw.settings, payload);
   const { error } = await db.rpc('save_company_settings', { new_settings: payload });
