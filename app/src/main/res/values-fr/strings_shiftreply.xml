@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="crew_attn_hours_accept">C’est exact</string>
+    <string name="crew_attn_hours_dispute">C’est faux</string>
+
+    <string name="crew_attn_hours_accepted_note">Tu as dit que ces heures sont exactes.</string>
+    <string name="crew_attn_hours_disputed_note">Tu as dit que c’est faux : %1$s</string>
+
+    <string name="crew_attn_dispute_title">Qu’est-ce qui ne va pas avec les heures ?</string>
+    <string name="crew_attn_dispute_explain">Explique ce qui s’est vraiment passé. Le bureau voit cette note telle quelle.</string>
+    <string name="crew_attn_dispute_label">Ce qui n’allait pas</string>
+    <string name="crew_attn_dispute_placeholder">Exemple : je n’ai pas pris de pause ce jour-là.</string>
+    <string name="crew_attn_dispute_submit">Envoyer</string>
+
+    <string name="crew_attn_reply_needs_signal">Il faut du signal pour envoyer ça. Ce n’est pas encore enregistré — réessaie une fois que tu as du réseau.</string>
+    <string name="crew_attn_reply_not_recorded">Ça ne s’est pas enregistré. Rouvre le chantier et réessaie.</string>
+    <string name="crew_attn_reply_failed">Impossible d’envoyer : %1$s</string>
+
+    <string name="crew_attn_reply_unavailable">Impossible de répondre à ça d’ici. Demande au bureau de vérifier.</string>
+</resources>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="crew_attn_hours_accept">Están bien</string>
+    <string name="crew_attn_hours_dispute">Están mal</string>
+
+    <string name="crew_attn_hours_accepted_note">Dijiste que estas horas están bien.</string>
+    <string name="crew_attn_hours_disputed_note">Dijiste que esto está mal: %1$s</string>
+
+    <string name="crew_attn_dispute_title">¿Qué está mal en las horas?</string>
+    <string name="crew_attn_dispute_explain">Cuenta qué pasó en realidad. La oficina ve esta nota tal como la escribas.</string>
+    <string name="crew_attn_dispute_label">Qué estuvo mal</string>
+    <string name="crew_attn_dispute_placeholder">Ejemplo: ese día no tomé un descanso.</string>
+    <string name="crew_attn_dispute_submit">Enviar</string>
+
+    <string name="crew_attn_reply_needs_signal">Esto necesita señal para enviarse. No se ha registrado — inténtalo de nuevo cuando tengas cobertura.</string>
+    <string name="crew_attn_reply_not_recorded">Eso no se registró. Vuelve a abrir el trabajo e inténtalo de nuevo.</string>
+    <string name="crew_attn_reply_failed">No se pudo enviar: %1$s</string>
+
+    <string name="crew_attn_reply_unavailable">No puedes responder esto desde aquí. Pide a la oficina que lo revise.</string>
+</resources>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The crew’s side of an hours correction: acknowledge_my_shift and
+         dispute_my_shift (see supabase_shift_dispute.sql) existed and were
+         reachable long before anything on the phone called either one. Kept
+         out of strings.xml, same as strings_crew_scope.xml, so this pass
+         does not have to touch the file every other screen also edits. -->
+
+    <!-- Buttons on the HOURS_CORRECTED row in CrewAttentionSection. A short
+         pair on purpose, read right after "The office changed your hours on
+         [job]": they finish that sentence, not start a new one. -->
+    <string name="crew_attn_hours_accept">That’s right</string>
+    <string name="crew_attn_hours_dispute">That’s wrong</string>
+
+    <!-- Shown once this phone has actually sent an answer, in place of the
+         two buttons above; see CrewShiftReplyStore for why an answered
+         correction never asks again. -->
+    <string name="crew_attn_hours_accepted_note">You said these hours are right.</string>
+    <string name="crew_attn_hours_disputed_note">You said this is wrong: %1$s</string>
+
+    <!-- The dispute dialog. dispute_my_shift refuses a blank note server
+         side; the Send button being disabled on an empty field is this
+         screen catching that before it becomes a failure message. -->
+    <string name="crew_attn_dispute_title">What’s wrong with the hours?</string>
+    <string name="crew_attn_dispute_explain">Say what actually happened. The office sees this exact note.</string>
+    <string name="crew_attn_dispute_label">What was wrong</string>
+    <string name="crew_attn_dispute_placeholder">Example: I didn’t take a break that day.</string>
+    <string name="crew_attn_dispute_submit">Send</string>
+
+    <!-- What a person reads when the RPC call itself does not go the way
+         they tapped for. No optimism anywhere in these three: a shift
+         that failed to record must still look answerable, not answered. -->
+    <string name="crew_attn_reply_needs_signal">This needs a signal to send. It hasn’t been recorded — try again once you have service.</string>
+    <string name="crew_attn_reply_not_recorded">That didn’t get recorded. Reopen the job and try again.</string>
+    <string name="crew_attn_reply_failed">Couldn’t send: %1$s</string>
+
+    <!-- Defensive only: shown if a correction ever reaches this row with no
+         shift id to answer against, which CrewAttention.build should never
+         produce. -->
+    <string name="crew_attn_reply_unavailable">Can’t answer this one from here. Ask the office to check it.</string>
+</resources>

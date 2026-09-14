@@ -42,7 +42,17 @@ data class CrewAttentionItem(
      * Only meaningful for [Kind.PLAN_CHANGE_ANSWERED]: true if the office said
      * yes, false if no. Null for every other kind.
      */
-    val approved: Boolean? = null
+    val approved: Boolean? = null,
+    /**
+     * Only meaningful for [Kind.HOURS_CORRECTED]: the shift's own sync id,
+     * the `shift_sync_id` argument both `acknowledge_my_shift` and
+     * `dispute_my_shift` take (see supabase_shift_dispute.sql). Not derived
+     * from [key] at the call site on purpose -- [key] is a display/dismissal
+     * fingerprint that happens to embed it, and parsing an id back out of a
+     * string built for a different job is how the two quietly drift apart
+     * later. Null for every other kind.
+     */
+    val shiftSyncId: String? = null
 ) {
     enum class Kind {
         /** A job assigned to this person is on today's schedule. */
@@ -151,7 +161,8 @@ object CrewAttention {
                     key = "hours_corrected:" + t.syncId + ":" + t.correctedAt,
                     jobId = t.jobId,
                     kind = CrewAttentionItem.Kind.HOURS_CORRECTED,
-                    detail = t.correctionReason
+                    detail = t.correctionReason,
+                    shiftSyncId = t.syncId
                 )
             }
 
