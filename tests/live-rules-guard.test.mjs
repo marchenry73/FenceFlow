@@ -51,7 +51,35 @@ const OWNER   = "7bf38947-24cf-4e79-9af0-6100d04b166b";
 // Named for the property the checks actually depend on, and asserted before
 // anything is concluded from them. A promotion now produces a sentence
 // saying the fixture drifted rather than a security alarm.
-const NO_MONEY = "518fde2b-e689-4164-b900-85d8c7ca9748"; // must lack SEE_MONEY and SEE_PAY
+// The account without money permission is MADE, not found.
+//
+// This constant has now drifted three times. It first named a person who was
+// promoted to MANAGER, so the check began asserting that a manager cannot see
+// money -- false, and it reads exactly like a leak. It was repointed at the
+// one remaining account that lacked the permission, a FOREMAN, and on
+// 14 September that person was promoted too. Every real account on this system
+// is now an owner or a manager, so there is no longer anybody to borrow: the
+// check could never pass again, and a security guard that cannot run is worse
+// than none, because its red looks like a finding.
+//
+// So the subject is created inside the same transaction that rolls back, the
+// way the expenses and payment-link proofs already do. Nobody can promote it.
+const NO_MONEY_SETUP = `
+do $mk$
+declare probe_id uuid := '99999999-0000-4000-8000-0000000000aa';
+declare co uuid;
+begin
+  select company_id into co from profiles where id = '${OWNER}';
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+                          email_confirmed_at, created_at, updated_at)
+  values (probe_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+          'zz-nomoney-probe@example.invalid', 'x', now(), now(), now())
+  on conflict (id) do nothing;
+  insert into profiles (id, role, company_id, full_name)
+  values (probe_id, 'CREW', co, 'ZZ PROBE no money')
+  on conflict (id) do update set role = 'CREW', company_id = excluded.company_id;
+end $mk$;`;
+const NO_MONEY = "99999999-0000-4000-8000-0000000000aa";
 const HAS_MONEY = "dabdbf64-8c89-4ec4-89c5-b33430462069"; // must hold both
 const SALES   = "f7e1c214-cdd0-492a-84b4-02392b264690"; // live, but company_id is null
 const OTHER_COMPANY_EMPLOYEE = "11111111-1111-4111-8111-111111111211"; // belongs to a DIFFERENT company
@@ -154,6 +182,7 @@ insert into probe1 select 'SALES', can_see_pay(), can_see_employee_pay(),
   (select count(*) from employees), (select count(*) from jobs), (select count(*) from ar_aging());
 reset role;
 
+${NO_MONEY_SETUP}
 ${asClaim(NO_MONEY)}
 set local role authenticated;
 insert into probe1 select 'NO_MONEY', can_see_pay(), can_see_employee_pay(),
@@ -177,6 +206,13 @@ rollback;
      `got ${JSON.stringify(row1("SALES"))}`);
   ok("OWNER sees both job money and payroll",
      row1("OWNER").can_pay === true && row1("OWNER").can_emp_pay === true, `got ${JSON.stringify(row1("OWNER"))}`);
+  // Before believing the zeros below, prove the subject genuinely lacks the
+  // permission. Otherwise a promoted or mis-seeded fixture turns a correct
+  // permission into a reported breach -- which is what happened three times.
+  ok("the probe account genuinely lacks SEE_MONEY and SEE_PAY (fixture is sound)",
+    row1("NO_MONEY").can_pay === false && row1("NO_MONEY").can_emp_pay === false,
+    `the probe account HAS money permission -- it was not created as CREW, or the permission rules changed. Read this as a broken fixture, not as a leak. got ${JSON.stringify(row1("NO_MONEY"))}`);
+
   ok("an account without SEE_MONEY or SEE_PAY sees neither job money nor payroll",
      row1("NO_MONEY").can_pay === false && row1("NO_MONEY").can_emp_pay === false, `got ${JSON.stringify(row1("NO_MONEY"))}`);
 
