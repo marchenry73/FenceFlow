@@ -50,7 +50,19 @@ const OWNER   = "7bf38947-24cf-4e79-9af0-6100d04b166b"; // has SEE_MONEY
 // So the identity is no longer trusted on faith: check 3 asks the database
 // whether this account really lacks the permission before drawing any
 // conclusion from what it can read, and says the fixture has drifted if not.
-const NO_MONEY = "518fde2b"; // prefix only; resolved and verified at run time
+// The account without SEE_MONEY is MADE, not borrowed.
+//
+// Borrowing one has now failed twice here. The first id named somebody who
+// was promoted to MANAGER; this prefix named the one remaining account that
+// lacked the permission, a FOREMAN, and on 14 September that person was
+// promoted too. Every real account on this system is now an owner or a
+// manager, so there is nobody left to borrow and this check could never pass
+// again -- and a permission check that cannot run is worse than none, because
+// its red looks like a finding.
+//
+// The drift guard below still earns its place: it is what turned this into a
+// sentence saying the fixture moved rather than a reported leak.
+const NO_MONEY = '99999999-0000-4000-8000-0000000000ab';
 
 let failed = 0, checked = 0;
 const ok = (name, cond, detail = "") => {
@@ -77,7 +89,24 @@ function runSql(sql) {
 
 // Resolves the no-money account from its id prefix at run time. A prefix
 // rather than a whole id so this file does not read as a list of people.
-const asClaimNoMoney = () => `select set_config('request.jwt.claims', json_build_object('sub', (select id from profiles where id::text like '${NO_MONEY}%' and company_id is not null limit 1), 'role','authenticated')::text, true);`;
+// Created inside the transaction that rolls back, so nobody can promote it
+// and nothing survives the run.
+const NO_MONEY_SETUP = `
+do $mk$
+declare co uuid;
+begin
+  select company_id into co from profiles where id = '${OWNER}';
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+                          email_confirmed_at, created_at, updated_at)
+  values ('${NO_MONEY}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+          'zz-nomoney-costing@example.invalid', 'x', now(), now(), now())
+  on conflict (id) do nothing;
+  insert into profiles (id, role, company_id, full_name)
+  values ('${NO_MONEY}', 'CREW', co, 'ZZ PROBE no money')
+  on conflict (id) do update set role = 'CREW', company_id = excluded.company_id;
+end $mk$;`;
+
+const asClaimNoMoney = () => `select set_config('request.jwt.claims', json_build_object('sub', '${NO_MONEY}', 'role','authenticated')::text, true);`;
 
 const asClaim = (sub) => `select set_config('request.jwt.claims', json_build_object('sub','${sub}','role','authenticated')::text, true);`;
 
@@ -196,6 +225,7 @@ rollback;
 
   const gateRows = runSql(`
 begin;
+${NO_MONEY_SETUP}
 create temp table probe(who text, n bigint) on commit drop;
 grant all on probe to authenticated;
 
