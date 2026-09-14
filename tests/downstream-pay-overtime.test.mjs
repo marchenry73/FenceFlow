@@ -61,18 +61,40 @@ function withRenderPay(shifts, employees, ot = { otAfter: 40, otMult: 1.5 }) {
     grabConst("OT_MULTIPLIER"),
     grabFn("weekStart"),
     grabFn("hoursOf"),
+    // renderPay pays NET of a recorded unpaid break now, so it calls these
+    // three. They are lifted from the page rather than stubbed: a stub would
+    // let the real ones drift while this kept passing, which is exactly how
+    // the office and the phone ended up disagreeing about the catalog.
+    grabFn("breakRecorded"),
+    grabFn("breakHoursOf"),
+    grabFn("paidHoursOf"),
     grabFn("shiftWhoName"),
     grabFn("renderPay"),
   ].join("\n\n");
+  // renderPay renders its labels through the page translator, which lives far
+  // outside the slice this harness evaluates -- so without it the test dies
+  // with "tr is not defined". A translation pass broke it, not a change in the
+  // pay arithmetic it exists to guard. The real English table is lifted from
+  // the page and read here, so the assertions still compare against the words
+  // the page actually ships rather than a stub that could drift from them.
+  const tlStart = src.indexOf("const TL = {");
+  let tlDepth = 0, tlEnd = -1;
+  for (let i = src.indexOf("{", tlStart); i < src.length; i++) {
+    if (src[i] === "{") tlDepth++;
+    else if (src[i] === "}") { tlDepth--; if (tlDepth === 0) { tlEnd = i + 1; break; } }
+  }
+  const TL_EN = eval("(" + src.slice(src.indexOf("{", tlStart), tlEnd) + ")").en;
+  const tr = (k, ...a) => { let t = TL_EN[k] ?? k; for (const v of a) t = String(t).replace('%s', v); return t; };
+
   const fn = new Function(
-    "times", "employees", "d", "$", "esc", "money", "ot",
+    "times", "employees", "d", "$", "esc", "money", "ot", "tr",
     code + "\nrenderPay(ot);\nreturn {rowsHtml: $('payWeekRows').innerHTML};"
   );
   const d = (s) => (s ? new Date(s) : null);
   const esc = (s) => String(s ?? "");
   const money = (n) => "$" + Number(n).toFixed(2);
   const $ = el;
-  const result = fn(shifts, employees, d, $, esc, money, ot);
+  const result = fn(shifts, employees, d, $, esc, money, ot, tr);
   return { rowsHtml: result.rowsHtml };
 }
 

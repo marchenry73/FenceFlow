@@ -300,6 +300,7 @@ rollback;
 
   const check3 = runSql(`
 begin;
+${NO_MONEY_SETUP}
 create temp table probe3(case_name text, ok_result boolean, detail text) on commit drop;
 grant all on probe3 to authenticated;
 
@@ -565,6 +566,7 @@ rollback;
 
   const check5 = runSql(`
 begin;
+${NO_MONEY_SETUP}
 create temp table probe5(case_name text, ok_result boolean, detail text) on commit drop;
 grant all on probe5 to authenticated;
 
