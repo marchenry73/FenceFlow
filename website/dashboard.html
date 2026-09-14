@@ -1972,6 +1972,12 @@ const TL = {
     tabCatalog:'Catalog', tabReports:'Reports', tabAutomation:'Automation',
     tabSettings:'Settings', tabBilling:'Billing',
     signOut:'Sign out', refresh:'Refresh',
+    repFunnelAll:'All jobs', repFunnelQuoted:'Quoted', repFunnelWon:'Won', repFunnelPaid:'Paid in full',
+    repFunnelAllHow:'Every job touched in this period, whatever became of it.',
+    repFunnelQuotedHow:'Jobs that reached a quote in this period.',
+    repFunnelWonHow:'Jobs marked Accepted or Completed.',
+    repFunnelPaidHow:'Jobs whose payment status is Paid in full.',
+    repFunnelJobsTitle:'The jobs', jobUnnamed:'Unnamed',
     publicSite:'Home page', brandHomeTitle:'Back to your dashboard',
     setupHead:'Finish setting up before you quote',
     setupBody:'A quote is built out of these numbers. Until they are yours, every estimate this company produces is built on blanks — and you will not find out until the job is done.',
@@ -2622,6 +2628,12 @@ const TL = {
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     signOut:'Cerrar sesión', refresh:'Actualizar',
+    repFunnelAll:'Todos los trabajos', repFunnelQuoted:'Cotizados', repFunnelWon:'Ganados', repFunnelPaid:'Pagados por completo',
+    repFunnelAllHow:'Todo trabajo tocado en este periodo, pase lo que pase después.',
+    repFunnelQuotedHow:'Trabajos que llegaron a cotización en este periodo.',
+    repFunnelWonHow:'Trabajos marcados como Aceptado o Completado.',
+    repFunnelPaidHow:'Trabajos cuyo estado de pago es Pagado por completo.',
+    repFunnelJobsTitle:'Los trabajos', jobUnnamed:'Sin nombre',
     publicSite:'Página principal', brandHomeTitle:'Volver a tu panel',
     setupHead:'Termine la configuración antes de cotizar',
     setupBody:'Un presupuesto se arma con estos datos. Hasta que sean los suyos, cada presupuesto que haga esta empresa se construye sobre huecos en blanco — y no lo va a notar hasta que el trabajo esté terminado.',
@@ -3250,6 +3262,12 @@ const TL = {
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     signOut:'Se déconnecter', refresh:'Actualiser',
+    repFunnelAll:'Tous les chantiers', repFunnelQuoted:'Devis faits', repFunnelWon:'Gagnés', repFunnelPaid:'Payés en entier',
+    repFunnelAllHow:'Tout chantier touché durant cette période, quelle qu’en soit la suite.',
+    repFunnelQuotedHow:'Chantiers arrivés jusqu’au devis durant cette période.',
+    repFunnelWonHow:'Chantiers marqués Accepté ou Terminé.',
+    repFunnelPaidHow:'Chantiers dont le paiement est Payé en entier.',
+    repFunnelJobsTitle:'Les chantiers', jobUnnamed:'Sans nom',
     publicSite:'Page d’accueil', brandHomeTitle:'Retour à votre tableau de bord',
     setupHead:'Terminez la configuration avant de faire un devis',
     setupBody:'Un devis se construit à partir de ces chiffres. Tant qu’ils ne sont pas les vôtres, chaque devis produit par cette entreprise repose sur des cases vides — et vous ne le saurez qu’une fois le chantier terminé.',
@@ -9897,11 +9915,19 @@ async function renderReports(){
 
   // Conversion funnel — ordered stages, so a single hue is correct here.
   const paidFull = jobsIn.filter(j=>j.payment_status==='PAID_IN_FULL');
+  // Each row carries a stable key beside its label, and the explanation below
+  // is chosen by that key rather than by the words on screen. Two charts in
+  // this file used to pick their COLOURS by comparing a label to the English
+  // string, so translating them drew every segment wrong in Spanish and French
+  // only, with nothing failing. This funnel had the same shape waiting: its
+  // labels were English literals, so the comparison worked right up until
+  // somebody translated them. Display text is the one string in a program
+  // guaranteed to change; nothing should ever branch on it.
   const funnelRows=[
-    {label:'All jobs',    value:jobsIn.length, list:jobsIn},
-    {label:'Quoted',      value:quotes,        list:null},
-    {label:'Won',         value:won.length,    list:won},
-    {label:'Paid in full',value:paidFull.length, list:paidFull}
+    {k:'all',    label:tr('repFunnelAll'),    value:jobsIn.length,    list:jobsIn},
+    {k:'quoted', label:tr('repFunnelQuoted'), value:quotes,           list:null},
+    {k:'won',    label:tr('repFunnelWon'),    value:won.length,       list:won},
+    {k:'paid',   label:tr('repFunnelPaid'),   value:paidFull.length,  list:paidFull}
   ].filter(r=>r.value>0);
   funnelV('chartFunnel', funnelRows, v=>String(v));
   pickable('chartFunnel', i => {
@@ -9909,12 +9935,12 @@ async function renderReports(){
     if(!row) return;
     showExplain({
       title: row.label, value: String(row.value),
-      how: row.label==='All jobs' ? 'Every job touched in this period, whatever became of it.'
-         : row.label==='Quoted'   ? 'Jobs that reached a quote in this period.'
-         : row.label==='Won'      ? 'Jobs marked Accepted or Completed.'
-         :                          'Jobs whose payment status is Paid in full.',
-      rowsTitle: row.list ? 'The jobs' : null,
-      rows: (row.list||[]).map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'' }))
+      how: row.k==='all'    ? tr('repFunnelAllHow')
+         : row.k==='quoted' ? tr('repFunnelQuotedHow')
+         : row.k==='won'    ? tr('repFunnelWonHow')
+         :                    tr('repFunnelPaidHow'),
+      rowsTitle: row.list ? tr('repFunnelJobsTitle') : null,
+      rows: (row.list||[]).map(j=>({ label:j.customer_name||tr('jobUnnamed'), sub:j.address||'' }))
     });
   });
 
