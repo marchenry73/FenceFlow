@@ -508,7 +508,26 @@ data class CloudTimeEntryPush(
     @SerialName("company_id") val companyId: String,
     @SerialName("sync_id") val syncId: String,
     @SerialName("job_sync_id") val jobSyncId: String,
-    @SerialName("started_at") val startedAt: String,
+    /**
+     * Null means "say nothing about the clock", NOT "the shift has no start".
+     *
+     * started_at is NOT NULL in Postgres, so this can never legitimately be
+     * sent as null -- and it never is, because `explicitNulls = false` on the
+     * shared Json drops a null field from the body entirely rather than
+     * sending it (see [SupabaseModule], and [CloudJobStep.stepKey] for the
+     * same trick). Dropping the key is the whole point: an UPDATE that does
+     * not name a column leaves it alone, which is how an office time
+     * correction survives the next push from the phone that recorded the
+     * original. See [EntitySync.pushTimeEntries] for which of the two batches
+     * fills these in and which leaves them out.
+     *
+     * The batch matters as much as the row. PostgREST unions the keys across
+     * an array and fills the gaps with explicit nulls, so a batch mixing rows
+     * that carry started_at with rows that do not would send NULL for the
+     * ones that do not and be rejected outright -- the whole push, not the
+     * row. The two batches are kept separate for exactly that reason.
+     */
+    @SerialName("started_at") val startedAt: String? = null,
     @SerialName("ended_at") val endedAt: String? = null,
     @SerialName("hourly_rate") val hourlyRate: Double = 0.0,
     @SerialName("employee_sync_id") val employeeSyncId: String = "",
@@ -558,13 +577,23 @@ data class CloudTimeEntryPush(
  * bearing: this phone never edits a template, so the compare mostly guards
  * against two pulls racing each other.
  *
- * **time_entries** -- NOT last-edit-wins. [pushTimeEntries] upserts every
- * completed shift unconditionally; there is no compare against the cloud row
- * at all on the way up. What protects an approval or rejection from being
+ * **time_entries** -- NOT last-edit-wins, and split by column owner instead.
+ * [pushTimeEntries] still compares nothing against the cloud row; what it
+ * does instead is send each completed shift twice, once as an insert-only row
+ * carrying started_at/ended_at and once as an update that omits them. So the
+ * clock is written exactly once, by the phone that recorded it, and every
+ * later push leaves it alone -- which is what stops a phone re-asserting its
+ * original times over an office correction. started_at, ended_at,
+ * original_started_at, original_ended_at, corrected_at and correction_reason
+ * are the office's (and the trigger's) columns; notes, hourly_rate,
+ * employee_sync_id and the approval decision are still the phone's and are
+ * pushed on every pass. What protects an approval or rejection from being
  * clobbered lives entirely on the pull side ([pullJobChildren]'s time-entries
  * block): a decision already recorded locally is a one-way ratchet that a
  * cloud row without a decision cannot undo, and a decision the cloud DOES
- * carry always wins outright, regardless of either side's clock.
+ * carry always wins outright, regardless of either side's clock. The four
+ * correction columns are read-only on the pull and never blanked by a cloud
+ * row that lacks them.
  *
  * **estimate_line_items**, **change_orders** -- last-edit-wins is not
  * expressed as a push-side gate at all for these; the push always sends the
@@ -1790,6 +1819,25 @@ object EntitySync {
                 val cloudHasDecision = cloudApprovedAt != null || cloudRejectedAt != null
                 val localHasDecision = existing.approvedAt != null || existing.rejectedAt != null
 
+                // A correction has to look like one on every phone, not only on
+                // the phone that happened to be missing the shift.
+                //
+                // The insert branch above already carries these four; this one
+                // did not, so a device that ALREADY held the shift -- which is
+                // every device the crew member actually uses -- took the
+                // corrected start time and showed it bare. The hours changed
+                // and nothing on screen said so, no original to compare
+                // against and no reason, which is the state dispute_my_shift
+                // assumes cannot happen.
+                //
+                // Kept, not blanked, when the cloud has nothing to say: the
+                // columns are absent from an old cloud row and from any row
+                // nobody has corrected, and "the cloud does not carry it" is
+                // not "the office cleared it". Blanking on a null would erase
+                // the correction notice on the very next pull after it
+                // arrived. The office is the only writer, so there is no
+                // ratchet to argue with here -- whatever it holds wins, and
+                // absence loses.
                 val merged = existing.copy(
                     startedAt = startedAt,
                     endedAt = row.endedAt?.let { at -> CloudTime.parseMillis(at) },
@@ -1799,7 +1847,14 @@ object EntitySync {
                     approvedBy = if (cloudHasDecision) row.approvedBy else existing.approvedBy,
                     rejectedAt = if (cloudHasDecision) cloudRejectedAt else existing.rejectedAt,
                     reviewNote = if (cloudHasDecision || !localHasDecision) row.reviewNote
-                                 else existing.reviewNote
+                                 else existing.reviewNote,
+                    originalStartedAt = CloudTime.parseMillis(row.originalStartedAt)
+                        ?: existing.originalStartedAt,
+                    originalEndedAt = CloudTime.parseMillis(row.originalEndedAt)
+                        ?: existing.originalEndedAt,
+                    correctedAt = CloudTime.parseMillis(row.correctedAt)
+                        ?: existing.correctedAt,
+                    correctionReason = row.correctionReason.ifBlank { existing.correctionReason }
                 )
                 if (merged != existing) {
                     repository.updateTimeEntry(merged)
@@ -2197,17 +2252,93 @@ object EntitySync {
         return upsert("fence_runs", rows)
     }
 
+    /**
+     * Sends a shift up twice, on purpose: once as an insert that carries the
+     * clock, and once as an update that does not.
+     *
+     * Every office time correction was being undone by the next sync from the
+     * phone that recorded the shift. This pushed started_at and ended_at
+     * unconditionally on every pass, with nothing compared against the cloud,
+     * so a manager fixing an 8:47 clock-in to 8:30 held until the handset next
+     * spoke and then reverted. The audit columns survived it -- the trigger
+     * keeps the first original, so original_started_at still held 8:47 -- but
+     * started_at is what pay is calculated from, and started_at went back.
+     * The correction notice stayed on screen pointing at a time that no longer
+     * differed from it.
+     *
+     * [pushFenceRuns]'s clock gate is the obvious fix and is not available
+     * here: a TimeEntry carries no local updatedAt to compare, only the
+     * server's own. Adding one is a Room change, in another package. So this
+     * takes the other route -- stop the push asserting the two columns the
+     * office owns for a shift the cloud already knows about -- and gets there
+     * without asking the cloud anything at all:
+     *
+     *  1. every completed shift, whole row, `insertOnly` -- so PostgREST
+     *     resolves a conflict by ignoring the row rather than updating it.
+     *     A shift the cloud has never seen lands complete; a shift it already
+     *     holds is untouchable by this batch, which is a property of the
+     *     request rather than a conclusion drawn from a read. Nothing here
+     *     can be fooled by an answer that came back short or empty.
+     *  2. every completed shift again, without started_at/ended_at -- the
+     *     keys are dropped from the body entirely (see [CloudTimeEntryPush]),
+     *     so the UPDATE never names those columns and the correction stands,
+     *     while notes, rate, employee and the approval decision still travel
+     *     as they always did.
+     *
+     * Nothing is lost on the way up, because the phone cannot edit either time
+     * after the fact: [Repository.clockIn] sets the start, [Repository.clockOut]
+     * sets the end, and no screen writes them again.
+     *
+     * The one thing that WOULD be lost is a clock-out for a shift the cloud
+     * already held while it was still running, because batch 1 would decline
+     * to touch it and batch 2 would not carry ended_at. No such shift can
+     * exist: this is the only code in the app that writes time_entries at all,
+     * and it filters running shifts out, so a row only ever reaches the cloud
+     * finished. The office page only ever UPDATEs the table -- it has no
+     * insert path -- and no Edge Function touches it. Re-check those three
+     * before adding an insert anywhere else.
+     */
     private suspend fun pushTimeEntries(repository: Repository, companyId: String): Int {
         val jobsBySyncId = repository.getAllJobs().associateBy({ it.id }, { it.syncId })
         val employeeSyncById = repository.getAllEmployees().associateBy({ it.id }, { it.syncId })
         // Only completed shifts: a running timer has no end yet and would land
         // in the cloud looking like a zero-length entry.
-        val rows = repository.getAllTimeEntries()
+        val shifts = repository.getAllTimeEntries()
             .filter { !it.isRunning }
             .mapNotNull { entry ->
-                jobsBySyncId[entry.jobId]?.let { entry.toCloud(companyId, it, entry.employeeId?.let { e -> employeeSyncById[e] }) }
+                jobsBySyncId[entry.jobId]?.let { jobSyncId -> entry to jobSyncId }
             }
-        return upsert("time_entries", rows)
+        if (shifts.isEmpty()) return 0
+
+        // Caught rather than thrown, so one row the server will not accept
+        // cannot also block the update pass behind it -- and reported ahead of
+        // anything the update pass raises about the same row, because "could
+        // not insert this shift" is the cause and "started_at missing on an
+        // insert" would only be its symptom.
+        val firstSight = runCatching {
+            upsert(
+                "time_entries",
+                shifts.map { (entry, jobSyncId) ->
+                    entry.toCloud(companyId, jobSyncId, entry.employeeId?.let { employeeSyncById[it] })
+                },
+                insertOnly = true
+            )
+        }
+        val updated = runCatching {
+            upsert(
+                "time_entries",
+                shifts.map { (entry, jobSyncId) ->
+                    entry.toCloud(
+                        companyId, jobSyncId, entry.employeeId?.let { employeeSyncById[it] },
+                        includeTimes = false
+                    )
+                }
+            )
+        }
+        firstSight.exceptionOrNull()?.let { throw it }
+        // The update pass covers every shift, so its count is the number of
+        // shifts synced. Summing the two would report each one twice.
+        return updated.getOrThrow()
     }
 }
 
@@ -2247,11 +2378,21 @@ private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceR
     splitRailCount = splitRailCount
 )
 
-private fun TimeEntry.toCloud(companyId: String, jobSyncId: String, employeeSyncId: String? = null) = CloudTimeEntryPush(
+private fun TimeEntry.toCloud(
+    companyId: String,
+    jobSyncId: String,
+    employeeSyncId: String? = null,
+    // False for the second of [EntitySync.pushTimeEntries]'s two batches: the
+    // clock is left out so the upsert's UPDATE never names those columns and
+    // an office time correction is not overwritten by the phone that recorded
+    // the original. Never mix the two shapes inside one batch -- see
+    // [CloudTimeEntryPush.startedAt] for what PostgREST does with the gap.
+    includeTimes: Boolean = true
+) = CloudTimeEntryPush(
     companyId = companyId, syncId = syncId, jobSyncId = jobSyncId,
     employeeSyncId = employeeSyncId ?: "",
-    startedAt = Instant.ofEpochMilli(startedAt).toString(),
-    endedAt = endedAt?.let { Instant.ofEpochMilli(it).toString() },
+    startedAt = if (includeTimes) Instant.ofEpochMilli(startedAt).toString() else null,
+    endedAt = if (includeTimes) endedAt?.let { Instant.ofEpochMilli(it).toString() } else null,
     hourlyRate = hourlyRate, notes = notes,
     approvedAt = approvedAt?.let { CloudTime.format(it) },
     approvedBy = approvedBy,
@@ -2295,18 +2436,7 @@ object DeletionReaper {
                 val source = if (table == "estimate_line_items" && scope == MoneyScope.DENIED)
                     "estimate_line_items_crew" else table
                 async { netGate.withPermit {
-                val deletedIds = SupabaseModule.client.postgrest.from(source)
-                    .select(io.github.jan.supabase.postgrest.query.Columns.list("sync_id")) {
-                        filter {
-                            eq("company_id", companyId)
-                            // "not null" rather than a date window: a device that
-                            // has been off for a month must still learn about
-                            // everything deleted while it was away.
-                            filterNot("deleted_at", io.github.jan.supabase.postgrest.query.filter.FilterOperator.IS, "null")
-                        }
-                    }
-                    .decodeList<TombstonedRow>()
-                    .map { it.syncId }
+                val deletedIds = tombstonedSyncIds(source, companyId)
 
                 if (deletedIds.isNotEmpty()) {
                     // The local table name, always -- Room has no "_crew" table.
@@ -2315,6 +2445,56 @@ object DeletionReaper {
             } } }.awaitAll().sum()
             }
         }
+
+    /**
+     * Every tombstoned sync id in one table, a page at a time.
+     *
+     * This read asked once, and PostgREST answers at most a thousand rows
+     * without saying it has stopped short -- the same cap [pagedList] exists
+     * for, and the same silence. A company past a thousand deletions in a
+     * table got the first thousand ids and no hint of the rest, so every
+     * tombstone after that was simply never applied: the local row survived
+     * the reap, the push that runs straight afterwards sent it back up, and
+     * a deleted line item or change order reappeared on every device and back
+     * into the job total. Growing, permanently, because tombstones are never
+     * cleaned up ("not null" rather than a date window, below).
+     *
+     * Not routed through [pagedList] for one reason: [pagedList] selects every
+     * column, and this sweep runs over time_entries and material_items among
+     * others. Widening the select to reach a sync id would pull hourly_rate
+     * and unit_price down onto a crew phone, which is exactly what the _crew
+     * views exist to prevent. So the loop is repeated here with the narrow
+     * column list kept.
+     *
+     * Ordered by sync_id, so pages cannot overlap or skip. A short page ends
+     * it; a full one means ask again. The fifty-page stop is a runaway guard,
+     * not a limit.
+     */
+    private suspend fun tombstonedSyncIds(source: String, companyId: String): List<String> {
+        val page = 1000
+        val all = ArrayList<String>()
+        var from = 0L
+        while (true) {
+            val batch = SupabaseModule.client.postgrest.from(source)
+                .select(io.github.jan.supabase.postgrest.query.Columns.list("sync_id")) {
+                    filter {
+                        eq("company_id", companyId)
+                        // "not null" rather than a date window: a device that
+                        // has been off for a month must still learn about
+                        // everything deleted while it was away.
+                        filterNot("deleted_at", io.github.jan.supabase.postgrest.query.filter.FilterOperator.IS, "null")
+                    }
+                    order("sync_id", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
+                    range(from, from + page - 1)
+                }
+                .decodeList<TombstonedRow>()
+            all += batch.map { it.syncId }
+            if (batch.size < page) break
+            from += page
+            if (all.size >= page * 50) break
+        }
+        return all
+    }
 }
 
 @kotlinx.serialization.Serializable

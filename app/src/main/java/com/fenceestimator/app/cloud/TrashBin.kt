@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import com.fenceestimator.app.R
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -73,16 +74,43 @@ object TrashBin {
                     // recovery screen that shows nothing because one query broke
                     // is indistinguishable from having nothing to recover.
                     runCatching {
-                        SupabaseModule.client.postgrest.from(spec.table)
-                            .select(
-                                Columns.list("sync_id", spec.labelColumn, "deleted_at", "deleted_by")
-                            ) {
-                                filter {
-                                    eq("company_id", companyId)
-                                    filterNot("deleted_at", FilterOperator.IS, "null")
-                                }
+                        // Paged, like every other read in the sync layer.
+                        //
+                        // This one asked once and took what came back, and the
+                        // API caps a response at a thousand rows without saying
+                        // so. On a company that had deleted more than that, the
+                        // recovery screen would quietly stop listing the oldest
+                        // items -- and a thing you cannot see in Deleted Items
+                        // is indistinguishable from a thing that is gone.
+                        //
+                        // It was invisible to the guard that exists to catch
+                        // exactly this, because that guard only recognised one
+                        // of the two shapes a read is written in here. Widening
+                        // the guard is what surfaced it.
+                        buildList {
+                            var from = 0L
+                            val page = 1000L
+                            while (true) {
+                                val batch = SupabaseModule.client.postgrest.from(spec.table)
+                                    .select(
+                                        Columns.list("sync_id", spec.labelColumn, "deleted_at", "deleted_by")
+                                    ) {
+                                        filter {
+                                            eq("company_id", companyId)
+                                            filterNot("deleted_at", FilterOperator.IS, "null")
+                                        }
+                                        order("sync_id", Order.ASCENDING)
+                                        range(from, from + page - 1)
+                                    }
+                                    .decodeList<JsonObject>()
+                                addAll(batch)
+                                if (batch.size < page) break
+                                from += page
+                                // The same backstop the other paged reads carry,
+                                // so a server answering oddly cannot spin here.
+                                if (size >= page * 50) break
                             }
-                            .decodeList<JsonObject>()
+                        }
                             .map { row ->
                                 TrashedRecord(
                                     table = spec.table,
