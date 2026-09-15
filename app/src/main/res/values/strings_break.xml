@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Strings for the crew unpaid-break feature on the clock-in screen.
+     Kept in its own file, per the rule that new work adds a new resource
+     file rather than editing strings.xml directly.
+-->
+<resources>
+    <string name="crew_start_break">Start Break</string>
+    <string name="crew_end_break">End Break</string>
+    <string name="crew_on_break_since">On break since %1$s</string>
+    <!-- Shown once a break has been started and ended this shift, in place of the Start Break button. -->
+    <string name="crew_break_recorded">Break: %1$d min</string>
+    <!-- Refusal shown when ending the break now would record more minutes than the shift has run. -->
+    <string name="crew_break_too_long">That break is longer than the shift so far. Try again once more time has passed.</string>
+</resources>

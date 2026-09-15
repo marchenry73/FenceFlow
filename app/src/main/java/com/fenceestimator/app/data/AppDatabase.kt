@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
         PaymentRecord::class, BuildTemplate::class
     ],
-    version = 38,
+    version = 39,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -635,13 +635,46 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Lets a crew member record their own unpaid break from the clock-in
+         * screen, in the three columns the office side already reads (and
+         * already subtracts from pay): `break_minutes`, `break_started_at`,
+         * `break_ended_at` on Supabase's `time_entries`.
+         *
+         * Three plain ALTER TABLE ADD COLUMNs, each nullable with no default --
+         * additive only, same shape as every migration in this chain since the
+         * destructive fallback was removed. No default is the point, not an
+         * oversight: a default of 0 (or of "now") would make every shift
+         * already on a phone in the field, mid-shift or already synced, assert
+         * a break that was never taken. Null keeps meaning exactly what it
+         * means on the server -- nobody has recorded a break -- for every row
+         * that exists before this migration runs.
+         *
+         * What could go wrong mid-upgrade: nothing destructive. Each ALTER TABLE
+         * ADD COLUMN is independent and idempotent-safe within one migration
+         * (SQLite adds the column, existing rows get NULL); a phone killed
+         * between the three statements reopens with a partially-migrated table
+         * and Room simply re-runs this migration from where the version number
+         * says it left off, since none of the three statements depends on
+         * another having already run. A shift with unsynced local edits is
+         * untouched -- this only adds columns, never rewrites startedAt,
+         * endedAt or any existing row's data.
+         */
+        private val MIGRATION_38_39 = object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `time_entries` ADD COLUMN `breakMinutes` INTEGER")
+                db.execSQL("ALTER TABLE `time_entries` ADD COLUMN `breakStartedAt` INTEGER")
+                db.execSQL("ALTER TABLE `time_entries` ADD COLUMN `breakEndedAt` INTEGER")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a

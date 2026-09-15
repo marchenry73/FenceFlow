@@ -98,6 +98,26 @@ class CrewJobViewModel(
         viewModelScope.launch { repository.clockOut(jobId) }
     }
 
+    /** Starts the unpaid break on the shift currently running for this job. */
+    fun startBreak() {
+        viewModelScope.launch { repository.startBreak(jobId) }
+    }
+
+    /**
+     * Ends the break. A refusal is spoken rather than silently dropped --
+     * these are local writes, so there is no network failure to report, but
+     * a break the database would reject anyway must not read as saved.
+     */
+    fun endBreak() {
+        viewModelScope.launch {
+            when (repository.endBreak(jobId)) {
+                is com.fenceestimator.app.data.BreakResult.TooLong ->
+                    _message.tryEmit(UiMessage(R.string.crew_break_too_long))
+                else -> Unit
+            }
+        }
+    }
+
     fun deleteTimeEntry(entry: com.fenceestimator.app.data.TimeEntry) {
         viewModelScope.launch { repository.deleteTimeEntry(entry) }
     }

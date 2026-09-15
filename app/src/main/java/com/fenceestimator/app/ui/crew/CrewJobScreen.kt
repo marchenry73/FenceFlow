@@ -337,7 +337,9 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                 TimeClockCard(
                     entries = entries,
                     onClockIn = { viewModel.clockIn() },
-                    onClockOut = { viewModel.clockOut() }
+                    onClockOut = { viewModel.clockOut() },
+                    onStartBreak = { viewModel.startBreak() },
+                    onEndBreak = { viewModel.endBreak() }
                 )
                 val assigned = crew.firstOrNull { it.id == currentJob.assignedEmployeeId }
                 if (assigned != null) {
@@ -509,16 +511,18 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 private fun TimeClockCard(
     entries: List<com.fenceestimator.app.data.TimeEntry>,
     onClockIn: () -> Unit,
-    onClockOut: () -> Unit
+    onClockOut: () -> Unit,
+    onStartBreak: () -> Unit,
+    onEndBreak: () -> Unit
 ) {
     val running = entries.firstOrNull { it.isRunning }
     val timeFormat = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.US) }
     val totalHours = entries.filter { !it.isRunning }.sumOf { it.hours }
 
-    // Re-reads the clock every second so a running shift visibly ticks up
-    // rather than looking frozen.
+    // Re-reads the clock every second so a running shift (or a running break)
+    // visibly ticks up rather than looking frozen.
     var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(running?.id) {
+    LaunchedEffect(running?.id, running?.isOnBreak) {
         while (running != null) {
             nowTick = System.currentTimeMillis()
             kotlinx.coroutines.delay(1000)
@@ -551,6 +555,41 @@ private fun TimeClockCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Button(onClick = onClockOut, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_out)) }
+
+                // One break per shift, matching the two columns it is stored
+                // in -- see TimeEntry.breakStartedAt/breakEndedAt. Once a
+                // break has been taken this shift, it is shown as a fact
+                // rather than offered again.
+                when {
+                    running.isOnBreak -> {
+                        val breakElapsed = ((nowTick - running.breakStartedAt!!).coerceAtLeast(0L)) / 1000
+                        val bm = breakElapsed / 60
+                        val bs = breakElapsed % 60
+                        Text(
+                            stringResource(
+                                R.string.crew_on_break_since,
+                                timeFormat.format(java.util.Date(running.breakStartedAt))
+                            ) + "  " + String.format(java.util.Locale.US, "%d:%02d", bm, bs),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(onClick = onEndBreak, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.crew_end_break))
+                        }
+                    }
+                    running.hasRecordedBreak -> {
+                        Text(
+                            stringResource(R.string.crew_break_recorded, running.breakMinutes ?: 0),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    else -> {
+                        OutlinedButton(onClick = onStartBreak, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.crew_start_break))
+                        }
+                    }
+                }
             } else {
                 Button(onClick = onClockIn, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_in)) }
             }

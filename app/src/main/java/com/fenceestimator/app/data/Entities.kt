@@ -941,9 +941,34 @@ data class TimeEntry(
     val originalEndedAt: Long? = null,
     /** When the office changed it, and the reason they gave. */
     val correctedAt: Long? = null,
-    val correctionReason: String = ""
+    val correctionReason: String = "",
+    /**
+     * The unpaid break the office already subtracts from pay and job cost.
+     *
+     * Null means nobody has recorded a break on this shift -- not the same
+     * claim as a recorded break of zero minutes, which is why this has no
+     * default. A default of 0 would make every shift ever worked, including
+     * every one already sitting in the database before this column existed,
+     * assert that no break was taken; only a crew member actually starting
+     * and stopping one may set this.
+     *
+     * [breakStartedAt] and [breakEndedAt] are the record of when; this is the
+     * number the office's timesheet and pay math actually read, computed once
+     * from the two clocks when the break ends and never touched again.
+     */
+    val breakMinutes: Int? = null,
+    /** Set when the crew member taps Start Break on a running shift. */
+    val breakStartedAt: Long? = null,
+    /** Set when the crew member taps End Break; this is what freezes [breakMinutes]. */
+    val breakEndedAt: Long? = null
 ) {
     val isRunning: Boolean get() = endedAt == null
+
+    /** A break has been started on this shift and not yet ended. */
+    val isOnBreak: Boolean get() = breakStartedAt != null && breakEndedAt == null
+
+    /** A break was taken (started and stopped) on this shift, whatever its length. */
+    val hasRecordedBreak: Boolean get() = breakMinutes != null
 
     /** Finished, and neither approved nor sent back yet. */
     val isAwaitingApproval: Boolean

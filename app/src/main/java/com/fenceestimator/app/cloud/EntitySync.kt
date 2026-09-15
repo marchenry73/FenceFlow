@@ -492,7 +492,16 @@ data class CloudTimeEntry(
     @SerialName("original_started_at") val originalStartedAt: String? = null,
     @SerialName("original_ended_at") val originalEndedAt: String? = null,
     @SerialName("corrected_at") val correctedAt: String? = null,
-    @SerialName("correction_reason") val correctionReason: String = ""
+    @SerialName("correction_reason") val correctionReason: String = "",
+    /**
+     * The unpaid break, in the same shape [CloudTimeEntryPush] sends it in --
+     * see that class for why these three travel together with started_at/
+     * ended_at rather than on every push. Null here means exactly what it
+     * means in Room: nobody has recorded a break, never a break of zero.
+     */
+    @SerialName("break_minutes") val breakMinutes: Int? = null,
+    @SerialName("break_started_at") val breakStartedAt: String? = null,
+    @SerialName("break_ended_at") val breakEndedAt: String? = null
 )
 
 /**
@@ -535,7 +544,21 @@ data class CloudTimeEntryPush(
     @SerialName("approved_at") val approvedAt: String? = null,
     @SerialName("approved_by") val approvedBy: String = "",
     @SerialName("rejected_at") val rejectedAt: String? = null,
-    @SerialName("review_note") val reviewNote: String = ""
+    @SerialName("review_note") val reviewNote: String = "",
+    /**
+     * Set once, by the phone that recorded the break, exactly like started_at
+     * and ended_at just above -- and gated by the same [includeTimes]-style
+     * flag in [EntitySync.pushTimeEntries]'s two batches for the same reason:
+     * a phone re-pushing null here on its second (update) pass, once the crew
+     * member has moved past the break, must not blank a value the insert pass
+     * already landed. `explicitNulls = false` means a null field is dropped
+     * from the JSON entirely rather than sent, so a device with no break
+     * recorded never overwrites one the office (or another phone) already
+     * set -- see [SupabaseModule].
+     */
+    @SerialName("break_minutes") val breakMinutes: Int? = null,
+    @SerialName("break_started_at") val breakStartedAt: String? = null,
+    @SerialName("break_ended_at") val breakEndedAt: String? = null
 )
 
 /**
@@ -1792,7 +1815,10 @@ object EntitySync {
                         originalStartedAt = CloudTime.parseMillis(row.originalStartedAt),
                         originalEndedAt = CloudTime.parseMillis(row.originalEndedAt),
                         correctedAt = CloudTime.parseMillis(row.correctedAt),
-                        correctionReason = row.correctionReason
+                        correctionReason = row.correctionReason,
+                        breakMinutes = row.breakMinutes,
+                        breakStartedAt = CloudTime.parseMillis(row.breakStartedAt),
+                        breakEndedAt = CloudTime.parseMillis(row.breakEndedAt)
                     )
                 )
                 added++
@@ -1854,7 +1880,22 @@ object EntitySync {
                         ?: existing.originalEndedAt,
                     correctedAt = CloudTime.parseMillis(row.correctedAt)
                         ?: existing.correctedAt,
-                    correctionReason = row.correctionReason.ifBlank { existing.correctionReason }
+                    correctionReason = row.correctionReason.ifBlank { existing.correctionReason },
+                    // Same "kept, not blanked" rule as the correction columns
+                    // just above, and for a related reason: the update half of
+                    // pushTimeEntries omits the break entirely (see
+                    // CloudTimeEntryPush.breakMinutes), so a pull that lands
+                    // before this device's own insert-only push has reached
+                    // the cloud would otherwise see a bare cloud row and wipe
+                    // out a break this same phone just recorded. Falling back
+                    // to the existing local value when the cloud has nothing
+                    // to say means the only way a break actually clears here
+                    // is the cloud genuinely carrying one.
+                    breakMinutes = row.breakMinutes ?: existing.breakMinutes,
+                    breakStartedAt = CloudTime.parseMillis(row.breakStartedAt)
+                        ?: existing.breakStartedAt,
+                    breakEndedAt = CloudTime.parseMillis(row.breakEndedAt)
+                        ?: existing.breakEndedAt
                 )
                 if (merged != existing) {
                     repository.updateTimeEntry(merged)
@@ -2397,7 +2438,15 @@ private fun TimeEntry.toCloud(
     approvedAt = approvedAt?.let { CloudTime.format(it) },
     approvedBy = approvedBy,
     rejectedAt = rejectedAt?.let { CloudTime.format(it) },
-    reviewNote = reviewNote
+    reviewNote = reviewNote,
+    // Same gate as startedAt/endedAt above, and for the same reason: the break
+    // is recorded once, before the shift is ever pushed (a phone cannot edit
+    // it after clocking out -- see Repository.clockOut), so it belongs in the
+    // insert-only batch and must be left out of the update pass that runs
+    // behind it.
+    breakMinutes = if (includeTimes) breakMinutes else null,
+    breakStartedAt = if (includeTimes) breakStartedAt?.let { Instant.ofEpochMilli(it).toString() } else null,
+    breakEndedAt = if (includeTimes) breakEndedAt?.let { Instant.ofEpochMilli(it).toString() } else null
 )
 
 /**

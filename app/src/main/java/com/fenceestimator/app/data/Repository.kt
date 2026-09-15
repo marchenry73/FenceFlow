@@ -17,6 +17,21 @@ data class UnsyncedSummary(val jobs: Int, val files: Int) {
     val isEmpty: Boolean get() = jobs == 0 && files == 0
 }
 
+/**
+ * What happened when a crew member tapped End Break, spelled out so the
+ * screen can say why nothing was saved instead of guessing from a null.
+ */
+sealed class BreakResult {
+    /** No shift is running on this job right now. */
+    object NoRunningShift : BreakResult()
+    /** No break was started on the running shift, so there is nothing to end. */
+    object NoBreakRunning : BreakResult()
+    /** Refused: ending it now would record more break minutes than the shift has run. */
+    object TooLong : BreakResult()
+    /** Saved. Carries the entry with breakMinutes now frozen. */
+    data class Ended(val entry: TimeEntry) : BreakResult()
+}
+
 class Repository(private val db: AppDatabase) {
 
     /**
@@ -666,10 +681,68 @@ class Repository(private val db: AppDatabase) {
      * Ends the shift and puts it in the queue rather than straight onto the
      * books. Clocking out is a claim about hours worked; approving it is what
      * turns that into pay and into job cost.
+     *
+     * Also closes a break left running -- forgetting to tap End Break before
+     * Clock Out must not leave breakStartedAt set with breakEndedAt and
+     * breakMinutes forever null, because null there reads as "no break was
+     * taken" and would silently give the break back as paid time. Freezing it
+     * at the clock-out instant is the same rule [markJobComplete] already
+     * applies to a shift left running.
      */
     suspend fun clockOut(jobId: Long) {
         val running = timeEntryDao.runningForJob(jobId) ?: return
-        timeEntryDao.update(running.copy(endedAt = System.currentTimeMillis()))
+        val now = System.currentTimeMillis()
+        val withBreakClosed = if (running.isOnBreak) {
+            val minutes = ((now - running.breakStartedAt!!) / 60_000L).coerceAtLeast(0L)
+            running.copy(breakEndedAt = now, breakMinutes = minutes.toInt())
+        } else {
+            running
+        }
+        timeEntryDao.update(withBreakClosed.copy(endedAt = now))
+    }
+
+    /**
+     * Starts the unpaid break on the shift running for [jobId].
+     *
+     * Idempotent like [clockIn]: double-tapping Start Break must not restart
+     * the clock and quietly shrink the break already in progress. Returns
+     * null when there is no running shift to attach a break to, so the caller
+     * can say why nothing happened instead of the button silently doing
+     * nothing.
+     */
+    suspend fun startBreak(jobId: Long): TimeEntry? {
+        val running = timeEntryDao.runningForJob(jobId) ?: return null
+        if (running.isOnBreak) return running
+        val updated = running.copy(breakStartedAt = System.currentTimeMillis())
+        timeEntryDao.update(updated)
+        return updated
+    }
+
+    /**
+     * Ends the break and freezes [TimeEntry.breakMinutes] -- the number the
+     * office's timesheet and pay math actually read. Computed here, once,
+     * from the two clocks, rather than asked of the crew member as a typed
+     * number that could be wrong.
+     *
+     * Refuses rather than writes when the break would come out longer than
+     * the shift has been running, which the database also enforces with a
+     * constraint -- this is the phone finding out first, in the field,
+     * instead of a sync failing days later with a SQLSTATE nobody on site can
+     * read. Returns [BreakResult.TooLong] rather than clamping the value:
+     * clamping would silently record a number the crew member never agreed
+     * to.
+     */
+    suspend fun endBreak(jobId: Long): BreakResult {
+        val running = timeEntryDao.runningForJob(jobId) ?: return BreakResult.NoRunningShift
+        val start = running.breakStartedAt ?: return BreakResult.NoBreakRunning
+        if (running.breakEndedAt != null) return BreakResult.Ended(running)
+        val now = System.currentTimeMillis()
+        val minutes = ((now - start) / 60_000L).coerceAtLeast(0L)
+        val shiftMinutesSoFar = ((now - running.startedAt) / 60_000L).coerceAtLeast(0L)
+        if (minutes > shiftMinutesSoFar) return BreakResult.TooLong
+        val updated = running.copy(breakEndedAt = now, breakMinutes = minutes.toInt())
+        timeEntryDao.update(updated)
+        return BreakResult.Ended(updated)
     }
 
     /** Shifts waiting on a manager or the owner. */

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish strings for the crew unpaid-break feature on the clock-in screen. -->
+<resources>
+    <string name="crew_start_break">Iniciar descanso</string>
+    <string name="crew_end_break">Terminar descanso</string>
+    <string name="crew_on_break_since">En descanso desde las %1$s</string>
+    <string name="crew_break_recorded">Descanso: %1$d min</string>
+    <string name="crew_break_too_long">Ese descanso dura más que el turno hasta ahora. Inténtalo de nuevo más tarde.</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French strings for the crew unpaid-break feature on the clock-in screen. -->
+<resources>
+    <string name="crew_start_break">Commencer la pause</string>
+    <string name="crew_end_break">Terminer la pause</string>
+    <string name="crew_on_break_since">En pause depuis %1$s</string>
+    <string name="crew_break_recorded">Pause : %1$d min</string>
+    <string name="crew_break_too_long">Cette pause dure plus longtemps que le quart jusqu’à présent. Réessayez plus tard.</string>
+</resources>
