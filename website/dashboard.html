@@ -519,6 +519,22 @@
 </head>
 <body>
 
+<script>
+  // Runs before anything is drawn. Reading the choice after paint means a
+  // dark-mode user gets a white flash on every load, which is worse than
+  // having no setting at all.
+  //
+  // "system" deliberately REMOVES the attribute rather than writing a value:
+  // the stylesheet already answers prefers-color-scheme when nothing is
+  // stamped, so the absence is the third state, not a missing one.
+  (function () {
+    try {
+      var t = localStorage.getItem("ff_theme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      else document.documentElement.removeAttribute("data-theme");
+    } catch (e) { /* private window, blocked storage: fall back to the browser */ }
+  })();
+</script>
 <header>
   <!-- The name goes HOME inside the office, not off it.
        It used to leave for the marketing site, which is the one place
@@ -536,6 +552,17 @@
       <option value="en">EN</option>
       <option value="es">ES</option>
       <option value="fr">FR</option>
+    </select>
+    <!-- The dark styling was written and then reachable only by changing the
+         browser. Somebody whose laptop is set to dark had no way to say "not
+         in here" -- and the first thing that went wrong with it was black
+         text on a near-black field, measured at 1.07 contrast where 4.5 is
+         readable. A person who cannot choose cannot get out of that. -->
+    <select id="themePicker" class="btn btn-sm btn-ghost" data-t-title="themeTitle"
+            aria-label="Appearance" title="Appearance" style="padding-right:6px">
+      <option value="system" data-t="themeSystem">System</option>
+      <option value="light" data-t="themeLight">Light</option>
+      <option value="dark" data-t="themeDark">Dark</option>
     </select>
     <!-- The public site, reachable but not where the logo lands. -->
     <a class="btn btn-sm btn-ghost" href="index.html" id="publicSite" data-t="publicSite">Home page</a>
@@ -1975,6 +2002,7 @@ const TL = {
     tabCatalog:'Catalog', tabReports:'Reports', tabAutomation:'Automation',
     tabSettings:'Settings', tabBilling:'Billing',
     signOut:'Sign out', refresh:'Refresh',
+    themeTitle:'Appearance', themeSystem:'System', themeLight:'Light', themeDark:'Dark',
     repFunnelAll:'All jobs', repFunnelQuoted:'Quoted', repFunnelWon:'Won', repFunnelPaid:'Paid in full',
     repFunnelAllHow:'Every job touched in this period, whatever became of it.',
     repFunnelQuotedHow:'Jobs that reached a quote in this period.',
@@ -2636,6 +2664,7 @@ const TL = {
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     signOut:'Cerrar sesión', refresh:'Actualizar',
+    themeTitle:'Apariencia', themeSystem:'Del sistema', themeLight:'Claro', themeDark:'Oscuro',
     repFunnelAll:'Todos los trabajos', repFunnelQuoted:'Cotizados', repFunnelWon:'Ganados', repFunnelPaid:'Pagados por completo',
     repFunnelAllHow:'Todo trabajo tocado en este periodo, pase lo que pase después.',
     repFunnelQuotedHow:'Trabajos que llegaron a cotización en este periodo.',
@@ -3275,6 +3304,7 @@ const TL = {
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     signOut:'Se déconnecter', refresh:'Actualiser',
+    themeTitle:'Apparence', themeSystem:'Du système', themeLight:'Clair', themeDark:'Sombre',
     repFunnelAll:'Tous les chantiers', repFunnelQuoted:'Devis faits', repFunnelWon:'Gagnés', repFunnelPaid:'Payés en entier',
     repFunnelAllHow:'Tout chantier touché durant cette période, quelle qu’en soit la suite.',
     repFunnelQuotedHow:'Chantiers arrivés jusqu’au devis durant cette période.',
@@ -14817,6 +14847,22 @@ $('calToday').addEventListener('click',()=>{
 });
 
 applyStaticText();
+// Appearance. Stored under its own key beside the language one, so the two
+// answers travel together for somebody who sets both.
+function setTheme(t) {
+  if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  else document.documentElement.removeAttribute("data-theme");
+  try { localStorage.setItem("ff_theme", t); } catch (e) { /* nothing to remember it with */ }
+}
+{
+  const tp = $("themePicker");
+  if (tp) {
+    let stored = "system";
+    try { stored = localStorage.getItem("ff_theme") || "system"; } catch (e) {}
+    tp.value = stored;
+    tp.addEventListener("change", () => setTheme(tp.value));
+  }
+}
 $('langPicker').addEventListener('change', e => setLang(e.target.value));
 
 boot();
