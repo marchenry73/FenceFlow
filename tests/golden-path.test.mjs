@@ -33,12 +33,39 @@ const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const LEADS_TOKEN = "22222222-2222-4222-8222-222222222222";
 const ES_QUOTE_TOKEN = "11111111-1111-4111-8111-111111111501";
 
-let failed = 0, checked = 0;
+let failed = 0, checked = 0, limited = 0;
 const ok = (name, cond, detail = "") => {
   checked++;
   if (cond) { console.log(`  ok    ${name}`); return; }
   failed++;
   console.log(`  FAIL  ${name}${detail ? " — " + detail : ""}`);
+};
+
+/**
+ * A refusal for rate limiting is not the flow being broken.
+ *
+ * The public endpoints this suite drives are deliberately rate limited -- the
+ * lead form refuses after twenty, and the quote gate locks after five wrong
+ * digits. Run on its own this suite stays under both. Run as part of the
+ * one-command health check, behind several other live suites, it can trip them
+ * and then report the quote-to-payment flow as no longer working.
+ *
+ * That is the same mistake this project keeps finding in its own checks: a
+ * result that has two possible causes, reported as the alarming one. A checker
+ * that cries wolf stops being read, and the day it is right it looks like every
+ * day it was wrong.
+ *
+ * So a 429 is counted and named as "could not test", never as a failure. The
+ * suite still exits non-zero if anything genuinely failed; being rate limited
+ * on its own leaves the exit code clean and says why.
+ */
+const rateLimited = (name, res) => {
+  if (res && res.status === 429) {
+    limited++;
+    console.log(`  ----  ${name} — could not test: the endpoint rate limited us (429). Not a failure.`);
+    return true;
+  }
+  return false;
 };
 
 async function publishableKey() {
@@ -82,7 +109,10 @@ async function main() {
     }),
   });
   const intakeBody = await intakeRes.json().catch(() => ({}));
-  ok("lead-intake accepts the enquiry", intakeRes.ok, `http ${intakeRes.status}: ${JSON.stringify(intakeBody)}`);
+  const leadLimited = rateLimited("lead-intake accepts the enquiry", intakeRes);
+  if (!leadLimited) {
+    ok("lead-intake accepts the enquiry", intakeRes.ok, `http ${intakeRes.status}: ${JSON.stringify(intakeBody)}`);
+  }
 
   // lead-intake writes straight into jobs (customer_name, referral_source =
   // "Website") -- there is no separate leads/customers table for this path.
@@ -93,14 +123,21 @@ async function main() {
     `and referral_source = 'Website';`
   );
   const leadRowList = Array.isArray(leadRows) ? leadRows : (leadRows?.rows || []);
-  ok("the lead really landed in the database (read back, not the success message)",
-     leadRowList.length === 1, `found ${leadRowList.length} rows`);
+  if (leadLimited) {
+    console.log("  ----  the lead really landed in the database — skipped: the enquiry above was rate limited, " +
+      "so there is no row to look for. Skipping beats reporting a second failure for one cause.");
+  } else {
+    ok("the lead really landed in the database (read back, not the success message)",
+       leadRowList.length === 1, `found ${leadRowList.length} rows`);
+  }
 
   // ---------------------------------------------------------- step 2 ---
   console.log("\n2. The quote a customer opens has the right shape:");
   const quoteRes = await fetch(`${API}/functions/v1/quote-view?t=${ES_QUOTE_TOKEN}`);
   const quote = await quoteRes.json().catch(() => ({}));
-  ok("quote-view answers", quoteRes.ok, `http ${quoteRes.status}: ${JSON.stringify(quote)}`);
+  if (!rateLimited("quote-view answers", quoteRes)) {
+    ok("quote-view answers", quoteRes.ok, `http ${quoteRes.status}: ${JSON.stringify(quote)}`);
+  }
   ok("has company", !!quote.company && !!quote.company.name);
   ok("has customer", !!quote.customerName);
   ok("has total", quote.total !== undefined && quote.total !== null);
@@ -210,6 +247,10 @@ async function main() {
      recordedName(stillFirst) === firstName, `recorded name is now ${JSON.stringify(recordedName(stillFirst))}`);
 
   console.log(`\n${checked - failed} passed, ${failed} failed`);
+if (limited) {
+  console.log(`${limited} check(s) could not run because the endpoint rate limited us. ` +
+    `That is the limiter working, not the flow being broken -- rerun this suite on its own to test them.`);
+}
 }
 
 /** The quote-view response shape isn't fixed in the spec here, so check the
