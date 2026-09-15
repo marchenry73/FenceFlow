@@ -1924,6 +1924,9 @@
       </div>
       <label data-t="empLabelHourlyRate">Hourly rate ($)</label><input id="e_hourly_rate" type="number" step="0.5">
       <label data-t="supLabelNotes">Notes</label><textarea id="e_notes"></textarea>
+      <label data-t="empLabelLinkedLogin">Linked login</label>
+      <select id="e_profile_id"><option value="" data-t="empLinkedLoginNone">Not linked</option></select>
+      <p class="sub" id="e_link_note" data-t="empLinkedLoginNote" style="margin:4px 0 0">Connect this crew member to one of your company's logins so they can see their own corrected hours and accept or dispute them from the phone. Nobody sees pay or other crew members' records through this.</p>
     </div>
   </div>
   <div class="sheet-foot">
@@ -2416,6 +2419,11 @@ const TL = {
 
     empTitleFallback:'Crew Member', empRolePh:'Foreman, Laborer…', empLabelHourlyRate:'Hourly rate ($)',
     empDeleteBtn:'Delete', empNewTitle:'New Crew Member', empRateNotVisiblePh:'Not visible to your account',
+    empLabelLinkedLogin:'Linked login', empLinkedLoginNone:'Not linked',
+    empLinkedLoginNote:'Connect this crew member to one of your company\'s logins so they can see their own corrected hours and accept or dispute them from the phone. Nobody sees pay or other crew members\' records through this.',
+    empLinkedLoginTaken:'%s is already linked to %s',
+    empLinkedLoginSavedOk:'Linked to %s.', empLinkedLoginRemovedOk:'Login unlinked.',
+    empLinkedLoginConflictErr:'That login just got linked to another crew member. Pick again.',
     empEmailingMsg:'Emailing %s…', empInviteEmailedMsg:'Invite emailed to %s.',
     empEmailNotSetUpMsg:'Email is not set up yet. Give them the code by hand.',
     empCopyCodeBtn:'Copy code', empCopiedWord:'Copied',
@@ -3072,6 +3080,11 @@ const TL = {
 
     empTitleFallback:'Miembro de la cuadrilla', empRolePh:'Capataz, obrero…', empLabelHourlyRate:'Tarifa por hora ($)',
     empDeleteBtn:'Eliminar', empNewTitle:'Nuevo miembro de la cuadrilla', empRateNotVisiblePh:'No visible para su cuenta',
+    empLabelLinkedLogin:'Acceso vinculado', empLinkedLoginNone:'No vinculado',
+    empLinkedLoginNote:'Conecte a este miembro de la cuadrilla con uno de los accesos de su empresa para que pueda ver sus propias horas corregidas y aceptarlas o disputarlas desde el teléfono. Nadie ve el pago ni los registros de otros miembros de la cuadrilla a través de esto.',
+    empLinkedLoginTaken:'%s ya está vinculado a %s',
+    empLinkedLoginSavedOk:'Vinculado a %s.', empLinkedLoginRemovedOk:'Acceso desvinculado.',
+    empLinkedLoginConflictErr:'Ese acceso se acaba de vincular a otro miembro de la cuadrilla. Elija de nuevo.',
     empEmailingMsg:'Enviando correo a %s…', empInviteEmailedMsg:'Invitación enviada por correo a %s.',
     empEmailNotSetUpMsg:'El correo todavía no está configurado. Entregue el código a mano.',
     empCopyCodeBtn:'Copiar código', empCopiedWord:'Copiado',
@@ -3706,6 +3719,11 @@ const TL = {
 
     empTitleFallback:'Membre de l\'équipe', empRolePh:'Contremaître, manœuvre…', empLabelHourlyRate:'Taux horaire ($)',
     empDeleteBtn:'Supprimer', empNewTitle:'Nouveau membre de l\'équipe', empRateNotVisiblePh:'Non visible pour votre compte',
+    empLabelLinkedLogin:'Accès lié', empLinkedLoginNone:'Non lié',
+    empLinkedLoginNote:'Reliez ce membre de l\'équipe à l\'un des accès de votre entreprise afin qu\'il puisse voir ses propres heures corrigées et les accepter ou les contester depuis le téléphone. Personne ne voit la paie ni les dossiers des autres membres de l\'équipe par ce biais.',
+    empLinkedLoginTaken:'%s est déjà lié à %s',
+    empLinkedLoginSavedOk:'Lié à %s.', empLinkedLoginRemovedOk:'Accès délié.',
+    empLinkedLoginConflictErr:'Cet accès vient d\'être lié à un autre membre de l\'équipe. Choisissez-en un autre.',
     empEmailingMsg:'Envoi d\'un courriel à %s…', empInviteEmailedMsg:'Invitation envoyée par courriel à %s.',
     empEmailNotSetUpMsg:'Le courriel n\'est pas encore configuré. Remettez le code à la main.',
     empCopyCodeBtn:'Copier le code', empCopiedWord:'Copié',
@@ -14277,7 +14295,58 @@ async function sendCrewInvite(emp){
 }
 
 /* ---------- crew editor ---------- */
-function showEmp(id){
+// company_members() is already the office console's one channel for "who
+// else has a login here" (loadSeats uses it for the Billing tab's seat
+// list) -- it is SECURITY DEFINER but filters to auth.uid()'s own
+// company_id inside the function body, so the office never gets to pass a
+// company id itself. Re-fetched each time the crew editor opens rather than
+// cached across the session: a login this account just removed on the
+// Billing tab must not still be offered here as something to attach.
+let companyMemberOptions = null;
+async function loadCompanyMemberOptions(){
+  const { data, error } = await db.rpc('company_members');
+  companyMemberOptions = error ? [] : (data || []);
+  return companyMemberOptions;
+}
+
+/* profile_id is what both acknowledge_my_shift and dispute_my_shift check
+   (employees.profile_id = auth.uid()), and what widens employees_read so a
+   linked crew member can see their OWN row without SEE_PAY. There is no
+   database constraint yet stopping the same login being attached to two
+   employee rows (see supabase_employee_profile_link_unique.sql, written but
+   not run) -- so this list is the only thing standing between "pick a
+   name" and one login quietly reading two people's corrected hours. Built
+   from the employees already loaded for this company (employees_read's own
+   company_id scoping is what makes that list trustworthy), not from a
+   second server round trip. */
+function linkedElsewhereMap(){
+  const map = new Map();
+  employees.forEach(e=>{
+    if(e.profile_id && (!openEmp || String(e.id)!==String(openEmp.id))) map.set(e.profile_id, e);
+  });
+  return map;
+}
+function renderLinkSelect(members){
+  const sel = $('e_profile_id');
+  const taken = linkedElsewhereMap();
+  const current = openEmp?.profile_id || '';
+  sel.innerHTML = `<option value="">${esc(tr('empLinkedLoginNone'))}</option>` +
+    members.map(m=>{
+      const other = taken.get(m.id);
+      const disabled = other && m.id !== current;
+      const label = other && m.id !== current
+        ? tr('empLinkedLoginTaken', m.full_name||tr('seatUnnamed'), other.name||tr('crewUnnamed'))
+        : (m.full_name || tr('seatUnnamed'));
+      return `<option value="${esc(m.id)}"${m.id===current?' selected':''}${disabled?' disabled':''}>${esc(label)}</option>`;
+    }).join('');
+  sel.value = current;
+  // Only an owner or manager can write employees_update in the first place
+  // (has_permission('EDIT_CATALOG_AND_SETTINGS')) -- disabling this for
+  // everyone else matches e_hourly_rate's own disabled-when-can't-act
+  // pattern rather than leaving a control that Save will just no-op.
+  sel.disabled = !canEdit();
+}
+async function showEmp(id){
   openEmp = id ? employees.find(e=>String(e.id)===String(id)) : null;
   $('empTitle').textContent = openEmp ? (openEmp.name||tr('empTitleFallback')) : tr('empNewTitle');
   ['name','role','phone','email','notes'].forEach(k=>$('e_'+k).value=openEmp?.[k]||'');
@@ -14290,6 +14359,15 @@ function showEmp(id){
   rateInput.disabled = !employeesHavePay;
   rateInput.placeholder = employeesHavePay ? '' : tr('empRateNotVisiblePh');
   $('deleteEmp').style.display=openEmp?'inline-block':'none';
+  // A brand-new crew member has no row yet, so there is nothing to attach a
+  // login to until after the first Save -- offering the picker here would
+  // save a value nowhere.
+  $('e_profile_id').style.display = openEmp ? '' : 'none';
+  $('e_profile_id').previousElementSibling && ($('e_profile_id').previousElementSibling.style.display = openEmp ? '' : 'none');
+  $('e_link_note').style.display = openEmp ? '' : 'none';
+  if(openEmp){
+    renderLinkSelect(companyMemberOptions || await loadCompanyMemberOptions());
+  }
   $('empOverlay').classList.add('on');
 }
 async function saveEmp(){
@@ -14301,6 +14379,24 @@ async function saveEmp(){
   // zero out whatever this account can't read, which is a payroll bug, not a
   // UI nicety.
   if (employeesHavePay) patch.hourly_rate = num($('e_hourly_rate').value);
+  // Only an existing row can be linked (see showEmp) -- a brand-new one is
+  // created below with no profile_id, exactly like every other column that
+  // does not yet exist on a not-yet-saved employee.
+  let linkChoice = null;
+  if(openEmp){
+    linkChoice = $('e_profile_id').value || null;
+    // Re-check against the freshest employees list rather than trusting the
+    // dropdown's disabled state, which was rendered from whatever was loaded
+    // when the sheet opened -- a second office tab could have linked the
+    // same login in the meantime. Caught here rather than left for the
+    // database, because until supabase_employee_profile_link_unique.sql is
+    // run there is nothing in Postgres that would catch it at all.
+    if(linkChoice){
+      const other = linkedElsewhereMap().get(linkChoice);
+      if(other) return msg('empMsg', tr('empLinkedLoginConflictErr'), 'err');
+    }
+    patch.profile_id = linkChoice;
+  }
   // The previous email, from before this save, decides whether an invite
   // goes out below -- selected while openEmp still points at the old row.
   const priorEmail = (openEmp?.email||'').trim();
@@ -14309,7 +14405,14 @@ async function saveEmp(){
     // sync_id back, so a brand-new crew member can be invited by the same
     // call below without a second round trip to find their row again.
     : await db.from('employees').insert({...patch,company_id:profile.company_id}).select('sync_id');
-  if(res.error) return msg('empMsg',res.error.message,'err');
+  if(res.error){
+    // 23505 is the unique-violation code Postgres uses once
+    // supabase_employee_profile_link_unique.sql is applied -- the honest
+    // message replaces the raw constraint-name error so this reads as the
+    // race it is, not a database internals leak.
+    if(res.error.code === '23505') return msg('empMsg', tr('empLinkedLoginConflictErr'), 'err');
+    return msg('empMsg',res.error.message,'err');
+  }
   const savedSyncId = openEmp ? openEmp.sync_id : res.data?.[0]?.sync_id;
   $('empOverlay').classList.remove('on'); await loadAll();
   // Same reason as the import hook above: the setup wizard's Crew step, if
