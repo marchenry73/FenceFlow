@@ -74,13 +74,13 @@ eq('zero bags and no colour are both left out, not printed as "0 bags" or an emp
 /* ---------- setupWizardSteps: Crew skipped on Solo, Done always last ---------- */
 
 eq('crew plan sees every step', M.setupWizardSteps('crew'),
-  ['business','rates','build','supplier','tiers','crew','done']);
+  ['business','rates','build','supplier','tiers','payments','crew','done']);
 eq('pro plan sees every step', M.setupWizardSteps('pro'),
-  ['business','rates','build','supplier','tiers','crew','done']);
+  ['business','rates','build','supplier','tiers','payments','crew','done']);
 eq('solo skips crew -- the owner IS the crew there', M.setupWizardSteps('solo'),
-  ['business','rates','build','supplier','tiers','done']);
+  ['business','rates','build','supplier','tiers','payments','done']);
 eq('an unrecognised/blank plan is treated as NOT solo (hand-granted companies keep everything)',
-  M.setupWizardSteps(''), ['business','rates','build','supplier','tiers','crew','done']);
+  M.setupWizardSteps(''), ['business','rates','build','supplier','tiers','payments','crew','done']);
 
 /* ---------- vinylDefaultTemplatePayload: the legacy Settings inputs' new job ---------- */
 

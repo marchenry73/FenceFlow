@@ -1312,12 +1312,12 @@
       </div>
 
       <div class="panel">
-        <h2>Your alerts</h2>
-        <p class="sub">The "Needs attention" list on Home can get noisy if you don't own a
+        <h2 data-t="settingsAlertsHead">Your alerts</h2>
+        <p class="sub" data-t="settingsAlertsBody">The "Needs attention" list on Home can get noisy if you don't own a
           particular part of the job (scheduling materials, say). Turn off what you don't need —
           this only affects what you see; everyone else on your team still sees theirs.</p>
         <div id="alertPrefsRows"></div>
-        <p class="sub" style="margin-top:14px">Dismissed items stay dismissed until something about them actually
+        <p class="sub" style="margin-top:14px" data-t="settingsAlertsFootnote">Dismissed items stay dismissed until something about them actually
           changes. Desktop alerts pop up in this browser while this tab is open but not the one you're looking
           at — there's no email alert yet; the mail key isn't configured, and a silent failure to send would be
           worse than none.</p>
@@ -2657,6 +2657,65 @@ const TL = {
     repXpMonthRowsTitle:'The payments in this month', repXpMonthEmpty:'No payments in this month.',
     repXpDefaultTitle:'Where this comes from', repXpDefaultRowsTitle:'What is in it',
     repRangeLabelTitle:'Collected and Hours count what happened inside this window. Est. profit is measured across the whole of every job touched in it.',
+
+    // Notification centre -- ALERT_DEFS labels, the Settings "Your alerts"
+    // panel, the sentences the exception detectors produce, the Seen button,
+    // the empty states, and the desktop notification text. Keys, not
+    // English, wherever the string is compared or stored: alert `key` (see
+    // ALERT_DEFS above), mutedAlerts, notification_prefs columns.
+    alertUncontactedLead:'Nobody has contacted a new lead yet',
+    alertDisputeOpen:'A payment dispute is open',
+    alertUnsignedApproved:'Approved but not signed',
+    alertLabourOver:'Labour cost is over what a job was priced at',
+    alertMaterialsMissing:'Scheduled soon with materials not ordered/received',
+    alertStaleQuote:'A sent quote has gone quiet',
+    alertNoDeposit:'Approved with no deposit taken',
+    alertClockedInLong:'Someone has been clocked in unusually long',
+    alertUnverifiedPrices:'Priced on catalog prices nobody has confirmed',
+    alertUnassignedScheduled:'Scheduled with nobody assigned to the crew',
+    alertClockedInFinished:'Clocked in on a job already marked finished',
+    alertApprovedUnscheduled:'Approved but never scheduled',
+    alertPaidThenDeclined:'Money collected on a job later declined',
+    alertStageStalled:'Sitting on one production stage for weeks',
+    alertJobOverdue:'On your phone: a job is running late',
+    alertWeeklyDigest:'On your phone: the Monday summary',
+
+    settingsAlertsHead:'Your alerts',
+    settingsAlertsBody:'The "Needs attention" list on Home can get noisy if you don\'t own a particular part of the job (scheduling materials, say). Turn off what you don\'t need — this only affects what you see; everyone else on your team still sees theirs.',
+    settingsAlertsFootnote:'Dismissed items stay dismissed until something about them actually changes. Desktop alerts pop up in this browser while this tab is open but not the one you\'re looking at — there\'s no email alert yet; the mail key isn\'t configured, and a silent failure to send would be worse than none.',
+
+    desktopAlertsUnsupported:'This browser does not support desktop notifications.',
+    desktopAlertsBlocked:'Blocked in this browser — allow notifications for this site to turn it back on.',
+    desktopAlertsOn:'On — this browser will pop up a notification for a critical or urgent item while this tab is in the background.',
+    desktopAlertsEnableBtn:'Turn on desktop alerts',
+
+    desktopNotifTitle:'FenceFlow — Needs attention',
+    desktopNotifMultiBody:'%s new items need attention, including: %s',
+
+    alertTxtUncontactedLead:'Nobody has contacted %s yet — %s hours since the enquiry',
+    alertTxtDisputeOpen:'Payment disputed%s%s: %s',
+    alertTxtUnsignedApproved:'Approved but not signed: %s',
+    alertTxtLabourOver:'Labour is over what it was priced at by %s: %s',
+    alertTxtMaterialsMissing:'Scheduled %s with materials %s: %s',
+    alertMaterialsOrderedNotReceived:'ordered but not received',
+    alertMaterialsNotOrdered:'not ordered',
+    alertTxtStaleQuote:'Quote sent %s days ago, customer %s: %s',
+    alertQuoteOpenedNotApproved:'opened it but has not approved',
+    alertQuoteNotOpened:'has not opened it',
+    alertTxtNoDeposit:'Approved, no deposit taken: %s',
+    alertTxtClockedInLong:'%s has been clocked in for %s hours',
+    alertSomeoneWord:'Someone',
+    alertTxtUnverifiedPrices:'Priced on catalog prices nobody has confirmed: %s',
+    alertTxtUnassignedScheduled:'Scheduled %s with nobody assigned: %s',
+    alertTxtClockedInFinished:'%s is clocked in on a job already marked finished: %s',
+    alertTxtApprovedUnscheduled:'Approved %s days ago, never scheduled: %s',
+    alertTxtPaidThenDeclined:'%s collected on a job later marked declined: %s',
+    alertTxtStageStalled:'Stuck on %s for %s days: %s',
+
+    alertSeenBtn:'Seen',
+    alertSeenTooltip:'Mark as seen — hide until this changes',
+    alertAllClearMsg:'All clear — nothing is waiting on you.',
+    alertSeenCountMsg:'%s more marked seen — hidden until they change.',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -3297,6 +3356,60 @@ const TL = {
     repXpMonthRowsTitle:'Los pagos de este mes', repXpMonthEmpty:'No hubo pagos en este mes.',
     repXpDefaultTitle:'De dónde sale esto', repXpDefaultRowsTitle:'Qué incluye',
     repRangeLabelTitle:'Cobrado y Horas cuentan lo que pasó dentro de esta ventana. Ganancia est. se mide en el total de cada trabajo tocado en ella.',
+
+    alertUncontactedLead:'Nadie ha contactado a un cliente potencial nuevo todavía',
+    alertDisputeOpen:'Hay una disputa de pago abierta',
+    alertUnsignedApproved:'Aprobado pero no firmado',
+    alertLabourOver:'El costo de mano de obra superó lo presupuestado',
+    alertMaterialsMissing:'Programado pronto con materiales no pedidos/recibidos',
+    alertStaleQuote:'Un presupuesto enviado se quedó sin respuesta',
+    alertNoDeposit:'Aprobado sin depósito cobrado',
+    alertClockedInLong:'Alguien lleva fichado un tiempo inusualmente largo',
+    alertUnverifiedPrices:'Presupuestado con precios de catálogo que nadie ha confirmado',
+    alertUnassignedScheduled:'Programado sin nadie asignado a la cuadrilla',
+    alertClockedInFinished:'Fichado en un trabajo ya marcado como terminado',
+    alertApprovedUnscheduled:'Aprobado pero nunca programado',
+    alertPaidThenDeclined:'Dinero cobrado en un trabajo luego marcado como rechazado',
+    alertStageStalled:'Detenido en una etapa de producción durante semanas',
+    alertJobOverdue:'En su teléfono: un trabajo va con retraso',
+    alertWeeklyDigest:'En su teléfono: el resumen del lunes',
+
+    settingsAlertsHead:'Sus alertas',
+    settingsAlertsBody:'La lista "Requiere atención" en Inicio puede volverse ruidosa si usted no se encarga de cierta parte del trabajo (programar materiales, por ejemplo). Desactive lo que no necesite — esto solo afecta lo que usted ve; el resto de su equipo sigue viendo las suyas.',
+    settingsAlertsFootnote:'Los elementos descartados siguen descartados hasta que algo sobre ellos realmente cambie. Las alertas de escritorio aparecen en este navegador mientras esta pestaña está abierta pero no es la que está mirando — todavía no hay alerta por correo; la clave de correo no está configurada, y una falla silenciosa al enviar sería peor que ninguna.',
+
+    desktopAlertsUnsupported:'Este navegador no admite notificaciones de escritorio.',
+    desktopAlertsBlocked:'Bloqueado en este navegador — permita las notificaciones para este sitio para volver a activarlo.',
+    desktopAlertsOn:'Activado — este navegador mostrará una notificación para un elemento crítico o urgente mientras esta pestaña esté en segundo plano.',
+    desktopAlertsEnableBtn:'Activar alertas de escritorio',
+
+    desktopNotifTitle:'FenceFlow — Requiere atención',
+    desktopNotifMultiBody:'%s elementos nuevos requieren atención, incluyendo: %s',
+
+    alertTxtUncontactedLead:'Nadie ha contactado a %s todavía — %s horas desde la consulta',
+    alertTxtDisputeOpen:'Pago disputado%s%s: %s',
+    alertTxtUnsignedApproved:'Aprobado pero no firmado: %s',
+    alertTxtLabourOver:'La mano de obra superó lo presupuestado por %s: %s',
+    alertTxtMaterialsMissing:'Programado para %s con materiales %s: %s',
+    alertMaterialsOrderedNotReceived:'pedidos pero no recibidos',
+    alertMaterialsNotOrdered:'no pedidos',
+    alertTxtStaleQuote:'Presupuesto enviado hace %s días, el cliente %s: %s',
+    alertQuoteOpenedNotApproved:'lo abrió pero no lo ha aprobado',
+    alertQuoteNotOpened:'no lo ha abierto',
+    alertTxtNoDeposit:'Aprobado, sin depósito cobrado: %s',
+    alertTxtClockedInLong:'%s lleva fichado %s horas',
+    alertSomeoneWord:'Alguien',
+    alertTxtUnverifiedPrices:'Presupuestado con precios de catálogo que nadie ha confirmado: %s',
+    alertTxtUnassignedScheduled:'Programado para %s sin nadie asignado: %s',
+    alertTxtClockedInFinished:'%s está fichado en un trabajo ya marcado como terminado: %s',
+    alertTxtApprovedUnscheduled:'Aprobado hace %s días, nunca programado: %s',
+    alertTxtPaidThenDeclined:'%s cobrados en un trabajo luego marcado como rechazado: %s',
+    alertTxtStageStalled:'Detenido en %s durante %s días: %s',
+
+    alertSeenBtn:'Visto',
+    alertSeenTooltip:'Marcar como visto — ocultar hasta que esto cambie',
+    alertAllClearMsg:'Todo en orden — nada pendiente para usted.',
+    alertSeenCountMsg:'%s más marcados como vistos — ocultos hasta que cambien.',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -3937,6 +4050,60 @@ const TL = {
     repXpMonthRowsTitle:'Les paiements de ce mois', repXpMonthEmpty:'Aucun paiement ce mois-ci.',
     repXpDefaultTitle:'D\'où vient ce chiffre', repXpDefaultRowsTitle:'Ce qui est inclus',
     repRangeLabelTitle:'Encaissé et Heures comptent ce qui s\'est passé dans cette fenêtre. Le profit est. se mesure sur l\'ensemble de chaque chantier touché.',
+
+    alertUncontactedLead:'Personne n\'a encore contacté un nouveau prospect',
+    alertDisputeOpen:'Une contestation de paiement est ouverte',
+    alertUnsignedApproved:'Approuvé mais non signé',
+    alertLabourOver:'Le coût de main-d\'œuvre dépasse le prix du chantier',
+    alertMaterialsMissing:'Planifié bientôt avec des matériaux non commandés/reçus',
+    alertStaleQuote:'Un devis envoyé est resté sans réponse',
+    alertNoDeposit:'Approuvé sans acompte encaissé',
+    alertClockedInLong:'Quelqu\'un est pointé depuis anormalement longtemps',
+    alertUnverifiedPrices:'Chiffré avec des prix de catalogue que personne n\'a confirmés',
+    alertUnassignedScheduled:'Planifié sans personne assigné à l\'équipe',
+    alertClockedInFinished:'Pointé sur un chantier déjà marqué terminé',
+    alertApprovedUnscheduled:'Approuvé mais jamais planifié',
+    alertPaidThenDeclined:'Argent encaissé sur un chantier ensuite marqué refusé',
+    alertStageStalled:'Immobile sur une étape de production depuis des semaines',
+    alertJobOverdue:'Sur votre téléphone : un chantier prend du retard',
+    alertWeeklyDigest:'Sur votre téléphone : le résumé du lundi',
+
+    settingsAlertsHead:'Vos alertes',
+    settingsAlertsBody:'La liste "À traiter" sur l\'accueil peut devenir bruyante si vous ne vous occupez pas d\'une partie du travail (planifier les matériaux, par exemple). Désactivez ce dont vous n\'avez pas besoin — cela ne change que ce que vous voyez; le reste de votre équipe voit toujours les siennes.',
+    settingsAlertsFootnote:'Un élément ignoré le reste jusqu\'à ce que quelque chose change vraiment à son sujet. Les alertes de bureau apparaissent dans ce navigateur tant que cet onglet est ouvert mais pas celui que vous regardez — il n\'y a pas encore d\'alerte par courriel; la clé de messagerie n\'est pas configurée, et un échec d\'envoi silencieux serait pire que pas d\'alerte du tout.',
+
+    desktopAlertsUnsupported:'Ce navigateur ne prend pas en charge les notifications de bureau.',
+    desktopAlertsBlocked:'Bloqué dans ce navigateur — autorisez les notifications pour ce site pour les réactiver.',
+    desktopAlertsOn:'Activé — ce navigateur affichera une notification pour un élément critique ou urgent pendant que cet onglet est en arrière-plan.',
+    desktopAlertsEnableBtn:'Activer les alertes de bureau',
+
+    desktopNotifTitle:'FenceFlow — À traiter',
+    desktopNotifMultiBody:'%s nouveaux éléments à traiter, dont : %s',
+
+    alertTxtUncontactedLead:'Personne n\'a encore contacté %s — %s heures depuis la demande',
+    alertTxtDisputeOpen:'Paiement contesté%s%s : %s',
+    alertTxtUnsignedApproved:'Approuvé mais non signé : %s',
+    alertTxtLabourOver:'La main-d\'œuvre dépasse le prix chiffré de %s : %s',
+    alertTxtMaterialsMissing:'Planifié le %s avec des matériaux %s : %s',
+    alertMaterialsOrderedNotReceived:'commandés mais non reçus',
+    alertMaterialsNotOrdered:'non commandés',
+    alertTxtStaleQuote:'Devis envoyé il y a %s jours, le client %s : %s',
+    alertQuoteOpenedNotApproved:'l\'a ouvert mais ne l\'a pas approuvé',
+    alertQuoteNotOpened:'ne l\'a pas ouvert',
+    alertTxtNoDeposit:'Approuvé, aucun acompte encaissé : %s',
+    alertTxtClockedInLong:'%s est pointé depuis %s heures',
+    alertSomeoneWord:'Quelqu\'un',
+    alertTxtUnverifiedPrices:'Chiffré avec des prix de catalogue que personne n\'a confirmés : %s',
+    alertTxtUnassignedScheduled:'Planifié le %s sans personne assigné : %s',
+    alertTxtClockedInFinished:'%s est pointé sur un chantier déjà marqué terminé : %s',
+    alertTxtApprovedUnscheduled:'Approuvé il y a %s jours, jamais planifié : %s',
+    alertTxtPaidThenDeclined:'%s encaissés sur un chantier ensuite marqué refusé : %s',
+    alertTxtStageStalled:'Immobile sur %s depuis %s jours : %s',
+
+    alertSeenBtn:'Vu',
+    alertSeenTooltip:'Marquer comme vu — masquer jusqu\'à ce que cela change',
+    alertAllClearMsg:'Tout est réglé — rien n\'est en attente pour vous.',
+    alertSeenCountMsg:'%s de plus marqués vus — masqués jusqu\'à ce qu\'ils changent.',
   },
 };
 
@@ -4123,21 +4290,28 @@ const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANA
    items) can each be switched off by this user alone, via the "Your alerts"
    panel in Settings. Keyed by name so the checkbox list and the detectors
    below never drift apart. */
+// label is looked up through tr() at render time (renderAlertPrefs) rather
+// than stored translated here, for the same reason AUTOMATION_RULE_DEFS
+// moved to labelKey/detailKey above: this array is built once at script
+// load, before LANG is settled, so calling tr() here would freeze every
+// label in whatever language happened to be current at page load. `key` is
+// also what mutedAlerts, notification_prefs.muted_alerts and alertOn()
+// compare against, so it is never touched.
 const ALERT_DEFS = [
-  { key:'uncontacted_lead',  label:'Nobody has contacted a new lead yet' },
-  { key:'dispute_open',      label:'A payment dispute is open' },
-  { key:'unsigned_approved', label:'Approved but not signed' },
-  { key:'labour_over',       label:'Labour cost is over what a job was priced at' },
-  { key:'materials_missing', label:'Scheduled soon with materials not ordered/received' },
-  { key:'stale_quote',       label:'A sent quote has gone quiet' },
-  { key:'no_deposit',        label:'Approved with no deposit taken' },
-  { key:'clocked_in_long',   label:'Someone has been clocked in unusually long' },
-  { key:'unverified_prices', label:'Priced on catalog prices nobody has confirmed' },
-  { key:'unassigned_scheduled', label:'Scheduled with nobody assigned to the crew' },
-  { key:'clocked_in_finished',  label:'Clocked in on a job already marked finished' },
-  { key:'approved_unscheduled', label:'Approved but never scheduled' },
-  { key:'paid_then_declined',   label:'Money collected on a job later declined' },
-  { key:'stage_stalled',        label:'Sitting on one production stage for weeks' },
+  { key:'uncontacted_lead',  labelKey:'alertUncontactedLead' },
+  { key:'dispute_open',      labelKey:'alertDisputeOpen' },
+  { key:'unsigned_approved', labelKey:'alertUnsignedApproved' },
+  { key:'labour_over',       labelKey:'alertLabourOver' },
+  { key:'materials_missing', labelKey:'alertMaterialsMissing' },
+  { key:'stale_quote',       labelKey:'alertStaleQuote' },
+  { key:'no_deposit',        labelKey:'alertNoDeposit' },
+  { key:'clocked_in_long',   labelKey:'alertClockedInLong' },
+  { key:'unverified_prices', labelKey:'alertUnverifiedPrices' },
+  { key:'unassigned_scheduled', labelKey:'alertUnassignedScheduled' },
+  { key:'clocked_in_finished',  labelKey:'alertClockedInFinished' },
+  { key:'approved_unscheduled', labelKey:'alertApprovedUnscheduled' },
+  { key:'paid_then_declined',   labelKey:'alertPaidThenDeclined' },
+  { key:'stage_stalled',        labelKey:'alertStageStalled' },
 
   // The two the PHONE raises, not this page. They are listed here because
   // this is where a person manages what reaches them, and a preference that
@@ -4145,8 +4319,8 @@ const ALERT_DEFS = [
   // app reads this same muted list, so switching one off here silences it on
   // the handset. Nothing on this page ever shows these two -- they have no
   // detector above, and that is deliberate rather than missing.
-  { key:'job_overdue',    label:'On your phone: a job is running late' },
-  { key:'weekly_digest',  label:'On your phone: the Monday summary' },
+  { key:'job_overdue',    labelKey:'alertJobOverdue' },
+  { key:'weekly_digest',  labelKey:'alertWeeklyDigest' },
 ];
 // True unless this user has switched that alert off. Absence of a row for
 // this user (table not created yet, or never saved a preference) means
@@ -4264,8 +4438,8 @@ function notifyOfNewAlerts(items){
   fresh.forEach(it => notifiedAlertKeys.set(it.key, String(it.fp ?? '')));
   try {
     const body = fresh.length === 1 ? fresh[0].text
-      : fresh.length + ' new items need attention, including: ' + fresh[0].text;
-    new Notification('FenceFlow — Needs attention', { body });
+      : tr('desktopNotifMultiBody', fresh.length, fresh[0].text);
+    new Notification(tr('desktopNotifTitle'), { body });
   } catch (e) { /* browser blocked or ignored it -- nothing else to do here */ }
 }
 
@@ -4347,7 +4521,7 @@ function renderAlertPrefs(){
   el.innerHTML = ALERT_DEFS.map(a => `
     <label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-weight:400">
       <input type="checkbox" data-alert-key="${esc(a.key)}" ${alertOn(a.key) ? 'checked' : ''}>
-      ${esc(a.label)}
+      ${esc(tr(a.labelKey))}
     </label>`).join('');
   el.querySelectorAll('input[data-alert-key]').forEach(cb =>
     cb.addEventListener('change', () => setAlertMuted(cb.dataset.alertKey, !cb.checked)));
@@ -4355,13 +4529,13 @@ function renderAlertPrefs(){
   const dEl = $('desktopAlertsRow');
   if (dEl) {
     if (!desktopAlertsSupported()) {
-      dEl.innerHTML = '<span style="color:var(--muted)">This browser does not support desktop notifications.</span>';
+      dEl.innerHTML = '<span style="color:var(--muted)">' + esc(tr('desktopAlertsUnsupported')) + '</span>';
     } else if (Notification.permission === 'denied') {
-      dEl.innerHTML = '<span style="color:var(--muted)">Blocked in this browser — allow notifications for this site to turn it back on.</span>';
+      dEl.innerHTML = '<span style="color:var(--muted)">' + esc(tr('desktopAlertsBlocked')) + '</span>';
     } else if (desktopAlertsEnabled()) {
-      dEl.innerHTML = '<span style="color:var(--ok,#0B6B4F)">On — this browser will pop up a notification for a critical or urgent item while this tab is in the background.</span>';
+      dEl.innerHTML = '<span style="color:var(--ok,#0B6B4F)">' + esc(tr('desktopAlertsOn')) + '</span>';
     } else {
-      dEl.innerHTML = '<button type="button" class="btn btn-sm" id="enableDesktopAlertsBtn">Turn on desktop alerts</button>';
+      dEl.innerHTML = '<button type="button" class="btn btn-sm" id="enableDesktopAlertsBtn">' + esc(tr('desktopAlertsEnableBtn')) + '</button>';
       const btn = $('enableDesktopAlertsBtn');
       if (btn) btn.addEventListener('click', enableDesktopAlerts);
     }
@@ -5000,15 +5174,21 @@ const PROCESSORS = [
   { id:'square', name:'Square', blurbKey:'billProcSquareBlurb' },
 ];
 
-function renderProcessor(){
-  const box = $('processorBox');
+// idPrefix lets a second copy of this panel exist in the DOM at once --
+// the setup wizard's own "Card payments" step reuses this exact function
+// with prefix 'sw_' rather than re-implementing choose/connect a second
+// time, so ids must not collide with the Settings tab's un-prefixed copy
+// while both sit in the document (the wizard is an overlay, not a swap).
+function renderProcessor(idPrefix){
+  idPrefix = idPrefix || '';
+  const box = $(idPrefix + 'processorBox');
   if (!box) return;
   const owner = profile?.role === 'OWNER';
   const chosen = (paymentConn?.processor || 'none').toLowerCase();
   const connected = !!paymentConn?.connected;
 
   if (!owner) {
-    $('processorChoices').innerHTML =
+    $(idPrefix + 'processorChoices').innerHTML =
       '<p class="sub" style="margin:0">' + (chosen === 'none'
         ? esc(tr('billProcNotSetUpMsg'))
         : esc(tr('billProcThroughMsg', chosen.charAt(0).toUpperCase() + chosen.slice(1))))
@@ -5016,7 +5196,7 @@ function renderProcessor(){
     return;
   }
 
-  $('processorChoices').innerHTML = PROCESSORS.map(p => {
+  $(idPrefix + 'processorChoices').innerHTML = PROCESSORS.map(p => {
     const isChosen = chosen === p.id;
     return `<button class="btn btn-sm ${isChosen ? '' : 'btn-grey'}" data-proc="${p.id}"
         style="flex:1 1 200px;text-align:left;padding:10px 12px">
@@ -5036,15 +5216,17 @@ function renderProcessor(){
     stripe: { fn: 'stripe-connect', labelKey: 'billConnectStripeBtn', word: 'Stripe' },
   };
   const c = CONNECT[chosen];
+  const msgId = idPrefix + 'processorMsg';
+  const btnId = idPrefix + 'connectProc';
   if (c && !connected) {
-    $('processorChoices').insertAdjacentHTML('beforeend',
+    $(idPrefix + 'processorChoices').insertAdjacentHTML('beforeend',
       `<div style="flex-basis:100%;margin-top:10px">
-         <button class="btn" id="connectProc">${esc(tr(c.labelKey))}</button>
+         <button class="btn" id="${btnId}">${esc(tr(c.labelKey))}</button>
        </div>`);
-    $('connectProc').addEventListener('click', async () => {
-      const b = $('connectProc');
+    $(btnId).addEventListener('click', async () => {
+      const b = $(btnId);
       b.disabled = true;
-      msg('processorMsg', tr('billOpeningMsg', c.word), 'working');
+      msg(msgId, tr('billOpeningMsg', c.word), 'working');
       const { data: sess } = await db.auth.getSession();
       try {
         const res = await fetch(`${SUPA_URL}/functions/v1/${c.fn}?action=start`, {
@@ -5053,28 +5235,33 @@ function renderProcessor(){
         const body = await res.json().catch(() => ({}));
         if (body.url) { location.href = body.url; return; }
         b.disabled = false;
-        msg('processorMsg', body.error || tr('billCouldNotOpenMsg', c.word), 'err');
+        msg(msgId, body.error || tr('billCouldNotOpenMsg', c.word), 'err');
       } catch (e) {
         b.disabled = false;
-        msg('processorMsg', tr('billCouldNotReachMsg', c.word, e.message || e), 'err');
+        msg(msgId, tr('billCouldNotReachMsg', c.word, e.message || e), 'err');
       }
     });
-    msg('processorMsg', tr('billChosenConnectMsg', c.word), 'info');
+    msg(msgId, tr('billChosenConnectMsg', c.word), 'info');
   } else if (chosen !== 'none' && !connected) {
-    msg('processorMsg', tr('billChosenNotConnectedMsg', chosen.charAt(0).toUpperCase() + chosen.slice(1)), 'info');
+    msg(msgId, tr('billChosenNotConnectedMsg', chosen.charAt(0).toUpperCase() + chosen.slice(1)), 'info');
   } else if (connected) {
-    msg('processorMsg', tr('billConnectedMsg', esc(paymentConn.display_name || chosen)), 'ok');
+    msg(msgId, tr('billConnectedMsg', esc(paymentConn.display_name || chosen)), 'ok');
   }
 
-  document.querySelectorAll('[data-proc]').forEach(b =>
+  // Scoped to this panel, not the whole document: the wizard step and the
+  // Settings tab can both be sitting in the DOM at once (the wizard is an
+  // overlay, not a page swap), and a document-wide query here would bind a
+  // second click handler onto the OTHER copy's buttons every time either one
+  // re-rendered, firing choose_payment_processor twice per click.
+  box.querySelectorAll('[data-proc]').forEach(b =>
     b.addEventListener('click', async () => {
       b.disabled = true;
       const { error } = await db.rpc('choose_payment_processor', { which: b.dataset.proc });
       b.disabled = false;
-      if (error) return msg('processorMsg', error.message, 'err');
+      if (error) return msg(msgId, error.message, 'err');
       const r = await db.rpc('my_payment_connection');
       paymentConn = r.error ? paymentConn : ((r.data || [])[0] || null);
-      renderProcessor();
+      renderProcessor(idPrefix);
     }));
 }
 
@@ -6139,7 +6326,7 @@ function renderDash(){
     .forEach(j => {
       const waited = Math.round((nowMs - d(j.created_at).getTime()) / 36e5);
       items.push({ urgent: waited >= 24, severity: waited >= 24 ? 'critical' : 'warn',
-        text: 'Nobody has contacted ' + name(j) + ' yet \u2014 ' + waited + ' hours since the enquiry',
+        text: tr('alertTxtUncontactedLead', name(j), waited),
         id: j.id, key:'uncontacted_lead:'+j.id, fp:j.updated_at });
     });
 
@@ -6148,9 +6335,13 @@ function renderDash(){
   // statement weeks later.
   if (alertOn('dispute_open')) jobs.filter(j => j.dispute_opened_at && !j.dispute_closed_at)
     .forEach(j => items.push({ urgent:true, severity:'critical',
-      text: 'Payment disputed' + (j.dispute_amount ? ' (' + money(j.dispute_amount) + ')' : '') +
-            (j.dispute_reason ? ', ' + String(j.dispute_reason).replace(/_/g, ' ') : '') +
-            ': ' + name(j),
+      // amtPart/reasonPart are glue -- a parenthetical and a raw status word
+      // -- not sentences of their own, so they are spliced into the
+      // translated template rather than each needing a template of its own.
+      text: tr('alertTxtDisputeOpen',
+              j.dispute_amount ? ' (' + money(j.dispute_amount) + ')' : '',
+              j.dispute_reason ? ', ' + String(j.dispute_reason).replace(/_/g, ' ') : '',
+              name(j)),
       id: j.id, key:'dispute_open:'+j.id, fp:j.updated_at }));
 
   // Approved but never signed. The approval is a click on a web page; the
@@ -6159,7 +6350,7 @@ function renderDash(){
   if (alertOn('unsigned_approved')) jobs.filter(j => j.quote_approved_at && !j.signed_at
                    && !['COMPLETED','DECLINED'].includes(j.status))
     .forEach(j => items.push({ urgent:false, severity:'warn',
-      text: 'Approved but not signed: ' + name(j), id: j.id, key:'unsigned_approved:'+j.id, fp:j.updated_at }));
+      text: tr('alertTxtUnsignedApproved', name(j)), id: j.id, key:'unsigned_approved:'+j.id, fp:j.updated_at }));
 
   // Labour has already cost more than it was priced at. Not a warning about
   // the future -- the money is spent. Only when there is a real rate behind
@@ -6171,8 +6362,8 @@ function renderDash(){
                  + Number(j.labor_flat_fee || 0);
     if (quoted > 0.005 && Number(r.labour_cost) > quoted) {
       items.push({ urgent:true, severity:'warn',
-        text: 'Labour is over what it was priced at by ' +
-              money(Number(r.labour_cost) - quoted) + ': ' + name(j), id: j.id, key:'labour_over:'+j.id, fp:j.updated_at });
+        text: tr('alertTxtLabourOver', money(Number(r.labour_cost) - quoted), name(j)),
+        id: j.id, key:'labour_over:'+j.id, fp:j.updated_at });
     }
   });
 
@@ -6184,9 +6375,9 @@ function renderDash(){
                    && d(j.scheduled_date) < new Date(nowMs + 7*864e5)
                    && !['RECEIVED','NOT_NEEDED'].includes(j.materials_status || 'NOT_ORDERED'))
     .forEach(j => items.push({ urgent: true, severity:'critical',
-      text: 'Scheduled ' + d(j.scheduled_date).toLocaleDateString() +
-            ' with materials ' + ((j.materials_status === 'ORDERED') ? 'ordered but not received' : 'not ordered') +
-            ': ' + name(j),
+      text: tr('alertTxtMaterialsMissing', d(j.scheduled_date).toLocaleDateString(),
+              (j.materials_status === 'ORDERED') ? tr('alertMaterialsOrderedNotReceived') : tr('alertMaterialsNotOrdered'),
+              name(j)),
       id: j.id, key:'materials_missing:'+j.id, fp:j.materials_status+'|'+j.scheduled_date }));
 
   // A quote that went out and went quiet. The most expensive thing on this
@@ -6198,12 +6389,12 @@ function renderDash(){
       const days = Math.floor((nowMs - d(j.quote_sent_at).getTime()) / 864e5);
       // Opened and still silent is a different conversation from never opened,
       // so the alert says which.
-      const seen = j.quote_viewed_at ? 'opened it but has not approved' : 'has not opened it';
+      const seen = j.quote_viewed_at ? tr('alertQuoteOpenedNotApproved') : tr('alertQuoteNotOpened');
       // Gone quiet, not gone wrong: no deadline has passed and no money is at
       // risk yet, which is exactly why this sits at the bottom severity tier
       // instead of looking like the dispute above.
       items.push({ urgent:false, severity:'info',
-        text: 'Quote sent ' + days + ' days ago, customer ' + seen + ': ' + name(j),
+        text: tr('alertTxtStaleQuote', days, seen, name(j)),
         id: j.id, key:'stale_quote:'+j.id, fp:j.quote_viewed_at||'' });
     });
 
@@ -6213,7 +6404,7 @@ function renderDash(){
                    && Number(j.deposit_amount) > 0
                    && netPaid(j) < 0.005)
     .forEach(j => items.push({ urgent:true, severity:'critical',
-      text: 'Approved, no deposit taken: ' + name(j), id: j.id, key:'no_deposit:'+j.id, fp:j.updated_at }));
+      text: tr('alertTxtNoDeposit', name(j)), id: j.id, key:'no_deposit:'+j.id, fp:j.updated_at }));
 
   // Still clocked in long after any shift would have ended. Sixteen hours
   // rather than eight, because a long day on a fence line is a real thing and
@@ -6221,10 +6412,10 @@ function renderDash(){
   if (alertOn('clocked_in_long')) times.filter(t => t.started_at && !t.ended_at
                     && (nowMs - d(t.started_at).getTime()) > 16 * 36e5)
     .forEach(t => {
-      const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Someone';
+      const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || tr('alertSomeoneWord');
       const hrs = Math.floor((nowMs - d(t.started_at).getTime()) / 36e5);
       items.push({ urgent:true, severity:'warn',
-        text: who + ' has been clocked in for ' + hrs + ' hours',
+        text: tr('alertTxtClockedInLong', who, hrs),
         go: 'time', key:'clocked_in_long:'+t.id, fp:t.started_at });
     });
 
@@ -6233,7 +6424,7 @@ function renderDash(){
   // it before opening the job rather than after.
   if (alertOn('unverified_prices')) jobs.filter(j => ['DRAFT','SENT'].includes(j.status) && unverifiedPricesOn(j).length)
     .forEach(j => items.push({ urgent:false, severity:'info',
-      text: 'Priced on catalog prices nobody has confirmed: ' + name(j), id: j.id, key:'unverified_prices:'+j.id, fp:j.updated_at }));
+      text: tr('alertTxtUnverifiedPrices', name(j)), id: j.id, key:'unverified_prices:'+j.id, fp:j.updated_at }));
 
   /* ---- exceptions added for §29: still nothing-happened problems, found the
      same way as the four above -- read what the app already stores, do not
@@ -6247,7 +6438,7 @@ function renderDash(){
                    && !j.assigned_employee_id
                    && j.status !== 'DECLINED')
     .forEach(j => items.push({ urgent:true, severity:'critical',
-      text: 'Scheduled ' + d(j.scheduled_date).toLocaleDateString() + ' with nobody assigned: ' + name(j),
+      text: tr('alertTxtUnassignedScheduled', d(j.scheduled_date).toLocaleDateString(), name(j)),
       id: j.id, key:'unassigned_scheduled:'+j.id, fp:j.scheduled_date }));
 
   // Someone is still on the clock against a job the office already marked
@@ -6257,9 +6448,9 @@ function renderDash(){
     .forEach(t => {
       const j = jobBySync(t.job_sync_id);
       if (!j || j.status !== 'COMPLETED') return;
-      const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Someone';
+      const who = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || tr('alertSomeoneWord');
       items.push({ urgent:true, severity:'warn',
-        text: who + ' is clocked in on a job already marked finished: ' + name(j), id: j.id, key:'clocked_in_finished:'+t.id, fp:t.started_at });
+        text: tr('alertTxtClockedInFinished', who, name(j)), id: j.id, key:'clocked_in_finished:'+t.id, fp:t.started_at });
     });
 
   // Approved and still sitting with no date on the calendar. A quote that got
@@ -6273,14 +6464,14 @@ function renderDash(){
     .forEach(j => {
       const days = Math.floor((nowMs - d(j.quote_approved_at).getTime()) / 864e5);
       items.push({ urgent:true, severity:'warn',
-        text: 'Approved ' + days + ' days ago, never scheduled: ' + name(j), id: j.id, key:'approved_unscheduled:'+j.id, fp:j.quote_approved_at });
+        text: tr('alertTxtApprovedUnscheduled', days, name(j)), id: j.id, key:'approved_unscheduled:'+j.id, fp:j.quote_approved_at });
     });
 
   // Money came in and the job still ended up marked declined. Somebody owes
   // somebody: either the deposit needs refunding or the status is wrong.
   if (alertOn('paid_then_declined')) jobs.filter(j => j.status === 'DECLINED' && netPaid(j) > 0.005)
     .forEach(j => items.push({ urgent:true, severity:'critical',
-      text: money(netPaid(j)) + ' collected on a job later marked declined: ' + name(j), id: j.id, key:'paid_then_declined:'+j.id, fp:j.updated_at }));
+      text: tr('alertTxtPaidThenDeclined', money(netPaid(j)), name(j)), id: j.id, key:'paid_then_declined:'+j.id, fp:j.updated_at }));
 
   // A sold job that has not moved off its production stage in three weeks.
   // Same job_stage_events table the Production board's own "time in stage"
@@ -6297,7 +6488,7 @@ function renderDash(){
         if (!last) return;
         const days = Math.floor((nowMs - d(last.entered_at).getTime()) / 864e5);
         if (days >= 21) items.push({ urgent:false, severity:'info',
-          text: 'Stuck on ' + prodStageLabel(j.production_stage) + ' for ' + days + ' days: ' + name(j),
+          text: tr('alertTxtStageStalled', prodStageLabel(j.production_stage), days, name(j)),
           id: j.id, key:'stage_stalled:'+j.id, fp:last.entered_at });
       });
   }
@@ -6335,10 +6526,10 @@ function renderDash(){
          <span class="att-open" style="flex:1;min-width:0;cursor:pointer;font-size:13px;
                white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(it.text)}">${esc(it.text)}</span>
          ${it.key ? `<button type="button" class="btn-grey btn-sm" data-att-dismiss="${i}"
-               style="padding:3px 8px;font-size:11px;flex:none" title="Mark as seen — hide until this changes">Seen</button>` : ''}
+               style="padding:3px 8px;font-size:11px;flex:none" title="${esc(tr('alertSeenTooltip'))}">${esc(tr('alertSeenBtn'))}</button>` : ''}
          </div>`).join('')
-    : '<div class="empty">All clear — nothing is waiting on you.</div>')
-    + (seenCount ? `<div class="empty" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">${seenCount} more marked seen — hidden until they change.</div>` : '');
+    : `<div class="empty">${esc(tr('alertAllClearMsg'))}</div>`)
+    + (seenCount ? `<div class="empty" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">${esc(tr('alertSeenCountMsg', seenCount))}</div>` : '');
   document.querySelectorAll('.att-row').forEach(el=>{
     el.querySelectorAll('.att-open').forEach(span=>span.addEventListener('click',()=>{
       if (el.dataset.attId) showJob(el.dataset.attId);
@@ -13307,9 +13498,10 @@ $('wizNext').addEventListener('click', wizNext);
 
 /* ===================== Business setup wizard ==============================
    The owner's own words apply here too: "when setting up things it should
-   show me next and next till everything is done." Six steps -- Business,
-   Rates, Your standard build, Supplier prices, Pricing tiers, Crew -- plus a
-   Done screen, saved one step at a time exactly like the New client wizard:
+   show me next and next till everything is done." Seven steps -- Business,
+   Rates, Your standard build, Supplier prices, Pricing tiers, Card payments,
+   Crew -- plus a Done screen, saved one step at a time exactly like the New
+   client wizard:
    save_company_settings with only that step's keys (never a whole settings
    object, or a page that does not know about a setting could delete it --
    see supabase_settings_merge_patch.sql), or the step's own RPC. Crew is
@@ -13322,12 +13514,13 @@ $('wizNext').addEventListener('click', wizNext);
     last: a checklist screen, not a step with fields of its own. Pure, so
     tests/settings-wizard.test.mjs exercises it directly. */
 function setupWizardSteps(planName){
-  const steps = ['business','rates','build','supplier','tiers','crew','done'];
+  const steps = ['business','rates','build','supplier','tiers','payments','crew','done'];
   return planName === 'solo' ? steps.filter(s => s !== 'crew') : steps;
 }
 function swStepLabel(key){
   return { business:'Business', rates:'Rates', build:'Your standard build',
-    supplier:'Supplier prices', tiers:'Pricing tiers', crew:'Crew', done:'Done' }[key] || key;
+    supplier:'Supplier prices', tiers:'Pricing tiers', payments:'Card payments',
+    crew:'Crew', done:'Done' }[key] || key;
 }
 
 let sw = null; // non-null only while swOverlay is open
@@ -13374,6 +13567,7 @@ async function swRenderStep(){
     case 'build':    body.innerHTML = swBuildHtml(); swWireBuild(); break;
     case 'supplier': body.innerHTML = swSupplierHtml(); swWireSupplier(); break;
     case 'tiers':    body.innerHTML = swTiersHtml(); renderTierRows('sw_tierRows'); swWireTiers(); break;
+    case 'payments': body.innerHTML = swPaymentsHtml(); swWirePayments(); break;
     case 'crew':     body.innerHTML = swCrewHtml(); swWireCrew(); break;
     case 'done':     body.innerHTML = await swDoneHtml(); swWireDone(); break;
   }
@@ -13695,6 +13889,32 @@ function swWireTiers(){
   $('sw_tier_add').addEventListener('click', () => openTierDialog(null));
   const starter = $('sw_tier_starter');
   if(starter) starter.addEventListener('click', addStarterTiers);
+}
+
+/* ---------- step: card payments ----------
+   Added so the Done screen's own checklist item ("Taking card payments",
+   supabase_setup_step_card_payments.sql) can actually be finished from
+   inside this wizard -- before this step existed, that item could only be
+   ticked by leaving the wizard for the Settings tab, so the checklist could
+   never reach zero from in here. This is the SAME panel as Settings ->
+   Billing, not a second implementation of it: renderProcessor() (and the
+   choose_payment_processor / my_payment_connection calls behind it) is
+   reused with an id prefix so its ids don't collide with the Settings tab
+   copy sitting in the DOM at the same time. Optional, like Tiers and Crew --
+   Next moves on whether or not a processor is even chosen here. */
+function swPaymentsHtml(){
+  return `<div class="panel"><h2>Card payments</h2>
+    <p class="sub" style="margin-top:0">Connect Stripe or Square so the app can ask a customer for
+      a deposit by card. Optional -- skip it and take payments another way, or come back to this
+      from Settings later.</p>
+    <div id="sw_processorBox" style="margin:0;padding:14px;border:1px solid var(--line);border-radius:8px">
+      <div id="sw_processorChoices" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      <div class="msg" id="sw_processorMsg"></div>
+    </div>
+  </div>`;
+}
+function swWirePayments(){
+  renderProcessor('sw_');
 }
 
 /* ---------- step: crew ---------- */
