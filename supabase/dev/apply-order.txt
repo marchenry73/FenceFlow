@@ -117,3 +117,63 @@ supabase_crew_money_shield_patch.sql
 supabase_plan_starts_patch.sql
 supabase_admin_drift_read_patch.sql
 supabase_invite_sends_patch.sql
+
+# --- appended 15 September 2026 -------------------------------------------
+# This file is how a second environment gets built, and it was 43 migrations
+# behind -- so the rebuild path had quietly stopped working and nothing would
+# have said so until somebody tried it.
+#
+# Ordered by when each was first committed, which is when it was applied. A
+# patch cannot have been written before the thing it patches, so that order is
+# the dependency order.
+#
+# Deliberately NOT listed, because they are not schema: proofs that roll back,
+# one-off data corrections, and test fixtures. Listing those would build an
+# environment carrying this one specific database history rather than its
+# shape.
+#
+# Also deliberately not listed, and checked against the live database rather
+# than assumed: supabase_crew_alerts.sql and supabase_conflict_version_patch.sql
+# were written and never applied. Neither column exists in production. Listing
+# them would make a rebuilt environment differ from the one it mirrors.
+supabase_audit_actor.sql
+supabase_setup_progress_business_build.sql
+supabase_setup_step_card_payments.sql
+supabase_crew_views_invoker.sql
+supabase_crew_views_definer_again.sql
+supabase_crew_money_lockdown.sql
+supabase_time_corrections.sql
+supabase_first_contact.sql
+supabase_materials_status.sql
+supabase_disputes.sql
+supabase_fence_run_clock.sql
+supabase_money_scope_uses_see_money.sql
+supabase_notification_prefs.sql
+supabase_pay_visibility_split.sql
+supabase_shift_needs_a_person.sql
+supabase_admin_companies_count.sql
+supabase_can_see_pay_restored.sql
+supabase_shift_names_our_person.sql
+supabase_automation.sql
+supabase_crew_view_stage.sql
+supabase_production_stages.sql
+supabase_quiet_quote_gate_columns.sql
+supabase_quote_approval_phone.sql
+supabase_shift_dispute.sql
+supabase_scheduled_releases.sql
+supabase_alerts_seen.sql
+supabase_quiet_dispute_columns.sql
+supabase_crew_sees_corrections.sql
+supabase_time_entry_breaks.sql
+supabase_setup_step_dismiss.sql
+supabase_expenses_money_lockdown.sql
+supabase_step_key_patch.sql
+supabase_supplier_sku_patch.sql
+supabase_approval_and_assignment_guard.sql
+supabase_expense_amount_guard.sql
+supabase_release_audience_patch.sql
+supabase_time_entry_break_audit.sql
+supabase_job_payments_money_lockdown.sql
+supabase_bounded_read_indexes.sql
+supabase_admin_sees_every_release.sql
+supabase_employee_profile_link_unique.sql
