@@ -193,3 +193,5 @@ supabase_sec_signature_objects.sql
 supabase_sec_quote_phone_attempts.sql
 supabase_sec_company_reads.sql
 supabase_sec_job_costing_money_guard.sql
+supabase_followups_settings.sql
+supabase_followups_log.sql
