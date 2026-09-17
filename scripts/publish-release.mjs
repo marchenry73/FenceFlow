@@ -84,7 +84,7 @@ const notes = args
   .filter((a, i) =>
     a !== "--urgent" && a !== "--skip-version-check" && a !== "--dry-run" && a !== "--url" &&
     a !== "--company" && !companyIds.includes(a) &&
-    a !== "--at" && !(atFlag >= 0 && i === atFlag + 1) &&
+    a !== "--release" && a !== "--at" && !(atFlag >= 0 && i === atFlag + 1) &&
     !(urlFlag >= 0 && i === urlFlag + 1))
   .join(" ").trim();
 
@@ -187,7 +187,13 @@ function versionCode() {
 const code = versionCode();
 const name = `1.${code}`;
 
-const apk = join(REPO_ROOT, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
+// --release publishes the signed release build instead of the debug one. A
+// debug APK is signed with Android's shared key and is debuggable: fine on
+// your own phone, not fine in another company's hands.
+const releaseBuild = args.includes("--release");
+const apk = releaseBuild
+  ? join(REPO_ROOT, "app", "build", "outputs", "apk", "release", "app-release.apk")
+  : join(REPO_ROOT, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
 
 /**
  * Reads the version actually stamped inside the APK.
@@ -272,7 +278,7 @@ function keepASpareCopy(remote) {
 
 function uploadApk(code) {
   if (!existsSync(apk)) {
-    console.warn("No built APK found. Run assembleDebug first, or pass --url.\n");
+    console.warn((releaseBuild ? "No release APK found. Run assembleRelease first" : "No built APK found. Run assembleDebug first") + ", or pass --url.\n");
     return null;
   }
   // A new name every publish.
@@ -302,7 +308,9 @@ function uploadApk(code) {
       "npx.cmd",
       [
         "-y", "supabase", "storage", "cp", "--experimental",
-        "app/build/outputs/apk/debug/app-debug.apk",
+        releaseBuild
+          ? "app/build/outputs/apk/release/app-release.apk"
+          : "app/build/outputs/apk/debug/app-debug.apk",
         `"ss:///releases/${remote}"`,
         "--linked", "--project-ref", PROJECT_REF
       ],
