@@ -558,7 +558,7 @@ Deno.serve(async (req) => {
         const intent = String(refund?.payment_intent ?? "");
         if (!intent) break;
         const { data: rows } = await admin.from("job_payments")
-          .select("job_sync_id, company_id")
+          .select("job_sync_id, company_id, amount_cents, fee_cents")
           .eq("processor", "stripe")
           .eq("external_id", intent)
           .limit(1);
@@ -570,7 +570,7 @@ Deno.serve(async (req) => {
         await recordRefund(admin, {
           companyId: request.company_id,
           jobSyncId: request.job_sync_id,
-          amount: minorToMajor(Number(refund.amount ?? 0), String(refund.currency ?? "usd")),
+          amount: minorToMajor(jobShare(Number(refund.amount ?? 0), request), String(refund.currency ?? "usd")),
           refundId: String(refund.id ?? ""),
           processor: "stripe",
           reason: String(refund.reason ?? ""),
@@ -599,7 +599,7 @@ Deno.serve(async (req) => {
         const intent = String(dispute?.payment_intent ?? "");
         if (!intent) break;
         const { data: rows } = await admin.from("job_payments")
-          .select("job_sync_id, company_id")
+          .select("job_sync_id, company_id, amount_cents, fee_cents")
           .eq("processor", "stripe")
           .eq("external_id", intent)
           .limit(1);
@@ -609,7 +609,7 @@ Deno.serve(async (req) => {
         // worse than the gap.
         if (!request?.job_sync_id) break;
 
-        const amount = minorToMajor(Number(dispute.amount ?? 0), String(dispute.currency ?? "usd"));
+        const amount = minorToMajor(jobShare(Number(dispute.amount ?? 0), request), String(dispute.currency ?? "usd"));
         const closed = event.type === "charge.dispute.closed";
 
         await mustWrite("record the dispute on the job",
@@ -809,3 +809,16 @@ Deno.serve(async (req) => {
 
   return new Response("ok", { status: 200 });
 });
+
+/**
+ * The part of a refund or dispute that belongs to the job. When the customer
+ * also paid a card fee (job_payments.fee_cents), the money going back covers
+ * both, but only the job amount was ever credited to the ledger -- so only
+ * the job's proportional share comes off it.
+ */
+function jobShare(minor: number, row: { amount_cents?: number | null; fee_cents?: number | null }): number {
+  const base = Number(row?.amount_cents ?? 0);
+  const fee = Number(row?.fee_cents ?? 0);
+  if (!(fee > 0) || !(base > 0)) return minor;
+  return Math.min(base, Math.round(minor * base / (base + fee)));
+}

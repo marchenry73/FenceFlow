@@ -187,8 +187,15 @@ async function makeLink(
     const { jobSyncId, amount, kind, description } = a;
 
     const { data: company } = await admin
-      .from("companies").select("name, stripe_account_id, subscription_plan")
+      .from("companies").select("name, stripe_account_id, subscription_plan, pass_card_fee")
       .eq("id", profile.company_id).single();
+
+    // Card fee pass-through (supabase_card_fee_passthrough.sql). Grossed up
+    // from the standard Stripe rate of 2.9% + 30c so the company nets the job
+    // amount, but never more than 3% of it: the card networks' surcharge
+    // ceiling. Kept as its own line and its own column -- the ledger credits
+    // amount only, so the fee can never pay down the job.
+    const stripeFee = company?.pass_card_fee === true ? cardFeeCents(amount) : 0;
 
     // Both gates sit ABOVE the processor branch and above the reuse of an
     // open link. They used to sit at the bottom, in the platform-Stripe path
@@ -291,6 +298,8 @@ async function makeLink(
       .eq("job_sync_id", jobSyncId)
       .eq("kind", kind)
       .eq("amount_cents", amount)
+      // A link made before the fee setting changed must not be handed out.
+      .or("processor.eq.square,fee_cents.eq." + stripeFee)
       // No deleted_at filter: this table has no such column, and asking for
       // one made the whole query fail, which left the guard silently never
       // firing. Found by testing it rather than by reading it back.
@@ -451,9 +460,19 @@ async function makeLink(
       currency: "usd",
     }, account);
 
+    const feePrice = stripeFee > 0 ? await stripe("/prices", {
+      "product_data[name]": "Card processing fee",
+      unit_amount: String(stripeFee),
+      currency: "usd",
+    }, account) : null;
+
     const link = await stripe("/payment_links", {
       "line_items[0][price]": price.id,
       "line_items[0][quantity]": "1",
+      ...(feePrice ? {
+        "line_items[1][price]": feePrice.id,
+        "line_items[1][quantity]": "1",
+      } : {}),
       "metadata[job_sync_id]": jobSyncId,
       "metadata[company_id]": profile.company_id,
       "metadata[kind]": kind,
@@ -464,6 +483,7 @@ async function makeLink(
       job_sync_id: jobSyncId,
       kind,
       amount_cents: amount,
+      fee_cents: stripeFee,
       status: "pending",
       payment_url: link.url,
       stripe_id: link.id,
@@ -485,4 +505,12 @@ async function makeLink(
   } catch (e) {
     return json({ error: String(e instanceof Error ? e.message : e) }, 400);
   }
+}
+
+/** Card fee passed to the customer, in cents: gross-up of 2.9% + 30c, capped at 3% of the amount. */
+export function cardFeeCents(amountCents: number): number {
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return 0;
+  const grossUp = Math.ceil((amountCents + 30) / (1 - 0.029)) - amountCents;
+  const cap = Math.floor(amountCents * 0.03);
+  return Math.max(0, Math.min(grossUp, cap));
 }

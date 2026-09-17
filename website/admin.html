@@ -511,6 +511,7 @@
     <div><label data-t="editBillingLabel">Billing email</label><input id="e_email" type="email" data-t="editBillingPh" placeholder="where receipts go"></div>
     <div><label data-t="editGraceLabel">Grace period ends</label><input id="e_grace" type="date"></div>
   </div>
+  <label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="e_passfee" style="width:auto"><span data-t="editPassFeeLabel">Customer pays the card fee (Stripe links, up to 3%)</span></label>
   <label data-t="editNotesLabel">Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
   <div class="msg" id="editMsg"></div>
   <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
@@ -722,7 +723,7 @@ const TL = {
     editPriceLabel:'Price per month ($)', editContactLabel:'Contact email',
     editContactPh:'where the invitation goes', editBillingLabel:'Billing email',
     editBillingPh:'where receipts go', editGraceLabel:'Grace period ends',
-    editNotesLabel:'Notes (only you see these)', saveBtn:'Save',
+    editNotesLabel:'Notes (only you see these)', saveBtn:'Save', editPassFeeLabel:'Customer pays the card fee (Stripe links, up to 3%)',
     editUnnamedCompany:'Unnamed company',
 
     copyLookingUp:'Looking it up…',
@@ -894,7 +895,7 @@ const TL = {
     editPriceLabel:'Precio por mes ($)', editContactLabel:'Correo de contacto',
     editContactPh:'a dónde va la invitación', editBillingLabel:'Correo de facturación',
     editBillingPh:'a dónde van los recibos', editGraceLabel:'El período de gracia termina',
-    editNotesLabel:'Notas (solo usted las ve)', saveBtn:'Guardar',
+    editNotesLabel:'Notas (solo usted las ve)', saveBtn:'Guardar', editPassFeeLabel:'El cliente paga la comisión de tarjeta (enlaces de Stripe, hasta 3%)',
     editUnnamedCompany:'Empresa sin nombre',
 
     copyLookingUp:'Buscándolo…',
@@ -1066,7 +1067,7 @@ const TL = {
     editPriceLabel:'Prix par mois ($)', editContactLabel:'Courriel de contact',
     editContactPh:'où l\'invitation est envoyée', editBillingLabel:'Courriel de facturation',
     editBillingPh:'où les reçus sont envoyés', editGraceLabel:'Fin de la période de grâce',
-    editNotesLabel:'Notes (vous seul les voyez)', saveBtn:'Enregistrer',
+    editNotesLabel:'Notes (vous seul les voyez)', saveBtn:'Enregistrer', editPassFeeLabel:'Le client paie les frais de carte (liens Stripe, jusqu\'à 3 %)',
     editUnnamedCompany:'Entreprise sans nom',
 
     copyLookingUp:'Recherche…',
@@ -2148,6 +2149,13 @@ function openEdit(id) {
   $('e_email').value = editing.billing_email || editing.email || '';
   $('e_grace').value = editing.grace_ends_at ? editing.grace_ends_at.slice(0, 10) : '';
   $('e_notes').value = editing.admin_notes || '';
+  // admin_companies() does not return this column; read it on its own.
+  $('e_passfee').checked = false; $('e_passfee').disabled = true;
+  db.from('companies').select('pass_card_fee').eq('id', editing.id).single().then(({ data, error }) => {
+    if (error) { $('editMsg').textContent = error.message; return; }
+    editing.pass_card_fee = data?.pass_card_fee === true;
+    $('e_passfee').checked = editing.pass_card_fee; $('e_passfee').disabled = false;
+  });
   $('e_suspend').textContent = editing.suspended ? tr('unsuspendBtn') : tr('suspendBtn');
   $('editMsg').textContent = '';
   $('editDialog').showModal();
@@ -2164,7 +2172,8 @@ async function saveEdit() {
     email: $('e_contact').value.trim(),
     billing_email: $('e_email').value.trim(),
     grace_ends_at: $('e_grace').value ? new Date($('e_grace').value).toISOString() : null,
-    admin_notes: $('e_notes').value
+    admin_notes: $('e_notes').value,
+    ...($('e_passfee').disabled ? {} : { pass_card_fee: $('e_passfee').checked })
   };
   if (!editing.stripe_subscription_id) {
     patch.subscription_plan = $('e_plan').value.trim();

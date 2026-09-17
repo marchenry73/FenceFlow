@@ -2414,6 +2414,7 @@ const TL = {
     billChosenConnectMsg:'%s is chosen. Connect the account and card requests switch on — until then the app will tell you to take the payment another way rather than taking one nobody can record.',
     billChosenNotConnectedMsg:'You have chosen %s, but the account is not connected yet, so card requests are still switched off.',
     billConnectedMsg:'Connected to %s. Card requests from the app go to this account.',
+    billPassFeeLabel:'Customer pays the card fee', billPassFeeHint:'Adds a separate "Card processing fee" line to card payment links, up to 3%. Only the job amount counts toward what the customer owes. Some states limit card surcharges, so check yours before turning this on.', billPassFeeSaved:'Saved.',
     billPaidWord:'Paid', billWaitingWord:'Waiting',
     billOpeningCheckoutMsg:'Opening secure checkout…', billOnPlanNowMsg:'You\'re on %s now.',
     billCouldNotStartCheckoutMsg:'Could not start checkout.',
@@ -3146,6 +3147,7 @@ const TL = {
     billChosenConnectMsg:'%s está elegido. Conecte la cuenta y las solicitudes de tarjeta se activan — hasta entonces la app le dirá que cobre de otra forma en lugar de tomar un pago que nadie puede registrar.',
     billChosenNotConnectedMsg:'Ha elegido %s, pero la cuenta todavía no está conectada, así que las solicitudes de tarjeta siguen apagadas.',
     billConnectedMsg:'Conectado a %s. Las solicitudes de tarjeta de la app van a esta cuenta.',
+    billPassFeeLabel:'El cliente paga la comisión de tarjeta', billPassFeeHint:'Agrega una línea aparte de "comisión por pago con tarjeta" a los enlaces de pago, hasta el 3%. Solo el monto del trabajo cuenta para lo que debe el cliente. Algunos estados limitan los recargos por tarjeta; verifique el suyo antes de activarlo.', billPassFeeSaved:'Guardado.',
     billPaidWord:'Pagado', billWaitingWord:'Esperando',
     billOpeningCheckoutMsg:'Abriendo pago seguro…', billOnPlanNowMsg:'Ahora está en el plan %s.',
     billCouldNotStartCheckoutMsg:'No se pudo iniciar el pago.',
@@ -3851,6 +3853,7 @@ const TL = {
     billChosenConnectMsg:'%s est choisi. Connectez le compte et les demandes de carte s\'activent — d\'ici là, l\'app vous dira de prendre le paiement autrement plutôt que d\'en prendre un que personne ne peut enregistrer.',
     billChosenNotConnectedMsg:'Vous avez choisi %s, mais le compte n\'est pas encore connecté, donc les demandes de carte restent désactivées.',
     billConnectedMsg:'Connecté à %s. Les demandes de carte de l\'app vont vers ce compte.',
+    billPassFeeLabel:'Le client paie les frais de carte', billPassFeeHint:'Ajoute une ligne distincte « frais de traitement de carte » aux liens de paiement, jusqu\'à 3 %. Seul le montant du chantier compte dans ce que le client doit. Certains États limitent les surcharges de carte ; vérifiez le vôtre avant de l\'activer.', billPassFeeSaved:'Enregistré.',
     billPaidWord:'Payé', billWaitingWord:'En attente',
     billOpeningCheckoutMsg:'Ouverture du paiement sécurisé…', billOnPlanNowMsg:'Vous êtes maintenant sur le forfait %s.',
     billCouldNotStartCheckoutMsg:'Impossible de démarrer le paiement.',
@@ -5279,6 +5282,34 @@ function renderProcessor(idPrefix){
     msg(msgId, tr('billChosenNotConnectedMsg', chosen.charAt(0).toUpperCase() + chosen.slice(1)), 'info');
   } else if (connected) {
     msg(msgId, tr('billConnectedMsg', esc(paymentConn.display_name || chosen)), 'ok');
+  }
+
+  // Card fee pass-through (supabase_card_fee_passthrough.sql). Stripe only:
+  // create-payment-link adds the fee line for Stripe links and nothing else.
+  if (chosen === 'stripe') {
+    const feeId = idPrefix + 'passCardFee';
+    $(idPrefix + 'processorChoices').insertAdjacentHTML('beforeend',
+      `<label style="flex-basis:100%;display:flex;gap:8px;align-items:flex-start;margin-top:10px;cursor:pointer">
+         <input type="checkbox" id="${feeId}" disabled style="margin-top:3px">
+         <span><strong>${esc(tr('billPassFeeLabel'))}</strong>
+         <span style="display:block;font-size:12.5px;opacity:.85">${esc(tr('billPassFeeHint'))}</span></span>
+       </label>`);
+    const cb = $(feeId);
+    db.from('companies').select('pass_card_fee').eq('id', profile.company_id).single().then(({ data, error }) => {
+      if (error) return msg(msgId, error.message, 'err');
+      cb.checked = data?.pass_card_fee === true;
+      cb.disabled = false;
+    });
+    cb.addEventListener('change', async () => {
+      cb.disabled = true;
+      const want = cb.checked;
+      const { data, error } = await db.from('companies').update({ pass_card_fee: want })
+        .eq('id', profile.company_id).select('pass_card_fee');
+      cb.disabled = false;
+      if (error || !data?.length) { cb.checked = !want; return msg(msgId, error?.message || tr('billPassFeeLabel') + ' — not saved', 'err'); }
+      cb.checked = data[0].pass_card_fee === true;
+      msg(msgId, tr('billPassFeeSaved'), 'ok');
+    });
   }
 
   // Scoped to this panel, not the whole document: the wizard step and the
