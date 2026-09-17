@@ -5717,17 +5717,24 @@ async function ensureFullPayments(){
   paymentsFullyLoaded = true;
 }
 
-/* job_stage_events is small (one row per move, not per job) and append-only
-   with no soft-delete, so it is read in full every load rather than bounded
-   or lazily topped up the way times and line items are. Paginated the same
-   defensive way q() is, in case a long-lived company someday has more than
-   one page of moves. */
-async function loadStageEvents(){
+/* job_stage_events is append-only with no soft-delete, so it cannot go
+   through q() (that helper filters every table on deleted_at is null).
+   It used to be read in full every load; bounded now to the same ~18-month
+   window as estimate_line_items/expenses/time_entries/payment_records,
+   because on a long-lived company this is exactly the append-only,
+   grows-forever shape those tables already got a window for. Anything the
+   window misses is topped up by ensureStageEventsForJobs -- called once in
+   loadAll for every sold job, so "how long has this been stuck in a stage"
+   never goes blank for an old job just because the window cut its last move
+   out from under it. Paginated the same defensive way q() is, in case a
+   long-lived company someday has more than one page of moves. */
+async function loadStageEvents(sinceISO){
   const PAGE = 1000;
   const all = [];
   for (let from = 0; ; from += PAGE) {
-    const res = await db.from('job_stage_events').select('*')
-      .order('entered_at', { ascending: true }).range(from, from + PAGE - 1);
+    let qb = db.from('job_stage_events').select('*');
+    if (sinceISO) qb = qb.gte('entered_at', sinceISO);
+    const res = await qb.order('entered_at', { ascending: true }).range(from, from + PAGE - 1);
     if (res.error) return res;
     const got = res.data || [];
     all.push(...got);
@@ -5735,6 +5742,59 @@ async function loadStageEvents(){
   }
   return { data: all, error: null };
 }
+
+// Same shape as ensureItemsForJobs: tops up stageEvents for specific jobs
+// whose full move history reaches further back than the recent window
+// loadStageEvents() was bounded to. Called once in loadAll for every sold
+// job, not lazily per-view, because renderProduction's "time in stage" and
+// "where jobs get stuck" both read stageEvents synchronously.
+async function ensureStageEventsForJobs(syncIds){
+  const ids = [...new Set((syncIds || []).filter(Boolean))];
+  if (!ids.length) return;
+  const CHUNK = 150;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+  const results = await Promise.all(chunks.map(c =>
+    db.from('job_stage_events').select('*').in('job_sync_id', c)));
+  const byId = new Map(stageEvents.map(x => [x.id, x]));
+  results.forEach(res => { if (!res.error) (res.data || []).forEach(x => byId.set(x.id, x)); });
+  stageEvents = [...byId.values()];
+}
+
+// JOB_COLUMNS: the exact set of `jobs` columns any tab reads, as a
+// select() list instead of '*'. A job row is ~2.5 KB spread across ~90
+// columns with none dominant (see PERFORMANCE_AT_VOLUME.md), so this is
+// the biggest single trim to the office's first-paint payload -- and the
+// riskiest, because a column left off shows up as a blank field or a wrong
+// total, silently, maybe months later. This list is not hand-guessed: it
+// was derived by scanning every j./job./openJob./target. property access
+// on a job object across this file, then checked against the live schema.
+// tests/job-columns.test.mjs re-derives that same scan from this file's own
+// source and fails the build if any accessed property is missing here --
+// keep this list and that test in sync; do not edit one without the other.
+const JOB_COLUMNS = [
+  'id','sync_id','company_id','customer_id','local_id','customer_name',
+  'address','phone','email','notes','status','referral_source',
+  'scheduled_date','estimated_duration_hours','assigned_employee_id',
+  'assigned_employee_sync_id','build_template_sync_id',
+  'preferred_manufacturer_sync_id','tax_rate_percent','markup_percent',
+  'discount_percent','labor_rate_per_ft','labor_flat_fee',
+  'gate_rate_per_ft','teardown_enabled','teardown_feet',
+  'teardown_rate_per_ft','teardown_flat_fee','trash_haul_fee',
+  'waste_percent','minimum_job_charge','contract_total','quoted_total',
+  'deposit_amount','amount_paid','refunded_amount','dispute_amount',
+  'dispute_opened_at','dispute_closed_at','dispute_reason',
+  'payment_status','quote_token','quote_sent_at','quote_viewed_at',
+  'quote_approved_at','quote_approved_name','signed_at',
+  'signed_linear_feet','final_sign_off_at','permit_number',
+  'permit_status','locate_ticket_no','locate_called_at',
+  'locate_expires_at','hoa_name','hoa_email','hoa_approval_status',
+  'materials_status','materials_note','materials_ordered_at',
+  'materials_received_at','material_prices_confirmed_at',
+  'production_stage','wizard_step','priced_at','priced_by','pricing_engine_version',
+  'calibration_pixels_per_foot','site_lat','site_lon','first_contact_at',
+  'is_test_fixture','created_at','updated_at','deleted_at'
+].join(',');
 
 async function loadAll(){
   const checkoutNote = await settleAfterCheckout();
@@ -5783,10 +5843,10 @@ async function loadAll(){
 
      A short page means the end. A full page means ask again. */
   const PAGE = 1000;
-  const q = async (t, filterFn) => {
+  const q = async (t, filterFn, columns) => {
     const all = [];
     for (let from = 0; ; from += PAGE) {
-      let qb = db.from(t).select('*').is('deleted_at', null);
+      let qb = db.from(t).select(columns || '*').is('deleted_at', null);
       if (filterFn) qb = filterFn(qb);
       const res = await qb.order('id', { ascending: true })
         .range(from, from + PAGE - 1);
@@ -5827,7 +5887,7 @@ async function loadAll(){
   const recentCutoffISO = new Date(Date.now() - RECENT_MS).toISOString();
 
   const [j,e,r,i,x,p,o,tm,c,ti,mf,se,pay,fc,fjp] = await Promise.all([
-    q('jobs'), q('employees'), q('fence_runs'),
+    q('jobs', null, JOB_COLUMNS), q('employees'), q('fence_runs'),
     // Line items rarely change after the estimate is built, so updated_at is
     // a reasonable stand-in for "recent job" here. Anything this window
     // misses -- an old job's materials, a report reaching further back -- is
@@ -5865,7 +5925,9 @@ async function loadAll(){
     // job_stage_events is append-only and has no deleted_at column, so it
     // cannot go through q() above -- that helper filters every table on
     // deleted_at is null, which this table does not have and would error on.
-    loadStageEvents(),
+    // Bounded to the recent window for first paint; ensureStageEventsForJobs
+    // tops up every sold job's full history right after this (see below).
+    loadStageEvents(recentCutoffISO),
     // The money ledger. This page used to read job_payments, which is the
     // Stripe payment-LINK table -- amounts in cents, with a URL and a Stripe
     // id. It is not what the app counts money from, which is why the figures
@@ -5879,8 +5941,22 @@ async function loadAll(){
     // payments, same contract as ensureFullTimes.
     q('payment_records', qb => qb.gte('received_at', recentCutoffISO)),
     // Plan-change requests from the field, so the home tab can say who is
-    // waiting on an answer.
-    q('field_changes'),
+    // waiting on an answer. Bounded the same way time_entries is: any
+    // request still waiting on a decision must show up regardless of age --
+    // Home's "waiting for an answer" tile has to see every one of them or it
+    // silently stops firing for old rows -- plus everything recent on top,
+    // so Reports' "raised from the field" list has real recent numbers.
+    (async () => {
+      const [pending, recent] = await Promise.all([
+        q('field_changes', qb => qb.eq('is_request', true).is('approved_at', null).is('rejected_at', null)),
+        q('field_changes', qb => qb.gte('at', recentCutoffISO))
+      ]);
+      if (pending.error) return pending;
+      if (recent.error) return recent;
+      const byId = new Map();
+      [...pending.data, ...recent.data].forEach(f => byId.set(f.id, f));
+      return { data: [...byId.values()], error: null };
+    })(),
     // job_payments has no deleted_at column, so it cannot go through q()
     // (same reason job_stage_events is fetched separately above). RLS
     // already restricts this table to SEE_MONEY
@@ -5955,6 +6031,15 @@ async function loadAll(){
   const untotaledJobIds = jobs.filter(x2 => !x2.deleted_at && x2.contract_total == null)
     .map(x2 => x2.sync_id);
   if (untotaledJobIds.length) await ensureItemsForJobs(untotaledJobIds);
+
+  // Same reasoning as untotaledJobIds above, for the Production board: a
+  // sold job's last stage move can be older than the recent window
+  // job_stage_events was just bounded to, and renderProduction reads
+  // stageEvents synchronously -- so top up every sold job's full history now
+  // rather than let "time in stage" quietly go blank for an old job.
+  const soldJobIds = jobs.filter(x2 => !x2.deleted_at && (x2.status === 'ACCEPTED' || x2.status === 'COMPLETED'))
+    .map(x2 => x2.sync_id);
+  if (soldJobIds.length) await ensureStageEventsForJobs(soldJobIds);
 
   // Profit per job is computed by the database, not here, so this page and
   // the app can never disagree about what a job made -- which is exactly how
@@ -7636,7 +7721,7 @@ const CAL_STAGE = {
   'Deposit Paid': '#0E8C7B',
   'Scheduled':    '#eb6834',
   'Installed':    '#3F6B4A',
-  'Paid in Full': '#1baf7a',
+  'Paid in Full': 'var(--ok)',
   'Lost':         '#B9C0CA',
 };
 
