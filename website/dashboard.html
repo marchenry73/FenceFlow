@@ -2017,6 +2017,17 @@ const TL = {
     chaseHead:'Chase list',
     chaseBody:'Every open lead, sent quote and unpaid approval, ranked by what it is worth times how long it has been waiting — so a big job that has gone quiet outranks a small one from this morning. Click the bar to see the math.',
     attentionHead:'Needs attention',
+    attnUntitledJob:'Untitled job',
+    attnFieldChangeWaiting:'Plan change waiting — answer it in the phone app: %s',
+    attnLocateExpired:'811 locate expired: %s',
+    attnJoinRequest:'%s joined and asked to be %s — say yes or no',
+    attnSomebodyWord:'Somebody',
+    attnPendingShiftsSing:'1 shift waiting for approval',
+    attnPendingShiftsPlur:'%s shifts waiting for approval',
+    attnUnpaidFinished:'Finished, not paid: %s',
+    attnDraftStale:'Draft never sent: %s',
+    attnPunchOpenSing:'1 open punch-list item: %s',
+    attnPunchOpenPlur:'%s open punch-list items: %s',
     thisWeekHead:'This week',
     thisWeekBody:'The next seven days. Click a job to open it.',
     langLabel:'Language',
@@ -2738,6 +2749,17 @@ const TL = {
     chaseHead:'Lista de seguimiento',
     chaseBody:'Cada lead abierto, presupuesto enviado y aprobación sin pagar, ordenados por su valor multiplicado por cuánto llevan esperando — así un trabajo grande que se quedó callado pasa por delante de uno chico de esta mañana. Toque la barra para ver el cálculo.',
     attentionHead:'Requiere atención',
+    attnUntitledJob:'Trabajo sin título',
+    attnFieldChangeWaiting:'Cambio de plan pendiente — respóndalo en la app del teléfono: %s',
+    attnLocateExpired:'Localización 811 vencida: %s',
+    attnJoinRequest:'%s se unió y pidió ser %s — diga que sí o que no',
+    attnSomebodyWord:'Alguien',
+    attnPendingShiftsSing:'1 turno esperando aprobación',
+    attnPendingShiftsPlur:'%s turnos esperando aprobación',
+    attnUnpaidFinished:'Terminado, sin pagar: %s',
+    attnDraftStale:'Borrador nunca enviado: %s',
+    attnPunchOpenSing:'1 pendiente de lista de retoques: %s',
+    attnPunchOpenPlur:'%s pendientes de lista de retoques: %s',
     thisWeekHead:'Esta semana',
     thisWeekBody:'Los próximos siete días. Toque un trabajo para abrirlo.',
     langLabel:'Idioma',
@@ -3432,6 +3454,17 @@ const TL = {
     chaseHead:'Liste de relance',
     chaseBody:'Chaque piste ouverte, devis envoyé et approbation non payée, classés selon leur valeur multipliée par le temps d’attente — un gros chantier devenu silencieux passe ainsi devant un petit datant de ce matin. Cliquez sur la barre pour voir le calcul.',
     attentionHead:'À traiter',
+    attnUntitledJob:'Travail sans titre',
+    attnFieldChangeWaiting:'Changement de plan en attente — répondez dans l\'appli mobile : %s',
+    attnLocateExpired:'Localisation 811 expirée : %s',
+    attnJoinRequest:'%s a rejoint et a demandé à être %s — dites oui ou non',
+    attnSomebodyWord:'Quelqu\'un',
+    attnPendingShiftsSing:'1 quart en attente d\'approbation',
+    attnPendingShiftsPlur:'%s quarts en attente d\'approbation',
+    attnUnpaidFinished:'Terminé, non payé : %s',
+    attnDraftStale:'Brouillon jamais envoyé : %s',
+    attnPunchOpenSing:'1 point de liste de retouches ouvert : %s',
+    attnPunchOpenPlur:'%s points de liste de retouches ouverts : %s',
     thisWeekHead:'Cette semaine',
     thisWeekBody:'Les sept prochains jours. Cliquez sur un chantier pour l’ouvrir.',
     langLabel:'Langue',
@@ -6262,7 +6295,7 @@ function renderDash(){
   const weekAgo = nowMs - 7*864e5;
   const live = new Set(jobs.map(x=>x.sync_id));
   const items = [];
-  const name = j => j.customer_name || j.address || 'Untitled job';
+  const name = j => j.customer_name || j.address || tr('attnUntitledJob');
   // Plan changes waiting on an answer.
   const waiting = fieldChanges.filter(fcr => fcr.is_request && !fcr.approved_at && !fcr.rejected_at && !fcr.acknowledged_at && live.has(fcr.job_sync_id));
   new Set(waiting.map(w=>w.job_sync_id)).forEach(sid => {
@@ -6271,13 +6304,13 @@ function renderDash(){
     // sheet here has no such panel, so an alert that just opened the sheet
     // sent the contractor looking for a control that was never there.
     const j = jobBySync(sid);
-    if (j) items.push({ urgent:true, severity:'warn', text:'Plan change waiting — answer it in the phone app: '+name(j), id:j.id, key:'field_change:'+j.id, fp:j.updated_at });
+    if (j) items.push({ urgent:true, severity:'warn', text:tr('attnFieldChangeWaiting', name(j)), id:j.id, key:'field_change:'+j.id, fp:j.updated_at });
   });
   // 811 locate expired on a job that is not finished. A legal/safety deadline
   // that has already passed -- the sharpest kind of urgent this list has, so
   // it gets the top severity, unlike a quote that has merely gone quiet below.
   jobs.filter(j=>j.locate_expires_at && d(j.locate_expires_at) < new Date() && j.status!=='COMPLETED')
-    .forEach(j=>items.push({ urgent:true, severity:'critical', text:'811 locate expired: '+name(j), id:j.id, key:'locate_expired:'+j.id, fp:j.locate_expires_at }));
+    .forEach(j=>items.push({ urgent:true, severity:'critical', text:tr('attnLocateExpired', name(j)), id:j.id, key:'locate_expired:'+j.id, fp:j.locate_expires_at }));
   // Hours waiting for approval.
   const pendingShifts = times.filter(t=>t.ended_at && !t.approved_at && !t.rejected_at).length;
   // Somebody new has joined and is waiting to be told what they are.
@@ -6290,20 +6323,19 @@ function renderDash(){
     companyMembers.filter(m => m.requested_role && m.requested_role !== m.role)
       .forEach(m => items.push({
         urgent: true, severity:'warn',
-        text: (m.full_name || 'Somebody') + ' joined and asked to be '
-              + m.requested_role.charAt(0) + m.requested_role.slice(1).toLowerCase()
-              + ' — say yes or no',
+        text: tr('attnJoinRequest', m.full_name || tr('attnSomebodyWord'),
+              m.requested_role.charAt(0) + m.requested_role.slice(1).toLowerCase()),
         id: null, go: 'crew', key:'join_request:'+m.id, fp:m.requested_role
       }));
   }
 
-  if (pendingShifts) items.push({ urgent:false, severity:'info', text:pendingShifts+' shift'+(pendingShifts===1?'':'s')+' waiting for approval', id:null, go:'time', key:'pending_shifts', fp:String(pendingShifts) });
+  if (pendingShifts) items.push({ urgent:false, severity:'info', text:pendingShifts===1?tr('attnPendingShiftsSing'):tr('attnPendingShiftsPlur', pendingShifts), id:null, go:'time', key:'pending_shifts', fp:String(pendingShifts) });
   // Finished but not paid in full.
   jobs.filter(j=>j.status==='COMPLETED' && j.payment_status!=='PAID_IN_FULL')
-    .forEach(j=>items.push({ urgent:false, severity:'info', text:'Finished, not paid: '+name(j), id:j.id, key:'unpaid:'+j.id, fp:j.payment_status }));
+    .forEach(j=>items.push({ urgent:false, severity:'info', text:tr('attnUnpaidFinished', name(j)), id:j.id, key:'unpaid:'+j.id, fp:j.payment_status }));
   // Drafts that never went out.
   jobs.filter(j=>j.status==='DRAFT' && d(j.updated_at||j.created_at) < new Date(weekAgo))
-    .forEach(j=>items.push({ urgent:false, severity:'info', text:'Draft never sent: '+name(j), id:j.id, key:'draft_stale:'+j.id, fp:j.updated_at }));
+    .forEach(j=>items.push({ urgent:false, severity:'info', text:tr('attnDraftStale', name(j)), id:j.id, key:'draft_stale:'+j.id, fp:j.updated_at }));
   /* ---- exceptions the system should find before a person does -----------
 
      Everything above answers "something happened, deal with it". These four
@@ -6496,7 +6528,7 @@ function renderDash(){
   // Open punch-list items, by job.
   const openBy = {};
   punch.filter(p=>!p.resolved).forEach(p=>{ openBy[p.job_sync_id]=(openBy[p.job_sync_id]||0)+1; });
-  Object.entries(openBy).forEach(([sid,cnt])=>{ const j=jobBySync(sid); if(j) items.push({ urgent:false, severity:'info', text:cnt+' open punch-list item'+(cnt===1?'':'s')+': '+name(j), id:j.id, key:'punch:'+sid, fp:String(cnt) }); });
+  Object.entries(openBy).forEach(([sid,cnt])=>{ const j=jobBySync(sid); if(j) items.push({ urgent:false, severity:'info', text:cnt===1?tr('attnPunchOpenSing', name(j)):tr('attnPunchOpenPlur', cnt, name(j)), id:j.id, key:'punch:'+sid, fp:String(cnt) }); });
 
   // Handed to the Daily briefing so it can say what needs attention today
   // without re-running every alert rule above a second time.
@@ -6819,7 +6851,7 @@ async function renderProcurement(){
 async function renderChase(){
   if (!$('chaseList')) return;
   const nowMs = Date.now();
-  const name = j => j.customer_name || j.address || 'Untitled job';
+  const name = j => j.customer_name || j.address || tr('attnUntitledJob');
 
   const open = jobs.filter(j => ['New Lead','Quote Sent','Approved'].includes(stageOf(j)));
 
