@@ -92,6 +92,20 @@ object JobMoney {
     fun paidFigureIsReadOnly(job: Job): Boolean = job.paymentsFromProcessor
 
     /**
+     * True once the customer has agreed to this job -- whether that happened
+     * as a drawn signature captured in the app ([Job.signedAt]) or as a typed
+     * name approved on the emailed/texted quote page ([Job.quoteApprovedAt]).
+     *
+     * Those are two different mechanisms for the exact same agreement, not
+     * two separate approvals. A screen that only checked [Job.signedAt] had a
+     * customer type their name on the quote page, then get asked to sign
+     * again in person for the same price -- the "I already did this" the
+     * owner heard about. Anything gating on "has the customer accepted this
+     * quote" should call this instead of reading [Job.signedAt] alone.
+     */
+    fun isAccepted(job: Job): Boolean = job.signedAt != null || job.quoteApprovedAt != null
+
+    /**
      * Whether the customer's signature still describes the job they signed for.
      *
      * A signature means "I agree to this", and "this" was a price and a length

@@ -68,6 +68,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -269,6 +271,17 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         }
     }
 
+    // Undo's one-shot "I did nothing, here's why" event (see
+    // SurveyViewModel.undoNothingToDo) -- surfaced as a snackbar so a press
+    // that removes nothing is never silent.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val undoNothingMessage = stringResource(R.string.draw_undo_nothing_to_undo)
+    LaunchedEffect(Unit) {
+        viewModel.undoNothingToDo.collect {
+            snackbarHostState.showSnackbar(undoNothingMessage)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -277,7 +290,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Persistent, not a snackbar that scrolls away: the drawing itself
@@ -364,6 +378,13 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 // its own val here because DrawScope's copy isn't reachable
                 // from composables floating outside the Canvas.
                 val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
+                // Same analyze() call, but over the COMMITTED points only (not
+                // a mid-drag draft) -- what the segment-length chips and the
+                // perimeter readout in the property panel are built from, so
+                // dragging a vertex doesn't flicker a list it isn't part of.
+                val committedGeometry = if (pxPerFt != null && pxPerFt > 0f && committedPoints.size >= 2) {
+                    FenceGeometryEngine.analyze(committedPoints, pxPerFt, activeRun.closedLoop)
+                } else null
                 val otherRuns = runs.filter { it.id != activeRun.id }
                 // Job-wide total (every run, not just the one on screen) --
                 // the active run's draft points stand in for its own saved
@@ -1048,6 +1069,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         pxPerFt = pxPerFt,
                         usingGrid = usingGrid,
                         committedPoints = committedPoints,
+                        committedGeometry = committedGeometry,
                         closedLoop = activeRun.closedLoop,
                         onClosedLoopChange = { viewModel.toggleClosedLoop(it) },
                         snapOn = snapOn,
@@ -1413,6 +1435,7 @@ private fun PropertyInfoPanel(
     pxPerFt: Float?,
     usingGrid: Boolean,
     committedPoints: List<FencePoint>,
+    committedGeometry: com.fenceestimator.app.geometry.FenceGeometryResult?,
     closedLoop: Boolean,
     onClosedLoopChange: (Boolean) -> Unit,
     snapOn: Boolean,
@@ -1473,8 +1496,7 @@ private fun PropertyInfoPanel(
                 // standing in a yard holding a tape in the other hand. This
                 // row is the reliable way in: it does not need aim, it works
                 // one-handed, and it makes the feature findable at all.
-                if (committedPoints.size >= 2 && pxPerFt != null && pxPerFt > 0f) {
-                    val segs = if (closedLoop) committedPoints.size else committedPoints.size - 1
+                if (committedPoints.size >= 2 && pxPerFt != null && pxPerFt > 0f && committedGeometry != null) {
                     Text(
                         stringResource(R.string.seg_len_row_title),
                         style = MaterialTheme.typography.labelMedium,
@@ -1484,20 +1506,38 @@ private fun PropertyInfoPanel(
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(Space.sm)
                     ) {
-                        for (i in 0 until max(0, segs)) {
-                            val feet = com.fenceestimator.app.geometry
-                                .segmentLengthPx(committedPoints, i)?.div(pxPerFt) ?: continue
+                        // committedGeometry.segments already wraps the last
+                        // index back to 0 when closedLoop is set (same
+                        // FenceGeometryEngine.analyze() the totals and the
+                        // takeoff use), so the closing side gets its own chip
+                        // here instead of being silently skipped.
+                        for (seg in committedGeometry.segments) {
                             AssistChip(
-                                onClick = { onSegmentClick(i) },
+                                onClick = { onSegmentClick(seg.fromIndex) },
                                 label = {
                                     Text(
-                                        stringResource(R.string.seg_len_chip, i + 1, FeetInches.formatCompact(feet))
+                                        stringResource(
+                                            R.string.seg_len_chip,
+                                            seg.fromIndex + 1,
+                                            FeetInches.formatCompact(seg.lengthFt)
+                                        )
                                     )
                                 }
                             )
                         }
                     }
                     Spacer(Modifier.height(Space.sm))
+                    if (closedLoop) {
+                        Text(
+                            stringResource(
+                                R.string.misc_survey_perimeter_total,
+                                String.format("%.1f", committedGeometry.totalLinearFeet)
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(Space.sm))
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = snapOn, onCheckedChange = onSnapChange)

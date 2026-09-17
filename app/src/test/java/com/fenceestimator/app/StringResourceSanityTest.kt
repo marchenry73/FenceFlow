@@ -65,13 +65,21 @@ class StringResourceSanityTest {
     }
 
     @Test
-    fun `every language carries the same keys`() {
+    fun `every language carries exactly the same keys`() {
+        // Strict equality, both directions: values, values-es and values-fr
+        // must have identical key sets. app_name is untranslated content
+        // (translatable="false") but it still has to exist in all three, or
+        // a lookup by key in the non-default locale throws at runtime.
         val files = resourceFiles()
-        val en = strings(files[0]).map { it.first }.toSet() - "app_name"
+        val base = strings(files[0]).map { it.first }.toSet()
         for (f in files.drop(1)) {
             val lang = strings(f).map { it.first }.toSet()
-            val missing = en - lang
-            assertTrue("${f.parentFile.name} missing: $missing", missing.isEmpty())
+            val missing = base - lang
+            val extra = lang - base
+            assertTrue(
+                "${f.parentFile.name} missing: $missing, extra: $extra",
+                missing.isEmpty() && extra.isEmpty()
+            )
         }
     }
 }

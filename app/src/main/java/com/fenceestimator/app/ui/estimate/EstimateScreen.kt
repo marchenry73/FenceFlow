@@ -204,10 +204,23 @@ private fun RunSection(
     onItemClick: (EstimateLineItem) -> Unit
 ) {
     val subtotal = items.sumOf { it.lineTotal }
-    var feetText by remember(run.id, run.manualLinearFeet) {
+    // Keyed on run.id ONLY, not on the value being typed.
+    //
+    // Every keystroke here writes the new value to Room asynchronously
+    // (onManualFeet -> setManualFeet -> a suspend DB update), and that write
+    // comes back around as a new `run` a recomposition later. Keying remember
+    // on run.manualLinearFeet/manualCornerCount meant that round trip could
+    // arrive between two keystrokes and re-seed the field from whatever had
+    // just been committed -- clobbering what the person had already typed
+    // past that, mid-word, back to a shorter or empty value. Typing "125" ft
+    // then pressing Suggest Quantities against a field that got snapped back
+    // to "1" or "" is exactly how a suggestion came back computed off zero
+    // feet. The field only needs to reset when it starts representing a
+    // DIFFERENT run.
+    var feetText by remember(run.id) {
         mutableStateOf(run.manualLinearFeet?.let { if (it % 1f == 0f) it.toInt().toString() else it.toString() } ?: "")
     }
-    var cornerText by remember(run.id, run.manualCornerCount) {
+    var cornerText by remember(run.id) {
         mutableStateOf(if (run.manualCornerCount > 0) run.manualCornerCount.toString() else "")
     }
 
@@ -674,6 +687,15 @@ private fun ExportSection(
             }
         }
 
+        // Two different mechanisms can record the same "I agree to this
+        // price" event: a drawn signature captured here, or a typed name
+        // approved on the emailed/texted quote page (Job.quoteApprovedAt).
+        // Checking only the drawn signature meant a customer who had already
+        // approved online was shown "Sign to Accept" again in person -- the
+        // same document, asked for twice. If there is no drawn signature but
+        // there IS an online approval, say so plainly instead of demanding a
+        // signature the customer already gave.
+        val approvedOnlineOnly = job.signatureImagePath == null && job.quoteApprovedAt != null
         if (job.signatureImagePath != null) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = Space.sm)) {
                 coil.compose.AsyncImage(
@@ -686,6 +708,25 @@ private fun ExportSection(
                 // only one of them is the actual next step for most estimates.
                 OutlinedButton(onClick = { showSignaturePad = true }) {
                     Text(stringResource(if (needsResign) R.string.est2_get_new_signature else R.string.est2_re_sign))
+                }
+            }
+        } else if (approvedOnlineOnly) {
+            val approvedDateFormat = remember { java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US) }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = Space.sm)) {
+                Text(
+                    stringResource(
+                        R.string.est2_approved_online,
+                        job.quoteApprovedName.ifBlank { stringResource(R.string.est2_the_customer) },
+                        approvedDateFormat.format(java.util.Date(job.quoteApprovedAt!!))
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                // A wet signature is never required once the customer has
+                // already approved online -- this is purely optional, for an
+                // owner who wants one on file too.
+                OutlinedButton(onClick = { showSignaturePad = true }) {
+                    Text(stringResource(R.string.est2_add_wet_signature))
                 }
             }
         } else {
@@ -789,9 +830,10 @@ private fun ExportSection(
         OutlinedButton(
             onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_INVOICE) },
             // A bill for a job nobody agreed to is how disputes start. The
-            // invoice waits for the signature; the contract button stays live
-            // above because it is the path TO the signature.
-            enabled = !needsResign && job.signedAt != null,
+            // invoice waits for acceptance -- a drawn signature or an online
+            // approval, either one -- the contract button stays live above
+            // because it is the path TO that acceptance.
+            enabled = !needsResign && com.fenceestimator.app.estimate.JobMoney.isAccepted(job),
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
@@ -800,11 +842,11 @@ private fun ExportSection(
         Text(
             when {
                 needsResign -> stringResource(R.string.est2_locked_price_changed)
-                job.signedAt == null -> stringResource(R.string.est2_locked_until_signed)
+                !com.fenceestimator.app.estimate.JobMoney.isAccepted(job) -> stringResource(R.string.est2_locked_until_signed)
                 else -> stringResource(R.string.est2_invoice_hint)
             },
             style = MaterialTheme.typography.bodySmall,
-            color = if (needsResign || job.signedAt == null) MaterialTheme.colorScheme.error
+            color = if (needsResign || !com.fenceestimator.app.estimate.JobMoney.isAccepted(job)) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(Space.sm))

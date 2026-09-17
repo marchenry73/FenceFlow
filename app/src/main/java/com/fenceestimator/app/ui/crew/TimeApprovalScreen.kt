@@ -134,8 +134,7 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
             } else {
                 item {
                     Text(
-                        "${pending.size} shift(s) waiting. Hours don't count towards pay " +
-                            "or job cost until they're approved.",
+                        stringResource(R.string.crew_shifts_waiting_note, pending.size),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

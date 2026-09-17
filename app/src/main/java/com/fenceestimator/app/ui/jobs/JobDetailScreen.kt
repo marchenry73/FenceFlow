@@ -1653,9 +1653,11 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 }
             }
         },
-        // No payment is asked for before the customer has signed. Money
-        // requested against an unsigned estimate is money argued about later.
-        enabled = !creatingLink && requestAmount >= 0.50 && job.signedAt != null,
+        // No payment is asked for before the customer has accepted the quote
+        // -- a drawn signature or an online approval, either one. Money
+        // requested against an unaccepted estimate is money argued about later.
+        enabled = !creatingLink && requestAmount >= 0.50 &&
+            com.fenceestimator.app.estimate.JobMoney.isAccepted(job),
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
@@ -1667,7 +1669,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         )
     }
     // A grey button with no reason reads as the app being broken.
-    if (job.signedAt == null) {
+    if (!com.fenceestimator.app.estimate.JobMoney.isAccepted(job)) {
         Text(
             stringResource(R.string.jd_payment_after_signature),
             style = MaterialTheme.typography.bodySmall,

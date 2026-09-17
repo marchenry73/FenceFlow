@@ -17,10 +17,15 @@ import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.GateSwing
+import com.fenceestimator.app.geometry.UndoNoneReason
+import com.fenceestimator.app.geometry.UndoPlan
+import com.fenceestimator.app.geometry.planUndo
 import kotlinx.coroutines.Dispatchers
 import com.fenceestimator.app.cloud.CrashReporter
 import com.fenceestimator.app.estimate.TakeoffRefresher
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
@@ -290,21 +295,29 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      * takes back a point. That is what the button means to somebody mid-task,
      * and it cannot surprise them by removing something off-screen.
      */
+    /**
+     * One-shot events the Undo button can't express as state -- specifically
+     * "I did nothing, and here is why" -- so a press that removes nothing
+     * still tells the user something instead of looking broken. See
+     * [UndoNoneReason].
+     */
+    private val _undoNothingToDo = MutableSharedFlow<UndoNoneReason>(extraBufferCapacity = 1)
+    val undoNothingToDo: SharedFlow<UndoNoneReason> = _undoNothingToDo
+
     fun undoLast(mode: SurveyMode) {
-        val run = selectedRun() ?: return
-        val gates = FenceCodec.decodeGates(run.gatesEncoded)
-        if (mode == SurveyMode.GATE && gates.isNotEmpty()) {
-            removeGate(gates.last())
-            return
+        val run = selectedRun()
+        val gates = run?.let { FenceCodec.decodeGates(it.gatesEncoded) } ?: emptyList()
+        val points = run?.let { FenceCodec.decodePoints(it.pointsEncoded) } ?: emptyList()
+        when (val plan = planUndo(
+            gateMode = mode == SurveyMode.GATE,
+            hasSelectedRun = run != null,
+            pointCount = points.size,
+            gateCount = gates.size
+        )) {
+            UndoPlan.RemoveLastGate -> removeGate(gates.last())
+            UndoPlan.RemoveLastPoint -> persistPoints(run!!, points.dropLast(1))
+            is UndoPlan.None -> _undoNothingToDo.tryEmit(plan.reason)
         }
-        val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
-        if (points.isEmpty() && gates.isNotEmpty()) {
-            // Nothing left to unpick but gates, whatever tool is selected.
-            removeGate(gates.last())
-            return
-        }
-        if (points.isNotEmpty()) points.removeAt(points.size - 1)
-        persistPoints(run, points)
     }
 
     fun clearPoints() {

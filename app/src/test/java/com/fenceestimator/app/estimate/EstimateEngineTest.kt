@@ -265,4 +265,48 @@ class EstimateEngineTest {
         assertEquals(1, latchLines.size)
         assertEquals(2.0, latchLines.first().quantity, 0.001)
     }
+
+    // ---- "when I click on suggested quantities, it goes back to 0" ----
+    //
+    // The typed-feet field on the estimate screen fed manualLinearFeet
+    // straight into this engine. Its Compose state was re-seeded from
+    // run.manualLinearFeet on every keystroke's own async DB round trip
+    // (remember(run.id, run.manualLinearFeet) in RunSection), so a fast typist
+    // could have their in-progress number snapped back to whatever had just
+    // been committed -- including back to "" mid-word. Pressing Suggest
+    // Quantities right after reads a run whose manualLinearFeet is 0/null,
+    // and this engine correctly (and unhelpfully) suggests nothing for it.
+    // These two pin the engine's side of that contract: a real typed length
+    // suggests real quantities, and the zero-feet case that the UI bug
+    // produced suggests none -- so a regression that starts inventing
+    // quantities out of zero feet, or one that goes back to silently
+    // suggesting nothing for a real typed length, both go red here.
+
+    @Test
+    fun `a typed length suggests real, non-zero quantities`() {
+        val run = vinylRun(feet = 125f, corners = 1)
+        val s = EstimateEngine.suggestQuantities(run, pixelsPerFoot = 0f)
+
+        assertTrue(
+            "125 ft of vinyl fence must suggest panels, not nothing",
+            qtyOf(s, MaterialRole.PANEL) > 0.0
+        )
+        assertTrue(qtyOf(s, MaterialRole.CONCRETE_BAG) > 0.0)
+    }
+
+    @Test
+    fun `planted failure -- a field wiped back to zero feet suggests nothing, which is why the wipe is the bug`() {
+        // This is the exact state a keystroke-triggered remember reset left
+        // the run in: manualLinearFeet null (the field read as cleared) and
+        // no drawing to fall back on (pixelsPerFoot 0 here stands in for "no
+        // calibration"). The engine is right to suggest zero for zero feet --
+        // the bug was ever letting the field collapse to this while someone
+        // was still typing, not anything this engine does with the number
+        // once it gets it.
+        val run = vinylRun(feet = null, corners = 1)
+        val s = EstimateEngine.suggestQuantities(run, pixelsPerFoot = 0f)
+
+        assertEquals(0.0, qtyOf(s, MaterialRole.PANEL), 0.001)
+        assertEquals(0.0, qtyOf(s, MaterialRole.CONCRETE_BAG), 0.001)
+    }
 }

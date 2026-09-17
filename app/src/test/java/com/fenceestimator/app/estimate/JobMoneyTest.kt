@@ -163,4 +163,38 @@ class JobMoneyTest {
         val j = job(paid = 500.0).copy(paymentsFromProcessor = true)
         assertTrue(JobMoney.paidFigureIsReadOnly(j))
     }
+
+    // ---- one acceptance, checked everywhere the same way ----
+    //
+    // A customer can agree to a quote by drawing a signature in the app OR by
+    // typing their name on the emailed/texted quote page. Those write to two
+    // different columns (signedAt vs quoteApprovedAt) for the SAME agreement.
+    // Every screen that gates on "has this been accepted" must go through
+    // isAccepted() so signing online counts -- the bug this guards against is
+    // the app asking someone to sign twice for the same document because one
+    // screen only checked signedAt.
+
+    @Test
+    fun `an in-app drawn signature counts as accepted`() {
+        val j = job(signedAt = 1L)
+        assertTrue(JobMoney.isAccepted(j))
+    }
+
+    @Test
+    fun `an online quote-page approval counts as accepted, with no drawn signature at all`() {
+        val j = job().copy(quoteApprovedAt = 2L, quoteApprovedName = "Pat Customer")
+        assertTrue(
+            "approving on the website is a real acceptance, not a lesser one -- " +
+                "the app must not demand a second signature for the same agreement",
+            JobMoney.isAccepted(j)
+        )
+    }
+
+    @Test
+    fun `neither signature nor online approval is not accepted`() {
+        // Planted-failure case: if isAccepted ever degrades to "always true"
+        // or ignores both fields, this is the case that must go red.
+        val j = job()
+        assertFalse(JobMoney.isAccepted(j))
+    }
 }

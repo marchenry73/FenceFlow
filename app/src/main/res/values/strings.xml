@@ -250,6 +250,7 @@
     <string name="draw_grid_size_ft">%1$d ft</string>
     <string name="draw_closed_perimeter">Closed perimeter (no open ends)</string>
     <string name="draw_undo">Undo</string>
+    <string name="draw_undo_nothing_to_undo">Nothing to undo on this run yet</string>
     <string name="seg_len_title">Set this length</string>
     <string name="snap_toggle">Snap</string>
     <string name="snap_help">Corners, square angles and whole feet</string>
@@ -849,6 +850,8 @@
     <string name="est2_the_customer">the customer</string>
     <string name="est2_get_new_signature">Get new signature</string>
     <string name="est2_re_sign">Re-sign</string>
+    <string name="est2_approved_online">Approved online by %1$s on %2$s</string>
+    <string name="est2_add_wet_signature">Add a signature too</string>
     <string name="est2_provisional_pricing">Provisional pricing</string>
     <string name="est2_provisional_pricing_body">Materials are costed from your catalog, not from a supplier quote. Send the material list, then enter what they come back with.</string>
     <string name="est2_locked_price_changed">Locked: the price changed after this was signed.</string>
@@ -1305,6 +1308,7 @@
     <string name="misc_survey_panel_collapse">Hide drawing details</string>
     <string name="misc_survey_adjust_canvas_hint">Drag to move, or tap a point to nudge it with the arrows</string>
     <string name="misc_survey_feet_total">%1$s ft total</string>
+    <string name="misc_survey_perimeter_total">Perimeter: %1$s ft</string>
     <string name="misc_survey_corners_count">%1$d corners</string>
     <string name="misc_survey_gates_count">%1$d gate(s)</string>
     <string name="misc_survey_grid_to_scale">Draw the fence line -- the grid is already to scale</string>
@@ -1722,4 +1726,5 @@
          dispute a correction; until the phone could see one had happened,
          that meant disputing something invisible. -->
     <string name="crew_attn_hours_corrected">The office changed your hours on %1$s</string>
+    <string name="crew_shifts_waiting_note">%1$d shift(s) waiting. Hours do not count towards pay or job cost until they are approved.</string>
 </resources>

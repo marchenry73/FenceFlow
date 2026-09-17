@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name" translatable="false">FenceFlow</string>
     <string name="action_back">Retour</string>
     <string name="action_save">Enregistrer</string>
     <string name="action_cancel">Annuler</string>
@@ -236,6 +237,7 @@
     <string name="draw_grid_size_ft">%1$d pi</string>
     <string name="draw_closed_perimeter">Périmètre fermé (sans extrémités ouvertes)</string>
     <string name="draw_undo">Annuler</string>
+    <string name="draw_undo_nothing_to_undo">Rien à annuler sur cette ligne pour le moment</string>
     <string name="seg_len_title">Définir cette longueur</string>
     <string name="snap_toggle">Aimantation</string>
     <string name="snap_help">Angles, équerres et pieds entiers</string>
@@ -833,6 +835,8 @@
     <string name="est2_the_customer">le client</string>
     <string name="est2_get_new_signature">Nouvelle signature</string>
     <string name="est2_re_sign">Re-signer</string>
+    <string name="est2_approved_online">Approuvé en ligne par %1$s le %2$s</string>
+    <string name="est2_add_wet_signature">Ajouter aussi une signature</string>
     <string name="est2_provisional_pricing">Prix provisoires</string>
     <string name="est2_provisional_pricing_body">Les matériaux sont chiffrés d\'après votre catalogue, pas d\'après un devis fournisseur. Envoyez la liste de matériaux, puis saisissez ce qu\'ils vous renvoient.</string>
     <string name="est2_locked_price_changed">Verrouillé : le prix a changé après la signature.</string>
@@ -1277,6 +1281,7 @@
     <string name="misc_survey_panel_collapse">Masquer les détails du dessin</string>
     <string name="misc_survey_adjust_canvas_hint">Faites glisser pour déplacer, ou appuyez sur un point pour l\'ajuster avec les flèches</string>
     <string name="misc_survey_feet_total">%1$s pi au total</string>
+    <string name="misc_survey_perimeter_total">Périmètre : %1$s pi</string>
     <string name="misc_survey_corners_count">%1$d angles</string>
     <string name="misc_survey_gates_count">%1$d portail(s)</string>
     <string name="misc_survey_grid_to_scale">Tracez la ligne de clôture ; la grille est déjà à l\'échelle</string>
@@ -1694,4 +1699,5 @@
          dispute a correction; until the phone could see one had happened,
          that meant disputing something invisible. -->
     <string name="crew_attn_hours_corrected">Le bureau a modifié tes heures sur %1$s</string>
+    <string name="crew_shifts_waiting_note">%1$d quart(s) en attente. Les heures ne comptent ni pour la paie ni pour le coût du chantier tant qu elles ne sont pas approuvées.</string>
 </resources>
