@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,7 +47,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
@@ -187,6 +191,26 @@ private fun CrewAttentionRow(
     // Every other kind keeps its unconditional dismiss button. HOURS_CORRECTED
     // only gets one once it has an answer -- before that, Accept/Dispute are
     // the only way to clear it, so a tap can never skip past answering.
+    // Another phone (or a reinstall) may already have answered. The server is
+    // the record: my_shift_answer (supabase_shift_answer_readback.sql) says
+    // accepted / disputed only for an answer given since the latest correction.
+    LaunchedEffect(item.key, online) {
+        val sid = item.shiftSyncId
+        if (item.kind != CrewAttentionItem.Kind.HOURS_CORRECTED || reply != null || !online || sid.isNullOrBlank()) return@LaunchedEffect
+        val obj = runCatching {
+            SupabaseModule.client.postgrest.rpc(
+                "my_shift_answer",
+                buildJsonObject { put("shift_sync_id", sid) }
+            ).decodeAsOrNull<JsonObject>()
+        }.getOrNull() ?: return@LaunchedEffect
+        when (obj["answer"]?.jsonPrimitive?.contentOrNull) {
+            "accepted" -> { replyStore.recordAccepted(item.key); reply = CrewShiftReplyStore.Reply.Accepted }
+            "disputed" -> {
+                val note = obj["note"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                replyStore.recordDisputed(item.key, note); reply = CrewShiftReplyStore.Reply.Disputed(note)
+            }
+        }
+    }
     val showDismiss = item.kind != CrewAttentionItem.Kind.HOURS_CORRECTED || reply != null
 
     Row(

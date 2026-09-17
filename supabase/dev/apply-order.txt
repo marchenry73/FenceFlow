@@ -177,3 +177,5 @@ supabase_job_payments_money_lockdown.sql
 supabase_bounded_read_indexes.sql
 supabase_admin_sees_every_release.sql
 supabase_employee_profile_link_unique.sql
+supabase_shift_answer_readback.sql
+supabase_card_fee_passthrough.sql

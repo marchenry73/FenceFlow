@@ -13,16 +13,9 @@ import android.content.Context
  *   1. the same correction cannot be answered twice from this phone, and
  *   2. the answer can be shown back without another round trip.
  *
- * Same shape as [CrewAttentionAckStore] and for the same reason: there is no
- * local Room column for correction_seen_at / correction_disputed_at /
- * dispute_note, because time_entries has not been extended to sync them down
- * from Supabase. There is nowhere durable and synced to read "already
- * answered" back from, so a reinstall forgets it and a second device has no
- * way to know one of them already replied -- calling either RPC again from
- * another device is harmless (acknowledge is a no-op past the first call;
- * dispute just overwrites its own note and timestamp), but the UI on that
- * other device would wrongly offer the choice again. Fixing that for real
- * needs the columns this store stands in for.
+ * The server is the record. CrewAttentionRow asks my_shift_answer
+ * (supabase_shift_answer_readback.sql) when online, so a second phone or a
+ * reinstall learns an answer given elsewhere and fills this cache.
  *
  * Keyed by [CrewAttentionItem.key], not just the shift's id, so a shift the
  * office corrects AGAIN -- a new correctedAt, a new key -- is answerable
