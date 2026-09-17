@@ -52,9 +52,9 @@ class TimeEntriesScopeTest {
     }
 
     @Test
-    fun `a DENIED phone reads the view and an ALLOWED phone the table`() {
+    fun `a phone without SEE_PAY reads the view and one with it the table`() {
         val section = timeEntriesSection()
-        assertTrue(section.contains("if (scope == MoneyScope.DENIED)"))
+        assertTrue(section.contains("if (payScope == MoneyScope.ALLOWED)"))
         // The base table is still the ALLOWED branch. Written as an else on the
         // table name now rather than a second from(), so match the name.
         assertTrue(section.contains("\"time_entries\""))
@@ -70,8 +70,8 @@ class TimeEntriesScopeTest {
             bare.containsMatchIn(section)
         )
         assertTrue(
-            "the ALLOWED gate on hourlyRate is gone",
-            section.contains("if (scope == MoneyScope.ALLOWED) row.hourlyRate")
+            "the SEE_PAY gate on hourlyRate is gone",
+            section.contains("if (payScope == MoneyScope.ALLOWED) row.hourlyRate")
         )
     }
 }

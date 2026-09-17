@@ -691,7 +691,14 @@ values ('zz-test-books-1', '${ZZ_BUSY}', '${JOB_ACCEPTED}', 1000, 'CASH');
 -- payment (forgets the "deleted_at is null" filter recompute_job_totals
 -- always applies) -- the exact way a report and the job it describes can
 -- quietly stop agreeing.
-create or replace function public.job_costing(from_date timestamptz default null, to_date timestamptz default null)
+-- Dropped first, not CREATE OR REPLACEd: job_costing has gained an output
+-- column (quoted_material) since this plant was written, and Postgres refuses
+-- to replace a function whose OUT parameters differ -- which stopped this
+-- whole section dead. The plant below, and the "restore" after it, are both
+-- inside this transaction's rollback, so the live definition is what survives
+-- either way; nothing in this section reads the column that is missing here.
+drop function if exists public.job_costing(timestamptz, timestamptz);
+create function public.job_costing(from_date timestamptz default null, to_date timestamptz default null)
  returns table(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric,
                material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric,
                projected_profit numeric, margin_percent numeric, cash_position numeric,

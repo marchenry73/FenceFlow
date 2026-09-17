@@ -1222,7 +1222,7 @@ object EntitySync {
                     // money and must keep arriving even when the door itself
                     // could not be asked about. Only its internal line-item,
                     // expense and change-order blocks gate on scope.
-                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId, scope) } } },
+                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId, scope, employeePayScope) } } },
                     async { runCatching { netGate.withPermit { pullBuildTemplates(repository, companyId) } } }
                 ).awaitAll()
             }
@@ -1505,7 +1505,17 @@ object EntitySync {
      * device yet is skipped rather than orphaned -- the next pass picks it up
      * once the job itself has come down.
      */
-    private suspend fun pullJobChildren(repository: Repository, companyId: String, scope: MoneyScope): Int {
+    private suspend fun pullJobChildren(
+        repository: Repository,
+        companyId: String,
+        scope: MoneyScope,
+        // Shift pay is gated on SEE_PAY, not SEE_MONEY: a salesperson holds
+        // SEE_MONEY and no SEE_PAY, and time_entries now hides the whole row
+        // from anyone without SEE_PAY (supabase_sec_time_entries_pay.sql), the
+        // same shape employees already had. Reading the base table on
+        // SEE_MONEY would come back empty and read as "no shifts".
+        payScope: MoneyScope
+    ): Int {
         val jobIdBySyncId = repository.getAllJobs().associateBy({ it.syncId }, { it.id })
         if (jobIdBySyncId.isEmpty()) return 0
         var added = 0
@@ -1780,7 +1790,7 @@ object EntitySync {
         // Paged. Two shifts a day for two crew is a thousand rows inside a
         // year, and this one never stops growing.
         val times = pagedList<CloudTimeEntry>(
-            if (scope == MoneyScope.DENIED) "time_entries_crew" else "time_entries"
+            if (payScope == MoneyScope.ALLOWED) "time_entries" else "time_entries_crew"
         ) { eq("company_id", companyId); notDeleted() }
         // Keyed by sync id, not a set of ids, because rows that already exist
         // have to be updated rather than skipped. Skipping them is what made an
@@ -1806,7 +1816,7 @@ object EntitySync {
                         endedAt = row.endedAt?.let { at ->
                             CloudTime.parseMillis(at)
                         },
-                        hourlyRate = if (scope == MoneyScope.ALLOWED) row.hourlyRate else 0.0,
+                        hourlyRate = if (payScope == MoneyScope.ALLOWED) row.hourlyRate else 0.0,
                         notes = row.notes,
                         approvedAt = CloudTime.parseMillis(row.approvedAt),
                         approvedBy = row.approvedBy,
@@ -1867,7 +1877,7 @@ object EntitySync {
                 val merged = existing.copy(
                     startedAt = startedAt,
                     endedAt = row.endedAt?.let { at -> CloudTime.parseMillis(at) },
-                    hourlyRate = if (scope == MoneyScope.ALLOWED) row.hourlyRate else existing.hourlyRate,
+                    hourlyRate = if (payScope == MoneyScope.ALLOWED) row.hourlyRate else existing.hourlyRate,
                     notes = row.notes,
                     approvedAt = if (cloudHasDecision) cloudApprovedAt else existing.approvedAt,
                     approvedBy = if (cloudHasDecision) row.approvedBy else existing.approvedBy,

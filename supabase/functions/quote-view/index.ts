@@ -99,17 +99,28 @@ Deno.serve(async (req) => {
           return json({ error: "Too many attempts. Try again in a few minutes." }, 429);
         }
 
+        // Spend an attempt BEFORE the digits are compared, and spend it in a
+        // single UPDATE inside the database rather than read-here/write-back.
+        // Reading the count and writing it back let N requests fired at once
+        // all read the same number, so "five tries per fifteen minutes" never
+        // bounded a burst -- and there are only ten thousand four-digit codes.
+        // quote_phone_try() takes the row lock, so concurrent guesses queue up
+        // instead of overlapping.
+        const gate = await admin.rpc("quote_phone_try", { jid: job.id });
+        if (gate.error || gate.data !== "OK") {
+          // Anything that is not a clean OK is refused, an error included: a
+          // counter that did not record the attempt must not hand out a free
+          // guess. Only the lockout is told apart, and only by the status
+          // code the caller already got for a lockout above.
+          if (gate.data === "LOCKED") {
+            return json({ error: "Too many attempts. Try again in a few minutes." }, 429);
+          }
+          return json({ error: "Those last four digits don't match our records." }, 400);
+        }
+
         const submitted = String(body?.phone4 ?? "").replace(/\D/g, "");
         const last4 = phoneDigits.slice(-4);
         if (submitted.length !== 4 || submitted !== last4) {
-          const MAX_ATTEMPTS = 5;
-          const attempts = (Number(job.quote_phone_attempts) || 0) + 1;
-          const update: Record<string, unknown> = { quote_phone_attempts: attempts };
-          if (attempts >= MAX_ATTEMPTS) {
-            update.quote_phone_locked_until = new Date(now + 15 * 60 * 1000).toISOString();
-            update.quote_phone_attempts = 0;
-          }
-          await admin.from("jobs").update(update).eq("id", job.id);
           // One sentence for "wrong digits", "no phone on file" (this branch
           // is never reached when there isn't one) and "quote not found"
           // (handled earlier, above). None of them may be told apart by
@@ -120,11 +131,10 @@ Deno.serve(async (req) => {
         // Right answer: a stranger's earlier near-misses on this same job
         // must not carry forward and count against the person who just got
         // it right.
-        if (job.quote_phone_attempts || job.quote_phone_locked_until) {
-          await admin.from("jobs")
-            .update({ quote_phone_attempts: 0, quote_phone_locked_until: null })
-            .eq("id", job.id);
-        }
+        // Unconditional now: the attempt this request just spent is on the
+        // row, so "there was nothing to clear" is no longer a state that can
+        // happen here.
+        await admin.rpc("quote_phone_clear", { jid: job.id });
       } else {
         // DECISION: a job with no phone on it cannot be gated by a phone
         // digit nobody collected. Refusing every such quote would strand a

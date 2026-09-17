@@ -4401,6 +4401,13 @@ let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[
     // employees[].hourly_rate, so a missing rate reads as "not visible to
     // you" instead of as a real zero.
     employeesHavePay=true,
+    // Which relation shift rows come from. time_entries now hides the whole
+    // row from anyone without SEE_PAY (supabase_sec_time_entries_pay.sql) --
+    // the same shape employees already had, and for the same reason: RLS
+    // cannot hide one column, so it hides the row and a money-free view is
+    // the fallback. time_entries_crew carries everything except hourly_rate.
+    // Writes always go to the base table; only reads are routed.
+    timesTable='time_entries',
     // Build templates (my_build_templates(), shipped + this company's own) and
     // the two small dialogs that edit a single tier or template -- see the
     // "Settings: build templates & pricing tiers" and "Business setup wizard"
@@ -5643,7 +5650,7 @@ async function ensureTimesForJobs(syncIds){
   const chunks = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
   const results = await Promise.all(chunks.map(c =>
-    db.from('time_entries').select('*').is('deleted_at', null).in('job_sync_id', c)));
+    db.from(timesTable).select('*').is('deleted_at', null).in('job_sync_id', c)));
   const byId = new Map(times.map(t => [t.id, t]));
   results.forEach(res => { if (!res.error) (res.data || []).forEach(t => byId.set(t.id, t)); });
   times = [...byId.values()];
@@ -5676,7 +5683,7 @@ async function ensureFullTimes(){
   const PAGE = 1000;
   const all = [];
   for (let from = 0; ; from += PAGE) {
-    const res = await db.from('time_entries').select('*').is('deleted_at', null)
+    const res = await db.from(timesTable).select('*').is('deleted_at', null)
       .order('id', { ascending: true }).range(from, from + PAGE - 1);
     if (res.error) { console.error('ensureFullTimes failed:', res.error); return; }
     const got = res.data || [];
@@ -5807,6 +5814,15 @@ async function loadAll(){
   // bounded slice "the total": renderReports, showJob and the Time/Pay tabs
   // each pull in whatever this window left out before they compute anything
   // (see ensureItemsForJobs / ensureTimesForJobs / ensureFullTimes below).
+  // Decided once per load, from the server's own answer, not from the role
+  // string: a permission override can grant or remove SEE_PAY independently
+  // of the role. An error here falls back to the crew view, which is the
+  // safe direction -- it loses the rate, never the shifts.
+  {
+    const seePay = await db.rpc('can_see_employee_pay');
+    timesTable = (!seePay.error && seePay.data === true) ? 'time_entries' : 'time_entries_crew';
+  }
+
   const RECENT_MS = 545 * 864e5; // ~18 months
   const recentCutoffISO = new Date(Date.now() - RECENT_MS).toISOString();
 
@@ -5836,8 +5852,8 @@ async function loadAll(){
     // first glance at Time have real recent numbers to show.
     (async () => {
       const [pending, recent] = await Promise.all([
-        q('time_entries', qb => qb.is('approved_at', null).is('rejected_at', null)),
-        q('time_entries', qb => qb.gte('started_at', recentCutoffISO))
+        q(timesTable, qb => qb.is('approved_at', null).is('rejected_at', null)),
+        q(timesTable, qb => qb.gte('started_at', recentCutoffISO))
       ]);
       if (pending.error) return pending;
       if (recent.error) return recent;
@@ -15494,9 +15510,13 @@ $('openMap').addEventListener('click',()=>{
 });
 $('qboExport').addEventListener('click',exportQuickBooks);
 $('copyLeadLink').addEventListener('click',async ()=>{
-  const {data,error}=await db.from('companies').select('leads_token').eq('id',profile.company_id).single();
+  // Through an RPC, not the column: leads_token, admin_notes and the stripe_*
+  // ids are no longer readable from companies by a signed-in member at all
+  // (supabase_sec_company_reads.sql) -- a crew phone could read every one of
+  // them. my_leads_token() is owner/manager only and returns just this.
+  const {data,error}=await db.rpc('my_leads_token');
   if(error||!data){ $('leadLinkNote').textContent='Could not fetch the link.'; return; }
-  const link=location.origin+location.pathname.replace(/[^/]*$/,'')+'lead.html?c='+data.leads_token;
+  const link=location.origin+location.pathname.replace(/[^/]*$/,'')+'lead.html?c='+data;
   try{ await navigator.clipboard.writeText(link); $('leadLinkNote').textContent='Copied: '+link; }
   catch(e){ $('leadLinkNote').textContent=link; }
 });
