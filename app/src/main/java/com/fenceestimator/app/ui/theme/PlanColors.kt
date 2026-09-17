@@ -38,11 +38,29 @@ object PlanColors {
     /** A gate opening, on the line or standing on its own. */
     val gate: Color = SafetyOrange20
 
+    /**
+     * The paper the plan is drawn on when there is no satellite photo behind
+     * it (the no-photo grid, and the calibration loupe's own fallback disc).
+     *
+     * Deliberately fixed regardless of the phone's own light/dark setting,
+     * the same reasoning as the rest of this object: the office draws the
+     * plan, the crew reads the same plan on their own phone, and a "paper"
+     * backdrop that changed shade with each device's individual theme choice
+     * would make the same plan look like two different things. Not an
+     * oversight -- do not swap this for a `MaterialTheme.colorScheme` role.
+     */
+    val canvasBackground: Color = Color(0xFFF6F4EF)
+
     /** The no-photo grid's ordinary lines. */
     val grid: Color = Color(0xFFDCE3EC)
 
     /** Every fifth grid line, drawn heavier so the eye has something to count by. */
     val gridMajor: Color = Graphite80
+
+    /** A pending calibration tap, before its pair is placed and the known
+     *  length is entered. Same reasoning as [canvasBackground]: drawn on the
+     *  plan itself, so it stays one fixed colour across devices and themes. */
+    val calibrationPoint: Color = Color(0xFFFFD60A)
 
     // One colour per marker kind. Only two happen to land exactly on an
     // existing theme constant (HOUSE, OBSTACLE); the rest are named once here

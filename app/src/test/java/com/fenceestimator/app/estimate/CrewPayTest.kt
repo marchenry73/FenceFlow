@@ -25,10 +25,11 @@ class CrewPayTest {
         hours: Double,
         hourlyRate: Double = 0.0,
         approved: Boolean = true,
-        awaiting: Boolean = false
+        awaiting: Boolean = false,
+        startedAt: Long = 0L
     ): TimeEntry {
-        val started = 0L
-        val ended = (hours * 3_600_000.0).toLong()
+        val started = startedAt
+        val ended = started + (hours * 3_600_000.0).toLong()
         return TimeEntry(
             jobId = 1,
             startedAt = started,
@@ -232,5 +233,118 @@ class CrewPayTest {
             perFootCrewCount = 3, jobCompleted = false
         )
         assertEquals(40.0, pay.amount, 0.0001)
+    }
+
+    // --- Overtime: after 40 paid hours per week at 1.5x, same rule as the
+    // office's dashboard.html renderPay (see CrewOvertime's doc comment). ---
+
+    @Test
+    fun `exactly 40 hours in a week is all regular time`() {
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 20.0)
+        val entries = listOf(entry(hours = 40.0, hourlyRate = 20.0))
+
+        val pay = CrewPay.forJob(employee, entries, emptyList(), pxPerFoot)
+
+        assertEquals(800.0, pay.amount, 0.0001) // 40 * 20, no overtime yet
+    }
+
+    @Test
+    fun `just under 40 hours in a week is all regular time`() {
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 20.0)
+        val entries = listOf(entry(hours = 39.5, hourlyRate = 20.0))
+
+        val pay = CrewPay.forJob(employee, entries, emptyList(), pxPerFoot)
+
+        assertEquals(790.0, pay.amount, 0.0001) // 39.5 * 20
+    }
+
+    @Test
+    fun `just over 40 hours pays the excess at 1_5x`() {
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 20.0)
+        // Two shifts the same week: 30 + 10.5 = 40.5 hours.
+        val entries = listOf(
+            entry(hours = 30.0, hourlyRate = 20.0, startedAt = 0L),
+            entry(hours = 10.5, hourlyRate = 20.0, startedAt = 6 * 3_600_000L)
+        )
+
+        val pay = CrewPay.forJob(employee, entries, emptyList(), pxPerFoot)
+
+        // 40 * 20 (regular) + 0.5 * 20 * 1.5 (overtime) = 800 + 15
+        assertEquals(815.0, pay.amount, 0.0001)
+    }
+
+    @Test
+    fun `a 45-hour week splits 40 regular and 5 overtime at the office rate`() {
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 25.0)
+        val entries = listOf(entry(hours = 45.0, hourlyRate = 25.0))
+
+        val pay = CrewPay.forJob(employee, entries, emptyList(), pxPerFoot)
+
+        // 40 * 25 + 5 * 25 * 1.5 = 1000 + 187.5
+        assertEquals(1187.5, pay.amount, 0.0001)
+        assertEquals(45.0, pay.hours, 0.0001)
+    }
+
+    @Test
+    fun `two separate weeks under 40 hours each get no overtime even though the total exceeds 40`() {
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 20.0)
+        // 25 hours this week, 25 hours the following week -- 50 total, but
+        // no single week crosses 40, so nothing should be paid at 1.5x.
+        val entries = listOf(
+            entry(hours = 25.0, hourlyRate = 20.0, startedAt = 0L),
+            entry(hours = 25.0, hourlyRate = 20.0, startedAt = 8L * 24 * 3_600_000L)
+        )
+
+        val pay = CrewPay.forJob(employee, entries, emptyList(), pxPerFoot)
+
+        assertEquals(1000.0, pay.amount, 0.0001) // 50 * 20, all regular
+    }
+
+    @Test
+    fun `PLANTED FAILURE -- a flat sum of laborCost would underpay a week with overtime`() {
+        // Proves the overtime test above actually exercises the split: the
+        // old formula (payableHours * rate, no weekly bucketing) must not
+        // match the real, higher, overtime-aware total.
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 25.0)
+        val entries = listOf(entry(hours = 45.0, hourlyRate = 25.0))
+        val flatAmount = entries.sumOf { it.laborCost }
+        assertEquals(1125.0, flatAmount, 0.0001) // 45 * 25, no overtime credit
+
+        val pay = CrewPay.forJob(employee, entries, emptyList(), pxPerFoot)
+        assertTrue("expected the office's 1.5x overtime credit to pay more than the flat sum", pay.amount > flatAmount)
+    }
+
+    @Test
+    fun `per-foot workers get no overtime no matter how many hours they logged`() {
+        val employee = Employee(payType = PayType.PER_FOOT, perFootRate = 5.0)
+        // 60 hours worked in the week, well past the 40-hour threshold.
+        val entries = listOf(entry(hours = 60.0, hourlyRate = 999.0))
+        val pay = CrewPay.forJob(employee, entries, listOf(manualRun(100f)), pxPerFoot)
+
+        // Pay is footage x rate only -- the hourlyRate on the (irrelevant)
+        // time entries and the 60-hour week must have no effect at all.
+        assertEquals(500.0, pay.amount, 0.0001)
+        assertEquals(60.0, pay.hours, 0.0001) // hours are still recorded...
+        // ...but never turned into an overtime credit for a per-foot worker.
+    }
+
+    @Test
+    fun `a rate of zero with overtime hours stays flagged rather than showing a wrong nonzero amount`() {
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 0.0)
+        val entries = listOf(entry(hours = 50.0, hourlyRate = 0.0))
+
+        val pay = CrewPay.forJob(employee, entries, emptyList(), pxPerFoot)
+
+        assertEquals(0.0, pay.amount, 0.0001)
+        assertTrue(pay.rateIsUnset)
+    }
+
+    @Test
+    fun `CrewOvertime split matches the office constants exactly at the boundary`() {
+        assertEquals(40.0 to 0.0, CrewOvertime.split(40.0))
+        assertEquals(0.0 to 0.0, CrewOvertime.split(0.0))
+        assertEquals(40.0 to 0.5, CrewOvertime.split(40.5))
+        assertEquals(1.5, CrewOvertime.MULTIPLIER, 0.0)
+        assertEquals(40.0, CrewOvertime.AFTER_HOURS, 0.0)
     }
 }

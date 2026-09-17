@@ -8,6 +8,43 @@ import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 
 /**
+ * Overtime rule shared with office payroll.
+ *
+ * Mirrors `website/dashboard.html`'s `OT_AFTER_HOURS` / `OT_MULTIPLIER`
+ * (dashboard.html:8223-8224) and its Sunday-start week boundary,
+ * `weekStart()` (dashboard.html:8227-8231). Hourly workers only -- PER_FOOT
+ * pay has no hours concept, and dashboard.html:8346-8350 explicitly skips OT
+ * for per-foot credits the same way [CrewPay.perFootPay] never looks at it.
+ *
+ * The office also lets a company override these via `company_settings`
+ * (`ot_after_hours` / `ot_multiplier`, dashboard.html:8116-8120); the phone
+ * has no such settings screen yet, so it only ever uses the federal default
+ * below. If a settings-backed override is added later it must be threaded
+ * through here, not hardcoded a second time.
+ */
+object CrewOvertime {
+    const val AFTER_HOURS = 40.0
+    const val MULTIPLIER = 1.5
+
+    /** The Sunday that starts the week containing [epochMillis], in local time. */
+    fun weekStart(epochMillis: Long): java.time.LocalDate {
+        val date = java.time.Instant.ofEpochMilli(epochMillis)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalDate()
+        // DayOfWeek.value is MONDAY=1..SUNDAY=7; %7 turns SUNDAY into 0 so a
+        // Sunday is its own week start rather than rolling into the next one.
+        return date.minusDays((date.dayOfWeek.value % 7).toLong())
+    }
+
+    /** Regular vs. overtime hours for one week's total, split at [afterHours]. */
+    fun split(totalHours: Double, afterHours: Double = AFTER_HOURS): Pair<Double, Double> {
+        val regular = minOf(totalHours, afterHours)
+        val overtime = maxOf(0.0, totalHours - afterHours)
+        return regular to overtime
+    }
+}
+
+/**
  * Works out what a crew member earned on a job under either pay model.
  *
  * Hours are always recorded, even for per-foot crews -- the clock is how the
@@ -133,9 +170,12 @@ object CrewPay {
                 hours = hours,
                 feet = feet,
                 rate = employee.hourlyRate,
-                // Uses the rate stored on each entry, so a raise doesn't
-                // retroactively change what past work cost.
-                amount = approved.sumOf { it.laborCost },
+                // Split into regular/overtime by calendar week first, same as
+                // the office's renderPay -- summing laborCost flat here would
+                // have this screen say "45 * rate" for a week the dashboard
+                // pays 40*rate + 5*rate*1.5, one real dollar figure per crew
+                // member disagreeing between the two surfaces.
+                amount = hourlyAmountWithOvertime(approved),
                 hoursAwaitingApproval = awaitingApproval,
                 rateIsUnset = employee.hourlyRate <= 0.0 && hours > 0.0
             )
@@ -157,6 +197,28 @@ object CrewPay {
                 rateIsUnset = employee.perFootRate <= 0.0 && feet > 0.0
             )
         }
+    }
+
+    /**
+     * Hourly pay across (possibly several) approved shifts, with the
+     * per-week 40-hour/1.5x split applied the way `dashboard.html`'s
+     * `renderPay` does (dashboard.html:8344-8353): bucket approved hours by
+     * [CrewOvertime.weekStart], split each week's total at
+     * [CrewOvertime.AFTER_HOURS], and weight the rate within a week by hours
+     * -- the same choice the office makes so one short shift at a different
+     * rate can't swing the whole week -- rather than a flat sum of
+     * `laborCost`, which has no concept of a week at all.
+     */
+    private fun hourlyAmountWithOvertime(approved: List<TimeEntry>): Double {
+        if (approved.isEmpty()) return 0.0
+        return approved.groupBy { CrewOvertime.weekStart(it.startedAt) }
+            .values.sumOf { weekEntries ->
+                val totalHours = weekEntries.sumOf { it.payableHours }
+                if (totalHours <= 0.0) return@sumOf 0.0
+                val weightedRate = weekEntries.sumOf { it.payableHours * it.hourlyRate } / totalHours
+                val (regular, overtime) = CrewOvertime.split(totalHours)
+                regular * weightedRate + overtime * weightedRate * CrewOvertime.MULTIPLIER
+            }
     }
 
     /** Linear feet for one run: measured from the drawing, or the manual length when there is no drawing. */

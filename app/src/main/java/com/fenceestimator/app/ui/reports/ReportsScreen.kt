@@ -1154,6 +1154,21 @@ private fun weeklyCollected(payments: List<com.fenceestimator.app.data.PaymentRe
 }
 
 /**
+ * [HeroBand]'s own text colours, chosen against its fixed Graphite gradient
+ * -- never against `MaterialTheme.colorScheme`. Named here instead of as
+ * bare hex literals scattered through the composable so the choice reads as
+ * deliberate (the card itself never changes with theme, see the doc comment
+ * below) rather than as a forgotten light-mode-only value. Do NOT swap these
+ * for `MaterialTheme.semantic` -- that palette is tuned against the current
+ * theme's OWN surface (white in light mode), and would go low-contrast
+ * against this always-dark band exactly the way the literals it would
+ * replace never did.
+ */
+private val HeroCaption = Color(0xFF8A93A3)
+private val HeroDeltaUp = Color(0xFF7DE0B9)
+private val HeroDeltaDown = Color(0xFFF1A1A4)
+
+/**
  * The one figure this screen is opened for, said once and said large, on the
  * brand's own steel -- deliberately the only dark surface on the page, which
  * is exactly why it reads as the headline. Single-look in both themes: a
@@ -1180,7 +1195,7 @@ private fun HeroBand(collected: String, delta: Delta?, weekly: List<Double>, onT
                 Text(
                     stringResource(R.string.rep_hero_cap),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8A93A3)
+                    color = HeroCaption
                 )
                 Text(
                     collected,
@@ -1193,8 +1208,8 @@ private fun HeroBand(collected: String, delta: Delta?, weekly: List<Double>, onT
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = when (it.up) {
-                            true -> Color(0xFF7DE0B9)
-                            false -> Color(0xFFF1A1A4)
+                            true -> HeroDeltaUp
+                            false -> HeroDeltaDown
                             null -> Graphite80
                         },
                         modifier = Modifier.padding(top = Space.xs)
@@ -1222,7 +1237,7 @@ private fun HeroBand(collected: String, delta: Delta?, weekly: List<Double>, onT
                     Text(
                         stringResource(R.string.rep_by_week),
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8A93A3)
+                        color = HeroCaption
                     )
                 }
             }

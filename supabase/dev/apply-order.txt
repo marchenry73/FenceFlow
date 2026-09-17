@@ -183,3 +183,4 @@ supabase_per_foot_pay.sql
 supabase_employee_insert_guard.sql
 supabase_test_fixture_flag.sql
 supabase_card_fee_staff_only.sql
+supabase_job_costing_material_budget.sql

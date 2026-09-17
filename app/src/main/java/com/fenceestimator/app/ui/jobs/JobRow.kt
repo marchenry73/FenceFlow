@@ -24,10 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fenceestimator.app.data.JobStatus
-import com.fenceestimator.app.ui.theme.ErrorRed
 import com.fenceestimator.app.ui.theme.Graphite40
 import com.fenceestimator.app.ui.theme.Graphite90
-import com.fenceestimator.app.ui.theme.Neutral30
 import com.fenceestimator.app.ui.theme.SafetyOrange20
 import com.fenceestimator.app.ui.theme.SafetyOrange40
 import com.fenceestimator.app.ui.theme.SafetyOrange80
@@ -35,6 +33,7 @@ import com.fenceestimator.app.ui.theme.Space
 import com.fenceestimator.app.ui.theme.SteelTeal20
 import com.fenceestimator.app.ui.theme.SteelTeal40
 import com.fenceestimator.app.ui.theme.SteelTeal80
+import com.fenceestimator.app.ui.theme.semantic
 
 /**
  * One row for one job, wherever a list draws one.
@@ -75,7 +74,7 @@ fun JobRow(
                 Modifier
                     .width(4.dp)
                     .fillMaxHeight()
-                    .background(statusPalette.getValue(status).stripe)
+                    .background(statusPalette(status).stripe)
             )
             Row(
                 modifier = Modifier.weight(1f).padding(Space.card),
@@ -130,7 +129,7 @@ fun JobRow(
 
 @Composable
 private fun JobStatusPill(status: JobStatus) {
-    val palette = statusPalette.getValue(status)
+    val palette = statusPalette(status)
     Box(
         modifier = Modifier
             .background(palette.pillBg, RoundedCornerShape(50))
@@ -148,27 +147,37 @@ private fun JobStatusPill(status: JobStatus) {
 }
 
 /** One job-status colour per status, in one place. Everywhere a status needs
- *  a stripe or a pill reads from here rather than re-typing the hex. Two of
- *  the five statuses (draft, declined) don't line up with a theme constant --
- *  drafts read as a plain "not yet the brand's colours" grey, and declined
- *  needed a lighter tint than [ErrorRed] to work as a filled pill background
- *  -- so those two stay literal. */
+ *  a stripe or a pill reads from here rather than re-typing the hex.
+ *
+ *  DRAFT and DECLINED used to be literal hexes -- a light-mode-only grey for
+ *  draft and a light-mode-only pink/maroon pill for declined -- picked
+ *  against a white card and never revisited for a dark one, which is exactly
+ *  the hardcoded-colour bug this app has hit before (see [PlanColors]'s
+ *  intentional exception vs. an oversight). DRAFT now reads Material's own
+ *  neutral roles (already theme-aware); DECLINED reads
+ *  `MaterialTheme.semantic.danger`, the container pair this app already
+ *  defines for both themes in Semantic.kt, instead of retyping it. */
 private data class StatusPalette(val stripe: Color, val pillBg: Color, val pillFg: Color)
 
-private val statusPalette: Map<JobStatus, StatusPalette> = mapOf(
-    JobStatus.DRAFT to StatusPalette(
-        stripe = Color(0xFF8A93A3), pillBg = Color(0xFFE3E7ED), pillFg = Neutral30
-    ),
-    JobStatus.SENT to StatusPalette(
-        stripe = SafetyOrange40, pillBg = SafetyOrange80, pillFg = SafetyOrange20
-    ),
-    JobStatus.ACCEPTED to StatusPalette(
-        stripe = SteelTeal40, pillBg = SteelTeal80, pillFg = SteelTeal20
-    ),
-    JobStatus.COMPLETED to StatusPalette(
-        stripe = Graphite40, pillBg = Graphite90, pillFg = Graphite40
-    ),
-    JobStatus.DECLINED to StatusPalette(
-        stripe = ErrorRed, pillBg = Color(0xFFFBD3D4), pillFg = Color(0xFF8C1114)
+@Composable
+private fun statusPalette(status: JobStatus): StatusPalette = when (status) {
+    JobStatus.DRAFT -> StatusPalette(
+        stripe = MaterialTheme.colorScheme.onSurfaceVariant,
+        pillBg = MaterialTheme.colorScheme.surfaceVariant,
+        pillFg = MaterialTheme.colorScheme.onSurfaceVariant
     )
-)
+    JobStatus.SENT -> StatusPalette(
+        stripe = SafetyOrange40, pillBg = SafetyOrange80, pillFg = SafetyOrange20
+    )
+    JobStatus.ACCEPTED -> StatusPalette(
+        stripe = SteelTeal40, pillBg = SteelTeal80, pillFg = SteelTeal20
+    )
+    JobStatus.COMPLETED -> StatusPalette(
+        stripe = Graphite40, pillBg = Graphite90, pillFg = Graphite40
+    )
+    JobStatus.DECLINED -> StatusPalette(
+        stripe = MaterialTheme.colorScheme.error,
+        pillBg = MaterialTheme.semantic.dangerContainer,
+        pillFg = MaterialTheme.semantic.onDangerContainer
+    )
+}

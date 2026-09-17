@@ -920,7 +920,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         } // showMarkersLayer
 
                         pendingCalibration.forEach { p ->
-                            drawCircle(Color(0xFFFFD60A), radius = 10f, center = transform.toCanvas(p))
+                            drawCircle(PlanColors.calibrationPoint, radius = 10f, center = transform.toCanvas(p))
                         }
                     }
 
@@ -1863,7 +1863,7 @@ private fun viewTransform(contentW: Int, contentH: Int, canvasSize: IntSize, zoo
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform: FitTransform, contentW: Int, contentH: Int, gridLineSpacingFt: Float) {
     drawRect(
-        Color(0xFFF6F4EF),
+        PlanColors.canvasBackground,
         topLeft = Offset(transform.offsetX, transform.offsetY),
         size = androidx.compose.ui.geometry.Size(contentW * transform.scale, contentH * transform.scale)
     )
@@ -2155,7 +2155,7 @@ private fun MagnifierLoupe(
             Modifier
                 .size(LOUPE_SIZE_DP)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(Color(0xFFF6F4EF))
+                .background(PlanColors.canvasBackground)
                 .border(2.dp, MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape)
         ) {
             Canvas(Modifier.fillMaxSize()) {

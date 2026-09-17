@@ -146,7 +146,18 @@ data class CloudJob(
      * overwrites. Never sent by the phone: nothing on the phone marks a
      * quote sent, this column only ever arrives FROM the cloud.
      */
-    @SerialName("quote_sent_at") val quoteSentAt: String? = null
+    @SerialName("quote_sent_at") val quoteSentAt: String? = null,
+    /**
+     * Office-only seed/demo data (e.g. "ZZ TEST" jobs), never meant to reach a
+     * phone. The dashboard hides these in its own SQL/JS layer; this is the
+     * matching field on the wire so the phone can do the same. Filtered at the
+     * single pull choke point in [JobSync.sync] -- never stored locally, never
+     * pushed back, and never used to decide a delete (a fixture already synced
+     * to a phone before this field existed is removed with
+     * [Repository.deleteJobLocallyOnly], the same local-only path GuestWipe
+     * uses, so nothing resembling a delete is ever sent to the server for it).
+     */
+    @SerialName("is_test_fixture") val isTestFixture: Boolean = false
 ) {
     /**
      * Falls back to 0 so a genuinely absent value never beats real local work.
@@ -416,7 +427,7 @@ object JobSync {
             // this bug names directly -- at 1:1 rows per job it truncates at
             // exactly 1000 jobs for a company, and it is both a push-side
             // compare (below) and the read that decides what gets pulled.
-            val cloudJobs = if (scope == MoneyScope.ALLOWED)
+            val cloudJobsRaw = if (scope == MoneyScope.ALLOWED)
                 pagedList<CloudJob>("jobs") {
                     eq("company_id", companyId)
                 }
@@ -425,12 +436,28 @@ object JobSync {
                     eq("company_id", companyId)
                 }
 
+            // Office-only seed/demo rows never reach a phone. Filtered here,
+            // at the single pull choke point, rather than in every downstream
+            // screen/query -- see the doc comment on CloudJob.isTestFixture.
+            val fixtureSyncIds = cloudJobsRaw.filter { it.isTestFixture }.mapTo(HashSet()) { it.syncId }
+            val cloudJobs = if (fixtureSyncIds.isEmpty()) cloudJobsRaw
+                else cloudJobsRaw.filterNot { it.isTestFixture }
+
             val cloudBySyncId = cloudJobs.associateBy { it.syncId }
             var uploaded = 0
             var downloaded = 0
             var heldBack = 0
 
+            // A fixture already synced to this phone before it knew the flag
+            // existed. Removed locally only -- never pushed, never tombstoned,
+            // the exact path GuestWipe already relies on for the same reason.
+            if (fixtureSyncIds.isNotEmpty()) {
+                localJobs.filter { it.syncId in fixtureSyncIds }
+                    .forEach { repository.deleteJobLocallyOnly(it) }
+            }
+
             for (job in localJobs) {
+                if (job.syncId in fixtureSyncIds) continue
                 val cloudJob = cloudBySyncId[job.syncId]
 
                 // Deleted elsewhere. This is the resurrection the whole

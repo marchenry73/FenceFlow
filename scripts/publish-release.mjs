@@ -14,6 +14,7 @@
  * takes it, so the two cannot disagree. Build first, then publish -- otherwise
  * you announce a version whose APK is not on Drive yet.
  *
+ * --at <date-time> schedules it: phones see it from then on.
  * --urgent marks the update mandatory: the prompt has no "Later" and cannot be
  * dismissed. Reserve it for money and data. An app that insists on updating for
  * a colour change teaches people to ignore the one that matters.
@@ -59,6 +60,15 @@ const downloadUrl = urlFlag >= 0 ? (args[urlFlag + 1] || "") : null;
 // Every value that follows a --company flag, in order. Repeatable rather
 // than comma-separated so a typo in one id doesn't require re-parsing a list
 // -- each is just "the next word after --company".
+// --at "2026-09-20T07:00-04:00": phones do not see the release before then.
+// app_releases_read already hides rows whose available_from is in the future.
+const atFlag = args.findIndex((a) => a === "--at");
+const availableFrom = atFlag >= 0 ? (args[atFlag + 1] || "") : null;
+if (availableFrom !== null && Number.isNaN(Date.parse(availableFrom))) {
+  console.error(`"${availableFrom}" after --at is not a date/time.`);
+  process.exit(1);
+}
+
 const companyIds = args
   .map((a, i) => (a === "--company" ? args[i + 1] : null))
   .filter((v) => v);
@@ -74,6 +84,7 @@ const notes = args
   .filter((a, i) =>
     a !== "--urgent" && a !== "--skip-version-check" && a !== "--dry-run" && a !== "--url" &&
     a !== "--company" && !companyIds.includes(a) &&
+    a !== "--at" && !(atFlag >= 0 && i === atFlag + 1) &&
     !(urlFlag >= 0 && i === urlFlag + 1))
   .join(" ").trim();
 
@@ -388,14 +399,15 @@ const urlExpr = effectiveUrl === null
 const audience = companyIds.length > 0 ? "limited" : "everyone";
 
 const sql = `
-insert into public.app_releases (version_code, version_name, notes, is_mandatory, download_url, audience)
-values (${code}, '${esc(name)}', '${esc(notes)}', ${urgent}, ${urlExpr}, '${audience}')
+insert into public.app_releases (version_code, version_name, notes, is_mandatory, download_url, audience, available_from)
+values (${code}, '${esc(name)}', '${esc(notes)}', ${urgent}, ${urlExpr}, '${audience}', ${availableFrom ? "'" + new Date(availableFrom).toISOString() + "'" : "null"})
 on conflict (version_code) do update
   set version_name  = excluded.version_name,
       notes         = excluded.notes,
       is_mandatory  = excluded.is_mandatory,
       download_url  = excluded.download_url,
-      audience      = excluded.audience;
+      audience      = excluded.audience,
+      available_from = excluded.available_from;
 
 -- Republishing the same version_code (the on conflict path above) must not
 -- leave a stale audience from a previous attempt lying around next to a new
