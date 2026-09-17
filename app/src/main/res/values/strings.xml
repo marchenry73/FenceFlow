@@ -370,6 +370,9 @@
     <string name="set_unnamed_tier">Unnamed tier</string>
     <string name="set_tier_summary">Labor $%1$s/ft · Markup %2$s%% · Discount %3$s%%</string>
     <string name="set_add_pricing_tier">+ Add Pricing Tier</string>
+    <string name="set_pricing_tiers_empty">No pricing tiers yet. Add one, or copy FenceFlow\'s starting tiers as an example labor rate and markup to adjust.</string>
+    <string name="set_copy_starting_tiers">Copy FenceFlow\'s starting tiers</string>
+    <string name="set_copy_starting_tiers_confirm">This adds FenceFlow\'s 5 starting pricing tiers (labor rate, markup, and discounts). Review and adjust them for your business before quoting off them.</string>
     <string name="set_tools_materials">Tools &amp; Materials</string>
     <string name="set_tools_explain">Copied onto every job\'s checklist, so nothing gets left in the yard.</string>
     <string name="set_add_a_tool">Add a tool</string>
@@ -721,6 +724,11 @@
     <string name="cat_placeholder_showing_only">Showing only those. Tap to show everything again.</string>
     <string name="cat_placeholder_explain">They are typical market rates, not your supplier\'s. Quotes built on them will be close but not yours. Tap to see just those.</string>
     <string name="cat_add_custom_item">Add Custom Item</string>
+    <string name="cat_empty_title">Your catalog is empty</string>
+    <string name="cat_empty_body">New companies start with no materials and no prices, so estimates never quote a stranger\'s numbers by accident. Add items one at a time below, or copy FenceFlow\'s starting list to begin from a working example -- every price you copy still needs verifying with your supplier before you send a quote.</string>
+    <string name="cat_copy_starting_list">Copy FenceFlow\'s starting list</string>
+    <string name="cat_copy_starting_list_confirm">This adds FenceFlow\'s ~90 starting items to your catalog, each still labeled as an unverified starting price. It won\'t remove or change anything already here.</string>
+    <string name="cat_copy_starting_list_confirm_action">Copy items</string>
     <string name="cat_reading_pdf">Reading PDF…</string>
     <string name="cat_nothing_matches">Nothing matches “%1$s”.</string>
     <string name="cat_match_count_one">%1$d match across all fence types</string>
@@ -1272,7 +1280,7 @@
     <string name="misc_survey_keeps_length">Anything you have already drawn keeps its length -- it just fills more or less of the screen.</string>
     <string name="misc_survey_feet_per_square">Feet per grid square</string>
     <string name="misc_survey_adjust_hint">Drag a point, a gate or a marker to move it -- works at any zoom.</string>
-    <string name="misc_survey_tap_to_start">Tap to start drawing</string>
+    <string name="misc_survey_tap_to_start">Tap to place your first corner</string>
     <string name="misc_survey_points_gates">%1$d points · %2$d gate(s)</string>
     <string name="misc_survey_exit_full_screen">Exit full screen</string>
     <string name="misc_survey_full_screen">Full screen</string>
@@ -1289,7 +1297,10 @@
     <string name="misc_survey_layers_grid">Grid</string>
     <string name="misc_survey_layers_show_section">Show on the drawing</string>
     <string name="misc_survey_layers_fence">Fence</string>
+    <string name="misc_survey_layers_gates">Gates</string>
+    <string name="misc_survey_layers_dimensions">Dimensions/labels</string>
     <string name="misc_survey_layers_markers">Site markers</string>
+    <string name="misc_survey_feet_total_job">%1$s ft job total</string>
     <string name="misc_survey_panel_expand">Show drawing details</string>
     <string name="misc_survey_panel_collapse">Hide drawing details</string>
     <string name="misc_survey_adjust_canvas_hint">Drag to move, or tap a point to nudge it with the arrows</string>

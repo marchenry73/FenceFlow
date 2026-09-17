@@ -355,6 +355,9 @@
     <string name="set_unnamed_tier">Grille sans nom</string>
     <string name="set_tier_summary">Main-d\'oeuvre %1$s $/pi · Marge %2$s%% · Remise %3$s%%</string>
     <string name="set_add_pricing_tier">+ Ajouter une grille tarifaire</string>
+    <string name="set_pricing_tiers_empty">Aucune grille tarifaire pour l\'instant. Ajoutez-en une, ou copiez les grilles de départ de FenceFlow comme exemple de taux horaire et de marge à ajuster.</string>
+    <string name="set_copy_starting_tiers">Copier les grilles de départ de FenceFlow</string>
+    <string name="set_copy_starting_tiers_confirm">Ceci ajoute les 5 grilles tarifaires de départ de FenceFlow (taux horaire, marge et remises). Vérifiez-les et ajustez-les pour votre entreprise avant de les utiliser dans un devis.</string>
     <string name="set_tools_materials">Outils et matériaux</string>
     <string name="set_tools_explain">Copiés sur la liste de chaque chantier, pour que rien ne reste au dépôt.</string>
     <string name="set_add_a_tool">Ajouter un outil</string>
@@ -706,6 +709,11 @@
     <string name="cat_placeholder_showing_only">Affichage de ceux-là seulement. Touchez pour tout réafficher.</string>
     <string name="cat_placeholder_explain">Ce sont des tarifs courants du marché, pas ceux de votre fournisseur. Les devis fondés dessus seront proches mais pas les vôtres. Touchez pour voir uniquement ceux-là.</string>
     <string name="cat_add_custom_item">Ajouter un article personnalisé</string>
+    <string name="cat_empty_title">Votre catalogue est vide</string>
+    <string name="cat_empty_body">Une nouvelle entreprise démarre sans matériaux ni prix, pour qu\'aucun devis ne reprenne par accident les chiffres de quelqu\'un d\'autre. Ajoutez des articles un par un ci-dessous, ou copiez la liste de départ de FenceFlow pour commencer avec un exemple fonctionnel -- chaque prix copié doit quand même être vérifié auprès de votre fournisseur avant d\'envoyer un devis.</string>
+    <string name="cat_copy_starting_list">Copier la liste de départ de FenceFlow</string>
+    <string name="cat_copy_starting_list_confirm">Ceci ajoute les ~90 articles de départ de FenceFlow à votre catalogue, chacun toujours marqué comme prix de départ non vérifié. Rien de ce qui existe déjà n\'est supprimé ni modifié.</string>
+    <string name="cat_copy_starting_list_confirm_action">Copier les articles</string>
     <string name="cat_reading_pdf">Lecture du PDF…</string>
     <string name="cat_nothing_matches">Aucun résultat pour « %1$s ».</string>
     <string name="cat_match_count_one">%1$d résultat dans tous les types de clôture</string>
@@ -1248,7 +1256,7 @@
     <string name="misc_survey_keeps_length">Ce que vous avez déjà dessiné garde sa longueur ; cela occupe simplement plus ou moins d\'écran.</string>
     <string name="misc_survey_feet_per_square">Pieds par carreau de la grille</string>
     <string name="misc_survey_adjust_hint">Faites glisser un point, un portail ou un repère pour le déplacer ; fonctionne à tout niveau de zoom.</string>
-    <string name="misc_survey_tap_to_start">Appuyez pour commencer à dessiner</string>
+    <string name="misc_survey_tap_to_start">Appuyez pour placer votre premier coin</string>
     <string name="misc_survey_points_gates">%1$d points · %2$d portail(s)</string>
     <string name="misc_survey_exit_full_screen">Quitter le plein écran</string>
     <string name="misc_survey_full_screen">Plein écran</string>
@@ -1261,7 +1269,10 @@
     <string name="misc_survey_layers_grid">Grille</string>
     <string name="misc_survey_layers_show_section">Afficher sur le dessin</string>
     <string name="misc_survey_layers_fence">Clôture</string>
+    <string name="misc_survey_layers_gates">Portails</string>
+    <string name="misc_survey_layers_dimensions">Dimensions/étiquettes</string>
     <string name="misc_survey_layers_markers">Repères du site</string>
+    <string name="misc_survey_feet_total_job">%1$s pi au total du chantier</string>
     <string name="misc_survey_panel_expand">Afficher les détails du dessin</string>
     <string name="misc_survey_panel_collapse">Masquer les détails du dessin</string>
     <string name="misc_survey_adjust_canvas_hint">Faites glisser pour déplacer, ou appuyez sur un point pour l\'ajuster avec les flèches</string>

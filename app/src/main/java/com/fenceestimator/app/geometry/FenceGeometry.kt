@@ -229,6 +229,21 @@ object FenceGeometryEngine {
     }
 
     fun roundFeet(feet: Float): Float = (feet * 10f).roundToInt() / 10f
+
+    /**
+     * Sum of every run's linear feet, for the map's "total feet drawn" readout.
+     *
+     * Kept separate from [analyze] (which is per-run) rather than folded into
+     * the survey screen itself, so the job-wide total is a pure function of
+     * points and can be unit tested without a Composable, a ViewModel or a
+     * database row.
+     */
+    fun totalLinearFeetAcrossRuns(runs: List<Pair<List<FencePoint>, Boolean>>, pixelsPerFoot: Float): Float {
+        if (pixelsPerFoot <= 0f) return 0f
+        return runs.sumOf { (points, closedLoop) ->
+            if (points.size < 2) 0.0 else analyze(points, pixelsPerFoot, closedLoop).totalLinearFeet.toDouble()
+        }.toFloat()
+    }
 }
 
 /**

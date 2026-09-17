@@ -36,6 +36,31 @@ fun isPlaceholderPrice(sourceDoc: String): Boolean =
  * every one is flagged unverified until this company confirms it -- the
  * estimate screen refuses to send a quote built on prices nobody has checked.
  */
+/**
+ * Whether a brand-new company should get [SeedData.materialItems] inserted
+ * automatically. Always false: a new company starts with an empty catalog,
+ * not somebody else's market-rate guesses treated as if they were real. The
+ * same ninety-one items are still reachable through the opt-in "Copy
+ * FenceFlow's starting list" action, which calls [SeedData.materialItems]
+ * directly.
+ *
+ * Kept as a function of the current count (rather than inlined into the
+ * caller) so the policy has one place to change and can be unit-tested
+ * without a database.
+ */
+internal fun shouldAutoSeedMaterialItems(currentCount: Int): Boolean = false
+
+/**
+ * Whether the five pricing tiers should be inserted automatically. Also
+ * false: every tier carries a real-looking labor rate and markup (and three
+ * carry a discount), not placeholders like the catalog's prices -- there is
+ * no flag equivalent to `sourceDoc` that marks a tier "unverified", so a
+ * company that never opened Settings would otherwise be quoting off
+ * FenceFlow's labor rate without ever having seen it. Opt-in only, through
+ * the same action as the catalog.
+ */
+internal fun shouldAutoSeedPricingTiers(currentCount: Int): Boolean = false
+
 object SeedData {
     fun materialItems(): List<MaterialItem> =
         vinylItems() + woodItems() + chainLinkItems() + aluminumItems() +

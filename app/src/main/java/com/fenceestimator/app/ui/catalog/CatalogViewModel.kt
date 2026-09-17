@@ -59,6 +59,24 @@ class CatalogViewModel(private val repository: Repository) : ViewModel() {
         }
     }
 
+    private val _isCopyingStartingList = MutableStateFlow(false)
+    val isCopyingStartingList: StateFlow<Boolean> = _isCopyingStartingList
+
+    /**
+     * The opt-in replacement for the old automatic seed: copies FenceFlow's
+     * ninety-one starting items into this company's catalog, still labelled
+     * as unverified starting prices. Only ever additive -- it never touches
+     * a row already here.
+     */
+    fun copyStartingList() {
+        viewModelScope.launch {
+            _isCopyingStartingList.value = true
+            runCatching { repository.copyFenceFlowStartingCatalog() }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_save_catalog_item, listOf(it.message.orEmpty())) }
+            _isCopyingStartingList.value = false
+        }
+    }
+
     fun importPdf(context: Context, uri: Uri) {
         viewModelScope.launch {
             _isImporting.value = true

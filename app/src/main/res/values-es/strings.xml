@@ -355,6 +355,9 @@
     <string name="set_unnamed_tier">Nivel sin nombre</string>
     <string name="set_tier_summary">Mano de obra $%1$s/pie · Margen %2$s%% · Descuento %3$s%%</string>
     <string name="set_add_pricing_tier">+ Agregar nivel de precio</string>
+    <string name="set_pricing_tiers_empty">Todavía no hay niveles de precio. Agrega uno, o copia los niveles iniciales de FenceFlow como ejemplo de tarifa de mano de obra y margen para ajustar.</string>
+    <string name="set_copy_starting_tiers">Copiar los niveles iniciales de FenceFlow</string>
+    <string name="set_copy_starting_tiers_confirm">Esto agrega los 5 niveles de precio iniciales de FenceFlow (tarifa de mano de obra, margen y descuentos). Revísalos y ajústalos para tu negocio antes de usarlos en un presupuesto.</string>
     <string name="set_tools_materials">Herramientas y materiales</string>
     <string name="set_tools_explain">Se copian a la lista de cada trabajo para que nada se quede en el taller.</string>
     <string name="set_add_a_tool">Agregar herramienta</string>
@@ -706,6 +709,11 @@
     <string name="cat_placeholder_showing_only">Mostrando solo esos. Toque para volver a mostrar todo.</string>
     <string name="cat_placeholder_explain">Son tarifas típicas del mercado, no las de su proveedor. Las cotizaciones basadas en ellas se acercarán, pero no serán las suyas. Toque para ver solo esos.</string>
     <string name="cat_add_custom_item">Agregar artículo personalizado</string>
+    <string name="cat_empty_title">Tu catálogo está vacío</string>
+    <string name="cat_empty_body">Las empresas nuevas comienzan sin materiales ni precios, para que ningún presupuesto use por accidente los números de otra persona. Agrega artículos uno por uno abajo, o copia la lista inicial de FenceFlow para empezar con un ejemplo funcional; cada precio copiado igual debe verificarse con tu proveedor antes de enviar un presupuesto.</string>
+    <string name="cat_copy_starting_list">Copiar la lista inicial de FenceFlow</string>
+    <string name="cat_copy_starting_list_confirm">Esto agrega los ~90 artículos iniciales de FenceFlow a tu catálogo, cada uno marcado como precio inicial sin verificar. No elimina ni cambia nada que ya tengas.</string>
+    <string name="cat_copy_starting_list_confirm_action">Copiar artículos</string>
     <string name="cat_reading_pdf">Leyendo PDF…</string>
     <string name="cat_nothing_matches">Nada coincide con “%1$s”.</string>
     <string name="cat_match_count_one">%1$d coincidencia en todos los tipos de cerca</string>
@@ -1248,7 +1256,7 @@
     <string name="misc_survey_keeps_length">Lo que ya dibujaste conserva su longitud; solo ocupa más o menos pantalla.</string>
     <string name="misc_survey_feet_per_square">Pies por cuadro de la cuadrícula</string>
     <string name="misc_survey_adjust_hint">Arrastra un punto, un portón o un marcador para moverlo; funciona con cualquier zoom.</string>
-    <string name="misc_survey_tap_to_start">Toca para empezar a dibujar</string>
+    <string name="misc_survey_tap_to_start">Toca para colocar tu primera esquina</string>
     <string name="misc_survey_points_gates">%1$d puntos · %2$d portón(es)</string>
     <string name="misc_survey_exit_full_screen">Salir de pantalla completa</string>
     <string name="misc_survey_full_screen">Pantalla completa</string>
@@ -1261,7 +1269,10 @@
     <string name="misc_survey_layers_grid">Cuadrícula</string>
     <string name="misc_survey_layers_show_section">Mostrar en el dibujo</string>
     <string name="misc_survey_layers_fence">Cerca</string>
+    <string name="misc_survey_layers_gates">Puertas</string>
+    <string name="misc_survey_layers_dimensions">Dimensiones/etiquetas</string>
     <string name="misc_survey_layers_markers">Marcadores del sitio</string>
+    <string name="misc_survey_feet_total_job">%1$s pies en total del trabajo</string>
     <string name="misc_survey_panel_expand">Mostrar detalles del dibujo</string>
     <string name="misc_survey_panel_collapse">Ocultar detalles del dibujo</string>
     <string name="misc_survey_adjust_canvas_hint">Arrastra para mover, o toca un punto para ajustarlo con las flechas</string>

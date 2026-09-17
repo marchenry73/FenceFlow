@@ -88,6 +88,8 @@ fun CatalogScreen(onBack: () -> Unit) {
     val importMatches by viewModel.importMatches.collectAsState()
     val importError by viewModel.importError.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
+    val isCopyingStartingList by viewModel.isCopyingStartingList.collectAsState()
+    var showCopyStartingListConfirm by remember { mutableStateOf(false) }
 
     var editingItem by remember { mutableStateOf<MaterialItem?>(null) }
     var showNewDialog by remember { mutableStateOf(false) }
@@ -210,6 +212,44 @@ fun CatalogScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    // A brand-new company's catalog starts empty rather than
+                    // pre-filled with FenceFlow's guesses. Say that plainly,
+                    // with a way forward either direction: type items in one
+                    // at a time, or copy the same starting list in explicitly
+                    // -- still flagged unverified either way.
+                    if (catalog.isEmpty()) {
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(Space.md)) {
+                                    Text(
+                                        stringResource(R.string.cat_empty_title),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        stringResource(R.string.cat_empty_body),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = Space.xs, bottom = Space.sm)
+                                    )
+                                    if (isCopyingStartingList) {
+                                        CircularProgressIndicator(modifier = Modifier.height(20.dp))
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { showCopyStartingListConfirm = true },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(stringResource(R.string.cat_copy_starting_list))
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     if (unpricedCount > 0) {
                         item {
@@ -347,6 +387,25 @@ fun CatalogScreen(onBack: () -> Unit) {
             onDelete = { showNewDialog = false },
             onDuplicateForManufacturer = { copy -> viewModel.saveItem(copy); showNewDialog = false },
             onDismiss = { showNewDialog = false }
+        )
+    }
+
+    if (showCopyStartingListConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCopyStartingListConfirm = false },
+            title = { Text(stringResource(R.string.cat_copy_starting_list)) },
+            text = { Text(stringResource(R.string.cat_copy_starting_list_confirm)) },
+            confirmButton = {
+                Button(onClick = {
+                    showCopyStartingListConfirm = false
+                    viewModel.copyStartingList()
+                }) { Text(stringResource(R.string.cat_copy_starting_list_confirm_action)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCopyStartingListConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
         )
     }
 

@@ -202,6 +202,13 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     var propertyPanelExpanded by remember { mutableStateOf(false) }
     var showFenceLayer by rememberSaveable { mutableStateOf(true) }
     var showMarkersLayer by rememberSaveable { mutableStateOf(true) }
+    // Gates and dimension labels used to be inseparable from the fence line
+    // itself (drawn inside the same showFenceLayer block); they are real,
+    // independently useful things to hide -- a crew reading corner counts off
+    // a busy plan wants the labels gone, someone counting openings wants only
+    // the gates -- so they get their own toggles rather than riding along.
+    var showGatesLayer by rememberSaveable { mutableStateOf(true) }
+    var showDimensionsLayer by rememberSaveable { mutableStateOf(true) }
     var calibrationDialogPoints by remember { mutableStateOf<Pair<FencePoint, FencePoint>?>(null) }
     var gateDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     // Which segment's dimension is open for typing, if any. Lives out here
@@ -358,6 +365,18 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 // from composables floating outside the Canvas.
                 val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
                 val otherRuns = runs.filter { it.id != activeRun.id }
+                // Job-wide total (every run, not just the one on screen) --
+                // the active run's draft points stand in for its own saved
+                // ones so the total updates live while drawing, same as
+                // liveFeet above.
+                val totalFeetAllRuns = remember(runs, activeRun.id, points, pxPerFt, usingGrid) {
+                    val scale = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
+                    val allRunPoints = runs.map { r ->
+                        val pts = if (r.id == activeRun.id) points else FenceCodec.decodePoints(r.pointsEncoded)
+                        pts to r.closedLoop
+                    }
+                    FenceGeometryEngine.totalLinearFeetAcrossRuns(allRunPoints, scale)
+                }
                 val canvasContentSize = bitmap?.let { it.width to it.height }
                     ?: (SurveyViewModel.GRID_CANVAS_SIZE to SurveyViewModel.GRID_CANVAS_SIZE)
 
@@ -745,7 +764,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // Skipped where the segment is too short on screen to
                         // hold the text, which declutters a zoomed-out loop
                         // without needing a rule about how many to show.
-                        if (pxPerFt != null && pxPerFt > 0f) {
+                        if (showDimensionsLayer && pxPerFt != null && pxPerFt > 0f) {
                             for (i in 0 until max(0, segCount)) {
                                 val a = transform.toCanvas(points[i])
                                 val b = transform.toCanvas(points[(i + 1) % points.size])
@@ -806,7 +825,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // looked identical and neither took up any fence. On a
                         // plan somebody builds from, that is the difference
                         // between an opening that fits and one that does not.
-                        gateSpans.forEach { (gate, span) ->
+                        if (showGatesLayer) gateSpans.forEach { (gate, span) ->
                             val a = transform.toCanvas(span.start)
                             val b = transform.toCanvas(span.end)
 
@@ -1022,6 +1041,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         expanded = propertyPanelExpanded,
                         onToggleExpanded = { propertyPanelExpanded = !propertyPanelExpanded },
                         liveFeet = liveFeet,
+                        totalFeetAllRuns = totalFeetAllRuns,
+                        showJobTotal = runs.size > 1,
                         cornerCount = geometry.cornerCount,
                         gateCount = gates.size,
                         pxPerFt = pxPerFt,
@@ -1200,6 +1221,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             onUseGrid = { viewModel.clearSurveyImage() },
             showFenceLayer = showFenceLayer,
             onShowFenceLayerChange = { showFenceLayer = it },
+            showGatesLayer = showGatesLayer,
+            onShowGatesLayerChange = { showGatesLayer = it },
+            showDimensionsLayer = showDimensionsLayer,
+            onShowDimensionsLayerChange = { showDimensionsLayer = it },
             showMarkersLayer = showMarkersLayer,
             onShowMarkersLayerChange = { showMarkersLayer = it },
             onDismiss = { layersMenuOpen = false }
@@ -1381,6 +1406,8 @@ private fun PropertyInfoPanel(
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     liveFeet: Float,
+    totalFeetAllRuns: Float,
+    showJobTotal: Boolean,
     cornerCount: Int,
     gateCount: Int,
     pxPerFt: Float?,
@@ -1414,7 +1441,14 @@ private fun PropertyInfoPanel(
                         pxPerFt != null && liveFeet > 0f ->
                             stringResource(R.string.misc_survey_feet_total, String.format("%.1f", liveFeet)) +
                                 "  |  " + stringResource(R.string.misc_survey_corners_count, cornerCount) +
-                                "  |  " + stringResource(R.string.misc_survey_gates_count, gateCount)
+                                "  |  " + stringResource(R.string.misc_survey_gates_count, gateCount) +
+                                // Job-wide total, only when there's more than
+                                // one run -- with a single run it would just
+                                // repeat the number already shown.
+                                if (showJobTotal) "  |  " + stringResource(
+                                    R.string.misc_survey_feet_total_job,
+                                    String.format("%.1f", totalFeetAllRuns)
+                                ) else ""
                         usingGrid -> stringResource(R.string.misc_survey_grid_to_scale)
                         pxPerFt == null -> stringResource(R.string.misc_survey_tap_calibrate)
                         else -> stringResource(R.string.misc_survey_tap_to_start)
@@ -1524,6 +1558,10 @@ private fun LayersDialog(
     onUseGrid: () -> Unit,
     showFenceLayer: Boolean,
     onShowFenceLayerChange: (Boolean) -> Unit,
+    showGatesLayer: Boolean,
+    onShowGatesLayerChange: (Boolean) -> Unit,
+    showDimensionsLayer: Boolean,
+    onShowDimensionsLayerChange: (Boolean) -> Unit,
     showMarkersLayer: Boolean,
     onShowMarkersLayerChange: (Boolean) -> Unit,
     onDismiss: () -> Unit
@@ -1625,6 +1663,14 @@ private fun LayersDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = showFenceLayer, onCheckedChange = onShowFenceLayerChange)
                     Text(stringResource(R.string.misc_survey_layers_fence))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = showGatesLayer, onCheckedChange = onShowGatesLayerChange)
+                    Text(stringResource(R.string.misc_survey_layers_gates))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = showDimensionsLayer, onCheckedChange = onShowDimensionsLayerChange)
+                    Text(stringResource(R.string.misc_survey_layers_dimensions))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = showMarkersLayer, onCheckedChange = onShowMarkersLayerChange)

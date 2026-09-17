@@ -632,14 +632,23 @@ class Repository(private val db: AppDatabase) {
     suspend fun deleteExpense(expense: Expense) = deleteSynced(expense.syncId, "expenses") { expenseDao.delete(expense) }
 
     /**
-     * Seeds the starter catalog and pricing tiers if they're missing.
+     * Repairs catalogs left duplicated by an old double-seeding bug, and --
+     * for companies old enough to have been auto-seeded before that policy
+     * was reversed -- leaves their rows exactly as they are.
      *
-     * This runs on every app start instead of only in the database's onCreate
-     * callback. That callback referenced the singleton while it was still being
-     * assigned, so a null-safe call could silently skip seeding entirely -- and
-     * an empty catalog makes Suggest Quantities produce nothing with no error,
-     * which is exactly how it looked "broken". Checking on each start also
-     * repairs installs that were left with an empty catalog by that bug.
+     * A brand-new company no longer gets FenceFlow's ninety-one items or its
+     * five pricing tiers inserted here. Those were market-rate guesses and a
+     * stranger's labor rate wearing a real-looking price tag, not this
+     * company's numbers, and a fresh install now starts with an empty
+     * catalog instead. See [shouldAutoSeedMaterialItems] and
+     * [shouldAutoSeedPricingTiers] for the (always-false) policy, and
+     * [copyFenceFlowStartingCatalog] / [copyFenceFlowStartingPricingTiers]
+     * for the opt-in replacement reachable from the Catalog and Settings
+     * screens.
+     *
+     * This still runs on every app start rather than only in the database's
+     * onCreate callback, so it keeps repairing installs left duplicated by
+     * that old bug.
      */
     suspend fun ensureSeedDataPresent() {
         // Clean up first: an earlier build seeded from two places at once and
@@ -647,9 +656,26 @@ class Repository(private val db: AppDatabase) {
         materialDao.deleteDuplicates()
         pricingTierDao.deleteDuplicates()
 
-        if (materialDao.count() == 0) materialDao.insertAll(SeedData.materialItems())
-        if (pricingTierDao.count() == 0) pricingTierDao.insertAll(SeedData.pricingTiers())
+        if (shouldAutoSeedMaterialItems(materialDao.count())) materialDao.insertAll(SeedData.materialItems())
+        if (shouldAutoSeedPricingTiers(pricingTierDao.count())) pricingTierDao.insertAll(SeedData.pricingTiers())
     }
+
+    /**
+     * Opt-in "Copy FenceFlow's starting list" action for the Catalog screen.
+     * Inserts the same ninety-one items [ensureSeedDataPresent] used to seed
+     * automatically, still labelled with the same unverified starting-price
+     * `sourceDoc` -- choosing to copy them does not make them this company's
+     * checked prices. Safe to call more than once: [deleteDuplicates] on the
+     * next app start collapses any repeat copy back down.
+     */
+    suspend fun copyFenceFlowStartingCatalog() = materialDao.insertAll(SeedData.materialItems())
+
+    /**
+     * Opt-in "Copy FenceFlow's starting tiers" action for the Settings
+     * screen. See [copyFenceFlowStartingCatalog] -- same reasoning, for the
+     * five pricing tiers instead of the catalog.
+     */
+    suspend fun copyFenceFlowStartingPricingTiers() = pricingTierDao.insertAll(SeedData.pricingTiers())
 
     suspend fun catalogCount(): Int = materialDao.count()
 

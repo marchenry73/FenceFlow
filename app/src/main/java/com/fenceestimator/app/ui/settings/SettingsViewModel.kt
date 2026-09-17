@@ -76,4 +76,14 @@ class SettingsViewModel(
     fun deleteTier(tier: PricingTier) {
         appScope.launch { withContext(NonCancellable) { repository.deletePricingTier(tier) } }
     }
+
+    /**
+     * Opt-in "Copy FenceFlow's starting tiers" action. The five tiers carry a
+     * real-looking labor rate and markup, not a placeholder like a catalog
+     * price -- so, like the catalog, they only land here when the owner
+     * explicitly asks for them.
+     */
+    fun copyStartingTiers() {
+        appScope.launch { withContext(NonCancellable) { repository.copyFenceFlowStartingPricingTiers() } }
+    }
 }

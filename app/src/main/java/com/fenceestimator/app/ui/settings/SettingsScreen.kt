@@ -195,6 +195,7 @@ fun SettingsScreen(
     var local by remember { mutableStateOf(loadedProfile) }
     var editingTier by remember { mutableStateOf<PricingTier?>(null) }
     var showNewTier by remember { mutableStateOf(false) }
+    var showCopyStartingTiersConfirm by remember { mutableStateOf(false) }
     var manufacturerMenuExpanded by remember { mutableStateOf(false) }
 
     // Saves itself shortly after you stop changing things.
@@ -289,6 +290,23 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    // No tiers yet -- a new company starts blank here too,
+                    // rather than quoting off FenceFlow's own labor rate
+                    // without anyone having seen it.
+                    if (pricingTiers.isEmpty()) {
+                        Text(
+                            stringResource(R.string.set_pricing_tiers_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                        )
+                        OutlinedButton(
+                            onClick = { showCopyStartingTiersConfirm = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.set_copy_starting_tiers))
+                        }
+                    }
                     pricingTiers.forEach { tier ->
                         Card(onClick = { editingTier = tier }, modifier = Modifier.fillMaxWidth()) {
                             Row(
@@ -802,6 +820,24 @@ fun SettingsScreen(
             onSave = { viewModel.saveTier(it); showNewTier = false },
             onDelete = { showNewTier = false },
             onDismiss = { showNewTier = false }
+        )
+    }
+    if (showCopyStartingTiersConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCopyStartingTiersConfirm = false },
+            title = { Text(stringResource(R.string.set_copy_starting_tiers)) },
+            text = { Text(stringResource(R.string.set_copy_starting_tiers_confirm)) },
+            confirmButton = {
+                Button(onClick = {
+                    showCopyStartingTiersConfirm = false
+                    viewModel.copyStartingTiers()
+                }) { Text(stringResource(R.string.cat_copy_starting_list_confirm_action)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCopyStartingTiersConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
         )
     }
 }
