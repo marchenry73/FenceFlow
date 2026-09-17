@@ -219,6 +219,13 @@
   #serviceBanner a{color:inherit;font-weight:600}
   #booting{display:flex;align-items:center;justify-content:center;gap:10px;
     padding:60px 20px;color:var(--muted);font-size:14px}
+  .section-loading{color:var(--muted);font-size:13px;padding:8px 0}
+  .section-error{color:var(--bad-fg,var(--bad));background:var(--bad-bg);
+    border-radius:6px;padding:8px 10px;font-size:13px}
+  #loadWarnings{display:none;background:var(--warn-bg,var(--surface-2));
+    color:var(--warn-fg,var(--muted));border-radius:8px;padding:8px 14px;
+    margin:0 0 12px;font-size:13px}
+  #loadWarnings.on{display:block}
   .overlay{position:fixed;inset:0;background:rgba(15,24,38,.6);display:none;z-index:50;overflow-y:auto;padding:16px}
   .overlay.on{display:block}
   .sheet{max-width:900px;margin:0 auto;background:var(--surface-2);border-radius:12px;overflow:hidden}
@@ -634,6 +641,7 @@
 
 <div id="app">
   <div class="wrap">
+    <div id="loadWarnings"></div>
     <div class="tabs">
       <button class="tab on" data-tab="dash" data-t="tabDash">Dashboard</button>
       <button class="tab" data-tab="jobs" data-t="tabJobs">Jobs</button>
@@ -662,21 +670,21 @@
         <h2 style="margin-bottom:2px" data-t="briefingHead">Daily briefing</h2>
         <p class="sub" style="margin-top:0" data-t="briefingBody">What changed in the last 24 hours, and what needs you today
           &mdash; a summary of the alerts and totals below, not a new set of checks.</p>
-        <div id="briefingBody"></div>
+        <div id="briefingBody" class="section-loading" data-t="loadingSection">Loading…</div>
       </div>
-      <div class="stats" id="stats"></div>
+      <div class="stats" id="stats"><span class="section-loading" data-t="loadingSection">Loading…</span></div>
       <div class="panel">
         <h2 style="margin-bottom:2px" data-t="chaseHead">Chase list</h2>
         <p class="sub" style="margin-top:0" data-t="chaseBody">Every open lead, sent quote and unpaid approval, ranked by
           what it is worth times how long it has been waiting &mdash; so a big job that has gone quiet
           outranks a small one from this morning. Click the bar to see the math.</p>
         <div class="stats" id="chaseStats" style="margin-bottom:14px"></div>
-        <div id="chaseList"></div>
+        <div id="chaseList" class="section-loading" data-t="loadingSection">Loading…</div>
       </div>
-      <div class="panel"><h2 data-t="attentionHead">Needs attention</h2><div id="attention"></div></div>
+      <div class="panel"><h2 data-t="attentionHead">Needs attention</h2><div id="attention" class="section-loading" data-t="loadingSection">Loading…</div></div>
       <div class="panel"><h2 data-t="thisWeekHead">This week</h2>
         <p class="sub" data-t="thisWeekBody">The next seven days. Click a job to open it.</p>
-        <div id="thisWeek"></div>
+        <div id="thisWeek" class="section-loading" data-t="loadingSection">Loading…</div>
       </div>
     </div>
 
@@ -1157,6 +1165,52 @@
             <div id="chartLeads"></div>
           </div>
         </div></div>
+      </section>
+
+      <section class="cat" data-cat="business">
+        <button class="cat-head"><span class="caret">▾</span> <span data-t="repBizHead">Business report</span> <span class="cat-sub" data-t="repBizSub">Sales, production, labour, materials and financial answers, filtered below</span></button>
+        <div class="cat-body">
+          <div class="panel filters">
+            <div class="range">
+              <div><label data-t="reportsFilterEmployee">Employee</label>
+                <select id="repBizEmployee"><option value="" data-t="reportsFilterAll">All</option></select></div>
+              <div><label data-t="reportsFilterFenceType">Fence type</label>
+                <select id="repBizFenceType"><option value="" data-t="reportsFilterAll">All</option></select></div>
+              <div><label data-t="reportsFilterStatus">Job status</label>
+                <select id="repBizStatus"><option value="" data-t="reportsFilterAll">All</option></select></div>
+              <div style="display:flex;align-items:flex-end"><button class="btn btn-sm" id="repBizApply" data-t="repApplyBtn">Apply</button></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2 data-t="reportsSalesHead">Sales</h2>
+            <div class="stats" id="repBizSales"></div>
+            <p class="sub" data-t="repCycleNoteMissing">Not shown, because FenceFlow does not record it: revenue and close rate by salesperson. A job has a crew member assigned but nobody marked as having sold it.</p>
+          </div>
+
+          <div class="panel">
+            <h2 data-t="reportsProductionHead">Production</h2>
+            <div class="stats" id="repBizProduction"></div>
+          </div>
+
+          <div class="panel">
+            <h2 data-t="reportsLabourHead">Labour</h2>
+            <div class="stats" id="repBizLabour"></div>
+          </div>
+
+          <div class="panel money-only">
+            <h2 data-t="reportsMaterialsHead">Materials</h2>
+            <div class="stats" id="repBizMaterials"></div>
+            <div class="scroll"><table>
+              <thead><tr><th data-t="reportsFilterFenceType">Fence type</th><th data-t="repColManufacturer">Manufacturer</th><th data-t="repColAvgUnitPrice">Avg. unit price</th></tr></thead>
+              <tbody id="repBizSupplierPricing"></tbody></table></div>
+          </div>
+
+          <div class="panel money-only">
+            <h2 data-t="reportsFinancialHead">Financial</h2>
+            <div class="stats" id="repBizFinancial"></div>
+          </div>
+        </div>
       </section>
 
       <section class="cat" data-cat="work">
@@ -2035,6 +2089,51 @@ const TL = {
     briefingBody:'What changed in the last 24 hours, and what needs you today — a summary of the alerts and totals below, not a new set of checks.',
     chaseHead:'Chase list',
     chaseBody:'Every open lead, sent quote and unpaid approval, ranked by what it is worth times how long it has been waiting — so a big job that has gone quiet outranks a small one from this morning. Click the bar to see the math.',
+    loadingSection:'Loading…',
+    loadingSectionError:'Couldn\'t load this — try reloading the page.',
+    loadWarningPrefix:'Some data didn\'t load and is being shown as empty:',
+    reportsFilterDate:'Date range',
+    reportsFilterFrom:'From',
+    reportsFilterTo:'To',
+    reportsFilterEmployee:'Employee',
+    reportsFilterCrew:'Crew',
+    reportsFilterSalesperson:'Salesperson',
+    reportsFilterFenceType:'Fence type',
+    reportsFilterStatus:'Job status',
+    reportsFilterAll:'All',
+    reportsSalesHead:'Sales',
+    reportsSalesLeads:'Leads',
+    reportsSalesResponseTime:'Avg. response time',
+    reportsSalesQuotesSent:'Quotes sent',
+    reportsSalesApprovalRate:'Approval rate',
+    reportsSalesValue:'Sales value',
+    reportsSalesBySalesperson:'By salesperson',
+    reportsProductionHead:'Production',
+    reportsProductionCompleted:'Completed',
+    reportsProductionDelayed:'Delayed',
+    reportsProductionCycleTime:'Avg. cycle time (sold → completed)',
+    reportsProductionBacklog:'Backlog',
+    reportsLabourHead:'Labour',
+    reportsLabourHours:'Hours',
+    reportsLabourEstVsActual:'Estimated vs. actual',
+    reportsLabourCost:'Labour cost',
+    reportsLabourCrewProductivity:'Crew productivity ($/hr)',
+    reportsMaterialsHead:'Materials',
+    reportsMaterialsEstVsActual:'Estimated vs. actual material cost',
+    reportsMaterialsSupplierPricing:'Supplier pricing',
+    reportsFinancialHead:'Financial',
+    reportsFinancialRevenue:'Revenue',
+    reportsFinancialDeposits:'Deposits',
+    reportsFinancialOutstanding:'Outstanding',
+    reportsFinancialExpenses:'Expenses',
+    reportsFinancialMargin:'Job margin',
+    reportsFinancialEstVsActualProfit:'Estimated vs. actual profit',
+    reportsNoData:'No data for this range.',
+    reportsMoneyHidden:'Hidden — your role can\'t see money figures.',
+    repBizHead:'Business report',
+    repBizSub:'Sales, production, labour, materials and financial answers, filtered below',
+    repColManufacturer:'Manufacturer',
+    repColAvgUnitPrice:'Avg. unit price',
     attentionHead:'Needs attention',
     attnUntitledJob:'Untitled job',
     attnFieldChangeWaiting:'Plan change waiting — answer it in the phone app: %s',
@@ -2797,6 +2896,51 @@ const TL = {
     briefingBody:'Lo que cambió en las últimas 24 horas y lo que necesita su atención hoy — un resumen de las alertas y totales de abajo, no una lista nueva de revisiones.',
     chaseHead:'Lista de seguimiento',
     chaseBody:'Cada lead abierto, presupuesto enviado y aprobación sin pagar, ordenados por su valor multiplicado por cuánto llevan esperando — así un trabajo grande que se quedó callado pasa por delante de uno chico de esta mañana. Toque la barra para ver el cálculo.',
+    loadingSection:'Cargando…',
+    loadingSectionError:'No se pudo cargar — intente recargar la página.',
+    loadWarningPrefix:'Algunos datos no se cargaron y se muestran como vacíos:',
+    reportsFilterDate:'Rango de fechas',
+    reportsFilterFrom:'Desde',
+    reportsFilterTo:'Hasta',
+    reportsFilterEmployee:'Empleado',
+    reportsFilterCrew:'Cuadrilla',
+    reportsFilterSalesperson:'Vendedor',
+    reportsFilterFenceType:'Tipo de cerca',
+    reportsFilterStatus:'Estado del trabajo',
+    reportsFilterAll:'Todos',
+    reportsSalesHead:'Ventas',
+    reportsSalesLeads:'Leads',
+    reportsSalesResponseTime:'Tiempo de respuesta prom.',
+    reportsSalesQuotesSent:'Presupuestos enviados',
+    reportsSalesApprovalRate:'Tasa de aprobación',
+    reportsSalesValue:'Valor de ventas',
+    reportsSalesBySalesperson:'Por vendedor',
+    reportsProductionHead:'Producción',
+    reportsProductionCompleted:'Completados',
+    reportsProductionDelayed:'Retrasados',
+    reportsProductionCycleTime:'Tiempo de ciclo prom. (vendido → completado)',
+    reportsProductionBacklog:'Pendientes',
+    reportsLabourHead:'Mano de obra',
+    reportsLabourHours:'Horas',
+    reportsLabourEstVsActual:'Estimado vs. real',
+    reportsLabourCost:'Costo de mano de obra',
+    reportsLabourCrewProductivity:'Productividad de cuadrilla ($/hr)',
+    reportsMaterialsHead:'Materiales',
+    reportsMaterialsEstVsActual:'Costo de materiales estimado vs. real',
+    reportsMaterialsSupplierPricing:'Precios de proveedores',
+    reportsFinancialHead:'Financiero',
+    reportsFinancialRevenue:'Ingresos',
+    reportsFinancialDeposits:'Depósitos',
+    reportsFinancialOutstanding:'Pendiente de cobro',
+    reportsFinancialExpenses:'Gastos',
+    reportsFinancialMargin:'Margen del trabajo',
+    reportsFinancialEstVsActualProfit:'Ganancia estimada vs. real',
+    reportsNoData:'Sin datos para este rango.',
+    reportsMoneyHidden:'Oculto — su rol no puede ver cifras de dinero.',
+    repBizHead:'Informe de negocio',
+    repBizSub:'Ventas, producción, mano de obra, materiales y finanzas, filtrado abajo',
+    repColManufacturer:'Fabricante',
+    repColAvgUnitPrice:'Precio unitario prom.',
     attentionHead:'Requiere atención',
     attnUntitledJob:'Trabajo sin título',
     attnFieldChangeWaiting:'Cambio de plan pendiente — respóndalo en la app del teléfono: %s',
@@ -3532,6 +3676,51 @@ const TL = {
     briefingBody:'Ce qui a changé dans les dernières 24 heures, et ce qui demande votre attention aujourd’hui — un résumé des alertes et totaux ci-dessous, pas une nouvelle liste de vérifications.',
     chaseHead:'Liste de relance',
     chaseBody:'Chaque piste ouverte, devis envoyé et approbation non payée, classés selon leur valeur multipliée par le temps d’attente — un gros chantier devenu silencieux passe ainsi devant un petit datant de ce matin. Cliquez sur la barre pour voir le calcul.',
+    loadingSection:'Chargement…',
+    loadingSectionError:'Impossible de charger — essayez de recharger la page.',
+    loadWarningPrefix:'Certaines données n\'ont pas pu être chargées et sont affichées comme vides :',
+    reportsFilterDate:'Plage de dates',
+    reportsFilterFrom:'Du',
+    reportsFilterTo:'Au',
+    reportsFilterEmployee:'Employé',
+    reportsFilterCrew:'Équipe',
+    reportsFilterSalesperson:'Vendeur',
+    reportsFilterFenceType:'Type de clôture',
+    reportsFilterStatus:'Statut du chantier',
+    reportsFilterAll:'Tous',
+    reportsSalesHead:'Ventes',
+    reportsSalesLeads:'Pistes',
+    reportsSalesResponseTime:'Temps de réponse moy.',
+    reportsSalesQuotesSent:'Devis envoyés',
+    reportsSalesApprovalRate:'Taux d\'approbation',
+    reportsSalesValue:'Valeur des ventes',
+    reportsSalesBySalesperson:'Par vendeur',
+    reportsProductionHead:'Production',
+    reportsProductionCompleted:'Terminés',
+    reportsProductionDelayed:'Retardés',
+    reportsProductionCycleTime:'Temps de cycle moy. (vendu → terminé)',
+    reportsProductionBacklog:'En attente',
+    reportsLabourHead:'Main-d’œuvre',
+    reportsLabourHours:'Heures',
+    reportsLabourEstVsActual:'Estimé vs. réel',
+    reportsLabourCost:'Coût de main-d’œuvre',
+    reportsLabourCrewProductivity:'Productivité de l\'équipe ($/h)',
+    reportsMaterialsHead:'Matériaux',
+    reportsMaterialsEstVsActual:'Coût des matériaux estimé vs. réel',
+    reportsMaterialsSupplierPricing:'Prix des fournisseurs',
+    reportsFinancialHead:'Financier',
+    reportsFinancialRevenue:'Revenu',
+    reportsFinancialDeposits:'Acomptes',
+    reportsFinancialOutstanding:'Solde dû',
+    reportsFinancialExpenses:'Dépenses',
+    reportsFinancialMargin:'Marge du chantier',
+    reportsFinancialEstVsActualProfit:'Profit estimé vs. réel',
+    reportsNoData:'Aucune donnée pour cette période.',
+    reportsMoneyHidden:'Masqué — votre rôle ne peut pas voir les montants.',
+    repBizHead:'Rapport d\'entreprise',
+    repBizSub:'Ventes, production, main-d’œuvre, matériaux et finances, filtrés ci-dessous',
+    repColManufacturer:'Fabricant',
+    repColAvgUnitPrice:'Prix unitaire moy.',
     attentionHead:'À traiter',
     attnUntitledJob:'Travail sans titre',
     attnFieldChangeWaiting:'Changement de plan en attente — répondez dans l\'appli mobile : %s',
@@ -5216,6 +5405,16 @@ let auditTrail=[];
 let arAging=[];
 let companyMembers=[];
 let setupSteps=[];
+// Which optional tables failed to load this pass -- see reportLoadIssue() in
+// loadAll(). An empty array here means "nothing failed", not "nothing checked".
+let loadWarnings=[];
+function renderLoadWarnings(){
+  const el = $('loadWarnings');
+  if (!el) return;
+  if (!loadWarnings.length) { el.classList.remove('on'); el.textContent=''; return; }
+  el.textContent = tr('loadWarningPrefix') + ' ' + loadWarnings.join(', ');
+  el.classList.add('on');
+}
 let paymentConn=null;
 let setupBlocks=false;
 // Setup-checklist steps this user has dismissed -- "small stuff, I can just
@@ -5967,6 +6166,19 @@ async function loadAll(){
       .gte('created_at', recentCutoffISO)
       .then(r2 => r2, e2 => ({ data: [], error: e2 }))
   ]);
+  // A failed optional fetch used to fall back to an empty array with nothing
+  // on screen to say so -- a table with zero rows and a table that could not
+  // be read looked identical. reportLoadIssue() collects which ones failed so
+  // #loadWarnings can say so, instead of a silent empty list standing in for
+  // "couldn't load".
+  loadWarnings = [];
+  const reportLoadIssue = (label, res) => { if (res && res.error) loadWarnings.push(label); };
+  reportLoadIssue('manufacturers', mf);
+  reportLoadIssue('job history', se);
+  reportLoadIssue('field changes', fc);
+  reportLoadIssue('declined payments', fjp);
+  renderLoadWarnings();
+
   fieldChanges = fc && !fc.error ? (fc.data || []) : [];
   failedJobPayments = fjp && !fjp.error ? (fjp.data || []) : [];
   allJobsLoaded = j.data||[];
@@ -6055,6 +6267,15 @@ async function loadAll(){
     jobCosting = costing.error ? [] : (costing.data || []);
   } else jobCosting = [];
 
+  // Dashboard first: everything renderDash() reads (jobs, payments, times,
+  // fieldChanges, failedJobPayments, employees, stageEvents, jobCosting) is
+  // in hand at this point, so it paints here rather than waiting on the
+  // audit/members/settings/billing round trips still to come below. The one
+  // exception is companyMembers (the "somebody new joined" tile), which
+  // isn't fetched yet -- renderDash() runs again, once, right after that
+  // section resolves, rather than blocking first paint on it.
+  renderDash();
+
   // Everything from here down used to be one flat sequence of awaits with no
   // try/catch at all. Each individual RPC checks its own `.error` and falls
   // back to empty -- but that only covers the request succeeding and coming
@@ -6100,6 +6321,11 @@ async function loadAll(){
   } catch (e) {
     console.error('loadAll: setup/members/templates section failed:', e);
   }
+  // Recompute once: companyMembers just arrived, and it is the one input to
+  // renderDash() (the join-request tile) that was not ready for the early
+  // render above. This is the only second pass -- everything else Dashboard
+  // reads was already final at the first render.
+  renderDash();
   // Painted here, not eighty lines earlier.
   //
   // renderSetup() used to run before this fetch, so it always drew the
@@ -6123,7 +6349,7 @@ async function loadAll(){
     arAging = arAging || [];
   }
 
-  renderDash(); renderJobs(); renderCal(); renderPipe(); renderProduction(); renderEmployees();
+  renderJobs(); renderCal(); renderPipe(); renderProduction(); renderEmployees();
   renderCrewAvailability();
   // Fire-and-forget, same pattern as renderChase(): the tab paints once
   // ensureItemsForJobs (inside renderProcurement) has topped up the items
@@ -9903,6 +10129,107 @@ function medianDays(pairs){
   return { value: days.length % 2 ? days[m] : (days[m-1] + days[m]) / 2, n: days.length };
 }
 
+/* Same idea as medianDays, in hours -- for response time (first contact
+   after enquiry), where a figure in days would round most real answers to
+   zero. */
+function medianHours(pairs){
+  const hrs = pairs
+    .filter(p => p[0] && p[1])
+    .map(p => (new Date(p[1]) - new Date(p[0])) / 36e5)
+    .filter(n => n >= 0)
+    .sort((a, b) => a - b);
+  if (!hrs.length) return null;
+  const m = Math.floor(hrs.length / 2);
+  return { value: hrs.length % 2 ? hrs[m] : (hrs[m-1] + hrs[m]) / 2, n: hrs.length };
+}
+
+/* Sent vs approved, over whatever set of jobs the caller already filtered by
+   period/employee/fence-type/status. Guards the same divide-by-zero every
+   other rate on this page guards. */
+function approvalRatePct(jobsIn){
+  const sent = jobsIn.filter(j => j.quote_sent_at).length;
+  if (!sent) return 0;
+  const approved = jobsIn.filter(j => j.quote_approved_at).length;
+  return approved / sent * 100;
+}
+
+/* Completed / delayed / backlog, from jobs.status and jobs.scheduled_date
+   alone -- nothing here is a number FenceFlow doesn't already store.
+   "Delayed" is scheduled in the past and never finished; "backlog" is sold
+   (ACCEPTED) and not yet COMPLETED. */
+function productionStats(jobsIn, nowMs){
+  const completed = jobsIn.filter(j => j.status === 'COMPLETED').length;
+  const delayed = jobsIn.filter(j => j.scheduled_date
+    && new Date(j.scheduled_date).getTime() < nowMs
+    && !['COMPLETED', 'DECLINED'].includes(j.status)).length;
+  const backlog = jobsIn.filter(j => j.status === 'ACCEPTED').length;
+  return { completed, delayed, backlog };
+}
+
+/* $ collected per hour clocked, over the same period -- the one crew
+   productivity figure this data actually supports. Individual $/hr needs a
+   per-person rate, which is exactly the pay figure SEE_MONEY gates; this is
+   the crew-wide number that does not require it. */
+function crewProductivityPerHour(revenue, hours){
+  return hours > 0.005 ? revenue / hours : 0;
+}
+
+/* Aggregate of the same estimate-vs-actual labourVsQuoted() already shows
+   per job, summed over a period instead of read job by job. jobCostingBySync
+   is a Map(sync_id -> job_costing row); a job with no row (Solo/Crew plans,
+   which don't fetch job_costing) is simply skipped, not counted as zero. */
+function labourEstVsActualTotals(jobsIn, jobCostingBySync){
+  let estimated = 0, actual = 0;
+  jobsIn.forEach(j => {
+    const r = jobCostingBySync.get(j.sync_id);
+    if (!r) return;
+    estimated += Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
+               + Number(j.labor_flat_fee || 0);
+    actual += Number(r.labour_cost || 0);
+  });
+  return { estimated, actual };
+}
+
+/* Same shape as labourEstVsActualTotals, for materials: job_costing already
+   carries both the quoted material total and the actual material cost per
+   job, so this only sums what is already there. */
+function materialEstVsActualTotals(jobsIn, jobCostingBySync){
+  let estimated = 0, actual = 0;
+  jobsIn.forEach(j => {
+    const r = jobCostingBySync.get(j.sync_id);
+    if (!r) return;
+    estimated += Number(r.quoted_material || 0);
+    actual += Number(r.material_cost || 0);
+  });
+  return { estimated, actual };
+}
+
+/* Sales value: the contract value of jobs that were actually won, using the
+   same fallback contractTotalOf() uses (a job with no contract_total totals
+   its own line items and change orders) so this never disagrees with what
+   the Jobs/Pipeline lists already show for the same job. Takes the raw
+   arrays rather than closing over the page's globals so it can run the same
+   way in a test as it does on the page. */
+function salesValueTotal(wonJobs, itemsAll, ordersAll){
+  return wonJobs.reduce((sum, j) => {
+    if (j.contract_total != null) return sum + Number(j.contract_total);
+    const mat = itemsAll.filter(i => i.job_sync_id === j.sync_id)
+      .reduce((s, i) => s + (i.quantity || 0) * (i.unit_price || 0), 0);
+    const co = ordersAll.filter(o => o.job_sync_id === j.sync_id)
+      .reduce((s, o) => s + (o.additional_cost || 0), 0);
+    return sum + mat + co;
+  }, 0);
+}
+
+/* Estimated profit is quoted-minus-costs (job_costing's own projected_profit,
+   summed over the period). Actual profit is the same subtraction done against
+   what has really moved: money collected less the same three cost buckets.
+   Kept as one function so the two figures can never be computed against
+   different cost totals by accident. */
+function estVsActualProfitTotals(estimatedProfit, collected, materialCost, labourCost, otherCost){
+  return { estimated: estimatedProfit, actual: collected - materialCost - labourCost - otherCost };
+}
+
 async function renderCycles(){
   if (!$('cycleRows')) return;
   // "Finished to last payment" looks at every live job's last-ever payment,
@@ -10963,6 +11290,131 @@ async function renderReports(){
     : '<tr><td colspan="6" style="color:var(--muted)">No clocked time in this period.</td></tr>';
 
   window._repExport={crew:crewRows,owed,times:timesIn};
+
+  renderBizReport(jobsIn, timesIn, syncIds, paymentsIn);
+}
+
+/* ---------- Business report: the plain sales/production/labour/materials/
+   financial questions, on top of whatever period renderReports() already
+   resolved. Filters (employee, fence type, status) are additional, applied
+   only to this section -- the charts above it stay on the period alone, same
+   as before this section existed. */
+function repBizFilterOptions(){
+  const empSel = $('repBizEmployee'), typeSel = $('repBizFenceType'), statusSel = $('repBizStatus');
+  if (!empSel || empSel.dataset.built) return;
+  empSel.dataset.built = '1';
+  employees.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''))
+    .forEach(e => empSel.insertAdjacentHTML('beforeend',
+      `<option value="${esc(e.sync_id)}">${esc(e.name||'')}</option>`));
+  const types = [...new Set(runs.map(r=>r.fence_type).filter(Boolean))].sort();
+  types.forEach(t => typeSel.insertAdjacentHTML('beforeend',
+    `<option value="${esc(t)}">${esc(t)}</option>`));
+  const statuses = [...new Set(jobs.map(j=>j.status).filter(Boolean))].sort();
+  statuses.forEach(s => statusSel.insertAdjacentHTML('beforeend',
+    `<option value="${esc(s)}">${esc(s)}</option>`));
+  $('repBizApply').addEventListener('click', () => renderReports());
+}
+
+function renderBizReport(jobsIn, timesIn, syncIds, paymentsIn){
+  repBizFilterOptions();
+  const empId = $('repBizEmployee')?.value || '';
+  const typeId = $('repBizFenceType')?.value || '';
+  const statusId = $('repBizStatus')?.value || '';
+  const runJobIds = typeId ? new Set(runs.filter(r=>r.fence_type===typeId).map(r=>r.job_sync_id)) : null;
+  const bizJobs = jobsIn.filter(j =>
+    (!empId || j.assigned_employee_sync_id===empId) &&
+    (!typeId || runJobIds.has(j.sync_id)) &&
+    (!statusId || j.status===statusId));
+  const bizSyncIds = new Set(bizJobs.map(j=>j.sync_id));
+  const bizTimes = timesIn.filter(t => (!empId || t.employee_sync_id===empId) && bizSyncIds.has(t.job_sync_id));
+
+  const seeMoney = canSeeMoney();
+  document.querySelectorAll('#tab-reports .money-only').forEach(el => el.style.display = seeMoney ? '' : 'none');
+
+  // ---- Sales -------------------------------------------------------------
+  const won = bizJobs.filter(j => j.status==='ACCEPTED' || j.status==='COMPLETED');
+  const responseTime = medianHours(bizJobs.map(j => [j.created_at, j.first_contact_at]));
+  const quotesSent = bizJobs.filter(j => j.quote_sent_at).length;
+  const approvalRate = approvalRatePct(bizJobs);
+  const salesValue = salesValueTotal(won, items, orders);
+  $('repBizSales').innerHTML = `
+    <div class="stat"><div class="n">${bizJobs.length}</div><div class="l">${esc(tr('reportsSalesLeads'))}</div></div>
+    <div class="stat"><div class="n">${responseTime ? tr('repCycleHours', Math.round(responseTime.value)) : '—'}</div><div class="l">${esc(tr('reportsSalesResponseTime'))}</div></div>
+    <div class="stat"><div class="n">${quotesSent}</div><div class="l">${esc(tr('reportsSalesQuotesSent'))}</div></div>
+    <div class="stat"><div class="n">${approvalRate.toFixed(0)}%</div><div class="l">${esc(tr('reportsSalesApprovalRate'))}</div></div>
+    ${seeMoney ? `<div class="stat"><div class="n">${money(salesValue)}</div><div class="l">${esc(tr('reportsSalesValue'))}</div></div>` : ''}`;
+
+  // ---- Production ----------------------------------------------------------
+  const prod = productionStats(bizJobs, Date.now());
+  $('repBizProduction').innerHTML = `
+    <div class="stat"><div class="n">${prod.completed}</div><div class="l">${esc(tr('reportsProductionCompleted'))}</div></div>
+    <div class="stat"><div class="n">${prod.delayed}</div><div class="l">${esc(tr('reportsProductionDelayed'))}</div></div>
+    <div class="stat"><div class="n">${prod.backlog}</div><div class="l">${esc(tr('reportsProductionBacklog'))}</div></div>`;
+
+  // ---- Labour --------------------------------------------------------------
+  const bizJobCostingBySync = new Map(jobCosting.map(r => [r.job_sync_id, r]));
+  const bizHours = bizTimes.reduce((s,t)=>s+hoursOf(t),0);
+  const labourTotals = seeMoney ? labourEstVsActualTotals(bizJobs, bizJobCostingBySync) : {estimated:0, actual:0};
+  const bizLabourCost = bizTimes.reduce((s,t)=>s+hoursOf(t)*(t.hourly_rate||0),0);
+  const bizCollected = paymentsIn.filter(p=>bizSyncIds.has(p.job_sync_id))
+    .reduce((s,p)=>s+(p.amount||0),0);
+  $('repBizLabour').innerHTML = `
+    <div class="stat"><div class="n">${bizHours.toFixed(0)}</div><div class="l">${esc(tr('reportsLabourHours'))}</div></div>
+    ${seeMoney ? `
+    <div class="stat"><div class="n">${hasAdvancedReports() ? (money(labourTotals.estimated)+' / '+money(labourTotals.actual)) : '—'}</div><div class="l">${esc(tr('reportsLabourEstVsActual'))}</div></div>
+    <div class="stat"><div class="n">${money(bizLabourCost)}</div><div class="l">${esc(tr('reportsLabourCost'))}</div></div>
+    <div class="stat"><div class="n">${money(crewProductivityPerHour(bizCollected, bizHours))}</div><div class="l">${esc(tr('reportsLabourCrewProductivity'))}</div></div>` : ''}`;
+
+  // ---- Materials (money-gated: quoted_material/material_cost come from
+  // job_costing, which RLS already restricts to SEE_MONEY roles) -----------
+  if (seeMoney) {
+    const materialTotals = hasAdvancedReports()
+      ? materialEstVsActualTotals(bizJobs, bizJobCostingBySync) : {estimated:0, actual:0};
+    $('repBizMaterials').innerHTML = hasAdvancedReports() ? `
+      <div class="stat"><div class="n">${money(materialTotals.estimated)} / ${money(materialTotals.actual)}</div><div class="l">${esc(tr('reportsMaterialsEstVsActual'))}</div></div>`
+      : `<div class="stat"><div class="n">—</div><div class="l">${esc(tr('reportsMaterialsEstVsActual'))}</div></div>`;
+    // Supplier pricing: average unit price on file per fence type / manufacturer,
+    // from the catalog this company actually priced from -- not an estimate.
+    const byKey = new Map();
+    catalog.forEach(i => {
+      if (typeId && i.fence_type !== typeId) return;
+      const key = (i.fence_type||'—') + '|' + (i.manufacturer_sync_id||'');
+      const row = byKey.get(key) || { fenceType: i.fence_type||'—', mfg: manufacturerName(i.manufacturer_sync_id) || '—', sum:0, n:0 };
+      row.sum += Number(i.unit_price||0); row.n += 1;
+      byKey.set(key, row);
+    });
+    const supplierRows = [...byKey.values()];
+    $('repBizSupplierPricing').innerHTML = supplierRows.length
+      ? supplierRows.map(r => `<tr><td>${esc(r.fenceType)}</td><td>${esc(r.mfg)}</td><td>${money(r.sum/r.n)}</td></tr>`).join('')
+      : `<tr><td colspan="3" style="color:var(--muted)">${esc(tr('reportsNoData'))}</td></tr>`;
+  }
+
+  // ---- Financial -------------------------------------------------------
+  if (seeMoney) {
+    const bizMaterial = items.filter(i=>bizSyncIds.has(i.job_sync_id))
+      .reduce((s,i)=>s+(i.quantity||0)*(i.unit_price||0),0);
+    const bizOther = expenses.filter(e=>bizSyncIds.has(e.job_sync_id)).reduce((s,e)=>s+(e.amount||0),0);
+    const bizDeposits = bizJobs.reduce((s,j)=>s+Number(j.deposit_amount||0),0);
+    // Computed from the jobs themselves (same stillOwed/contractTotalOf the
+    // Dashboard tile and the Jobs/Pipeline lists use), rather than joined
+    // against ar_aging's rows -- ar_aging is keyed by customer/job display
+    // fields for the aging table above, not confirmed to carry job_sync_id.
+    const bizOutstanding = bizJobs
+      .filter(j => j.status==='ACCEPTED' || j.status==='COMPLETED')
+      .reduce((s,j)=>s+stillOwed(j, contractTotalOf(j)),0);
+    const bizCostingIn = [...bizJobCostingBySync.values()].filter(r=>bizSyncIds.has(r.job_sync_id));
+    const bizEstProfit = bizCostingIn.reduce((s,r)=>s+Number(r.projected_profit||0),0);
+    const profitTotals = hasAdvancedReports()
+      ? estVsActualProfitTotals(bizEstProfit, bizCollected, bizMaterial, bizLabourCost, bizOther)
+      : { estimated: 0, actual: 0 };
+    $('repBizFinancial').innerHTML = `
+      <div class="stat"><div class="n">${money(bizCollected)}</div><div class="l">${esc(tr('reportsFinancialRevenue'))}</div></div>
+      <div class="stat"><div class="n">${money(bizDeposits)}</div><div class="l">${esc(tr('reportsFinancialDeposits'))}</div></div>
+      <div class="stat"><div class="n">${money(bizOutstanding)}</div><div class="l">${esc(tr('reportsFinancialOutstanding'))}</div></div>
+      <div class="stat"><div class="n">${money(bizOther)}</div><div class="l">${esc(tr('reportsFinancialExpenses'))}</div></div>
+      ${hasAdvancedReports() ? `
+      <div class="stat"><div class="n">${money(profitTotals.estimated)} / ${money(profitTotals.actual)}</div><div class="l">${esc(tr('reportsFinancialEstVsActualProfit'))}</div></div>` : ''}`;
+  }
 }
 
 /* Downloads a table as CSV. Values are quoted so commas in names survive. */
