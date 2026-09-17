@@ -27,6 +27,11 @@ let failed = 0, checked = 0;
 
 for (const page of PAGES) {
   const html = readFileSync(`website/${page}.html`, "utf8");
+  // External module source for THIS page, concatenated onto the inline
+  // id/lookup sweeps below so a split (website/js/...) does not silently drop
+  // out of what this harness scans. See docs/OFFICE_SPLIT_PLAN.md -- step 1 of
+  // the split was exactly this: extend the harness BEFORE any code moves.
+  let externalModuleSrc = "";
 
   for (const m of html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)) {
     const isModule = /type\s*=\s*["']module["']/.test(m[1]);
@@ -41,13 +46,36 @@ for (const page of PAGES) {
     }
   }
 
+  // <script type="module" src="js/...."></script> -- externalized code.
+  // node --check it on its own (it is a standalone module file) and fold its
+  // source into the id/lookup sweeps below.
+  for (const m of html.matchAll(/<script[^>]*\btype\s*=\s*["']module["'][^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/g)) {
+    const relPath = m[1];
+    if (/^https?:|^\/\//.test(relPath)) continue; // CDN import, not ours
+    const abs = join("website", relPath);
+    let modSrc;
+    try { modSrc = readFileSync(abs, "utf8"); }
+    catch { failed++; checked++; console.log(`FAIL ${page}.html: script src="${relPath}" does not exist on disk`); continue; }
+    externalModuleSrc += "\n" + modSrc;
+    const f = join(tmpdir(), `ff-syntax-ext-${checked}.mjs`);
+    writeFileSync(f, modSrc);
+    checked++;
+    try { execFileSync("node", ["--check", f], { stdio: "pipe" }); }
+    catch (e) {
+      failed++;
+      const msg = e.stderr.toString().split("\n").slice(0, 4).join("\n");
+      console.log(`FAIL ${relPath} (module, referenced from ${page}.html): ${msg}`);
+    }
+  }
+
   // Ids the markup defines, against ids the script looks up. Only literal
   // lookups are checked: anything built from a variable is the page's own
   // business and cannot be resolved from here.
   const defined = new Set([...html.matchAll(/\bid="([A-Za-z0-9_-]+)"/g)].map(x => x[1]));
+  const combinedSrc = html + externalModuleSrc;
   const asked = new Set([
-    ...[...html.matchAll(/\$\(\s*['"]([A-Za-z0-9_-]+)['"]\s*\)/g)].map(x => x[1]),
-    ...[...html.matchAll(/getElementById\(\s*['"]([A-Za-z0-9_-]+)['"]\s*\)/g)].map(x => x[1]),
+    ...[...combinedSrc.matchAll(/\$\(\s*['"]([A-Za-z0-9_-]+)['"]\s*\)/g)].map(x => x[1]),
+    ...[...combinedSrc.matchAll(/getElementById\(\s*['"]([A-Za-z0-9_-]+)['"]\s*\)/g)].map(x => x[1]),
   ]);
   const missing = [...asked].filter(id => !defined.has(id));
   checked++;

@@ -25,16 +25,24 @@
 import { readFileSync } from "node:fs";
 
 const src = readFileSync("website/dashboard.html", "utf8");
+// runBuiltFeet, jobBuiltFeet, shiftCountsForPay, perFootShareFeet,
+// perFootPayForJob and perFootCredits now live in website/js/lib/pay.mjs (the
+// first slice of the split -- see docs/OFFICE_SPLIT_PLAN.md), exported there
+// instead of declared as a bare `function name(...)`, so both are searched.
+const moduleSrc = readFileSync("website/js/lib/pay.mjs", "utf8");
 
 const grabFn = (name) => {
-  const start = src.indexOf("function " + name + "(");
-  if (start < 0) throw new Error("not found: " + name);
-  let i = src.indexOf("{", start), depth = 0;
-  for (let j = i; j < src.length; j++) {
-    if (src[j] === "{") depth++;
-    else if (src[j] === "}") { depth--; if (!depth) return src.slice(start, j + 1); }
+  for (const [text, prefix] of [[src, "function "], [moduleSrc, "export function "]]) {
+    const start = text.indexOf(prefix + name + "(");
+    if (start < 0) continue;
+    let i = text.indexOf("{", start), depth = 0;
+    for (let j = i; j < text.length; j++) {
+      if (text[j] === "{") depth++;
+      else if (text[j] === "}") { depth--; if (!depth) return text.slice(start + (prefix.length - "function ".length), j + 1); }
+    }
+    throw new Error("unbalanced: " + name);
   }
-  throw new Error("unbalanced: " + name);
+  throw new Error("not found: " + name);
 };
 
 const grabConst = (name) => {

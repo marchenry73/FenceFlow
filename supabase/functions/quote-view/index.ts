@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       "contract_total, deposit_amount, amount_paid, refunded_amount, " +
       "tax_rate_percent, discount_percent, " +
       "quote_viewed_at, quote_approved_at, quote_approved_name, calibration_pixels_per_foot, " +
-      "quote_phone_attempts, quote_phone_locked_until")
+      "quote_phone_attempts, quote_phone_locked_until, reapproval_required_at, reapproval_reason")
     .eq("quote_token", token)
     .maybeSingle();
   if (!job || job.deleted_at) return json({ error: "That quote is no longer available." }, 404);
@@ -319,6 +319,12 @@ Deno.serve(async (req) => {
     depositDue: money.due,
     depositPayable: money.payable,
     approvedAt: job.quote_approved_at,
+    // The drawing changed after this quote was approved, so the approval was
+    // withdrawn and the customer has to say yes again. The page shows this
+    // above the approve button; the approve step itself is unchanged -- same
+    // phone gate, same typed name, same link.
+    reapprovalRequiredAt: job.reapproval_required_at,
+    reapprovalReason: job.reapproval_reason ?? "",
     // Whether the approve step needs to ask for the last four digits of the
     // job's phone number. A boolean saying a phone is on file is not the
     // phone number -- this is the one fact about it the page is allowed to

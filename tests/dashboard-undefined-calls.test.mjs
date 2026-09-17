@@ -45,9 +45,18 @@ let failed = 0, checked = 0;
 
 for (const page of PAGES) {
   const html = readFileSync(`website/${page}.html`, "utf8");
-  const code = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+  // External module files (website/js/...) get concatenated in too, so a
+  // function moved out of the inline <script> during the split described in
+  // docs/OFFICE_SPLIT_PLAN.md stays visible to this sweep instead of quietly
+  // dropping out of coverage.
+  const externalSrcs = [...html.matchAll(/<script[^>]*\btype\s*=\s*["']module["'][^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/g)]
     .map((m) => m[1])
-    .join("\n");
+    .filter((relPath) => !/^https?:|^\/\//.test(relPath))
+    .map((relPath) => { try { return readFileSync(`website/${relPath}`, "utf8"); } catch { return ""; } });
+  const code = [
+    ...[...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]),
+    ...externalSrcs,
+  ].join("\n");
 
   // Strings and comments carry prose that looks like code. Blank them first,
   // or a sentence naming a function reads as a call to it.

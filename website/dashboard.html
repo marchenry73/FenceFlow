@@ -2037,6 +2037,10 @@
 <script src="config.js"></script>
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import {
+  decodeRunPoints, runLengthFt, runBuiltFeet, jobBuiltFeet,
+  shiftCountsForPay, perFootShareFeet, perFootPayForJob, perFootCredits,
+} from './js/lib/pay.mjs';
 
 // Publishable key — safe client-side. Row Level Security enforces access.
 // Publishable key on purpose -- it is designed to be public. Row Level
@@ -2302,6 +2306,32 @@ const TL = {
     settingsLoadFailed:'Couldn\'t load your business settings just now -- the boxes below are blank because the load failed, not because nothing is set. Switch tabs and back, or refresh, to try again.',
     setupReminderTag:'reminder, not required', setupSetItBtn:'Set it', setupDismissBtn:'Dismiss',
     setupDismissTitle:'Hide this reminder for you until it\'s done -- nobody else\'s checklist changes',
+    setupStepBusinessLabel:'Your business details',
+    setupStepBusinessDetail:'Business name, so it is on the quote instead of blank. Phone, email and licence number too if you use them.',
+    setupStepManufacturersLabel:'Your suppliers',
+    setupStepManufacturersDetail:'The manufacturers and suppliers you buy from. Add them in the phone app under Catalog so materials can be tied to who you order them from.',
+    setupStepCatalogLabel:'Your supplier prices',
+    setupStepCatalogDetail:'What you actually pay for panels, posts, rails and concrete. A quote with no catalog prices in it cannot be trusted -- add items in the phone app under Catalog and they appear here within a minute.',
+    setupStepLabourRateLabel:'What you charge for labour',
+    setupStepLabourRateDetail:'Your rate per foot of fence. Every quote is built on it, so a job priced without one is priced at nothing.',
+    setupStepMarkupLabel:'Your markup',
+    setupStepMarkupDetail:'The margin added to materials and labour. Zero is a real answer if that is how you price -- it just has to be a decision rather than a blank.',
+    setupStepTiersLabel:'Your pricing tiers',
+    setupStepTiersDetail:'Different rates for different kinds of work -- a repair, a full install, a commercial job. Not required, but it is how you stop quoting everything the same way.',
+    setupStepBuildLabel:'Your standard build',
+    setupStepBuildDetail:'A default fence spec (height, panel width, post spacing, bags of concrete) so the New Client wizard starts from your usual job instead of a blank one every time.',
+    setupStepGateRateLabel:'Your gate pricing',
+    setupStepGateRateDetail:'What you charge to add a gate. Without it a job with a gate on it prices the gate at nothing, same as a missing labour rate.',
+    setupStepTaxRateLabel:'Your sales tax rate',
+    setupStepTaxRateDetail:'Set it to zero if you do not charge tax -- but set it, so the number on the quote is the number the customer pays.',
+    setupStepMinChargeLabel:'Your minimum job charge',
+    setupStepMinChargeDetail:'The least you will do any job for, however small. Without it a gate-only job can quote for almost nothing.',
+    setupStepCardPaymentsLabel:'Taking card payments',
+    setupStepCardPaymentsDetail:'Connect Stripe or Square and the app can ask a customer for a deposit by card. Without it the app tells you to take the payment another way rather than taking one nobody can record.',
+    setupStepCrewLabel:'Your crew',
+    setupStepCrewDetail:'The people who work for you, so hours and job assignments have a name on them.',
+    setupStepReadyLabel:'Ready for your first job',
+    setupStepReadyDetail:'Every essential step above is done. You can quote a real job with confidence in the number.',
     settingsTiersHead:'Pricing Tiers',
     settingsTiersBody:'The labour rate, markup and discount behind each quote — a repair rate, a full-install rate, a commercial rate, whatever tiers make sense for how you price.',
     settingsTierAddBtn:'Add a tier', settingsTierAddStarterBtn:'Add starter tiers',
@@ -3109,6 +3139,32 @@ const TL = {
     settingsLoadFailed:'No se pudieron cargar los ajustes de la empresa en este momento -- los campos de abajo están en blanco porque falló la carga, no porque no haya nada configurado. Cambie de pestaña y vuelva, o actualice la página, para intentarlo de nuevo.',
     setupReminderTag:'recordatorio, no obligatorio', setupSetItBtn:'Configurar', setupDismissBtn:'Ocultar',
     setupDismissTitle:'Oculta este recordatorio solo para usted hasta que esté hecho -- la lista de nadie más cambia',
+    setupStepBusinessLabel:'Los datos de su empresa',
+    setupStepBusinessDetail:'Nombre de la empresa, para que aparezca en la cotización en vez de quedar en blanco. También teléfono, correo y número de licencia si los usa.',
+    setupStepManufacturersLabel:'Sus proveedores',
+    setupStepManufacturersDetail:'Los fabricantes y proveedores a quienes les compra. Agréguelos en la app del celular, en Catálogo, para vincular los materiales con quién se los vende.',
+    setupStepCatalogLabel:'Los precios de sus proveedores',
+    setupStepCatalogDetail:'Lo que realmente paga por paneles, postes, rieles y concreto. Una cotización sin precios de catálogo no se puede confiar -- agregue artículos en la app del celular, en Catálogo, y aparecen aquí en un minuto.',
+    setupStepLabourRateLabel:'Lo que cobra por mano de obra',
+    setupStepLabourRateDetail:'Su tarifa por pie de cerca. Toda cotización se construye sobre esto, así que un trabajo cotizado sin esto se cotiza en cero.',
+    setupStepMarkupLabel:'Su margen',
+    setupStepMarkupDetail:'El margen que se agrega a materiales y mano de obra. Cero es una respuesta válida si así cotiza -- solo tiene que ser una decisión y no un campo en blanco.',
+    setupStepTiersLabel:'Sus niveles de precio',
+    setupStepTiersDetail:'Tarifas distintas para distintos tipos de trabajo -- una reparación, una instalación completa, un trabajo comercial. No es obligatorio, pero evita cotizar todo igual.',
+    setupStepBuildLabel:'Su construcción estándar',
+    setupStepBuildDetail:'Una especificación de cerca predeterminada (altura, ancho de panel, espaciado de postes, bolsas de concreto) para que el asistente de nuevo cliente parta de su trabajo habitual en vez de uno en blanco cada vez.',
+    setupStepGateRateLabel:'El precio de sus portones',
+    setupStepGateRateDetail:'Lo que cobra por agregar un portón. Sin esto, un trabajo con portón cotiza el portón en cero, igual que una tarifa de mano de obra faltante.',
+    setupStepTaxRateLabel:'Su tasa de impuesto sobre ventas',
+    setupStepTaxRateDetail:'Póngala en cero si no cobra impuesto -- pero configúrela, para que el número en la cotización sea el número que paga el cliente.',
+    setupStepMinChargeLabel:'Su cargo mínimo por trabajo',
+    setupStepMinChargeDetail:'Lo menos que cobraría por cualquier trabajo, por pequeño que sea. Sin esto, un trabajo de solo un portón puede cotizar casi en cero.',
+    setupStepCardPaymentsLabel:'Cobrar con tarjeta',
+    setupStepCardPaymentsDetail:'Conecte Stripe o Square y la app podrá pedirle un depósito con tarjeta al cliente. Sin esto, la app le indica cobrar de otra forma en vez de registrar un pago que nadie puede anotar.',
+    setupStepCrewLabel:'Su equipo',
+    setupStepCrewDetail:'Las personas que trabajan para usted, para que las horas y las asignaciones de trabajo tengan un nombre.',
+    setupStepReadyLabel:'Listo para su primer trabajo',
+    setupStepReadyDetail:'Todos los pasos esenciales de arriba están hechos. Puede cotizar un trabajo real con confianza en el número.',
     settingsTiersHead:'Niveles de precios',
     settingsTiersBody:'La tarifa de mano de obra, el margen y el descuento detrás de cada presupuesto — una tarifa de reparación, una de instalación completa, una comercial, los niveles que tengan sentido para cómo usted cobra.',
     settingsTierAddBtn:'Agregar un nivel', settingsTierAddStarterBtn:'Agregar niveles iniciales',
@@ -3889,6 +3945,32 @@ const TL = {
     settingsLoadFailed:'Impossible de charger les paramètres de l’entreprise pour l’instant -- les champs ci-dessous sont vides parce que le chargement a échoué, pas parce que rien n’est configuré. Changez d’onglet et revenez, ou actualisez la page, pour réessayer.',
     setupReminderTag:'rappel, non obligatoire', setupSetItBtn:'Configurer', setupDismissBtn:'Masquer',
     setupDismissTitle:'Masque ce rappel seulement pour vous jusqu’à ce que ce soit fait -- la liste de personne d’autre ne change',
+    setupStepBusinessLabel:'Les coordonnées de votre entreprise',
+    setupStepBusinessDetail:'Le nom de l’entreprise, pour qu’il figure sur le devis au lieu d’être vide. Téléphone, courriel et numéro de licence aussi si vous les utilisez.',
+    setupStepManufacturersLabel:'Vos fournisseurs',
+    setupStepManufacturersDetail:'Les fabricants et fournisseurs chez qui vous achetez. Ajoutez-les dans l’appli du téléphone, sous Catalogue, pour relier les matériaux à leur fournisseur.',
+    setupStepCatalogLabel:'Les prix de vos fournisseurs',
+    setupStepCatalogDetail:'Ce que vous payez réellement pour les panneaux, poteaux, lisses et béton. Un devis sans prix de catalogue n’est pas fiable -- ajoutez des articles dans l’appli du téléphone, sous Catalogue, et ils apparaissent ici en une minute.',
+    setupStepLabourRateLabel:'Ce que vous facturez pour la main-d’œuvre',
+    setupStepLabourRateDetail:'Votre tarif par pied de clôture. Chaque devis est bâti dessus, donc un chantier chiffré sans cela est chiffré à rien.',
+    setupStepMarkupLabel:'Votre marge',
+    setupStepMarkupDetail:'La marge ajoutée aux matériaux et à la main-d’œuvre. Zéro est une réponse valable si c’est ainsi que vous chiffrez -- il faut juste que ce soit une décision, pas une case vide.',
+    setupStepTiersLabel:'Vos niveaux de prix',
+    setupStepTiersDetail:'Des tarifs différents selon le type de travail -- réparation, installation complète, chantier commercial. Pas obligatoire, mais c’est ce qui évite de tout chiffrer pareil.',
+    setupStepBuildLabel:'Votre construction standard',
+    setupStepBuildDetail:'Une spécification de clôture par défaut (hauteur, largeur de panneau, espacement des poteaux, sacs de béton) pour que l’assistant nouveau client parte de votre chantier habituel plutôt que d’une fiche vide à chaque fois.',
+    setupStepGateRateLabel:'Le prix de vos portails',
+    setupStepGateRateDetail:'Ce que vous facturez pour ajouter un portail. Sans cela, un chantier avec un portail le chiffre à rien, comme un tarif de main-d’œuvre manquant.',
+    setupStepTaxRateLabel:'Votre taux de taxe de vente',
+    setupStepTaxRateDetail:'Mettez-le à zéro si vous ne facturez pas de taxe -- mais configurez-le, pour que le montant du devis soit celui que le client paie.',
+    setupStepMinChargeLabel:'Votre frais minimum par chantier',
+    setupStepMinChargeDetail:'Le minimum que vous facturez pour n’importe quel chantier, même petit. Sans cela, un chantier avec seulement un portail peut se chiffrer à presque rien.',
+    setupStepCardPaymentsLabel:'Accepter les paiements par carte',
+    setupStepCardPaymentsDetail:'Connectez Stripe ou Square et l’appli pourra demander un dépôt par carte au client. Sans cela, l’appli vous dit de prendre le paiement autrement plutôt que d’enregistrer un paiement que personne ne peut noter.',
+    setupStepCrewLabel:'Votre équipe',
+    setupStepCrewDetail:'Les personnes qui travaillent pour vous, pour que les heures et les affectations de chantier portent un nom.',
+    setupStepReadyLabel:'Prêt pour votre premier chantier',
+    setupStepReadyDetail:'Chaque étape essentielle ci-dessus est terminée. Vous pouvez chiffrer un vrai chantier en ayant confiance dans le chiffre.',
     settingsTiersHead:'Paliers tarifaires',
     settingsTiersBody:'Le taux de main-d’œuvre, la marge et le rabais derrière chaque devis — un taux de réparation, un taux d’installation complète, un taux commercial, les paliers qui ont du sens pour votre façon de facturer.',
     settingsTierAddBtn:'Ajouter un palier', settingsTierAddStarterBtn:'Ajouter des paliers de départ',
@@ -5660,6 +5742,19 @@ function renderProcessor(idPrefix){
     }));
 }
 
+// my_setup_progress() returns label/detail as plain English SQL text -- the
+// same text for every language, since Postgres has no i18n of its own. This
+// maps each step's key to a translated setupStep<Key>Label/Detail pair so the
+// checklist reads in the office's own language, falling back to the SQL text
+// (English) if a step key has no translation yet -- e.g. a future step added
+// to the function before this table catches up.
+function setupText(st){
+  const pascal = (st.step || '').replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase());
+  return {
+    label: tr('setupStep' + pascal + 'Label') || st.label,
+    detail: tr('setupStep' + pascal + 'Detail') || st.detail,
+  };
+}
 function renderSetup(){
   const panel = $('setupPanel');
   if (!panel) return;
@@ -5687,20 +5782,20 @@ function renderSetup(){
   panel.style.display = 'block';
 
   const TAB = { settings:'settings', catalog:'catalog', crew:'crew' };
-  const row = (st, dismissable) => `
+  const row = (st, dismissable) => { const t = setupText(st); return `
     <div class="setup-row">
       <span class="setup-mark setup-todo">!</span>
       <span>
-        <span class="setup-what">${esc(st.label)}</span>${
+        <span class="setup-what">${esc(t.label)}</span>${
           dismissable ? ' <span style="font-size:12px;color:var(--muted)">— ' + esc(tr('setupReminderTag')) + '</span>' : ''}
-        <div class="setup-why">${esc(st.detail)}</div>
+        <div class="setup-why">${esc(t.detail)}</div>
       </span>
       <span class="setup-go" style="display:flex;gap:6px">
         <button class="btn btn-sm btn-grey" data-setup-go="${esc(TAB[st.where_to_go] || 'settings')}">${esc(tr('setupSetItBtn'))}</button>
         ${dismissable ? `<button class="btn btn-sm btn-grey" data-setup-dismiss="${esc(st.step)}"
             title="${esc(tr('setupDismissTitle'))}">${esc(tr('setupDismissBtn'))}</button>` : ''}
       </span>
-    </div>`;
+    </div>`; };
   $('setupList').innerHTML =
     blocking.map(st => row(st, false)).join('')
     + reminders.map(st => row(st, true)).join('');
@@ -8816,68 +8911,9 @@ function weekStart(iso){
 }
 
 /* ---- pay by the foot ----------------------------------------------------
-
-   A PER_FOOT crew member earns the job's built footage, split evenly among
-   the PER_FOOT people who worked it, times their own $/ft. Mirrors
-   CrewPay.kt (perFootShareFeet / perFootPay) and the server's
-   per_foot_crew_count(); tests/per-foot-pay.test.mjs lifts these.
-
-   Only a COMPLETED job pays. ACCEPTED means sold, not built -- its footage
-   still moves with change orders and field corrections, so paying on it
-   would pay for fence that may never go in.
-
-   "Who worked it" is who has a finished, non-rejected shift on the job; a job
-   nobody clocked on falls back to its assigned crew member. Built footage is
-   the typed length when there is one, else the drawing -- the same order
-   CrewPay.builtFeet uses. All pure. */
-function runBuiltFeet(r, pxPerFoot){
-  const manual = Number(r.manual_linear_feet || 0);
-  if (manual > 0) return manual;
-  const pts = decodeRunPoints(r.points_encoded);
-  return pts.length > 1 ? runLengthFt(pts, !!r.closed_loop, pxPerFoot) : 0;
-}
-function jobBuiltFeet(job, allRuns){
-  const px = Number(job.calibration_pixels_per_foot) || 20;
-  return (allRuns || []).filter(r => r.job_sync_id === job.sync_id && !r.deleted_at)
-    .reduce((s, r) => s + runBuiltFeet(r, px), 0);
-}
-function shiftCountsForPay(t){
-  return !!t.ended_at && !t.deleted_at && !(t.rejected_at && !t.approved_at);
-}
-function perFootShareFeet(jobFeet, workers){
-  if (!(jobFeet > 0)) return 0;
-  return jobFeet / Math.max(1, Math.floor(Number(workers) || 0));
-}
-function perFootPayForJob(jobFeet, workers, rate, completed){
-  if (!completed || !(Number(rate) > 0)) return 0;
-  return perFootShareFeet(jobFeet, workers) * Number(rate);
-}
-/** One credit per PER_FOOT worker per COMPLETED job: their share and pay,
-    dated by their own last shift on it (else the job's last update). */
-function perFootCredits(jobsIn, shifts, emps, allRuns){
-  const out = [];
-  (jobsIn || []).forEach(j => {
-    if (j.status !== 'COMPLETED' || j.deleted_at) return;
-    const mine = (shifts || []).filter(t => t.job_sync_id === j.sync_id && t.employee_sync_id && shiftCountsForPay(t));
-    let crew = [...new Set(mine.map(t => t.employee_sync_id))];
-    if (!crew.length && j.assigned_employee_sync_id) crew = [j.assigned_employee_sync_id];
-    const pf = crew.map(sid => (emps || []).find(e => e.sync_id === sid))
-      .filter(e => e && e.pay_type === 'PER_FOOT');
-    if (!pf.length) return;
-    const feet = jobBuiltFeet(j, allRuns);
-    pf.forEach(e => {
-      const ends = mine.filter(t => t.employee_sync_id === e.sync_id).map(t => t.ended_at).sort();
-      const rate = Number(e.per_foot_rate || 0);
-      out.push({
-        empSyncId: e.sync_id, who: e.name || 'Unknown', jobSyncId: j.sync_id,
-        jobFeet: feet, workers: pf.length, share: perFootShareFeet(feet, pf.length),
-        rate, pay: perFootPayForJob(feet, pf.length, rate, true),
-        finishedAt: ends.length ? ends[ends.length - 1] : (j.updated_at || null)
-      });
-    });
-  });
-  return out;
-}
+   Moved to website/js/lib/pay.mjs (runBuiltFeet, jobBuiltFeet,
+   shiftCountsForPay, perFootShareFeet, perFootPayForJob, perFootCredits) --
+   see docs/OFFICE_SPLIT_PLAN.md. Imported at the top of this module. */
 function isPerFootShift(t){
   return (employees.find(e => e.sync_id === t.employee_sync_id) || {}).pay_type === 'PER_FOOT';
 }
@@ -12987,19 +13023,8 @@ async function keepOfficePrice(){
    kt, coloured from ui/theme/PlanColors.kt) -- so a corner marked here is a
    corner marked the same way on the phone, not a second opinion. */
 
-/** FenceCodec.decodePoints, reproduced: "x:y,x:y,...", malformed pairs
-    dropped rather than thrown on, since a hand-edited row should degrade to
-    "draw what parses" and not blank the whole run. Pure. */
-function decodeRunPoints(raw){
-  if(!raw) return [];
-  return raw.split(',').map(pair=>{
-    const parts = pair.split(':');
-    if(parts.length!==2) return null;
-    const x=parseFloat(parts[0]), y=parseFloat(parts[1]);
-    if(Number.isNaN(x)||Number.isNaN(y)) return null;
-    return {x,y};
-  }).filter(Boolean);
-}
+// decodeRunPoints moved to website/js/lib/pay.mjs (imported at the top of
+// this module) -- see docs/OFFICE_SPLIT_PLAN.md.
 
 /** FenceCodec.decodeGates, reproduced: the 3-, 4- and 5-part forms all read
     (mounting/swing default to LINE/IN exactly as the phone's own decoder
@@ -13042,17 +13067,8 @@ function classifyRunVertices(points, closedLoop){
   return out;
 }
 
-/** FenceGeometryEngine.pixelLength/analyze's own distance sum, divided by
-    the calibration in effect -- 20 px/ft unless the job carries its own
-    calibration_pixels_per_foot. Pure. */
-function runLengthFt(points, closedLoop, pxPerFoot){
-  const pts = points||[];
-  if(pts.length<2 || !pxPerFoot) return 0;
-  const list = closedLoop ? pts.concat([pts[0]]) : pts;
-  let total=0;
-  for(let i=1;i<list.length;i++) total += Math.hypot(list[i].x-list[i-1].x, list[i].y-list[i-1].y);
-  return total/pxPerFoot;
-}
+// runLengthFt moved to website/js/lib/pay.mjs (imported at the top of this
+// module) -- see docs/OFFICE_SPLIT_PLAN.md.
 
 /** Where every point (and, so gates are never clipped at a canvas edge, the
     caller's own extra points too) lands once scaled to fit inside a
@@ -15012,12 +15028,12 @@ async function swDoneHtml(){
   const sp = await db.rpc('my_setup_progress');
   setupSteps = sp.error ? [] : (sp.data || []);
   renderSetup();
-  const rows = setupSteps.map(st => `
+  const rows = setupSteps.map(st => { const t = setupText(st); return `
     <div class="setup-row">
       <span class="setup-mark ${st.done?'setup-done':'setup-todo'}">${st.done?'✓':''}</span>
-      <span><span class="setup-what">${esc(st.label)}</span>${st.essential?'':' <span style="font-size:12px;color:var(--muted)">— optional</span>'}
-        <div class="setup-why">${esc(st.detail)}</div></span>
-    </div>`).join('');
+      <span><span class="setup-what">${esc(t.label)}</span>${st.essential?'':' <span style="font-size:12px;color:var(--muted)">— optional</span>'}
+        <div class="setup-why">${esc(t.detail)}</div></span>
+    </div>`; }).join('');
   return `<div class="panel"><h2>You're set up</h2>
       ${rows || '<p class="sub">Nothing left to check.</p>'}
     </div>

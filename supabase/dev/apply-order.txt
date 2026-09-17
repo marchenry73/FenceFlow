@@ -195,3 +195,5 @@ supabase_sec_company_reads.sql
 supabase_sec_job_costing_money_guard.sql
 supabase_followups_settings.sql
 supabase_followups_log.sql
+supabase_reapproval_on_drawing_change.sql
+supabase_setup_progress_v2.sql
