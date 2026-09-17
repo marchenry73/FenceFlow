@@ -303,7 +303,7 @@ async function main() {
     "quotes sent 7+ days ago, never opened",
     "customers are sitting on quote links that were never opened -- could be a dead link, a bounced text, or a lead nobody followed up on, and there is no other place this would surface",
     `select count(*) as n from jobs
-     where deleted_at is null and quote_sent_at is not null
+     where deleted_at is null and not is_test_fixture and quote_sent_at is not null
        and quote_sent_at < now() - interval '7 days' and quote_viewed_at is null;`,
     null // already finds real rows on live data -- see report
   );
@@ -315,7 +315,7 @@ async function main() {
     "payment link amount exceeds the signed contract total",
     "a customer could be asked to pay more than they agreed to -- an overcharge that would not be caught by anything else, since the link and the contract total are set independently",
     `select count(*) as n from jobs
-     where deleted_at is null and payment_link_amount is not null and contract_total is not null
+     where deleted_at is null and not is_test_fixture and payment_link_amount is not null and contract_total is not null
        and payment_link_amount > contract_total + 0.005;`,
     `with fake_jobs(contract_total, payment_link_amount) as (
        values (500.00::numeric, 750.00::numeric)

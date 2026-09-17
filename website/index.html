@@ -56,6 +56,14 @@
   }
   .btn-line:hover{background:rgba(255,255,255,.09);transform:none}
 
+  /* ----------------------------------------------------------- demo --- */
+  .demo{padding:64px 0 72px}
+  .demo .wrap{max-width:980px}
+  .demo video{display:block;width:100%;max-width:100%;height:auto;aspect-ratio:16/9;
+    border-radius:14px;background:var(--ink);border:1px solid var(--line);
+    box-shadow:0 18px 50px rgba(11,18,32,.18)}
+  @media (max-width:620px){ .demo{padding:44px 0 52px} .demo video{border-radius:10px} }
+
   /* ------------------------------------------------------------ hero --- */
   .hero{
     background:
@@ -325,6 +333,18 @@
   </div>
 </div>
 
+<!-- ---------------------------------------------------------- the demo -- -->
+<section class="demo" id="demo">
+  <div class="wrap">
+    <h2 id="demoHead" data-t="demoHead">See FenceFlow in 60 seconds</h2>
+    <p class="sub" data-t="demoSub">From the first measurement to the deposit in your account — no sound needed.</p>
+    <video controls muted playsinline preload="metadata" poster="media/fenceflow-demo.jpg"
+           width="1280" height="720" aria-labelledby="demoHead">
+      <source src="media/fenceflow-demo.mp4" type="video/mp4">
+    </video>
+  </div>
+</section>
+
 <!-- ------------------------------------------------------- the problem -- -->
 <section class="dark">
   <div class="wrap problem rise">
@@ -579,6 +599,7 @@
    whoever it reaches next. */
 const L = {
   en: {
+    demoHead: 'See FenceFlow in 60 seconds', demoSub: 'From the first measurement to the deposit in your account — no sound needed.',
     navWhat: 'What it does', navHow: 'How a job runs', navPricing: 'Pricing', navSignIn: 'Sign in',
     eyebrowContractors: 'For fence contractors',
     heroLine1: 'Draw the fence.', heroLine2: 'Get the material list.',
@@ -658,6 +679,7 @@ const L = {
     footPrivacy: 'Privacy', footTerms: 'Terms',
   },
   es: {
+    demoHead: 'Conozca FenceFlow en 60 segundos', demoSub: 'De la primera medida al depósito en su cuenta — sin necesidad de sonido. Video en inglés.',
     navWhat: 'Qué hace', navHow: 'Cómo se lleva un trabajo', navPricing: 'Precios', navSignIn: 'Iniciar sesión',
     eyebrowContractors: 'Para instaladores de cercas',
     heroLine1: 'Dibuje la cerca.', heroLine2: 'Reciba la lista de materiales.',
@@ -737,6 +759,7 @@ const L = {
     footPrivacy: 'Privacidad', footTerms: 'Términos',
   },
   fr: {
+    demoHead: 'Découvrez FenceFlow en 60 secondes', demoSub: 'De la première mesure à l’acompte sur votre compte — sans le son. Vidéo en anglais.',
     navWhat: 'Ce que ça fait', navHow: 'Le déroulé d’un chantier', navPricing: 'Tarifs', navSignIn: 'Connexion',
     eyebrowContractors: 'Pour les poseurs de clôtures',
     heroLine1: 'Dessinez la clôture.', heroLine2: 'Obtenez la liste de matériaux.',
