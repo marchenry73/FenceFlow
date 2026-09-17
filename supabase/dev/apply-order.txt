@@ -179,3 +179,4 @@ supabase_admin_sees_every_release.sql
 supabase_employee_profile_link_unique.sql
 supabase_shift_answer_readback.sql
 supabase_card_fee_passthrough.sql
+supabase_per_foot_pay.sql

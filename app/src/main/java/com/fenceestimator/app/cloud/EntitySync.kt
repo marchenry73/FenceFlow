@@ -2037,7 +2037,7 @@ object EntitySync {
 
         val fromRoster = !maySeePay
         // Paged, same trap as the rest of this pass.
-        val cloud = if (maySeePay)
+        val roster = if (maySeePay)
             pagedList<CloudEmployee>("employees") {
                 eq("company_id", companyId); notDeleted()
             }
@@ -2046,9 +2046,28 @@ object EntitySync {
                 .rpc("crew_roster")
                 .decodeList<CrewRosterRow>()
                 .map { it.asEmployee(companyId) }
+        // A crew member's OWN row, pay included. employees_read already lets
+        // anyone read the row linked to their own login (profile_id =
+        // auth.uid()), and nobody else's -- so this widens nothing. Without it
+        // a crew phone only ever had the roster's zeros for itself and its
+        // pay card could only say "rate not set", including for per-foot pay.
+        // Rows returned here are real rows, not roster rows: their contact
+        // fields and profile link are taken as-is below.
+        val ownRows: List<CloudEmployee> = if (fromRoster) {
+            val uid = SupabaseModule.currentUserId()
+            if (uid.isNullOrBlank()) emptyList()
+            else runCatching {
+                pagedList<CloudEmployee>("employees") {
+                    eq("company_id", companyId); eq("profile_id", uid); notDeleted()
+                }
+            }.getOrDefault(emptyList())
+        } else emptyList()
+        val ownSyncIds = ownRows.map { it.syncId }.toSet()
+        val cloud = roster.filter { it.syncId !in ownSyncIds } + ownRows
         val localBySyncId = repository.getAllEmployees().associateBy { it.syncId }
         var added = 0
         cloud.forEach { row ->
+            val rosterRow = fromRoster && row.syncId !in ownSyncIds
             val existing = localBySyncId[row.syncId]
             if (existing == null) {
                 repository.saveEmployee(
@@ -2083,9 +2102,9 @@ object EntitySync {
                 // sitting in Room for ever.
                 val merged = existing.copy(
                     name = row.name, role = row.role,
-                    phone = if (fromRoster) existing.phone else row.phone,
-                    email = if (fromRoster) existing.email else row.email,
-                    notes = if (fromRoster) existing.notes else row.notes,
+                    phone = if (rosterRow) existing.phone else row.phone,
+                    email = if (rosterRow) existing.email else row.email,
+                    notes = if (rosterRow) existing.notes else row.notes,
                     hourlyRate = row.hourlyRate,
                     payType = runCatching { PayType.valueOf(row.payType) }
                         .getOrDefault(existing.payType),
@@ -2095,7 +2114,7 @@ object EntitySync {
                     // feature.
                     isActive = row.isActive,
                     deactivatedAt = CloudTime.parseMillis(row.deactivatedAt),
-                    profileId = if (fromRoster) existing.profileId else row.profileId.orEmpty()
+                    profileId = if (rosterRow) existing.profileId else row.profileId.orEmpty()
                 )
                 if (merged != existing) { repository.saveEmployee(merged); added++ }
             }

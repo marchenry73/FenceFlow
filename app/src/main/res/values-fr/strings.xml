@@ -1225,6 +1225,8 @@
     <string name="misc_crew_run_details">%1$d angles · %2$d portail(s) · poteaux tous les %3$d pi</string>
     <string name="misc_crew_hours_awaiting">%1$s h de plus en attente d\'approbation ; pas encore comptées.</string>
     <string name="misc_crew_works_out_hourly">Soit %1$s $/h</string>
+    <string name="crew_per_foot_pending_completion">Payé une fois le chantier marqué comme terminé. D\'ici là, le métrage peut encore changer.</string>
+    <string name="crew_per_foot_split_note">Partagé à parts égales entre %1$d ouvriers payés au pied sur ce chantier.</string>
     <string name="misc_crew_rate_not_set">Taux non défini</string>
     <string name="misc_crew_rate_not_set_detail">Tu as travaillé aujourd’hui, mais ton taux de paie n’a pas encore été saisi. Demande à ton responsable de le définir pour que ce chantier soit payé correctement.</string>
     <string name="misc_crew_walkthrough_subtitle">Passez chaque point en revue avec le client et cochez-le une fois qu\'il est d\'accord.</string>

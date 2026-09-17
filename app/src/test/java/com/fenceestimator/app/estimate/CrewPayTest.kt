@@ -169,4 +169,68 @@ class CrewPayTest {
         assertEquals(10.0, pay.feet, 0.01)
         assertEquals(20.0, pay.amount, 0.01)
     }
+
+    // --- Split evenly among PER_FOOT workers, and only on a completed job ---
+
+    @Test
+    fun `share splits footage evenly and never divides by zero`() {
+        assertEquals(120.0, CrewPay.perFootShareFeet(240.0, 2), 0.0001)
+        assertEquals(80.0, CrewPay.perFootShareFeet(240.0, 3), 0.0001)
+        assertEquals(240.0, CrewPay.perFootShareFeet(240.0, 1), 0.0001)
+        assertEquals(240.0, CrewPay.perFootShareFeet(240.0, 0), 0.0001)
+        assertEquals(240.0, CrewPay.perFootShareFeet(240.0, -4), 0.0001)
+        assertEquals(0.0, CrewPay.perFootShareFeet(0.0, 2), 0.0001)
+    }
+
+    @Test
+    fun `perFootPay is zero until the job is completed`() {
+        assertEquals(0.0, CrewPay.perFootPay(240.0, 2, 3.0, jobCompleted = false), 0.0001)
+        assertEquals(360.0, CrewPay.perFootPay(240.0, 2, 3.0, jobCompleted = true), 0.0001)
+        assertEquals(0.0, CrewPay.perFootPay(240.0, 2, 0.0, jobCompleted = true), 0.0001)
+    }
+
+    @Test
+    fun `two per-foot workers each get half the footage`() {
+        val employee = Employee(payType = PayType.PER_FOOT, perFootRate = 5.0)
+        val pay = CrewPay.forJob(employee, emptyList(), listOf(manualRun(200f)), pxPerFoot, perFootCrewCount = 2)
+
+        assertEquals(200.0, pay.jobFeet, 0.0001)
+        assertEquals(100.0, pay.feet, 0.0001)
+        assertEquals(500.0, pay.amount, 0.0001)
+        assertEquals(2, pay.splitAmong)
+        assertTrue(pay.explain().startsWith("200 ft / 2 = 100 ft"))
+    }
+
+    @Test
+    fun `PLANTED FAILURE -- an unsplit share would double-pay a two-man job`() {
+        val employee = Employee(payType = PayType.PER_FOOT, perFootRate = 5.0)
+        val pay = CrewPay.forJob(employee, emptyList(), listOf(manualRun(200f)), pxPerFoot, perFootCrewCount = 2)
+        val unsplit = 200.0 * 5.0
+        assertTrue("two workers must not each be paid the whole job", pay.amount < unsplit)
+    }
+
+    @Test
+    fun `open job shows the projected share but pays nothing yet`() {
+        val employee = Employee(payType = PayType.PER_FOOT, perFootRate = 4.0)
+        val pay = CrewPay.forJob(
+            employee, emptyList(), listOf(manualRun(100f)), pxPerFoot,
+            perFootCrewCount = 1, jobCompleted = false
+        )
+
+        assertEquals(0.0, pay.amount, 0.0001)
+        assertTrue(pay.awaitingCompletion)
+        assertEquals(400.0, pay.projectedAmount, 0.0001)
+        assertFalse(pay.rateIsUnset)
+    }
+
+    @Test
+    fun `hourly pay ignores the split and the job status`() {
+        val employee = Employee(payType = PayType.HOURLY, hourlyRate = 20.0)
+        val entries = listOf(entry(hours = 2.0, hourlyRate = 20.0))
+        val pay = CrewPay.forJob(
+            employee, entries, listOf(manualRun(100f)), pxPerFoot,
+            perFootCrewCount = 3, jobCompleted = false
+        )
+        assertEquals(40.0, pay.amount, 0.0001)
+    }
 }

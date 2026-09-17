@@ -81,6 +81,7 @@ class Repository(private val db: AppDatabase) {
     private val syncMaintenanceDao = db.syncMaintenanceDao()
     private val paymentRecordDao = db.paymentRecordDao()
     private val buildTemplateDao = db.buildTemplateDao()
+    private val jobPayShareDao = db.jobPayShareDao()
 
     fun observeJobs(): Flow<List<Job>> = jobDao.observeAll()
     fun observeJob(id: Long): Flow<Job?> = jobDao.observeById(id)
@@ -424,6 +425,13 @@ class Repository(private val db: AppDatabase) {
     suspend fun createFenceRunFromCloud(run: FenceRun): Long = fenceRunDao.insert(run)
     suspend fun updateFenceRunFromCloud(run: FenceRun) = fenceRunDao.update(run)
     suspend fun deleteFenceRun(run: FenceRun) = deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
+
+    // ---- Per-foot pay split (head count only; see supabase_per_foot_pay.sql) ----
+
+    fun observePerFootCrewCount(jobSyncId: String): Flow<Int?> =
+        jobPayShareDao.observe(jobSyncId).map { it?.perFootCrewCount }
+    suspend fun savePerFootCrewCount(jobSyncId: String, count: Int) =
+        jobPayShareDao.upsert(JobPayShare(jobSyncId = jobSyncId, perFootCrewCount = count))
 
     // ---- Build templates (pull-only; see EntitySync.pullBuildTemplates) ----
 

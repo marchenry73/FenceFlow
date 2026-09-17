@@ -43,26 +43,66 @@ object CrewPay {
          * (a payroll setup gap). Those are different problems and the screen
          * that shows [amount] must say which one this is.
          */
-        val rateIsUnset: Boolean = false
+        val rateIsUnset: Boolean = false,
+        /** Per-foot only: the job's whole built footage, before it is split. */
+        val jobFeet: Double = feet,
+        /** Per-foot only: how many PER_FOOT workers share [jobFeet] evenly. */
+        val splitAmong: Int = 1,
+        /**
+         * Per-foot only: the job is not COMPLETED yet, so [amount] is 0 and
+         * [projectedAmount] is what it will pay once it is. Footage on an open
+         * job still moves (change orders, field corrections), so it is not
+         * pay until the job is finished.
+         */
+        val awaitingCompletion: Boolean = false
     ) {
         /** What the crew member sees: the arithmetic, not just the total. */
         fun explain(): String = when (payType) {
             PayType.HOURLY ->
                 "${"%.2f".format(hours)} hrs x $${"%.2f".format(rate)}/hr = $${"%.2f".format(amount)}"
             PayType.PER_FOOT ->
-                "${"%.0f".format(feet)} ft x $${"%.2f".format(rate)}/ft = $${"%.2f".format(amount)}" +
+                (if (splitAmong > 1) "${"%.0f".format(jobFeet)} ft / $splitAmong = " else "") +
+                "${"%.0f".format(feet)} ft x $${"%.2f".format(rate)}/ft = " +
+                "$${"%.2f".format(if (awaitingCompletion) projectedAmount else amount)}" +
                     if (hours > 0) "  (${"%.1f".format(hours)} hrs worked)" else ""
         }
 
         /** Effective hourly take, so a per-foot crew can see whether the rate is fair. */
         val effectiveHourly: Double get() = if (hours > 0) amount / hours else 0.0
+
+        /** Per-foot: what this share pays once the job is completed. */
+        val projectedAmount: Double get() = feet * rate
     }
+
+    /**
+     * One PER_FOOT worker's feet on a job: the job's built footage split
+     * evenly among the PER_FOOT workers who worked it.
+     *
+     * [perFootWorkers] below 1 (unknown, or a server answer that has not
+     * arrived yet) counts as 1 -- the person asking is paid by the foot, so
+     * there is at least one.
+     */
+    fun perFootShareFeet(jobFeet: Double, perFootWorkers: Int): Double {
+        if (jobFeet <= 0.0) return 0.0
+        return jobFeet / perFootWorkers.coerceAtLeast(1)
+    }
+
+    /**
+     * Per-foot pay for one worker on one job. Only a COMPLETED job pays --
+     * ACCEPTED means sold, not built, so its footage can still change.
+     */
+    fun perFootPay(jobFeet: Double, perFootWorkers: Int, rate: Double, jobCompleted: Boolean): Double =
+        if (!jobCompleted || rate <= 0.0) 0.0 else perFootShareFeet(jobFeet, perFootWorkers) * rate
 
     fun forJob(
         employee: Employee?,
         timeEntries: List<TimeEntry>,
         runs: List<FenceRun>,
-        pixelsPerFoot: Float
+        pixelsPerFoot: Float,
+        /** PER_FOOT workers sharing this job's footage (server: per_foot_crew_count). */
+        perFootCrewCount: Int = 1,
+        /** Job status is COMPLETED. Per-foot pay is only earned on a finished job. */
+        jobCompleted: Boolean = true
     ): Earnings {
         // Approved hours only, on both sides of the figure.
         //
@@ -102,14 +142,17 @@ object CrewPay {
             PayType.PER_FOOT -> Earnings(
                 payType = PayType.PER_FOOT,
                 hours = hours,
-                feet = feet,
+                feet = perFootShareFeet(feet, perFootCrewCount),
+                jobFeet = feet,
+                splitAmong = perFootCrewCount.coerceAtLeast(1),
+                awaitingCompletion = !jobCompleted,
                 rate = employee.perFootRate,
                 // Footage actually built, from the survey (or its manual-length
                 // fallback) -- never what the customer was quoted. A change
                 // order or a field correction moves what got built without
                 // ever touching the original quote, and pay has to follow the
                 // fence in the ground, not the number on the estimate.
-                amount = feet * employee.perFootRate,
+                amount = perFootPay(feet, perFootCrewCount, employee.perFootRate, jobCompleted),
                 hoursAwaitingApproval = awaitingApproval,
                 rateIsUnset = employee.perFootRate <= 0.0 && feet > 0.0
             )

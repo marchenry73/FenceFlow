@@ -875,7 +875,7 @@
         <h2 style="margin:0 0 8px" data-t="crewHoursHead">Hours logged</h2>
         <p class="sub" style="margin-top:0" id="crewProdNote"></p>
         <div class="scroll"><table>
-          <thead><tr><th data-t="crewColName">Name</th><th data-t="crewColHoursAllTime">Hours (all time)</th><th data-t="crewColJobs">Jobs</th><th data-t="crewColAvgHours">Avg hours / job</th><th data-t="crewColVsEstimate">Vs. the job estimate</th></tr></thead>
+          <thead><tr><th data-t="crewColName">Name</th><th data-t="crewColHoursAllTime">Hours (all time)</th><th data-t="crewColJobs">Jobs</th><th data-t="crewColAvgHours">Avg hours / job</th><th data-t="crewColVsEstimate">Vs. the job estimate</th><th data-t="crewColByFoot">By the foot</th></tr></thead>
           <tbody id="crewProdRows"></tbody></table></div>
         <div class="empty" id="crewProdEmpty" style="display:none" data-t="crewProdEmptyMsg">No shifts logged yet.</div>
       </div>
@@ -967,7 +967,7 @@
           both drop by that amount.</span></p>
         <div class="scroll"><table>
           <thead><tr><th data-t="timesheetColWho">Who</th><th data-t="timesheetColWeek">Week of</th><th data-t="timesheetColDays">Days</th><th data-t="timesheetColDaily">Daily hours</th>
-            <th data-t="timesheetColRegular">Regular</th><th data-t="timesheetColOvertime">Overtime</th><th data-t="timesheetColTotal">Total</th></tr></thead>
+            <th data-t="timesheetColRegular">Regular</th><th data-t="timesheetColOvertime">Overtime</th><th data-t="timesheetColTotal">Total</th><th data-t="timesheetColFeet">Feet (by the foot)</th></tr></thead>
           <tbody id="timesheetRows"></tbody></table></div>
         <div class="empty" id="timesheetEmpty" style="display:none" data-t="timesheetEmptyMsg">No finished shifts yet.</div>
       </div>
@@ -1949,7 +1949,16 @@
         <div><label data-t="crewColPhone">Phone</label><input id="e_phone"></div>
         <div><label data-t="crewColEmail">Email</label><input id="e_email"></div>
       </div>
-      <label data-t="empLabelHourlyRate">Hourly rate ($)</label><input id="e_hourly_rate" type="number" step="0.5">
+      <label data-t="empLabelPayType">Paid</label>
+      <select id="e_pay_type">
+        <option value="HOURLY" data-t="empPayHourly">By the hour</option>
+        <option value="PER_FOOT" data-t="empPayPerFoot">By the foot</option>
+      </select>
+      <div class="row2">
+        <div id="e_hourly_wrap"><label data-t="empLabelHourlyRate">Hourly rate ($)</label><input id="e_hourly_rate" type="number" step="0.5" min="0"></div>
+        <div id="e_per_foot_wrap"><label data-t="empLabelPerFootRate">Rate per foot ($/ft)</label><input id="e_per_foot_rate" type="number" step="0.05" min="0"></div>
+      </div>
+      <p class="sub" id="e_pay_note" style="margin:4px 0 0"></p>
       <label data-t="supLabelNotes">Notes</label><textarea id="e_notes"></textarea>
       <label data-t="empLabelLinkedLogin">Linked login</label>
       <select id="e_profile_id"><option value="" data-t="empLinkedLoginNone">Not linked</option></select>
@@ -2458,6 +2467,16 @@ const TL = {
     supRetireBody:'Catalog items already pointing at this supplier keep their own record of it -- retiring it here only stops it from being offered as a choice on new or edited items.',
 
     empTitleFallback:'Crew Member', empRolePh:'Foreman, Laborer…', empLabelHourlyRate:'Hourly rate ($)',
+    empLabelPayType:'Paid', empPayHourly:'By the hour', empPayPerFoot:'By the foot',
+    empLabelPerFootRate:'Rate per foot ($/ft)',
+    empPayNoteHourly:'Pay is estimated from approved hours at the hourly rate.',
+    empPayNotePerFoot:'Pay is the footage of each completed job, split evenly among the crew paid by the foot who worked it, at this rate per foot. Hours are still tracked.',
+    empRateNegativeErr:'A rate cannot be negative.',
+    payPerFootLine:'%s ft on %s completed job(s)', payPerFootNoneDone:'no completed jobs yet',
+    payPerFootAssumption:'Crew paid by the foot earn their even share of each completed job\'s built footage, counted in the week of their last shift on it, with no overtime premium applied.',
+    timePerFootCell:'by the foot', timePerFootCellTitle:'Paid by the foot: see Estimated pay below for this person\'s share of completed jobs.',
+    timesheetColFeet:'Feet (by the foot)', timesheetFeetCell:'%s ft · %s job(s)',
+    crewColByFoot:'By the foot', crewByFootCell:'%s ft on %s job(s)',
     empDeleteBtn:'Delete', empNewTitle:'New Crew Member', empRateNotVisiblePh:'Not visible to your account',
     empLabelLinkedLogin:'Linked login', empLinkedLoginNone:'Not linked',
     empLinkedLoginNote:'Connect this crew member to one of your company\'s logins so they can see their own corrected hours and accept or dispute them from the phone. Nobody sees pay or other crew members\' records through this.',
@@ -3191,6 +3210,16 @@ const TL = {
     supRetireBody:'Los artículos del catálogo que ya apuntan a este proveedor conservan su propio registro -- retirarlo aquí solo deja de ofrecerlo como opción en artículos nuevos o editados.',
 
     empTitleFallback:'Miembro de la cuadrilla', empRolePh:'Capataz, obrero…', empLabelHourlyRate:'Tarifa por hora ($)',
+    empLabelPayType:'Pago', empPayHourly:'Por hora', empPayPerFoot:'Por pie',
+    empLabelPerFootRate:'Tarifa por pie ($/pie)',
+    empPayNoteHourly:'El pago se estima con las horas aprobadas a la tarifa por hora.',
+    empPayNotePerFoot:'El pago son los pies de cada trabajo terminado, divididos en partes iguales entre los trabajadores pagados por pie que lo hicieron, a esta tarifa por pie. Las horas se siguen registrando.',
+    empRateNegativeErr:'Una tarifa no puede ser negativa.',
+    payPerFootLine:'%s pies en %s trabajo(s) terminado(s)', payPerFootNoneDone:'aún sin trabajos terminados',
+    payPerFootAssumption:'Quienes cobran por pie reciben su parte igual de los pies construidos de cada trabajo terminado, contada en la semana de su último turno en él, sin recargo por horas extra.',
+    timePerFootCell:'por pie', timePerFootCellTitle:'Pagado por pie: vea Pago estimado abajo para la parte de esta persona en los trabajos terminados.',
+    timesheetColFeet:'Pies (por pie)', timesheetFeetCell:'%s pies · %s trabajo(s)',
+    crewColByFoot:'Por pie', crewByFootCell:'%s pies en %s trabajo(s)',
     empDeleteBtn:'Eliminar', empNewTitle:'Nuevo miembro de la cuadrilla', empRateNotVisiblePh:'No visible para su cuenta',
     empLabelLinkedLogin:'Acceso vinculado', empLinkedLoginNone:'No vinculado',
     empLinkedLoginNote:'Conecte a este miembro de la cuadrilla con uno de los accesos de su empresa para que pueda ver sus propias horas corregidas y aceptarlas o disputarlas desde el teléfono. Nadie ve el pago ni los registros de otros miembros de la cuadrilla a través de esto.',
@@ -3897,6 +3926,16 @@ const TL = {
     supRetireBody:'Les articles du catalogue qui pointent déjà vers ce fournisseur conservent leur propre enregistrement -- le retirer ici arrête seulement de l\'offrir comme choix sur les articles nouveaux ou modifiés.',
 
     empTitleFallback:'Membre de l\'équipe', empRolePh:'Contremaître, manœuvre…', empLabelHourlyRate:'Taux horaire ($)',
+    empLabelPayType:'Payé', empPayHourly:'À l\'heure', empPayPerFoot:'Au pied',
+    empLabelPerFootRate:'Tarif au pied ($/pi)',
+    empPayNoteHourly:'La paie est estimée à partir des heures approuvées au taux horaire.',
+    empPayNotePerFoot:'La paie correspond au métrage de chaque chantier terminé, partagé à parts égales entre les ouvriers payés au pied qui y ont travaillé, à ce tarif au pied. Les heures restent enregistrées.',
+    empRateNegativeErr:'Un taux ne peut pas être négatif.',
+    payPerFootLine:'%s pi sur %s chantier(s) terminé(s)', payPerFootNoneDone:'aucun chantier terminé pour l\'instant',
+    payPerFootAssumption:'Les ouvriers payés au pied reçoivent leur part égale du métrage posé de chaque chantier terminé, comptée la semaine de leur dernier quart sur ce chantier, sans majoration d\'heures supplémentaires.',
+    timePerFootCell:'au pied', timePerFootCellTitle:'Payé au pied : voir Paie estimée ci-dessous pour la part de cette personne sur les chantiers terminés.',
+    timesheetColFeet:'Pieds (au pied)', timesheetFeetCell:'%s pi · %s chantier(s)',
+    crewColByFoot:'Au pied', crewByFootCell:'%s pi sur %s chantier(s)',
     empDeleteBtn:'Supprimer', empNewTitle:'Nouveau membre de l\'équipe', empRateNotVisiblePh:'Non visible pour votre compte',
     empLabelLinkedLogin:'Accès lié', empLinkedLoginNone:'Non lié',
     empLinkedLoginNote:'Reliez ce membre de l\'équipe à l\'un des accès de votre entreprise afin qu\'il puisse voir ses propres heures corrigées et les accepter ou les contester depuis le téléphone. Personne ne voit la paie ni les dossiers des autres membres de l\'équipe par ce biais.',
@@ -4260,6 +4299,12 @@ const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
 const payCell = (rate) => employeesHavePay
   ? (rate ? money(rate) + '/hr' : '—')
   : `<span title="${esc(tr('crewPayNotVisibleTitle'))}">${esc(tr('crewPayNotVisible'))}</span>`;
+// The crew list's Rate column for either pay type. Hourly reads exactly as
+// payCell always did; a per-foot crew member shows their $/ft instead.
+const empPayCell = (e) => (employeesHavePay && e.pay_type === 'PER_FOOT')
+  ? (Number(e.per_foot_rate) ? money(e.per_foot_rate) + '/ft' : '—')
+    + ` <span class="pill" style="font-size:11px">${esc(tr('empPayPerFoot'))}</span>`
+  : payCell(e.hourly_rate);
 const d = s => s ? new Date(s) : null;
 
 let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[],
@@ -7798,7 +7843,7 @@ function renderEmployees(){
       <td><strong>${esc(e.name)||esc(tr('crewUnnamed'))}</strong>${active(e)?''
         :` <span class="pill" style="font-size:11px">${esc(tr('crewOffCrew'))}</span>`}${workingNow(e)}</td><td>${esc(e.role)||'—'}</td>
       <td>${esc(e.phone)||'—'}</td><td>${esc(e.email)||'—'}</td>
-      <td>${payCell(e.hourly_rate)}</td>
+      <td>${empPayCell(e)}</td>
       <td>${e.email?`<button class="btn btn-sm btn-grey resend-invite" data-id="${e.id}">${esc(tr('crewResendInviteBtn'))}</button>`:''}</td>
       </tr>`).join('');
   document.querySelectorAll('#empRows tr').forEach(tr=>
@@ -7940,6 +7985,19 @@ function renderCrewProductivity(){
     return {e, hours, jobs: jobIds.size, variance: jobEstimateVariance(e)};
   }).filter(Boolean).sort((a,b)=>b.hours-a.hours);
 
+  // The one money figure here, and only for per-foot crew: feet on
+  // completed jobs x their own $/ft is not built from a $0 hourly rate, so
+  // the reasoning above does not apply to it. Hidden without SEE_PAY like
+  // every other rate on this page.
+  const pfCredits = employeesHavePay ? perFootCredits(jobs, times, employees, runs) : [];
+  const byFootCell = e => {
+    if (e.pay_type !== 'PER_FOOT') return '<span class="sub">—</span>';
+    const mine = pfCredits.filter(c => c.empSyncId === e.sync_id);
+    if (!mine.length) return '<span class="sub">' + esc(tr('payPerFootNoneDone')) + '</span>';
+    const feet = mine.reduce((s,c)=>s+c.share,0), pay = mine.reduce((s,c)=>s+c.pay,0);
+    return esc(tr('crewByFootCell', feet.toFixed(0), mine.length))
+      + (pay > 0 ? ' &middot; ' + money(pay) : ' &middot; <span class="sub">' + esc(tr('payNoRateSet')) + '</span>');
+  };
   $('crewProdEmpty').style.display = rows.length ? 'none' : 'block';
   $('crewProdRows').innerHTML = rows.map(r=>{
     const avgPerJob = r.jobs ? (r.hours/r.jobs) : 0;
@@ -7954,7 +8012,7 @@ function renderCrewProductivity(){
             + '">' + text + '</span>'; })()
       : `<span class="sub" title="${esc(tr('crewVarianceNotEnoughTitle'))}">${esc(tr('crewVarianceNotEnough'))}</span>`;
     return `<tr><td>${esc(r.e.name)||esc(tr('crewUnnamed'))}</td><td>${r.hours.toFixed(1)}</td>`
-      + `<td>${r.jobs}</td><td>${avgPerJob.toFixed(1)}</td><td>${vsEstimate}</td></tr>`;
+      + `<td>${r.jobs}</td><td>${avgPerJob.toFixed(1)}</td><td>${vsEstimate}</td><td>${byFootCell(r.e)}</td></tr>`;
   }).join('');
 
   // Whether a cost figure could ever have been honest here, stated instead
@@ -8022,14 +8080,19 @@ async function renderTime(){
       <td>${esc(j?.customer_name)||'—'}</td>
       <td>${d(t.started_at).toLocaleString()}${wasStart}</td>
       <td>${d(t.ended_at).toLocaleString()}${wasEnd}</td>
-      <td>${h.toFixed(2)}${brk}</td><td>${money(paidHoursOf(t)*(t.hourly_rate||0))}</td>
+      <td>${h.toFixed(2)}${brk}</td><td>${isPerFootShift(t)
+        ? `<span class="sub" title="${esc(tr('timePerFootCellTitle'))}">${esc(tr('timePerFootCell'))}</span>`
+        : money(paidHoursOf(t)*(t.hourly_rate||0))}</td>
       <td><button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">${esc(tr('timeCorrectBtn'))}</button></td></tr>`;
   }).join('');
   document.querySelectorAll('#timeRows .fixtime').forEach(b =>
     b.addEventListener('click', () => openFixTime(b.dataset.id)));
   const th=done.reduce((s,t)=>s+hoursOf(t),0);
   // Paid hours, not clock hours -- see the money column above.
-  const tc=done.reduce((s,t)=>s+paidHoursOf(t)*(t.hourly_rate||0),0);
+  // Per-foot shifts cost nothing by the hour; their crew's pay is the
+  // per-foot credit on each completed job instead.
+  const tc=done.reduce((s,t)=>s+(isPerFootShift(t)?0:paidHoursOf(t)*(t.hourly_rate||0)),0)
+    + perFootCredits(jobs, times, employees, runs).reduce((s,c)=>s+c.pay,0);
   $('timeTotals').textContent = done.length
     ? tr('timeTotalsLine', th.toFixed(1), money(tc)) : '';
   // Both tables below split the same shifts into regular/overtime by week,
@@ -8116,6 +8179,12 @@ function renderTimesheet(ot){
       breakMinTotal, anyBreakMissing };
   }).sort((a,b) => b.ws - a.ws || a.who.localeCompare(b.who));
 
+  // Footage credited to per-foot crew, in the same who|week buckets.
+  const pfWeeks = perFootByWeek(perFootCredits(jobs, times, employees, runs));
+  const pfCell = r => {
+    const c = pfWeeks.get(r.who + '|' + r.ws.toISOString().slice(0,10));
+    return c ? esc(tr('timesheetFeetCell', c.feet.toFixed(0), c.jobs)) : '—';
+  };
   $('timesheetEmpty').style.display = rows.length ? 'none' : 'block';
   $('timesheetRows').innerHTML = rows.map(r => {
     // Same null-vs-zero rule at the week level: only say a break was
@@ -8133,6 +8202,7 @@ function renderTimesheet(ot){
       <td>${r.reg.toFixed(2)}${breakLine}</td>
       <td>${r.otHrs > 0 ? r.otHrs.toFixed(2) : '—'}</td>
       <td>${r.total.toFixed(2)}</td>
+      <td>${pfCell(r)}</td>
     </tr>`;
   }).join('');
 }
@@ -8158,6 +8228,85 @@ function weekStart(iso){
   return w;
 }
 
+/* ---- pay by the foot ----------------------------------------------------
+
+   A PER_FOOT crew member earns the job's built footage, split evenly among
+   the PER_FOOT people who worked it, times their own $/ft. Mirrors
+   CrewPay.kt (perFootShareFeet / perFootPay) and the server's
+   per_foot_crew_count(); tests/per-foot-pay.test.mjs lifts these.
+
+   Only a COMPLETED job pays. ACCEPTED means sold, not built -- its footage
+   still moves with change orders and field corrections, so paying on it
+   would pay for fence that may never go in.
+
+   "Who worked it" is who has a finished, non-rejected shift on the job; a job
+   nobody clocked on falls back to its assigned crew member. Built footage is
+   the typed length when there is one, else the drawing -- the same order
+   CrewPay.builtFeet uses. All pure. */
+function runBuiltFeet(r, pxPerFoot){
+  const manual = Number(r.manual_linear_feet || 0);
+  if (manual > 0) return manual;
+  const pts = decodeRunPoints(r.points_encoded);
+  return pts.length > 1 ? runLengthFt(pts, !!r.closed_loop, pxPerFoot) : 0;
+}
+function jobBuiltFeet(job, allRuns){
+  const px = Number(job.calibration_pixels_per_foot) || 20;
+  return (allRuns || []).filter(r => r.job_sync_id === job.sync_id && !r.deleted_at)
+    .reduce((s, r) => s + runBuiltFeet(r, px), 0);
+}
+function shiftCountsForPay(t){
+  return !!t.ended_at && !t.deleted_at && !(t.rejected_at && !t.approved_at);
+}
+function perFootShareFeet(jobFeet, workers){
+  if (!(jobFeet > 0)) return 0;
+  return jobFeet / Math.max(1, Math.floor(Number(workers) || 0));
+}
+function perFootPayForJob(jobFeet, workers, rate, completed){
+  if (!completed || !(Number(rate) > 0)) return 0;
+  return perFootShareFeet(jobFeet, workers) * Number(rate);
+}
+/** One credit per PER_FOOT worker per COMPLETED job: their share and pay,
+    dated by their own last shift on it (else the job's last update). */
+function perFootCredits(jobsIn, shifts, emps, allRuns){
+  const out = [];
+  (jobsIn || []).forEach(j => {
+    if (j.status !== 'COMPLETED' || j.deleted_at) return;
+    const mine = (shifts || []).filter(t => t.job_sync_id === j.sync_id && t.employee_sync_id && shiftCountsForPay(t));
+    let crew = [...new Set(mine.map(t => t.employee_sync_id))];
+    if (!crew.length && j.assigned_employee_sync_id) crew = [j.assigned_employee_sync_id];
+    const pf = crew.map(sid => (emps || []).find(e => e.sync_id === sid))
+      .filter(e => e && e.pay_type === 'PER_FOOT');
+    if (!pf.length) return;
+    const feet = jobBuiltFeet(j, allRuns);
+    pf.forEach(e => {
+      const ends = mine.filter(t => t.employee_sync_id === e.sync_id).map(t => t.ended_at).sort();
+      const rate = Number(e.per_foot_rate || 0);
+      out.push({
+        empSyncId: e.sync_id, who: e.name || 'Unknown', jobSyncId: j.sync_id,
+        jobFeet: feet, workers: pf.length, share: perFootShareFeet(feet, pf.length),
+        rate, pay: perFootPayForJob(feet, pf.length, rate, true),
+        finishedAt: ends.length ? ends[ends.length - 1] : (j.updated_at || null)
+      });
+    });
+  });
+  return out;
+}
+function isPerFootShift(t){
+  return (employees.find(e => e.sync_id === t.employee_sync_id) || {}).pay_type === 'PER_FOOT';
+}
+/** Credits bucketed the way the timesheet and pay tables bucket shifts. */
+function perFootByWeek(credits){
+  const m = new Map();
+  credits.forEach(c => {
+    if (!c.finishedAt) return;
+    const key = c.who + '|' + weekStart(c.finishedAt).toISOString().slice(0,10);
+    const b = m.get(key) || { who: c.who, ws: weekStart(c.finishedAt), feet: 0, pay: 0, rate: c.rate, jobs: 0 };
+    b.feet += c.share; b.pay += c.pay; b.jobs++;
+    m.set(key, b);
+  });
+  return m;
+}
+
 function renderPay(ot){
   if (!$('payWeekRows')) return;
   const done = times.filter(t => t.ended_at);
@@ -8174,29 +8323,55 @@ function renderPay(ot){
     // Rate can differ between shifts. Weight it by hours rather than taking
     // the last one, so a single short shift at a different rate cannot swing
     // the whole week.
-    if (t.hourly_rate) { b.rated += h; b.rate += h * Number(t.hourly_rate); }
+    // A per-foot shift is still counted as hours, but earns nothing by the
+    // hour -- its pay comes from perFootCredits below.
+    if (isPerFootShift(t)) b.perFoot = true;
+    else if (t.hourly_rate) { b.rated += h; b.rate += h * Number(t.hourly_rate); }
     buckets.set(key, b);
   }
+  // Per-foot pay lands in the week the worker's last shift on the finished
+  // job fell in. A credit with no shift that week still gets its own row.
+  const pfWeeks = perFootByWeek(perFootCredits(jobs, times, employees, runs));
+  pfWeeks.forEach((c, key) => {
+    const b = buckets.get(key) || { who: c.who, ws: c.ws, hours: 0, rate: 0, rated: 0 };
+    b.perFoot = true; b.pf = c;
+    buckets.set(key, b);
+  });
   const rows = [...buckets.values()]
     .map(b => {
-      const rate = b.rated > 0 ? b.rate / b.rated : 0;
       const reg  = Math.min(b.hours, ot.otAfter);
       const otHrs = Math.max(0, b.hours - ot.otAfter);
+      if (b.perFoot) {
+        const pf = b.pf || { feet: 0, pay: 0, rate: 0, jobs: 0 };
+        const emp = employees.find(e => e.name === b.who && e.pay_type === 'PER_FOOT');
+        const ftRate = pf.rate || Number(emp?.per_foot_rate || 0);
+        return { ...b, reg, ot: otHrs, rate: ftRate, perFoot: true, feet: pf.feet, pfJobs: pf.jobs, gross: pf.pay };
+      }
+      const rate = b.rated > 0 ? b.rate / b.rated : 0;
       return { ...b, rate, reg, ot: otHrs, gross: reg * rate + otHrs * rate * ot.otMult };
     })
     .sort((a, b) => b.ws - a.ws || a.who.localeCompare(b.who));
 
   $('payWeekEmpty').style.display = rows.length ? 'none' : 'block';
-  $('payWeekRows').innerHTML = rows.map(r => `<tr>
-      <td>${esc(r.who)}</td>
+  $('payWeekRows').innerHTML = rows.map(r => {
+    const rateCell = !r.rate ? '<span class="sub">'+esc(tr('payNoRateSet'))+'</span>'
+      : r.perFoot ? money(r.rate) + '/ft' : money(r.rate);
+    const grossCell = !r.rate ? '—'
+      : !r.perFoot ? money(r.gross)
+      : r.pfJobs ? money(r.gross) + '<div class="sub">' + esc(tr('payPerFootLine', r.feet.toFixed(0), r.pfJobs)) + '</div>'
+      : '<span class="sub">' + esc(tr('payPerFootNoneDone')) + '</span>';
+    return `<tr>
+      <td>${esc(r.who)}${r.perFoot ? ` <span class="pill" style="font-size:11px">${esc(tr('empPayPerFoot'))}</span>` : ''}</td>
       <td>${r.ws.toLocaleDateString()}</td>
       <td>${r.reg.toFixed(2)}</td>
       <td>${r.ot > 0 ? r.ot.toFixed(2) : '—'}</td>
-      <td>${r.rate ? money(r.rate) : '<span class="sub">'+esc(tr('payNoRateSet'))+'</span>'}</td>
-      <td>${r.rate ? money(r.gross) : '—'}</td>
-    </tr>`).join('');
+      <td>${rateCell}</td>
+      <td>${grossCell}</td>
+    </tr>`;
+  }).join('');
 
   const noRate = rows.filter(r => !r.rate).length;
+  const anyPerFoot = rows.some(r => r.perFoot);
   const usingDefault = ot.otAfter === OT_AFTER_HOURS && ot.otMult === OT_MULTIPLIER;
   $('payAssumption').innerHTML =
     tr('payAssumptionMain', ot.otAfter, ot.otMult) +
@@ -8204,6 +8379,7 @@ function renderPay(ot){
       ? tr('payAssumptionDefaultSuffix')
       : tr('payAssumptionCustomSuffix')) +
     tr('payAssumptionBreakNote') +
+    (anyPerFoot ? ' ' + esc(tr('payPerFootAssumption')) : '') +
     (noRate ? ' <b>' + esc(tr(noRate===1?'payAssumptionNoRateSing':'payAssumptionNoRatePlur', noRate)) + '</b>' : '');
 }
 
@@ -13984,7 +14160,9 @@ function swWirePayments(){
 
 function swCrewHtml(){
   const rows = employees.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.role||'')}</td>
-    <td>${employeesHavePay ? (e.hourly_rate?money(e.hourly_rate)+'/hr':'') : 'Not visible'}</td></tr>`).join('');
+    <td>${employeesHavePay ? (e.pay_type==='PER_FOOT'
+      ? (e.per_foot_rate?money(e.per_foot_rate)+'/ft':'')
+      : (e.hourly_rate?money(e.hourly_rate)+'/hr':'')) : 'Not visible'}</td></tr>`).join('');
   return `<div class="panel"><h2>Crew</h2>
     <p class="sub" style="margin-top:0">The people who work for you, so hours and job assignments have a name on them.
       Optional -- Next moves on with nobody added, and "Your crew" stays on your setup checklist
@@ -14659,6 +14837,13 @@ function renderLinkSelect(members){
   // pattern rather than leaving a control that Save will just no-op.
   sel.disabled = !canEdit();
 }
+/* Says which rate pay is built from. Both boxes stay editable either way, so
+   an owner can keep an hourly rate on file for someone paid by the foot. */
+function syncEmpPayNote(){
+  const perFoot = $('e_pay_type').value === 'PER_FOOT';
+  $('e_pay_note').textContent = !employeesHavePay ? ''
+    : tr(perFoot ? 'empPayNotePerFoot' : 'empPayNoteHourly');
+}
 async function showEmp(id){
   openEmp = id ? employees.find(e=>String(e.id)===String(id)) : null;
   $('empTitle').textContent = openEmp ? (openEmp.name||tr('empTitleFallback')) : tr('empNewTitle');
@@ -14671,6 +14856,16 @@ async function showEmp(id){
   rateInput.value = employeesHavePay ? (openEmp?.hourly_rate ?? '') : '';
   rateInput.disabled = !employeesHavePay;
   rateInput.placeholder = employeesHavePay ? '' : tr('empRateNotVisiblePh');
+  // Pay type and per-foot rate follow exactly the same rule as the hourly
+  // rate: not visible means not editable, never a blank that Save would
+  // write over the real value.
+  const typeSel = $('e_pay_type'), footInput = $('e_per_foot_rate');
+  typeSel.value = employeesHavePay && openEmp?.pay_type === 'PER_FOOT' ? 'PER_FOOT' : 'HOURLY';
+  typeSel.disabled = !employeesHavePay || !canEdit();
+  footInput.value = employeesHavePay ? (openEmp?.per_foot_rate ?? '') : '';
+  footInput.disabled = !employeesHavePay;
+  footInput.placeholder = employeesHavePay ? '' : tr('empRateNotVisiblePh');
+  syncEmpPayNote();
   $('deleteEmp').style.display=openEmp?'inline-block':'none';
   // A brand-new crew member has no row yet, so there is nothing to attach a
   // login to until after the first Save -- offering the picker here would
@@ -14691,7 +14886,14 @@ async function saveEmp(){
   // disabled and blank in the fallback case -- sending 0 here would silently
   // zero out whatever this account can't read, which is a payroll bug, not a
   // UI nicety.
-  if (employeesHavePay) patch.hourly_rate = num($('e_hourly_rate').value);
+  if (employeesHavePay) {
+    patch.hourly_rate = num($('e_hourly_rate').value);
+    patch.pay_type = $('e_pay_type').value === 'PER_FOOT' ? 'PER_FOOT' : 'HOURLY';
+    patch.per_foot_rate = num($('e_per_foot_rate').value);
+    // The database refuses a negative rate (employees_*_nonneg); saying so
+    // here keeps the reason on screen instead of a raw constraint name.
+    if (patch.hourly_rate < 0 || patch.per_foot_rate < 0) return msg('empMsg', tr('empRateNegativeErr'), 'err');
+  }
   // Only an existing row can be linked (see showEmp) -- a brand-new one is
   // created below with no profile_id, exactly like every other column that
   // does not yet exist on a not-yet-saved employee.
@@ -15039,6 +15241,7 @@ $('impFile').addEventListener('change',async e=>{
 });
 $('newEmp').addEventListener('click',()=>showEmp(null));
 $('saveEmp').addEventListener('click',saveEmp);
+$('e_pay_type').addEventListener('change',syncEmpPayNote);
 $('deleteEmp').addEventListener('click',deleteEmp);
 $('saveSettings').addEventListener('click',saveSettings);
 $('catFilter').addEventListener('input',renderCatalog);

@@ -341,19 +341,29 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                     onStartBreak = { viewModel.startBreak() },
                     onEndBreak = { viewModel.endBreak() }
                 )
-                val assigned = crew.firstOrNull { it.id == currentJob.assignedEmployeeId }
+                val perFootCrew by viewModel.perFootCrewCount.collectAsState()
+                // The signed-in person's own record first: on a shared job the
+                // assignee is only one of the people who built it. Falls back
+                // to the assignee, as before, when this login has no record.
+                val myProfileId = com.fenceestimator.app.cloud.SupabaseModule.currentUserId()
+                val assigned = crew.firstOrNull { !myProfileId.isNullOrBlank() && it.profileId == myProfileId }
+                    ?: crew.firstOrNull { it.id == currentJob.assignedEmployeeId }
                 if (assigned != null) {
                     val pxPerFt = currentJob.calibrationPixelsPerFoot
                         ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
-                    val pay = com.fenceestimator.app.estimate.CrewPay
-                        .forJob(assigned, entries, runs, pxPerFt)
+                    val pay = com.fenceestimator.app.estimate.CrewPay.forJob(
+                        assigned, entries, runs, pxPerFt,
+                        perFootCrewCount = perFootCrew ?: 1,
+                        jobCompleted = currentJob.status == com.fenceestimator.app.data.JobStatus.COMPLETED
+                    )
                     // rateIsUnset is included here on purpose: without it, a
                     // crew member whose approved hours (or built feet) came
                     // to $0.00 only because nobody set their rate saw no card
                     // at all -- the same blank-reads-as-fine failure as
                     // showing a bare "$0.00" would have been, just moved one
                     // level up.
-                    if (pay.amount > 0.0 || pay.hoursAwaitingApproval > 0.0 || pay.rateIsUnset) {
+                    val perFootPending = pay.awaitingCompletion && pay.projectedAmount > 0.0
+                    if (pay.amount > 0.0 || pay.hoursAwaitingApproval > 0.0 || pay.rateIsUnset || perFootPending) {
                         Card(
                             Modifier.fillMaxWidth().padding(top = Space.section),
                             colors = CardDefaults.cardColors(
@@ -378,11 +388,26 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                                     )
                                 } else {
                                     Text(
-                                        Money.format(pay.amount),
+                                        Money.format(if (perFootPending) pay.projectedAmount else pay.amount),
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(pay.explain(), style = MaterialTheme.typography.bodySmall)
+                                    if (perFootPending) {
+                                        Text(
+                                            stringResource(R.string.crew_per_foot_pending_completion),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                    if (pay.payType == com.fenceestimator.app.data.PayType.PER_FOOT && pay.splitAmong > 1) {
+                                        Text(
+                                            stringResource(R.string.crew_per_foot_split_note, pay.splitAmong),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
                                 }
                                 // Said plainly rather than left as a gap. Hours
                                 // that are simply missing from the total read as

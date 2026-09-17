@@ -634,3 +634,12 @@ interface PaymentRecordDao {
     @Query("DELETE FROM payment_records")
     suspend fun deleteAll(): Int
 }
+
+@Dao
+interface JobPayShareDao {
+    @Query("SELECT * FROM job_pay_shares WHERE jobSyncId = :jobSyncId")
+    fun observe(jobSyncId: String): Flow<JobPayShare?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(share: JobPayShare)
+}

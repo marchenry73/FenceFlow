@@ -1119,3 +1119,18 @@ data class PaymentRecord(
 ) {
     val isRefund: Boolean get() = amount < 0.0
 }
+
+/**
+ * How many PER_FOOT workers share a job's footage, as last answered by the
+ * server's per_foot_crew_count(). Cached so a crew phone out of signal still
+ * splits per-foot pay the way it did the last time it could ask.
+ *
+ * A head count, not money: no rate or amount is ever stored here. Keyed by the
+ * job's syncId so it survives a local id change on re-download.
+ */
+@Entity(tableName = "job_pay_shares")
+data class JobPayShare(
+    @PrimaryKey val jobSyncId: String,
+    val perFootCrewCount: Int,
+    val fetchedAt: Long = System.currentTimeMillis()
+)

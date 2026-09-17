@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
@@ -55,8 +58,40 @@ class CrewJobViewModel(
     val employees: StateFlow<List<com.fenceestimator.app.data.Employee>> = repository.observeEmployees()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * How many PER_FOOT workers split this job's footage -- the last answer
+     * the server gave, cached so the split survives a dead spot. Null when it
+     * has never been answered; CrewPay then counts only the person asking.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val perFootCrewCount: StateFlow<Int?> = job
+        .flatMapLatest { j ->
+            if (j == null) kotlinx.coroutines.flow.flowOf(null)
+            else repository.observePerFootCrewCount(j.syncId)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     init {
         viewModelScope.launch { repository.ensureJobStepsSeeded(jobId) }
+        viewModelScope.launch { refreshPerFootCrewCount() }
+    }
+
+    /**
+     * Asks per_foot_crew_count(). Offline, or a NULL answer (not this
+     * person's job to ask about), leaves the cache alone rather than writing
+     * a guess over it.
+     */
+    private suspend fun refreshPerFootCrewCount() {
+        val syncId = job.filterNotNull().first().syncId
+        val count = runCatching {
+            SupabaseModule.client.postgrest.rpc(
+                "per_foot_crew_count",
+                buildJsonObject { put("p_job_sync_id", syncId) }
+            ).decodeAs<kotlinx.serialization.json.JsonElement>()
+        }.getOrNull()
+            ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() }
+            ?: return
+        repository.savePerFootCrewCount(syncId, count)
     }
 
     /**

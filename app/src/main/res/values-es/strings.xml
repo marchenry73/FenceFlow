@@ -1225,6 +1225,8 @@
     <string name="misc_crew_run_details">%1$d esquinas · %2$d portón(es) · postes cada %3$d pies</string>
     <string name="misc_crew_hours_awaiting">%1$s h más pendientes de aprobación; aún no se cuentan.</string>
     <string name="misc_crew_works_out_hourly">Equivale a $%1$s/h</string>
+    <string name="crew_per_foot_pending_completion">Se paga cuando el trabajo se marque como terminado. Hasta entonces los pies pueden cambiar.</string>
+    <string name="crew_per_foot_split_note">Dividido en partes iguales entre %1$d trabajadores pagados por pie en este trabajo.</string>
     <string name="misc_crew_rate_not_set">Tarifa no definida</string>
     <string name="misc_crew_rate_not_set_detail">Hoy trabajaste, pero todavía no se ha registrado tu tarifa de pago. Pídele a tu encargado que la configure para que este trabajo se pague correctamente.</string>
     <string name="misc_crew_walkthrough_subtitle">Repasa cada punto con el cliente y márcalo cuando esté de acuerdo.</string>
