@@ -188,6 +188,7 @@ const L = {
     phoneLast4Missing: 'Enter the last 4 digits of your phone number.',
     phoneLast4Wrong: 'Those digits don’t match what we have on file. Check the number and try again — this isn’t a system error.',
     phoneLast4Locked: 'Too many attempts. Please wait a few minutes and try again.',
+    reapprovalNotice: 'We updated your drawing on %s. Please review it and approve again.',
   },
   es: {
     loading: 'Abriendo su presupuesto…',
@@ -235,6 +236,7 @@ const L = {
     phoneLast4Missing: 'Escriba los últimos 4 dígitos de su teléfono.',
     phoneLast4Wrong: 'Esos dígitos no coinciden con lo que tenemos registrado. Revise el número e inténtelo de nuevo — esto no es un error del sistema.',
     phoneLast4Locked: 'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.',
+    reapprovalNotice: 'Actualizamos su plano el %s. Revíselo y apruébelo de nuevo.',
   },
   fr: {
     loading: 'Ouverture de votre devis…',
@@ -282,6 +284,7 @@ const L = {
     phoneLast4Missing: 'Saisissez les 4 derniers chiffres de votre téléphone.',
     phoneLast4Wrong: 'Ces chiffres ne correspondent pas à ce que nous avons enregistré. Vérifiez le numéro et réessayez — ce n’est pas une erreur du système.',
     phoneLast4Locked: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
+    reapprovalNotice: 'Nous avons mis à jour votre plan le %s. Veuillez le vérifier et l\'approuver à nouveau.',
   },
 };
 
@@ -374,6 +377,9 @@ function setLang(code) {
     </div>
 
     <div class="approve" id="approveBox" style="display:none">
+      <div id="reapprovalNotice" style="display:none;background:rgba(230,168,45,.16);
+           border:1px solid rgba(230,168,45,.5);color:#F0C572;border-radius:9px;
+           padding:12px 14px;margin-bottom:14px;font-size:14px"></div>
       <h2 data-t="readyHead">Ready to go ahead?</h2>
       <p style="font-size:14px;color:#AEBBCC" id="approveLead" data-t="leadPlain">Type your name and press approve &mdash; that tells
         us to put you on the schedule. You&rsquo;ll get a copy of everything.</p>
@@ -499,6 +505,17 @@ function render(){
     if(dueNow()) showPayButton();
   } else {
     $('approveBox').style.display='';
+    // Set only by the database trigger when a material change lands on a
+    // job the customer already approved (docs/REAPPROVAL_RULE.md). That
+    // trigger already cleared approvedAt, which is why this branch runs at
+    // all -- this notice is what tells the customer *why* a quote they
+    // remember approving is asking again, instead of it just looking like
+    // the office never got their first approval.
+    if(q.reapprovalRequiredAt){
+      $('reapprovalNotice').style.display='block';
+      $('reapprovalNotice').textContent=tr('reapprovalNotice',
+        new Date(q.reapprovalRequiredAt).toLocaleDateString(LANG));
+    }
     // The last-4 field only appears when the server says a phone is on file
     // to check against -- never a guess made on the page.
     $('phoneGateRow').style.display=q.phoneGateRequired?'':'none';

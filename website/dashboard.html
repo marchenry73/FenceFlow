@@ -1562,6 +1562,18 @@
       <p class="sub" data-t="jobQuotePageBody">A link for the homeowner: the quote, their fence in 3D, and an Approve
         button that signs with their name. No app, no account &mdash; the link is the key, so
         only send it to them.</p>
+      <!-- reapproval_required_at is set only by the database trigger when a
+           material change lands on an approved job (see
+           docs/REAPPROVAL_RULE.md). There is no office button that clears
+           it -- only a fresh customer approval does -- so this banner is
+           read-only except for the resend action, which just re-shares the
+           same unchanged link. -->
+      <div id="q_reapproval" style="display:none;margin-bottom:9px;padding:8px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn-fg)">
+        <div style="font-weight:700"><span class="pill warn" id="q_reapproval_badge" style="margin-right:6px"></span></div>
+        <div class="sub" id="q_reapproval_why" style="margin-top:4px"></div>
+        <div class="sub" id="q_reapproval_money" style="margin-top:2px"></div>
+        <button class="btn btn-sm" id="q_reapproval_resend" style="margin-top:8px" data-t="reapprovalResendBtn">Send the quote again</button>
+      </div>
       <div class="readout" id="q_link" style="user-select:all;overflow-wrap:anywhere"></div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
         <button class="btn btn-sm" id="q_copy" data-t="jobCopyLinkBtn">Copy link</button>
@@ -1570,6 +1582,15 @@
       <p class="sub" id="q_status" style="margin-top:9px"></p>
       <div class="msg err" id="q_block" style="display:none"></div>
       <p class="sub" id="q_provisional" style="display:none;margin-top:9px"></p>
+    </div>
+
+    <!-- Read-only: quote_reapprovals rows for this job (withdrawn
+         approvals). No edit control anywhere here -- see
+         docs/REAPPROVAL_RULE.md "Do not offer any office-side approve
+         anyway button. There is no server route for it." -->
+    <div class="panel" id="reapprovalHistoryPanel" style="display:none">
+      <h2 data-t="reapprovalHistoryTitle">Withdrawn approvals</h2>
+      <div id="reapprovalHistoryRows"></div>
     </div>
 
     <div class="panel"><h2 data-t="jobSecFirstContact">First contact</h2>
@@ -2195,6 +2216,16 @@ const TL = {
     jobSecQuotePage:'Customer quote page',
     jobQuotePageBody:'A link for the homeowner: the quote, their fence in 3D, and an Approve button that signs with their name. No app, no account — the link is the key, so only send it to them.',
     jobCopyLinkBtn:'Copy link', jobPreviewBtn:'Preview it',
+    badgeNeedsReapproval:'Needs approval again',
+    reapprovalWhy:'The drawing changed on %s. The customer has to approve the quote again.',
+    reapprovalResendBtn:'Send the quote again', jobLinkCopiedBtn:'Copied',
+    reapprovalMoneySafe:'Payments already taken are not affected.',
+    reapprovalHistoryTitle:'Withdrawn approvals',
+    reapprovalHistoryEmpty:'No withdrawn approvals on this job.',
+    reapprovalPrior:'Approved by %s on %s, withdrawn %s',
+    reapprovalPriorResolved:'Approved by %s on %s, withdrawn %s, re-approved %s',
+    reapprovalPriorTotal:'Contract total then: %s',
+    reapprovalPriorChange:'%s: %s → %s',
     jobSecFirstContact:'First contact',
     jobFirstContactBody:'Speed to lead is the number a contractor sales operation lives on. An enquiry answered within the hour converts several times better than the same one answered tomorrow.',
     jobMarkContactedBtn:'I have contacted them',
@@ -2856,6 +2887,7 @@ const TL = {
     alertJobOverrun:'A job is running past its estimated end',
     alertPaymentFailed:'A payment attempt failed',
     alertScheduledButBlocked:'Scheduled but not ready to send a crew',
+    alertNeedsReapproval:'The drawing changed after approval',
     alertJobOverdue:'On your phone: a job is running late',
     alertWeeklyDigest:'On your phone: the Monday summary',
 
@@ -2882,6 +2914,7 @@ const TL = {
     alertQuoteOpenedNotApproved:'opened it but has not approved',
     alertQuoteNotOpened:'has not opened it',
     alertTxtNoDeposit:'Approved, no deposit taken: %s',
+    alertTxtNeedsReapproval:'The drawing changed after approval — waiting on the customer for %s days: %s',
     alertTxtClockedInLong:'%s has been clocked in for %s hours',
     alertSomeoneWord:'Someone',
     alertTxtUnverifiedPrices:'Priced on catalog prices nobody has confirmed: %s',
@@ -3028,6 +3061,16 @@ const TL = {
     jobSecQuotePage:'Página de presupuesto del cliente',
     jobQuotePageBody:'Un enlace para el propietario: el presupuesto, su cerca en 3D y un botón de Aprobar que firma con su nombre. Sin app, sin cuenta — el enlace es la llave, así que envíeselo solo a él.',
     jobCopyLinkBtn:'Copiar enlace', jobPreviewBtn:'Vista previa',
+    badgeNeedsReapproval:'Necesita aprobación de nuevo',
+    reapprovalWhy:'El plano cambió el %s. El cliente debe aprobar el presupuesto de nuevo.',
+    reapprovalResendBtn:'Enviar el presupuesto de nuevo', jobLinkCopiedBtn:'Copiado',
+    reapprovalMoneySafe:'Los pagos ya recibidos no se ven afectados.',
+    reapprovalHistoryTitle:'Aprobaciones retiradas',
+    reapprovalHistoryEmpty:'No hay aprobaciones retiradas en este trabajo.',
+    reapprovalPrior:'Aprobado por %s el %s, retirado el %s',
+    reapprovalPriorResolved:'Aprobado por %s el %s, retirado el %s, aprobado de nuevo el %s',
+    reapprovalPriorTotal:'Total del contrato entonces: %s',
+    reapprovalPriorChange:'%s: %s → %s',
     jobSecFirstContact:'Primer contacto',
     jobFirstContactBody:'La velocidad de respuesta es el número del que vive una operación de ventas de cercas. Una consulta respondida dentro de la primera hora convierte varias veces mejor que esa misma respondida mañana.',
     jobMarkContactedBtn:'Ya los contacté',
@@ -3662,6 +3705,7 @@ const TL = {
     alertJobOverrun:'Un trabajo va más allá de su fin estimado',
     alertPaymentFailed:'Un intento de pago falló',
     alertScheduledButBlocked:'Programado pero no listo para enviar una cuadrilla',
+    alertNeedsReapproval:'El plano cambió después de la aprobación',
     alertJobOverdue:'En su teléfono: un trabajo va con retraso',
     alertWeeklyDigest:'En su teléfono: el resumen del lunes',
 
@@ -3688,6 +3732,7 @@ const TL = {
     alertQuoteOpenedNotApproved:'lo abrió pero no lo ha aprobado',
     alertQuoteNotOpened:'no lo ha abierto',
     alertTxtNoDeposit:'Aprobado, sin depósito cobrado: %s',
+    alertTxtNeedsReapproval:'El plano cambió después de la aprobación — esperando al cliente desde hace %s días: %s',
     alertTxtClockedInLong:'%s lleva fichado %s horas',
     alertSomeoneWord:'Alguien',
     alertTxtUnverifiedPrices:'Presupuestado con precios de catálogo que nadie ha confirmado: %s',
@@ -3834,6 +3879,16 @@ const TL = {
     jobSecQuotePage:'Page de devis client',
     jobQuotePageBody:'Un lien pour le client : le devis, sa clôture en 3D et un bouton Approuver qui signe avec son nom. Sans app, sans compte — le lien fait office de clé, alors ne l’envoyez qu’à lui.',
     jobCopyLinkBtn:'Copier le lien', jobPreviewBtn:'Aperçu',
+    badgeNeedsReapproval:'Nouvelle approbation requise',
+    reapprovalWhy:'Le plan a changé le %s. Le client doit approuver le devis à nouveau.',
+    reapprovalResendBtn:'Renvoyer le devis', jobLinkCopiedBtn:'Copié',
+    reapprovalMoneySafe:'Les paiements déjà reçus ne sont pas affectés.',
+    reapprovalHistoryTitle:'Approbations retirées',
+    reapprovalHistoryEmpty:'Aucune approbation retirée sur ce chantier.',
+    reapprovalPrior:'Approuvé par %s le %s, retiré le %s',
+    reapprovalPriorResolved:'Approuvé par %s le %s, retiré le %s, approuvé de nouveau le %s',
+    reapprovalPriorTotal:'Total du contrat à l\'époque : %s',
+    reapprovalPriorChange:'%s : %s → %s',
     jobSecFirstContact:'Premier contact',
     jobFirstContactBody:'La rapidité de réponse est le chiffre qui fait vivre une équipe de vente en clôture. Une demande traitée dans l’heure se convertit bien mieux que la même demande traitée le lendemain.',
     jobMarkContactedBtn:'Je les ai contactés',
@@ -4468,6 +4523,7 @@ const TL = {
     alertJobOverrun:'Un chantier dépasse sa fin estimée',
     alertPaymentFailed:'Une tentative de paiement a échoué',
     alertScheduledButBlocked:'Planifié mais pas prêt pour envoyer une équipe',
+    alertNeedsReapproval:'Le plan a changé après l\'approbation',
     alertJobOverdue:'Sur votre téléphone : un chantier prend du retard',
     alertWeeklyDigest:'Sur votre téléphone : le résumé du lundi',
 
@@ -4494,6 +4550,7 @@ const TL = {
     alertQuoteOpenedNotApproved:'l\'a ouvert mais ne l\'a pas approuvé',
     alertQuoteNotOpened:'ne l\'a pas ouvert',
     alertTxtNoDeposit:'Approuvé, aucun acompte encaissé : %s',
+    alertTxtNeedsReapproval:'Le plan a changé après l\'approbation — en attente du client depuis %s jours : %s',
     alertTxtClockedInLong:'%s est pointé depuis %s heures',
     alertSomeoneWord:'Quelqu\'un',
     alertTxtUnverifiedPrices:'Chiffré avec des prix de catalogue que personne n\'a confirmés : %s',
@@ -4768,6 +4825,7 @@ const ALERT_DEFS = [
   { key:'job_overrun',          labelKey:'alertJobOverrun' },
   { key:'payment_failed',       labelKey:'alertPaymentFailed' },
   { key:'scheduled_but_blocked', labelKey:'alertScheduledButBlocked' },
+  { key:'needs_reapproval',     labelKey:'alertNeedsReapproval' },
 
   // The two the PHONE raises, not this page. They are listed here because
   // this is where a person manages what reaches them, and a preference that
@@ -6075,7 +6133,7 @@ const JOB_COLUMNS = [
   'discount_percent','labor_rate_per_ft','labor_flat_fee',
   'gate_rate_per_ft','teardown_enabled','teardown_feet',
   'teardown_rate_per_ft','teardown_flat_fee','trash_haul_fee',
-  'waste_percent','minimum_job_charge','contract_total','quoted_total',
+  'waste_percent','minimum_job_charge','contract_total','signed_contract_total',
   'deposit_amount','amount_paid','refunded_amount','dispute_amount',
   'dispute_opened_at','dispute_closed_at','dispute_reason',
   'payment_status','quote_token','quote_sent_at','quote_viewed_at',
@@ -6087,7 +6145,8 @@ const JOB_COLUMNS = [
   'materials_received_at','material_prices_confirmed_at',
   'production_stage','wizard_step','priced_at','priced_by','pricing_engine_version',
   'calibration_pixels_per_foot','site_lat','site_lon','first_contact_at',
-  'is_test_fixture','created_at','updated_at','deleted_at'
+  'is_test_fixture','created_at','updated_at','deleted_at',
+  'reapproval_required_at','reapproval_reason','reapproval_count'
 ].join(',');
 
 async function loadAll(){
@@ -6974,6 +7033,21 @@ function renderDash(){
     .forEach(j => items.push({ urgent:false, severity:'warn',
       text: tr('alertTxtUnsignedApproved', name(j)), id: j.id, key:'unsigned_approved:'+j.id, fp:j.updated_at }));
 
+  // The drawing changed after the customer approved -- enforced in the
+  // database (supabase_reapproval_on_drawing_change.sql), which clears
+  // quote_approved_at and stamps reapproval_required_at. There is no office
+  // route to clear this: only a fresh customer approval does. Sorted oldest
+  // first by the detector's forEach order over a jobs array that is not
+  // otherwise sorted here, so sort explicitly rather than rely on fetch order.
+  if (alertOn('needs_reapproval')) jobs.filter(j => j.reapproval_required_at)
+    .sort((a,b) => d(a.reapproval_required_at) - d(b.reapproval_required_at))
+    .forEach(j => {
+      const days = Math.floor((nowMs - d(j.reapproval_required_at).getTime()) / 864e5);
+      items.push({ urgent:true, severity:'warn',
+        text: tr('alertTxtNeedsReapproval', String(days), name(j)),
+        id: j.id, key:'needs_reapproval:'+j.id, fp:j.reapproval_required_at });
+    });
+
   // Labour has already cost more than it was priced at. Not a warning about
   // the future -- the money is spent. Only when there is a real rate behind
   // it, because a zero cost is not an underspend.
@@ -7372,7 +7446,7 @@ const BRIEFING_SECTION_BY_KEY = {
   payment_failed:'money', unpaid:'money',
   hoa_missing:'risks', permit_missing:'risks', locate_never_requested:'risks',
   locate_expired:'risks', dispute_open:'risks', paid_then_declined:'risks',
-  correction_disputed:'risks',
+  correction_disputed:'risks', needs_reapproval:'risks',
 };
 const BRIEFING_SECTIONS = [
   ['sales',      'Sales'],
@@ -11228,7 +11302,7 @@ async function renderReports(){
   won.forEach(j=>{
     const k=(j.referral_source||'').trim()||'Not recorded';
     srcValue[k]=srcValue[k]||{value:0,n:0};
-    srcValue[k].value+=Number(j.contract_total||j.quoted_total||0);
+    srcValue[k].value+=Number(j.contract_total||0);
     srcValue[k].n+=1;
   });
   const leadRows=Object.entries(srcValue)
@@ -11252,7 +11326,7 @@ async function renderReports(){
         : 'How many jobs won in this period came from this source.',
       rowsTitle:'The jobs',
       rows: mine.map(j=>({ label:j.customer_name||'Unnamed', sub:j.address||'',
-        amount: money(Number(j.contract_total||j.quoted_total||0)) }))
+        amount: money(Number(j.contract_total||0)) }))
     });
   });
 
@@ -12206,6 +12280,59 @@ function renderQuoteBlock(){
     bits.push('Sent ' + d(j.quote_sent_at).toLocaleDateString() + ', not opened yet.');
   else bits.push('Not sent yet.');
   $('q_status').textContent = bits.join(' ');
+
+  // Amber banner, not a replacement for q_status: reapproval_required_at
+  // means quote_approved_at was just cleared by the trigger, so q_status
+  // above will already read "Sent .../not opened yet" or similar -- this
+  // banner is what explains why an approved job suddenly looks unapproved.
+  const needsReapproval = !!j.reapproval_required_at;
+  $('q_reapproval').style.display = needsReapproval ? 'block' : 'none';
+  if (needsReapproval) {
+    $('q_reapproval_badge').textContent = tr('badgeNeedsReapproval');
+    $('q_reapproval_badge').title = j.reapproval_reason || '';
+    $('q_reapproval_why').textContent = j.reapproval_reason
+      || tr('reapprovalWhy', d(j.reapproval_required_at).toLocaleDateString());
+    $('q_reapproval_money').textContent = tr('reapprovalMoneySafe');
+  }
+}
+
+// Withdrawn-approval history, read-only. Fetched on demand per job (like
+// loadJobPhotos) rather than loaded in bulk with everything else in
+// loadAll() -- most jobs never have a row here, so paying for a company-wide
+// fetch of a table that is almost always empty on every page load buys
+// nothing. company_id scoping is RLS (quote_reapprovals_read), same as
+// every other table on this page.
+async function loadReapprovalHistory(job){
+  const panel = $('reapprovalHistoryPanel');
+  const box = $('reapprovalHistoryRows');
+  if (!panel || !box || !job) return;
+  const { data, error } = await db.from('quote_reapprovals')
+    .select('id,at,run_label,takeoff_before,takeoff_after,reason,'
+      + 'prior_approved_at,prior_approved_name,prior_contract_total,'
+      + 'resolved_at,resolved_name')
+    .eq('job_id', job.id).order('at', { ascending: false });
+  if (error || !data || !data.length) {
+    panel.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  panel.style.display = 'block';
+  box.innerHTML = data.map(row => {
+    const line = row.resolved_at
+      ? tr('reapprovalPriorResolved', row.prior_approved_name || 'the customer',
+          row.prior_approved_at ? d(row.prior_approved_at).toLocaleDateString() : '—',
+          d(row.at).toLocaleDateString(),
+          d(row.resolved_at).toLocaleDateString())
+      : tr('reapprovalPrior', row.prior_approved_name || 'the customer',
+          row.prior_approved_at ? d(row.prior_approved_at).toLocaleDateString() : '—',
+          d(row.at).toLocaleDateString());
+    const total = row.prior_contract_total != null && canSeeMoney()
+      ? '<div class="sub">' + esc(tr('reapprovalPriorTotal', money(row.prior_contract_total))) + '</div>' : '';
+    const change = (row.takeoff_before || row.takeoff_after)
+      ? '<div class="sub">' + esc(tr('reapprovalPriorChange', row.run_label || '', row.takeoff_before || '—', row.takeoff_after || '—')) + '</div>' : '';
+    return '<div style="padding:7px 0;border-bottom:1px solid var(--line-soft,transparent)">'
+      + '<div>' + esc(line) + '</div>' + total + change + '</div>';
+  }).join('');
 }
 
 /* ================= Photos & documents from the job's cloud folder =========
@@ -13242,6 +13369,7 @@ async function showJob(id){
   if(target && target.wizard_step && canEdit()){ openWizard(id); return; }
   openJob=jobs.find(j=>String(j.id)===String(id));
   renderQuoteBlock(); renderReadiness(); renderContact(); renderMaterials();
+  loadReapprovalHistory(openJob);
   if(!openJob) return;
   // A preview left over from whichever job was open before this one is not
   // this job's price -- "Keep this price" must never commit a stranger's
@@ -13276,7 +13404,7 @@ async function showJob(id){
   // only one -- two formulas is how the office and the phone once disagreed
   // about the same job. So this is a readout, and it says whose number it is.
   $('j_total_readout').innerHTML =
-    `<b>${money(Number(openJob.contract_total ?? openJob.quoted_total ?? 0))}</b>
+    `<b>${money(Number(openJob.contract_total ?? 0))}</b>
      <span class="sub2">Priced in the app from the runs, estimate and the rates below.</span>`;
   $('j_priced_by_readout').textContent = pricedByReadout(openJob);
 
@@ -16006,6 +16134,17 @@ $('q_copy').addEventListener('click', async ()=>{
   }
 });
 $('q_open').addEventListener('click',()=>{ if(openJob) window.open(quoteLinkFor(openJob),'_blank'); });
+$('q_reapproval_resend').addEventListener('click', async ()=>{
+  if(!openJob) return;
+  try{ await navigator.clipboard.writeText(quoteLinkFor(openJob)); }
+  catch(e){ /* the readout above is select-all as the fallback */ }
+  // The token does not change -- this is the same link, just handed to the
+  // customer again. quote_sent_at is not restamped: reapproval_required_at
+  // is the field that says "waiting again", and quote_sent_at already marks
+  // the original send.
+  $('q_reapproval_resend').textContent = tr('jobLinkCopiedBtn');
+  setTimeout(()=>{ $('q_reapproval_resend').textContent = tr('reapprovalResendBtn'); }, 1400);
+});
 
 // The 3D quote page can only stand the fence on the real yard when the
 // address places on a map. Verify runs it through the same geocoders the
