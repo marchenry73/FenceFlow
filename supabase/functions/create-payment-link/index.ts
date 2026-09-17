@@ -187,15 +187,14 @@ async function makeLink(
     const { jobSyncId, amount, kind, description } = a;
 
     const { data: company } = await admin
-      .from("companies").select("name, stripe_account_id, subscription_plan, pass_card_fee")
+      .from("companies").select("name, stripe_account_id, subscription_plan")
       .eq("id", profile.company_id).single();
 
-    // Card fee pass-through (supabase_card_fee_passthrough.sql). Grossed up
-    // from the standard Stripe rate of 2.9% + 30c so the company nets the job
-    // amount, but never more than 3% of it: the card networks' surcharge
-    // ceiling. Kept as its own line and its own column -- the ledger credits
-    // amount only, so the fee can never pay down the job.
-    const stripeFee = company?.pass_card_fee === true ? cardFeeCents(amount) : 0;
+    // No card fee on a customer's payment link. companies.pass_card_fee is
+    // FenceFlow's own setting for the company's subscription price (see
+    // create-checkout-session), not a surcharge a contractor passes on. The
+    // fee_cents plumbing stays at zero so older rows and refunds still work.
+    const stripeFee = 0;
 
     // Both gates sit ABOVE the processor branch and above the reuse of an
     // open link. They used to sit at the bottom, in the platform-Stripe path

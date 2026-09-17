@@ -511,7 +511,7 @@
     <div><label data-t="editBillingLabel">Billing email</label><input id="e_email" type="email" data-t="editBillingPh" placeholder="where receipts go"></div>
     <div><label data-t="editGraceLabel">Grace period ends</label><input id="e_grace" type="date"></div>
   </div>
-  <label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="e_passfee" style="width:auto"><span data-t="editPassFeeLabel">Customer pays the card fee (Stripe links, up to 3%)</span></label>
+  <label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="e_passfee" style="width:auto"><span data-t="editPassFeeLabel">Their subscription price includes the Stripe fee (applies at their next checkout or plan change)</span></label>
   <label data-t="editNotesLabel">Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
   <div class="msg" id="editMsg"></div>
   <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
@@ -723,7 +723,7 @@ const TL = {
     editPriceLabel:'Price per month ($)', editContactLabel:'Contact email',
     editContactPh:'where the invitation goes', editBillingLabel:'Billing email',
     editBillingPh:'where receipts go', editGraceLabel:'Grace period ends',
-    editNotesLabel:'Notes (only you see these)', saveBtn:'Save', editPassFeeLabel:'Customer pays the card fee (Stripe links, up to 3%)',
+    editNotesLabel:'Notes (only you see these)', saveBtn:'Save', editPassFeeLabel:'Their subscription price includes the Stripe fee (applies at their next checkout or plan change)',
     editUnnamedCompany:'Unnamed company',
 
     copyLookingUp:'Looking it up…',
@@ -895,7 +895,7 @@ const TL = {
     editPriceLabel:'Precio por mes ($)', editContactLabel:'Correo de contacto',
     editContactPh:'a dónde va la invitación', editBillingLabel:'Correo de facturación',
     editBillingPh:'a dónde van los recibos', editGraceLabel:'El período de gracia termina',
-    editNotesLabel:'Notas (solo usted las ve)', saveBtn:'Guardar', editPassFeeLabel:'El cliente paga la comisión de tarjeta (enlaces de Stripe, hasta 3%)',
+    editNotesLabel:'Notas (solo usted las ve)', saveBtn:'Guardar', editPassFeeLabel:'Su suscripción incluye la comisión de Stripe (se aplica en su próximo pago o cambio de plan)',
     editUnnamedCompany:'Empresa sin nombre',
 
     copyLookingUp:'Buscándolo…',
@@ -1067,7 +1067,7 @@ const TL = {
     editPriceLabel:'Prix par mois ($)', editContactLabel:'Courriel de contact',
     editContactPh:'où l\'invitation est envoyée', editBillingLabel:'Courriel de facturation',
     editBillingPh:'où les reçus sont envoyés', editGraceLabel:'Fin de la période de grâce',
-    editNotesLabel:'Notes (vous seul les voyez)', saveBtn:'Enregistrer', editPassFeeLabel:'Le client paie les frais de carte (liens Stripe, jusqu\'à 3 %)',
+    editNotesLabel:'Notes (vous seul les voyez)', saveBtn:'Enregistrer', editPassFeeLabel:'Leur abonnement inclut les frais Stripe (appliqué à leur prochain paiement ou changement de forfait)',
     editUnnamedCompany:'Entreprise sans nom',
 
     copyLookingUp:'Recherche…',

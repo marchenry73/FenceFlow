@@ -47,3 +47,15 @@ test("refund share takes only the job's part off the ledger", () => {
   assert.equal(jobShare(700, {}), 700);                 // old rows: unchanged
   assert.equal(jobShare(999999, row), 100000);          // never more than the job amount
 });
+
+const priceWithCardFee = lift("supabase/functions/create-checkout-session/index.ts", "priceWithCardFee");
+
+test("subscription price with the fee nets FenceFlow the list price", () => {
+  for (const base of [4900, 9900, 14900, 29900]) {
+    const billed = priceWithCardFee(base);
+    const net = billed - Math.round(billed * 0.029) - 30;
+    assert.ok(net >= base, `nets ${net} for ${base}`);
+    assert.ok(net - base <= 1, "and not more than a cent over");
+  }
+  assert.equal(priceWithCardFee(0), 0);
+});

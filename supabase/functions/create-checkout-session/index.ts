@@ -122,8 +122,28 @@ Deno.serve(async (req) => {
 
     const { data: company } = await admin
       .from("companies")
-      .select("name, stripe_customer_id, stripe_subscription_id, subscription_status")
+      .select("name, stripe_customer_id, stripe_subscription_id, subscription_status, pass_card_fee")
       .eq("id", profile.company_id).single();
+
+    // Staff-only switch (admin portal): this company's monthly price includes
+    // the Stripe fee. Same plan product, a price raised so FenceFlow nets the
+    // list price after 2.9% + 30c. Plan metadata rides along so the webhook
+    // and the check above read it the same way.
+    let billedPriceId = priceId;
+    const base = Number(price?.unit_amount ?? 0);
+    if (company?.pass_card_fee === true && base > 0) {
+      const productId = typeof price.product === "string" ? price.product : price.product?.id;
+      const raised = await stripe("POST", "/prices", {
+        product: String(productId ?? ""),
+        currency: String(price.currency ?? "usd"),
+        unit_amount: String(priceWithCardFee(base)),
+        "recurring[interval]": "month",
+        "metadata[plan]": plan,
+        "metadata[includes_card_fee]": "true",
+        "metadata[base_price]": priceId,
+      });
+      billedPriceId = raised.id;
+    }
 
     // A live subscription is CHANGED, never duplicated. Sending an active
     // subscriber through checkout again would quietly stack a second monthly
@@ -135,7 +155,7 @@ Deno.serve(async (req) => {
       if (!itemId) return json({ error: "Subscription has no item to change" }, 400);
       await stripe("POST", `/subscriptions/${company.stripe_subscription_id}`, {
         "items[0][id]": itemId,
-        "items[0][price]": priceId,
+        "items[0][price]": billedPriceId,
         // The metadata is what the webhook writes back as the plan name;
         // without this an upgrade kept billing the new price under the old
         // plan's label and the old plan's limits.
@@ -166,7 +186,7 @@ Deno.serve(async (req) => {
     const session = await stripe("POST", "/checkout/sessions", {
       mode: "subscription",
       customer: customerId!,
-      "line_items[0][price]": priceId,
+      "line_items[0][price]": billedPriceId,
       "line_items[0][quantity]": "1",
       // Card up front, first charge when the trial ends -- what the pricing
       // page promises. Companies that already had a subscription (canceled,
@@ -188,3 +208,9 @@ Deno.serve(async (req) => {
     return json({ error: String(e instanceof Error ? e.message : e) }, 400);
   }
 });
+
+/** Monthly price in cents that nets `baseCents` after Stripe's 2.9% + 30c. */
+export function priceWithCardFee(baseCents: number): number {
+  if (!Number.isFinite(baseCents) || baseCents <= 0) return 0;
+  return Math.ceil((baseCents + 30) / (1 - 0.029));
+}

@@ -69,6 +69,17 @@ function withRenderPay(shifts, employees, ot = { otAfter: 40, otMult: 1.5 }) {
     grabFn("breakHoursOf"),
     grabFn("paidHoursOf"),
     grabFn("shiftWhoName"),
+    // Per-foot pay (a per-foot worker is paid by footage, not hours). Lifted
+    // for the same reason as the break helpers; with no per-foot employee in
+    // these fixtures they must leave every hourly figure unchanged.
+    grabFn("runBuiltFeet"),
+    grabFn("jobBuiltFeet"),
+    grabFn("shiftCountsForPay"),
+    grabFn("perFootShareFeet"),
+    grabFn("perFootPayForJob"),
+    grabFn("perFootCredits"),
+    grabFn("isPerFootShift"),
+    grabFn("perFootByWeek"),
     grabFn("renderPay"),
   ].join("\n\n");
   // renderPay renders its labels through the page translator, which lives far
@@ -87,14 +98,14 @@ function withRenderPay(shifts, employees, ot = { otAfter: 40, otMult: 1.5 }) {
   const tr = (k, ...a) => { let t = TL_EN[k] ?? k; for (const v of a) t = String(t).replace('%s', v); return t; };
 
   const fn = new Function(
-    "times", "employees", "d", "$", "esc", "money", "ot", "tr",
+    "times", "employees", "d", "$", "esc", "money", "ot", "tr", "jobs", "runs",
     code + "\nrenderPay(ot);\nreturn {rowsHtml: $('payWeekRows').innerHTML};"
   );
   const d = (s) => (s ? new Date(s) : null);
   const esc = (s) => String(s ?? "");
   const money = (n) => "$" + Number(n).toFixed(2);
   const $ = el;
-  const result = fn(shifts, employees, d, $, esc, money, ot, tr);
+  const result = fn(shifts, employees, d, $, esc, money, ot, tr, [], []);
   return { rowsHtml: result.rowsHtml };
 }
 

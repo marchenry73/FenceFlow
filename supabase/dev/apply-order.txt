@@ -180,3 +180,6 @@ supabase_employee_profile_link_unique.sql
 supabase_shift_answer_readback.sql
 supabase_card_fee_passthrough.sql
 supabase_per_foot_pay.sql
+supabase_employee_insert_guard.sql
+supabase_test_fixture_flag.sql
+supabase_card_fee_staff_only.sql
