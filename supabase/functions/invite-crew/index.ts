@@ -214,7 +214,10 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: mailFrom,
+        // Business name as the sender, the platform address underneath. A
+        // display name matching the brand the reader expects keeps it out of
+        // spam; the address stays on the verified domain.
+        from: senderWithName(company?.name ?? "", mailFrom),
         to: [email],
         subject,
         html,
@@ -237,3 +240,10 @@ Deno.serve(async (req) => {
     return json({ error: String(e instanceof Error ? e.message : e) }, 400);
   }
 });
+
+/** "Acme Fence <noreply@x>"; the bare address when no name, or when MAIL_FROM already carries one. */
+function senderWithName(name: string, address: string): string {
+  const clean = name.replace(/[\r\n<>"]/g, "").trim().slice(0, 70);
+  if (!clean || address.includes("<")) return address;
+  return `"${clean}" <${address}>`;
+}
