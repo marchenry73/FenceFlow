@@ -56,7 +56,7 @@ const ok = (label, cond, detail = "") => {
 // fails on purpose, telling you to read the transcription again and then
 // move the pin. That is an annoyance exactly once per real change, and the
 // alternative is a guard that quietly stops guarding.
-const JOB_MONEY_FINGERPRINT = "5ea8a174a96dd355";
+const JOB_MONEY_FINGERPRINT = "ccc814dcbbf6d1a4";
 const jobMoneyNow = createHash("sha256")
   .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8").split(String.fromCharCode(13)).join(""))
   .digest("hex").slice(0, 16);
