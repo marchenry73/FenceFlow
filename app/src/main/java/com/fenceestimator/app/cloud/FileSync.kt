@@ -40,11 +40,42 @@ object FileSync {
         if (!file.exists() || file.length() == 0L) return@withContext null
 
         val remotePath = "$companyId/$jobSyncId/$kind/${file.name}"
+        val writeOnce = kind in WRITE_ONCE_KINDS
         runCatching {
             SupabaseModule.client.storage.from(BUCKET)
-                .upload(remotePath, file.readBytes()) { upsert = true }
+                // Asking for an upsert makes Storage check UPDATE permission
+                // BEFORE it writes anything. Signed-contract images are
+                // write-once on the server (job_files_signatures_are_write_once),
+                // so asking to overwrite one is refused even when the object
+                // does not exist yet -- which silently stopped every signature
+                // and final sign-off from ever uploading, on an OWNER's phone
+                // as much as a crew member's. These two kinds are never
+                // legitimately overwritten, so they are uploaded as a plain
+                // create.
+                .upload(remotePath, file.readBytes()) { upsert = !writeOnce }
             remotePath
+        }.recoverCatching { e ->
+            // A write-once file whose object is already there IS uploaded --
+            // an earlier attempt got the bytes up and only the local
+            // bookkeeping was lost. Reporting that as a failure is what leaves
+            // a file "unsynced" for ever and blocks sign-out.
+            if (writeOnce && looksLikeAlreadyThere(e)) remotePath else throw e
         }.getOrNull()
+    }
+
+    /**
+     * Kinds the server treats as write-once: the customer's signature on the
+     * quote and the final sign-off. Nothing in the product ever replaces one.
+     */
+    private val WRITE_ONCE_KINDS = setOf("signature", "final-sign-off")
+
+    private fun looksLikeAlreadyThere(e: Throwable): Boolean {
+        val text = generateSequence(e) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return "duplicate" in text || "already exists" in text || "resource_already_exists" in text ||
+            "409" in text
     }
 
     /**
