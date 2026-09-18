@@ -1716,6 +1716,8 @@
     <string name="time_fix_shift_title">Qui a travaillé ce quart ?</string>
     <string name="time_fix_shift_prompt">Choisissez qui l\'a travaillé, puis il sera téléversé à la prochaine synchronisation.</string>
     <string name="time_fix_shift_confirm">Enregistrer et réessayer</string>
+    <string name="time_fix_shift_nobody_available">Personne sur ce téléphone ne peut encore être envoyé au cloud. Synchronisez une fois pour recevoir la liste de l\'équipe, puis réessayez.</string>
+    <string name="vm_time_fix_worker_unsyncable">Ce membre de l\'équipe n\'a pas encore de fiche dans le cloud, le quart serait donc refusé à nouveau. Choisissez quelqu\'un d\'autre.</string>
     <string name="time_discard_shift_title">Supprimer ce quart ?</string>
     <string name="time_discard_shift_body">Ceci supprime %1$s heures pour de bon -- ce quart n\'a jamais atteint le cloud et ne pourra pas être récupéré une fois supprimé.</string>
     <string name="time_discard_shift_confirm">Supprimer pour de bon</string>

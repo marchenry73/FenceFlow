@@ -80,6 +80,7 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
     val session by app.session.state.collectAsState()
     val pending by viewModel.pending.collectAsState()
     val employees by viewModel.employees.collectAsState()
+    val fixableEmployees by viewModel.fixableEmployees.collectAsState()
     val jobs by viewModel.jobs.collectAsState()
 
     // Nobody signs off the shift that pays them, whatever their role. A crew
@@ -198,7 +199,8 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
 
     fixing?.let { entry ->
         FixShiftDialog(
-            employees = employees,
+            // Only people with a sync id: anyone else would be refused again.
+            employees = fixableEmployees,
             defaultEmployeeId = viewModel.ownEmployeeId(),
             onConfirm = { employeeId ->
                 viewModel.fixAndRetry(entry, employeeId)
@@ -289,6 +291,9 @@ private fun FixShiftDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text(stringResource(R.string.time_fix_shift_prompt))
+                if (employees.isEmpty()) {
+                    Text(stringResource(R.string.time_fix_shift_nobody_available))
+                }
                 employees.forEach { employee ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

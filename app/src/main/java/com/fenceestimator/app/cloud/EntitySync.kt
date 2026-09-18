@@ -105,7 +105,14 @@ private fun io.github.jan.supabase.postgrest.query.filter.PostgrestFilterBuilder
 @Serializable
 data class CloudEmployee(
     @SerialName("company_id") val companyId: String,
-    @SerialName("sync_id") val syncId: String,
+    /**
+     * Defaulted because employees.sync_id is NULLABLE on the server (uuid,
+     * default gen_random_uuid()) -- checked live 2026-09-18. A row that ever
+     * carried a null would otherwise kill the whole employees pull, the way
+     * correction_reason killed time_entries; see cloudJson. The pull skips a
+     * blank one rather than saving an employee with no identity.
+     */
+    @SerialName("sync_id") val syncId: String = "",
     val name: String = "",
     val role: String = "",
     val phone: String = "",
@@ -288,8 +295,10 @@ data class CloudLineItem(
  */
 @Serializable
 data class CrewRosterRow(
-    val id: String,
-    @SerialName("sync_id") val syncId: String,
+    // Both defaulted: the roster is read off employees, whose sync_id is
+    // nullable on the server. See CloudEmployee.syncId; blank rows are skipped.
+    val id: String = "",
+    @SerialName("sync_id") val syncId: String = "",
     val name: String = "",
     val role: String = "",
     @SerialName("is_active") val isActive: Boolean = true,
@@ -306,8 +315,11 @@ data class CrewRosterRow(
 @Serializable
 data class CloudExpense(
     @SerialName("company_id") val companyId: String,
-    @SerialName("sync_id") val syncId: String,
-    @SerialName("job_sync_id") val jobSyncId: String,
+    // expenses.sync_id and job_sync_id are both nullable on the server
+    // (checked live 2026-09-18): defaulted so a null cannot kill the pull,
+    // and a blank is skipped there. See CloudEmployee.syncId.
+    @SerialName("sync_id") val syncId: String = "",
+    @SerialName("job_sync_id") val jobSyncId: String = "",
     val category: String = "OTHER",
     val description: String = "",
     val amount: Double = 0.0
@@ -336,8 +348,11 @@ data class CloudFieldChange(
 @Serializable
 data class CloudPunchItem(
     @SerialName("company_id") val companyId: String,
-    @SerialName("sync_id") val syncId: String,
-    @SerialName("job_sync_id") val jobSyncId: String,
+    // punch_list_items.sync_id and job_sync_id are both nullable on the
+    // server (checked live 2026-09-18): defaulted so a null cannot kill the
+    // pull, and a blank is skipped there. See CloudEmployee.syncId.
+    @SerialName("sync_id") val syncId: String = "",
+    @SerialName("job_sync_id") val jobSyncId: String = "",
     val description: String = "",
     val resolved: Boolean = false
 )
@@ -492,6 +507,19 @@ data class CloudTimeEntry(
     @SerialName("original_started_at") val originalStartedAt: String? = null,
     @SerialName("original_ended_at") val originalEndedAt: String? = null,
     @SerialName("corrected_at") val correctedAt: String? = null,
+    /**
+     * Non-null with a default, on purpose, although the column is nullable
+     * and null on most rows (7 of 9 live on 2026-09-18). Room's own
+     * TimeEntry.correctionReason is `String = ""` and the pull merges with
+     * `row.correctionReason.ifBlank { existing.correctionReason }`, so null
+     * and "" already mean the same thing here: no reason recorded. The
+     * shared Json has coerceInputValues = true (see cloudJson), which turns
+     * the server's null into this default at the decoder instead of throwing
+     * "Expected string literal but 'null' literal was found" and taking the
+     * whole time_entries pull down with it -- on every sync, from 1.445 to
+     * 1.501. Making it `String?` would only push a `?: ""` into two call
+     * sites for the same result.
+     */
     @SerialName("correction_reason") val correctionReason: String = "",
     /**
      * The unpaid break, in the same shape [CloudTimeEntryPush] sends it in --
@@ -1620,6 +1648,9 @@ object EntitySync {
         val localExpensesBySyncId = jobIdBySyncId.values
             .flatMap { repository.getExpenses(it) }.associateBy { it.syncId }
         expenses.forEach { row ->
+            // See CloudExpense.syncId: a null decodes as "" rather than
+            // killing the pull, and a row with no identity is skipped.
+            if (row.syncId.isBlank()) return@forEach
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
             val category = runCatching { ExpenseCategory.valueOf(row.category) }
                 .getOrDefault(ExpenseCategory.OTHER)
@@ -1654,6 +1685,8 @@ object EntitySync {
         val localPunchBySyncId = jobIdBySyncId.values
             .flatMap { repository.getPunchList(it) }.associateBy { it.syncId }
         punch.forEach { row ->
+            // See CloudPunchItem.syncId: same rule as expenses above.
+            if (row.syncId.isBlank()) return@forEach
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
             val existing = localPunchBySyncId[row.syncId]
             if (existing == null) {
@@ -2055,6 +2088,8 @@ object EntitySync {
             SupabaseModule.client.postgrest
                 .rpc("crew_roster")
                 .decodeList<CrewRosterRow>()
+                // See CrewRosterRow: a null sync_id decodes as "" now.
+                .filter { it.syncId.isNotBlank() }
                 .map { it.asEmployee(companyId) }
         // A crew member's OWN row, pay included. employees_read already lets
         // anyone read the row linked to their own login (profile_id =
@@ -2077,6 +2112,9 @@ object EntitySync {
         val localBySyncId = repository.getAllEmployees().associateBy { it.syncId }
         var added = 0
         cloud.forEach { row ->
+            // A null sync_id decodes as "" now rather than killing the pull;
+            // a row with no identity cannot be matched or saved, only skipped.
+            if (row.syncId.isBlank()) return@forEach
             val rosterRow = fromRoster && row.syncId !in ownSyncIds
             val existing = localBySyncId[row.syncId]
             if (existing == null) {
@@ -2386,7 +2424,17 @@ object EntitySync {
         // "push time_entries: N of M rows rejected" on every sync, forever,
         // for a row no retry can ever fix. Held back and marked instead, so
         // the Time screen can ask a person to pick who worked it.
-        val (blockedLocally, shifts) = finished.partition { (entry, _) -> needsWorkerAssignment(entry) }
+        //
+        // Tested on what will actually be SENT, not on employeeId alone. The
+        // two shifts refused on every sync for a week each HAD an employeeId;
+        // it named an employee this phone no longer holds, so it resolved to
+        // no sync id, went up as employee_sync_id "" and was refused -- while
+        // an employeeId == null check waved it straight past. The same
+        // resolution feeds toCloud in pushTimeEntryRows, so the check and
+        // the send cannot disagree again.
+        val (blockedLocally, shifts) = finished.partition { (entry, _) ->
+            needsWorkerAssignment(entry, resolveEmployeeSyncId(entry, employeeSyncById))
+        }
         for ((entry, _) in blockedLocally) {
             if (entry.syncBlockedReason != TimeEntrySyncBlock.NEEDS_WORKER.name) {
                 repository.updateTimeEntry(
@@ -2398,7 +2446,27 @@ object EntitySync {
                 )
             }
         }
-        if (shifts.isEmpty()) return 0
+        // The other direction: a shift held back as NEEDS_WORKER whose
+        // employee resolves now (re-added, or re-linked by a pull) goes back
+        // in the queue. The Fix action clears its own mark; nothing else did.
+        val sendable = shifts.map { (entry, jobSyncId) ->
+            if (entry.syncBlockedReason != TimeEntrySyncBlock.NEEDS_WORKER.name) {
+                entry to jobSyncId
+            } else {
+                val cleared = entry.copy(syncBlockedReason = null, syncBlockedAt = null, syncBlockedDetail = null)
+                repository.updateTimeEntry(cleared)
+                cleared to jobSyncId
+            }
+        }
+        if (sendable.isEmpty()) return 0
+
+        // Sync ids the insert pass marks SERVER_REJECTED, so the update pass
+        // behind it does not send them a second time. `sendable` was read
+        // before either pass ran, so its copies still say "not blocked" after
+        // the mark has been written to Room -- the update pass has to be
+        // told, not left to re-read. Before this, every refused shift cost
+        // two guaranteed-400 requests per sync instead of one.
+        val rejectedThisPass = HashSet<String>()
 
         // Caught rather than thrown, so one row the server will not accept
         // cannot also block the update pass behind it -- and reported ahead of
@@ -2406,10 +2474,16 @@ object EntitySync {
         // not insert this shift" is the cause and "started_at missing on an
         // insert" would only be its symptom.
         val firstSight = runCatching {
-            pushTimeEntryRows(repository, companyId, shifts, employeeSyncById, insertOnly = true, includeTimes = true)
+            pushTimeEntryRows(
+                repository, companyId, sendable, employeeSyncById, rejectedThisPass,
+                insertOnly = true, includeTimes = true
+            )
         }
         val updated = runCatching {
-            pushTimeEntryRows(repository, companyId, shifts, employeeSyncById, insertOnly = false, includeTimes = false)
+            pushTimeEntryRows(
+                repository, companyId, sendable, employeeSyncById, rejectedThisPass,
+                insertOnly = false, includeTimes = false
+            )
         }
         firstSight.exceptionOrNull()?.let { throw it }
         // The update pass covers every shift, so its count is the number of
@@ -2435,17 +2509,24 @@ object EntitySync {
         companyId: String,
         shifts: List<Pair<TimeEntry, String>>,
         employeeSyncById: Map<Long, String>,
+        // Sync ids marked SERVER_REJECTED earlier in this same sync -- by the
+        // insert pass, when this is the update pass. Added to, never cleared.
+        rejectedThisPass: MutableSet<String>,
         insertOnly: Boolean,
         includeTimes: Boolean
     ): Int {
         // A row already marked SERVER_REJECTED from a previous pass is not
         // retried here either -- same reasoning as the local NEEDS_WORKER
         // skip above, for whatever OTHER permanent 4xx the server gave it.
-        val toSend = shifts.filter { (entry, _) -> entry.syncBlockedReason == null }
+        // Nor is one that this sync's own earlier pass just marked.
+        val toSend = shifts.filter { (entry, _) ->
+            entry.syncBlockedReason == null && entry.syncId !in rejectedThisPass
+        }
         if (toSend.isEmpty()) return 0
 
         val rows = toSend.map { (entry, jobSyncId) ->
-            entry.toCloud(companyId, jobSyncId, entry.employeeId?.let { employeeSyncById[it] }, includeTimes)
+            // The very value the hold-back in pushTimeEntries tested.
+            entry.toCloud(companyId, jobSyncId, resolveEmployeeSyncId(entry, employeeSyncById), includeTimes)
         }
 
         var pushed = 0
@@ -2488,25 +2569,32 @@ object EntitySync {
                     } else {
                         val cause = single.exceptionOrNull()!!
                         android.util.Log.w("EntitySync", "push time_entries: one row rejected and skipped", cause)
-                        if (isPermanentRejection(cause)) {
-                            // Marked and left out of every future pass -- not
-                            // counted as a failure here either, for the same
-                            // reason isNotOursToSync's refusals aren't: a sync
-                            // that keeps reporting FAILED for a row that can
-                            // never go up teaches people to ignore the banner.
-                            // The Time screen is where this belongs now.
-                            runCatching {
-                                repository.updateTimeEntry(
-                                    entry.copy(
-                                        syncBlockedReason = TimeEntrySyncBlock.SERVER_REJECTED.name,
-                                        syncBlockedAt = entry.syncBlockedAt ?: System.currentTimeMillis(),
-                                        syncBlockedDetail = permanentRejectionDetail(cause) ?: cause.message
+                        // One decision, made in one pure place -- see
+                        // [classifyRowRejection], and TimeEntryPushDecisionTest,
+                        // which feeds it the real BadRequestRestException.
+                        when (val decision = classifyRowRejection(cause)) {
+                            is RowRejection.Permanent -> {
+                                // Marked and left out of every future pass -- not
+                                // counted as a failure here either, for the same
+                                // reason isNotOursToSync's refusals aren't: a sync
+                                // that keeps reporting FAILED for a row that can
+                                // never go up teaches people to ignore the banner.
+                                // The Time screen is where this belongs now.
+                                rejectedThisPass += entry.syncId
+                                runCatching {
+                                    repository.updateTimeEntry(
+                                        entry.copy(
+                                            syncBlockedReason = TimeEntrySyncBlock.SERVER_REJECTED.name,
+                                            syncBlockedAt = entry.syncBlockedAt ?: System.currentTimeMillis(),
+                                            syncBlockedDetail = decision.detail
+                                        )
                                     )
-                                )
+                                }
                             }
-                        } else {
-                            failedCount++
-                            if (firstRowFailure == null) firstRowFailure = cause
+                            is RowRejection.Retry -> {
+                                failedCount++
+                                if (firstRowFailure == null) firstRowFailure = decision.cause
+                            }
                         }
                     }
                 }
@@ -2600,7 +2688,9 @@ private fun TimeEntry.toCloud(
 object DeletionReaper {
 
     @kotlinx.serialization.Serializable
-    private data class TombstonedRow(@kotlinx.serialization.SerialName("sync_id") val syncId: String)
+    // Defaulted for the tables whose sync_id is nullable (employees, expenses,
+    // punch_list_items); a tombstone with no identity names nothing to remove.
+    private data class TombstonedRow(@kotlinx.serialization.SerialName("sync_id") val syncId: String = "")
 
     suspend fun reap(repository: com.fenceestimator.app.data.Repository, companyId: String, scope: MoneyScope): Result<Int> =
         runCatching {
@@ -2672,7 +2762,7 @@ object DeletionReaper {
                     range(from, from + page - 1)
                 }
                 .decodeList<TombstonedRow>()
-            all += batch.map { it.syncId }
+            all += batch.map { it.syncId }.filter { it.isNotBlank() }
             if (batch.size < page) break
             from += page
             if (all.size >= page * 50) break

@@ -1756,6 +1756,8 @@
     <string name="time_fix_shift_title">Who worked this shift?</string>
     <string name="time_fix_shift_prompt">Pick who worked it, then it will upload on the next sync.</string>
     <string name="time_fix_shift_confirm">Save and retry</string>
+    <string name="time_fix_shift_nobody_available">Nobody on this phone can be sent to the cloud yet. Sync once so the crew list comes down, then try again.</string>
+    <string name="vm_time_fix_worker_unsyncable">That crew member has no cloud record yet, so the shift would be refused again. Pick someone else.</string>
     <string name="time_discard_shift_title">Discard this shift?</string>
     <string name="time_discard_shift_body">This deletes %1$s hours for good -- it never reached the cloud and will not be recoverable once discarded.</string>
     <string name="time_discard_shift_confirm">Discard for good</string>

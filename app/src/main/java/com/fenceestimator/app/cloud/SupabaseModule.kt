@@ -90,6 +90,38 @@ internal fun looksLikeNoNetwork(error: Throwable): Boolean {
     ).any { it in text }
 }
 
+/**
+ * The one Json every cloud row is encoded and decoded with.
+ *
+ * Top-level rather than inside [SupabaseModule] so a unit test can decode a
+ * real server row through the exact configuration the phone uses, without
+ * building a client -- see CloudJsonNullsTest.
+ */
+internal val cloudJson: Json = Json {
+    // encodeDefaults is off in kotlinx.serialization by default, which
+    // silently DROPS any field whose value equals its declared default.
+    // Postgres then receives null and rejects it -- that's what caused
+    // 'null value in column "unit" violates not-null constraint', and it
+    // would have hit every table, not just the catalog.
+    encodeDefaults = true
+    ignoreUnknownKeys = true
+    explicitNulls = false
+    // A null in the server's answer, for a field declared here as a non-null
+    // type WITH a default, becomes that default instead of an exception.
+    // time_entries.correction_reason is nullable and null on 7 rows in 8;
+    // CloudTimeEntry.correctionReason is `String = ""`. Without this, one
+    // such row killed the entire time_entries pull -- "Expected string
+    // literal but 'null' literal was found at path $[0].correction_reason",
+    // on 1.445, 1.475, 1.488 and 1.501 per app_errors -- and the banner said
+    // "Couldn't reach the cloud" on a phone that had reached it fine.
+    //
+    // Only a field WITH a default is rescued: a non-null field with none
+    // still throws on null, which is why every identity field that maps to
+    // a nullable column now carries one (CloudEmployee.syncId and friends).
+    // An enum value this build does not know coerces to the default too.
+    coerceInputValues = true
+}
+
 object SupabaseModule {
     val isConfigured: Boolean =
         BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_KEY.isNotBlank()
@@ -99,18 +131,8 @@ object SupabaseModule {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_KEY
         ) {
-            // encodeDefaults is off in kotlinx.serialization by default, which
-            // silently DROPS any field whose value equals its declared default.
-            // Postgres then receives null and rejects it -- that's what caused
-            // 'null value in column "unit" violates not-null constraint', and it
-            // would have hit every table, not just the catalog.
-            defaultSerializer = KotlinXSerializer(
-                Json {
-                    encodeDefaults = true
-                    ignoreUnknownKeys = true
-                    explicitNulls = false
-                }
-            )
+            // See cloudJson above for every flag and why.
+            defaultSerializer = KotlinXSerializer(cloudJson)
             install(Auth)
             install(Postgrest)
             install(io.github.jan.supabase.storage.Storage)

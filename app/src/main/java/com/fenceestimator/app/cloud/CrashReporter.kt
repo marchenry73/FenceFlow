@@ -123,7 +123,10 @@ object CrashReporter {
         error: Throwable,
         fatal: Boolean,
         where: String = currentScreen
-    ) = appendTo(File(context.filesDir, PENDING_FILE), error, fatal, where)
+    ) = appendTo(
+        File(context.filesDir, PENDING_FILE), error, fatal, where,
+        versionCode = BuildConfig.VERSION_CODE, versionName = BuildConfig.VERSION_NAME
+    )
 
     /**
      * The on-disk half, split out from [Context] so it can be tested.
@@ -132,7 +135,20 @@ object CrashReporter {
      * crash report that silently never arrives, which looks exactly like no
      * crash at all.
      */
-    internal fun appendTo(file: File, error: Throwable, fatal: Boolean, where: String) {
+    internal fun appendTo(
+        file: File,
+        error: Throwable,
+        fatal: Boolean,
+        where: String,
+        // Fields 7 and 8: which BUILD wrote the record. Stamped now, for the
+        // same reason email is: reports upload at the NEXT launch, and that
+        // launch may be a newer build. Four "1.502" sync failures in
+        // app_errors on 2026-09-18 were 1.501's queued reports flushed on
+        // 1.502's first launch -- same stack, same R8 line, one timestamp --
+        // and they sent a whole investigation after a bug 1.502 did not have.
+        versionCode: Int = 0,
+        versionName: String = ""
+    ) {
         if (file.exists() && file.readText().split(RECORD_SEPARATOR).size > MAX_PENDING) return
 
         val stack = StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()
@@ -143,7 +159,9 @@ object CrashReporter {
             append(stack.take(8000)).append(FIELD)
             // Fields 5 and 6: who it happened to, as of this moment.
             append(currentEmail.replace(FIELD, ' ')).append(FIELD)
-            append(currentCompanyId.replace(FIELD, ' '))
+            append(currentCompanyId.replace(FIELD, ' ')).append(FIELD)
+            append(versionCode.toString()).append(FIELD)
+            append(versionName.replace(FIELD, ' '))
         }
         file.appendText(record + RECORD_SEPARATOR)
     }
@@ -175,8 +193,10 @@ object CrashReporter {
                     // only a fallback for records written before stamping.
                     companyId = it.companyId ?: companyId,
                     email = it.email.ifBlank { email.orEmpty() },
-                    versionCode = BuildConfig.VERSION_CODE,
-                    versionName = BuildConfig.VERSION_NAME,
+                    // The record's own build wins; the uploading build is only
+                    // a fallback for records written before it was stamped.
+                    versionCode = it.versionCode.takeIf { code -> code != 0 } ?: BuildConfig.VERSION_CODE,
+                    versionName = it.versionName.ifBlank { BuildConfig.VERSION_NAME },
                     android = device
                 )
             }
@@ -205,7 +225,9 @@ object CrashReporter {
                     message = parts[2],
                     stack = parts[3],
                     email = parts.getOrNull(4).orEmpty(),
-                    companyId = parts.getOrNull(5)?.takeIf { it.isNotBlank() }
+                    companyId = parts.getOrNull(5)?.takeIf { it.isNotBlank() },
+                    versionCode = parts.getOrNull(6)?.toIntOrNull() ?: 0,
+                    versionName = parts.getOrNull(7).orEmpty()
                 )
             }
 }

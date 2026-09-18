@@ -727,14 +727,24 @@ class Repository(private val db: AppDatabase) {
      * a person picking who worked it is also the right response to some
      * other permanent rejection tied to the employee link.
      */
-    suspend fun assignEmployeeAndRetry(entry: TimeEntry, employeeId: Long) = timeEntryDao.update(
-        entry.copy(
-            employeeId = employeeId,
-            syncBlockedReason = null,
-            syncBlockedAt = null,
-            syncBlockedDetail = null
+    suspend fun assignEmployeeAndRetry(entry: TimeEntry, employeeId: Long) {
+        // The cloud refuses a shift whose employee_sync_id is blank, so a
+        // worker with no sync id would clear the block only to earn it back
+        // on the next sync. The Time screen filters these out of its picker;
+        // this is the last line, for any other caller.
+        val worker = employeeDao.getById(employeeId)
+        require(worker != null && worker.syncId.isNotBlank()) {
+            "employee $employeeId has no sync id, so the shift would be refused again"
+        }
+        timeEntryDao.update(
+            entry.copy(
+                employeeId = employeeId,
+                syncBlockedReason = null,
+                syncBlockedAt = null,
+                syncBlockedDetail = null
+            )
         )
-    )
+    }
 
     /**
      * Starts the clock for [employeeId] on this job. Returns the existing entry

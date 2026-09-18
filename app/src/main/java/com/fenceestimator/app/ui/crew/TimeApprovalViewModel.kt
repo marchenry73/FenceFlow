@@ -3,6 +3,7 @@ package com.fenceestimator.app.ui.crew
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.R
+import com.fenceestimator.app.cloud.canBeSentAsWorker
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.Repository
@@ -11,6 +12,7 @@ import com.fenceestimator.app.ui.components.UiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -48,6 +50,15 @@ class TimeApprovalViewModel(
      * caller always passes the id the person actually picked in the dialog.
      */
     fun fixAndRetry(entry: TimeEntry, employeeId: Long) {
+        // The dialog only offers [fixableEmployees], but a control that is
+        // merely filtered is not a control: a worker the cloud cannot be told
+        // about would clear the block, go up as employee_sync_id "" and land
+        // the shift straight back on this list.
+        val worker = employees.value.firstOrNull { it.id == employeeId }
+        if (worker == null || !canBeSentAsWorker(worker)) {
+            _message.value = UiMessage(R.string.vm_time_fix_worker_unsyncable)
+            return
+        }
         viewModelScope.launch {
             runCatching { repository.assignEmployeeAndRetry(entry, employeeId) }
                 .onSuccess { _message.value = UiMessage(R.string.vm_time_fixed_will_retry) }
@@ -90,6 +101,16 @@ class TimeApprovalViewModel(
         )
 
     val employees: StateFlow<List<Employee>> = repository.observeEmployees()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Who the Fix dialog may offer: only people the cloud can be told about.
+     * A shift goes up with its employee's sync id and the server refuses a
+     * blank one outright -- see [canBeSentAsWorker]. Declared after
+     * [employees], which it is built from.
+     */
+    val fixableEmployees: StateFlow<List<Employee>> = employees
+        .map { list -> list.filter(::canBeSentAsWorker) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val jobs: StateFlow<List<Job>> = repository.observeJobs()

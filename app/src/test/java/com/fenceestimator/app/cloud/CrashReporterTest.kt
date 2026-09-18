@@ -97,4 +97,39 @@ class CrashReporterTest {
         repeat(60) { CrashReporter.appendTo(f, RuntimeException("loop $it"), true, "jobs") }
         assertTrue("file grew past the cap", CrashReporter.parse(f.readText()).size <= 25)
     }
+
+    /**
+     * Reports upload at the NEXT launch, which may be a newer build. The row
+     * must name the build that WROTE the record: four "1.502" sync failures
+     * on 2026-09-18 were 1.501's queued reports flushed on 1.502's first
+     * launch, and they sent an investigation after a bug the new build did
+     * not have.
+     */
+    @Test
+    fun `the build that wrote the record is what reads back`() {
+        val f = file()
+        CrashReporter.appendTo(
+            f, RuntimeException("push time_entries: 2 of 7 rows rejected"), false, "sync",
+            versionCode = 501, versionName = "1.501"
+        )
+
+        val parsed = CrashReporter.parse(f.readText())
+        assertEquals(1, parsed.size)
+        assertEquals(501, parsed[0].versionCode)
+        assertEquals("1.501", parsed[0].versionName)
+    }
+
+    // Planted-failure case: a record written with no build stamp (the format
+    // before this field existed) must still read back, with the version left
+    // empty for the upload to fill in -- not dropped, and not invented.
+    @Test
+    fun `a record with no build stamp still parses, version left for upload`() {
+        val f = file()
+        CrashReporter.appendTo(f, RuntimeException("old format"), true, "jobs")
+
+        val parsed = CrashReporter.parse(f.readText())
+        assertEquals(1, parsed.size)
+        assertEquals(0, parsed[0].versionCode)
+        assertEquals("", parsed[0].versionName)
+    }
 }

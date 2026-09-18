@@ -1716,6 +1716,8 @@
     <string name="time_fix_shift_title">¿Quién trabajó este turno?</string>
     <string name="time_fix_shift_prompt">Elige quién lo trabajó y se subirá en la próxima sincronización.</string>
     <string name="time_fix_shift_confirm">Guardar y reintentar</string>
+    <string name="time_fix_shift_nobody_available">Nadie en este teléfono puede enviarse a la nube todavía. Sincroniza una vez para que baje la lista del equipo y vuelve a intentarlo.</string>
+    <string name="vm_time_fix_worker_unsyncable">Ese miembro del equipo aún no tiene registro en la nube, así que el turno sería rechazado de nuevo. Elige a otra persona.</string>
     <string name="time_discard_shift_title">¿Descartar este turno?</string>
     <string name="time_discard_shift_body">Esto elimina %1$s horas para siempre -- nunca llegó a la nube y no se podrá recuperar una vez descartado.</string>
     <string name="time_discard_shift_confirm">Descartar para siempre</string>
