@@ -150,6 +150,37 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     }
 
     val job by viewModel.job.collectAsState()
+    // Warn before an approved job's drawing gets touched, not after --
+    // editing it withdraws the customer's approval (docs/REAPPROVAL_RULE.md)
+    // and this is the one place someone can be told what is about to happen
+    // rather than discovering it once the quote silently needs re-approving.
+    // Shown once per screen visit, gated on the job actually being loaded so
+    // it doesn't flash for a null job on first composition.
+    var shownDrawingWarning by rememberSaveable(jobId) { mutableStateOf(false) }
+    var showDrawingWarningDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(job?.id) {
+        val currentJob = job
+        if (currentJob != null && !shownDrawingWarning &&
+            com.fenceestimator.app.reapproval.shouldWarnBeforeEditingDrawing(
+                currentJob.quoteApprovedAt, currentJob.reapprovalRequiredAt
+            )
+        ) {
+            showDrawingWarningDialog = true
+            shownDrawingWarning = true
+        }
+    }
+    if (showDrawingWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showDrawingWarningDialog = false },
+            title = { Text(stringResource(R.string.reapproval_warn_editing_title)) },
+            text = { Text(stringResource(R.string.reapproval_warn_editing)) },
+            confirmButton = {
+                androidx.compose.material3.Button(onClick = { showDrawingWarningDialog = false }) {
+                    Text(stringResource(R.string.reapproval_warn_editing_dismiss))
+                }
+            }
+        )
+    }
     val runs by viewModel.runs.collectAsState()
     val selectedRunId by viewModel.selectedRunId.collectAsState()
     val mode by viewModel.mode.collectAsState()

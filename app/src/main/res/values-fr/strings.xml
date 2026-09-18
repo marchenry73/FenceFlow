@@ -151,6 +151,7 @@
     <string name="sync_plain_conflict">Quelqu\'un a modifié la même chose sur un autre téléphone. Tirez vers le bas pour resynchroniser et les deux versions se régleront.</string>
     <string name="sync_plain_slow">La connexion est trop lente pour terminer. Votre travail est enregistré ici et sera réessayé sous peu.</string>
     <string name="sync_plain_unknown">La synchronisation n\'a pas pu se terminer. Votre travail est enregistré sur ce téléphone et sera réessayé automatiquement. Si le message persiste, avisez March.</string>
+    <string name="sync_plain_rejected">Synchronisation impossible : %1$s</string>
     <string name="svc_signed_in_elsewhere">Ce compte s\'est connecté sur un autre téléphone, alors celui-ci a été déconnecté. Votre travail est en sécurité. Si ce n\'était pas vous, changez votre mot de passe.</string>
     <string name="sync_failed">Impossible de joindre le cloud</string>
     <string name="sync_local_only">Enregistré sur ce téléphone uniquement</string>
@@ -740,6 +741,8 @@
     <string name="cat_default_price_any_manufacturer">Prix par défaut (tout fabricant)</string>
     <string name="cat_default_price_explain">Le prix par défaut s\'applique quand il n\'existe pas de prix propre à un fabricant. Liez un prix à un fabricant précis pour qu\'il soit utilisé automatiquement quand c\'est votre fournisseur préféré.</string>
     <string name="cat_taxable">Taxable</string>
+    <string name="cat_confirm_price">Prix confirmé</string>
+    <string name="cat_confirm_price_explain">Vérifié auprès d\'un vrai prix fournisseur. Tant que ce n\'est pas confirmé, le prix est considéré comme non vérifié et apparaît dans le filtre des prix provisoires.</string>
     <string name="cat_also_price_for_another">Fixer aussi un prix pour un autre fabricant</string>
     <string name="cat_duplicate_for">Dupliquer pour</string>
     <string name="cat_duplicate_as_new_price">Dupliquer comme nouveau prix</string>
@@ -1146,6 +1149,7 @@
     <string name="onb_sign_out_anyway">Se déconnecter quand même et le perdre</string>
     <string name="onb_sign_out_unsynced_warning">Ce téléphone contient encore du travail qui n\'a pas atteint le cloud : %1$d chantier(s), %2$d photo(s). Se déconnecter maintenant le supprime pour de bon -- touchez Se déconnecter quand même seulement si c\'est ce que vous voulez.</string>
     <string name="onb_sign_out_could_not_check_warning">Je n’ai pas pu vérifier si ce téléphone contient du travail qui n’a pas atteint le cloud. Si c’est le cas, se déconnecter maintenant le supprime pour de bon -- touchez Se déconnecter quand même seulement si c’est ce que vous voulez.</string>
+    <string name="sync_blocked_shifts_sign_out_note">%1$d quart(s) ne peuvent pas être téléversés et resteront sur ce téléphone. Corrigez-les depuis l\'écran Heures.</string>
     <string name="data_ownership_held_work">Ce téléphone contient encore du travail qui n\'a jamais atteint %1$s : %2$d chantier(s), %3$d photo(s). Demandez au propriétaire de vous remettre dans l\'équipe, puis synchronisez. Rien n\'est supprimé tant que ce n\'est pas fait.</string>
     <string name="onb_update_needed">Mise à jour requise</string>
     <string name="onb_new_version_available">Nouvelle version disponible</string>
@@ -1560,6 +1564,10 @@
     <string name="vm_couldnt_approve_time">Impossible d\'approuver ce quart : %1$s</string>
     <string name="vm_time_rejected">Quart renvoyé à l\'employé.</string>
     <string name="vm_couldnt_reject_time">Impossible de renvoyer ce quart : %1$s</string>
+    <string name="vm_time_fixed_will_retry">Corrigé. Ce quart sera téléversé à la prochaine synchronisation.</string>
+    <string name="vm_couldnt_fix_time">Impossible de corriger ce quart : %1$s</string>
+    <string name="vm_time_discarded">Quart supprimé.</string>
+    <string name="vm_couldnt_discard_time">Impossible de supprimer ce quart : %1$s</string>
     <string name="vm_saved_access_of">Accès de %1$s enregistré.</string>
     <string name="vm_saved_their_access">Son accès a été enregistré.</string>
     <string name="vm_couldnt_save_with">Impossible d\'enregistrer : %1$s</string>
@@ -1700,4 +1708,21 @@
          that meant disputing something invisible. -->
     <string name="crew_attn_hours_corrected">Le bureau a modifié tes heures sur %1$s</string>
     <string name="crew_shifts_waiting_note">%1$d quart(s) en attente. Les heures ne comptent ni pour la paie ni pour le coût du chantier tant qu elles ne sont pas approuvées.</string>
+    <string name="time_shifts_cannot_upload_note">%1$d quart(s) ne peuvent pas être téléversés : personne n\'est assigné comme travailleur</string>
+    <string name="time_no_worker_set">Personne n\'est assigné comme travailleur</string>
+    <string name="time_generic_sync_blocked_detail">Le cloud a refusé ce quart et il ne sera pas réessayé automatiquement.</string>
+    <string name="time_fix_shift">Corriger</string>
+    <string name="time_discard_shift">Supprimer</string>
+    <string name="time_fix_shift_title">Qui a travaillé ce quart ?</string>
+    <string name="time_fix_shift_prompt">Choisissez qui l\'a travaillé, puis il sera téléversé à la prochaine synchronisation.</string>
+    <string name="time_fix_shift_confirm">Enregistrer et réessayer</string>
+    <string name="time_discard_shift_title">Supprimer ce quart ?</string>
+    <string name="time_discard_shift_body">Ceci supprime %1$s heures pour de bon -- ce quart n\'a jamais atteint le cloud et ne pourra pas être récupéré une fois supprimé.</string>
+    <string name="time_discard_shift_confirm">Supprimer pour de bon</string>
+    <string name="reapproval_banner_title">Nouvelle approbation requise</string>
+    <string name="reapproval_banner_body">Le plan a changé le %1$s : l\'approbation du client ne couvre plus ce chantier. Renvoyez le devis.</string>
+    <string name="reapproval_warn_editing_title">Ce devis est approuvé</string>
+    <string name="reapproval_warn_editing">Modifier le plan annulera l\'approbation du client, qui devra approuver à nouveau.</string>
+    <string name="reapproval_warn_editing_dismiss">Continuer la modification</string>
+    <string name="reapproval_do_not_build">Ne construisez pas encore : en attente de l\'approbation du client.</string>
 </resources>

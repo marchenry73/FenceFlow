@@ -1,5 +1,6 @@
 package com.fenceestimator.app.ui.crew
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -92,6 +93,9 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
     }
 
     var reviewing by remember { mutableStateOf<TimeEntry?>(null) }
+    var fixing by remember { mutableStateOf<TimeEntry?>(null) }
+    var discarding by remember { mutableStateOf<TimeEntry?>(null) }
+    val syncBlocked by viewModel.syncBlocked.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val message by viewModel.message.collectAsState()
     val messageText = message?.resolve()
@@ -123,6 +127,30 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
             contentPadding = PaddingValues(Space.screen),
             verticalArrangement = Arrangement.spacedBy(Space.row)
         ) {
+            // Shown first -- these are the ones actually going wrong. A shift
+            // simply waiting for a signature is normal; one the cloud has
+            // permanently refused is not, and burying it below the ordinary
+            // queue is how "2 of 7 rows rejected, every sync" went unnoticed
+            // for as long as it did.
+            if (syncBlocked.isNotEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.time_shifts_cannot_upload_note, syncBlocked.size),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                items(syncBlocked, key = { "blocked-${it.id}" }) { entry ->
+                    SyncBlockedShiftCard(
+                        entry = entry,
+                        who = employees.firstOrNull { it.id == entry.employeeId }?.name,
+                        jobName = jobs.firstOrNull { it.id == entry.jobId }?.customerName.orEmpty(),
+                        onFix = { fixing = entry },
+                        onDiscard = { discarding = entry }
+                    )
+                }
+            }
+
             if (pending.isEmpty()) {
                 item {
                     Text(
@@ -167,6 +195,126 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
             onDismiss = { reviewing = null }
         )
     }
+
+    fixing?.let { entry ->
+        FixShiftDialog(
+            employees = employees,
+            defaultEmployeeId = viewModel.ownEmployeeId(),
+            onConfirm = { employeeId ->
+                viewModel.fixAndRetry(entry, employeeId)
+                fixing = null
+            },
+            onDismiss = { fixing = null }
+        )
+    }
+
+    discarding?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { discarding = null },
+            title = { Text(stringResource(R.string.time_discard_shift_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.time_discard_shift_body,
+                        "%.2f".format(entry.hours)
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.discardBlocked(entry)
+                    discarding = null
+                }) { Text(stringResource(R.string.time_discard_shift_confirm)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { discarding = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+}
+
+/** One shift the cloud will never accept as it stands. */
+@Composable
+private fun SyncBlockedShiftCard(
+    entry: TimeEntry,
+    who: String?,
+    jobName: String,
+    onFix: () -> Unit,
+    onDiscard: () -> Unit
+) {
+    val dayFormat = remember { SimpleDateFormat("EEE d MMM", Locale.US) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+            Text(
+                who ?: stringResource(R.string.time_no_worker_set),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            if (jobName.isNotBlank()) {
+                Text(jobName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+            Text(dayFormat.format(Date(entry.startedAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+            Text(
+                entry.syncBlockedDetail ?: stringResource(R.string.time_generic_sync_blocked_detail),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                Button(onClick = onFix) { Text(stringResource(R.string.time_fix_shift)) }
+                OutlinedButton(onClick = onDiscard) { Text(stringResource(R.string.time_discard_shift)) }
+            }
+        }
+    }
+}
+
+/** Picks who worked the shift, defaulting to the signed-in person's own record when linked. */
+@Composable
+private fun FixShiftDialog(
+    employees: List<com.fenceestimator.app.data.Employee>,
+    defaultEmployeeId: Long?,
+    onConfirm: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selected by remember {
+        mutableStateOf(defaultEmployeeId ?: employees.firstOrNull()?.id)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.time_fix_shift_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                Text(stringResource(R.string.time_fix_shift_prompt))
+                employees.forEach { employee ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selected = employee.id }
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = selected == employee.id,
+                            onClick = { selected = employee.id }
+                        )
+                        Text(employee.name)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { selected?.let(onConfirm) },
+                enabled = selected != null
+            ) { Text(stringResource(R.string.time_fix_shift_confirm)) }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        }
+    )
 }
 
 @Composable

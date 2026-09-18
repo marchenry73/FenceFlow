@@ -116,7 +116,12 @@ class CatalogViewModel(private val repository: Repository) : ViewModel() {
             selected.forEach { match ->
                 val existing = match.existingMatch
                 if (existing != null) {
-                    repository.updateMaterialItem(existing.copy(unitPrice = match.parsed.rate))
+                    repository.updateMaterialItem(
+                        existing.copy(
+                            unitPrice = match.parsed.rate,
+                            sourceDoc = com.fenceestimator.app.data.IMPORTED_UNVERIFIED
+                        )
+                    )
                 } else {
                     repository.saveMaterialItem(
                         MaterialItem(
@@ -124,12 +129,24 @@ class CatalogViewModel(private val repository: Repository) : ViewModel() {
                             name = match.parsed.rawDescription.take(120),
                             unitPrice = match.parsed.rate,
                             taxable = match.parsed.taxable,
-                            sourceDoc = "Imported"
+                            sourceDoc = com.fenceestimator.app.data.IMPORTED_UNVERIFIED
                         )
                     )
                 }
             }
             clearImport()
+        }
+    }
+
+    /**
+     * The explicit "someone at this company looked at this" stamp. Only this
+     * clears [com.fenceestimator.app.data.isPlaceholderPrice] for a row --
+     * saving other fields in [EditItemDialog] does not, so editing the name
+     * of an unverified item does not quietly confirm its price too.
+     */
+    fun confirmPrice(item: MaterialItem) {
+        viewModelScope.launch {
+            repository.updateMaterialItem(item.copy(sourceDoc = com.fenceestimator.app.data.CONFIRMED))
         }
     }
 }

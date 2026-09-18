@@ -363,6 +363,13 @@ interface TimeEntryDao {
     @Query("SELECT * FROM time_entries WHERE jobId = :jobId")
     suspend fun getForJob(jobId: Long): List<TimeEntry>
 
+    /** Shifts a push has marked as permanently rejected -- see [TimeEntry.isSyncBlocked]. */
+    @Query("SELECT * FROM time_entries WHERE syncBlockedReason IS NOT NULL ORDER BY syncBlockedAt DESC")
+    fun observeSyncBlocked(): Flow<List<TimeEntry>>
+
+    @Query("SELECT * FROM time_entries WHERE syncBlockedReason IS NOT NULL ORDER BY syncBlockedAt DESC")
+    suspend fun getSyncBlocked(): List<TimeEntry>
+
     @Insert
     suspend fun insert(entry: TimeEntry): Long
 

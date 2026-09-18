@@ -260,6 +260,31 @@ fun JobDetailScreen(
             contentPadding = PaddingValues(Space.screen),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            if (com.fenceestimator.app.reapproval.needsReapproval(currentJob.reapprovalRequiredAt)) {
+                item(key = "reapproval-banner") {
+                    val dateFmt = androidx.compose.runtime.remember {
+                        java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+                    }
+                    val dateText = currentJob.reapprovalRequiredAt?.let { dateFmt.format(java.util.Date(it)) } ?: ""
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(Space.md)) {
+                            Text(
+                                stringResource(R.string.reapproval_banner_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Spacer(Modifier.height(Space.sm))
+                            Text(
+                                stringResource(R.string.reapproval_banner_body, dateText),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+            }
             item(key = SECTION_PROGRESS) {
                 SectionCard(title = stringResource(R.string.section_progress), icon = Icons.Filled.Timeline) {
                     ProjectProgressSection(

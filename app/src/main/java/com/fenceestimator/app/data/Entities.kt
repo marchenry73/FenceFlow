@@ -323,6 +323,16 @@ data class Job(
     val quoteApprovedAt: Long? = null,
     val quoteApprovedName: String = "",
     /**
+     * Set by the server when a material drawing change invalidates an
+     * existing approval (see docs/REAPPROVAL_RULE.md). Pull-only: the phone
+     * must never write these three columns back up. Non-null
+     * [reapprovalRequiredAt] means the job needs the customer to approve
+     * again before more money can be asked for.
+     */
+    val reapprovalRequiredAt: Long? = null,
+    val reapprovalReason: String = "",
+    val reapprovalCount: Int = 0,
+    /**
      * What the customer was actually looking at when they signed.
      *
      * A signature means "I agree to this", and "this" was a price and a length
@@ -960,9 +970,30 @@ data class TimeEntry(
     /** Set when the crew member taps Start Break on a running shift. */
     val breakStartedAt: Long? = null,
     /** Set when the crew member taps End Break; this is what freezes [breakMinutes]. */
-    val breakEndedAt: Long? = null
+    val breakEndedAt: Long? = null,
+    /**
+     * Set when [com.fenceestimator.app.cloud.EntitySync.pushTimeEntries] learns
+     * this shift can never go up as it stands -- "NEEDS_WORKER" (see
+     * [com.fenceestimator.app.cloud.needsWorkerAssignment], known without ever
+     * asking the server) or "SERVER_REJECTED" (a permanent 4xx the server sent
+     * back for some other reason). Null means nothing is wrong; retried every
+     * sync like any other row. A row marked here is deliberately left OUT of
+     * the next push -- retrying a rejection the row itself cannot fix is the
+     * trap this column exists to close.
+     */
+    val syncBlockedReason: String? = null,
+    /** When [syncBlockedReason] was first set. Not touched again until it clears. */
+    val syncBlockedAt: Long? = null,
+    /**
+     * What the server actually said, in its own words, for the Time screen's
+     * Fix flow to show verbatim rather than a re-derived guess.
+     */
+    val syncBlockedDetail: String? = null
 ) {
     val isRunning: Boolean get() = endedAt == null
+
+    /** True once a permanent rejection has been recorded and not yet cleared. */
+    val isSyncBlocked: Boolean get() = syncBlockedReason != null
 
     /** A break has been started on this shift and not yet ended. */
     val isOnBreak: Boolean get() = breakStartedAt != null && breakEndedAt == null

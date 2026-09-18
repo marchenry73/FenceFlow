@@ -151,6 +151,7 @@
     <string name="sync_plain_conflict">Alguien cambió lo mismo desde otro teléfono. Desliza hacia abajo para sincronizar de nuevo y los dos cambios se acomodarán.</string>
     <string name="sync_plain_slow">La conexión está demasiado lenta para terminar. Tu trabajo está guardado aquí y se volverá a intentar en breve.</string>
     <string name="sync_plain_unknown">No se pudo terminar de sincronizar. Tu trabajo está guardado en este teléfono y se volverá a intentar solo. Si sigue pasando, avísale a March.</string>
+    <string name="sync_plain_rejected">No se pudo sincronizar: %1$s</string>
     <string name="svc_signed_in_elsewhere">Esta cuenta inició sesión en otro teléfono, así que se cerró la sesión en este. Tu trabajo está a salvo. Si no fuiste tú, cambia tu contraseña.</string>
     <string name="sync_failed">No se pudo conectar a la nube</string>
     <string name="sync_local_only">Guardando solo en este teléfono</string>
@@ -740,6 +741,8 @@
     <string name="cat_default_price_any_manufacturer">Precio predeterminado (cualquier fabricante)</string>
     <string name="cat_default_price_explain">El precio predeterminado se usa cuando no hay un precio específico del fabricante. Asocia un precio a un fabricante para que se use automáticamente cuando ese sea tu proveedor preferido.</string>
     <string name="cat_taxable">Con impuesto</string>
+    <string name="cat_confirm_price">Precio confirmado</string>
+    <string name="cat_confirm_price_explain">Verificado con un precio real del proveedor. Hasta que se confirme, el precio se considera no verificado y aparece en el filtro de precios provisionales.</string>
     <string name="cat_also_price_for_another">Ponerle precio también para otro fabricante</string>
     <string name="cat_duplicate_for">Duplicar para</string>
     <string name="cat_duplicate_as_new_price">Duplicar como nuevo precio</string>
@@ -1146,6 +1149,7 @@
     <string name="onb_sign_out_anyway">Cerrar sesión de todos modos y perderlo</string>
     <string name="onb_sign_out_unsynced_warning">Este teléfono todavía tiene trabajo que no ha llegado a la nube: %1$d trabajo(s), %2$d foto(s). Cerrar sesión ahora lo elimina para siempre -- toca Cerrar sesión de todos modos solo si eso es lo que quieres.</string>
     <string name="onb_sign_out_could_not_check_warning">No pude comprobar si este teléfono tiene trabajo que no ha llegado a la nube. Si lo tiene, cerrar sesión ahora lo elimina para siempre -- toca Cerrar sesión de todos modos solo si eso es lo que quieres.</string>
+    <string name="sync_blocked_shifts_sign_out_note">%1$d turno(s) no se pueden subir y se quedarán en este teléfono. Corrígelos desde la pantalla de Horas.</string>
     <string name="data_ownership_held_work">Este teléfono todavía tiene trabajo que nunca llegó a %1$s: %2$d trabajo(s), %3$d foto(s). Pídele al dueño que te vuelva a poner en la cuadrilla, luego sincroniza. Nada se elimina hasta que eso pase.</string>
     <string name="onb_update_needed">Actualización necesaria</string>
     <string name="onb_new_version_available">Nueva versión disponible</string>
@@ -1560,6 +1564,10 @@
     <string name="vm_couldnt_approve_time">No se pudo aprobar este turno: %1$s</string>
     <string name="vm_time_rejected">Turno devuelto al empleado.</string>
     <string name="vm_couldnt_reject_time">No se pudo devolver este turno: %1$s</string>
+    <string name="vm_time_fixed_will_retry">Corregido. Este turno se subirá en la próxima sincronización.</string>
+    <string name="vm_couldnt_fix_time">No se pudo corregir este turno: %1$s</string>
+    <string name="vm_time_discarded">Turno descartado.</string>
+    <string name="vm_couldnt_discard_time">No se pudo descartar este turno: %1$s</string>
     <string name="vm_saved_access_of">Se guardó el acceso de %1$s.</string>
     <string name="vm_saved_their_access">Se guardó su acceso.</string>
     <string name="vm_couldnt_save_with">No se pudo guardar: %1$s</string>
@@ -1700,4 +1708,21 @@
          that meant disputing something invisible. -->
     <string name="crew_attn_hours_corrected">La oficina cambió tus horas en %1$s</string>
     <string name="crew_shifts_waiting_note">%1$d turno(s) en espera. Las horas no cuentan para el pago ni el costo del trabajo hasta que se aprueben.</string>
+    <string name="time_shifts_cannot_upload_note">%1$d turno(s) no se pueden subir: nadie está asignado como trabajador</string>
+    <string name="time_no_worker_set">Nadie está asignado como trabajador</string>
+    <string name="time_generic_sync_blocked_detail">La nube rechazó este turno y no se volverá a intentar por sí solo.</string>
+    <string name="time_fix_shift">Corregir</string>
+    <string name="time_discard_shift">Descartar</string>
+    <string name="time_fix_shift_title">¿Quién trabajó este turno?</string>
+    <string name="time_fix_shift_prompt">Elige quién lo trabajó y se subirá en la próxima sincronización.</string>
+    <string name="time_fix_shift_confirm">Guardar y reintentar</string>
+    <string name="time_discard_shift_title">¿Descartar este turno?</string>
+    <string name="time_discard_shift_body">Esto elimina %1$s horas para siempre -- nunca llegó a la nube y no se podrá recuperar una vez descartado.</string>
+    <string name="time_discard_shift_confirm">Descartar para siempre</string>
+    <string name="reapproval_banner_title">Necesita aprobación de nuevo</string>
+    <string name="reapproval_banner_body">El plano cambió el %1$s, por lo que la aprobación del cliente ya no cubre este trabajo. Envíe el presupuesto de nuevo.</string>
+    <string name="reapproval_warn_editing_title">Este presupuesto está aprobado</string>
+    <string name="reapproval_warn_editing">Cambiar el plano cancelará la aprobación del cliente, y tendrá que aprobarlo de nuevo.</string>
+    <string name="reapproval_warn_editing_dismiss">Seguir editando</string>
+    <string name="reapproval_do_not_build">No construya todavía: esperando que el cliente apruebe el cambio.</string>
 </resources>

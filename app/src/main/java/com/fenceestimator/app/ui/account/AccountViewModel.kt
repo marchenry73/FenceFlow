@@ -31,7 +31,16 @@ data class AccountUiState(
      */
     val profileFetchFailed: Boolean = false,
     val busy: Boolean = false,
-    val message: UiMessage? = null
+    val message: UiMessage? = null,
+    /**
+     * A sign-out was refused because work is still waiting to upload, even
+     * after the confirm dialog's own "sign out anyway" pass -- e.g. the
+     * dialog's local unsynced check was stale, or a deeper server-side
+     * rejection (RLS, a policy change) kept the real push from ever landing.
+     * The screen watches this to re-show the dialog with what's waiting
+     * rather than leaving the refusal in a Snackbar that scrolls away.
+     */
+    val signOutBlockedByUnsyncedWork: Boolean = false
 ) {
     /** Not signed in means local-only mode, which keeps full access on your own device. */
     val role: UserRole get() = profile?.userRole ?: UserRole.OWNER
@@ -128,9 +137,20 @@ class AccountViewModel(
     fun signOut(force: Boolean = false) = run(UiMessage(R.string.vm_signed_out)) {
         val ownership = dataOwnership
         if (ownership != null && !ownership.onSignedOut(force)) {
+            // Logged here too (not just inside DataOwnership) so a report of
+            // "sign out did nothing" can be told apart from a network error
+            // during SupabaseModule.signOut() below.
+            android.util.Log.w("AccountViewModel", "signOut(force=$force) refused: unsynced work")
+            _state.value = _state.value.copy(signOutBlockedByUnsyncedWork = true)
             throw UiMessageException(UiMessage(R.string.vm_sign_out_unsynced))
         }
+        _state.value = _state.value.copy(signOutBlockedByUnsyncedWork = false)
         SupabaseModule.signOut()
+    }
+
+    /** Clears the re-show flag once the dialog it re-opened has been handled. */
+    fun consumeSignOutBlocked() {
+        _state.value = _state.value.copy(signOutBlockedByUnsyncedWork = false)
     }
 
     /**

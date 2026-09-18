@@ -147,6 +147,29 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             contentPadding = PaddingValues(Space.screen),
             verticalArrangement = Arrangement.spacedBy(Space.section)
         ) {
+            // Above even the locate warning: the drawing changed after the
+            // customer approved (docs/REAPPROVAL_RULE.md), so what the crew
+            // would be building no longer matches what was agreed to. A crew
+            // that builds off a since-changed drawing builds something the
+            // customer never signed off on.
+            if (com.fenceestimator.app.reapproval.needsReapproval(currentJob.reapprovalRequiredAt)) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Column(Modifier.padding(Space.card)) {
+                            Text(
+                                stringResource(R.string.reapproval_do_not_build),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
+
             // First thing on the screen, because it changes how the day is
             // worked. Knowing at eight in the morning that this is day two of
             // three is the difference between pacing the work and finding out

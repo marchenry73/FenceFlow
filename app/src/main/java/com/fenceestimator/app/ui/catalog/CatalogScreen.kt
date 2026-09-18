@@ -524,6 +524,13 @@ private fun EditItemDialog(
     var role by remember { mutableStateOf(item.role) }
     var manufacturerId by remember { mutableStateOf(item.manufacturerId) }
     var duplicateTarget by remember { mutableStateOf<Manufacturer?>(null) }
+    // Whether THIS row still carries a price nobody at the company has
+    // checked -- seeded, or pulled off an imported invoice and never looked
+    // at. Read once at open; ticking the box below is the only thing that
+    // clears it, so editing the name or category does not quietly confirm
+    // the price along with it.
+    val startedUnverified = com.fenceestimator.app.data.isPlaceholderPrice(item.sourceDoc)
+    var priceConfirmed by remember { mutableStateOf(!startedUnverified) }
     // Delete sat right next to Cancel with nothing between a tap and the item
     // being gone -- and every estimate priced against it going stale with it.
     // Recoverable from Deleted Items, so said here rather than left to guess.
@@ -536,7 +543,8 @@ private fun EditItemDialog(
         return item.copy(
             name = name, unitPrice = price, taxable = taxable, unit = unit,
             colorOrFinish = colorOrFinish, coversFt = coversFtText.replace(',', '.').toFloatOrNull(),
-            category = category, fenceType = fenceType, role = role, manufacturerId = manufacturerId
+            category = category, fenceType = fenceType, role = role, manufacturerId = manufacturerId,
+            sourceDoc = if (priceConfirmed) com.fenceestimator.app.data.CONFIRMED else item.sourceDoc
         )
     }
 
@@ -590,6 +598,18 @@ private fun EditItemDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = taxable, onCheckedChange = { taxable = it })
                     Text(" " + stringResource(R.string.cat_taxable))
+                }
+
+                if (startedUnverified) {
+                    Spacer(Modifier.height(Space.sm))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = priceConfirmed, onCheckedChange = { priceConfirmed = it })
+                        Text(" " + stringResource(R.string.cat_confirm_price))
+                    }
+                    Text(
+                        stringResource(R.string.cat_confirm_price_explain),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 if (manufacturers.isNotEmpty()) {

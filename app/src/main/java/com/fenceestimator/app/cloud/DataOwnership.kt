@@ -182,7 +182,18 @@ class DataOwnership(
      * @return true if the data was cleared, false if unsynced work blocked it.
      */
     suspend fun onSignedOut(force: Boolean = false): Boolean {
-        if (!force && repository.hasUnsyncedWork()) return false
+        if (!force && repository.hasUnsyncedWork()) {
+            // Sign-out refusals used to leave no trace anywhere but a
+            // Snackbar the person could easily miss (a fast double-tap past
+            // the confirm dialog, or a screen recomposition swallowing it).
+            // A log line at least makes the refusal diagnosable afterwards,
+            // e.g. from a bug report that just says "sign out did nothing".
+            android.util.Log.w(
+                "DataOwnership",
+                "sign-out refused: unsynced work still present (force=$force)"
+            )
+            return false
+        }
         wipeEverything()
         setOwner(null)
         _heldWork.value = null

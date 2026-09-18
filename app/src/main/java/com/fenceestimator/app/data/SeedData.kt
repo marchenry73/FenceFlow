@@ -19,8 +19,24 @@ internal const val SEEDED = "Starting price — verify with your supplier"
 internal const val PLACEHOLDER = "Placeholder — verify with your supplier"
 
 /**
- * True for a catalog item still carrying the price FenceFlow shipped rather
- * than one this company checked.
+ * A PDF-imported line, before anyone at the company has looked at it.
+ *
+ * `CatalogViewModel.applyImportSelections()` used to stamp these `"Imported"`,
+ * a label [isPlaceholderPrice] did not match -- so a number OCR'd off a
+ * supplier invoice was treated as confirmed the instant it landed, and a
+ * quote could go out on it unchecked. It carries the same "verify" wording as
+ * the seeded prices because the risk is the same: a number this company has
+ * not yet looked at.
+ */
+internal const val IMPORTED_UNVERIFIED = "Imported — verify before quoting"
+
+/** Stamped by the explicit "Confirm price" action once a person has checked it. */
+internal const val CONFIRMED = "Confirmed"
+
+/**
+ * True for a catalog item still carrying a price nobody at this company has
+ * checked -- shipped with the seed data, or pulled off an imported invoice
+ * and never confirmed.
  *
  * Eighty-one of the ninety-one seeded items are typical market rates, not
  * quotes: they exist so a brand-new company has a working estimate on day
@@ -28,7 +44,7 @@ internal const val PLACEHOLDER = "Placeholder — verify with your supplier"
  * it was simply never shown anywhere a person would look before quoting.
  */
 fun isPlaceholderPrice(sourceDoc: String): Boolean =
-    sourceDoc == SEEDED || sourceDoc == PLACEHOLDER
+    sourceDoc == SEEDED || sourceDoc == PLACEHOLDER || sourceDoc == IMPORTED_UNVERIFIED
 
 /**
  * Starting catalog, so a new company can produce an estimate on its first day

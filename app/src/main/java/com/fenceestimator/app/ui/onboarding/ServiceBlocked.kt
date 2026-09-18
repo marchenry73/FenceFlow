@@ -191,13 +191,17 @@ fun ServiceBlockedScreen(
             // Two different warnings, because only one of them has a count to
             // give. Inventing a number for the checkFailed case would be a
             // fake confidence the screen does not have.
+            val blockedShifts = unsynced?.blockedTimeEntries ?: 0
+            val warning = if (checkFailed) stringResource(R.string.onb_sign_out_could_not_check_warning)
+            else stringResource(
+                R.string.onb_sign_out_unsynced_warning,
+                unsynced?.jobs ?: 0,
+                unsynced?.files ?: 0
+            )
             Text(
-                if (checkFailed) stringResource(R.string.onb_sign_out_could_not_check_warning)
-                else stringResource(
-                    R.string.onb_sign_out_unsynced_warning,
-                    unsynced?.jobs ?: 0,
-                    unsynced?.files ?: 0
-                ),
+                if (blockedShifts > 0) {
+                    warning + "\n\n" + stringResource(R.string.sync_blocked_shifts_sign_out_note, blockedShifts)
+                } else warning,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )

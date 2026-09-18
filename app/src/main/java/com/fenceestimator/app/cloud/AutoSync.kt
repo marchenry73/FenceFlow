@@ -294,7 +294,18 @@ class AutoSync(
         // happened. Only phrases that appear in the server's own explanation
         // are tested, and the URL is cut off the front before testing.
         val body = text.substringAfterLast("supabase.co")
+        // A permanent rejection (see isPermanentRejection) is the server
+        // refusing the ROW, not a generic failure -- and its own sentence is
+        // exactly what tells the person holding the phone what to fix. An
+        // hour was lost diagnosing "Could not reach the cloud" on a phone
+        // that was refusing to link two shifts to a crew member; that
+        // sentence never reached anyone because this fell through to
+        // sync_plain_unknown instead of showing what the server actually
+        // said.
+        val permanentDetail = permanentRejectionDetail(error)
         return when {
+            permanentDetail != null ->
+                context.getString(R.string.sync_plain_rejected, permanentDetail)
             looksLikeNoSignal(error) ->
                 context.getString(R.string.sync_plain_no_signal)
             "jwt" in body || "not authenticated" in body || "invalid claim" in body ->

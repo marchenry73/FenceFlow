@@ -110,6 +110,12 @@ data class CloudJob(
     @SerialName("signed_at") val signedAt: String? = null,
     @SerialName("quote_approved_at") val quoteApprovedAt: String? = null,
     @SerialName("quote_approved_name") val quoteApprovedName: String = "",
+    // Pull-only (docs/REAPPROVAL_RULE.md): the server sets these when a
+    // material drawing change withdraws an existing approval. Never sent
+    // back up -- see Job.toCloud, which does not include them.
+    @SerialName("reapproval_required_at") val reapprovalRequiredAt: String? = null,
+    @SerialName("reapproval_reason") val reapprovalReason: String = "",
+    @SerialName("reapproval_count") val reapprovalCount: Int = 0,
     @SerialName("final_sign_off_at") val finalSignOffAt: String? = null,
     @SerialName("blocked_at") val blockedAt: String? = null,
     @SerialName("customer_notified_at") val customerNotifiedAt: String? = null,
@@ -1018,6 +1024,9 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     signedAt = CloudTime.parseMillis(signedAt) ?: local.signedAt,
     quoteApprovedAt = CloudTime.parseMillis(quoteApprovedAt) ?: local.quoteApprovedAt,
     quoteApprovedName = quoteApprovedName.ifBlank { local.quoteApprovedName },
+    reapprovalRequiredAt = CloudTime.parseMillis(reapprovalRequiredAt),
+    reapprovalReason = reapprovalReason,
+    reapprovalCount = reapprovalCount,
     finalSignOffAt = CloudTime.parseMillis(finalSignOffAt) ?: local.finalSignOffAt,
     blockedAt = CloudTime.parseMillis(blockedAt) ?: local.blockedAt,
     customerNotifiedAt = CloudTime.parseMillis(customerNotifiedAt) ?: local.customerNotifiedAt,
@@ -1116,6 +1125,9 @@ private fun CloudJob.toLocalJob() = Job(
     signedAt = CloudTime.parseMillis(signedAt),
     quoteApprovedAt = CloudTime.parseMillis(quoteApprovedAt),
     quoteApprovedName = quoteApprovedName,
+    reapprovalRequiredAt = CloudTime.parseMillis(reapprovalRequiredAt),
+    reapprovalReason = reapprovalReason,
+    reapprovalCount = reapprovalCount,
     finalSignOffAt = CloudTime.parseMillis(finalSignOffAt),
     blockedAt = CloudTime.parseMillis(blockedAt),
     customerNotifiedAt = CloudTime.parseMillis(customerNotifiedAt),

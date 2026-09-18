@@ -162,6 +162,11 @@
     <string name="sync_plain_conflict">Someone changed the same thing on another phone. Pull down to sync again and the two will settle.</string>
     <string name="sync_plain_slow">The connection is too slow to finish. Your work is saved here and will try again shortly.</string>
     <string name="sync_plain_unknown">Couldn\'t finish syncing. Your work is saved on this phone and will try again on its own. If it keeps saying this, tell March.</string>
+    <!-- Shown instead of sync_plain_unknown when the server's own refusal is
+         known and safe to show verbatim; see plainWords in AutoSync.kt.
+         %1$s is the server's own sentence (e.g. the time_entries trigger's
+         "This shift is not linked to a crew member..."), never re-derived. -->
+    <string name="sync_plain_rejected">Couldn\'t sync: %1$s</string>
     <string name="svc_signed_in_elsewhere">This account was signed in on another phone, so this one has been signed out. Your work is safe. If that wasn\'t you, change your password.</string>
     <string name="sync_failed">Couldn\'t reach the cloud</string>
     <string name="sync_local_only">Saving on this phone only</string>
@@ -755,6 +760,8 @@
     <string name="cat_default_price_any_manufacturer">Default price (any manufacturer)</string>
     <string name="cat_default_price_explain">A default price applies when no manufacturer-specific price exists. Tie a price to a specific manufacturer so it\'s used automatically when that\'s your preferred supplier.</string>
     <string name="cat_taxable">Taxable</string>
+    <string name="cat_confirm_price">Price confirmed</string>
+    <string name="cat_confirm_price_explain">Checked against a real supplier price. Until this is checked, the price counts as unverified and shows up in the placeholder-price filter.</string>
     <string name="cat_also_price_for_another">Also price this for another manufacturer</string>
     <string name="cat_duplicate_for">Duplicate for</string>
     <string name="cat_duplicate_as_new_price">Duplicate as New Price</string>
@@ -1164,6 +1171,12 @@
     <string name="onb_sign_out_anyway">Sign out anyway and lose it</string>
     <string name="onb_sign_out_unsynced_warning">This phone still holds work that hasn\'t reached the cloud yet: %1$d job(s), %2$d photo(s). Signing out now deletes it for good -- tap Sign out anyway only if that\'s what you want.</string>
     <string name="onb_sign_out_could_not_check_warning">I couldn’t check whether this phone holds work that hasn’t reached the cloud yet. If it does, signing out now deletes it for good -- tap Sign out anyway only if that’s what you want.</string>
+    <!-- Shown alongside the sign-out warning (or alone, when nothing else is
+         unsynced) when this phone holds shifts the server will never accept
+         as they stand. These never block sign-out, since a retry can't fix
+         them, but leaving without a word about them would hide the same
+         problem a different way. -->
+    <string name="sync_blocked_shifts_sign_out_note">%1$d shift(s) cannot be uploaded and will stay on this phone. Fix them from the Time screen.</string>
     <!-- Shown when a wipe was refused because the phone still holds work
          the cloud never got, most often someone taken off the crew before
          a signature or photo taken with no signal ever had a chance to
@@ -1587,6 +1600,10 @@
     <string name="vm_couldnt_approve_time">Couldn\'t approve this shift: %1$s</string>
     <string name="vm_time_rejected">Shift sent back to the crew member.</string>
     <string name="vm_couldnt_reject_time">Couldn\'t send this shift back: %1$s</string>
+    <string name="vm_time_fixed_will_retry">Fixed. This shift will upload on the next sync.</string>
+    <string name="vm_couldnt_fix_time">Couldn\'t fix this shift: %1$s</string>
+    <string name="vm_time_discarded">Shift discarded.</string>
+    <string name="vm_couldnt_discard_time">Couldn\'t discard this shift: %1$s</string>
     <string name="vm_saved_access_of">Saved %1$s access.</string>
     <string name="vm_saved_their_access">Saved their access.</string>
     <string name="vm_couldnt_save_with">Couldn\'t save: %1$s</string>
@@ -1727,4 +1744,25 @@
          that meant disputing something invisible. -->
     <string name="crew_attn_hours_corrected">The office changed your hours on %1$s</string>
     <string name="crew_shifts_waiting_note">%1$d shift(s) waiting. Hours do not count towards pay or job cost until they are approved.</string>
+    <!-- Time screen: shifts EntitySync has given up retrying because the
+         server will never accept them as they stand (no worker, or some
+         other permanent refusal). See EntitySync.pushTimeEntries and
+         TimeEntrySyncRejection.kt. -->
+    <string name="time_shifts_cannot_upload_note">%1$d shift(s) cannot be uploaded: nobody is set as the worker</string>
+    <string name="time_no_worker_set">Nobody is set as the worker</string>
+    <string name="time_generic_sync_blocked_detail">The cloud refused this shift and it will not be retried on its own.</string>
+    <string name="time_fix_shift">Fix</string>
+    <string name="time_discard_shift">Discard</string>
+    <string name="time_fix_shift_title">Who worked this shift?</string>
+    <string name="time_fix_shift_prompt">Pick who worked it, then it will upload on the next sync.</string>
+    <string name="time_fix_shift_confirm">Save and retry</string>
+    <string name="time_discard_shift_title">Discard this shift?</string>
+    <string name="time_discard_shift_body">This deletes %1$s hours for good -- it never reached the cloud and will not be recoverable once discarded.</string>
+    <string name="time_discard_shift_confirm">Discard for good</string>
+    <string name="reapproval_banner_title">Needs approval again</string>
+    <string name="reapproval_banner_body">The drawing changed on %1$s, so the customer\'s approval no longer covers this job. Send the quote again.</string>
+    <string name="reapproval_warn_editing_title">This quote is approved</string>
+    <string name="reapproval_warn_editing">Changing the drawing will cancel the customer\'s approval, and they will have to approve it again.</string>
+    <string name="reapproval_warn_editing_dismiss">Continue editing</string>
+    <string name="reapproval_do_not_build">Do not build yet — waiting on the customer to approve the change.</string>
 </resources>

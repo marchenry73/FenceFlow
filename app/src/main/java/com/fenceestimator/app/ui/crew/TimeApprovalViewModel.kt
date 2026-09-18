@@ -29,8 +29,52 @@ class TimeApprovalViewModel(
     val pending: StateFlow<List<TimeEntry>> = repository.observeTimeAwaitingApproval()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * Shifts the cloud has permanently refused -- see [TimeEntry.isSyncBlocked].
+     * Never retried by [com.fenceestimator.app.cloud.EntitySync.pushTimeEntries]
+     * on its own; the only way one leaves this list is [fixAndRetry] or the
+     * shift being discarded.
+     */
+    val syncBlocked: StateFlow<List<TimeEntry>> = repository.observeSyncBlockedTimeEntries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _message = MutableStateFlow<UiMessage?>(null)
     val message: StateFlow<UiMessage?> = _message
+
+    /**
+     * The Fix action: attach an employee and clear the block so the next
+     * sync actually retries it. Defaults to the signed-in person's own
+     * employee record when one is linked, per the task's requirement, but the
+     * caller always passes the id the person actually picked in the dialog.
+     */
+    fun fixAndRetry(entry: TimeEntry, employeeId: Long) {
+        viewModelScope.launch {
+            runCatching { repository.assignEmployeeAndRetry(entry, employeeId) }
+                .onSuccess { _message.value = UiMessage(R.string.vm_time_fixed_will_retry) }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_fix_time, listOf(it.message.orEmpty())) }
+        }
+    }
+
+    /**
+     * Discarding a blocked shift for good. The caller (the confirmation
+     * dialog) is what asks "are you sure" and says what is lost -- this just
+     * carries out the choice once made.
+     */
+    fun discardBlocked(entry: TimeEntry) {
+        viewModelScope.launch {
+            runCatching { repository.deleteTimeEntry(entry) }
+                .onSuccess { _message.value = UiMessage(R.string.vm_time_discarded) }
+                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_discard_time, listOf(it.message.orEmpty())) }
+        }
+    }
+
+    /**
+     * The signed-in person's own employee row, if their account is linked to
+     * one -- the default choice [fixAndRetry]'s dialog should preselect.
+     */
+    fun ownEmployeeId(): Long? = employees.value.firstOrNull {
+        com.fenceestimator.app.cloud.OwnWork.isSamePerson(it, signedInEmail, signedInName)
+    }?.id
 
     /**
      * Whether this shift is the signed-in person's own.

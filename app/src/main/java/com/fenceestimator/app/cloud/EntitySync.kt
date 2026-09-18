@@ -2373,11 +2373,31 @@ object EntitySync {
         val employeeSyncById = repository.getAllEmployees().associateBy({ it.id }, { it.syncId })
         // Only completed shifts: a running timer has no end yet and would land
         // in the cloud looking like a zero-length entry.
-        val shifts = repository.getAllTimeEntries()
+        val finished = repository.getAllTimeEntries()
             .filter { !it.isRunning }
             .mapNotNull { entry ->
                 jobsBySyncId[entry.jobId]?.let { jobSyncId -> entry to jobSyncId }
             }
+        if (finished.isEmpty()) return 0
+
+        // Rows the insert trigger will refuse every single time, known
+        // without ever asking -- see [needsWorkerAssignment]. Sending these
+        // anyway is not a retry, it is the same permanent 4xx on a loop:
+        // "push time_entries: N of M rows rejected" on every sync, forever,
+        // for a row no retry can ever fix. Held back and marked instead, so
+        // the Time screen can ask a person to pick who worked it.
+        val (blockedLocally, shifts) = finished.partition { (entry, _) -> needsWorkerAssignment(entry) }
+        for ((entry, _) in blockedLocally) {
+            if (entry.syncBlockedReason != TimeEntrySyncBlock.NEEDS_WORKER.name) {
+                repository.updateTimeEntry(
+                    entry.copy(
+                        syncBlockedReason = TimeEntrySyncBlock.NEEDS_WORKER.name,
+                        syncBlockedAt = entry.syncBlockedAt ?: System.currentTimeMillis(),
+                        syncBlockedDetail = NEEDS_WORKER_DETAIL
+                    )
+                )
+            }
+        }
         if (shifts.isEmpty()) return 0
 
         // Caught rather than thrown, so one row the server will not accept
@@ -2386,29 +2406,115 @@ object EntitySync {
         // not insert this shift" is the cause and "started_at missing on an
         // insert" would only be its symptom.
         val firstSight = runCatching {
-            upsert(
-                "time_entries",
-                shifts.map { (entry, jobSyncId) ->
-                    entry.toCloud(companyId, jobSyncId, entry.employeeId?.let { employeeSyncById[it] })
-                },
-                insertOnly = true
-            )
+            pushTimeEntryRows(repository, companyId, shifts, employeeSyncById, insertOnly = true, includeTimes = true)
         }
         val updated = runCatching {
-            upsert(
-                "time_entries",
-                shifts.map { (entry, jobSyncId) ->
-                    entry.toCloud(
-                        companyId, jobSyncId, entry.employeeId?.let { employeeSyncById[it] },
-                        includeTimes = false
-                    )
-                }
-            )
+            pushTimeEntryRows(repository, companyId, shifts, employeeSyncById, insertOnly = false, includeTimes = false)
         }
         firstSight.exceptionOrNull()?.let { throw it }
         // The update pass covers every shift, so its count is the number of
         // shifts synced. Summing the two would report each one twice.
         return updated.getOrThrow()
+    }
+
+    /** The trigger's own wording, kept in one place for [needsWorkerAssignment]'s local marker. */
+    private const val NEEDS_WORKER_DETAIL =
+        "This shift is not linked to a crew member. Assign the job to somebody, " +
+            "or pick who is working, and clock in again."
+
+    /**
+     * Like [upsert], chunked with a per-row fallback -- but for time entries
+     * specifically, because a row the fallback still can't place needs more
+     * than a count: it needs to be told apart from every other row so
+     * [TimeEntrySyncBlock] can be recorded against the RIGHT shift rather
+     * than the whole batch. Rows already known to be permanently rejected
+     * (from an earlier pass) and unchanged are skipped rather than retried.
+     */
+    private suspend fun pushTimeEntryRows(
+        repository: Repository,
+        companyId: String,
+        shifts: List<Pair<TimeEntry, String>>,
+        employeeSyncById: Map<Long, String>,
+        insertOnly: Boolean,
+        includeTimes: Boolean
+    ): Int {
+        // A row already marked SERVER_REJECTED from a previous pass is not
+        // retried here either -- same reasoning as the local NEEDS_WORKER
+        // skip above, for whatever OTHER permanent 4xx the server gave it.
+        val toSend = shifts.filter { (entry, _) -> entry.syncBlockedReason == null }
+        if (toSend.isEmpty()) return 0
+
+        val rows = toSend.map { (entry, jobSyncId) ->
+            entry.toCloud(companyId, jobSyncId, entry.employeeId?.let { employeeSyncById[it] }, includeTimes)
+        }
+
+        var pushed = 0
+        var firstRowFailure: Throwable? = null
+        var failedCount = 0
+
+        toSend.zip(rows).chunked(200).forEach { chunk ->
+            val whole = runCatching {
+                SupabaseModule.client.postgrest.from("time_entries")
+                    .upsert(chunk.map { it.second }) {
+                        onConflict = "company_id,sync_id"
+                        if (insertOnly) ignoreDuplicates = true
+                    }
+            }
+            if (whole.isSuccess) {
+                pushed += chunk.size
+            } else {
+                chunk.forEach { (pair, row) ->
+                    val (entry, _) = pair
+                    val single = runCatching {
+                        SupabaseModule.client.postgrest.from("time_entries")
+                            .upsert(listOf(row)) {
+                                onConflict = "company_id,sync_id"
+                                if (insertOnly) ignoreDuplicates = true
+                            }
+                    }
+                    if (single.isSuccess) {
+                        pushed++
+                        // A row that goes through clean after previously being
+                        // marked (its employee got fixed, say) is no longer
+                        // blocked -- clear it rather than leaving a stale
+                        // reason sitting on a shift that just synced fine.
+                        if (entry.isSyncBlocked) {
+                            runCatching {
+                                repository.updateTimeEntry(
+                                    entry.copy(syncBlockedReason = null, syncBlockedAt = null, syncBlockedDetail = null)
+                                )
+                            }
+                        }
+                    } else {
+                        val cause = single.exceptionOrNull()!!
+                        android.util.Log.w("EntitySync", "push time_entries: one row rejected and skipped", cause)
+                        if (isPermanentRejection(cause)) {
+                            // Marked and left out of every future pass -- not
+                            // counted as a failure here either, for the same
+                            // reason isNotOursToSync's refusals aren't: a sync
+                            // that keeps reporting FAILED for a row that can
+                            // never go up teaches people to ignore the banner.
+                            // The Time screen is where this belongs now.
+                            runCatching {
+                                repository.updateTimeEntry(
+                                    entry.copy(
+                                        syncBlockedReason = TimeEntrySyncBlock.SERVER_REJECTED.name,
+                                        syncBlockedAt = entry.syncBlockedAt ?: System.currentTimeMillis(),
+                                        syncBlockedDetail = permanentRejectionDetail(cause) ?: cause.message
+                                    )
+                                )
+                            }
+                        } else {
+                            failedCount++
+                            if (firstRowFailure == null) firstRowFailure = cause
+                        }
+                    }
+                }
+            }
+        }
+
+        firstRowFailure?.let { throw PartialUpsertFailure("time_entries", failedCount, toSend.size, it) }
+        return pushed
     }
 }
 

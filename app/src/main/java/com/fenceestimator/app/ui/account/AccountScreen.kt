@@ -295,6 +295,19 @@ private fun SignedInSection(
             }
             val holdsUnsyncedWork = unsynced?.isEmpty == false
 
+            // A refusal can arrive even after this dialog's own "sign out
+            // anyway" pass -- the local unsynced check here was stale, or a
+            // deeper server-side rejection kept the real push from landing.
+            // Re-show the dialog with a fresh read of what's waiting instead
+            // of leaving the refusal as a Snackbar that scrolls away.
+            LaunchedEffect(state.signOutBlockedByUnsyncedWork) {
+                if (state.signOutBlockedByUnsyncedWork) {
+                    unsynced = runCatching { app.repository.unsyncedSummary() }.getOrNull()
+                    confirmingSignOut = true
+                    viewModel.consumeSignOutBlocked()
+                }
+            }
+
             OutlinedButton(onClick = { confirmingSignOut = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.action_sign_out))
             }
@@ -304,16 +317,27 @@ private fun SignedInSection(
                     onDismissRequest = { confirmingSignOut = false },
                     title = { Text(stringResource(R.string.action_sign_out)) },
                     text = {
+                        // Shifts that can never sync as they stand never gate
+                        // sign-out (see Repository.hasUnsyncedWork) -- but a
+                        // sign-out that quietly leaves them behind with no
+                        // mention is its own way of hiding the same problem.
+                        val blockedShifts = unsynced?.blockedTimeEntries ?: 0
+                        val body = if (holdsUnsyncedWork) {
+                            stringResource(
+                                R.string.onb_sign_out_unsynced_warning,
+                                unsynced?.jobs ?: 0,
+                                unsynced?.files ?: 0
+                            )
+                        } else {
+                            stringResource(R.string.acct_sign_out_confirm_body)
+                        }
                         Text(
-                            if (holdsUnsyncedWork) {
-                                stringResource(
-                                    R.string.onb_sign_out_unsynced_warning,
-                                    unsynced?.jobs ?: 0,
-                                    unsynced?.files ?: 0
+                            if (blockedShifts > 0) {
+                                body + "\n\n" + stringResource(
+                                    R.string.sync_blocked_shifts_sign_out_note,
+                                    blockedShifts
                                 )
-                            } else {
-                                stringResource(R.string.acct_sign_out_confirm_body)
-                            }
+                            } else body
                         )
                     },
                     confirmButton = {

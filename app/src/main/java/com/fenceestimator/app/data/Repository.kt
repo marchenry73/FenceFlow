@@ -13,7 +13,20 @@ import kotlinx.coroutines.flow.map
  * Exists for exactly one moment: telling someone whose data is about to be
  * wiped, or who is about to sign out, what that would actually cost them.
  */
-data class UnsyncedSummary(val jobs: Int, val files: Int) {
+data class UnsyncedSummary(
+    val jobs: Int,
+    val files: Int,
+    /**
+     * Shifts the server has permanently refused (see [TimeEntry.isSyncBlocked]).
+     * Deliberately NOT part of [isEmpty]: these can never go up as they
+     * stand, so counting them the same as real unsynced work would make
+     * signing out impossible forever over a row a retry cannot fix. They are
+     * still carried here so a caller that wants to DISCLOSE them (the
+     * sign-out dialog) can, without conflating "waiting to upload" with
+     * "will never upload."
+     */
+    val blockedTimeEntries: Int = 0
+) {
     val isEmpty: Boolean get() = jobs == 0 && files == 0
 }
 
@@ -376,7 +389,11 @@ class Repository(private val db: AppDatabase) {
             }
         }
 
-        return UnsyncedSummary(jobs = unsyncedJobIds.size, files = files)
+        return UnsyncedSummary(
+            jobs = unsyncedJobIds.size,
+            files = files,
+            blockedTimeEntries = timeEntryDao.getSyncBlocked().size
+        )
     }
 
     /**
@@ -698,6 +715,26 @@ class Repository(private val db: AppDatabase) {
     suspend fun getAllTimeEntries(): List<TimeEntry> = timeEntryDao.getAll()
     suspend fun deleteTimeEntry(entry: TimeEntry) = deleteSynced(entry.syncId, "time_entries") { timeEntryDao.delete(entry) }
     suspend fun updateTimeEntry(entry: TimeEntry) = timeEntryDao.update(entry)
+
+    /** Shifts the cloud has permanently refused -- see [TimeEntry.isSyncBlocked]. */
+    fun observeSyncBlockedTimeEntries(): Flow<List<TimeEntry>> = timeEntryDao.observeSyncBlocked()
+    suspend fun getSyncBlockedTimeEntries(): List<TimeEntry> = timeEntryDao.getSyncBlocked()
+
+    /**
+     * The Time screen's Fix action: attach an employee to a shift the cloud
+     * refused for having none, and clear the block so the next sync actually
+     * tries it again. Works for any blocked shift, not only NEEDS_WORKER --
+     * a person picking who worked it is also the right response to some
+     * other permanent rejection tied to the employee link.
+     */
+    suspend fun assignEmployeeAndRetry(entry: TimeEntry, employeeId: Long) = timeEntryDao.update(
+        entry.copy(
+            employeeId = employeeId,
+            syncBlockedReason = null,
+            syncBlockedAt = null,
+            syncBlockedDetail = null
+        )
+    )
 
     /**
      * Starts the clock for [employeeId] on this job. Returns the existing entry
