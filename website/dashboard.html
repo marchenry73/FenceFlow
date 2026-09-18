@@ -799,6 +799,60 @@
 
     <div id="tab-automation" style="display:none">
       <div class="panel">
+        <h2 style="margin-bottom:2px" data-t="fuHead">Sales follow-up emails</h2>
+        <p class="sub" style="margin-top:0" data-t="fuBody">Nudges a customer by email when a lead has gone uncontacted, a
+          quote has gone unopened, an opened quote hasn't been approved, or an approved job has no deposit yet.
+          Nothing here sends anything while its own switch is off, and a customer who has opted out is never
+          messaged no matter what is turned on.</p>
+        <div class="msg" id="fuMsg"></div>
+        <label style="display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:10px">
+          <input type="checkbox" id="fu_enabled">
+          <span data-t="fuMasterLabel">Turn on sales follow-up emails</span>
+        </label>
+        <div id="fuRulesRows"></div>
+        <div class="row2" style="margin-top:10px">
+          <div><label data-t="fuQuietStart">Quiet hours start (local)</label>
+            <select id="fu_quiet_start"></select></div>
+          <div><label data-t="fuQuietEnd">Quiet hours end (local)</label>
+            <select id="fu_quiet_end"></select></div>
+        </div>
+        <div class="row2">
+          <div><label data-t="fuTimezone">Timezone</label>
+            <select id="fu_timezone">
+              <option value="America/New_York">America/New_York</option>
+              <option value="America/Chicago">America/Chicago</option>
+              <option value="America/Denver">America/Denver</option>
+              <option value="America/Phoenix">America/Phoenix</option>
+              <option value="America/Los_Angeles">America/Los_Angeles</option>
+              <option value="America/Anchorage">America/Anchorage</option>
+              <option value="Pacific/Honolulu">Pacific/Honolulu</option>
+            </select></div>
+          <div><label data-t="fuDailyCap">Daily cap (all kinds combined)</label>
+            <input id="fu_daily_cap" type="number" min="1" step="1"></div>
+        </div>
+        <div style="margin-top:12px">
+          <button class="btn btn-sm" id="fuSaveBtn" data-t="fuSaveBtn">Save</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-bottom:2px" data-t="fuPreviewHead">What would send right now</h2>
+        <p class="sub" style="margin-top:0" data-t="fuPreviewBody">Read-only. Computed from the same rules the sending
+          function uses, including quiet hours and the daily cap, so you can see the effect before switching
+          anything on. This never sends an email by itself.</p>
+        <div class="scroll"><table>
+          <thead><tr><th data-t="fuColJob">Job</th><th data-t="fuColKind">Follow-up</th></tr></thead>
+          <tbody id="fuPreviewRows"></tbody></table></div>
+        <div class="empty" id="fuPreviewEmpty" style="display:none" data-t="fuPreviewEmptyMsg">Nothing would send right now.</div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-bottom:2px" data-t="fuLogHead">Recent sends</h2>
+        <p class="sub" style="margin-top:0" data-t="fuLogBody">Every follow-up email actually sent: what kind, which job, and when.</p>
+        <div class="scroll"><table>
+          <thead><tr><th data-t="fuColWhen">When</th><th data-t="fuColJob">Job</th><th data-t="fuColKind">Follow-up</th></tr></thead>
+          <tbody id="fuLogRows"></tbody></table></div>
+        <div class="empty" id="fuLogEmpty" style="display:none" data-t="fuLogEmptyMsg">No follow-up email has been sent yet.</div>
+      </div>
+      <div class="panel">
         <h2 style="margin-bottom:2px" data-t="autoRulesHead">Automation rules</h2>
         <p class="sub" style="margin-top:0" data-t="autoRulesBody">When something becomes true of a job, one of these can act on it
           automatically instead of waiting for someone to read a list. Every rule starts off &mdash; turn on
@@ -2062,6 +2116,9 @@ import {
   decodeRunPoints, runLengthFt, runBuiltFeet, jobBuiltFeet,
   shiftCountsForPay, perFootShareFeet, perFootPayForJob, perFootCredits,
 } from './js/lib/pay.mjs';
+import {
+  FOLLOW_UP_KINDS, DEFAULT_SETTINGS as FOLLOW_UP_DEFAULT_SETTINGS, previewDueFollowUps,
+} from './js/lib/follow-ups.mjs';
 
 // Publishable key — safe client-side. Row Level Security enforces access.
 // Publishable key on purpose -- it is designed to be public. Row Level
@@ -2533,6 +2590,26 @@ const TL = {
     autoColWhen:'When', autoColRule:'Rule', autoColJob:'Job', autoColWhat:'What happened',
     autoRunsEmptyMsg:'No rule has fired yet.',
     autoRuleLastFired:'Last fired %s', autoRuleNeverRun:'Never run yet',
+
+    // ---- Sales follow-up emails ----
+    fuHead:'Sales follow-up emails',
+    fuBody:'Nudges a customer by email when a lead has gone uncontacted, a quote has gone unopened, an opened quote hasn’t been approved, or an approved job has no deposit yet. Nothing here sends anything while its own switch is off, and a customer who has opted out is never messaged no matter what is turned on.',
+    fuMasterLabel:'Turn on sales follow-up emails',
+    fuKindLead:'New lead not contacted',
+    fuKindSentNoView:'Quote sent, not opened',
+    fuKindViewedNotApproved:'Quote opened, not approved',
+    fuKindApprovedNoDeposit:'Approved, no deposit',
+    fuDelayHours:'after (hours)', fuDelayDays:'after (days)',
+    fuQuietStart:'Quiet hours start (local)', fuQuietEnd:'Quiet hours end (local)',
+    fuTimezone:'Timezone', fuDailyCap:'Daily cap (all kinds combined)',
+    fuSaveBtn:'Save', fuSavedMsg:'Follow-up settings saved.',
+    fuPreviewHead:'What would send right now',
+    fuPreviewBody:'Read-only. Computed from the same rules the sending function uses, including quiet hours and the daily cap, so you can see the effect before switching anything on. This never sends an email by itself.',
+    fuPreviewEmptyMsg:'Nothing would send right now.',
+    fuLogHead:'Recent sends',
+    fuLogBody:'Every follow-up email actually sent: what kind, which job, and when.',
+    fuLogEmptyMsg:'No follow-up email has been sent yet.',
+    fuColJob:'Job', fuColKind:'Follow-up', fuColWhen:'When',
     autoFlagsNoneMsg:'No open flags.', autoClearBtn:'Clear',
     jobGoneLabel:'Job no longer here', autoRunDoneMsg:'Done.',
     autoRuleOnMsg:'Rule turned on.', autoRuleOffMsg:'Rule turned off.',
@@ -3378,6 +3455,26 @@ const TL = {
     autoColWhen:'Cuándo', autoColRule:'Regla', autoColJob:'Trabajo', autoColWhat:'Qué pasó',
     autoRunsEmptyMsg:'Ninguna regla se ha activado todavía.',
     autoRuleLastFired:'Se activó por última vez %s', autoRuleNeverRun:'Nunca se ha ejecutado',
+
+    // ---- Sales follow-up emails ----
+    fuHead:'Correos de seguimiento de ventas',
+    fuBody:'Le da un empujón a un cliente por correo cuando un prospecto no ha sido contactado, un presupuesto enviado no se ha abierto, un presupuesto abierto no se ha aprobado, o un trabajo aprobado todavía no tiene depósito. Nada de esto envía nada mientras su propio interruptor esté apagado, y un cliente que se dio de baja nunca recibe un mensaje sin importar lo demás.',
+    fuMasterLabel:'Activar correos de seguimiento de ventas',
+    fuKindLead:'Prospecto nuevo sin contactar',
+    fuKindSentNoView:'Presupuesto enviado, sin abrir',
+    fuKindViewedNotApproved:'Presupuesto abierto, sin aprobar',
+    fuKindApprovedNoDeposit:'Aprobado, sin depósito',
+    fuDelayHours:'después de (horas)', fuDelayDays:'después de (días)',
+    fuQuietStart:'Inicio de horas silenciosas (local)', fuQuietEnd:'Fin de horas silenciosas (local)',
+    fuTimezone:'Zona horaria', fuDailyCap:'Tope diario (todos los tipos combinados)',
+    fuSaveBtn:'Guardar', fuSavedMsg:'Configuración de seguimiento guardada.',
+    fuPreviewHead:'Qué se enviaría ahora mismo',
+    fuPreviewBody:'Solo lectura. Calculado con las mismas reglas que usa la función de envío, incluyendo horas silenciosas y el tope diario, para ver el efecto antes de activar nada. Esto nunca envía un correo por sí mismo.',
+    fuPreviewEmptyMsg:'No se enviaría nada ahora mismo.',
+    fuLogHead:'Envíos recientes',
+    fuLogBody:'Cada correo de seguimiento realmente enviado: qué tipo, qué trabajo y cuándo.',
+    fuLogEmptyMsg:'Todavía no se ha enviado ningún correo de seguimiento.',
+    fuColJob:'Trabajo', fuColKind:'Seguimiento', fuColWhen:'Cuándo',
     autoFlagsNoneMsg:'No hay marcas abiertas.', autoClearBtn:'Descartar',
     jobGoneLabel:'El trabajo ya no está aquí', autoRunDoneMsg:'Hecho.',
     autoRuleOnMsg:'Regla activada.', autoRuleOffMsg:'Regla desactivada.',
@@ -4196,6 +4293,26 @@ const TL = {
     autoColWhen:'Quand', autoColRule:'Règle', autoColJob:'Chantier', autoColWhat:'Ce qui s\'est passé',
     autoRunsEmptyMsg:'Aucune règle ne s\'est encore déclenchée.',
     autoRuleLastFired:'Dernier déclenchement %s', autoRuleNeverRun:'Jamais exécutée',
+
+    // ---- Sales follow-up emails ----
+    fuHead:'Courriels de relance commerciale',
+    fuBody:'Relance un client par courriel quand un prospect n\'a pas été contacté, qu\'un devis envoyé n\'a pas été ouvert, qu\'un devis ouvert n\'a pas été approuvé, ou qu\'un chantier approuvé n\'a pas encore d\'acompte. Rien ici n\'envoie quoi que ce soit tant que son propre interrupteur est désactivé, et un client qui s\'est désinscrit n\'est jamais contacté, quoi qu\'il en soit.',
+    fuMasterLabel:'Activer les courriels de relance commerciale',
+    fuKindLead:'Nouveau prospect non contacté',
+    fuKindSentNoView:'Devis envoyé, non ouvert',
+    fuKindViewedNotApproved:'Devis ouvert, non approuvé',
+    fuKindApprovedNoDeposit:'Approuvé, sans acompte',
+    fuDelayHours:'après (heures)', fuDelayDays:'après (jours)',
+    fuQuietStart:'Début des heures de silence (local)', fuQuietEnd:'Fin des heures de silence (local)',
+    fuTimezone:'Fuseau horaire', fuDailyCap:'Plafond quotidien (tous types confondus)',
+    fuSaveBtn:'Enregistrer', fuSavedMsg:'Paramètres de relance enregistrés.',
+    fuPreviewHead:'Ce qui serait envoyé maintenant',
+    fuPreviewBody:'Lecture seule. Calculé à partir des mêmes règles que la fonction d\'envoi, y compris les heures de silence et le plafond quotidien, pour voir l\'effet avant d\'activer quoi que ce soit. Ceci n\'envoie jamais de courriel par lui-même.',
+    fuPreviewEmptyMsg:'Rien ne serait envoyé pour le moment.',
+    fuLogHead:'Envois récents',
+    fuLogBody:'Chaque courriel de relance réellement envoyé : quel type, quel chantier, et quand.',
+    fuLogEmptyMsg:'Aucun courriel de relance n\'a encore été envoyé.',
+    fuColJob:'Chantier', fuColKind:'Relance', fuColWhen:'Quand',
     autoFlagsNoneMsg:'Aucun signalement ouvert.', autoClearBtn:'Régler',
     jobGoneLabel:'Le chantier n\'est plus ici', autoRunDoneMsg:'Fait.',
     autoRuleOnMsg:'Règle activée.', autoRuleOffMsg:'Règle désactivée.',
@@ -4768,7 +4885,13 @@ let profile=null, jobs=[], employees=[], runs=[], items=[], expenses=[], punch=[
     // on -- off by default, not on by default with no row yet.
     automationRules = new Map(),
     automationRuns = [],
-    automationFlags = [];
+    automationFlags = [],
+    // Sales follow-up automation (supabase_followups_settings.sql /
+    // supabase_followups_log.sql). null means "not loaded yet"; a company
+    // that has never opened this screen reads as FOLLOW_UP_DEFAULT_SETTINGS
+    // with enabled=false, same convention as automation_rules having no row.
+    followUpSettings = null,
+    followUpLog = [];
 /* Always the first of the month.
    Kept on today's date, stepping a month meant asking for the 31st of a
    30-day month, which JavaScript rolls forward into the month after -- so on
@@ -5270,6 +5393,152 @@ async function evaluateAutomationRules(silent){
       ? 'Checked ' + checked + ' matching job' + (checked === 1 ? '' : 's') + ', fired ' + fired + ' action' + (fired === 1 ? '' : 's') + '.'
       : 'Checked ' + checked + ' matching job' + (checked === 1 ? '' : 's') + ' -- nothing new to fire.', 'ok');
   }
+}
+
+/* ---------- sales follow-up emails (§ follow_up_settings / follow_up_log) ----------
+   One row per company in follow_up_settings, everything off by default, same
+   convention as automation_rules -- see supabase_followups_settings.sql. All
+   writes go through set_follow_up_settings(), never a raw table write, so the
+   server's permission check (EDIT_CATALOG_AND_SETTINGS) and its own
+   defaulting/validation are the only path in. The preview below is read-only:
+   it calls previewDueFollowUps() (website/js/lib/follow-ups.mjs, a mirror of
+   supabase/functions/_shared/follow-up-logic.ts) against the jobs already
+   loaded on this page -- it never calls the edge function and never sends
+   anything. */
+const FOLLOW_UP_KIND_DEFS = [
+  { key: 'new_lead_not_contacted', enabledField: 'new_lead_not_contacted_enabled',
+    delayField: 'new_lead_not_contacted_hours', delayUnit: 'hours',
+    labelKey: 'fuKindLead', delayLabelKey: 'fuDelayHours' },
+  { key: 'quote_sent_no_view', enabledField: 'quote_sent_no_view_enabled',
+    delayField: 'quote_sent_no_view_days', delayUnit: 'days',
+    labelKey: 'fuKindSentNoView', delayLabelKey: 'fuDelayDays' },
+  { key: 'quote_viewed_not_approved', enabledField: 'quote_viewed_not_approved_enabled',
+    delayField: 'quote_viewed_not_approved_days', delayUnit: 'days',
+    labelKey: 'fuKindViewedNotApproved', delayLabelKey: 'fuDelayDays' },
+  { key: 'approved_no_deposit', enabledField: 'approved_no_deposit_enabled',
+    delayField: 'approved_no_deposit_days', delayUnit: 'days',
+    labelKey: 'fuKindApprovedNoDeposit', delayLabelKey: 'fuDelayDays' },
+];
+
+async function loadFollowUpSettings(){
+  followUpSettings = null;
+  try {
+    const { data, error } = await db.from('follow_up_settings').select('*').maybeSingle();
+    if (!error) followUpSettings = data || { ...FOLLOW_UP_DEFAULT_SETTINGS };
+  } catch (e) { /* table not there yet -- reads as every kind off, same as a fresh row */ }
+  if (!followUpSettings) followUpSettings = { ...FOLLOW_UP_DEFAULT_SETTINGS };
+}
+
+async function loadFollowUpLog(){
+  followUpLog = [];
+  try {
+    const { data, error } = await db.from('follow_up_log')
+      .select('job_sync_id,kind,sent_at').order('sent_at', { ascending: false }).limit(100);
+    if (!error) followUpLog = data || [];
+  } catch (e) { /* table not there yet */ }
+}
+
+function fuKindLabel(kind){
+  const def = FOLLOW_UP_KIND_DEFS.find(k => k.key === kind);
+  return def ? tr(def.labelKey) : kind;
+}
+
+function renderFollowUps(){
+  const rowsEl = $('fuRulesRows');
+  if (!rowsEl) return; // this build of the page has not shipped the panel yet
+  const s = followUpSettings || { ...FOLLOW_UP_DEFAULT_SETTINGS };
+  const editable = canEdit();
+
+  const enabledCb = $('fu_enabled');
+  if (enabledCb) { enabledCb.checked = !!s.enabled; enabledCb.disabled = !editable; }
+  const quietStartSel = $('fu_quiet_start'), quietEndSel = $('fu_quiet_end');
+  [quietStartSel, quietEndSel].forEach(sel => {
+    if (!sel) return;
+    if (!sel.options.length) {
+      for (let h = 0; h < 24; h++) sel.appendChild(new Option(String(h).padStart(2, '0') + ':00', String(h)));
+    }
+    sel.disabled = !editable;
+  });
+  if (quietStartSel) quietStartSel.value = String(s.quiet_hours_start);
+  if (quietEndSel) quietEndSel.value = String(s.quiet_hours_end);
+  const tzSel = $('fu_timezone');
+  if (tzSel) { tzSel.value = s.timezone; tzSel.disabled = !editable; }
+  const capInput = $('fu_daily_cap');
+  if (capInput) { capInput.value = s.daily_cap; capInput.disabled = !editable; }
+
+  rowsEl.innerHTML = FOLLOW_UP_KIND_DEFS.map(def => {
+    const on = !!s[def.enabledField];
+    const delay = s[def.delayField];
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <label style="display:flex;align-items:center;gap:8px;flex:1">
+        <input type="checkbox" data-fu-enabled="${esc(def.key)}" ${on ? 'checked' : ''} ${editable ? '' : 'disabled'}>
+        ${esc(tr(def.labelKey))}
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px">
+        ${esc(tr(def.delayLabelKey))}
+        <input type="number" min="0" step="1" style="width:70px" data-fu-delay="${esc(def.key)}" value="${esc(delay)}" ${editable ? '' : 'disabled'}>
+      </label>
+    </div>`;
+  }).join('');
+
+  const saveBtn = $('fuSaveBtn');
+  if (saveBtn) saveBtn.style.display = editable ? '' : 'none';
+
+  // Preview: same jobs array the rest of the page already loaded, none of
+  // which is filtered to "not deleted" here on purpose -- previewDueFollowUps
+  // itself skips deleted_at/is_test_fixture/opted_out_at, the exact set
+  // send-follow-ups skips, so the preview cannot show a job the real send
+  // would refuse to touch.
+  const sentToday = followUpLog.filter(r => {
+    const day = new Date(r.sent_at); const today = new Date();
+    return day.getUTCFullYear() === today.getUTCFullYear() && day.getUTCMonth() === today.getUTCMonth() && day.getUTCDate() === today.getUTCDate();
+  }).length;
+  const preview = previewDueFollowUps(jobs || [], s, new Date(), sentToday);
+  const previewEl = $('fuPreviewRows'), previewEmpty = $('fuPreviewEmpty');
+  if (previewEl) {
+    previewEl.innerHTML = preview.map(p => {
+      const j = jobBySync(p.job_sync_id);
+      return `<tr><td>${esc(j?.customer_name || j?.address || tr('jobGoneLabel'))}</td><td>${esc(fuKindLabel(p.kind))}</td></tr>`;
+    }).join('');
+  }
+  if (previewEmpty) previewEmpty.style.display = preview.length ? 'none' : 'block';
+
+  const logEl = $('fuLogRows'), logEmpty = $('fuLogEmpty');
+  if (logEl) {
+    logEl.innerHTML = followUpLog.map(r => {
+      const j = jobBySync(r.job_sync_id);
+      return `<tr><td>${esc(d(r.sent_at).toLocaleString())}</td><td>${esc(j?.customer_name || j?.address || tr('jobGoneLabel'))}</td><td>${esc(fuKindLabel(r.kind))}</td></tr>`;
+    }).join('');
+  }
+  if (logEmpty) logEmpty.style.display = followUpLog.length ? 'none' : 'block';
+}
+
+/** Reads the form fields, calls set_follow_up_settings() (the only path a
+    client is allowed to write this table through -- see the comment on
+    that RPC in supabase_followups_settings.sql), then reloads from the
+    server so the screen always shows what was actually saved, not just
+    what was typed. */
+async function saveFollowUpSettings(){
+  if (!canEdit()) return;
+  const s = followUpSettings || { ...FOLLOW_UP_DEFAULT_SETTINGS };
+  const p = {
+    enabled: !!$('fu_enabled')?.checked,
+    quiet_hours_start: parseInt($('fu_quiet_start')?.value, 10),
+    quiet_hours_end: parseInt($('fu_quiet_end')?.value, 10),
+    timezone: $('fu_timezone')?.value || s.timezone,
+    daily_cap: parseInt($('fu_daily_cap')?.value, 10) || s.daily_cap,
+  };
+  FOLLOW_UP_KIND_DEFS.forEach(def => {
+    const cb = document.querySelector(`[data-fu-enabled="${def.key}"]`);
+    const delayInput = document.querySelector(`[data-fu-delay="${def.key}"]`);
+    p[def.enabledField] = !!cb?.checked;
+    p[def.delayField] = parseInt(delayInput?.value, 10) || s[def.delayField];
+  });
+  const { error } = await db.rpc('set_follow_up_settings', { p });
+  if (error) { msg('fuMsg', error.message, 'err'); return; }
+  await loadFollowUpSettings();
+  renderFollowUps();
+  msg('fuMsg', tr('fuSavedMsg'), 'ok');
 }
 
 /* Says something, visibly, and only tidies away a success.
@@ -6519,6 +6788,13 @@ async function loadAll(){
     console.error('loadAll: automation section failed:', e);
   }
   renderAutomation();
+  try {
+    await loadFollowUpSettings();
+    await loadFollowUpLog();
+  } catch (e) {
+    console.error('loadAll: follow-up settings section failed:', e);
+  }
+  renderFollowUps();
   // Settings and Billing each load and report their own failures now (see
   // loadSettings and loadBilling), so a throw in one cannot swallow the
   // other the way it could when this whole tail was one unguarded chain.
@@ -16114,6 +16390,7 @@ $('authSignOutLink').addEventListener('click',async e=>{
 });
 $('refresh').addEventListener('click',loadAll);
 $('automationRunNow').addEventListener('click', () => evaluateAutomationRules(false));
+$('fuSaveBtn')?.addEventListener('click', saveFollowUpSettings);
 $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'));
 $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'));
 $('saveJob').addEventListener('click',saveJob);
