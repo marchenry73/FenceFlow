@@ -984,6 +984,21 @@
       <div class="sheet-body">
         <p class="sub" id="fixTimeWho"></p>
         <p class="sub" id="fixTimeWasOriginal" style="display:none"></p>
+        <!-- Who worked it, first, because it is the one field that decides
+             whether the shift counts for anybody at all. Three shifts on this
+             database have a blank employee_sync_id and are therefore left out
+             of every per-person hours and pay total; nothing in the product
+             could attach one until this field existed. There is deliberately
+             no blank option: the server's time_entry_needs_a_person UPDATE
+             branch refuses a blank and refuses anybody outside this company,
+             so offering either would be offering a guaranteed error. No pay
+             rate is shown here -- this sheet is reachable by roles the pay
+             gating hides rates from, and the rate is not the office's to
+             restate anyway (stamp_time_entry_rate rewrites it server-side
+             from the employee record on every write). -->
+        <label data-t="fixTimeLabelWorker">Who worked it</label>
+        <select id="fixTimeWorker"></select>
+        <p class="sub" id="fixTimeWorkerNote"></p>
         <div class="row2">
           <div><label data-t="fixTimeLabelStart">Started</label><input type="datetime-local" id="fixTimeStart"></div>
           <div><label data-t="fixTimeLabelEnd">Ended</label><input type="datetime-local" id="fixTimeEnd"></div>
@@ -2375,6 +2390,19 @@ const TL = {
     fixTimeBreakWhole:'Break minutes has to be a whole number, zero or more.',
     fixTimeBreakTooLong:'That break (%s min) is longer than the shift itself (%s min). Check the minutes or the shift times.',
     fixTimeSavedMsg:'Shift corrected. The clock\'s own times are kept on the record.',
+    timeWhoNobody:'Nobody attached', timeWhoGone:'No longer on the crew',
+    fixTimeLabelWorker:'Who worked it',
+    fixTimeNobodyAttached:'Nobody attached yet',
+    fixTimeWorkerUnnamed:'Unnamed',
+    fixTimeWorkerOffCrew:'off the crew',
+    fixTimeWorkerNoCrew:'Nobody is on the crew yet, so there is nobody to attach. Add the crew member first.',
+    fixTimeWorkerNobodyYet:'This shift belongs to nobody, so it is left out of every per-person hours and pay total. Pick who worked it.',
+    fixTimeWorkerPayNote:'It will be costed at that person\'s own saved rate.',
+    fixTimeWorkerChangeNote:'Change this only if the hours were recorded against the wrong person.',
+    fixTimeWorkerRequired:'Pick who worked this shift. A shift cannot be saved with nobody on it.',
+    fixTimeWorkerNotOurs:'That person is not on this company. Pick somebody from the list.',
+    fixTimeWorkerSavedMsg:'Shift corrected and attached. It now counts towards that person\'s hours.',
+    fixTimeNothingChangedErr:'Nothing was saved — this shift is no longer here, or it is not yours to change. Reload the page and look again.',
     settingsFormHead:'Business Settings',
     settingsLabelBizName:'Business name', settingsLabelOwnerName:'Owner name',
     settingsLabelPhone:'Phone', settingsLabelEmail:'Email',
@@ -2899,8 +2927,9 @@ const TL = {
     // was free, but that nobody is on record to carry a rate for it.
     repAttnOrphanWhy:'These cannot carry a pay rate until someone owns them, so their labour costs read as $0.',
     repAttnOrphanTitle:'Shifts with nobody attached',
-    repAttnOrphanHow:'Finished shifts whose crew member was never set. Open the shift in the app and pick who worked it.',
+    repAttnOrphanHow:'Finished shifts whose crew member was never set. Attach who worked it here — the phone can only fix a shift the device that recorded it still holds, so nothing on a handset can reach these.',
     repAttnOrphanRows:'The shifts',
+    repAttnOrphanAssignBtn:'Attach who worked it',
     repAttnAllClearTitle:'All clear',
     repAttnAllClearBody:'Nothing is sitting still — no unapproved hours, no stale debt, no quiet quotes.',
     repHeroCollectedCaption:'Collected this period', repHeroByWeek:'by week',
@@ -3240,6 +3269,19 @@ const TL = {
     fixTimeBreakWhole:'Los minutos de descanso tienen que ser un número entero, cero o más.',
     fixTimeBreakTooLong:'Ese descanso (%s min) es más largo que el turno mismo (%s min). Revise los minutos o las horas del turno.',
     fixTimeSavedMsg:'Turno corregido. Se conservan las horas que marcó el reloj en el registro.',
+    timeWhoNobody:'Nadie asignado', timeWhoGone:'Ya no está en la cuadrilla',
+    fixTimeLabelWorker:'Quién lo trabajó',
+    fixTimeNobodyAttached:'Nadie asignado todavía',
+    fixTimeWorkerUnnamed:'Sin nombre',
+    fixTimeWorkerOffCrew:'fuera de la cuadrilla',
+    fixTimeWorkerNoCrew:'Todavía no hay nadie en la cuadrilla, así que no hay a quién asignar. Agregue primero al miembro de la cuadrilla.',
+    fixTimeWorkerNobodyYet:'Este turno no es de nadie, así que queda fuera de todos los totales de horas y pago por persona. Elija quién lo trabajó.',
+    fixTimeWorkerPayNote:'Se costeará con la tarifa guardada de esa persona.',
+    fixTimeWorkerChangeNote:'Cambie esto solo si las horas se registraron a la persona equivocada.',
+    fixTimeWorkerRequired:'Elija quién trabajó este turno. Un turno no se puede guardar sin nadie asignado.',
+    fixTimeWorkerNotOurs:'Esa persona no es de esta empresa. Elija a alguien de la lista.',
+    fixTimeWorkerSavedMsg:'Turno corregido y asignado. Ahora cuenta para las horas de esa persona.',
+    fixTimeNothingChangedErr:'No se guardó nada: este turno ya no está aquí, o no es suyo para cambiarlo. Recargue la página y vuelva a mirar.',
     settingsFormHead:'Datos de la empresa',
     settingsLabelBizName:'Nombre de la empresa', settingsLabelOwnerName:'Nombre del dueño',
     settingsLabelPhone:'Teléfono', settingsLabelEmail:'Correo electrónico',
@@ -3747,8 +3789,9 @@ const TL = {
     repAttnOrphanWhatSing:'turno sin nadie asignado', repAttnOrphanWhatPlur:'turnos sin nadie asignado',
     repAttnOrphanWhy:'Estos no pueden llevar una tarifa hasta que alguien los tenga asignados, así que su costo de mano de obra se lee como $0.',
     repAttnOrphanTitle:'Turnos sin nadie asignado',
-    repAttnOrphanHow:'Turnos terminados a los que nunca se les asignó un miembro de la cuadrilla. Abra el turno en la app y elija quién lo trabajó.',
+    repAttnOrphanHow:'Turnos terminados a los que nunca se les asignó un miembro de la cuadrilla. Asigne aquí quién lo trabajó: el teléfono solo puede corregir un turno que el propio aparato que lo registró todavía tenga, así que ninguno de ellos llega a estos.',
     repAttnOrphanRows:'Los turnos',
+    repAttnOrphanAssignBtn:'Asignar quién lo trabajó',
     repAttnAllClearTitle:'Todo en orden',
     repAttnAllClearBody:'Nada está detenido — sin horas sin aprobar, sin deudas atrasadas, sin presupuestos sin respuesta.',
     repHeroCollectedCaption:'Cobrado en este período', repHeroByWeek:'por semana',
@@ -4078,6 +4121,19 @@ const TL = {
     fixTimeBreakWhole:'Les minutes de pause doivent être un nombre entier, zéro ou plus.',
     fixTimeBreakTooLong:'Cette pause (%s min) est plus longue que le quart lui-même (%s min). Vérifiez les minutes ou les heures du quart.',
     fixTimeSavedMsg:'Quart corrigé. Les heures de l’horloge elle-même sont conservées dans le registre.',
+    timeWhoNobody:'Personne rattaché', timeWhoGone:'N\'est plus dans l\'équipe',
+    fixTimeLabelWorker:'Qui l\'a travaillé',
+    fixTimeNobodyAttached:'Personne n\'y est encore rattaché',
+    fixTimeWorkerUnnamed:'Sans nom',
+    fixTimeWorkerOffCrew:'hors de l\'équipe',
+    fixTimeWorkerNoCrew:'Personne n\'est encore dans l\'équipe, il n\'y a donc personne à rattacher. Ajoutez d\'abord le membre de l\'équipe.',
+    fixTimeWorkerNobodyYet:'Ce quart n\'appartient à personne, il est donc exclu de tous les totaux d\'heures et de paie par personne. Choisissez qui l\'a travaillé.',
+    fixTimeWorkerPayNote:'Il sera chiffré au taux enregistré de cette personne.',
+    fixTimeWorkerChangeNote:'Ne changez ceci que si les heures ont été inscrites à la mauvaise personne.',
+    fixTimeWorkerRequired:'Choisissez qui a travaillé ce quart. Un quart ne peut pas être enregistré sans personne.',
+    fixTimeWorkerNotOurs:'Cette personne n\'est pas de cette entreprise. Choisissez quelqu\'un dans la liste.',
+    fixTimeWorkerSavedMsg:'Quart corrigé et rattaché. Il compte maintenant dans les heures de cette personne.',
+    fixTimeNothingChangedErr:'Rien n\'a été enregistré : ce quart n\'est plus ici, ou il ne vous appartient pas de le modifier. Rechargez la page et regardez à nouveau.',
     settingsFormHead:'Coordonnées de l’entreprise',
     settingsLabelBizName:'Nom de l’entreprise', settingsLabelOwnerName:'Nom du propriétaire',
     settingsLabelPhone:'Téléphone', settingsLabelEmail:'Courriel',
@@ -4585,8 +4641,9 @@ const TL = {
     repAttnOrphanWhatSing:'quart sans personne rattaché', repAttnOrphanWhatPlur:'quarts sans personne rattaché',
     repAttnOrphanWhy:'Ces quarts ne peuvent porter de taux tant que personne n\'y est rattaché, donc leur coût de main-d\'œuvre se lit comme 0 $.',
     repAttnOrphanTitle:'Quarts sans personne rattaché',
-    repAttnOrphanHow:'Quarts terminés dont le membre de l\'équipe n\'a jamais été défini. Ouvrez le quart dans l\'appli et choisissez qui l\'a travaillé.',
+    repAttnOrphanHow:'Quarts terminés dont le membre de l\'équipe n\'a jamais été défini. Rattachez ici qui l\'a travaillé : le téléphone ne peut corriger qu\'un quart que l\'appareil qui l\'a enregistré détient encore, donc aucun combiné n\'atteint ceux-ci.',
     repAttnOrphanRows:'Les quarts',
+    repAttnOrphanAssignBtn:'Rattacher qui l\'a travaillé',
     repAttnAllClearTitle:'Tout est réglé',
     repAttnAllClearBody:'Rien ne traîne — aucune heure non approuvée, aucune dette en souffrance, aucun devis sans réponse.',
     repHeroCollectedCaption:'Encaissé cette période', repHeroByWeek:'par semaine',
@@ -4910,6 +4967,46 @@ const canEdit = () => profile && (profile.role==='OWNER' || profile.role==='MANA
 // other role-based check on this page (canEdit above included).
 const canSeeMoney = () => profile
   && ['OWNER','MANAGER','SALES','ACCOUNTANT'].includes(profile.role);
+
+/* Does THIS person hold a permission? Mirrors public.has_permission() in
+   supabase_permissions_patch.sql: the role's defaults, plus +GRANTS, minus
+   -REVOCATIONS, with a revocation beating a grant for the same name. Substring
+   matching on the overrides string, not a split-and-compare, because that is
+   literally what the server does (position('-'||perm in overrides) > 0) and a
+   screen that is cleverer than the server is a screen that disagrees with it.
+   permission_overrides already comes down with the profile (select('*')).
+
+   canEdit() and canSeeMoney() above are role-only and say so. This is the one
+   that sees an override, so it is what any control over somebody else's pay has
+   to ask. The server is still the boundary -- see
+   supabase_sec_time_entries_write_permission.sql, which refuses the write
+   whatever this function returns. */
+const ROLE_PERMISSIONS = {
+  MANAGER: ['SEE_MONEY','SEE_PAY','EDIT_JOBS','EDIT_CATALOG_AND_SETTINGS','SCHEDULE_AND_ASSIGN',
+            'REQUEST_PAYMENT','RECORD_FIELD_WORK','SEE_CUSTOMER_CONTACT','SEE_REPORTS',
+            'APPROVE_TIME','APPROVE_PLAN_CHANGES'],
+  SALES: ['SEE_MONEY','EDIT_JOBS','SEE_CUSTOMER_CONTACT'],
+  ACCOUNTANT: ['SEE_MONEY','SEE_PAY','REQUEST_PAYMENT','RECORD_REFUNDS','SEE_CUSTOMER_CONTACT','SEE_REPORTS'],
+  FOREMAN: ['SCHEDULE_AND_ASSIGN','RECORD_FIELD_WORK','SEE_CUSTOMER_CONTACT','APPROVE_TIME','APPROVE_PLAN_CHANGES'],
+  CREW: ['RECORD_FIELD_WORK']
+};
+function hasPerm(perm){
+  if (!profile) return false;
+  const ov = String(profile.permission_overrides || '');
+  if (ov.indexOf('-' + perm) >= 0) return false;
+  if (ov.indexOf('+' + perm) >= 0) return true;
+  if (profile.role === 'OWNER') return true;
+  return (ROLE_PERMISSIONS[profile.role] || []).indexOf(perm) >= 0;
+}
+
+/* Who may open "Correct this shift".
+   The sheet always sends started_at, ended_at and correction_reason -- and the
+   worker too when it was changed -- so the one permission that covers every
+   patch it can produce is APPROVE_TIME. A MANAGER with -APPROVE_TIME used to be
+   offered this button by canEdit() alone and the server took the write: that is
+   the hole supabase_sec_time_entries_write_permission.sql closes. The button is
+   hidden here as well so nobody is shown a control that will now be refused. */
+const canCorrectTime = () => canEdit() && hasPerm('APPROVE_TIME');
 
 /* Per-user "needs attention" alert preferences -- launch audit §28.
    The nine exception detectors below (the ones that answer "nothing
@@ -9082,7 +9179,16 @@ function jobBySync(sid){ return jobs.find(j=>j.sync_id===sid); }
    the two differ. Hiding the original would make the correction invisible to
    the person it affects, which is the whole thing this is meant to prevent. */
 function shiftWhoName(t){
-  return (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name || 'Unknown';
+  const named = (employees.find(e => e.sync_id === t.employee_sync_id) || {}).name;
+  if (named) return named;
+  // Both of these used to read 'Unknown', in English whatever language the
+  // office was in, and that one word hid the difference that matters. A blank
+  // employee_sync_id means the shift belongs to NOBODY -- it is left out of
+  // every per-person hours and pay total, and the correct-a-shift sheet's
+  // worker field is how it gets fixed. A sync_id that simply does not resolve
+  // means somebody real whose crew record has since been deleted: the hours
+  // are attributed, the name is just not on hand.
+  return tr(shiftNeedsAWorker(t) ? 'timeWhoNobody' : 'timeWhoGone');
 }
 
 async function renderTime(){
@@ -9115,7 +9221,9 @@ async function renderTime(){
       <td>${h.toFixed(2)}${brk}</td><td>${isPerFootShift(t)
         ? `<span class="sub" title="${esc(tr('timePerFootCellTitle'))}">${esc(tr('timePerFootCell'))}</span>`
         : money(paidHoursOf(t)*(t.hourly_rate||0))}</td>
-      <td><button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">${esc(tr('timeCorrectBtn'))}</button></td></tr>`;
+      <td>${canCorrectTime()
+        ? `<button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">${esc(tr('timeCorrectBtn'))}</button>`
+        : ''}</td></tr>`;
   }).join('');
   document.querySelectorAll('#timeRows .fixtime').forEach(b =>
     b.addEventListener('click', () => openFixTime(b.dataset.id)));
@@ -9367,12 +9475,135 @@ function forLocalInput(iso){
   return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate())+'T'+p(t.getHours())+':'+p(t.getMinutes());
 }
 
+/* ---- who worked a shift -------------------------------------------------
+   Three historical shifts on this database carry a blank employee_sync_id.
+   They belong to nobody, so every per-person hours and pay total silently
+   leaves them out, and the phone cannot fix them -- it can only correct rows
+   the originating device still has marked blocked. This is the office half.
+
+   The three functions below are the entire decision and they are pure: no
+   DOM, no Supabase, no clock. tests/assign-worker.test.mjs lifts them out of
+   this file by name and runs them, so a change here is a change the test
+   sees.
+
+   They mirror public.time_entry_needs_a_person()'s UPDATE branch, which
+   refuses a blank employee_sync_id and refuses one naming somebody outside
+   the company, and which -- exactly like planWorkerChange below -- only
+   checks at all when the value actually changes. The sheet must not offer
+   what the server will refuse.
+
+   Proven against the live database on 2026-09-18 inside a rolled-back
+   transaction, impersonating this company's real OWNER: attaching a crew
+   member to all three real blank rows was ALLOWED (3 rows), blank was
+   refused 23514, another company's person was refused 23514, and the
+   positive control (the same owner with a -APPROVE_TIME override moving
+   approved_at) was refused 42501, which is how we know the approval guard
+   was firing throughout. guard_time_entry_approval returns early whenever
+   approved_at, approved_by and rejected_at are all unchanged, so an
+   already-approved shift is editable without APPROVE_TIME and nothing here
+   needs that guard relaxed.
+
+   That last sentence was true of the server AND WAS THE HOLE. Correcting an
+   approved shift, or attaching a worker to one, needed no permission at all --
+   only membership of the company. Proved the same way on 2026-09-18: a MANAGER
+   with -APPROVE_TIME,-SCHEDULE_AND_ASSIGN did both, 1 row each, with the
+   approval guard's own refusal as the positive control.
+   supabase_sec_time_entries_write_permission.sql closes it with a second BEFORE
+   UPDATE trigger. guard_time_entry_approval is unchanged and still returns early
+   for an hours edit, which is exactly why a second guard was needed. openFixTime
+   now asks canCorrectTime() rather than canEdit(). */
+
+// The same test the server's guard applies: btrim of space/tab/CR/LF, then
+// nullif. Written out rather than String.trim() so "has nobody on it" means
+// precisely the same thing on both sides -- trim() also strips form feeds and
+// unicode spaces, which the server would keep.
+function blankWorkerId(v){
+  return (v == null ? '' : String(v)).replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+}
+function shiftNeedsAWorker(t){ return blankWorkerId(t && t.employee_sync_id) === ''; }
+
+/* Everybody this company could honestly name, and nobody else.
+   Current crew first, then people who have been taken off it -- a shift from
+   August can perfectly well belong to somebody who left in September, and the
+   server's guard asks only that they are ours, never that they are current.
+   A worker already on the shift who is not in the roster at all (deleted crew;
+   the roster read filters deleted_at) is kept as their own choice, so opening
+   the sheet and saving cannot silently move the shift onto somebody else --
+   the same trap the job editor's assignee select hit and fixed. */
+function crewChoicesForShift(roster, currentSyncId){
+  const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
+  const ours = (roster || []).filter(e => e && e.sync_id);
+  const out = ours.filter(e => e.is_active !== false).sort(byName)
+      .map(e => ({ value: String(e.sync_id), name: e.name || '', gone: false }))
+    .concat(ours.filter(e => e.is_active === false).sort(byName)
+      .map(e => ({ value: String(e.sync_id), name: e.name || '', gone: true })));
+  const cur = blankWorkerId(currentSyncId);
+  if (cur && !out.some(o => o.value === cur)) {
+    out.push({ value: cur, name: '', gone: true, missing: true });
+  }
+  return out;
+}
+
+/* What to send, or which refusal to show instead. Returns
+   { patch, problem, changed }: `problem` is a tr() key, never a sentence, so
+   it carries into Spanish and French.
+
+   Unchanged means the key is simply absent from the patch -- the same reason
+   saveFixTime omits break_minutes when the box is left alone, and the same
+   condition the server uses to skip its own check. That matters for a shift
+   naming somebody the roster no longer lists: re-saving its times must not
+   fail our validation over a value nobody touched.
+
+   hourly_rate is deliberately never in the patch. stamp_time_entry_rate
+   rewrites it from the employee record on every write, so a rate sent from
+   here would be a number the server throws away -- and on a screen that must
+   not show rates, a number it should never have held. */
+function planWorkerChange(shift, chosen, roster){
+  const now  = blankWorkerId(shift && shift.employee_sync_id);
+  const want = blankWorkerId(chosen);
+  // Blank is refused BEFORE the unchanged test, never after. Written the other
+  // way round -- which is the obvious way round -- a shift that already
+  // belongs to nobody passes through as "unchanged": its times save, no error
+  // is shown, and it is still attributionless. That is the whole bug this
+  // field exists to close, reintroduced by an ordering. The server agrees
+  // (its UPDATE branch skips a value that did not change), so this refusal is
+  // the office's alone and has to be here.
+  if (!want) return { patch: null, problem: 'fixTimeWorkerRequired', changed: false };
+  if (want === now) return { patch: {}, problem: null, changed: false };
+  // A native select cannot normally hand back a value it has no option for, so
+  // this is not the everyday path -- it is the sheet left open while a
+  // background loadAll() refreshed `employees` and the chosen person was
+  // removed from the crew in between. Without it the office would see the
+  // server's raw constraint error instead of a sentence.
+  if (!(roster || []).some(e => e && String(e.sync_id) === want)) {
+    return { patch: null, problem: 'fixTimeWorkerNotOurs', changed: false };
+  }
+  return { patch: { employee_sync_id: want }, problem: null, changed: true };
+}
+
 function openFixTime(id){
   const t = times.find(x => String(x.id) === String(id));
-  if (!t || !canEdit()) return;
+  if (!t || !canCorrectTime()) return;
   fixingShift = t;
-  $('fixTimeWho').textContent = shiftWhoName(t) + ' · ' +
+  // Asked of the row, never of shiftWhoName()'s output -- reading a decision
+  // off a display string is how translating a label silently changes what the
+  // code does.
+  const whoLabel = shiftNeedsAWorker(t) ? tr('fixTimeNobodyAttached') : shiftWhoName(t);
+  $('fixTimeWho').textContent = whoLabel + ' · ' +
     (jobBySync(t.job_sync_id)?.customer_name || tr('fixTimeNoJob'));
+  const choices = crewChoicesForShift(employees, t.employee_sync_id);
+  $('fixTimeWorker').innerHTML = choices.map(c =>
+    `<option value="${esc(c.value)}">` +
+    esc((c.name || tr('fixTimeWorkerUnnamed')) + (c.gone ? ' — ' + tr('fixTimeWorkerOffCrew') : '')) +
+    '</option>').join('');
+  // A shift with nobody on it gets no preselection at all: the office has to
+  // choose, rather than accepting whoever happened to sort first.
+  $('fixTimeWorker').value = shiftNeedsAWorker(t) ? '' : blankWorkerId(t.employee_sync_id);
+  $('fixTimeWorkerNote').textContent = !choices.length
+    ? tr('fixTimeWorkerNoCrew')
+    : shiftNeedsAWorker(t)
+      ? tr('fixTimeWorkerNobodyYet') + (canSeeMoney() ? ' ' + tr('fixTimeWorkerPayNote') : '')
+      : tr('fixTimeWorkerChangeNote');
   const orig = [];
   if (t.original_started_at) orig.push(tr('fixTimeOriginalStarted', d(t.original_started_at).toLocaleString()));
   if (t.original_ended_at)   orig.push(tr('fixTimeOriginalEnded', d(t.original_ended_at).toLocaleString()));
@@ -9391,6 +9622,11 @@ function openFixTime(id){
   $('fixTimeReason').value = '';
   msg('fixTimeMsg','','');
   $('fixTimeSheet').style.display = 'block';
+  // The sheet is an inline panel, not an overlay, and it sits above the
+  // Reports tab in the document. Opened from the orphan-shifts list over
+  // there, it would appear off the top of the screen and read as nothing
+  // having happened at all.
+  $('fixTimeSheet').scrollIntoView({ block: 'center' });
 }
 
 function closeFixTime(){ fixingShift = null; $('fixTimeSheet').style.display = 'none'; }
@@ -9402,8 +9638,17 @@ async function saveFixTime(){
   // Required, and not as box-ticking: this line is what the employee reads
   // when their hours change, and what settles it if they disagree. A break
   // entry changes estimated pay exactly like a time correction does, so it
-  // gets the same "who and why" instead of a quieter path around it.
+  // gets the same "who and why" instead of a quieter path around it. So does
+  // attaching or moving the worker -- more so, since it decides whose hours
+  // these are.
   if (reason.length < 4) return msg('fixTimeMsg',tr('fixTimeReasonRequired'),'err');
+  // Who worked it, decided before the times, so a shift that belongs to
+  // nobody cannot be saved as still belonging to nobody. planWorkerChange
+  // refuses blank and refuses anybody outside this company -- the same two
+  // refusals time_entry_needs_a_person raises server-side, made here so the
+  // office sees a sentence instead of a constraint error.
+  const worker = planWorkerChange(t, $('fixTimeWorker').value, employees);
+  if (worker.problem) return msg('fixTimeMsg', tr(worker.problem), 'err');
   const startVal = $('fixTimeStart').value, endVal = $('fixTimeEnd').value;
   if (!startVal || !endVal) return msg('fixTimeMsg',tr('fixTimeTimesRequired'),'err');
   const start = new Date(startVal), end = new Date(endVal);
@@ -9413,7 +9658,7 @@ async function saveFixTime(){
   if ((end - start) > 20*36e5) return msg('fixTimeMsg',tr('fixTimeTooLong'),'err');
 
   const patch = { started_at: start.toISOString(), ended_at: end.toISOString(),
-                   correction_reason: reason };
+                   correction_reason: reason, ...worker.patch };
   // Left blank on purpose leaves break_minutes untouched -- the key is simply
   // omitted from the patch, so a manager correcting only the times does not
   // accidentally null out a break someone already recorded. Typing "0" is a
@@ -9434,10 +9679,28 @@ async function saveFixTime(){
     patch.break_minutes = breakMin;
   }
 
-  const { error } = await db.from('time_entries').update(patch).eq('id', t.id);
+  // .select('id') so the save is judged on what it CHANGED, not on the absence
+  // of an error. A PostgREST update that matches no row -- the shift deleted
+  // from a phone since this page loaded, or hidden from this reader by the
+  // pay-visibility read policy -- returns 200 with an empty body and no error
+  // at all, and every version of this function before now announced "Shift
+  // corrected" for it. An empty answer is not good news.
+  const { data: changedRows, error } = await db.from('time_entries')
+    .update(patch).eq('id', t.id).select('id');
   if (error) return msg('fixTimeMsg', error.message, 'err');
+  if (!changedRows || !changedRows.length) return msg('fixTimeMsg', tr('fixTimeNothingChangedErr'), 'err');
+  const attached = worker.changed;
   closeFixTime();
-  msg('timeMsg',tr('fixTimeSavedMsg'),'ok');
+  // The sheet can now be opened from the Reports attention panel as well as
+  // from the Time tab, and timeMsg lives inside the Time tab -- left where it
+  // was, the confirmation for a shift fixed from Reports would have been
+  // written to a hidden element and the save would have looked like nothing
+  // at all. Land on the tab that shows both the message and the row it is
+  // about. Skipped when the plan has no Time tab, which switchTab would
+  // otherwise redirect to the Dashboard.
+  const timeTab = document.querySelector('.tab[data-tab="time"]');
+  if (timeTab && timeTab.style.display !== 'none') switchTab('time');
+  msg('timeMsg', attached ? tr('fixTimeWorkerSavedMsg') : tr('fixTimeSavedMsg'), 'ok');
   await loadAll();
 }
 
@@ -11141,7 +11404,22 @@ function showExplain(spec){
            <a href="sms:${tel}${r.smsBody ? '?&body=' + encodeURIComponent(r.smsBody) : ''}"
               style="color:var(--orange);font-weight:600">${esc(tr('repChaseTextBtn'))}</a></div>`
       : '';
-    return `<tr><td>${esc(r.label)}${r.sub ? `<div class="sub" style="margin:2px 0 0">${esc(r.sub)}</div>` : ''}${acts}</td>
+    // A row can carry one action back into the page. Used by the orphan-shifts
+    // item, which listed shifts belonging to nobody read-only and told the
+    // office to go and fix them in the app -- where the phone cannot reach a
+    // historical row at all. Only offered to someone who may actually correct a
+    // shift -- the same gate openFixTime itself applies -- so nobody is shown a
+    // button that silently does nothing, or that the server will now refuse.
+    //
+    // Spelled out rather than calling canCorrectTime(), which is the identical
+    // expression: tests/assign-worker.test.mjs pins the literal text
+    // "r.fixShiftId && canEdit()" here to stop this button drifting away from
+    // openFixTime's gate. The two are the same rule and change together.
+    const fix = r.fixShiftId && canEdit() && hasPerm('APPROVE_TIME')
+      ? `<div class="sub" style="margin:3px 0 0"><button class="btn btn-sm"
+            type="button" data-xp-fix="${esc(String(r.fixShiftId))}">${esc(tr('repAttnOrphanAssignBtn'))}</button></div>`
+      : '';
+    return `<tr><td>${esc(r.label)}${r.sub ? `<div class="sub" style="margin:2px 0 0">${esc(r.sub)}</div>` : ''}${acts}${fix}</td>
        <td class="num" style="${r.neg ? 'color:var(--red)' : ''}">${esc(r.amount || '')}</td></tr>`;
   }).join('');
 
@@ -11157,6 +11435,10 @@ function showExplain(spec){
             ? `<div class="xp-rows"><h4>${esc(spec.rowsTitle || tr('repXpDefaultRowsTitle'))}</h4>
                  <div class="no-data">${esc(spec.rowsEmpty)}</div></div>`
             : ''));
+  // Wired after the markup exists, not inline: an onclick attribute here would
+  // have to carry the id through a string, and the ids are database uuids.
+  $('xpBody').querySelectorAll('[data-xp-fix]').forEach(b =>
+    b.addEventListener('click', () => { hideExplain(); openFixTime(b.dataset.xpFix); }));
   $('xpOverlay').classList.add('on');
 }
 
@@ -11339,7 +11621,10 @@ async function renderReports(){
         smsBody: tr('repAttnQuietSms', (j.customer_name||'').split(' ')[0]) }))
     })
   });
-  const orphan = times.filter(t=>t.ended_at && !(t.employee_sync_id||'').trim());
+  // shiftNeedsAWorker() rather than a second inline blank test: it is the same
+  // btrim the server's guard uses, so this list and the server agree on which
+  // rows have nobody on them.
+  const orphan = times.filter(t=>t.ended_at && shiftNeedsAWorker(t));
   if (orphan.length) attn.push({
     n: String(orphan.length), what: orphan.length===1?tr('repAttnOrphanWhatSing'):tr('repAttnOrphanWhatPlur'),
     // Hedge: labour reading as $0 here means nobody is on record to own the
@@ -11349,8 +11634,15 @@ async function renderReports(){
       title: tr('repAttnOrphanTitle'), value: String(orphan.length),
       how: tr('repAttnOrphanHow'),
       rowsTitle: tr('repAttnOrphanRows'),
-      rows: orphan.map(t=>({ label: jobBySync(t.job_sync_id)?.customer_name || '—',
-        sub: d(t.started_at).toLocaleDateString(), amount: hoursOf(t).toFixed(1)+' h' }))
+      // fixShiftId turns each row into an assign action rather than a line of
+      // bad news: this list was read-only, and the advice it used to give --
+      // open the shift in the app -- is not something the phone can do for a
+      // historical row. Ordered oldest first, because the oldest is the one
+      // whose payroll week has already been settled wrongly.
+      rows: orphan.slice().sort((a,b)=>d(a.started_at)-d(b.started_at)).map(t=>({
+        label: jobBySync(t.job_sync_id)?.customer_name || '—',
+        sub: d(t.started_at).toLocaleDateString(), amount: hoursOf(t).toFixed(1)+' h',
+        fixShiftId: t.id }))
     })
   });
   $('repAttention').innerHTML = attn.length

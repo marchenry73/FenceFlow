@@ -199,3 +199,4 @@ supabase_reapproval_on_drawing_change.sql
 supabase_setup_progress_v2.sql
 supabase_sec_sync_fix_signature_upsert.sql
 supabase_sec_sync_fix_needs_person_existing_rows.sql
+supabase_sec_time_entries_write_permission.sql
