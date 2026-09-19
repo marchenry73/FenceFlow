@@ -72,6 +72,30 @@ function runSql(sql) {
 const asClaim = (sub) =>
   `select set_config('request.jwt.claims', json_build_object('sub','${sub}','role','authenticated')::text, true);`;
 
+// Splits a Postgres pg_get_function_result() string of the shape
+// "TABLE(col1 type1, col2 type2, ...)" into [{name, type}], tracking paren
+// depth so a parameterised type (e.g. numeric(10,2)) can never be split on
+// its own internal comma. Section 8 uses this to build a job_costing() plant
+// whose OUT list is always whatever is actually live, never a hand-typed
+// snapshot that rots the next time a column is added.
+function parseTableColumns(resultClause) {
+  const inner = resultClause.replace(/^\s*TABLE\(/i, "").replace(/\)\s*$/, "");
+  const parts = [];
+  let depth = 0, cur = "";
+  for (const ch of inner) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (ch === "," && depth === 0) { parts.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  if (cur.trim()) parts.push(cur);
+  return parts.map(p => {
+    const t = p.trim();
+    const sp = t.indexOf(" ");
+    return { name: t.slice(0, sp), type: t.slice(sp + 1).trim() };
+  });
+}
+
 // Common setup shared by every section below: an OWNER, a MANAGER with no
 // overrides, and two CREW members each backed by a real employees row (so
 // employees.profile_id -> auth.uid() actually resolves, the same link
@@ -661,7 +685,28 @@ rollback;
   console.log("\n6. THE TIME CLOCK -- disputing a shift only works on YOUR OWN shift:");
   console.log("   (dispute_my_shift/acknowledge_my_shift, supabase_shift_dispute.sql -- these are");
   console.log("    SECURITY DEFINER and check the caller IS the named employee via profile_id;");
-  console.log("    time_entries_update itself is company-wide with no such check)");
+  console.log("    time_entries_update itself is company-wide with no such check.");
+  console.log("");
+  console.log("   A second, independent layer sits one level further out: guard_time_entry_write_");
+  console.log("   permission (supabase_sec_time_entries_write_permission.sql) ALSO refuses a raw");
+  console.log("   PostgREST PATCH that writes correction_disputed_at/dispute_note/correction_seen_at");
+  console.log("   on somebody else's shift -- but it explicitly exempts SECURITY DEFINER callers by");
+  console.log("   current_user (its own comment: 'these keep working untouched'), so it does NOT");
+  console.log("   re-guard THIS RPC. dispute_my_shift()'s own ownership check remains the only thing");
+  console.log("   stopping a forged dispute through the RPC; the trigger guards a DIFFERENT path -- a");
+  console.log("   raw UPDATE straight against time_entries, skipping the RPC. Both are real, and both");
+  console.log("   are proved below, on the vector each one actually covers.");
+  console.log("");
+  console.log("   CONFOUND, measured before trusting any read-back: time_entries carries a");
+  console.log("   RESTRICTIVE SELECT policy, time_entries_pay_needs_see_pay -- has_permission");
+  console.log("   ('SEE_PAY') OR is_my_shift(employee_sync_id). CREW_B has neither for CREW_A's");
+  console.log("   shift, so the WHOLE ROW -- not just its rate -- is invisible to a read done as");
+  console.log("   CREW_B, UPDATE included (RLS needs SELECT visibility to know which rows a WHERE");
+  console.log("   clause may even touch). A read-back taken through CREW_B's own eyes cannot tell");
+  console.log("   'the write was refused' from 'the write landed and I am simply not allowed to see");
+  console.log("   it' -- which is exactly what made the forged-dispute canary below look toothless");
+  console.log("   the day this guard trigger shipped. Every read-back below goes through a caller");
+  console.log("   who can actually see the row.");
 
   const check6 = runSql(`
 begin;
@@ -670,32 +715,59 @@ insert into time_entries(company_id, sync_id, job_sync_id, employee_sync_id, sta
 values ('${ZZ_BUSY}', '${SHIFT_SYNC}', '${JOB_ACCEPTED}', '${EMP_A_SYNC}',
         '2026-09-01T13:00:00Z', '2026-09-01T21:00:00Z', 22);
 
-create temp table probe6(case_name text, disputed boolean, dispute_note text, ok_result boolean) on commit drop;
+create temp table probe6(case_name text, disputed boolean, dispute_note text, touched int, refused text) on commit drop;
 grant all on probe6 to authenticated;
 create temp table probe6_call(disputed boolean) on commit drop;
 grant all on probe6_call to authenticated;
 
+-- ---- CONFOUND CONTROL, measured rather than assumed (same discipline as
+-- section 3's SALES/CREW split): can CREW_B even see the row before trying to
+-- dispute it?
+do $g6v$
+declare seen int;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub','${CREW_B_ID}','role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into seen from time_entries where sync_id = '${SHIFT_SYNC}';
+  execute 'reset role';
+  insert into probe6 values ('CONFOUND: rows CREW_B (no SEE_PAY, not the shift''s owner) can see', null, null, seen, null);
+
+  perform set_config('request.jwt.claims', json_build_object('sub','${OWNER_ID}','role','authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into seen from time_entries where sync_id = '${SHIFT_SYNC}';
+  execute 'reset role';
+  insert into probe6 values ('CONFOUND: rows OWNER (holds SEE_PAY) can see', null, null, seen, null);
+end $g6v$;
+
 -- ---- REAL rule: CREW_B (not the shift's owner) tries to dispute CREW_A's shift.
 --
 -- The function call and the read-back of dispute_note are deliberately split
--- into separate statements. A single command takes one snapshot for its whole
--- execution, so calling dispute_my_shift() (which does its own UPDATE) and
--- reading time_entries back in a SIBLING expression of the very same SELECT
--- would still see the pre-call row -- looking like the write never landed
--- even when it genuinely did, or vice versa. Two statements, two snapshots,
--- an honest read.
+-- into separate statements (a single command takes one snapshot for its whole
+-- execution -- see section 2's note). The read-back is ALSO deliberately taken
+-- as OWNER, never CREW_B: CREW_B's own read is blind per the CONFOUND above,
+-- so it could not tell "refused" from "landed but invisible to me".
 ${asClaim(CREW_B_ID)}
 set local role authenticated;
 insert into probe6_call select dispute_my_shift('${SHIFT_SYNC}', 'That is not my shift.');
+reset role;
+${asClaim(OWNER_ID)}
+set local role authenticated;
 insert into probe6 select 'CREW_B (not this shift''s employee) tries to dispute CREW_A''s shift',
   (select disputed from probe6_call),
   (select dispute_note from time_entries where sync_id = '${SHIFT_SYNC}'),
-  null;
+  null, null;
 reset role;
 
--- ---- PLANTED FAILURE: drop the profile_id match, so ANY company member can
--- dispute ANY shift -- the exact hole that would let one crew member forge
--- another's dispute.
+-- ---- PLANTED FAILURE (layer 1 -- the RPC's own ownership check): drop the
+-- profile_id match, so ANY company member can dispute ANY shift THROUGH
+-- dispute_my_shift() itself -- the exact hole that would let one crew member
+-- forge another's dispute. guard_time_entry_write_permission does NOT catch
+-- this: dispute_my_shift is SECURITY DEFINER, so current_user inside its
+-- UPDATE is the function's owner, never 'authenticated' -- proved live in the
+-- probe that diagnosed this file (current_user = 'postgres' there, so the
+-- trigger's own "current_user not in ('authenticated','anon')" returns early).
+-- Read back as OWNER, never as CREW_B, or the confound above hides a real
+-- forged write behind a null and makes this canary look toothless again.
 create or replace function public.dispute_my_shift(shift_sync_id text, note text)
 returns boolean language plpgsql security definer set search_path to 'public' as $inner$
 declare touched int; clean text;
@@ -717,10 +789,13 @@ ${asClaim(CREW_B_ID)}
 set local role authenticated;
 delete from probe6_call;
 insert into probe6_call select dispute_my_shift('${SHIFT_SYNC}', 'forged dispute');
-insert into probe6 select 'PLANTED-BUG: ownership check removed, CREW_B disputes CREW_A''s shift',
+reset role;
+${asClaim(OWNER_ID)}
+set local role authenticated;
+insert into probe6 select 'PLANTED-BUG (layer 1, the RPC): ownership check removed, CREW_B forges a dispute via dispute_my_shift()',
   (select disputed from probe6_call),
   (select dispute_note from time_entries where sync_id = '${SHIFT_SYNC}'),
-  null;
+  null, null;
 reset role;
 
 -- undo the plant: restore the real, live definition, and the shift's dispute state
@@ -751,6 +826,58 @@ $function$;
 update time_entries set correction_disputed_at = null, dispute_note = null
   where sync_id = '${SHIFT_SYNC}' and company_id = '${ZZ_BUSY}';
 
+-- ---- PLANTED FAILURE (layer 2 -- the trigger): the OTHER route to the same
+-- forged dispute is a raw PostgREST PATCH straight against time_entries,
+-- skipping the RPC entirely. That path has no SECURITY DEFINER wrapper, so
+-- current_user really is 'authenticated' there and guard_time_entry_write_
+-- permission is live for it. CREW_B cannot be the subject here: the SAME
+-- SEE_PAY confound measured above means CREW_B's raw UPDATE cannot even see
+-- CREW_A's row to match it -- 0 rows touched, no error, proved live, true
+-- whether the trigger is enabled or disabled, so that alone would prove
+-- nothing about the trigger. The reachable subject is a caller who HAS
+-- SEE_PAY but is not the shift's owner -- MGR_ID, exactly the profile
+-- supabase_sec_time_entries_write_permission.sql's own preamble names as the
+-- hole this trigger was written to close.
+${asClaim(MGR_ID)}
+set local role authenticated;
+do $g6a$
+declare n int;
+begin
+  begin
+    update time_entries set dispute_note = 'direct forge, trigger enabled', correction_disputed_at = now()
+      where sync_id = '${SHIFT_SYNC}' and company_id = '${ZZ_BUSY}';
+    get diagnostics n = row_count;
+    insert into probe6 values ('REAL RULE (layer 2, the trigger): MANAGER''s raw UPDATE of the dispute columns on someone else''s shift is refused', null, null, n, null);
+  exception when others then
+    insert into probe6 values ('REAL RULE (layer 2, the trigger): MANAGER''s raw UPDATE of the dispute columns on someone else''s shift is refused', null, null, 0, sqlerrm);
+  end;
+end $g6a$;
+reset role;
+
+alter table public.time_entries disable trigger time_entry_write_needs_permission;
+
+${asClaim(MGR_ID)}
+set local role authenticated;
+do $g6b$
+declare n int;
+begin
+  begin
+    update time_entries set dispute_note = 'direct forge, trigger disabled', correction_disputed_at = now()
+      where sync_id = '${SHIFT_SYNC}' and company_id = '${ZZ_BUSY}';
+    get diagnostics n = row_count;
+    insert into probe6 values ('PLANTED-BUG (layer 2, the trigger): with it disabled, MANAGER''s same raw UPDATE succeeds', null, null, n, null);
+  exception when others then
+    insert into probe6 values ('PLANTED-BUG (layer 2, the trigger): with it disabled, MANAGER''s same raw UPDATE succeeds', null, null, 0, sqlerrm);
+  end;
+end $g6b$;
+reset role;
+
+-- undo the plant: re-enable the real trigger, and put the shift's dispute
+-- state back before the real-owner case below.
+alter table public.time_entries enable trigger time_entry_write_needs_permission;
+update time_entries set correction_disputed_at = null, dispute_note = null
+  where sync_id = '${SHIFT_SYNC}' and company_id = '${ZZ_BUSY}';
+
 -- ---- REAL rule: CREW_A (the actual owner of the shift) disputes it, for real.
 ${asClaim(CREW_A_ID)}
 set local role authenticated;
@@ -759,22 +886,42 @@ insert into probe6_call select dispute_my_shift('${SHIFT_SYNC}', 'I actually sta
 insert into probe6 select 'CREW_A (the real owner) disputes their own shift',
   (select disputed from probe6_call),
   (select dispute_note from time_entries where sync_id = '${SHIFT_SYNC}'),
-  null;
+  null, null;
 reset role;
 
-select case_name, disputed, dispute_note, ok_result from probe6 order by case_name;
+select case_name, disputed, dispute_note, touched, refused from probe6 order by case_name;
 rollback;
 `);
   const row6 = (name) => check6.find(r => r.case_name === name) || {};
+  const confoundCrewB6 = row6("CONFOUND: rows CREW_B (no SEE_PAY, not the shift's owner) can see");
+  const confoundOwner6 = row6("CONFOUND: rows OWNER (holds SEE_PAY) can see");
+  ok("CONFOUND: CREW_B (no SEE_PAY, not the shift's owner) cannot see the row at all (0) -- the " +
+     "reason a read-back through their eyes cannot be trusted, measured rather than assumed",
+     Number(confoundCrewB6.touched) === 0, JSON.stringify(confoundCrewB6));
+  ok("CONFOUND: OWNER (holds SEE_PAY) can see it (1) -- so a read-back through OWNER is trustworthy",
+     Number(confoundOwner6.touched) === 1, JSON.stringify(confoundOwner6));
   ok("REAL RULE: a crew member cannot dispute a shift that is not their own (returns false, no row touched)",
      row6("CREW_B (not this shift's employee) tries to dispute CREW_A's shift").disputed === false &&
      !row6("CREW_B (not this shift's employee) tries to dispute CREW_A's shift").dispute_note,
      JSON.stringify(row6("CREW_B (not this shift's employee) tries to dispute CREW_A's shift")));
-  ok("PLANTED FAILURE: with the ownership check removed, CREW_B wrongly forges a dispute on " +
-     "CREW_A's shift (proves this check can fail)",
-     row6("PLANTED-BUG: ownership check removed, CREW_B disputes CREW_A's shift").disputed === true &&
-     row6("PLANTED-BUG: ownership check removed, CREW_B disputes CREW_A's shift").dispute_note === "forged dispute",
-     JSON.stringify(row6("PLANTED-BUG: ownership check removed, CREW_B disputes CREW_A's shift")));
+  ok("PLANTED FAILURE (layer 1, the RPC's own ownership check): with it removed, CREW_B's forged " +
+     "dispute via dispute_my_shift() actually lands -- read back through OWNER, not the blind " +
+     "CREW_B view (proves this check can fail)",
+     row6("PLANTED-BUG (layer 1, the RPC): ownership check removed, CREW_B forges a dispute via dispute_my_shift()").disputed === true &&
+     row6("PLANTED-BUG (layer 1, the RPC): ownership check removed, CREW_B forges a dispute via dispute_my_shift()").dispute_note === "forged dispute",
+     JSON.stringify(row6("PLANTED-BUG (layer 1, the RPC): ownership check removed, CREW_B forges a dispute via dispute_my_shift()")));
+  const layer2Real = row6("REAL RULE (layer 2, the trigger): MANAGER's raw UPDATE of the dispute columns on someone else's shift is refused");
+  ok("REAL RULE (layer 2, the trigger): a MANAGER's raw UPDATE of the dispute columns on someone " +
+     "else's shift is refused -- 0 rows touched AND an explicit error, not silence",
+     Number(layer2Real.touched) === 0 &&
+     typeof layer2Real.refused === "string" &&
+     layer2Real.refused.includes("Only the person a shift belongs to"),
+     JSON.stringify(layer2Real));
+  const layer2Planted = row6("PLANTED-BUG (layer 2, the trigger): with it disabled, MANAGER's same raw UPDATE succeeds");
+  ok("PLANTED FAILURE (layer 2, the trigger): with guard_time_entry_write_permission disabled, the " +
+     "SAME MANAGER's raw UPDATE succeeds -- 1 row touched, no error (proves this check can fail too)",
+     Number(layer2Planted.touched) === 1 && !layer2Planted.refused,
+     JSON.stringify(layer2Planted));
   ok("REAL RULE: after restoring the real function, the shift's actual owner can dispute it and " +
      "the note lands",
      row6("CREW_A (the real owner) disputes their own shift").disputed === true &&
@@ -844,9 +991,59 @@ rollback;
   console.log("   (job_costing()'s labour subquery filters on t.approved_at is not null --");
   console.log("    unapproved hours must not inflate cost, and job_costing() also reports them");
   console.log("    back separately as unapproved_hours, which the office chase list reads)");
+  console.log("");
+  console.log("   job_costing()'s OUT list has already changed shape twice this month --");
+  console.log("   quoted_material was appended (supabase_job_costing_material_budget.sql) and its");
+  console.log("   scoping function became money_scope_company_id() (supabase_sec_job_costing_money_");
+  console.log("   guard.sql) -- both AFTER a hand-typed copy of this exact plant last rotted");
+  console.log("   (42P13: cannot change return type of existing function). So neither the plant nor");
+  console.log("   the restore below hand-types job_costing()'s signature: both are built from");
+  console.log("   pg_get_function_identity_arguments()/pg_get_function_result()/pg_get_functiondef()");
+  console.log("   read off the LIVE function moments before either runs.");
 
   const APPROVED_RATE = 22, APPROVED_HOURS = 8; // 176.00
   const UNAPPROVED_RATE = 30, UNAPPROVED_HOURS = 5; // would add 150.00 if wrongly counted
+
+  // Read job_costing()'s CURRENT identity (for DROP) and OUT shape (for a
+  // plant that can never again go stale) before touching anything. This is a
+  // separate, read-only round trip: the shape has to be known in JS before the
+  // plant's SQL text can even be built.
+  const meta8 = runSql(`
+begin;
+select
+  pg_get_function_identity_arguments('public.job_costing(timestamptz,timestamptz)'::regprocedure) as identity_args,
+  pg_get_function_arguments('public.job_costing(timestamptz,timestamptz)'::regprocedure) as full_args,
+  pg_get_function_result('public.job_costing(timestamptz,timestamptz)'::regprocedure) as result_clause,
+  pg_get_functiondef('public.job_costing(timestamptz,timestamptz)'::regprocedure) as full_def;
+rollback;
+`);
+  // Two different argument strings, deliberately: pg_get_function_identity_arguments()
+  // omits DEFAULT clauses (that is the whole point of "identity" -- defaults
+  // are not part of what makes an overload distinct), which is exactly the
+  // form DROP FUNCTION needs. pg_get_function_arguments() keeps them, which is
+  // what the plant's CREATE needs -- every call site in this file, and the
+  // real app, calls job_costing() with zero arguments, so a plant built from
+  // the identity form alone would require two arguments and break on the
+  // first call.
+  const JC_IDENTITY_ARGS = meta8[0] && meta8[0].identity_args;
+  const JC_FULL_ARGS = meta8[0] && meta8[0].full_args;
+  const JC_RESULT_CLAUSE = meta8[0] && meta8[0].result_clause;
+  const JC_LIVE_DEF = meta8[0] && meta8[0].full_def;
+  if (!JC_IDENTITY_ARGS || !JC_FULL_ARGS || !JC_RESULT_CLAUSE || !JC_LIVE_DEF) {
+    throw new Error(`could not read job_costing()'s live signature: ${JSON.stringify(meta8)}`);
+  }
+  const jcColumns = parseTableColumns(JC_RESULT_CLAUSE);
+  if (!jcColumns.some(c => c.name === "job_sync_id") || !jcColumns.some(c => c.name === "labour_cost")) {
+    throw new Error(`job_costing()'s OUT list no longer has job_sync_id/labour_cost: ${JC_RESULT_CLAUSE}`);
+  }
+  // Every column the plant does not need to fake is a typed null in its own
+  // position, so the plant's shape always matches whatever is live right now,
+  // no matter how many columns get added later.
+  const jcPlantSelectList = jcColumns.map(c => {
+    if (c.name === "job_sync_id") return "s.sync_id";
+    if (c.name === "labour_cost") return "round(coalesce(l.cost,0)::numeric,2)";
+    return `null::${c.type}`;
+  }).join(",\n           ");
 
   const check8 = runSql(`
 begin;
@@ -873,30 +1070,34 @@ reset role;
 -- the labour subquery -- the exact bug that would let a crew member's
 -- self-approval (section 7) or a plain clock-out with no review at all
 -- inflate a job's cost and silently shrink its reported margin.
-create or replace function public.job_costing(from_date timestamptz default null, to_date timestamptz default null)
- returns table(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric,
-               material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric,
-               projected_profit numeric, margin_percent numeric, cash_position numeric,
-               costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric)
- language sql stable security definer set search_path to 'public'
-as $inner$
+--
+-- Drop-before-create, using the ARGS and OUT list read off the live function
+-- moments ago -- not a hand-typed copy. job_costing()'s OUT list has already
+-- changed shape twice this month, and CREATE OR REPLACE cannot change an
+-- existing function's return type (42P13: "cannot change return type of
+-- existing function") -- which is exactly what crashed this whole test file
+-- before this fix. Every column this plant does not need to fake is a typed
+-- null in its own position, so the shape always matches whatever is live.
+drop function if exists public.job_costing(${JC_IDENTITY_ARGS});
+create function public.job_costing(${JC_FULL_ARGS})
+returns ${JC_RESULT_CLAUSE}
+language sql stable security definer set search_path to public as $plant$
     with scope as (
-        select j.sync_id, j.customer_name, j.status::text, j.contract_total
-        from jobs j where j.company_id = money_scope_company_id() and j.deleted_at is null
+        select j.sync_id
+        from jobs j
+        where j.company_id = money_scope_company_id() and j.deleted_at is null
     ),
     labour as (
         select t.job_sync_id,
-               sum(extract(epoch from (t.ended_at - t.started_at)) / 3600.0 * t.hourly_rate) as cost, -- BUG: no approved_at filter
-               sum(extract(epoch from (t.ended_at - t.started_at)) / 3600.0) as hours
+               sum(extract(epoch from (t.ended_at - t.started_at)) / 3600.0 * t.hourly_rate) as cost -- BUG: no approved_at filter
         from time_entries t
         where t.company_id = money_scope_company_id() and t.deleted_at is null and t.ended_at is not null
         group by t.job_sync_id
     )
-    select s.sync_id, s.customer_name, s.status, round(coalesce(s.contract_total,0)::numeric,2),
-           0::numeric, 0::numeric, round(coalesce(l.cost,0)::numeric,2), 0::numeric, 0::numeric,
-           0::numeric, null::numeric, 0::numeric, false, round(coalesce(l.hours,0)::numeric,2), 0::numeric
+    select
+           ${jcPlantSelectList}
     from scope s left join labour l on l.job_sync_id = s.sync_id;
-$inner$;
+$plant$;
 
 ${asClaim(OWNER_ID)}
 set local role authenticated;
@@ -904,98 +1105,12 @@ insert into probe8 select 'PLANTED-BUG: no approved_at filter', labour_cost, hou
   from job_costing() where job_sync_id = '${JOB_ACCEPTED}';
 reset role;
 
--- undo the plant: restore the real, live definition (supabase_money_report_guard.sql)
-CREATE OR REPLACE FUNCTION public.job_costing(from_date timestamp with time zone DEFAULT NULL::timestamp with time zone, to_date timestamp with time zone DEFAULT NULL::timestamp with time zone)
- RETURNS TABLE(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric, material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric, projected_profit numeric, margin_percent numeric, cash_position numeric, costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric)
- LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
-AS $function$
-    with scope as (
-        select j.sync_id, j.customer_name, j.status::text, j.contract_total
-        from jobs j
-        where j.company_id = money_scope_company_id()
-          and j.deleted_at is null
-          and (from_date is null or j.created_at >= from_date)
-          and (to_date   is null or j.created_at <= to_date)
-    ),
-    money as (
-        select p.job_sync_id, sum(p.amount) as collected
-        from payment_records p
-        where p.company_id = money_scope_company_id() and p.deleted_at is null
-        group by p.job_sync_id
-    ),
-    materials as (
-        select i.job_sync_id,
-               sum(i.quantity * coalesce(i.supplier_unit_price, i.unit_price)) as cost,
-               sum(i.quantity * i.unit_price) as sell,
-               bool_and(i.supplier_unit_price is null) as all_fallback
-        from estimate_line_items i
-        where i.company_id = money_scope_company_id() and i.deleted_at is null
-        group by i.job_sync_id
-    ),
-    labour as (
-        select t.job_sync_id,
-               sum(case when t.approved_at is not null
-                        then extract(epoch from (t.ended_at - t.started_at)) / 3600.0 * t.hourly_rate
-                        else 0 end) as cost,
-               sum(case when t.approved_at is not null
-                        then extract(epoch from (t.ended_at - t.started_at)) / 3600.0
-                        else 0 end) as hours,
-               sum(case when t.approved_at is null and t.ended_at is not null
-                        then extract(epoch from (t.ended_at - t.started_at)) / 3600.0
-                        else 0 end) as pending_hours
-        from time_entries t
-        where t.company_id = money_scope_company_id() and t.deleted_at is null
-          and t.ended_at is not null
-        group by t.job_sync_id
-    ),
-    extras as (
-        select c.job_sync_id, sum(c.additional_cost) as total
-        from change_orders c
-        where c.company_id = money_scope_company_id() and c.deleted_at is null
-        group by c.job_sync_id
-    ),
-    other as (
-        select e.job_sync_id, sum(e.amount) as cost
-        from expenses e
-        where e.company_id = money_scope_company_id() and e.deleted_at is null
-        group by e.job_sync_id
-    ),
-    figured as (
-        select s.sync_id, s.customer_name, s.status,
-               coalesce(s.contract_total,
-                        coalesce(m.sell, 0) + coalesce(x.total, 0)) as quoted,
-               coalesce(mo.collected, 0) as collected,
-               coalesce(m.cost, 0)  as material_cost,
-               coalesce(l.cost, 0)  as labour_cost,
-               coalesce(o.cost, 0)  as other_cost,
-               coalesce(m.all_fallback, false) as all_fallback,
-               coalesce(l.hours, 0) as hours,
-               coalesce(l.pending_hours, 0) as pending
-        from scope s
-        left join money     mo on mo.job_sync_id = s.sync_id
-        left join materials m  on m.job_sync_id  = s.sync_id
-        left join labour    l  on l.job_sync_id  = s.sync_id
-        left join extras    x  on x.job_sync_id  = s.sync_id
-        left join other     o  on o.job_sync_id  = s.sync_id
-    )
-    select f.sync_id, f.customer_name, f.status,
-           round(f.quoted::numeric, 2),
-           round(f.collected::numeric, 2),
-           round(f.material_cost::numeric, 2),
-           round(f.labour_cost::numeric, 2),
-           round(f.other_cost::numeric, 2),
-           round((f.material_cost + f.labour_cost + f.other_cost)::numeric, 2),
-           round((f.quoted - f.material_cost - f.labour_cost - f.other_cost)::numeric, 2),
-           case when f.quoted > 0
-                then round(((f.quoted - f.material_cost - f.labour_cost - f.other_cost)
-                            / f.quoted * 100)::numeric, 1) end,
-           round((f.collected - f.material_cost - f.labour_cost - f.other_cost)::numeric, 2),
-           f.all_fallback,
-           round(f.hours::numeric, 2),
-           round(f.pending::numeric, 2)
-    from figured f
-    order by f.quoted desc;
-$function$;
+-- undo the plant: drop it and recreate EXACTLY the definition that was live
+-- before this test touched anything -- captured verbatim via pg_get_functiondef
+-- moments ago, never retyped by hand, so this restore cannot drift from
+-- reality the way the hand-typed copy it replaces did.
+drop function if exists public.job_costing(${JC_IDENTITY_ARGS});
+${JC_LIVE_DEF};
 
 ${asClaim(OWNER_ID)}
 set local role authenticated;
@@ -1044,6 +1159,9 @@ rollback;
          and tgrelid = 'public.time_entries'::regclass and not tgisinternal) as needs_a_person_trigger_present,
       (select count(*) from pg_trigger where tgname = 'job_assignment_needs_permission'
          and tgrelid = 'public.jobs'::regclass and not tgisinternal) as assignment_trigger_present,
+      (select tgenabled from pg_trigger where tgname = 'time_entry_write_needs_permission'
+         and tgrelid = 'public.time_entries'::regclass and not tgisinternal) as write_permission_trigger_enabled,
+      pg_get_functiondef('public.job_costing(timestamptz,timestamptz)'::regprocedure) as job_costing_full_def_now,
       (select count(*) from companies where id = '${ZZ_BUSY}') as zz_busy_still_present;
   `);
   const a = after[0] || {};
@@ -1065,6 +1183,14 @@ rollback;
   ok("job_assignment_needs_permission trigger is present (the drop-and-restore in section 3 " +
      "left it in place)",
      Number(a.assignment_trigger_present) === 1, `got ${a.assignment_trigger_present}`);
+  ok("time_entry_write_needs_permission trigger is present AND enabled (section 6's disable/" +
+     "enable dance around the layer-2 canary did not leak past rollback)",
+     a.write_permission_trigger_enabled === "O", `got ${JSON.stringify(a.write_permission_trigger_enabled)}`);
+  ok("job_costing() is restored, byte-for-byte, to the exact definition captured live before " +
+     "section 8 planted anything (the drop-before-create using pg_get_functiondef did not drift, " +
+     "and did not merely look right inside the rolled-back transaction)",
+     a.job_costing_full_def_now === JC_LIVE_DEF,
+     `definitions differ (captured ${JC_LIVE_DEF.length} chars, now ${(a.job_costing_full_def_now || "").length} chars)`);
   ok("ZZ_BUSY itself is untouched (not deleted)", Number(a.zz_busy_still_present) === 1,
      `got ${a.zz_busy_still_present}`);
 
