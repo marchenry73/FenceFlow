@@ -63,6 +63,14 @@
   td{padding:11px 7px;border-bottom:1px solid var(--line);vertical-align:top}
   .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 
+  /* ------- the summary strip -------
+     Fence type(s), total length, gate count: the shape of the job in one
+     glance, before the customer has to read the per-run breakdown below. */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px}
+  .chip{background:var(--paper);border:1px solid var(--line);border-radius:999px;
+        padding:7px 13px;font-size:13px;color:var(--text);white-space:nowrap}
+  .chip b{font-weight:600}
+
   /* ------- the two numbers -------
      A quote a customer has to squint at is a quote they take away to think
      about. The total is the biggest thing on the page after the fence. */
@@ -75,6 +83,13 @@
                  align-items:baseline}
   .totals .grand span:first-child{align-self:baseline;font:500 13px/1 "IBM Plex Sans",sans-serif;
                  text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+
+  /* ------- what happens next -------
+     Sits inside the thank-you strip, same tone, one plain sentence that is
+     true regardless of which company sent the quote -- never a company-
+     specific promise the product can't keep. */
+  #nextSteps:not(:empty){font-size:14.5px;color:var(--ok-dk);margin-top:10px;padding-top:12px;
+             border-top:1px solid var(--ok-line)}
 
   /* ------- saying yes ------- */
   .approve{background:linear-gradient(170deg,var(--ink-2),var(--ink));color:#fff;
@@ -157,6 +172,11 @@ const L = {
     scopeSoon: 'Full details of the work to follow.',
     total: 'Total',
     depositToBegin: 'Deposit to begin',
+    balanceDue: 'Balance due at completion',
+    totalLength: '%s ft total',
+    nextStepsPending: 'Next: once your deposit is received, the contractor will be in touch to schedule the work.',
+    nextStepsPaid: 'Your deposit has been received. Next, the contractor will be in touch to confirm a schedule.',
+    nextStepsReady: 'Next, the contractor will be in touch to schedule the work.',
     readyHead: 'Ready to go ahead?',
     leadPlain: 'Type your name and press approve — that tells us to put you on the schedule. You’ll get a copy of everything.',
     leadPay: 'Type your name to approve. We’ll take you straight to the deposit payment, and you’ll get a copy of everything.',
@@ -205,6 +225,11 @@ const L = {
     scopeSoon: 'El detalle completo del trabajo se enviará a continuación.',
     total: 'Total',
     depositToBegin: 'Depósito para empezar',
+    balanceDue: 'Saldo pendiente al terminar',
+    totalLength: '%s pies en total',
+    nextStepsPending: 'Siguiente paso: en cuanto se reciba su depósito, el contratista se pondrá en contacto para programar el trabajo.',
+    nextStepsPaid: 'Se recibió su depósito. Siguiente paso: el contratista se pondrá en contacto para confirmar una fecha.',
+    nextStepsReady: 'Siguiente paso: el contratista se pondrá en contacto para programar el trabajo.',
     readyHead: '¿Listo para seguir adelante?',
     leadPlain: 'Escriba su nombre y pulse aprobar — con eso le ponemos en el calendario. Recibirá copia de todo.',
     leadPay: 'Escriba su nombre para aprobar. Le llevamos directo al pago del depósito y recibirá copia de todo.',
@@ -253,6 +278,11 @@ const L = {
     scopeSoon: 'Le détail complet des travaux suivra.',
     total: 'Total',
     depositToBegin: 'Acompte pour démarrer',
+    balanceDue: 'Solde dû à la fin des travaux',
+    totalLength: '%s pi au total',
+    nextStepsPending: 'Prochaine étape : dès réception de votre acompte, l’entreprise vous contactera pour planifier les travaux.',
+    nextStepsPaid: 'Votre acompte a été reçu. Prochaine étape : l’entreprise vous contactera pour confirmer une date.',
+    nextStepsReady: 'Prochaine étape : l’entreprise vous contactera pour planifier les travaux.',
     readyHead: 'Prêt à lancer les travaux ?',
     leadPlain: 'Saisissez votre nom et validez — cela nous dit de vous mettre au planning. Vous recevrez une copie de tout.',
     leadPay: 'Saisissez votre nom pour valider. Nous vous emmenons directement au paiement de l’acompte, et vous recevrez une copie de tout.',
@@ -367,11 +397,15 @@ function setLang(code) {
       </div>
     </div>
 
-    <div id="approvedBox" class="done" style="display:none"></div>
+    <div id="approvedBox" class="done" style="display:none">
+      <div id="approvedText"></div>
+      <div id="nextSteps"></div>
+    </div>
 
     <div class="panel">
       <h2 id="quoteTitle">Your quote</h2>
       <p class="sub" id="quoteAddr"></p>
+      <div id="summaryChips" class="chips"></div>
       <div id="scope" style="margin-top:10px"></div>
       <div class="totals" id="totals"></div>
     </div>
@@ -448,6 +482,50 @@ async function load(){
   render();
 }
 
+// A run's length in feet -- typed measurement first, else the drawing's own
+// pixels at the job's calibration. Shared between the summary chips and the
+// per-run breakdown so the two numbers can never disagree with each other.
+function runFeet(r, pxPerFoot){
+  let ft=r.manualFeet;
+  if(!ft && r.points){
+    const pts=String(r.points).split(',').map(p=>p.split(':').map(Number));
+    let px=0;
+    for(let i=1;i<pts.length;i++) px+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
+    if(r.closed&&pts.length>2) px+=Math.hypot(pts[0][0]-pts[pts.length-1][0],pts[0][1]-pts[pts.length-1][1]);
+    ft=px/(pxPerFoot||20);
+  }
+  return ft||0;
+}
+function runGateCount(r){
+  return String(r.gates||'').split(',').filter(g=>g.trim()).length;
+}
+
+// The summary describes the fence being INSTALLED. A teardown run is old fence
+// coming out -- it is still listed in the per-run breakdown as "Remove old ...",
+// but counting its feet here double-counted every job that replaces a fence with
+// one the same length, and told the customer they were getting twice the fence
+// they are. Returns install-only feet and gates.
+function installTotals(runs, pxPerFoot){
+  let ft=0, gates=0;
+  (runs||[]).forEach(r=>{
+    if(r.teardown) return;
+    ft+=runFeet(r, pxPerFoot);
+    gates+=runGateCount(r);
+  });
+  return { ft, gates };
+}
+
+// What happens next, in one sentence that is true no matter which company
+// sent this quote -- never a promise the product doesn't keep, and never a
+// company-specific fact the page doesn't have.
+function nextStepsKey(q){
+  if(q.deposit>0.005){
+    const due=(q.depositDue!=null)?q.depositDue:q.deposit;
+    return (due>0.005) ? 'nextStepsPending' : 'nextStepsPaid';
+  }
+  return 'nextStepsReady';
+}
+
 function render(){
   const q=quote;
   $('coName').textContent=q.company.name||tr('yourContractor');
@@ -455,21 +533,30 @@ function render(){
   $('quoteTitle').textContent=tr('quoteFor', q.customerName||tr('you'));
   $('quoteAddr').textContent=q.address||'';
 
-  // The scope in the customer's language: what fence, how much of it, how
-  // tall, how many gates. The parts list never leaves the office.
+  // The summary strip: fence type(s), total length, gate count -- the shape
+  // of the whole job at a glance, before the per-run breakdown below.
   const label=t=>String(t||'').replace(/_/g,' ').toLowerCase()
     .replace(/\b\w/g,c=>c.toUpperCase());
-  $('scope').innerHTML=(q.runs||[]).length
-    ? (q.runs||[]).map(r=>{
-        let ft=r.manualFeet;
-        if(!ft && r.points){
-          const pts=String(r.points).split(',').map(p=>p.split(':').map(Number));
-          let px=0;
-          for(let i=1;i<pts.length;i++) px+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
-          if(r.closed&&pts.length>2) px+=Math.hypot(pts[0][0]-pts[pts.length-1][0],pts[0][1]-pts[pts.length-1][1]);
-          ft=px/(q.pxPerFoot||20);
-        }
-        const gates=String(r.gates||'').split(',').filter(g=>g.trim()).length;
+  const runs=q.runs||[];
+  const types=[];
+  runs.forEach(r=>{
+    if(r.teardown) return;
+    const t=label(r.type);
+    if(t && types.indexOf(t)<0) types.push(t);
+  });
+  const { ft: totalFt, gates: totalGates } = installTotals(runs, q.pxPerFoot);
+  const chips=[];
+  types.forEach(t=>chips.push('<span class="chip">'+esc(t)+'</span>'));
+  if(totalFt>0.5) chips.push('<span class="chip"><b>'+tr('totalLength', Math.round(totalFt))+'</b></span>');
+  if(totalGates>0) chips.push('<span class="chip">'+totalGates+' '+(totalGates===1?tr('gate'):tr('gates'))+'</span>');
+  $('summaryChips').innerHTML=chips.join('');
+
+  // The scope in the customer's language: what fence, how much of it, how
+  // tall, how many gates. The parts list never leaves the office.
+  $('scope').innerHTML=runs.length
+    ? runs.map(r=>{
+        const ft=runFeet(r, q.pxPerFoot);
+        const gates=runGateCount(r);
         return '<div style="display:flex;justify-content:space-between;gap:14px;'
           +'padding:10px 2px;border-bottom:1px solid var(--line);font-size:14.5px">'
           // Escaped like its neighbours. The fence type is a controlled value
@@ -488,18 +575,25 @@ function render(){
       }).join('')
     : '<p class="sub">'+tr('scopeSoon')+'</p>';
 
-  // Two numbers only. Subtotals and tax lines are the office's arithmetic;
-  // the customer needs what it costs and what starts the work.
+  // The price, the deposit and the balance: three numbers, all of them the
+  // server's own, none computed here. Balance is Total minus the deposit the
+  // contractor asked for -- what is left to pay at completion -- not the
+  // still-owed deposit figure the pay button uses.
   const rows=[];
   rows.push('<div class="grand"><span>'+tr('total')+'</span><span>'+money(q.total)+'</span></div>');
-  if(q.deposit>0.005) rows.push('<div><span>'+tr('depositToBegin')+'</span><span>'+money(q.deposit)+'</span></div>');
+  if(q.deposit>0.005){
+    rows.push('<div><span>'+tr('depositToBegin')+'</span><span>'+money(q.deposit)+'</span></div>');
+    const balance=Math.max(0, (Number(q.total)||0)-(Number(q.deposit)||0));
+    rows.push('<div><span>'+tr('balanceDue')+'</span><span>'+money(balance)+'</span></div>');
+  }
   $('totals').innerHTML=rows.join('');
 
   if(q.approvedAt){
     $('approvedBox').style.display='';
-    $('approvedBox').textContent=tr('approvedOn', q.approvedBy,
+    $('approvedText').textContent=tr('approvedOn', q.approvedBy,
       new Date(q.approvedAt).toLocaleDateString(LANG),
       q.company.name||tr('yourContractor'));
+    $('nextSteps').textContent=tr(nextStepsKey(q));
     // Already approved on an earlier visit: the deposit is the only thing
     // left, so it stands on its own.
     if(dueNow()) showPayButton();
@@ -580,8 +674,9 @@ function markApproved(name){
   quote.approvedAt=new Date().toISOString(); quote.approvedBy=name;
   $('approveBox').style.display='none';
   $('approvedBox').style.display='';
-  $('approvedBox').textContent=tr('approvedThanks', name,
+  $('approvedText').textContent=tr('approvedThanks', name,
     quote.company.name||tr('yourContractor'));
+  $('nextSteps').textContent=tr(nextStepsKey(quote));
 }
 
 async function openPaymentPage(){

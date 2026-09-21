@@ -17,8 +17,13 @@ import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.GateSwing
+import com.fenceestimator.app.geometry.DrawingSnapshot
+import com.fenceestimator.app.geometry.RedoHistory
+import com.fenceestimator.app.geometry.RedoNoneReason
+import com.fenceestimator.app.geometry.RedoPlan
 import com.fenceestimator.app.geometry.UndoNoneReason
 import com.fenceestimator.app.geometry.UndoPlan
+import com.fenceestimator.app.geometry.applyUndo
 import com.fenceestimator.app.geometry.planUndo
 import kotlinx.coroutines.Dispatchers
 import com.fenceestimator.app.cloud.CrashReporter
@@ -26,12 +31,16 @@ import com.fenceestimator.app.estimate.TakeoffRefresher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -134,6 +143,66 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         }
     }
 
+    /**
+     * One drawing change at a time, each against the row as it is in the
+     * database right now.
+     *
+     * Every edit here used to read the run from [runs] -- the copy the screen
+     * last saw -- and write the whole row back from a coroutine. Two taps
+     * inside one database round trip could each start from the same copy, and
+     * the second write quietly threw away the first. Undo followed by Redo is
+     * exactly that shape, and Redo has to put back the precise drawing Undo
+     * took away, so edits are now queued behind this lock and each one reads
+     * the run afresh ([editRun]).
+     */
+    private val drawingWrites = Mutex()
+
+    /** What Redo can put back, per run. See [RedoHistory]. */
+    private val _redo = MutableStateFlow(RedoHistory())
+
+    /**
+     * Whether Redo would do something right now, so the button can look
+     * available or not. It stays pressable either way and explains itself when
+     * there is nothing to redo, the same as Undo.
+     */
+    val canRedo: StateFlow<Boolean> = combine(_redo, runs, _selectedRunId) { history, current, id ->
+        val run = current.firstOrNull { it.id == id }
+        run != null && history.plan(run.id, run.drawingSnapshot()) is RedoPlan.Restore
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val _redoNothingToDo = MutableSharedFlow<RedoNoneReason>(extraBufferCapacity = 1)
+
+    /** Redo's "I did nothing, and here is why" -- the counterpart of [undoNothingToDo]. */
+    val redoNothingToDo: SharedFlow<RedoNoneReason> = _redoNothingToDo
+
+    private val _lengthRefused = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /**
+     * A typed length that could not be applied -- a side whose two corners sit
+     * on top of each other has no heading to stretch along. Said out loud
+     * rather than closing the dialog as though it had worked.
+     */
+    val lengthRefused: SharedFlow<Unit> = _lengthRefused
+
+    private fun FenceRun.drawingSnapshot() = DrawingSnapshot(pointsEncoded, gatesEncoded, closedLoop)
+
+    /**
+     * Runs [change] against a fresh read of run [runId], behind
+     * [drawingWrites]. [onMissing] fires when the run no longer exists.
+     */
+    private fun editRun(runId: Long?, onMissing: () -> Unit = {}, change: suspend (FenceRun) -> Unit) {
+        if (runId == null) {
+            onMissing()
+            return
+        }
+        viewModelScope.launch {
+            drawingWrites.withLock {
+                val fresh = repository.getFenceRun(runId)
+                if (fresh == null || fresh.jobId != jobId) onMissing() else change(fresh)
+            }
+        }
+    }
+
     private val _mode = MutableStateFlow(SurveyMode.DRAW)
     val mode: StateFlow<SurveyMode> = _mode
 
@@ -163,6 +232,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                     calibrationKnownFeet = null
                 )
             )
+            _redo.update { it.afterDrawingWideEdit() }
         }
     }
 
@@ -214,20 +284,36 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
             ?: return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
         if (!enabled) return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
         val pts = FenceCodec.decodePoints(run.pointsEncoded)
+        // The corner's other neighbour (and, round a closed loop, the one the
+        // wrap-around makes) must not be a corner to join either: dropping
+        // the dragged corner exactly onto it makes a side of no length.
+        val avoid = buildList {
+            pts.getOrNull(index + 1)?.let { add(it) }
+            if (run.closedLoop && pts.size >= 3) {
+                if (index == 0) add(pts.last())
+                if (index == pts.lastIndex) add(pts.first())
+            }
+        }
         return com.fenceestimator.app.geometry.snapDrawPoint(
             candidate = candidate,
             previous = pts.getOrNull(index - 1),
             beforePrevious = pts.getOrNull(index - 2),
             otherVertices = snapTargets(run.id, index),
             pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID,
+            avoid = avoid,
         )
     }
 
+    /**
+     * Adds a point that has already been snapped. Nothing here moves the
+     * points already on the run -- a snap only ever positions the new one.
+     */
     fun addDrawPoint(point: FencePoint) {
-        val run = selectedRun() ?: return
-        val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
-        points.add(point)
-        persistPoints(run, points)
+        editRun(_selectedRunId.value) { run ->
+            val points = FenceCodec.decodePoints(run.pointsEncoded) + point
+            _redo.update { it.afterEdit(run.id) }
+            writePoints(run, points)
+        }
     }
 
     /**
@@ -246,41 +332,75 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      * materials and the price all recompute off this one edit, which is the
      * whole reason the drawing is worth being exact about.
      *
-     * Returns false when the request has no answer -- a segment with no
-     * heading, a length of zero -- so the caller can say so instead of
-     * writing something arbitrary into the plan.
+     * The geometry is [com.fenceestimator.app.geometry.setSideLength]: it also
+     * covers a closed loop's closing side (whose chip used to do nothing when
+     * tapped), carries gates along with the side they sit on, and lands the
+     * corner where the takeoff measures the typed number -- not a rounding
+     * error above it, which the takeoff would round up into an extra bay.
+     *
+     * A request with no answer -- a side with no heading, a length of zero --
+     * writes nothing and is reported through [lengthRefused], so the screen
+     * can say so instead of closing the dialog as though it had worked.
      */
-    fun setSegmentLengthFeet(index: Int, feet: Float): Boolean {
-        val run = selectedRun() ?: return false
-        if (!feet.isFinite() || feet <= 0f) return false
+    fun setSegmentLengthFeet(index: Int, feet: Float) {
         val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
-        if (pxPerFt <= 0f) return false
-        val points = FenceCodec.decodePoints(run.pointsEncoded)
-        val moved = com.fenceestimator.app.geometry.stretchSegment(
-            points, index, feet * pxPerFt
-        ) ?: return false
-        persistPoints(run, moved)
-        return true
+        if (!feet.isFinite() || feet <= 0f || pxPerFt <= 0f) {
+            _lengthRefused.tryEmit(Unit)
+            return
+        }
+        editRun(_selectedRunId.value, onMissing = { _lengthRefused.tryEmit(Unit) }) { run ->
+            val edit = com.fenceestimator.app.geometry.setSideLength(
+                points = FenceCodec.decodePoints(run.pointsEncoded),
+                gates = FenceCodec.decodeGates(run.gatesEncoded),
+                index = index,
+                feet = feet,
+                pxPerFt = pxPerFt,
+                closedLoop = run.closedLoop,
+            )
+            if (edit == null) {
+                _lengthRefused.tryEmit(Unit)
+                return@editRun
+            }
+            _redo.update { it.afterEdit(run.id) }
+            writePoints(
+                run, edit.points,
+                // Left byte-for-byte alone when no gate moved, so an edit
+                // that did not touch the gates does not rewrite them.
+                gatesEncoded = if (edit.gatesMoved) FenceCodec.encodeGates(edit.gates) else run.gatesEncoded
+            )
+        }
     }
 
-    /** How long segment [index] currently is, in feet, or null if there isn't one. */
+    /**
+     * How long side [index] currently is, in feet -- measured by the same
+     * FenceGeometryEngine.analyze the takeoff uses, closing side included --
+     * or null if there is no such side.
+     */
     fun segmentFeet(index: Int): Float? {
         val run = selectedRun() ?: return null
         val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
-        if (pxPerFt <= 0f) return null
-        val px = com.fenceestimator.app.geometry.segmentLengthPx(
-            FenceCodec.decodePoints(run.pointsEncoded), index
-        ) ?: return null
-        return px / pxPerFt
+        return com.fenceestimator.app.geometry.sideLengthFeet(
+            FenceCodec.decodePoints(run.pointsEncoded), index, pxPerFt, run.closedLoop
+        )
+    }
+
+    /** True when side [index] of the selected run is the one closing its loop. */
+    fun isClosingSide(index: Int): Boolean {
+        val run = selectedRun() ?: return false
+        return com.fenceestimator.app.geometry.isClosingSide(
+            FenceCodec.decodePoints(run.pointsEncoded).size, index, run.closedLoop
+        )
     }
 
     /** Moves a single already-placed vertex -- for fixing a point without redrawing the whole run. */
     fun movePoint(index: Int, point: FencePoint) {
-        val run = selectedRun() ?: return
-        val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
-        if (index !in points.indices) return
-        points[index] = point
-        persistPoints(run, points)
+        editRun(_selectedRunId.value) { run ->
+            val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
+            if (index !in points.indices) return@editRun
+            points[index] = point
+            _redo.update { it.afterEdit(run.id) }
+            writePoints(run, points)
+        }
     }
 
     /**
@@ -305,29 +425,84 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     val undoNothingToDo: SharedFlow<UndoNoneReason> = _undoNothingToDo
 
     fun undoLast(mode: SurveyMode) {
-        val run = selectedRun()
-        val gates = run?.let { FenceCodec.decodeGates(it.gatesEncoded) } ?: emptyList()
-        val points = run?.let { FenceCodec.decodePoints(it.pointsEncoded) } ?: emptyList()
-        when (val plan = planUndo(
-            gateMode = mode == SurveyMode.GATE,
-            hasSelectedRun = run != null,
-            pointCount = points.size,
-            gateCount = gates.size
-        )) {
-            UndoPlan.RemoveLastGate -> removeGate(gates.last())
-            UndoPlan.RemoveLastPoint -> persistPoints(run!!, points.dropLast(1))
-            is UndoPlan.None -> _undoNothingToDo.tryEmit(plan.reason)
+        editRun(
+            _selectedRunId.value,
+            onMissing = { _undoNothingToDo.tryEmit(UndoNoneReason.NO_RUN_SELECTED) }
+        ) { run ->
+            val plan = planUndo(
+                gateMode = mode == SurveyMode.GATE,
+                hasSelectedRun = true,
+                pointCount = FenceCodec.decodePoints(run.pointsEncoded).size,
+                gateCount = FenceCodec.decodeGates(run.gatesEncoded).size
+            )
+            if (plan is UndoPlan.None) {
+                _undoNothingToDo.tryEmit(plan.reason)
+                return@editRun
+            }
+            val before = run.drawingSnapshot()
+            val after = applyUndo(before, plan) ?: return@editRun
+            // Removing a point changes the footage, and always has been
+            // reported as such; removing a gate does not and never was.
+            if (plan == UndoPlan.RemoveLastPoint) {
+                writePoints(run, FenceCodec.decodePoints(after.pointsEncoded))
+            } else {
+                repository.updateFenceRun(run.copy(gatesEncoded = after.gatesEncoded))
+            }
+            // [after] is byte-for-byte what was just written (re-encoding a
+            // decoded point list gives back the same string), which is what
+            // lets Redo tell whether anything has touched the run since.
+            _redo.update { it.afterUndo(run.id, before, after) }
+        }
+    }
+
+    /**
+     * Puts back what the last Undo took away, exactly -- the same points, the
+     * same gates with the same width, mounting and swing, in the same order.
+     *
+     * Only while nothing else has touched the run since. Any other edit, here
+     * or synced in from elsewhere, clears what there is to redo; a Redo that
+     * pasted an old drawing over newer work would be worse than none. A press
+     * with nothing to redo says why ([redoNothingToDo]), the same as Undo.
+     */
+    fun redo() {
+        editRun(
+            _selectedRunId.value,
+            onMissing = { _redoNothingToDo.tryEmit(RedoNoneReason.NO_RUN_SELECTED) }
+        ) { run ->
+            when (val plan = _redo.value.plan(run.id, run.drawingSnapshot())) {
+                is RedoPlan.Restore -> {
+                    val restored = run.copy(
+                        pointsEncoded = plan.snapshot.pointsEncoded,
+                        gatesEncoded = plan.snapshot.gatesEncoded,
+                        closedLoop = plan.snapshot.closedLoop
+                    )
+                    repository.updateFenceRun(restored)
+                    // Same footage report Undo made when it took the point away.
+                    noteFootageChange(run, measure(run), measure(restored))
+                    _redo.update { it.afterRedo(run.id) }
+                }
+                is RedoPlan.None -> {
+                    if (plan.reason == RedoNoneReason.DRAWING_CHANGED) {
+                        _redo.update { it.afterEdit(run.id) }
+                    }
+                    _redoNothingToDo.tryEmit(plan.reason)
+                }
+            }
         }
     }
 
     fun clearPoints() {
-        val run = selectedRun() ?: return
-        viewModelScope.launch { repository.updateFenceRun(run.copy(pointsEncoded = "", gatesEncoded = "")) }
+        editRun(_selectedRunId.value) { run ->
+            _redo.update { it.afterEdit(run.id) }
+            repository.updateFenceRun(run.copy(pointsEncoded = "", gatesEncoded = ""))
+        }
     }
 
     fun toggleClosedLoop(closed: Boolean) {
-        val run = selectedRun() ?: return
-        viewModelScope.launch { repository.updateFenceRun(run.copy(closedLoop = closed)) }
+        editRun(_selectedRunId.value) { run ->
+            _redo.update { it.afterEdit(run.id) }
+            repository.updateFenceRun(run.copy(closedLoop = closed))
+        }
     }
 
     /**
@@ -337,14 +512,25 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     var editorName: String? = null
     var editorRole: String? = null
 
-    private fun persistPoints(run: FenceRun, points: List<FencePoint>) {
-        viewModelScope.launch {
-            val before = measure(run, FenceCodec.decodePoints(run.pointsEncoded))
-            repository.updateFenceRun(run.copy(pointsEncoded = FenceCodec.encodePoints(points)))
-            val after = measure(run, points)
-            noteFootageChange(run, before, after)
-        }
+    /**
+     * Writes new points (and, when given, a new gate string) onto [run] and
+     * reports the footage change. Called from inside [editRun], so [run] is
+     * the row as it is in the database now.
+     */
+    private suspend fun writePoints(
+        run: FenceRun,
+        points: List<FencePoint>,
+        gatesEncoded: String = run.gatesEncoded
+    ) {
+        val before = measure(run, FenceCodec.decodePoints(run.pointsEncoded))
+        repository.updateFenceRun(
+            run.copy(pointsEncoded = FenceCodec.encodePoints(points), gatesEncoded = gatesEncoded)
+        )
+        val after = measure(run, points)
+        noteFootageChange(run, before, after)
     }
+
+    private fun measure(run: FenceRun): Float = measure(run, FenceCodec.decodePoints(run.pointsEncoded))
 
     private fun measure(run: FenceRun, points: List<FencePoint>): Float {
         if (points.size < 2) return 0f
@@ -397,6 +583,8 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         val pxPerFt = distPx / knownFeet
         viewModelScope.launch {
             repository.updateJob(current.copy(calibrationPixelsPerFoot = pxPerFt, calibrationKnownFeet = knownFeet))
+            // A new scale is a new drawing as far as Redo is concerned.
+            _redo.update { it.afterDrawingWideEdit() }
         }
     }
 
@@ -433,10 +621,17 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         runDefaults: BusinessProfile? = null
     ) {
         viewModelScope.launch {
-            val run = selectedRun() ?: runs.value.firstOrNull() ?: createGateOnlyRun(runDefaults) ?: return@launch
-            val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
-            gates.add(GateMarker(x, y, widthFt, mounting, swing))
-            repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+            drawingWrites.withLock {
+                val targetId = selectedRun()?.id ?: runs.value.firstOrNull()?.id
+                val run = if (targetId != null) {
+                    repository.getFenceRun(targetId)?.takeIf { it.jobId == jobId } ?: return@withLock
+                } else {
+                    createGateOnlyRun(runDefaults) ?: return@withLock
+                }
+                val gates = FenceCodec.decodeGates(run.gatesEncoded) + GateMarker(x, y, widthFt, mounting, swing)
+                _redo.update { it.afterEdit(run.id) }
+                repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+            }
         }
     }
 
@@ -459,11 +654,11 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      * something you nudge a few feet.
      */
     fun moveGate(index: Int, x: Float, y: Float) {
-        val run = selectedRun() ?: return
-        val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
-        if (index !in gates.indices) return
-        gates[index] = gates[index].copy(x = x, y = y)
-        viewModelScope.launch {
+        editRun(_selectedRunId.value) { run ->
+            val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
+            if (index !in gates.indices) return@editRun
+            gates[index] = gates[index].copy(x = x, y = y)
+            _redo.update { it.afterEdit(run.id) }
             repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
         }
     }
@@ -476,10 +671,10 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     }
 
     fun removeGate(gate: GateMarker) {
-        val run = selectedRun() ?: return
-        val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
-        gates.remove(gate)
-        viewModelScope.launch {
+        editRun(_selectedRunId.value) { run ->
+            val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
+            if (!gates.remove(gate)) return@editRun
+            _redo.update { it.afterEdit(run.id) }
             repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
         }
     }
@@ -520,7 +715,13 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      * by the same ratio the scale changed by, which leaves every measurement
      * identical and simply makes the drawing fill more of the screen.
      *
-     * Gate positions ride along the run they sit on, so they move with it.
+     * Gate positions are in the same canvas space as the points, so they are
+     * scaled by the same ratio. They used to be written back unscaled while
+     * this comment said they moved: a gate is matched to whichever side is
+     * nearest its stored point, so on a rescaled drawing it re-matched to some
+     * other side, or clamped to the end of one -- on the plan the crew builds
+     * from. (Turning satellite on rescales to 400 ft, so any job drawn on
+     * another grid size hit this.)
      */
     fun setGridExtent(extentFt: Float) {
         val current = job.value ?: return
@@ -536,6 +737,10 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         val ratio = after / before
 
         viewModelScope.launch {
+          drawingWrites.withLock {
+            // Every run is about to be rewritten; nothing on any of them can
+            // be redone onto the rescaled drawing.
+            _redo.update { it.afterDrawingWideEdit() }
             repository.getFenceRuns(current.id).forEach { run ->
                 val points = FenceCodec.decodePoints(run.pointsEncoded)
                 val gates = FenceCodec.decodeGates(run.gatesEncoded)
@@ -545,7 +750,8 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                         pointsEncoded = FenceCodec.encodePoints(
                             points.map { FencePoint(it.x * ratio, it.y * ratio) }
                         ),
-                        gatesEncoded = run.gatesEncoded
+                        gatesEncoded = if (gates.isEmpty()) run.gatesEncoded
+                        else FenceCodec.encodeGates(gates.map { it.copy(x = it.x * ratio, y = it.y * ratio) })
                     )
                 )
             }
@@ -564,6 +770,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                     gridFeetPerSquare = (extentFt / 20f).coerceAtLeast(0.5f)
                 )
             )
+          }
         }
     }
 
@@ -629,6 +836,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
             repository.updateJob(
                 current.copy(calibrationPixelsPerFoot = PIXELS_PER_FOOT_GRID, calibrationKnownFeet = null)
             )
+            _redo.update { it.afterDrawingWideEdit() }
         }
     }
 
@@ -645,6 +853,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         val current = job.value ?: return
         viewModelScope.launch {
             repository.updateJob(current.copy(surveyImagePath = null, calibrationPixelsPerFoot = null, calibrationKnownFeet = null))
+            _redo.update { it.afterDrawingWideEdit() }
         }
     }
 

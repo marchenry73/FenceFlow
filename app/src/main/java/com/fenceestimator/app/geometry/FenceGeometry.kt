@@ -271,6 +271,11 @@ object FenceGeometryEngine {
  * A closed loop's implied closing segment is not editable here: its length
  * is whatever the other segments leave over, and pretending otherwise would
  * move the run's start point out from under everything.
+ *
+ * The drawing screen no longer calls this: it uses [setSideLength], which
+ * does the same slide, also handles the closing side, carries gates with
+ * their side, and lands the corner on coordinates the takeoff measures as the
+ * typed length rather than a rounding error above it.
  */
 fun stretchSegment(
     points: List<FencePoint>,
@@ -322,8 +327,75 @@ data class SnapResult(
     val lockedAngleDeg: Float? = null,
     /** The segment's length in feet after snapping, when a length was rounded. */
     val lengthFt: Float? = null,
+    /**
+     * What a locked angle was square to: the map's own axes, or the side
+     * drawn before this one. Null when no angle was locked.
+     */
+    val angleReference: AngleReference? = null,
+    /**
+     * When the angle was locked to the previous side, how far the fence turns
+     * there: 0 is straight on, 90 is a square corner, 45 and 135 the two
+     * diagonals, 180 doubling back. Null otherwise.
+     *
+     * "120° locked" means nothing to someone standing in a yard; "square to
+     * the last side" is the thing they were aiming for, and saying it back is
+     * what makes the jump read as the tool working.
+     */
+    val turnDeg: Float? = null,
 ) {
     val snapped: Boolean get() = kind != SnapKind.NONE
+}
+
+/** What an angle lock was measured against. */
+enum class AngleReference {
+    /** Horizontal, vertical or diagonal on the drawing itself -- north-up on satellite. */
+    MAP,
+
+    /** Relative to the side drawn before this one. */
+    PREVIOUS_SIDE,
+}
+
+/**
+ * What a locked angle should be called, worked out without any words so the
+ * screen maps it to a translated string and never branches on display text.
+ */
+sealed class AngleCue {
+    /** Carries straight on from the previous side. */
+    object StraightOn : AngleCue()
+
+    /** Square (90 degrees) to the previous side. */
+    object Square : AngleCue()
+
+    /** Turns this many degrees from the previous side (45, 135, 180). */
+    data class Turn(val degrees: Int) : AngleCue()
+
+    /** Horizontal on the drawing. */
+    object MapHorizontal : AngleCue()
+
+    /** Vertical on the drawing. */
+    object MapVertical : AngleCue()
+
+    /** A 45-degree diagonal on the drawing. */
+    object MapDiagonal : AngleCue()
+}
+
+/** How to describe this snap's angle lock, or null when no angle was locked. */
+fun SnapResult.angleCue(): AngleCue? {
+    val heading = lockedAngleDeg ?: return null
+    return when (angleReference) {
+        AngleReference.PREVIOUS_SIDE -> when (val turn = turnDeg?.let { kotlin.math.round(it).toInt() }) {
+            null -> null
+            0 -> AngleCue.StraightOn
+            90 -> AngleCue.Square
+            else -> AngleCue.Turn(turn)
+        }
+        AngleReference.MAP, null -> when (((kotlin.math.round(heading).toInt() % 360) + 360) % 360) {
+            0, 180 -> AngleCue.MapHorizontal
+            90, 270 -> AngleCue.MapVertical
+            45, 135, 225, 315 -> AngleCue.MapDiagonal
+            else -> null
+        }
+    }
 }
 
 /**
@@ -351,6 +423,15 @@ data class SnapResult(
  * Nothing is forced: aim at 30 degrees and you get 30 degrees. That is what
  * makes it safe to leave switched on, and it is the difference between a
  * tool that helps and one you have to keep turning off.
+ *
+ * Only the point being placed ever moves. Every corner already on the
+ * drawing is an input here and nothing else: a vertex snap copies an existing
+ * corner's position, it never shifts that corner to meet the new one.
+ *
+ * Never onto the point it starts from. [previous] -- and anything in [avoid],
+ * which a drag passes as the moving corner's other neighbour -- is left out
+ * of the corners to join, because landing exactly on it makes a side with no
+ * length and no heading, which the takeoff then counts as an extra post.
  */
 fun snapDrawPoint(
     candidate: FencePoint,
@@ -361,9 +442,14 @@ fun snapDrawPoint(
     vertexSnapPx: Float = 26f,
     angleToleranceDeg: Float = 7f,
     lengthSnapFt: Float = 0.35f,
+    avoid: List<FencePoint> = emptyList(),
 ): SnapResult {
+    val neighbours = listOfNotNull(previous) + avoid
+    val joinable = if (neighbours.isEmpty()) otherVertices else otherVertices.filter { v ->
+        neighbours.none { nb -> abs(nb.x - v.x) < SAME_CORNER_PX && abs(nb.y - v.y) < SAME_CORNER_PX }
+    }
     // 1. An existing corner wins outright.
-    val nearestVertex = otherVertices.minByOrNull { v ->
+    val nearestVertex = joinable.minByOrNull { v ->
         val dx = v.x - candidate.x
         val dy = v.y - candidate.y
         dx * dx + dy * dy
@@ -387,26 +473,35 @@ fun snapDrawPoint(
     val headingDeg = Math.toDegrees(atan2(vy.toDouble(), vx.toDouble())).toFloat()
 
     // 2. Candidate headings: the screen's axes, and the previous segment's.
-    val candidates = mutableListOf<Float>()
-    for (k in 0 until 8) candidates += k * 45f
+    // Each remembers what it is square to, so the screen can say "square to
+    // the last side" rather than an absolute bearing nobody was aiming at.
+    val candidates = mutableListOf<LockCandidate>()
+    for (k in 0 until 8) candidates += LockCandidate(k * 45f, AngleReference.MAP, null)
     if (beforePrevious != null) {
         val px = previous.x - beforePrevious.x
         val py = previous.y - beforePrevious.y
         if (sqrt(px * px + py * py) > 0.001f) {
             val prevHeading = Math.toDegrees(atan2(py.toDouble(), px.toDouble())).toFloat()
-            for (k in 0 until 8) candidates += prevHeading + k * 45f
+            for (k in 0 until 8) {
+                val turn = (if (k <= 4) k else 8 - k) * 45f
+                candidates += LockCandidate(prevHeading + k * 45f, AngleReference.PREVIOUS_SIDE, turn)
+            }
         }
     }
 
-    var lockedAngle: Float? = null
+    // `<=`, so on a tie the later candidate -- the previous side's -- wins:
+    // a heading that is both vertical and square to the last side is
+    // reported as the latter, which is the one being aimed at.
+    var locked: LockCandidate? = null
     var bestDelta = angleToleranceDeg
     for (c in candidates) {
-        val delta = abs(angleDifference(headingDeg, c))
+        val delta = abs(angleDifference(headingDeg, c.headingDeg))
         if (delta <= bestDelta) {
             bestDelta = delta
-            lockedAngle = c
+            locked = c
         }
     }
+    val lockedAngle = locked?.headingDeg
 
     val finalHeadingDeg = lockedAngle ?: headingDeg
 
@@ -419,10 +514,17 @@ fun snapDrawPoint(
     if (lockedAngle == null && !lengthLocked) return SnapResult(candidate, SnapKind.NONE)
 
     val rad = Math.toRadians(finalHeadingDeg.toDouble())
-    val point = FencePoint(
-        previous.x + (kotlin.math.cos(rad) * finalDistPx).toFloat(),
-        previous.y + (kotlin.math.sin(rad) * finalDistPx).toFloat(),
-    )
+    val point = if (lengthLocked) {
+        // A side reported as "rounded to 48'" has to measure 48' in the
+        // takeoff, not 48.000004' -- the takeoff rounds bays UP, so that
+        // hair is a ninth panel. Landed the way a typed length is.
+        landSide(previous, kotlin.math.cos(rad) to kotlin.math.sin(rad), roundedFt, pxPerFt)
+    } else {
+        FencePoint(
+            previous.x + (kotlin.math.cos(rad) * finalDistPx).toFloat(),
+            previous.y + (kotlin.math.sin(rad) * finalDistPx).toFloat(),
+        )
+    }
     val kind = when {
         lockedAngle != null && lengthLocked -> SnapKind.ANGLE_AND_LENGTH
         lockedAngle != null -> SnapKind.ANGLE
@@ -433,8 +535,21 @@ fun snapDrawPoint(
         kind = kind,
         lockedAngleDeg = lockedAngle?.let { normaliseDeg(it) },
         lengthFt = if (lengthLocked) roundedFt else null,
+        angleReference = locked?.reference,
+        turnDeg = locked?.turnDeg,
     )
 }
+
+/** One heading an angle lock could choose, and what it is square to. */
+private data class LockCandidate(
+    val headingDeg: Float,
+    val reference: AngleReference,
+    /** Turn from the previous side, for [AngleReference.PREVIOUS_SIDE] only. */
+    val turnDeg: Float?,
+)
+
+/** Two corners closer than this, in drawing pixels, are the same corner. */
+private const val SAME_CORNER_PX = 0.01f
 
 /**
  * What pressing Undo should remove next, and why -- worked out as a pure

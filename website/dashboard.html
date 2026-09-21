@@ -1592,6 +1592,19 @@
   <div class="sheet-body">
     <div class="msg" id="jobMsg"></div><div id="jobReadonly"></div>
 
+    <!-- Job command centre: a compact header composed entirely from data the
+         rest of this sheet already computes (jobReadiness, production_stage,
+         canSeeMoney) -- nothing here is a second source of truth. See
+         renderJobHeader(). -->
+    <div class="panel" id="jobHeaderPanel">
+      <div id="jhPath" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center"></div>
+      <div id="jhParallel" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+      <div id="jhReady" style="margin-top:12px;font-weight:700;font-size:15px"></div>
+      <div id="jhBlockedList" style="margin-top:4px"></div>
+      <div id="jhNext" style="margin-top:10px;display:flex;gap:18px;flex-wrap:wrap"></div>
+      <div id="jhMoney" style="margin-top:10px;font-weight:600"></div>
+    </div>
+
     <div class="panel"><h2 data-t="jobSecProgress">Progress</h2><div id="jobProgress"></div></div>
 
     <div class="panel"><h2 data-t="jobSecCustomer">Customer</h2>
@@ -1611,7 +1624,7 @@
       <label data-t="jobLabelNotes">Notes</label><textarea id="j_notes"></textarea>
     </div>
 
-    <div class="panel"><h2 data-t="jobSecRuns">Fence Runs</h2>
+    <div class="panel" id="panelRuns"><h2 data-t="jobSecRuns">Fence Runs</h2>
       <button class="btn btn-sm btn-grey" id="openSat" data-t="jobMeasureSatBtn" style="margin-bottom:10px">Measure from satellite</button>
       <div id="jobRuns"></div></div>
     <div class="panel"><h2 data-t="jobSecPhotos">Photos &amp; Documents</h2>
@@ -1619,7 +1632,7 @@
         signature, and the survey the fence was drawn on — straight from the phones.</p>
       <div id="jobPhotos" class="empty" data-t="jobPhotosLoading">Loading…</div>
     </div>
-    <div class="panel"><h2 data-t="jobSecEstimate">Estimate</h2><div id="jobItems"></div>
+    <div class="panel" id="panelEstimate"><h2 data-t="jobSecEstimate">Estimate</h2><div id="jobItems"></div>
       <!-- The office never carries the pricing formula -- it asks price-job,
            the same TypeScript port of EstimateEngine.kt the phone runs, and
            renders exactly what comes back. A dry_run previews; nothing here
@@ -1644,7 +1657,7 @@
       </div>
     </div>
 
-    <div class="panel"><h2 data-t="jobSecSchedule">Schedule &amp; Status</h2>
+    <div class="panel" id="panelSchedule"><h2 data-t="jobSecSchedule">Schedule &amp; Status</h2>
       <div class="row2">
         <div><label data-t="jobLabelStatus">Status</label><select id="j_status">
           <option value="DRAFT" data-t="jobOptDraft">Draft</option><option value="SENT" data-t="jobOptSent">Sent</option>
@@ -1656,7 +1669,7 @@
       </div>
     </div>
 
-    <div class="panel"><h2 data-t="jobSecPayment">Payment</h2>
+    <div class="panel" id="panelPayment"><h2 data-t="jobSecPayment">Payment</h2>
       <div class="row3">
         <div><label data-t="jobLabelDeposit">Deposit ($)</label><input id="j_deposit_amount" type="number" step="1"></div>
         <div><label data-t="jobLabelAmountPaid">Amount paid</label>
@@ -1667,7 +1680,7 @@
       </div>
     </div>
 
-    <div class="panel"><h2 data-t="jobSecQuotePage">Customer quote page</h2>
+    <div class="panel" id="panelQuotePage"><h2 data-t="jobSecQuotePage">Customer quote page</h2>
       <p class="sub" data-t="jobQuotePageBody">A link for the homeowner: the quote, their fence in 3D, and an Approve
         button that signs with their name. No app, no account &mdash; the link is the key, so
         only send it to them.</p>
@@ -1711,7 +1724,7 @@
       <div class="msg" id="contactMsg"></div>
     </div>
 
-    <div class="panel"><h2 data-t="jobSecMaterials">Materials</h2>
+    <div class="panel" id="panelMaterials"><h2 data-t="jobSecMaterials">Materials</h2>
       <div class="row2">
         <div><label data-t="jobLabelMatStatus">Status</label><select id="j_materials_status">
           <option value="NOT_ORDERED" data-t="jobOptNotOrdered">Not ordered</option>
@@ -1752,7 +1765,7 @@
       <p class="sub" id="readyNote" style="margin-top:9px"></p>
     </div>
 
-    <div class="panel"><h2 data-t="jobSecHoa">HOA &amp; Permits</h2>
+    <div class="panel" id="panelHoa"><h2 data-t="jobSecHoa">HOA &amp; Permits</h2>
       <div class="row3">
         <div><label data-t="jobLabelHoaName">HOA name</label><input id="j_hoa_name"></div>
         <div><label data-t="jobLabelHoaEmail">HOA email</label><input id="j_hoa_email"></div>
@@ -3133,6 +3146,31 @@ const TL = {
     alertInfoHideMsg:'Hide routine items',
     briefSectionCountFmt:'%s (%s)',
     briefNothingElseMsg:'Nothing else today: %s.',
+
+    jobHdrReady:'READY',
+    jobHdrBlocked:'BLOCKED — %s outstanding',
+    jobHdrBlockedOne:'BLOCKED — 1 outstanding',
+    jobHdrNextAction:'Next action',
+    jobHdrOwner:'Owner',
+    jobHdrUnassigned:'Unassigned',
+    jobHdrInstall:'Install the fence',
+    jobHdrFixBtn:'Fix',
+    jobHdrStepApproved:'Approved',
+    jobHdrStepSigned:'Signed',
+    jobHdrStepDeposit:'Deposit',
+    jobHdrStepEstimate:'Estimate ready',
+    jobHdrStepCrew:'Crew assigned',
+    jobHdrStepScheduled:'Scheduled',
+    jobHdrStepProduction:'Production',
+    jobHdrStepPaid:'Paid in full',
+    jobHdrParallelHoa:'HOA',
+    jobHdrParallelPermit:'Permit',
+    jobHdrParallelMaterials:'Materials',
+    jobHdrParallel811:'811 locate',
+    jobHdrMoneyContract:'Contract',
+    jobHdrMoneyPaid:'Paid',
+    jobHdrMoneyBalance:'Balance',
+    jobHdrProdNotStarted:'Not started',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -4003,6 +4041,31 @@ const TL = {
     alertInfoHideMsg:'Ocultar elementos de rutina',
     briefSectionCountFmt:'%s (%s)',
     briefNothingElseMsg:'Nada más por hoy: %s.',
+
+    jobHdrReady:'LISTO',
+    jobHdrBlocked:'BLOQUEADO — %s pendientes',
+    jobHdrBlockedOne:'BLOQUEADO — 1 pendiente',
+    jobHdrNextAction:'Próxima acción',
+    jobHdrOwner:'Responsable',
+    jobHdrUnassigned:'Sin asignar',
+    jobHdrInstall:'Instalar la cerca',
+    jobHdrFixBtn:'Resolver',
+    jobHdrStepApproved:'Aprobado',
+    jobHdrStepSigned:'Firmado',
+    jobHdrStepDeposit:'Depósito',
+    jobHdrStepEstimate:'Presupuesto listo',
+    jobHdrStepCrew:'Cuadrilla asignada',
+    jobHdrStepScheduled:'Programado',
+    jobHdrStepProduction:'Producción',
+    jobHdrStepPaid:'Pagado en su totalidad',
+    jobHdrParallelHoa:'HOA',
+    jobHdrParallelPermit:'Permiso',
+    jobHdrParallelMaterials:'Materiales',
+    jobHdrParallel811:'Localización 811',
+    jobHdrMoneyContract:'Contrato',
+    jobHdrMoneyPaid:'Pagado',
+    jobHdrMoneyBalance:'Saldo',
+    jobHdrProdNotStarted:'Sin comenzar',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -4873,6 +4936,31 @@ const TL = {
     alertInfoHideMsg:'Masquer les éléments de routine',
     briefSectionCountFmt:'%s (%s)',
     briefNothingElseMsg:'Rien d\'autre aujourd\'hui : %s.',
+
+    jobHdrReady:'PRÊT',
+    jobHdrBlocked:'BLOQUÉ — %s en attente',
+    jobHdrBlockedOne:'BLOQUÉ — 1 en attente',
+    jobHdrNextAction:'Prochaine action',
+    jobHdrOwner:'Responsable',
+    jobHdrUnassigned:'Non assigné',
+    jobHdrInstall:'Installer la clôture',
+    jobHdrFixBtn:'Résoudre',
+    jobHdrStepApproved:'Approuvé',
+    jobHdrStepSigned:'Signé',
+    jobHdrStepDeposit:'Acompte',
+    jobHdrStepEstimate:'Devis prêt',
+    jobHdrStepCrew:'Équipe assignée',
+    jobHdrStepScheduled:'Planifié',
+    jobHdrStepProduction:'Production',
+    jobHdrStepPaid:'Payé intégralement',
+    jobHdrParallelHoa:'HOA',
+    jobHdrParallelPermit:'Permis',
+    jobHdrParallelMaterials:'Matériaux',
+    jobHdrParallel811:'Repérage 811',
+    jobHdrMoneyContract:'Contrat',
+    jobHdrMoneyPaid:'Payé',
+    jobHdrMoneyBalance:'Solde',
+    jobHdrProdNotStarted:'Pas commencé',
   },
 };
 
@@ -13204,6 +13292,186 @@ function renderReadiness(){
     ? 'Not checked here: ' + r.untracked.join(' ') : '';
 }
 
+/** All of the job command centre's DECISIONS, with no DOM and no i18n --
+    pure function of (job row, its runs, the employee list), same shape as
+    jobReadiness() itself and built on top of it (never recomputes READY/
+    BLOCKED, only rearranges jobReadiness()'s own verdict). This is what
+    tests/job-command-centre.test.mjs lifts and exercises; renderJobHeader()
+    below only turns this model into markup. Kept as one function, not five,
+    so a caller can never render the path against one job's readiness and the
+    money line against another's. */
+function jobHeaderModel(j, runs, employees){
+  const r = jobReadiness(j, runs);
+  const byLabel = (label) => r.items.find(i => i.label === label) || { ok:false, why:'' };
+  const sold = j.status === 'ACCEPTED' || j.status === 'COMPLETED';
+  const blocked = r.items.filter(i => !i.ok);
+
+  // The real sequence a job moves through: sale steps (from jobs.status /
+  // the readiness checklist), then production_stage once sold (the same
+  // MATERIALS->DIG->SET->BUILD->PUNCH->DONE sequence the Production board
+  // drives), then final payment. HOA, permit, materials and 811 are
+  // deliberately NOT in this list -- the code lets them happen in any order
+  // (jobReadiness treats them as independent booleans, not a sequence), so
+  // forcing them into one line here would show an order the app itself
+  // doesn't enforce. They are the "parallel" list below instead.
+  const steps = [
+    { key:'approved',   ok: byLabel('Customer approved the quote').ok, fix: '#panelQuotePage' },
+    { key:'signed',     ok: byLabel('Contract signed').ok,             fix: '#panelQuotePage' },
+    { key:'deposit',    ok: byLabel('Deposit collected').ok,           fix: '#panelPayment' },
+    { key:'estimate',   ok: byLabel('Measured').ok && byLabel('Prices confirmed with a supplier').ok, fix: '#panelEstimate' },
+    { key:'crew',       ok: byLabel('Crew assigned').ok,               fix: '#panelSchedule' },
+    { key:'scheduled',  ok: byLabel('Scheduled').ok,                   fix: '#panelSchedule' },
+    { key:'production', ok: sold && j.production_stage === 'DONE', fix: null,
+      stage: sold ? (j.production_stage || null) : null },
+    { key:'paid',       ok: j.payment_status === 'PAID_IN_FULL',       fix: '#panelPayment' },
+  ];
+
+  // HOA, permit, materials, 811: independent booleans the code lets run
+  // side by side, not steps in a line. 811 has no fix target because the
+  // office has no field for it anywhere on this sheet (only the phone calls
+  // it in) -- confirmed absent, not assumed.
+  const parallel = [
+    { key:'hoa',       item: byLabel('HOA approval'),      fix: '#panelHoa' },
+    { key:'permit',    item: byLabel('Permit'),            fix: '#panelHoa' },
+    { key:'materials', item: byLabel('Materials on hand'), fix: '#panelMaterials' },
+    { key:'locate811', item: byLabel('811 locate valid'),  fix: null },
+  ];
+
+  // Where a checklist item can actually be fixed from this sheet, or null.
+  // Keyed on jobReadiness()'s own label strings, which are internal
+  // identifiers -- never run through tr(), never shown translated -- so
+  // matching them is matching source constants, not display text.
+  const FIX_BY_LABEL = {
+    'Customer approved the quote': '#panelQuotePage',
+    'Contract signed': '#panelQuotePage',
+    'Deposit collected': '#panelPayment',
+    'Measured': '#panelRuns',
+    'Prices confirmed with a supplier': '#panelEstimate',
+    'Crew assigned': '#panelSchedule',
+    'Scheduled': '#panelSchedule',
+    'Permit': '#panelHoa',
+    'HOA approval': '#panelHoa',
+    'Materials on hand': '#panelMaterials',
+    '811 locate valid': null,
+  };
+  const blockedWithFix = blocked.map(i => ({ label: i.label, why: i.why, fix: FIX_BY_LABEL[i.label] || null }));
+
+  // There is no per-checklist-item owner field anywhere in this schema (no
+  // "who is fixing the permit" column) -- so every blocked item reads
+  // unassigned rather than guessing. The one real owner field on a job,
+  // assigned_employee_sync_id, answers "who does the next physical work",
+  // which is only meaningful once the job is actually ready to install.
+  const assignee = j.assigned_employee_sync_id
+    ? (employees || []).find(e => e.sync_id === j.assigned_employee_sync_id) : null;
+  const next = r.ready
+    ? { action:'install', ownerName: assignee ? (assignee.name || null) : null }
+    : { action:'blocked', blockedLabel: blocked[0].label, blockedWhy: blocked[0].why, ownerName: null };
+
+  return { ready: r.ready, steps, parallel, blocked: blockedWithFix, next };
+}
+
+/* Scrolls an existing panel of the open job sheet into view -- the "jump to
+   fix" targets are real ids already on real panels (added alongside this
+   header), never a synthetic destination. */
+function jhJump(sel){
+  const el = sel && document.querySelector(sel);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+const JH_STEP_LABEL_KEY = {
+  approved:'jobHdrStepApproved', signed:'jobHdrStepSigned', deposit:'jobHdrStepDeposit',
+  estimate:'jobHdrStepEstimate', crew:'jobHdrStepCrew', scheduled:'jobHdrStepScheduled',
+  production:'jobHdrStepProduction', paid:'jobHdrStepPaid',
+};
+const JH_PARALLEL_LABEL_KEY = {
+  hoa:'jobHdrParallelHoa', permit:'jobHdrParallelPermit',
+  materials:'jobHdrParallelMaterials', locate811:'jobHdrParallel811',
+};
+
+/** The job command centre: renders jobHeaderModel(openJob, runs, employees)
+    (the exact same READY/BLOCKED verdict the panel below already shows --
+    this never recomputes that answer, only rearranges it) and
+    canSeeMoney() (the same money gate used everywhere else on this page).
+    Nothing below this header moves or changes; this only adds a summary
+    above it. */
+function renderJobHeader(){
+  const j = openJob;
+  if (!j || !$('jhPath')) return;
+  const m = jobHeaderModel(j, runs, employees);
+
+  // ---- 1. Linear path -------------------------------------------------
+  const nextStepIdx = m.steps.findIndex(s => !s.ok);
+  $('jhPath').innerHTML = m.steps.map((s,i) => {
+    const label = tr(JH_STEP_LABEL_KEY[s.key]) +
+      (s.key === 'production' && s.stage !== undefined
+        ? (s.stage === null ? '' : ': ' + (s.stage ? prodStageLabel(s.stage) : tr('jobHdrProdNotStarted')))
+        : '');
+    const state = s.ok ? 'ok' : (i === nextStepIdx ? 'next' : 'todo');
+    const color = state==='ok' ? 'var(--good,#2e6b4e)' : (state==='next' ? 'var(--orange,#b3261e)' : 'var(--muted)');
+    const weight = state==='next' ? '700' : '400';
+    const clickable = !s.ok && s.fix;
+    return (i>0 ? '<span style="color:var(--muted)">&rarr;</span>' : '') +
+      `<span${clickable?` data-jh-jump="${s.fix}" role="button" tabindex="0" style="cursor:pointer;text-decoration:underline"`:''}
+         style="color:${color};font-weight:${weight};font-size:12.5px;padding:3px 7px;border-radius:12px;border:1px solid var(--line)">
+        ${s.ok?'&#10003; ':''}${esc(label)}
+      </span>`;
+  }).join('');
+  $('jhPath').querySelectorAll('[data-jh-jump]').forEach(el =>
+    el.addEventListener('click', () => jhJump(el.dataset.jhJump)));
+
+  // ---- 2. Parallel checks (HOA / permit / materials / 811) ------------
+  $('jhParallel').innerHTML = m.parallel.map(p => {
+    const ok = p.item.ok;
+    const clickable = !ok && p.fix;
+    const bg = ok ? 'var(--good-bg, rgba(46,107,78,.12))' : 'var(--bad-bg, rgba(179,38,30,.12))';
+    const fg = ok ? 'var(--good,#2e6b4e)' : 'var(--bad,#b3261e)';
+    return `<span${clickable?` data-jh-jump="${p.fix}" role="button" tabindex="0" style="cursor:pointer"`:''}
+        title="${esc(p.item.why||'')}"
+        style="background:${bg};color:${fg};font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:20px">
+        ${ok?'&#10003;':'&#10007;'} ${esc(tr(JH_PARALLEL_LABEL_KEY[p.key]))}
+      </span>`;
+  }).join('');
+  $('jhParallel').querySelectorAll('[data-jh-jump]').forEach(el =>
+    el.addEventListener('click', () => jhJump(el.dataset.jhJump)));
+
+  // ---- 3. Ready / Blocked, exact reasons, jump-to-fix ------------------
+  $('jhReady').textContent = m.ready
+    ? tr('jobHdrReady')
+    : tr(m.blocked.length === 1 ? 'jobHdrBlockedOne' : 'jobHdrBlocked', m.blocked.length);
+  $('jhReady').style.color = m.ready ? 'var(--good,#2e6b4e)' : 'var(--bad,#b3261e)';
+  $('jhBlockedList').innerHTML = m.blocked.map(i =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 0">
+        <span class="sub">${esc(i.label)}${i.why?' — '+esc(i.why):''}</span>
+        ${i.fix?`<button type="button" class="btn btn-sm btn-grey" data-jh-jump="${i.fix}" style="flex:none">${esc(tr('jobHdrFixBtn'))}</button>`:''}
+      </div>`).join('');
+  $('jhBlockedList').querySelectorAll('[data-jh-jump]').forEach(el =>
+    el.addEventListener('click', () => jhJump(el.dataset.jhJump)));
+
+  // ---- 4. Next action + owner ------------------------------------------
+  const nextLabel = m.next.action === 'install' ? tr('jobHdrInstall') : m.next.blockedLabel;
+  const ownerLabel = m.next.ownerName || tr('jobHdrUnassigned');
+  $('jhNext').innerHTML =
+    `<div><div class="sub" style="text-transform:uppercase;font-size:10.5px;letter-spacing:.03em">${esc(tr('jobHdrNextAction'))}</div>
+      <div style="font-weight:700">${esc(nextLabel)}</div></div>
+     <div><div class="sub" style="text-transform:uppercase;font-size:10.5px;letter-spacing:.03em">${esc(tr('jobHdrOwner'))}</div>
+      <div style="font-weight:700">${esc(ownerLabel)}</div></div>`;
+
+  // ---- 5. Money, one line, money-role only -----------------------------
+  if (canSeeMoney()) {
+    const contract = Number(j.contract_total ?? 0);
+    const paid = netPaid(j);
+    const balance = contract - paid;
+    $('jhMoney').style.display = '';
+    $('jhMoney').innerHTML =
+      `${esc(tr('jobHdrMoneyContract'))} ${esc(money(contract))} &middot; ` +
+      `${esc(tr('jobHdrMoneyPaid'))} ${esc(money(paid))} &middot; ` +
+      `${esc(tr('jobHdrMoneyBalance'))} ${esc(money(balance))}`;
+  } else {
+    $('jhMoney').style.display = 'none';
+    $('jhMoney').innerHTML = '';
+  }
+}
+
 function renderQuoteBlock(){
   const j = openJob;
   if (!j || !$('q_link')) return;
@@ -14337,6 +14605,7 @@ async function showJob(id){
   renderQuoteBlock(); renderReadiness(); renderContact(); renderMaterials();
   loadReapprovalHistory(openJob);
   if(!openJob) return;
+  renderJobHeader();
   // A preview left over from whichever job was open before this one is not
   // this job's price -- "Keep this price" must never commit a stranger's
   // numbers onto the job now on screen.
@@ -17110,7 +17379,7 @@ $('q_copy').addEventListener('click', async ()=>{
     const now=new Date().toISOString();
     await db.from('jobs').update({quote_sent_at:now}).eq('id',openJob.id);
     openJob.quote_sent_at=now;
-    renderQuoteBlock(); renderReadiness(); renderContact(); renderMaterials();
+    renderQuoteBlock(); renderReadiness(); renderContact(); renderMaterials(); renderJobHeader();
   }
 });
 $('q_open').addEventListener('click',()=>{ if(openJob) window.open(quoteLinkFor(openJob),'_blank'); });

@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.PanTool
+import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Undo
@@ -86,6 +87,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -109,6 +112,7 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.VertexKind
+import com.fenceestimator.app.geometry.angleCue
 import com.fenceestimator.app.ui.components.FeetInches
 import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
@@ -260,6 +264,9 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     var snapOn by rememberSaveable { mutableStateOf(true) }
     /** What the last placed point was pulled onto, so the screen can say so. */
     var lastSnap by remember { mutableStateOf<com.fenceestimator.app.geometry.SnapResult?>(null) }
+    // A cue about a point on another run, or from another tool, is a cue
+    // about nothing on screen.
+    LaunchedEffect(mode, selectedRunId) { lastSnap = null }
     var markerDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     val siteMarkers by viewModel.siteMarkers.collectAsState()
 
@@ -312,6 +319,28 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             snackbarHostState.showSnackbar(undoNothingMessage)
         }
     }
+    // Redo explains itself the same way. Branches on the reason enum, never
+    // on the words, so a translation cannot change which message shows.
+    val redoNothingMessage = stringResource(R.string.draw_redo_nothing_to_redo)
+    val redoChangedMessage = stringResource(R.string.draw_redo_drawing_changed)
+    LaunchedEffect(Unit) {
+        viewModel.redoNothingToDo.collect { reason ->
+            snackbarHostState.showSnackbar(
+                when (reason) {
+                    com.fenceestimator.app.geometry.RedoNoneReason.DRAWING_CHANGED -> redoChangedMessage
+                    com.fenceestimator.app.geometry.RedoNoneReason.NOTHING_TO_REDO,
+                    com.fenceestimator.app.geometry.RedoNoneReason.NO_RUN_SELECTED -> redoNothingMessage
+                }
+            )
+        }
+    }
+    // A typed length that could not be applied says so, rather than the
+    // dialog closing as though the side had been set.
+    val lengthRefusedMessage = stringResource(R.string.seg_len_refused)
+    LaunchedEffect(Unit) {
+        viewModel.lengthRefused.collect { snackbarHostState.showSnackbar(lengthRefusedMessage) }
+    }
+    val canRedo by viewModel.canRedo.collectAsState()
 
     Scaffold(
         topBar = {
@@ -822,8 +851,12 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 val b = transform.toCanvas(points[(i + 1) % points.size])
                                 val onScreenLen = kotlin.math.hypot((b.x - a.x).toDouble(), (b.y - a.y).toDouble()).toFloat()
                                 if (onScreenLen < 56f) continue
-                                val feet = com.fenceestimator.app.geometry.segmentLengthPx(points, i)
-                                    ?.div(pxPerFt) ?: continue
+                                // Read off the same analyze() the takeoff
+                                // prices from, so the label is the takeoff's
+                                // number -- and a closed loop's closing side
+                                // gets its dimension too, which the old
+                                // segmentLengthPx() call skipped.
+                                val feet = geometry.segments.getOrNull(i)?.lengthFt ?: continue
                                 val label = FeetInches.formatCompact(feet)
                                 val mx = (a.x + b.x) / 2f
                                 val my = (a.y + b.y) / 2f
@@ -1013,6 +1046,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             mode = mode,
                             onSelect = { viewModel.setMode(it) }
                         )
+                        // Angle lock, where it is used: a one-tap switch to
+                        // draw freely, and what the last point was locked
+                        // to. Both used to live only inside the property
+                        // panel, which is collapsed by default -- so a point
+                        // that jumped to square said nothing unless the panel
+                        // happened to be open.
+                        if (mode == SurveyMode.DRAW || mode == SurveyMode.ADJUST) {
+                            SnapStrip(
+                                snapOn = snapOn,
+                                onSnapChange = { snapOn = it; lastSnap = null },
+                                lastSnap = lastSnap
+                            )
+                        }
                         // Plain Box, not Surface, inside CanvasHint below --
                         // Material3's Surface swallows pointer events so
                         // clicks can't fall through to whatever is behind it,
@@ -1051,12 +1097,13 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         ZoomButton(Icons.Filled.MyLocation) { viewZoom = 1f; viewPan = Offset.Zero }
                     }
 
-                    // BOTTOM-START: the two controls used on almost every
-                    // stroke, grouped together and kept away from Clear on
-                    // purpose -- Clear now lives inside the property panel
-                    // below, a deliberate extra tap so a thumb reaching for
-                    // Undo or the estimate can never land on the destructive
-                    // one by accident.
+                    // BOTTOM-START: the controls used on almost every stroke
+                    // (Undo, Redo) and the way on to the estimate, grouped
+                    // together and kept away from Clear on purpose -- Clear
+                    // now lives inside the property panel below, a deliberate
+                    // extra tap so a thumb reaching for Undo, Redo or the
+                    // estimate can never land on the destructive one by
+                    // accident.
                     if (!fullScreenDrawing) {
                         Row(
                             modifier = Modifier.align(Alignment.BottomStart).padding(Space.sm),
@@ -1066,7 +1113,20 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             ToolIconButton(
                                 icon = Icons.Filled.Undo,
                                 contentDescription = stringResource(R.string.draw_undo),
-                                onClick = { viewModel.undoLast(mode) }
+                                // The snap cue describes the last point placed;
+                                // once that point is gone it describes nothing.
+                                onClick = { lastSnap = null; viewModel.undoLast(mode) }
+                            )
+                            // Redo sits beside Undo, the pair every drawing
+                            // tool has. Dimmed when there is nothing to redo
+                            // but still pressable, so a press explains why
+                            // (the same as Undo) instead of doing nothing.
+                            ToolIconButton(
+                                icon = Icons.Filled.Redo,
+                                contentDescription = stringResource(R.string.draw_redo),
+                                dimmed = !canRedo,
+                                dimmedStateDescription = stringResource(R.string.draw_redo_nothing_to_redo),
+                                onClick = { lastSnap = null; viewModel.redo() }
                             )
                             Surface(
                                 tonalElevation = 3.dp,
@@ -1175,6 +1235,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         } else {
             SegmentLengthDialog(
                 currentFeet = current,
+                closingSide = viewModel.isClosingSide(index),
                 onConfirm = { feet ->
                     viewModel.setSegmentLengthFeet(index, feet)
                     editingSegment = null
@@ -1393,7 +1454,7 @@ private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, on
 
 /**
  * A single floating icon control, same visual language as [ZoomButton].
- * Used for full screen, Layers and Undo -- keeping every floating control
+ * Used for full screen, Layers, Undo and Redo -- keeping every floating control
  * the same shape is what makes a handful of buttons over the canvas read
  * as a deliberate group rather than clutter that happens to be nearby.
  */
@@ -1401,10 +1462,76 @@ private fun ZoomButton(icon: androidx.compose.ui.graphics.vector.ImageVector, on
 private fun ToolIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
+    /**
+     * Drawn greyed out while staying pressable -- for a control that has
+     * nothing to do right now but should still explain why when pressed.
+     */
+    dimmed: Boolean = false,
+    /** What a screen reader says about the dimmed state, since it is not "disabled". */
+    dimmedStateDescription: String? = null,
     onClick: () -> Unit
 ) {
     Surface(tonalElevation = 3.dp, shape = androidx.compose.foundation.shape.CircleShape) {
-        IconButton(onClick = onClick) { Icon(icon, contentDescription = contentDescription) }
+        IconButton(
+            onClick = onClick,
+            modifier = if (dimmed && dimmedStateDescription != null) {
+                Modifier.semantics { stateDescription = dimmedStateDescription }
+            } else Modifier
+        ) {
+            Icon(
+                icon,
+                contentDescription = contentDescription,
+                tint = if (dimmed) MaterialTheme.colorScheme.onSurface.copy(alpha = DIMMED_ICON_ALPHA)
+                       else androidx.compose.material3.LocalContentColor.current
+            )
+        }
+    }
+}
+
+/** Material's own alpha for content that is not available right now. */
+private const val DIMMED_ICON_ALPHA = 0.38f
+
+/**
+ * Snapping, floated where the drawing happens: a chip to turn it off and
+ * trace freely (one tap, not "open the panel, find the checkbox"), and a
+ * plain line saying what the last point was locked to -- "Square to the last
+ * side", "Horizontal on the map", "Rounded to 48'". A point that jumps and
+ * says why is a tool; one that jumps silently is a bug.
+ *
+ * The cue sits in a [CanvasHint], which lets taps fall through to the
+ * drawing; only the chip itself takes touches.
+ */
+@Composable
+private fun SnapStrip(
+    snapOn: Boolean,
+    onSnapChange: (Boolean) -> Unit,
+    lastSnap: com.fenceestimator.app.geometry.SnapResult?,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            modifier = Modifier.padding(top = Space.xs),
+            tonalElevation = 4.dp,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.md)
+        ) {
+            FilterChip(
+                selected = snapOn,
+                onClick = { onSnapChange(!snapOn) },
+                label = { Text(stringResource(R.string.snap_toggle)) },
+                leadingIcon = if (snapOn) {
+                    { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                } else null,
+                // FilterChip already reports selected / not selected to a
+                // screen reader, which is exactly on / off here.
+                modifier = Modifier.padding(horizontal = Space.xs)
+            )
+        }
+        when {
+            lastSnap != null -> CanvasHint(
+                text = snapWords(lastSnap),
+                textColor = MaterialTheme.semantic.success
+            )
+            !snapOn -> CanvasHint(text = stringResource(R.string.snap_off_note))
+        }
     }
 }
 
@@ -2026,7 +2153,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform:
  * tap that landed on it.
  */
 @Composable
-private fun CanvasHint(modifier: Modifier = Modifier, text: String) {
+private fun CanvasHint(
+    modifier: Modifier = Modifier,
+    text: String,
+    /** Defaults to the theme's muted text colour; the snap cue uses success. */
+    textColor: Color = Color.Unspecified
+) {
     Box(
         modifier
             .padding(Space.sm)
@@ -2039,7 +2171,7 @@ private fun CanvasHint(modifier: Modifier = Modifier, text: String) {
         Text(
             text,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (textColor != Color.Unspecified) textColor else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -2334,6 +2466,12 @@ private fun MagnifierLoupe(
 @Composable
 private fun SegmentLengthDialog(
     currentFeet: Float,
+    /**
+     * The side that closes a loop moves differently -- its last corner slides
+     * and the side before it gives -- so the dialog says so rather than
+     * promising the rest of the run keeps its shape.
+     */
+    closingSide: Boolean = false,
     onConfirm: (Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -2367,7 +2505,9 @@ private fun SegmentLengthDialog(
                     }
                 )
                 Text(
-                    stringResource(R.string.seg_len_explains),
+                    stringResource(
+                        if (closingSide) R.string.seg_len_explains_closing else R.string.seg_len_explains
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2392,8 +2532,17 @@ private fun SegmentLengthDialog(
  */
 @Composable
 private fun snapWords(result: com.fenceestimator.app.geometry.SnapResult): String {
-    val angle = result.lockedAngleDeg?.let {
-        stringResource(R.string.snap_angle, it.roundToInt())
+    // Said relative to what the person was aiming at -- "square to the last
+    // side", not "120° locked", which is a bearing nobody on site thinks in.
+    // The bare bearing is kept only as a fallback for a lock with no cue.
+    val angle = when (val cue = result.angleCue()) {
+        com.fenceestimator.app.geometry.AngleCue.StraightOn -> stringResource(R.string.snap_turn_straight)
+        com.fenceestimator.app.geometry.AngleCue.Square -> stringResource(R.string.snap_turn_square)
+        is com.fenceestimator.app.geometry.AngleCue.Turn -> stringResource(R.string.snap_turn_deg, cue.degrees)
+        com.fenceestimator.app.geometry.AngleCue.MapHorizontal -> stringResource(R.string.snap_map_horizontal)
+        com.fenceestimator.app.geometry.AngleCue.MapVertical -> stringResource(R.string.snap_map_vertical)
+        com.fenceestimator.app.geometry.AngleCue.MapDiagonal -> stringResource(R.string.snap_map_diagonal)
+        null -> result.lockedAngleDeg?.let { stringResource(R.string.snap_angle, it.roundToInt()) }
     }
     val length = result.lengthFt?.let {
         stringResource(R.string.snap_length, FeetInches.formatCompact(it))
