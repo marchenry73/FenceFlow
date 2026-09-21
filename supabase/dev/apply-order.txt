@@ -200,3 +200,8 @@ supabase_setup_progress_v2.sql
 supabase_sec_sync_fix_signature_upsert.sql
 supabase_sec_sync_fix_needs_person_existing_rows.sql
 supabase_sec_time_entries_write_permission.sql
+supabase_p2_jobs_crew_view.sql
+supabase_p2_customer_identity_email.sql
+supabase_p2_contract_columns_pin.sql
+supabase_p2_correct_time_entry.sql
+supabase_p2_release_rollback.sql

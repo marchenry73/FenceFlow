@@ -246,6 +246,8 @@
     <string name="time_start_hhmm">Start (HH:mm)</string>
     <string name="time_end_hhmm">End (HH:mm)</string>
     <string name="time_note_crew_sees">Note (the crew will see this)</string>
+    <string name="time_correction_reason">Why the hours are changing (required)</string>
+    <string name="time_correction_reason_why">The crew member reads this, and it is what settles a dispute about their pay.</string>
     <string name="time_approve">Approve</string>
     <string name="time_send_back">Send back</string>
 
@@ -1598,6 +1600,12 @@
     <string name="vm_couldnt_load_team">Couldn\'t load the team: %1$s</string>
     <string name="vm_time_approved">Shift approved.</string>
     <string name="vm_couldnt_approve_time">Couldn\'t approve this shift: %1$s</string>
+    <string name="vm_time_correction_needs_reason">Say why the hours are changing. The crew member reads this.</string>
+    <string name="vm_time_corrected_and_approved">Hours corrected and approved. The office has the corrected times.</string>
+    <string name="vm_time_corrected_will_sync">Corrected and approved. The corrected hours go up with this shift on the next sync.</string>
+    <string name="vm_time_corrected_on_this_phone">Corrected and approved on this phone.</string>
+    <string name="vm_time_correction_refused">Not approved. The correction was refused: %1$s</string>
+    <string name="vm_time_correction_unreachable">Not approved. The correction could not be sent -- no connection. Try again when you have signal.</string>
     <string name="vm_time_rejected">Shift sent back to the crew member.</string>
     <string name="vm_couldnt_reject_time">Couldn\'t send this shift back: %1$s</string>
     <string name="vm_time_fixed_will_retry">Fixed. This shift will upload on the next sync.</string>

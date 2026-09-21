@@ -229,6 +229,8 @@
     <string name="time_start_hhmm">Début (HH:mm)</string>
     <string name="time_end_hhmm">Fin (HH:mm)</string>
     <string name="time_note_crew_sees">Note (l\'équipe la verra)</string>
+    <string name="time_correction_reason">Pourquoi les heures changent (obligatoire)</string>
+    <string name="time_correction_reason_why">L’équipier lit ceci, et c’est ce qui tranche un litige sur sa paie.</string>
     <string name="time_approve">Approuver</string>
     <string name="time_send_back">Renvoyer</string>
 
@@ -1562,6 +1564,12 @@
     <string name="vm_couldnt_load_team">Impossible de charger l\'équipe : %1$s</string>
     <string name="vm_time_approved">Quart de travail approuvé.</string>
     <string name="vm_couldnt_approve_time">Impossible d\'approuver ce quart : %1$s</string>
+    <string name="vm_time_correction_needs_reason">Indiquez pourquoi les heures changent. L’équipier le verra.</string>
+    <string name="vm_time_corrected_and_approved">Heures corrigées et approuvées. Le bureau a les heures corrigées.</string>
+    <string name="vm_time_corrected_will_sync">Corrigé et approuvé. Les heures corrigées partiront avec ce pointage à la prochaine synchronisation.</string>
+    <string name="vm_time_corrected_on_this_phone">Corrigé et approuvé sur ce téléphone.</string>
+    <string name="vm_time_correction_refused">Non approuvé. La correction a été refusée : %1$s</string>
+    <string name="vm_time_correction_unreachable">Non approuvé. La correction n’a pas pu être envoyée — aucune connexion. Réessayez quand vous aurez du réseau.</string>
     <string name="vm_time_rejected">Quart renvoyé à l\'employé.</string>
     <string name="vm_couldnt_reject_time">Impossible de renvoyer ce quart : %1$s</string>
     <string name="vm_time_fixed_will_retry">Corrigé. Ce quart sera téléversé à la prochaine synchronisation.</string>

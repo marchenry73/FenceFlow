@@ -229,6 +229,8 @@
     <string name="time_start_hhmm">Inicio (HH:mm)</string>
     <string name="time_end_hhmm">Fin (HH:mm)</string>
     <string name="time_note_crew_sees">Nota (el equipo la verá)</string>
+    <string name="time_correction_reason">Por qué cambian las horas (obligatorio)</string>
+    <string name="time_correction_reason_why">El miembro del equipo lee esto, y es lo que resuelve una disputa sobre su paga.</string>
     <string name="time_approve">Aprobar</string>
     <string name="time_send_back">Devolver</string>
 
@@ -1562,6 +1564,12 @@
     <string name="vm_couldnt_load_team">No se pudo cargar el equipo: %1$s</string>
     <string name="vm_time_approved">Turno aprobado.</string>
     <string name="vm_couldnt_approve_time">No se pudo aprobar este turno: %1$s</string>
+    <string name="vm_time_correction_needs_reason">Indique por qué cambian las horas. El miembro del equipo lo verá.</string>
+    <string name="vm_time_corrected_and_approved">Horas corregidas y aprobadas. La oficina tiene las horas corregidas.</string>
+    <string name="vm_time_corrected_will_sync">Corregido y aprobado. Las horas corregidas se enviarán con este turno en la próxima sincronización.</string>
+    <string name="vm_time_corrected_on_this_phone">Corregido y aprobado en este teléfono.</string>
+    <string name="vm_time_correction_refused">No aprobado. La corrección fue rechazada: %1$s</string>
+    <string name="vm_time_correction_unreachable">No aprobado. No se pudo enviar la corrección: sin conexión. Inténtelo de nuevo cuando tenga señal.</string>
     <string name="vm_time_rejected">Turno devuelto al empleado.</string>
     <string name="vm_couldnt_reject_time">No se pudo devolver este turno: %1$s</string>
     <string name="vm_time_fixed_will_retry">Corregido. Este turno se subirá en la próxima sincronización.</string>

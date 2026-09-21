@@ -3,6 +3,15 @@
 # A workflow is used rather than Pages' "deploy from a branch" option because
 # the site lives in a subfolder alongside the Android project, and the branch
 # option can only serve the repository root or /docs.
+#
+# Nothing used to stand between a push and the live office. The two checks
+# below already existed and were run by hand (and one of them by
+# publish-release.mjs, which gates the APK, not the website) -- so the office
+# page could be, and once was, deployed broken: a stray apostrophe inside the
+# page's single <script type="module"> left every contractor looking at
+# "Loading your office…" for a day and a half, and no step in this file had an
+# opinion about it. The gate is placed before configure-pages so a red check
+# costs seconds and never touches the Pages deployment at all.
 name: Deploy website
 
 on:
@@ -28,6 +37,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # 24 because that is what these run on locally and what the repo's other
+      # .mjs tooling assumes; both files are plain node with no dependencies,
+      # so there is nothing to install and no lockfile to cache.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Deliberately two steps rather than one multi-line `run`. A failure then
+      # names itself in the job list instead of hiding inside a script block --
+      # and there is no shell composition here at all, so there is no way for
+      # an exit code to be swallowed by a pipe or a trailing command. That
+      # mistake has been made in this project's build scripts more than once.
+
+      # Parses every page's inline and external module exactly as the browser
+      # will, and checks every id the script reaches for exists in the markup,
+      # exactly once.
+      - name: Gate - website page syntax and element ids
+        run: node tests/dashboard-syntax.test.mjs
+
+      # Parsing catches a typo in the syntax; it cannot catch a name. This
+      # catches a call to a function that does not exist anywhere on the page
+      # -- the shape that silently killed all three QuickBooks export buttons.
+      - name: Gate - no calls to functions that do not exist
+        run: node tests/dashboard-undefined-calls.test.mjs
 
       - uses: actions/configure-pages@v5
 

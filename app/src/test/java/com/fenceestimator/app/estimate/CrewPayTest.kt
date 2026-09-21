@@ -21,17 +21,28 @@ class CrewPayTest {
 
     private val pxPerFoot = 10f
 
+    /**
+     * Employee()'s own default id, so the single-worker fixtures below read
+     * as that worker's own shifts -- which is how the app passes them. Every
+     * time entry CrewJobScreen hands in carries the employeeId the clock-in
+     * resolved, so a fixture without one would be testing a shape the app
+     * never produces.
+     */
+    private val SOLO = 0L
+
     private fun entry(
         hours: Double,
         hourlyRate: Double = 0.0,
         approved: Boolean = true,
         awaiting: Boolean = false,
-        startedAt: Long = 0L
+        startedAt: Long = 0L,
+        employeeId: Long? = SOLO
     ): TimeEntry {
         val started = startedAt
         val ended = started + (hours * 3_600_000.0).toLong()
         return TimeEntry(
             jobId = 1,
+            employeeId = employeeId,
             startedAt = started,
             endedAt = ended,
             hourlyRate = hourlyRate,
@@ -346,5 +357,135 @@ class CrewPayTest {
         assertEquals(40.0 to 0.5, CrewOvertime.split(40.5))
         assertEquals(1.5, CrewOvertime.MULTIPLIER, 0.0)
         assertEquals(40.0, CrewOvertime.AFTER_HOURS, 0.0)
+    }
+
+    // --- A multi-worker job: your card is YOUR hours ---
+    //
+    // CrewJobScreen passes the whole job's time entries in, because that is
+    // what observeTimeEntries(jobId) returns -- "WHERE jobId = :jobId", no
+    // employee filter anywhere in the chain. Called the way the app calls it,
+    // with a mixed-employee list, every assertion below is about the one
+    // person whose card it is.
+
+    private val ANA = 11L
+    private val BEN = 22L
+
+    /** Two hourly workers on one job, each with their own signed-off shifts. */
+    private fun twoWorkerJob(anaHours: Double, benHours: Double, rate: Double = 20.0) = listOf(
+        entry(hours = anaHours, hourlyRate = rate, employeeId = ANA),
+        entry(hours = benHours, hourlyRate = rate, employeeId = BEN)
+    )
+
+    @Test
+    fun `on a two-worker job each crew member sees only their own hours and pay`() {
+        val ana = Employee(id = ANA, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val ben = Employee(id = BEN, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val wholeJob = twoWorkerJob(anaHours = 20.0, benHours = 20.0)
+
+        val anaPay = CrewPay.forJob(ana, wholeJob, emptyList(), pxPerFoot)
+        val benPay = CrewPay.forJob(ben, wholeJob, emptyList(), pxPerFoot)
+
+        assertEquals(20.0, anaPay.hours, 0.0001)
+        assertEquals(400.0, anaPay.amount, 0.0001)
+        assertEquals(20.0, benPay.hours, 0.0001)
+        assertEquals(400.0, benPay.amount, 0.0001)
+    }
+
+    @Test
+    fun `PLANTED FAILURE -- summing the whole job would show a colleague's hours as your own`() {
+        // The exact shape of the bug: 20h + 20h on one job read as 40h, and
+        // $800, on BOTH cards. If the filter is ever removed, forJob's answer
+        // becomes this number and the assertion below fails.
+        val ana = Employee(id = ANA, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val wholeJob = twoWorkerJob(anaHours = 20.0, benHours = 20.0)
+
+        val unfilteredHours = wholeJob.sumOf { it.payableHours }
+        val unfilteredAmount = wholeJob.sumOf { it.laborCost }
+        assertEquals(40.0, unfilteredHours, 0.0001)
+        assertEquals(800.0, unfilteredAmount, 0.0001)
+
+        val anaPay = CrewPay.forJob(ana, wholeJob, emptyList(), pxPerFoot)
+        assertFalse("Ana's card must not show the job's 40 hours", anaPay.hours == unfilteredHours)
+        assertFalse("Ana's card must not show the job's \$800", anaPay.amount == unfilteredAmount)
+    }
+
+    @Test
+    fun `a two-worker job does not invent overtime neither of them worked`() {
+        // 25 + 20 = 45 combined, which crosses the 40-hour weekly threshold.
+        // Individually neither does, so neither card may show a 1.5x credit.
+        val ana = Employee(id = ANA, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val ben = Employee(id = BEN, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val wholeJob = twoWorkerJob(anaHours = 25.0, benHours = 20.0)
+
+        val anaPay = CrewPay.forJob(ana, wholeJob, emptyList(), pxPerFoot)
+        val benPay = CrewPay.forJob(ben, wholeJob, emptyList(), pxPerFoot)
+
+        assertEquals(500.0, anaPay.amount, 0.0001) // 25 * 20, all regular
+        assertEquals(400.0, benPay.amount, 0.0001) // 20 * 20, all regular
+    }
+
+    @Test
+    fun `PLANTED FAILURE -- the combined 45-hour week would pay phantom overtime`() {
+        // What the unfiltered sum would have produced on both cards:
+        // 40 * 20 + 5 * 20 * 1.5 = 950, five overtime hours nobody worked.
+        val ana = Employee(id = ANA, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val wholeJob = twoWorkerJob(anaHours = 25.0, benHours = 20.0)
+
+        val combined = wholeJob.sumOf { it.payableHours }
+        val (regular, overtime) = CrewOvertime.split(combined)
+        val phantom = regular * 20.0 + overtime * 20.0 * CrewOvertime.MULTIPLIER
+        assertEquals(45.0, combined, 0.0001)
+        assertEquals(950.0, phantom, 0.0001)
+
+        val anaPay = CrewPay.forJob(ana, wholeJob, emptyList(), pxPerFoot)
+        assertFalse("no overtime credit may appear on a 25-hour week", anaPay.amount == phantom)
+        assertEquals(500.0, anaPay.amount, 0.0001)
+    }
+
+    @Test
+    fun `hours still waiting on a manager are also only your own`() {
+        val ana = Employee(id = ANA, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val wholeJob = listOf(
+            entry(hours = 6.0, hourlyRate = 20.0, awaiting = true, employeeId = ANA),
+            entry(hours = 9.0, hourlyRate = 20.0, awaiting = true, employeeId = BEN)
+        )
+
+        val anaPay = CrewPay.forJob(ana, wholeJob, emptyList(), pxPerFoot)
+
+        assertEquals(6.0, anaPay.hoursAwaitingApproval, 0.0001)
+    }
+
+    @Test
+    fun `a shift with nobody attached counts towards nobody's pay`() {
+        // The office's own rule: shiftNeedsAWorker buckets these under
+        // "Nobody" and leaves them out of every per-person total. Three such
+        // rows exist live, so this is not hypothetical.
+        val ana = Employee(id = ANA, payType = PayType.HOURLY, hourlyRate = 20.0)
+        val wholeJob = listOf(
+            entry(hours = 8.0, hourlyRate = 20.0, employeeId = ANA),
+            entry(hours = 7.0, hourlyRate = 20.0, employeeId = null)
+        )
+
+        val anaPay = CrewPay.forJob(ana, wholeJob, emptyList(), pxPerFoot)
+
+        assertEquals(8.0, anaPay.hours, 0.0001)
+        assertEquals(160.0, anaPay.amount, 0.0001)
+    }
+
+    @Test
+    fun `per-foot footage is still the whole job's, split among the per-foot crew`() {
+        // The filter is about hours, not feet: per-foot pay is deliberately a
+        // share of everything the crew put in the ground, so a worker's own
+        // shifts must not narrow the footage.
+        val ana = Employee(id = ANA, payType = PayType.PER_FOOT, perFootRate = 5.0)
+        val wholeJob = twoWorkerJob(anaHours = 8.0, benHours = 8.0)
+
+        val anaPay = CrewPay.forJob(ana, wholeJob, listOf(manualRun(200f)), pxPerFoot, perFootCrewCount = 2)
+
+        assertEquals(200.0, anaPay.jobFeet, 0.0001)
+        assertEquals(100.0, anaPay.feet, 0.0001)
+        assertEquals(500.0, anaPay.amount, 0.0001)
+        // ...while the hours shown alongside are still only hers.
+        assertEquals(8.0, anaPay.hours, 0.0001)
     }
 }

@@ -72,9 +72,9 @@ const sections = [];
  *  and reported as broken, which is the same failure mode the backup section
  *  below already carries a comment about -- a checker permanently red for a
  *  reason that has nothing to do with what it watches stops being believed. */
-function runNode(label, meaning, relPath, timeoutMs = 240_000) {
+function runNode(label, meaning, relPath, timeoutMs = 240_000, extraArgs = []) {
   const started = Date.now();
-  const r = spawnSync(process.execPath, [join(REPO_ROOT, relPath)], {
+  const r = spawnSync(process.execPath, [join(REPO_ROOT, relPath), ...extraArgs], {
     cwd: REPO_ROOT, encoding: "utf8", timeout: timeoutMs,
   });
   const ms = Date.now() - started;
@@ -189,6 +189,17 @@ async function main() {
   runNode("company-golden-path", "signup/onboarding, server-side pricing, production-stage gating or the payment-to-job-total ledger is broken for a whole company", "tests/company-golden-path.test.mjs", 900_000);
   runNode("company-crew-golden-path", "crew roles, scheduling permission, the time clock, shift corrections/disputes, or job costing's approved-hours rule is broken", "tests/company-crew-golden-path.test.mjs", 900_000);
   runNode("security-smoke", "an anonymous caller can read or write something they shouldn't", "tests/security-smoke.test.mjs");
+
+  // The newest release, after it shipped. app_errors has been written by every
+  // phone since CrashReporter.kt landed and read by nothing automatic: 1.501
+  // went out at 02:23, crashed five times fatally before anyone could open the
+  // app, and two further releases were published on top of it without a single
+  // step asking how it was doing. --once so this stays a single reading rather
+  // than the hour-long poll the script does on its own after a publish; the
+  // comparison against the previous build is like-for-like either way.
+  runNode("post-release (newest build's first hour)",
+    "the newest release is crashing phones, or is clearly worse than the build it replaced",
+    "scripts/post-release-watch.mjs", 240_000, ["--once"]);
 
   // ---- backup: verify the newest folder actually on disk ----------------
   {

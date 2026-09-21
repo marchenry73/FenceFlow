@@ -131,6 +131,15 @@ object CrewPay {
     fun perFootPay(jobFeet: Double, perFootWorkers: Int, rate: Double, jobCompleted: Boolean): Double =
         if (!jobCompleted || rate <= 0.0) 0.0 else perFootShareFeet(jobFeet, perFootWorkers) * rate
 
+    /**
+     * One worker's earnings on one job.
+     *
+     * [timeEntries] may be the WHOLE job's shifts -- that is what the caller
+     * has, and what it passed before this function filtered them. Only
+     * [employee]'s own shifts count towards [Earnings.hours] and the hourly
+     * [Earnings.amount]; [Earnings.feet] is the job's built footage by design,
+     * because per-foot pay is a share of what the crew put in the ground.
+     */
     fun forJob(
         employee: Employee?,
         timeEntries: List<TimeEntry>,
@@ -141,16 +150,40 @@ object CrewPay {
         /** Job status is COMPLETED. Per-foot pay is only earned on a finished job. */
         jobCompleted: Boolean = true
     ): Earnings {
+        // THIS person's shifts, not the job's.
+        //
+        // CrewJobScreen hands in every time entry on the job --
+        // observeTimeEntries(jobId) -> "SELECT * FROM time_entries WHERE
+        // jobId = :jobId", with no employee filter anywhere in the chain --
+        // and [employee] was used only to pick the rate. So on a job with two
+        // hourly crew members each one's "Your Pay" card showed BOTH their
+        // hours: 20h + 20h read as 40h to each of them. Worse near the weekly
+        // threshold, where 25h and 20h combine to 45h and invent five
+        // overtime hours on both cards that neither person worked.
+        //
+        // Filtered here rather than at the call site, deliberately, the same
+        // way isApproved is: a caller that forgets is how this happened, and
+        // the office does not have the bug because renderPay buckets by the
+        // shift's own worker before it totals anything.
+        //
+        // A shift with no employee on it counts towards nobody, which is also
+        // what the office does with one (shiftNeedsAWorker -> the "Nobody"
+        // row, left out of every per-person total). [employee] being null is
+        // the one case with nobody to filter to -- there is no pay to compute
+        // either, and the caller is asking what the job's clock says.
+        val mine = if (employee == null) timeEntries
+                   else timeEntries.filter { it.employeeId == employee.id }
+
         // Approved hours only, on both sides of the figure.
         //
         // Summing raw hours here while the amount came from laborCost -- which
         // only counts approved time -- put hours and dollars on the same card
         // that contradicted each other: five hours worked, nothing earned.
         // Pay is what has been signed off, so both come from the same place.
-        val approved = timeEntries.filter { it.isApproved }
+        val approved = mine.filter { it.isApproved }
         val hours = approved.sumOf { it.payableHours }
         /** Finished but not yet signed off -- shown separately so it is not simply missing. */
-        val awaitingApproval = timeEntries.filter { it.isAwaitingApproval }.sumOf { it.hours }
+        val awaitingApproval = mine.filter { it.isAwaitingApproval }.sumOf { it.hours }
         // A run quoted by typing its length (manualLinearFeet) has no
         // drawing to measure -- falling through to 0 ft here would pay a
         // per-foot crew nothing for a job they actually built, just because

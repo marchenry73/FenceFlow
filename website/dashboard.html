@@ -629,6 +629,46 @@
   </p>
 </div>
 
+<!-- Reached only from the link in a password-reset email.
+     Supabase drops a recovery session into this page's URL hash; the module
+     below reads that hash synchronously, before the first await anywhere on
+     the page, and puts this panel up. Nothing else on the page is allowed to
+     open until a new password has actually been set.
+
+     Without it, the office SENT the reset mail and then could not honour it:
+     the link signed the owner straight in, the forgotten password was still
+     the password, and the phone app -- which is the actual product -- stayed
+     locked out. The staff console has had all three pieces (hash gate,
+     PASSWORD_RECOVERY listener, updateUser) since it was written; this is the
+     same shape on this page's own markup and its own translation table.
+
+     Every colour here comes from the page's CSS variables, so this panel
+     follows light/dark like everything else. -->
+<div class="auth" id="recoveryPanel" style="display:none">
+  <h1 style="font-size:20px;margin-bottom:6px" data-t="recoveryTitle">Set a new password</h1>
+  <p style="color:var(--muted);font-size:14px" data-t="recoverySub">You opened a password-reset link. Pick a new password below — the FenceFlow app on your phone signs in with the same one.</p>
+  <div class="msg" id="recoveryMsg"></div>
+  <div id="recoveryForm">
+    <label data-t="recoveryNewLabel">New password</label>
+    <input type="password" id="recoveryNew" autocomplete="new-password">
+    <label data-t="recoveryConfirmLabel">Confirm new password</label>
+    <input type="password" id="recoveryNew2" autocomplete="new-password">
+    <div style="margin-top:14px">
+      <button class="btn" id="recoverySet" style="width:100%" data-t="recoverySetBtn">Set password and continue</button>
+    </div>
+    <p style="margin-top:12px;font-size:12.5px;color:var(--muted)" data-t="recoveryRuleHint">At least 8 characters.</p>
+  </div>
+  <!-- The sentence the person came here worried about. It stays on screen and
+       waits to be dismissed rather than flashing past on the way into the
+       office. -->
+  <div id="recoveryDone" style="display:none">
+    <p style="font-size:14px;line-height:1.5" data-t="recoveryDoneBody">Your password is changed. Use the new one everywhere — this office and the FenceFlow app on your phone both sign in with it now.</p>
+    <div style="margin-top:14px">
+      <button class="btn" id="recoveryContinue" style="width:100%" data-t="recoveryContinueBtn">Continue to your office</button>
+    </div>
+  </div>
+</div>
+
 <dialog id="askDialog" style="border:1px solid var(--line);border-radius:14px;background:var(--surface-2);
   color:var(--text);max-width:min(440px,92vw);width:92%;padding:20px">
   <h3 style="margin:0 0 6px;font-size:17px" id="askTitle"></h3>
@@ -2147,6 +2187,38 @@ const db = createClient(
 const $ = id => document.getElementById(id);
 
 /* ---------------------------------------------------------------------
+   Password recovery, read before anything else can consume it.
+
+   A reset email lands the visitor back on THIS page with a recovery session
+   in the URL hash (#access_token=...&type=recovery). supabase-js strips that
+   hash asynchronously, and boot() awaits getUser() before it decides
+   anything -- so by the time any async code could look, the evidence is gone
+   and all that is left is an ordinary signed-in session. That is exactly how
+   this page came to send reset mail it could not honour: the link signed the
+   owner straight into the office and the forgotten password was still the
+   password.
+
+   So the hash is read HERE: synchronously, in the same tick the module
+   starts, before the first await anywhere on the page. #app and #auth both
+   start hidden in CSS, so putting the recovery panel up now means the office
+   never flashes into view first and no sign-in form appears underneath it.
+   The panel's English shows for the rest of this tick and applyStaticText()
+   translates it further down the same tick, so nothing is ever painted in the
+   wrong language either. */
+const AUTH_HASH = location.hash || '';
+// The word boundary rather than a group: a group opening immediately after an
+// identifier reads as a call to dashboard-undefined-calls.test.mjs, which
+// sweeps this file for names that do not exist. Same match either way.
+let inRecovery = /(?:^|[#&])type=recovery\b/.test(AUTH_HASH);
+/* An expired or already-used link comes back to this same page, but as
+   #error=access_denied&error_code=otp_expired with no session at all. Without
+   noticing it, that lands on a bare sign-in form with nothing on screen
+   saying why the password step never appeared. */
+const recoveryLinkFailed = !inRecovery &&
+  /(?:^|[#&])error[a-z_]*=/.test(AUTH_HASH);
+if (inRecovery) showRecoveryPanel(); // declared below; hoisted, and it reads no translation
+
+/* ---------------------------------------------------------------------
    Translation. The app (1,243 string calls) and the customer-facing pages
    (quote.html, lead.html) both already speak English/Spanish/French; this
    console did not, at all -- no dictionary, no lookup, no language state.
@@ -2520,6 +2592,17 @@ const TL = {
     authErrEnterEmailFirst:'Type your email above first, then press this.',
     authSendingReset:'Sending…',
     authInfoCheckEmailReset:'Check your email for a link to set a new password.',
+    recoveryTitle:'Set a new password',
+    recoverySub:'You opened a password-reset link. Pick a new password below — the FenceFlow app on your phone signs in with the same one.',
+    recoveryNewLabel:'New password',
+    recoveryConfirmLabel:'Confirm new password',
+    recoverySetBtn:'Set password and continue',
+    recoveryRuleHint:'At least 8 characters.',
+    recoveryErrMismatch:'Those two do not match.',
+    recoverySaving:'Saving your new password…',
+    recoveryDoneBody:'Your password is changed. Use the new one everywhere — this office and the FenceFlow app on your phone both sign in with it now.',
+    recoveryContinueBtn:'Continue to your office',
+    recoveryErrLinkExpired:'That password-reset link has expired or was already used. Send yourself a new one below.',
     authSigningOut:'Signing out…',
     matBuyHead:'What to buy',
     matBuyBody:'Every sold job that still needs materials ordered or received, rolled up into one buy list. Quantities come straight from each job\'s line items — no lead times or delivery dates are shown here because this database does not record any.',
@@ -3399,6 +3482,17 @@ const TL = {
     authErrEnterEmailFirst:'Escribe tu correo arriba primero y luego presiona esto.',
     authSendingReset:'Enviando…',
     authInfoCheckEmailReset:'Revisa tu correo para el enlace con el que puedes poner una contraseña nueva.',
+    recoveryTitle:'Crear una contraseña nueva',
+    recoverySub:'Abriste un enlace para restablecer la contraseña. Elige una contraseña nueva abajo: la app FenceFlow de tu teléfono entra con la misma.',
+    recoveryNewLabel:'Contraseña nueva',
+    recoveryConfirmLabel:'Confirmar la contraseña nueva',
+    recoverySetBtn:'Guardar la contraseña y continuar',
+    recoveryRuleHint:'Al menos 8 caracteres.',
+    recoveryErrMismatch:'Esas dos no coinciden.',
+    recoverySaving:'Guardando tu contraseña nueva…',
+    recoveryDoneBody:'Tu contraseña quedó cambiada. Usa la nueva en todas partes: esta oficina y la app FenceFlow de tu teléfono entran con ella ahora.',
+    recoveryContinueBtn:'Entrar a tu oficina',
+    recoveryErrLinkExpired:'Ese enlace para restablecer la contraseña venció o ya se usó. Envíate uno nuevo abajo.',
     authSigningOut:'Cerrando sesión…',
     matBuyHead:'Qué comprar',
     matBuyBody:'Cada trabajo vendido que todavía necesita materiales pedidos o recibidos, junto en una sola lista de compra. Las cantidades salen directo de las partidas de cada trabajo — no se muestran tiempos de entrega ni fechas de envío porque esta base de datos no registra ninguno de los dos.',
@@ -4251,6 +4345,17 @@ const TL = {
     authErrEnterEmailFirst:'Entrez d’abord votre courriel ci-dessus, puis cliquez ici.',
     authSendingReset:'Envoi…',
     authInfoCheckEmailReset:'Consultez votre courriel pour le lien qui vous permettra de définir un nouveau mot de passe.',
+    recoveryTitle:'Définir un nouveau mot de passe',
+    recoverySub:'Vous avez ouvert un lien de réinitialisation. Choisissez un nouveau mot de passe ci-dessous : l’application FenceFlow sur votre téléphone se connecte avec le même.',
+    recoveryNewLabel:'Nouveau mot de passe',
+    recoveryConfirmLabel:'Confirmer le nouveau mot de passe',
+    recoverySetBtn:'Enregistrer le mot de passe et continuer',
+    recoveryRuleHint:'Au moins 8 caractères.',
+    recoveryErrMismatch:'Les deux ne correspondent pas.',
+    recoverySaving:'Enregistrement de votre nouveau mot de passe…',
+    recoveryDoneBody:'Votre mot de passe est changé. Utilisez le nouveau partout — ce bureau et l’application FenceFlow sur votre téléphone s’y connectent maintenant.',
+    recoveryContinueBtn:'Accéder à votre bureau',
+    recoveryErrLinkExpired:'Ce lien de réinitialisation a expiré ou a déjà été utilisé. Envoyez-vous-en un nouveau ci-dessous.',
     authSigningOut:'Déconnexion…',
     matBuyHead:'À acheter',
     matBuyBody:'Chaque chantier vendu qui attend encore des matériaux commandés ou reçus, regroupé en une seule liste d\'achat. Les quantités viennent directement des lignes de chaque chantier — aucun délai de livraison ni date de livraison n\'est affiché ici, car cette base de données n\'en enregistre aucun.',
@@ -5779,7 +5884,74 @@ async function finishCompany(){
   await boot();
 }
 
+/* ---------- password recovery ----------
+   The three pieces this page was missing, and which admin.html has always
+   had: a synchronous gate on the recovery hash (further up, where the hash is
+   still readable), a PASSWORD_RECOVERY listener, and a panel that actually
+   calls updateUser. Sending the mail was never the hard part. */
+
+/* Puts the panel up and takes everything else down. Called synchronously from
+   the top of the module for the ordinary case, and again from the listener
+   below. Deliberately reads no translation: at the top of the module TL is
+   still in its temporal dead zone, and the markup's own data-t defaults cover
+   that gap until applyStaticText() runs in the same tick. */
+function showRecoveryPanel(){
+  $('booting').style.display='none';
+  $('auth').style.display='none';
+  $('app').style.display='none';
+  $('recoveryPanel').style.display='block';
+  $('recoveryForm').style.display='block';
+  $('recoveryDone').style.display='none';
+}
+
+/* A second, asynchronous confirmation of the same thing. The hash test at the
+   top covers the normal case; this covers supabase-js's own signal, so a
+   recovery session is never mistaken for an ordinary signed-in one if the
+   link shape ever changes underneath us. */
+db.auth.onAuthStateChange((event)=>{
+  if(event==='PASSWORD_RECOVERY'){ inRecovery=true; showRecoveryPanel(); }
+});
+
+async function submitNewPassword(){
+  const p1=$('recoveryNew').value, p2=$('recoveryNew2').value;
+  // The same 8 and the same sentence signUp() uses, so the two password forms
+  // on this page cannot disagree about what the account will accept.
+  if(p1.length<8) return msg('recoveryMsg',tr('authErrPasswordLength'),'err');
+  if(p1!==p2)     return msg('recoveryMsg',tr('recoveryErrMismatch'),'err');
+  msg('recoveryMsg',tr('recoverySaving'),'working');
+  const {error}=await db.auth.updateUser({password:p1});
+  // The provider's own words, not a sentence of ours guessing at them. It is
+  // the only thing that knows why it refused -- too weak, previously leaked,
+  // or a recovery session that expired while this form sat open -- and a
+  // person who cannot see the real reason cannot get past it.
+  if(error) return msg('recoveryMsg',error.message,'err');
+  $('recoveryNew').value=''; $('recoveryNew2').value='';
+  $('recoveryMsg').textContent=''; $('recoveryMsg').className='msg';
+  // The recovery link's session is a real signed-in session for this user, so
+  // there is no "now sign in again" step. What there is instead is the thing
+  // the person actually came here worried about -- whether the phone works
+  // again -- said in words, on a panel that waits to be dismissed.
+  $('recoveryForm').style.display='none';
+  $('recoveryDone').style.display='block';
+}
+
+/* Drops the recovery tokens out of the visible URL and hands the page back to
+   the ordinary route in. inRecovery is cleared FIRST, because boot() refuses
+   to run while it is set -- that refusal is what keeps the office shut until
+   the password has actually been changed. */
+async function finishRecovery(){
+  inRecovery=false;
+  history.replaceState(null,'',location.pathname);
+  $('recoveryPanel').style.display='none';
+  $('booting').style.display=''; // back to the stylesheet's own value
+  await boot();
+}
+
 async function boot(){
+  // The recovery panel owns the screen until a new password is set. Without
+  // this, the reset link opened the office with the forgotten password still
+  // in force: mail sent, nothing changed, phone still locked out.
+  if(inRecovery) return;
   const {data:{user}}=await db.auth.getUser();
   // The way out is available the moment there is somebody to sign out.
   //
@@ -5790,7 +5962,15 @@ async function boot(){
   // there was no way off that screen at all.
   if (user) $('signOut').style.display='inline-block';
   $('booting').style.display='none';
-  if(!user){ $('auth').style.display='block'; return; }
+  if(!user){
+    $('auth').style.display='block';
+    // An expired or already-used reset link lands back here with no session at
+    // all, so this is the only place it can be explained. Silence here reads
+    // as "the reset did nothing", which is what sent people round the loop a
+    // second time.
+    if(recoveryLinkFailed) msg('authMsg',tr('recoveryErrLinkExpired'),'err');
+    return;
+  }
   const {data:prof}=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
   profile=prof;
   if(!profile||!profile.company_id){
@@ -16665,6 +16845,16 @@ $('forgotLink').addEventListener('click', async e => {
   });
   if(error) return msg('authMsg',error.message,'err');
   msg('authMsg',tr('authInfoCheckEmailReset'),'info');
+});
+
+// The other half of that mail. Until these existed the link above was an
+// invitation to a room with no door.
+$('recoverySet').addEventListener('click',submitNewPassword);
+$('recoveryContinue').addEventListener('click',finishRecovery);
+// Bound to the panel rather than to one field, same as the sign-in form: on a
+// two-box password form, reaching for the mouse is the wrong habit to teach.
+$('recoveryPanel').addEventListener('keydown',e=>{
+  if(e.key==='Enter' && e.target.tagName==='INPUT'){ e.preventDefault(); submitNewPassword(); }
 });
 
 $('authToggle').addEventListener('click',e=>{

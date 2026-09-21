@@ -432,6 +432,15 @@ private fun ReviewShiftDialog(
     val newEnd = entry.endedAt?.let { parsed(endText, it) }
     val timesValid = newStart != null && newEnd != null && newEnd > newStart
     val correctedHours = if (timesValid) (newEnd!! - newStart!!) / 3_600_000.0 else entry.hours
+    // A correction is a different act from an approval: it goes to the server
+    // through correct_time_entry, it is recorded against the person who made
+    // it, and the crew member reads the reason. So the note stops being
+    // optional the moment either time actually moves -- judged by the same
+    // function the ViewModel uses to decide whether to send a correction at
+    // all, or the screen would ask for a reason the sync never uses (or
+    // worse, not ask for one it does).
+    val timesChanged = timesValid && shiftTimesMoved(entry, newStart, newEnd)
+    val reasonMissing = timesChanged && note.isBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -477,14 +486,32 @@ private fun ReviewShiftDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text(stringResource(R.string.time_note_crew_sees)) },
+                    label = {
+                        Text(
+                            stringResource(
+                                if (timesChanged) R.string.time_correction_reason
+                                else R.string.time_note_crew_sees
+                            )
+                        )
+                    },
+                    isError = reasonMissing,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (timesChanged) {
+                    Text(
+                        stringResource(R.string.time_correction_reason_why),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (reasonMissing) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
-                enabled = timesValid,
+                // A correction with no reason is refused by the server anyway;
+                // refusing it here costs a round trip less and says why.
+                enabled = timesValid && !reasonMissing,
                 onClick = { onApprove(newStart, newEnd, note.trim()) }
             ) { Text(stringResource(R.string.time_approve)) }
         },
