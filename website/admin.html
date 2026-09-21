@@ -21,15 +21,18 @@
     --teal:#0E8C7B; --red:#E5484D;
     --paper:#F7F8FA; --surface:#ffffff; --line:#E3E7ED;
     --text:#12151A; --muted:#5A6472;
+    --warn-ink:#8A5A00;
     --display:"Barlow Condensed","Arial Narrow",sans-serif;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --paper:#0B121C; --surface:#141C29; --line:#243044; --text:#EDF1F6; --muted:#93A0B4;
+      --warn-ink:#E8B04A;
     }
   }
   :root[data-theme="dark"]{
     --paper:#0B121C; --surface:#141C29; --line:#243044; --text:#EDF1F6; --muted:#93A0B4;
+    --warn-ink:#E8B04A;
   }
 
   *{box-sizing:border-box}
@@ -114,7 +117,7 @@
 
   .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
   .pill.ok    { background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal); }
-  .pill.warn  { background: color-mix(in srgb, #C98A00 18%, transparent);     color: #8A5A00; }
+  .pill.warn  { background: color-mix(in srgb, #C98A00 18%, transparent);     color: var(--warn-ink); }
   .pill.bad   { background: color-mix(in srgb, var(--red) 14%, transparent);  color: var(--red); }
   .pill.muted { background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--muted); }
 
@@ -182,6 +185,18 @@
         background:#fff;padding:8px}
   .secret{font:600 13px/1.5 ui-monospace,monospace;background:var(--paper);border:1px solid var(--line);
         border-radius:8px;padding:10px 12px;word-break:break-all;max-width:280px}
+  /* Recent sign-ins: wrapping rows, not a <table>. A table's nowrap time
+     column pushed the whole panel past a phone's width; here the time drops
+     to its own line instead. */
+  .ae-list{display:flex;flex-direction:column;font-size:13.5px}
+  .ae-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:6px 0;
+        border-bottom:1px solid var(--line)}
+  .ae-row:last-child{border-bottom:none}
+  .ae-row .ae-what{display:flex;flex-wrap:wrap;gap:4px}
+  .ae-row .ae-detail{color:var(--muted);flex:1 1 8em;min-width:0;overflow-wrap:anywhere}
+  .ae-row .ae-when{color:var(--muted);margin-left:auto;white-space:nowrap}
+  .ae-empty{color:var(--muted);padding:6px 0}
+  #unverifiedMsg{white-space:pre-line;margin-top:6px}
 
   /* --------------------------------------------------------- drawer ---- */
   .qa-row{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px;padding-bottom:14px;
@@ -427,6 +442,31 @@
         <button class="danger" id="signOutEverywhere" type="button" data-t="signOutEverywhereBtn">Sign out of all devices</button>
         <div class="msg" id="sessionsMsg"></div>
       </div>
+
+      <!-- Read-only: FenceFlow's own auth_events table (P1-5,
+           supabase_p4_auth_events.sql + supabase_p4_auth_events_fix.sql), not
+           the hosted GoTrue logs. RLS on that table limits SELECT to platform
+           admins, so this only ever renders for the account that is already
+           looking at this page.
+
+           Two halves, kept apart on purpose. The first is events a signed-in
+           session wrote about ITSELF -- the server attributed them, so they are
+           a record. The second is failed sign-ins reported by a browser that
+           never signed in: anyone can send one naming any address, the server
+           stores no account for them, and they are grouped only by a keyed
+           hash of the address typed. Showing them in one list is how a forged
+           report would pass for a real one. -->
+      <div class="panel">
+        <h2 style="margin-top:0" data-t="recentSignInsHead">Recent sign-ins</h2>
+        <p class="sub" data-t="recentSignInsBody">Recorded by a signed-in session, newest first — this browser and any other device signed in as you.</p>
+        <div class="ae-list" id="recentSignInsList"></div>
+        <div class="msg" id="recentSignInsMsg"></div>
+
+        <h3 style="margin:18px 0 4px;font-size:15px" data-t="unverifiedHead">Unverified failed sign-ins — last 7 days</h3>
+        <p class="sub" data-t="unverifiedBody">Reported by a browser that never signed in, so nothing in them was checked — anyone can report one against any address. Repeat attempts at the same address are grouped; the address itself is never stored.</p>
+        <div class="ae-list" id="unverifiedList"></div>
+        <div class="msg" id="unverifiedMsg"></div>
+      </div>
     </section>
 
   </div>
@@ -609,6 +649,27 @@ const TL = {
     confirmSignOutEverywhereBody:'Every browser and phone signed in as %s is signed out straight away, this one included, and each has to sign in again.',
     signOutEverywhereLabel:'Sign out everywhere',
     signOutEverywhereFailed:'Signing out the other devices did not go through (%s). This browser is signed out — sign in and try again.',
+
+    recentSignInsHead:'Recent sign-ins',
+    recentSignInsBody:'Recorded by a signed-in session, newest first — this browser and any other device signed in as you.',
+    recentSignInsEmpty:'Nothing recorded yet.',
+    recentSignInsLoadError:'Could not load recent sign-ins (%s).',
+    aeOtherAccount:'Another account',
+    unverifiedHead:'Unverified failed sign-ins — last 7 days',
+    unverifiedBody:'Reported by a browser that never signed in, so nothing in them was checked — anyone can report one against any address. Repeat attempts at the same address are grouped; the address itself is never stored.',
+    unverifiedPill:'Unverified',
+    unverifiedYourAddress:'Your address', unverifiedOtherAddress:'Another address · %s',
+    unverifiedAttempts:'%s attempts', unverifiedSources:'from %s sources',
+    unverifiedAttemptsOne:'1 attempt', unverifiedSourcesOne:'from 1 source',
+    unverifiedSpan:'%s – %s',
+    unverifiedEmpty:'None reported.',
+    unverifiedMore:'%s more addresses not shown.',
+    unverifiedDropped:'The flood guard dropped %s more reports in this period without recording them. A flood like that is itself a sign of an attack.',
+    unverifiedLoadError:'Could not load unverified sign-ins (%s).',
+    aeSignInSuccess:'Signed in', aeSignInFailure:'Sign-in failed',
+    aeMfaChallengeSuccess:'Two-factor code accepted', aeMfaChallengeFailure:'Two-factor code rejected',
+    aeMfaEnroll:'Two-factor turned on', aeMfaUnenroll:'Two-factor turned off',
+    aeSignOut:'Signed out', aeMfaReauthRequired:'Asked for a fresh code',
     signedOutEverywhere:'Signed out of every device, this one included.',
     inviteNoticeOtherBusiness:'Invitation sent to %s — but that address already has a FenceFlow account in another business, so it cannot become this company\'s owner. Use a different address for this company.',
 
@@ -792,6 +853,27 @@ const TL = {
     confirmSignOutEverywhereBody:'Todos los navegadores y teléfonos con sesión iniciada como %s se cierran de inmediato, incluido este, y cada uno tendrá que iniciar sesión de nuevo.',
     signOutEverywhereLabel:'Cerrar sesión en todas partes',
     signOutEverywhereFailed:'No se pudo cerrar la sesión en los demás dispositivos (%s). Este navegador ya cerró sesión — inicie sesión e inténtelo de nuevo.',
+
+    recentSignInsHead:'Inicios de sesión recientes',
+    recentSignInsBody:'Registrados por una sesión iniciada, los más recientes primero — este navegador y cualquier otro dispositivo con su sesión iniciada.',
+    recentSignInsEmpty:'Nada registrado todavía.',
+    recentSignInsLoadError:'No se pudieron cargar los inicios de sesión recientes (%s).',
+    aeOtherAccount:'Otra cuenta',
+    unverifiedHead:'Inicios de sesión fallidos sin verificar — últimos 7 días',
+    unverifiedBody:'Los informa un navegador que nunca inició sesión, así que nada en ellos se comprobó — cualquiera puede informar uno contra cualquier dirección. Los intentos repetidos a la misma dirección se agrupan; la dirección en sí nunca se guarda.',
+    unverifiedPill:'Sin verificar',
+    unverifiedYourAddress:'Su dirección', unverifiedOtherAddress:'Otra dirección · %s',
+    unverifiedAttempts:'%s intentos', unverifiedSources:'desde %s orígenes',
+    unverifiedAttemptsOne:'1 intento', unverifiedSourcesOne:'desde 1 origen',
+    unverifiedSpan:'%s – %s',
+    unverifiedEmpty:'No se ha informado ninguno.',
+    unverifiedMore:'%s direcciones más sin mostrar.',
+    unverifiedDropped:'El límite contra avalanchas descartó %s informes más en este periodo sin registrarlos. Una avalancha así es en sí una señal de ataque.',
+    unverifiedLoadError:'No se pudieron cargar los inicios de sesión sin verificar (%s).',
+    aeSignInSuccess:'Sesión iniciada', aeSignInFailure:'Error al iniciar sesión',
+    aeMfaChallengeSuccess:'Código de dos pasos aceptado', aeMfaChallengeFailure:'Código de dos pasos rechazado',
+    aeMfaEnroll:'Verificación en dos pasos activada', aeMfaUnenroll:'Verificación en dos pasos desactivada',
+    aeSignOut:'Sesión cerrada', aeMfaReauthRequired:'Se pidió un código nuevo',
     signedOutEverywhere:'Sesión cerrada en todos los dispositivos, incluido este.',
     inviteNoticeOtherBusiness:'Invitación enviada a %s — pero esa dirección ya tiene una cuenta de FenceFlow en otra empresa, así que no puede ser la propietaria de esta. Use otra dirección para esta empresa.',
 
@@ -975,6 +1057,27 @@ const TL = {
     confirmSignOutEverywhereBody:'Chaque navigateur et téléphone connecté en tant que %s est déconnecté immédiatement, celui-ci compris, et chacun devra se reconnecter.',
     signOutEverywhereLabel:'Se déconnecter partout',
     signOutEverywhereFailed:'La déconnexion des autres appareils n\'a pas abouti (%s). Ce navigateur est déconnecté — reconnectez-vous et réessayez.',
+
+    recentSignInsHead:'Connexions récentes',
+    recentSignInsBody:'Enregistrées par une session connectée, les plus récentes d\'abord — ce navigateur et tout autre appareil connecté en tant que vous.',
+    recentSignInsEmpty:'Rien d\'enregistré pour l\'instant.',
+    recentSignInsLoadError:'Impossible de charger les connexions récentes (%s).',
+    aeOtherAccount:'Un autre compte',
+    unverifiedHead:'Échecs de connexion non vérifiés — 7 derniers jours',
+    unverifiedBody:'Signalés par un navigateur qui ne s\'est jamais connecté, donc rien n\'y a été vérifié — n\'importe qui peut en signaler un contre n\'importe quelle adresse. Les tentatives répétées sur une même adresse sont regroupées ; l\'adresse elle-même n\'est jamais enregistrée.',
+    unverifiedPill:'Non vérifié',
+    unverifiedYourAddress:'Votre adresse', unverifiedOtherAddress:'Une autre adresse · %s',
+    unverifiedAttempts:'%s tentatives', unverifiedSources:'depuis %s sources',
+    unverifiedAttemptsOne:'1 tentative', unverifiedSourcesOne:'depuis 1 source',
+    unverifiedSpan:'%s – %s',
+    unverifiedEmpty:'Aucun signalement.',
+    unverifiedMore:'%s autres adresses non affichées.',
+    unverifiedDropped:'Le garde-fou anti-afflux a écarté %s signalements de plus sur cette période sans les enregistrer. Un tel afflux est en soi le signe d\'une attaque.',
+    unverifiedLoadError:'Impossible de charger les connexions non vérifiées (%s).',
+    aeSignInSuccess:'Connecté', aeSignInFailure:'Échec de la connexion',
+    aeMfaChallengeSuccess:'Code à deux facteurs accepté', aeMfaChallengeFailure:'Code à deux facteurs refusé',
+    aeMfaEnroll:'Vérification en deux étapes activée', aeMfaUnenroll:'Vérification en deux étapes désactivée',
+    aeSignOut:'Déconnecté', aeMfaReauthRequired:'Nouveau code demandé',
     signedOutEverywhere:'Déconnecté de tous les appareils, celui-ci compris.',
     inviteNoticeOtherBusiness:'Invitation envoyée à %s — mais cette adresse a déjà un compte FenceFlow dans une autre entreprise, elle ne peut donc pas devenir propriétaire de celle-ci. Utilisez une autre adresse pour cette entreprise.',
 
@@ -1181,6 +1284,7 @@ function setLang(code) {
   // and nav would change language while every table stayed in the old one.
   if ($('app').style.display !== 'none') {
     renderKpis(); renderCompaniesTable(); renderCrashes(); renderReleases(); renderDrift();
+    renderRecentSignIns();
   }
 }
 
@@ -1202,6 +1306,10 @@ let drift = [];
 let editing = null;
 let pendingFactorId = null;
 let mfaFactor = null;
+// Set right before showing the MFA challenge panel, so submitMfaChallenge()
+// can tag its own log row with why the code was asked for. Cleared once
+// that challenge resolves either way.
+let pendingReauthReason = null;
 let sortKey = 'name', sortDir = 1;
 
 /* ---------------------------------------------------------- auth ---- */
@@ -1244,12 +1352,47 @@ db.auth.onAuthStateChange((event) => {
   }
 });
 
+/* ---------------------------------------------------- auth event log ---- */
+/* FenceFlow's own audit trail (supabase_p4_auth_events.sql, P1-5) -- the
+   hosted GoTrue log stays empty regardless, and this is what the "Recent
+   sign-ins" panel below reads back. Logging is best-effort on purpose: a
+   network blip or an old database missing this migration must never block
+   or confuse an actual sign-in, so every call here swallows its own error
+   and only warns to the console. */
+async function logAuthEvent(eventType, success, detail) {
+  try {
+    await db.rpc('record_auth_event', {
+      p_event_type: eventType, p_success: success,
+      p_user_agent: navigator.userAgent, p_detail: detail || null
+    });
+  } catch (e) { console.warn('auth event log failed', eventType, e); }
+}
+
+/* The one pre-auth case: a failed password sign-in never produces a session,
+   so there is no auth.uid() for record_auth_event to attribute it to. This
+   calls the narrower, anon-callable function instead. Since
+   supabase_p4_auth_events_fix.sql that function never looks the address up
+   and never names an account: it stores an UNVERIFIED row keyed by a hash of
+   the address, because anyone can call it with any address. The panel below
+   shows those rows apart from the signed-in ones for exactly that reason. */
+async function logSignInFailure(email) {
+  try {
+    await db.rpc('record_sign_in_failure', { p_email: email, p_user_agent: navigator.userAgent });
+  } catch (e) { console.warn('sign-in failure log failed', e); }
+}
+
 async function signIn() {
   $('gateMsg').textContent = tr('gateSigningIn');
+  const email = $('email').value.trim();
   const { error } = await db.auth.signInWithPassword({
-    email: $('email').value.trim(), password: $('password').value
+    email, password: $('password').value
   });
-  if (error) { $('gateMsg').textContent = error.message; return; }
+  if (error) {
+    $('gateMsg').textContent = error.message;
+    logSignInFailure(email); // fire-and-forget; must not delay the error already on screen
+    return;
+  }
+  logAuthEvent('sign_in_success', true);
   await boot();
 }
 
@@ -1289,7 +1432,13 @@ async function submitMfaChallenge() {
   const factor = (factors?.totp || []).find(f => f.status === 'verified');
   if (!factor) { $('mfaChallengeMsg').textContent = tr('mfaNoFactorFound'); return; }
   const { error } = await db.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
-  if (error) { $('mfaChallengeMsg').textContent = error.message; return; }
+  if (error) {
+    $('mfaChallengeMsg').textContent = error.message;
+    logAuthEvent('mfa_challenge_failure', false, pendingReauthReason || null);
+    return;
+  }
+  logAuthEvent('mfa_challenge_success', true, pendingReauthReason || null);
+  pendingReauthReason = null;
   $('mfaChallengeMsg').textContent = '';
   $('mfaChallengeCode').value = '';
   await boot();
@@ -1402,6 +1551,8 @@ async function boot() {
   const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
   const due = secondFactorDue(aal, session);
   if (due) {
+    pendingReauthReason = due; // 'stale' (the P1-6 12-hour re-challenge) or 'missing'
+    logAuthEvent('mfa_reauth_required', true, due);
     showGate('mfaChallengePanel');
     $('mfaChallengeMsg').textContent = due === 'stale' ? tr('mfaStaleNotice') : '';
     return;
@@ -1507,6 +1658,7 @@ async function loadAll() {
 
   await loadDrift();
   await loadMfaStatus();
+  await loadRecentSignIns();
 
   renderKpis();
   renderCompaniesTable();
@@ -1541,6 +1693,114 @@ async function loadMfaStatus() {
   mfaListError = '';
   mfaFactor = (data?.totp || []).find(f => f.status === 'verified') || null;
   renderMfaStatus();
+}
+
+/* Read-only view of auth_events (supabase_p4_auth_events.sql). RLS there
+   limits SELECT to platform admins, so this can only ever succeed for the
+   account already looking at this page -- there is no company-scoped
+   filter to get wrong here, unlike loadDrift() above. */
+const AUTH_EVENT_LABELS = {
+  sign_in_success: 'aeSignInSuccess', sign_in_failure: 'aeSignInFailure',
+  mfa_challenge_success: 'aeMfaChallengeSuccess', mfa_challenge_failure: 'aeMfaChallengeFailure',
+  mfa_enroll: 'aeMfaEnroll', mfa_unenroll: 'aeMfaUnenroll',
+  sign_out: 'aeSignOut', mfa_reauth_required: 'aeMfaReauthRequired',
+};
+/* Loaded once per loadAll(), rendered by renderRecentSignIns() so a language
+   switch can redraw it without asking the server again. */
+const signIns = { myId: null, events: [], eventsError: '', groups: [], groupsError: '', dropped: 0 };
+const UNVERIFIED_DAYS = 7;
+const UNVERIFIED_GROUPS = 10;
+
+async function loadRecentSignIns() {
+  const { data: sess } = await db.auth.getSession();
+  signIns.myId = sess?.session?.user?.id || null;
+
+  // Signed-in events only: client_reported rows are the anonymous endpoint's,
+  // and never belong in a list that reads as "what this account did".
+  const ev = await db.from('auth_events')
+    .select('user_id, event_type, success, detail, created_at')
+    .eq('client_reported', false)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  signIns.events = ev.error ? [] : (ev.data || []);
+  signIns.eventsError = ev.error ? ev.error.message : '';
+
+  // Grouped on the server (admin_sign_in_attempt_groups, SECURITY INVOKER, so
+  // RLS still decides who sees anything): counting here would silently stop
+  // at PostgREST's row cap on exactly the day a flood makes the count matter.
+  const gr = await db.rpc('admin_sign_in_attempt_groups',
+    { p_days: UNVERIFIED_DAYS, p_limit: UNVERIFIED_GROUPS });
+  signIns.groups = gr.error ? [] : (gr.data || []);
+  signIns.groupsError = gr.error ? gr.error.message : '';
+
+  // What the flood guard threw away instead of recording. One row per hour
+  // and reason, so a week is at most a few hundred rows.
+  const since = new Date(Date.now() - UNVERIFIED_DAYS * 86400000).toISOString();
+  const sp = await db.from('auth_events_suppressed')
+    .select('suppressed').gte('bucket', since).limit(1000);
+  signIns.dropped = sp.error ? 0 : (sp.data || []).reduce((s, r) => s + Number(r.suppressed || 0), 0);
+
+  renderRecentSignIns();
+}
+
+function renderRecentSignIns() {
+  const fmt = new Intl.DateTimeFormat(LANG, { dateStyle: 'medium', timeStyle: 'short' });
+  const whenOf = v => fmt.format(new Date(v));
+  // formatRange collapses a shared date ("21 Sep 2026, 08:38 – 13:32");
+  // the plain pair is for a browser old enough not to have it.
+  const spanOf = (a, b) => typeof fmt.formatRange === 'function'
+    ? fmt.formatRange(new Date(a), new Date(b)) : tr('unverifiedSpan', whenOf(a), whenOf(b));
+  const row = (what, detail, when) =>
+    '<div class="ae-row"><span class="ae-what">' + what + '</span>' +
+    '<span class="ae-detail">' + esc(detail) + '</span>' +
+    '<span class="ae-when">' + esc(when) + '</span></div>';
+  const pill = (cls, text) => '<span class="pill ' + cls + '">' + esc(text) + '</span>';
+  const count = (n, one, many) => n === 1 ? tr(one) : tr(many, n.toLocaleString(LANG));
+
+  // ---- signed-in events: a record, attributed by the server ----
+  const list = $('recentSignInsList');
+  if (signIns.eventsError) {
+    list.innerHTML = '';
+    $('recentSignInsMsg').textContent = tr('recentSignInsLoadError', signIns.eventsError);
+  } else {
+    $('recentSignInsMsg').textContent = '';
+    list.innerHTML = !signIns.events.length
+      ? '<div class="ae-empty">' + esc(tr('recentSignInsEmpty')) + '</div>'
+      : signIns.events.map(r => {
+          const label = tr(AUTH_EVENT_LABELS[r.event_type] || r.event_type);
+          const other = signIns.myId && r.user_id !== signIns.myId ? pill('muted', tr('aeOtherAccount')) : '';
+          return row(pill(r.success ? 'ok' : 'bad', label) + other, r.detail || '', whenOf(r.created_at));
+        }).join('');
+  }
+
+  // ---- unverified reports: a signal, grouped by hashed address ----
+  const ulist = $('unverifiedList');
+  const notes = [];
+  if (signIns.groupsError) {
+    ulist.innerHTML = '';
+    notes.push(tr('unverifiedLoadError', signIns.groupsError));
+  } else if (!signIns.groups.length) {
+    ulist.innerHTML = '<div class="ae-empty">' + esc(tr('unverifiedEmpty')) + '</div>';
+  } else {
+    ulist.innerHTML = signIns.groups.map(g => {
+      // Only ever a prefix of a keyed hash: enough to tell two groups apart,
+      // useless for working out the address.
+      const who = g.is_mine
+        ? pill('bad', tr('unverifiedYourAddress'))
+        : pill('muted', tr('unverifiedOtherAddress', String(g.attempt_key || '').slice(0, 8)));
+      const n = Number(g.attempts || 0);
+      const s = Number(g.sources || 0);
+      // sources counts only reports whose network address was known.
+      const counts = count(n, 'unverifiedAttemptsOne', 'unverifiedAttempts') +
+        (s > 0 ? ' ' + count(s, 'unverifiedSourcesOne', 'unverifiedSources') : '');
+      const when = n > 1 ? spanOf(g.first_at, g.last_at) : whenOf(g.last_at);
+      return row(pill('warn', tr('unverifiedPill')) + who, counts, when);
+    }).join('');
+    const total = Number(signIns.groups[0].total_groups || signIns.groups.length);
+    if (total > signIns.groups.length) notes.push(tr('unverifiedMore', (total - signIns.groups.length).toLocaleString(LANG)));
+  }
+  if (signIns.dropped > 0) notes.push(tr('unverifiedDropped', signIns.dropped.toLocaleString(LANG)));
+  $('unverifiedMsg').textContent = notes.join('\n');
 }
 
 /* -------------------------------------------------------- overview ---- */
@@ -2540,6 +2800,7 @@ async function verifyMfaEnroll() {
   const { error } = await db.auth.mfa.challengeAndVerify({ factorId: pendingFactorId, code });
   if (error) { $('mfaEnrollMsg').textContent = error.message; return; }
   pendingFactorId = null;
+  logAuthEvent('mfa_enroll', true);
   await loadMfaStatus();
 }
 
@@ -2561,6 +2822,7 @@ async function turnOffMfa() {
   const { error } = await db.auth.mfa.unenroll({ factorId: mfaFactor.id });
   if (error) { $('mfaMsg').textContent = error.message; return; }
   $('mfaOffCode').value = '';
+  logAuthEvent('mfa_unenroll', true);
   await loadMfaStatus();
 }
 
@@ -2573,6 +2835,9 @@ async function turnOffMfa() {
    session on the server, not just in this browser; the others are left
    alone. Signing out everywhere is its own button, on purpose. */
 async function signOutHere() {
+  // Logged BEFORE signOut(), not after -- record_auth_event needs auth.uid(),
+  // which this call is about to take away.
+  await logAuthEvent('sign_out', true, 'local');
   await db.auth.signOut({ scope: 'local' });
   location.reload();
 }
@@ -2590,6 +2855,8 @@ async function signOutEverywhere() {
   });
   if (!ok) return;
   $('sessionsMsg').textContent = tr('workingEllipsis');
+  // Same ordering reason as signOutHere(): log while auth.uid() still exists.
+  await logAuthEvent('sign_out', true, 'global');
   const { error } = await db.auth.signOut({ scope: 'global' });
   if (error) {
     // supabase-js has already dropped this browser's session by now, so the

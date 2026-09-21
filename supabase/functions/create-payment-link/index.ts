@@ -42,6 +42,387 @@ async function stripe(path: string, form: Record<string, string>, account?: stri
   return body;
 }
 
+/** Stripe's reads are GETs with the parameters in the query string. */
+async function stripeGet(path: string, query: Record<string, string>) {
+  const qs = new URLSearchParams(query).toString();
+  const res = await fetch(`${STRIPE}${path}${qs ? `?${qs}` : ""}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY")}` },
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error?.message ?? "Stripe rejected the request");
+  return body;
+}
+
+// ---- links already open on the job ---------------------------------------
+//
+// A job could carry several live payment links at once, and the over-owed cap
+// below only counted money that had already SETTLED. Two links that each
+// passed on their own could together ask the customer for more than the job
+// owes -- on 2026-09-21 one $200 job held a $336.82 balance link and a $160
+// deposit link, both payable, and another held two identical $4,937.93 links
+// four minutes apart. Stripe payment links do not expire.
+//
+// Two rules now, both here rather than in any client:
+//
+//  * The cap counts what is already being asked for. Settled money, plus the
+//    links that will stay open, plus this request, may not exceed what the job
+//    owes.
+//  * A new link REPLACES the open ones of the same kind on the same job. The
+//    old link is switched off at the processor first, and only then is its row
+//    marked superseded. If the processor will not confirm, no new link is
+//    made: a row reading "superseded" while its link still takes money is
+//    worse than two honest rows, and two live links is the fault itself.
+
+/** One open (status = pending) job_payments row, as makeLink reads it. */
+type OpenLink = {
+  id: string;
+  kind: string;
+  amount_cents: number | string;
+  processor?: string | null;
+  livemode?: boolean | null;
+  stripe_id?: string | null;
+  external_id?: string | null;
+};
+
+type LivePair = { stripe: boolean; square: boolean };
+
+type LinkPlan =
+  | { ok: true; replace: OpenLink[] }
+  | { ok: false; code: string; stillOwedCents: number; openCents: number };
+
+/**
+ * Whether each processor is taking real money right now. Read from the key's
+ * own prefix and the Square environment -- never logged.
+ */
+function liveNow(): LivePair {
+  const key = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+  return {
+    stripe: /^(sk|rk)_live_/.test(key),
+    square: (Deno.env.get("SQUARE_ENVIRONMENT") ?? "sandbox") === "production",
+  };
+}
+
+/**
+ * Can this open link still take money that would count against the job?
+ *
+ * A test-mode link cannot once the processor is running live: it accepts only
+ * test cards, and the webhooks refuse to book a test payment into the ledger
+ * (record-payment.ts, stripe-webhook's livemode check), so it can never move
+ * what the job owes. Everything else counts -- including a live link while
+ * the key is a test key, and a processor this function does not recognise.
+ */
+export function stillTakesMoney(row: OpenLink, live: LivePair): boolean {
+  const processor = String(row?.processor ?? "stripe").toLowerCase();
+  const runningLive = processor === "square" ? live.square
+    : processor === "stripe" ? live.stripe
+    : false;
+  return !(runningLive && row?.livemode !== true);
+}
+
+/**
+ * Was this link made in the mode its processor is running in right now?
+ *
+ * Stricter than stillTakesMoney, which also counts a live link under a test
+ * key (it could still take real money, so the cap must see it). Handing a link
+ * BACK needs the modes to match exactly: a test link under a live key declines
+ * every real card, and a live link under a test key charges one while we are
+ * not recording real money. A missing livemode reads as test, as it does
+ * everywhere else here. A processor this function does not know never matches.
+ */
+export function sameModeAsKey(row: OpenLink, live: LivePair): boolean {
+  const processor = String(row?.processor ?? "stripe").toLowerCase();
+  const runningLive = processor === "square" ? live.square
+    : processor === "stripe" ? live.stripe
+    : null;
+  if (runningLive === null) return false;
+  return (row?.livemode === true) === runningLive;
+}
+
+/** A pending row the hand-back lookup found: an open link plus its URL. */
+type ReuseCandidate = OpenLink & { payment_url?: string | null };
+
+/**
+ * Pure apart from the check it is handed. Picks the open link that may be
+ * handed back as it is, or null when none may.
+ *
+ * A row qualifies only if it was made in the processor's current mode (see
+ * sameModeAsKey), can still take money (stillTakesMoney), and the processor
+ * itself confirms, when asked now, that the link is still active. The mode
+ * test runs first and costs nothing, so a live key is never sent to ask about
+ * a test-mode link it cannot see.
+ *
+ * A check that throws is a no, never a yes: the caller then makes a new link
+ * under the normal cap and replacement rules, which retire the rows passed
+ * over here. So nothing that fails this test can block a correct new link.
+ */
+export async function pickReusableLink(
+  rows: ReuseCandidate[],
+  live: LivePair,
+  confirmActive: (row: ReuseCandidate) => Promise<boolean>,
+): Promise<ReuseCandidate | null> {
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row?.payment_url) continue;
+    if (!sameModeAsKey(row, live) || !stillTakesMoney(row, live)) continue;
+    let active = false;
+    try {
+      active = (await confirmActive(row)) === true;
+    } catch (e) {
+      console.error("create-payment-link reuse check", row?.id, e instanceof Error ? e.message : String(e));
+      active = false;
+    }
+    if (active) return row;
+  }
+  return null;
+}
+
+/**
+ * Stripe: is this payment link still active, in the key's own mode? A read
+ * only -- nothing is changed. Stripe will not show a key an object from the
+ * other mode, so a mismatch normally fails the read; the livemode test is here
+ * in case the row's own record of its mode is wrong.
+ */
+async function stripeLinkStillActive(row: OpenLink, live: LivePair): Promise<boolean> {
+  const id = String(row.stripe_id ?? "").trim();
+  if (!id.startsWith("plink_")) return false;
+  const link = await stripeGet(`/payment_links/${encodeURIComponent(id)}`, {});
+  return link?.id === id && link?.active === true && (link?.livemode === true) === live.stripe;
+}
+
+/**
+ * Square: is the order behind this link still OPEN on the connected account?
+ * Deleting a Square payment link cancels its order and paying it completes
+ * the order, so OPEN is the state in which the link still takes money. The row
+ * keeps the order id, which is what this reads. Without the current Square
+ * token there is no way to ask, and that is a no.
+ */
+async function squareLinkStillActive(
+  row: OpenLink,
+  host: string,
+  token: string | null | undefined,
+): Promise<boolean> {
+  if (!token) return false;
+  const orderId = String(row.external_id ?? "").trim();
+  if (!orderId) return false;
+  const res = await fetch(`${host}/v2/orders/${encodeURIComponent(orderId)}`, {
+    headers: { Authorization: `Bearer ${token}`, "Square-Version": "2025-01-23" },
+  });
+  const body = await res.json().catch(() => ({}));
+  return res.ok && String(body?.order?.id ?? "") === orderId && body?.order?.state === "OPEN";
+}
+
+/**
+ * Pure. Decides whether a request may go ahead, given the job's settled money
+ * and the links already open on it, and which open links it would replace.
+ *
+ * Same-kind links are not counted: they are the ones this request replaces,
+ * and counting them would refuse every corrected deposit. Other kinds stay
+ * open, so they are counted -- unless they can no longer take real money.
+ *
+ * Silent when the contract total is unknown, exactly as before: a job with no
+ * total yet is normal early on. The replacement still happens then.
+ */
+export function planOpenLinks(
+  job: { contract_total?: unknown; amount_paid?: unknown; refunded_amount?: unknown } | null,
+  open: OpenLink[],
+  request: { kind: string; amountCents: number },
+  live: LivePair,
+): LinkPlan {
+  const rows = Array.isArray(open) ? open : [];
+  const replace = rows.filter((r) => String(r.kind) === String(request.kind));
+  const staying = rows.filter((r) =>
+    String(r.kind) !== String(request.kind) && stillTakesMoney(r, live));
+  const openCents = staying.reduce(
+    (sum, r) => sum + Math.max(0, Math.round(Number(r.amount_cents) || 0)), 0);
+
+  const contractTotal = Number(job?.contract_total ?? 0);
+  if (contractTotal > 0) {
+    const netPaid = Math.max(0,
+      Number(job?.amount_paid ?? 0) - Number(job?.refunded_amount ?? 0));
+    // Dollars in the jobs table, cents on the wire. Getting this backwards
+    // would either refuse every honest request or cap nothing at all.
+    const stillOwedCents = Math.round((contractTotal - netPaid) * 100);
+    if (stillOwedCents <= 0) {
+      return { ok: false, code: "paid_in_full", stillOwedCents, openCents };
+    }
+    // A pound of slack for rounding between the two units, and no more.
+    if (request.amountCents + openCents > stillOwedCents + 100) {
+      return {
+        ok: false,
+        code: openCents > 0 ? "over_owed_with_open_links" : "over_owed",
+        stillOwedCents,
+        openCents,
+      };
+    }
+  }
+  return { ok: true, replace };
+}
+
+/**
+ * Switches off each link and only then marks its row superseded, in that
+ * order, stopping at the first failure. The processor calls and the database
+ * write are passed in, so the ordering is testable without either.
+ *
+ * A link that can no longer take money (see stillTakesMoney) is marked without
+ * a processor call: a live key cannot even see a test-mode link to switch it
+ * off, and refusing on that would block every replacement after go-live.
+ *
+ * markSuperseded answers false when the row was no longer pending -- it was
+ * paid, or another request replaced it, in the moment between reading and
+ * writing. That also stops: the cap was worked out against a state that has
+ * just changed.
+ */
+export async function supersedeOpenLinks(
+  rows: OpenLink[],
+  deps: {
+    takesMoney: (row: OpenLink) => boolean;
+    switchOff: (row: OpenLink) => Promise<void>;
+    markSuperseded: (row: OpenLink) => Promise<boolean>;
+  },
+): Promise<{ ok: true; ids: string[] } | { ok: false; code: string; row: OpenLink; detail: string }> {
+  const ids: string[] = [];
+  for (const row of rows) {
+    if (deps.takesMoney(row)) {
+      try {
+        await deps.switchOff(row);
+      } catch (e) {
+        return { ok: false, code: "old_link_still_open", row, detail: e instanceof Error ? e.message : String(e) };
+      }
+    }
+    let marked = false;
+    try {
+      marked = await deps.markSuperseded(row);
+    } catch (e) {
+      return { ok: false, code: "old_link_not_recorded", row, detail: e instanceof Error ? e.message : String(e) };
+    }
+    if (!marked) {
+      return { ok: false, code: "open_link_changed", row, detail: "the earlier request was no longer open" };
+    }
+    ids.push(String(row.id));
+  }
+  return { ok: true, ids };
+}
+
+/**
+ * Stripe: deactivate the Payment Link, then expire any checkout already opened
+ * from it. Deactivating only stops NEW visits to the URL; a customer who
+ * already had the checkout page open could otherwise still pay it.
+ */
+async function switchOffStripeLink(row: OpenLink): Promise<void> {
+  const id = String(row.stripe_id ?? "").trim();
+  if (!id.startsWith("plink_")) {
+    throw new Error("the earlier link has no Stripe payment link id on record");
+  }
+  const link = await stripe(`/payment_links/${encodeURIComponent(id)}`, { active: "false" });
+  if (link?.active !== false) {
+    throw new Error("Stripe did not confirm the earlier link is switched off");
+  }
+  const open = await stripeGet("/checkout/sessions", { payment_link: id, status: "open", limit: "100" });
+  for (const s of open?.data ?? []) {
+    await stripe(`/checkout/sessions/${encodeURIComponent(String(s?.id ?? ""))}/expire`, {});
+  }
+  if (open?.has_more) {
+    throw new Error("the earlier link has more open checkouts than one pass can close");
+  }
+}
+
+/**
+ * Square: delete the payment link, which also cancels its order.
+ *
+ * The row keeps the ORDER id (that is what Square's webhook reports), not the
+ * link id DELETE needs, so the link is found by listing. A link that is not in
+ * a complete listing counts as gone only if its order reads CANCELED on this
+ * same account -- a listing from a different, reconnected Square account would
+ * also come back without it, and that must not read as "switched off".
+ */
+async function switchOffSquareLink(
+  row: OpenLink,
+  host: string,
+  token: string | null | undefined,
+): Promise<void> {
+  if (!token) {
+    throw new Error("Square is no longer connected, so the earlier Square link cannot be switched off");
+  }
+  const orderId = String(row.external_id ?? "").trim();
+  if (!orderId) throw new Error("the earlier link has no Square order id on record");
+  const headers = { Authorization: `Bearer ${token}`, "Square-Version": "2025-01-23" };
+
+  let linkId = "";
+  let cursor = "";
+  let pages = 0;
+  do {
+    const q = new URLSearchParams({ limit: "1000" });
+    if (cursor) q.set("cursor", cursor);
+    const res = await fetch(`${host}/v2/online-checkout/payment-links?${q}`, { headers });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body?.errors?.[0]?.detail ?? "Square would not list the payment links");
+    }
+    linkId = String((body?.payment_links ?? [])
+      .find((l: any) => String(l?.order_id ?? "") === orderId)?.id ?? "");
+    cursor = String(body?.cursor ?? "");
+    pages++;
+  } while (!linkId && cursor && pages < 20);
+
+  if (linkId) {
+    const res = await fetch(`${host}/v2/online-checkout/payment-links/${encodeURIComponent(linkId)}`, {
+      method: "DELETE",
+      headers,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body?.errors?.[0]?.detail ?? "Square would not delete the earlier payment link");
+    }
+    return;
+  }
+  if (cursor) throw new Error("Square has too many payment links to find the earlier one");
+
+  const res = await fetch(`${host}/v2/orders/${encodeURIComponent(orderId)}`, { headers });
+  const body = await res.json().catch(() => ({}));
+  if (res.ok && body?.order?.state === "CANCELED") return;
+  throw new Error("Square has no payment link for the earlier request and its order is not cancelled");
+}
+
+/** The refusal each plan or replacement failure turns into, per door. */
+function openLinkRefusal(
+  code: string,
+  facts: { stillOwedCents?: number; openCents?: number; kind?: string; amountCents?: number; detail?: string },
+  publicDoor: boolean,
+): Response {
+  const d = (cents: number | undefined) => (Number(cents ?? 0) / 100).toFixed(2);
+  const status = code === "open_link_changed" ? 409
+    : code === "old_link_still_open" || code === "old_link_not_recorded" ? 502
+    : 400;
+  // The homeowner's quote page is trilingual and shows its own translated
+  // "could not open the payment page" sentence whenever no error text comes
+  // back. None of these has anything the homeowner can act on except asking
+  // their contractor, so they get that sentence in their own language rather
+  // than a paragraph in English written for the office.
+  if (publicDoor) return json({ code }, status);
+
+  const still = d(facts.stillOwedCents);
+  const open = d(facts.openCents);
+  const room = Number(facts.stillOwedCents ?? 0) - Number(facts.openCents ?? 0);
+  const earlier = `The earlier ${facts.kind ?? ""} link on this job (${d(facts.amountCents)})`;
+  const messages: Record<string, string> = {
+    over_owed_with_open_links: room >= 50
+      ? `This job still owes ${still}, and payment links already open on it ask for ${open}, ` +
+        `so a new link can ask for at most ${d(room)}. Check the amount before asking the customer for it.`
+      : `Payment links already open on this job ask for ${open}, which covers everything it still owes ` +
+        `(${still}). Another link would ask the customer for more than they owe.`,
+    old_link_still_open:
+      `${earlier} could not be switched off, so a new one was not made -- two open links could ask ` +
+      `the customer for more than they owe. Try again in a moment. (${facts.detail ?? ""})`,
+    old_link_not_recorded:
+      `${earlier} was switched off but could not be recorded as replaced, so a new one was not made. ` +
+      `Try again in a moment.`,
+    open_link_changed:
+      `${earlier} changed while this one was being made -- it may just have been paid. ` +
+      `Reload the job and check what is still owed before asking again.`,
+  };
+  return json({ code, error: messages[code] ?? "Could not make the payment link. Try again." }, status);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -122,6 +503,7 @@ Deno.serve(async (req) => {
         amount: cents,
         kind: kindWanted,
         description: "Fence work — " + (qjob.customer_name || "deposit"),
+        publicDoor: true,
       });
     }
 
@@ -180,11 +562,12 @@ Deno.serve(async (req) => {
  */
 async function makeLink(
   admin: ReturnType<typeof createClient>,
-  a: { companyId: string; jobSyncId: string; amount: number; kind: string; description: string },
+  a: { companyId: string; jobSyncId: string; amount: number; kind: string; description: string; publicDoor?: boolean },
 ): Promise<Response> {
   try {
     const profile = { company_id: a.companyId };
     const { jobSyncId, amount, kind, description } = a;
+    const publicDoor = a.publicDoor === true;
 
     const { data: company } = await admin
       .from("companies").select("name, stripe_account_id, subscription_plan")
@@ -239,36 +622,111 @@ async function makeLink(
     // Deliberately silent when the total is unknown. A job with no contract
     // total yet is normal early on, and refusing a deposit because the job has
     // not been priced would break the common case to prevent an unusual one.
-    // The customer-facing door needs none of this: it never trusts a supplied
-    // figure, it recomputes from stored data.
-    const { data: jobRow } = await admin
+    // The customer-facing door never trusts a supplied figure, it recomputes
+    // from stored data -- but it still goes through the open-link half below,
+    // because a deposit it computes correctly can still sit beside a balance
+    // link the office sent.
+    //
+    // A failed read refuses rather than passing. The job read used to discard
+    // its error, so a read that failed looked exactly like a job with no total
+    // -- the one state in which the cap waves everything through. The
+    // open-links read is held to the same rule: failing must not read as
+    // "nothing open".
+    const { data: jobRow, error: jobReadError } = await admin
       .from("jobs")
       .select("contract_total, amount_paid, refunded_amount")
       .eq("company_id", profile.company_id)
       .eq("sync_id", jobSyncId)
       .maybeSingle();
+    const { data: openLinks, error: openReadError } = await admin
+      .from("job_payments")
+      .select("id, kind, amount_cents, processor, livemode, stripe_id, external_id")
+      .eq("company_id", profile.company_id)
+      .eq("job_sync_id", jobSyncId)
+      .eq("status", "pending");
+    if (jobReadError || openReadError || !Array.isArray(openLinks)) {
+      console.error("create-payment-link open links",
+        jobReadError?.message ?? openReadError?.message ?? "no rows array");
+      return json(publicDoor ? { code: "open_links_unreadable" } : {
+        code: "open_links_unreadable",
+        error: "Could not check what this job already owes and has open, so no link was made. Try again in a moment.",
+      }, 500);
+    }
 
-    const contractTotal = Number(jobRow?.contract_total ?? 0);
-    if (contractTotal > 0) {
-      const netPaid = Math.max(0,
-        Number(jobRow?.amount_paid ?? 0) - Number(jobRow?.refunded_amount ?? 0));
-      // Dollars in the jobs table, cents on the wire. Getting this backwards
-      // would either refuse every honest request or cap nothing at all.
-      const stillOwedCents = Math.round((contractTotal - netPaid) * 100);
-      // A pound of slack for rounding between the two units, and no more.
-      if (stillOwedCents > 0 && amount > stillOwedCents + 100) {
+    const live = liveNow();
+    const plan = planOpenLinks(jobRow, openLinks as OpenLink[], { kind, amountCents: amount }, live);
+    if (!plan.ok) {
+      if (plan.code === "over_owed") {
         return json({
+          code: plan.code,
           error: "That is more than this job still owes (" +
-            (stillOwedCents / 100).toFixed(2) +
+            (plan.stillOwedCents / 100).toFixed(2) +
             "). Check the amount before asking the customer for it.",
         }, 400);
       }
-      if (stillOwedCents <= 0) {
+      if (plan.code === "paid_in_full") {
         return json({
+          code: plan.code,
           error: "This job is already paid in full. Nothing further is owed.",
         }, 400);
       }
+      return openLinkRefusal(plan.code, plan, publicDoor);
     }
+
+    // Which processor this company takes card payments through.
+    //
+    // One place decides, so adding a third means adding a branch here and a
+    // webhook, not rethinking the flow. The credential lives in
+    // payment_connections, which no client can read -- only this function,
+    // holding the service role. Read before the reuse below, because
+    // switching off an older Square link needs the same token.
+    const { data: conn } = await admin
+      .from("payment_connections")
+      .select("processor, external_id, access_token, display_name")
+      .eq("company_id", profile.company_id)
+      .maybeSingle();
+    const processor = (conn?.processor ?? "none").toLowerCase();
+    const squareHost = live.square
+      ? "https://connect.squareup.com"
+      : "https://connect.squareupsandbox.com";
+
+    // Switch off the given open links (see supersedeOpenLinks), or say why not.
+    const replaceOpenLinks = async (rows: OpenLink[]): Promise<{ refused: Response } | { ids: string[] }> => {
+      if (!rows.length) return { ids: [] };
+      const done = await supersedeOpenLinks(rows, {
+        takesMoney: (row) => stillTakesMoney(row, live),
+        switchOff: async (row) => {
+          const p = String(row.processor ?? "stripe").toLowerCase();
+          if (p === "stripe") return await switchOffStripeLink(row);
+          if (p === "square") {
+            return await switchOffSquareLink(row, squareHost,
+              processor === "square" ? conn?.access_token : null);
+          }
+          throw new Error(`there is no way to switch off a ${p} link`);
+        },
+        markSuperseded: async (row) => {
+          // Only a row still pending. One the webhook has just marked paid
+          // must stay paid, and must stop this request.
+          const { data, error } = await admin.from("job_payments")
+            .update({ status: "superseded" })
+            .eq("id", row.id)
+            .eq("company_id", profile.company_id)
+            .eq("status", "pending")
+            .select("id");
+          if (error) throw new Error(error.message);
+          return Array.isArray(data) && data.length > 0;
+        },
+      });
+      if (done.ok) return { ids: done.ids };
+      console.error("create-payment-link supersede", done.code, done.row?.id, done.detail);
+      return {
+        refused: openLinkRefusal(done.code, {
+          kind: String(done.row?.kind ?? ""),
+          amountCents: Number(done.row?.amount_cents ?? 0),
+          detail: done.detail,
+        }, publicDoor),
+      };
+    };
 
     // Already asked for, and not yet paid? Hand back the same link.
     //
@@ -282,9 +740,17 @@ async function makeLink(
     // guard sat inside the Square branch because that is where the audit found
     // the fault; testing it produced two Stripe rows carrying one order id
     // within the minute. The defect was never Square's, it was this function's.
+    //
+    // Only a link in the processor's current mode that the processor says is
+    // still active (pickReusableLink). This lookup used to hand back whatever
+    // pending row matched on job, kind and amount. After go-live that included
+    // a TEST-mode link: HTTP 200, no processor call, and a checkout that
+    // declines the customer's real card. Rows passed over here are not an
+    // error -- the request carries on to a new link, and the normal
+    // replacement below retires them.
     const { data: openRows } = await admin
       .from("job_payments")
-      .select("payment_url")
+      .select("id, payment_url, processor, livemode, stripe_id, external_id")
       // Scoped to the company, and that is not decoration. A job's sync_id is
       // generated on a phone and the database only makes it unique PER COMPANY
       // -- jobs_company_sync_id_idx is on (company_id, sync_id), not on sync_id
@@ -303,23 +769,35 @@ async function makeLink(
       // one made the whole query fail, which left the guard silently never
       // firing. Found by testing it rather than by reading it back.
       .eq("status", "pending")
-      .limit(1);
-    if (openRows?.[0]?.payment_url) {
-      return json({ url: openRows[0].payment_url });
+      // More than one, so a stale row that happens to come first cannot hide
+      // a good one behind it. Each candidate may cost one processor read.
+      .limit(10);
+    const reusable = await pickReusableLink(
+      Array.isArray(openRows) ? (openRows as ReuseCandidate[]) : [],
+      live,
+      async (row) => {
+        const p = String(row.processor ?? "stripe").toLowerCase();
+        if (p === "stripe") return await stripeLinkStillActive(row, live);
+        if (p === "square") {
+          return await squareLinkStillActive(row, squareHost,
+            processor === "square" ? conn?.access_token : null);
+        }
+        return false;
+      },
+    );
+    if (reusable) {
+      // Handing it back is not a new link, but any OTHER open link of the
+      // same kind is a duplicate beside it -- a double-tap from before this
+      // guard, or two requests that raced past it -- and would let the
+      // customer pay the same thing twice. Those are switched off first, by
+      // the same rule a new link follows; if they cannot be, nothing is
+      // handed out.
+      const reusedId = String(reusable.id ?? "");
+      const dupes = plan.replace.filter((r) => String(r.id) !== reusedId);
+      const dupesOff = await replaceOpenLinks(dupes);
+      if ("refused" in dupesOff) return dupesOff.refused;
+      return json({ url: reusable.payment_url });
     }
-
-    // Which processor this company takes card payments through.
-    //
-    // One place decides, so adding a third means adding a branch here and a
-    // webhook, not rethinking the flow. The credential lives in
-    // payment_connections, which no client can read -- only this function,
-    // holding the service role.
-    const { data: conn } = await admin
-      .from("payment_connections")
-      .select("processor, external_id, access_token, display_name")
-      .eq("company_id", profile.company_id)
-      .maybeSingle();
-    const processor = (conn?.processor ?? "none").toLowerCase();
 
     if (processor === "square") {
       if (!conn?.access_token || !conn?.external_id) {
@@ -353,7 +831,18 @@ async function makeLink(
         }, 502);
       }
 
-      const idemSource = `${jobSyncId}-${kind}-${amount}`;
+      // The older links of this kind go first -- after everything above that
+      // can still refuse, and before a new link exists.
+      const replacedSq = await replaceOpenLinks(plan.replace);
+      if ("refused" in replacedSq) return replacedSq.refused;
+
+      // Unchanged when nothing was replaced, so a double-tap still repeats the
+      // same key and Square still refuses the second. When a link WAS
+      // replaced the key has to move: asking for $A, then $B, then $A again
+      // would otherwise replay the first $A link -- the one just deleted --
+      // and leave the job with no live link at all.
+      const idemSource = `${jobSyncId}-${kind}-${amount}` +
+        (replacedSq.ids.length ? `-replaces-${[...replacedSq.ids].sort().join(",")}` : "");
     const idemDigest = await crypto.subtle.digest(
       "SHA-256", new TextEncoder().encode(idemSource));
     const idemKey = [...new Uint8Array(idemDigest)]
@@ -449,6 +938,10 @@ async function makeLink(
       }, 501);
     }
 
+    // The older links of this kind go first -- after everything above that
+    // can still refuse, and before any Stripe object for the new one exists.
+    const replaced = await replaceOpenLinks(plan.replace);
+    if ("refused" in replaced) return replaced.refused;
 
     // Create the product inline with the price. This used to be a separate
     // /products call first: three sequential Stripe round trips on top of a

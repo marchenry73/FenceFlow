@@ -210,3 +210,5 @@ supabase_p4_realtime_fix.sql
 supabase_p4_attention_settings.sql
 supabase_p4_attention_findings.sql
 supabase_p4_attention_candidates_fn.sql
+supabase_p4_auth_events.sql
+supabase_p4_auth_events_fix.sql
