@@ -14,6 +14,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://fenceflowapp.com/fence-solutions/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://fenceflowapp.com/privacy.html</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

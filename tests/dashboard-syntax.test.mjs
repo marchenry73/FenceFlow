@@ -22,7 +22,7 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const PAGES = ["dashboard", "admin", "index", "welcome", "quote", "lead"];
+const PAGES = ["dashboard", "admin", "index", "welcome", "quote", "lead", "fence-solutions/index"];
 let failed = 0, checked = 0;
 
 for (const page of PAGES) {
@@ -34,8 +34,11 @@ for (const page of PAGES) {
   let externalModuleSrc = "";
 
   for (const m of html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)) {
+    // A data block (search-engine JSON-LD) is never executed by a browser, so
+    // parsing it as a script would fail a page that is perfectly fine.
+    if (/type\s*=\s*["']application\/(ld\+)?json["']/i.test(m[1])) continue;
     const isModule = /type\s*=\s*["']module["']/.test(m[1]);
-    const f = join(tmpdir(), `ff-syntax-${page}-${checked}.${isModule ? "mjs" : "js"}`);
+    const f = join(tmpdir(), `ff-syntax-${page.replaceAll("/", "-")}-${checked}.${isModule ? "mjs" : "js"}`);
     writeFileSync(f, m[2]);
     checked++;
     try { execFileSync("node", ["--check", f], { stdio: "pipe" }); }

@@ -11,7 +11,7 @@
 // library provides. A name that survives all of that is a real one.
 import { readFileSync } from "node:fs";
 
-const PAGES = ["dashboard", "admin", "index", "welcome", "quote", "lead"];
+const PAGES = ["dashboard", "admin", "index", "welcome", "quote", "lead", "fence-solutions/index"];
 
 // Everything the browser hands the page, plus the two libraries these pages
 // load from a tag. Anything not here has to be declared in the page itself.
