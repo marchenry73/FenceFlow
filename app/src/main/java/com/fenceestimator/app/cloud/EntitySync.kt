@@ -569,10 +569,33 @@ data class CloudTimeEntryPush(
     @SerialName("hourly_rate") val hourlyRate: Double = 0.0,
     @SerialName("employee_sync_id") val employeeSyncId: String = "",
     val notes: String = "",
+    /**
+     * The sign-off decision. Carried by the INSERT-ONLY pass and dropped from
+     * the update pass, gated by [EntitySync.pushTimeEntries]' `includeDecision`
+     * exactly as [startedAt] is gated by `includeTimes`, and for a harder
+     * reason: the phone may not be ALLOWED to write these at all.
+     *
+     * `approve_time_entry` (supabase_p3_approve_time_entry.sql) owns the
+     * decision on a row the cloud already holds. A FOREMAN has APPROVE_TIME and
+     * not SEE_PAY, and `time_entries_pay_needs_see_pay` hides a colleague's
+     * whole row from anyone without SEE_PAY -- so this upsert asserting
+     * approved_at on a colleague's stored row was refused 42501, which arrives
+     * as HTTP 403, which [isPermanentRejection] treats as retryable, which
+     * means the same doomed row went up on every sync for ever. Measured live
+     * on 2026-09-20; see [TimeApproval].
+     *
+     * [approvedBy] and [reviewNote] are NULLABLE here where the rest of the
+     * app's strings are not, and that is load-bearing: the column is NOT NULL
+     * with a `''` default, `encodeDefaults = true` means a Kotlin `""` would
+     * be SENT, and sending `""` on the update pass would BLANK the office's
+     * own sign-off name and review note. Only `null` is dropped from the body
+     * (`explicitNulls = false`), and a key that is not in the body is a column
+     * the UPDATE never names. Same trick, same reason, as [startedAt].
+     */
     @SerialName("approved_at") val approvedAt: String? = null,
-    @SerialName("approved_by") val approvedBy: String = "",
+    @SerialName("approved_by") val approvedBy: String? = null,
     @SerialName("rejected_at") val rejectedAt: String? = null,
-    @SerialName("review_note") val reviewNote: String = "",
+    @SerialName("review_note") val reviewNote: String? = null,
     /**
      * Set once, by the phone that recorded the break, exactly like started_at
      * and ended_at just above -- and gated by the same [includeTimes]-style
@@ -693,6 +716,15 @@ object EntitySync {
         repository: Repository,
         companyId: String,
         scope: MoneyScope,
+        // Employee pay -- has_permission('SEE_PAY') -- which is a different
+        // door from [scope]'s job money and is what decides whether this phone
+        // can write a colleague's shift at all. Asked once per pass in
+        // AutoSync, beside [scope], and handed down here rather than re-asked,
+        // for the same reason [scope] is: one transient failure must not read
+        // as "not allowed" for one table and as the real answer for another.
+        // No default value on purpose -- a default is how a caller that was
+        // never updated keeps the old behaviour silently.
+        employeePayScope: MoneyScope,
         // True on the one pass right after a DENIED->ALLOWED promotion: pull
         // has to restore real prices and rates before push runs at all, or
         // this phone's zero-priced local copies -- cached from the money-free
@@ -729,7 +761,7 @@ object EntitySync {
             step("employees")      { pushEmployees(repository, companyId, scope) }
             step("manufacturers")  { pushManufacturers(repository, companyId) }
             step("fence runs")     { pushFenceRuns(repository, companyId) }
-            step("time entries")   { pushTimeEntries(repository, companyId) }
+            step("time entries")   { pushTimeEntries(repository, companyId, employeePayScope) }
 
             // A DENIED phone holds zero prices for everything in the catalog
             // and every tier; pushing them would be refused at best (1 + up
@@ -2406,16 +2438,70 @@ object EntitySync {
      * insert path -- and no Edge Function touches it. Re-check those three
      * before adding an insert anywhere else.
      */
-    private suspend fun pushTimeEntries(repository: Repository, companyId: String): Int {
+    private suspend fun pushTimeEntries(
+        repository: Repository,
+        companyId: String,
+        // Whether this phone may see what a PERSON is paid -- can_see_employee_pay(),
+        // i.e. has_permission('SEE_PAY'). The same answer pullJobChildren uses to
+        // choose between time_entries and time_entries_crew, asked once per pass
+        // up in AutoSync and handed down rather than re-asked here.
+        payScope: MoneyScope
+    ): Int {
         val jobsBySyncId = repository.getAllJobs().associateBy({ it.id }, { it.syncId })
-        val employeeSyncById = repository.getAllEmployees().associateBy({ it.id }, { it.syncId })
+        val allEmployees = repository.getAllEmployees()
+        val employeeSyncById = allEmployees.associateBy({ it.id }, { it.syncId })
         // Only completed shifts: a running timer has no end yet and would land
         // in the cloud looking like a zero-length entry.
-        val finished = repository.getAllTimeEntries()
+        val everyFinished = repository.getAllTimeEntries()
             .filter { !it.isRunning }
             .mapNotNull { entry ->
                 jobsBySyncId[entry.jobId]?.let { jobSyncId -> entry to jobSyncId }
             }
+
+        // A phone without SEE_PAY cannot write a COLLEAGUE'S shift at all, and
+        // this is not about which columns it sends. Measured live on
+        // 2026-09-20 in a rolled-back transaction, as a FOREMAN (APPROVE_TIME,
+        // no SEE_PAY), against a colleague's row the cloud already held:
+        //
+        //   upsert carrying the approval ....... 42501 time_entries_pay_needs_see_pay
+        //   upsert carrying NO approval cols ... 42501, the same policy
+        //   the insert-only pass (DO NOTHING) .. 42501, the same policy
+        //   a MANAGER doing the first of those . 1 row (the positive control)
+        //
+        // because `time_entries_pay_needs_see_pay` is a RESTRICTIVE SELECT
+        // policy, and Postgres applies SELECT policies to the row an UPDATE
+        // reads and to the conflicting row an INSERT ... ON CONFLICT touches.
+        // 42501 arrives as HTTP 403; [isPermanentRejection] treats 403 as
+        // retryable on purpose (it usually means "sign in again"), so every
+        // one of these rows was re-sent on every sync, for ever, and reported
+        // as a sync failure every time.
+        //
+        // Such a phone holds those rows only because the PULL gave them to it,
+        // out of time_entries_crew -- they are somebody else's work, read-only
+        // by construction, and it has nothing to say about them. So they are
+        // not sent. Not marked either: a "cannot upload" banner for a row this
+        // phone never authored would be noise on the one screen that has to
+        // stay believable. UNKNOWN is treated as DENIED here rather than as
+        // ALLOWED -- "could not ask" must never buy write access, and own
+        // shifts (the phone's actual field work) still go up either way, so
+        // nothing of this phone's own is held back by being careful.
+        val mineOnly = payScope != MoneyScope.ALLOWED
+        val finished = if (!mineOnly) everyFinished else {
+            val uid = SupabaseModule.currentUserId()
+            val email = SupabaseModule.currentUserEmail()
+            val kept = everyFinished.filter { (entry, _) ->
+                isOwnShiftToPush(entry, allEmployees, uid, email)
+            }
+            if (kept.size < everyFinished.size) {
+                android.util.Log.i(
+                    "EntitySync",
+                    "push time_entries: ${everyFinished.size - kept.size} colleague shifts " +
+                        "left alone -- this phone has no SEE_PAY, so the server refuses every " +
+                        "write of them and they are the office's copy, not ours"
+                )
+            }
+            kept
+        }
         if (finished.isEmpty()) return 0
 
         // Rows the insert trigger will refuse every single time, known
@@ -2476,13 +2562,13 @@ object EntitySync {
         val firstSight = runCatching {
             pushTimeEntryRows(
                 repository, companyId, sendable, employeeSyncById, rejectedThisPass,
-                insertOnly = true, includeTimes = true
+                insertOnly = true, includeTimes = true, includeDecision = true
             )
         }
         val updated = runCatching {
             pushTimeEntryRows(
                 repository, companyId, sendable, employeeSyncById, rejectedThisPass,
-                insertOnly = false, includeTimes = false
+                insertOnly = false, includeTimes = false, includeDecision = false
             )
         }
         firstSight.exceptionOrNull()?.let { throw it }
@@ -2513,7 +2599,8 @@ object EntitySync {
         // insert pass, when this is the update pass. Added to, never cleared.
         rejectedThisPass: MutableSet<String>,
         insertOnly: Boolean,
-        includeTimes: Boolean
+        includeTimes: Boolean,
+        includeDecision: Boolean
     ): Int {
         // A row already marked SERVER_REJECTED from a previous pass is not
         // retried here either -- same reasoning as the local NEEDS_WORKER
@@ -2526,7 +2613,10 @@ object EntitySync {
 
         val rows = toSend.map { (entry, jobSyncId) ->
             // The very value the hold-back in pushTimeEntries tested.
-            entry.toCloud(companyId, jobSyncId, resolveEmployeeSyncId(entry, employeeSyncById), includeTimes)
+            entry.toCloud(
+                companyId, jobSyncId, resolveEmployeeSyncId(entry, employeeSyncById),
+                includeTimes, includeDecision
+            )
         }
 
         var pushed = 0
@@ -2651,17 +2741,24 @@ private fun TimeEntry.toCloud(
     // an office time correction is not overwritten by the phone that recorded
     // the original. Never mix the two shapes inside one batch -- see
     // [CloudTimeEntryPush.startedAt] for what PostgREST does with the gap.
-    includeTimes: Boolean = true
+    includeTimes: Boolean = true,
+    // Same gate, same batching rule, for the sign-off decision -- see
+    // [CloudTimeEntryPush.approvedAt]. True only on the insert-only pass,
+    // where the row is brand new and the decision is the shift's first and
+    // only version of itself. On a row the cloud already holds the decision
+    // belongs to `approve_time_entry`, which is the only door a phone without
+    // SEE_PAY can actually get through.
+    includeDecision: Boolean = true
 ) = CloudTimeEntryPush(
     companyId = companyId, syncId = syncId, jobSyncId = jobSyncId,
     employeeSyncId = employeeSyncId ?: "",
     startedAt = if (includeTimes) Instant.ofEpochMilli(startedAt).toString() else null,
     endedAt = if (includeTimes) endedAt?.let { Instant.ofEpochMilli(it).toString() } else null,
     hourlyRate = hourlyRate, notes = notes,
-    approvedAt = approvedAt?.let { CloudTime.format(it) },
-    approvedBy = approvedBy,
-    rejectedAt = rejectedAt?.let { CloudTime.format(it) },
-    reviewNote = reviewNote,
+    approvedAt = if (includeDecision) approvedAt?.let { CloudTime.format(it) } else null,
+    approvedBy = if (includeDecision) approvedBy else null,
+    rejectedAt = if (includeDecision) rejectedAt?.let { CloudTime.format(it) } else null,
+    reviewNote = if (includeDecision) reviewNote else null,
     // Same gate as startedAt/endedAt above, and for the same reason: the break
     // is recorded once, before the shift is ever pushed (a phone cannot edit
     // it after clocking out -- see Repository.clockOut), so it belongs in the

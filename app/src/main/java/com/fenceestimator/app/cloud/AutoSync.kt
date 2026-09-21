@@ -475,9 +475,11 @@ class AutoSync(
             val pullResult: Result<Int>
             if (promoted) {
                 pullResult = EntitySync.pullAll(repository, companyId, scope, employeePayScope)
-                pushResult = EntitySync.pushAll(repository, companyId, scope, skipMoneySensitivePushes = true)
+                pushResult = EntitySync.pushAll(
+                    repository, companyId, scope, employeePayScope, skipMoneySensitivePushes = true
+                )
             } else {
-                pushResult = EntitySync.pushAll(repository, companyId, scope)
+                pushResult = EntitySync.pushAll(repository, companyId, scope, employeePayScope)
                 pullResult = EntitySync.pullAll(repository, companyId, scope, employeePayScope)
             }
 

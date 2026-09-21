@@ -1608,6 +1608,20 @@
     <string name="vm_time_correction_unreachable">Not approved. The correction could not be sent -- no connection. Try again when you have signal.</string>
     <string name="vm_time_rejected">Shift sent back to the crew member.</string>
     <string name="vm_couldnt_reject_time">Couldn\'t send this shift back: %1$s</string>
+    <!-- A sign-off now goes through the approve_time_entry RPC, so the screen can
+         say which of three things actually happened: the office has it, the
+         office does not have the shift yet, or there is no office at all. The
+         two failures say NOT approved in as many words, because leaving that
+         ambiguous is the whole defect. -->
+    <string name="vm_time_approved_will_sync">Approved. The sign-off goes up with this shift on the next sync.</string>
+    <string name="vm_time_approved_on_this_phone">Approved on this phone.</string>
+    <string name="vm_time_approval_refused">Not approved: %1$s</string>
+    <string name="vm_time_approval_unreachable">Not approved. The sign-off could not be sent -- no connection. It is still waiting; try again when you have signal.</string>
+    <string name="vm_time_rejected_will_sync">Sent back. It goes up with this shift on the next sync.</string>
+    <string name="vm_time_rejected_on_this_phone">Sent back, on this phone.</string>
+    <string name="vm_time_rejection_refused">Not sent back: %1$s</string>
+    <string name="vm_time_rejection_unreachable">Not sent back. It could not be sent -- no connection. The shift is still waiting; try again when you have signal.</string>
+    <string name="vm_time_cannot_decide_own">A shift cannot be signed off by the person being paid for it. Ask somebody else to review it.</string>
     <string name="vm_time_fixed_will_retry">Fixed. This shift will upload on the next sync.</string>
     <string name="vm_couldnt_fix_time">Couldn\'t fix this shift: %1$s</string>
     <string name="vm_time_discarded">Shift discarded.</string>

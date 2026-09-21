@@ -48,6 +48,43 @@ fun needsWorkerAssignment(entry: TimeEntry, resolvedEmployeeSyncId: String?): Bo
     !entry.isRunning && resolvedEmployeeSyncId.isNullOrBlank()
 
 /**
+ * Whether a phone that cannot see pay has any business PUSHING this shift.
+ *
+ * True when the shift's worker is plausibly the signed-in person, which is the
+ * client-side reading of the server's own `is_my_shift(employee_sync_id)` --
+ * the one thing that makes a `time_entries` row visible, and therefore
+ * writable, to somebody without SEE_PAY. A phone in that position holds its
+ * colleagues' shifts only because the pull handed them down out of
+ * `time_entries_crew`; every write of one is refused 42501 (measured, both
+ * push passes, 2026-09-20), so sending them is a guaranteed 403 on a loop.
+ *
+ * Deliberately a UNION of two tests, not the exact server test alone:
+ *
+ *  * `profileId == signedInProfileId` IS the server's test, employee row for
+ *    employee row, and is the one that should normally answer;
+ *  * [OwnWork.isSamePerson] is kept alongside it because a crew record whose
+ *    `profile_id` was never filled in would otherwise have its own field work
+ *    silently held back on this phone -- a far worse failure than the one
+ *    being fixed. The union can only ever send MORE than the server accepts,
+ *    never less, so the worst case is exactly today's behaviour for that row.
+ *
+ * Pure and top level so a test can hold it to that without a sync pass.
+ */
+fun isOwnShiftToPush(
+    entry: TimeEntry,
+    employees: List<Employee>,
+    signedInProfileId: String?,
+    signedInEmail: String?
+): Boolean {
+    val employeeId = entry.employeeId ?: return false
+    val employee = employees.firstOrNull { it.id == employeeId } ?: return false
+    val linked = signedInProfileId != null &&
+        employee.profileId.isNotBlank() &&
+        employee.profileId == signedInProfileId
+    return linked || OwnWork.isSamePerson(employee, signedInEmail)
+}
+
+/**
  * Whether the Time screen's Fix picker may offer this person.
  *
  * A shift goes up with its employee's sync id, and the server refuses a blank

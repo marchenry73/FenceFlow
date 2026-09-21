@@ -835,6 +835,19 @@ class Repository(private val db: AppDatabase) {
      * Optionally with corrected times: the two things that actually go wrong
      * are a clock left running overnight and a lunch nobody clocked out for,
      * and both need the figure adjusted rather than the shift thrown away.
+     *
+     * **Nothing calls this any more, and a new caller would be a bug.** A
+     * sign-off is now sent FIRST, through `approve_time_entry`
+     * (com.fenceestimator.app.cloud.TimeApproval), and Room is written from
+     * what the server said it stored. Writing the decision here and hoping the
+     * push carries it is exactly what failed: the update push no longer sends
+     * approved_at/rejected_at at all, and for a FOREMAN -- APPROVE_TIME, no
+     * SEE_PAY -- it never could, because a colleague's row is invisible to
+     * them and Postgres applies SELECT policies to the row an UPDATE reads. A
+     * decision written straight into Room would sit on the handset for ever,
+     * shown as settled, while the office still saw the shift pending. Kept
+     * only because it is the shape the offline paths write; go through
+     * TimeApprovalViewModel.sendDecision instead.
      */
     suspend fun approveTimeEntry(
         entry: TimeEntry,
@@ -861,6 +874,10 @@ class Repository(private val db: AppDatabase) {
      * Kept rather than deleted. The crew member needs to see why, and a
      * disputed shift that has been quietly removed is exactly the record you
      * want when someone says they were not paid for a day they worked.
+     *
+     * Same warning as [approveTimeEntry]: nothing calls this any more, because
+     * a rejection is a decision and a decision goes through
+     * `approve_time_entry` first.
      */
     suspend fun rejectTimeEntry(entry: TimeEntry, note: String) {
         timeEntryDao.update(

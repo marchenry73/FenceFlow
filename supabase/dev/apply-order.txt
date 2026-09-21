@@ -205,3 +205,4 @@ supabase_p2_customer_identity_email.sql
 supabase_p2_contract_columns_pin.sql
 supabase_p2_correct_time_entry.sql
 supabase_p2_release_rollback.sql
+supabase_p3_approve_time_entry.sql

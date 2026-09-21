@@ -1572,6 +1572,15 @@
     <string name="vm_time_correction_unreachable">No aprobado. No se pudo enviar la corrección: sin conexión. Inténtelo de nuevo cuando tenga señal.</string>
     <string name="vm_time_rejected">Turno devuelto al empleado.</string>
     <string name="vm_couldnt_reject_time">No se pudo devolver este turno: %1$s</string>
+    <string name="vm_time_approved_will_sync">Aprobado. La aprobación se enviará con este turno en la próxima sincronización.</string>
+    <string name="vm_time_approved_on_this_phone">Aprobado en este teléfono.</string>
+    <string name="vm_time_approval_refused">No aprobado: %1$s</string>
+    <string name="vm_time_approval_unreachable">No aprobado. No se pudo enviar la aprobación: sin conexión. El turno sigue pendiente; inténtelo de nuevo cuando tenga señal.</string>
+    <string name="vm_time_rejected_will_sync">Devuelto. Se enviará con este turno en la próxima sincronización.</string>
+    <string name="vm_time_rejected_on_this_phone">Devuelto, en este teléfono.</string>
+    <string name="vm_time_rejection_refused">No se devolvió: %1$s</string>
+    <string name="vm_time_rejection_unreachable">No se devolvió. No se pudo enviar: sin conexión. El turno sigue pendiente; inténtelo de nuevo cuando tenga señal.</string>
+    <string name="vm_time_cannot_decide_own">Un turno no lo puede aprobar la persona a la que se le paga. Pida a otra persona que lo revise.</string>
     <string name="vm_time_fixed_will_retry">Corregido. Este turno se subirá en la próxima sincronización.</string>
     <string name="vm_couldnt_fix_time">No se pudo corregir este turno: %1$s</string>
     <string name="vm_time_discarded">Turno descartado.</string>

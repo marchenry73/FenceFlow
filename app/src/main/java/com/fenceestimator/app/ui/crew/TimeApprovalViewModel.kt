@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.R
+import com.fenceestimator.app.cloud.TimeApproval
 import com.fenceestimator.app.cloud.TimeCorrection
 import com.fenceestimator.app.cloud.canBeSentAsWorker
 import com.fenceestimator.app.data.Employee
@@ -144,21 +145,33 @@ class TimeApprovalViewModel(
     /**
      * Sign off a shift, optionally correcting what the clock recorded.
      *
-     * The correction does NOT ride the ordinary sync. It cannot:
-     * [com.fenceestimator.app.cloud.EntitySync.pushTimeEntries] sends each
-     * finished shift twice, and the only pass that carries started_at/ended_at
-     * is insert-only -- a no-op for a row the cloud already holds. That split
-     * is deliberate (it stops a phone re-asserting its original times over an
-     * office correction) and it meant a correction typed here was applied to
-     * Room, shown as "Approved", and then quietly reverted by the next pull.
-     * Payroll paid the uncorrected hours.
+     * NEITHER half of this rides the ordinary sync any more, and both for the
+     * same reason: [com.fenceestimator.app.cloud.EntitySync.pushTimeEntries]
+     * cannot carry them.
      *
-     * So a correction goes through [com.fenceestimator.app.cloud.TimeCorrection]
-     * -- the `correct_time_entry` RPC, which needs APPROVE_TIME, keeps the
-     * original alongside and records who changed it and why -- and the screen
-     * is told what the SERVER stored, not what was typed. If the correction
-     * cannot be sent, the shift is NOT approved and the message says so; the
-     * one thing this must never do is show "Approved" over hours nobody has.
+     * The correction could not, because the only push pass that carries
+     * started_at/ended_at is insert-only -- a no-op for a row the cloud
+     * already holds. That split is deliberate (it stops a phone re-asserting
+     * its original times over an office correction) and it meant a correction
+     * typed here was applied to Room, shown as "Approved", and then quietly
+     * reverted by the next pull. Payroll paid the uncorrected hours. Fixed by
+     * [com.fenceestimator.app.cloud.TimeCorrection].
+     *
+     * The DECISION could not either, and that was worse, because it failed for
+     * the very person this screen exists for. A FOREMAN has APPROVE_TIME and
+     * not SEE_PAY, and `time_entries_pay_needs_see_pay` hides a colleague's
+     * whole row from anyone without SEE_PAY -- so the update the push sends
+     * matched 0 rows on a plain UPDATE and was refused 42501 on the real
+     * upsert shape, which PostgREST returns as a 403 and the sync retries for
+     * ever. Measured live; see
+     * [com.fenceestimator.app.cloud.TimeApproval] and
+     * `supabase_p3_approve_time_entry.sql`.
+     *
+     * So both go through their own SECURITY DEFINER door, and the screen is
+     * told what the SERVER stored rather than what was typed. If either cannot
+     * be sent, the shift is NOT approved and the message says so; the one
+     * thing this must never do is show "Approved" over a decision the office
+     * will never see.
      */
     fun approve(
         entry: TimeEntry,
@@ -168,8 +181,13 @@ class TimeApprovalViewModel(
         note: String
     ) {
         // Checked here as well as in the UI, because a control that is merely
-        // hidden is not a control.
-        if (isOwnShift(entry)) return
+        // hidden is not a control -- and because the server now refuses it
+        // outright, so a silent return would leave somebody tapping a dead
+        // button. This says the same sentence the database would.
+        if (isOwnShift(entry)) {
+            _message.value = UiMessage(R.string.vm_time_cannot_decide_own)
+            return
+        }
 
         val newStart = correctedStart ?: entry.startedAt
         val newEnd = correctedEnd ?: entry.endedAt
@@ -177,12 +195,12 @@ class TimeApprovalViewModel(
 
         viewModelScope.launch {
             if (!timesChanged) {
-                // Nothing to correct -- the ordinary sign-off, unchanged. This
-                // is payroll: a dialog that just closes leaves nobody able to
-                // tell a saved approval from one the database silently dropped.
-                runCatching { repository.approveTimeEntry(entry, approvedBy, null, null, note) }
-                    .onSuccess { _message.value = UiMessage(R.string.vm_time_approved) }
-                    .onFailure { _message.value = UiMessage(R.string.vm_couldnt_approve_time, listOf(it.message.orEmpty())) }
+                // Nothing to correct -- the ordinary sign-off. This is payroll:
+                // a dialog that just closes leaves nobody able to tell a saved
+                // approval from one the database silently dropped.
+                sendDecision(entry, approve = true, note = note,
+                    startedAt = entry.startedAt, endedAt = entry.endedAt,
+                    approvedBy = approvedBy, corrected = false)
                 return@launch
             }
 
@@ -202,37 +220,41 @@ class TimeApprovalViewModel(
             when (val sent = TimeCorrection.correct(entry.syncId, newStart, correctedEndAt, note)) {
                 is TimeCorrection.Outcome.Saved ->
                     // The server's own values, not the typed ones.
-                    finishApproval(
+                    sendDecision(
                         entry.copy(
                             originalStartedAt = sent.originalStartedAt ?: entry.originalStartedAt,
                             originalEndedAt = sent.originalEndedAt ?: entry.originalEndedAt,
                             correctedAt = sent.correctedAt ?: entry.correctedAt,
                             correctionReason = sent.correctionReason.ifBlank { entry.correctionReason }
                         ),
-                        approvedBy, sent.startedAt, sent.endedAt, note,
-                        R.string.vm_time_corrected_and_approved
+                        approve = true, note = note,
+                        startedAt = sent.startedAt, endedAt = sent.endedAt,
+                        approvedBy = approvedBy, corrected = true
                     )
 
                 // The cloud has never seen this shift, so there is nothing
                 // there to correct -- and the insert-only pass, the one that
-                // DOES carry the clock, will send the corrected times as the
-                // shift's first and only version. Stamped locally the way
-                // preserve_original_shift would have, so the phone still shows
-                // what the clock said next to what it was changed to.
+                // DOES carry the clock and the decision, will send the
+                // corrected times as the shift's first and only version.
+                // Stamped locally the way preserve_original_shift would have,
+                // so the phone still shows what the clock said next to what it
+                // was changed to.
                 TimeCorrection.Outcome.NotInCloudYet ->
-                    finishApproval(
+                    sendDecision(
                         stampedLocally(entry, newStart, correctedEndAt, note),
-                        approvedBy, newStart, correctedEndAt, note,
-                        R.string.vm_time_corrected_will_sync
+                        approve = true, note = note,
+                        startedAt = newStart, endedAt = correctedEndAt,
+                        approvedBy = approvedBy, corrected = true
                     )
 
                 // One person working alone on their own phone: no cloud to
                 // send anything to, and nothing to be wrong about.
                 TimeCorrection.Outcome.NotSignedIn ->
-                    finishApproval(
+                    sendDecision(
                         stampedLocally(entry, newStart, correctedEndAt, note),
-                        approvedBy, newStart, correctedEndAt, note,
-                        R.string.vm_time_corrected_on_this_phone
+                        approve = true, note = note,
+                        startedAt = newStart, endedAt = correctedEndAt,
+                        approvedBy = approvedBy, corrected = true
                     )
 
                 // Both of these leave the shift in the queue, unapproved and
@@ -263,24 +285,154 @@ class TimeApprovalViewModel(
             correctionReason = note
         )
 
-    private suspend fun finishApproval(
+    /**
+     * The one place a sign-off or a rejection is sent and then written down.
+     *
+     * The order matters and is the whole point: the SERVER decides first, and
+     * Room is only written when the server has actually stored the decision or
+     * when there is provably no server to store it in
+     * ([com.fenceestimator.app.cloud.TimeApproval.Outcome.NotInCloudYet],
+     * where the insert pass will carry it, and
+     * [com.fenceestimator.app.cloud.TimeApproval.Outcome.NotSignedIn], where
+     * this phone is the only record there is). A refusal or a dead connection
+     * writes NOTHING and leaves the shift in the queue, because the update
+     * push no longer carries approved_at/rejected_at at all -- so a decision
+     * written locally and refused by the server would sit on the handset for
+     * ever, shown as settled, while the office still saw it pending. That is
+     * the shape of the bug this whole change exists to close, and it would be
+     * a new instance of it.
+     *
+     * @param corrected true when the clock was changed in the same action, so
+     *   the confirmation says so.
+     */
+    private suspend fun sendDecision(
         entry: TimeEntry,
-        approvedBy: String,
-        startedAt: Long,
-        endedAt: Long,
+        approve: Boolean,
         note: String,
-        @StringRes successMessage: Int
+        startedAt: Long,
+        endedAt: Long?,
+        approvedBy: String,
+        corrected: Boolean
     ) {
-        runCatching { repository.approveTimeEntry(entry, approvedBy, startedAt, endedAt, note) }
-            .onSuccess { _message.value = UiMessage(successMessage) }
-            .onFailure { _message.value = UiMessage(R.string.vm_couldnt_approve_time, listOf(it.message.orEmpty())) }
+        // One row of message ids per outcome, picked up front so the branches
+        // below read as what happened rather than as string bookkeeping.
+        @StringRes val savedMessage: Int = when {
+            !approve -> R.string.vm_time_rejected
+            corrected -> R.string.vm_time_corrected_and_approved
+            else -> R.string.vm_time_approved
+        }
+        @StringRes val willSyncMessage: Int = when {
+            !approve -> R.string.vm_time_rejected_will_sync
+            corrected -> R.string.vm_time_corrected_will_sync
+            else -> R.string.vm_time_approved_will_sync
+        }
+        @StringRes val thisPhoneMessage: Int = when {
+            !approve -> R.string.vm_time_rejected_on_this_phone
+            corrected -> R.string.vm_time_corrected_on_this_phone
+            else -> R.string.vm_time_approved_on_this_phone
+        }
+        @StringRes val failureMessage: Int =
+            if (approve) R.string.vm_couldnt_approve_time else R.string.vm_couldnt_reject_time
+
+        // Written down only after the answer comes back, and always from what
+        // the answer carried rather than from what was typed.
+        suspend fun store(row: TimeEntry, success: Int) {
+            runCatching { repository.updateTimeEntry(row) }
+                .onSuccess { _message.value = UiMessage(success) }
+                .onFailure { _message.value = UiMessage(failureMessage, listOf(it.message.orEmpty())) }
+        }
+
+        when (val sent = TimeApproval.decide(entry.syncId, approve, note)) {
+            is TimeApproval.Outcome.Saved -> store(
+                entry.copy(
+                    startedAt = startedAt,
+                    endedAt = endedAt ?: entry.endedAt,
+                    // approvedBy is the server's, derived from the signed-in
+                    // person's profile -- not the string this screen guessed
+                    // at from an email address.
+                    approvedAt = sent.approvedAt,
+                    approvedBy = sent.approvedBy,
+                    rejectedAt = sent.rejectedAt,
+                    reviewNote = sent.reviewNote
+                ),
+                savedMessage
+            )
+
+            // No row in the cloud to decide about yet. The insert-only pass is
+            // the one pass that still carries approved_at/rejected_at, and it
+            // is the pass a brand new shift goes up on, so stamping it here is
+            // what makes the decision travel with it.
+            TimeApproval.Outcome.NotInCloudYet -> store(
+                localDecision(entry, approve, approvedBy, note, startedAt, endedAt), willSyncMessage
+            )
+
+            // One person working alone on their own phone: no cloud, nothing
+            // to be wrong about.
+            TimeApproval.Outcome.NotSignedIn -> store(
+                localDecision(entry, approve, approvedBy, note, startedAt, endedAt), thisPhoneMessage
+            )
+
+            // The server answered no. Its own sentence, verbatim -- it names
+            // the actual rule ("needs APPROVE_TIME", "cannot be signed off by
+            // the person being paid for it") and sending someone hunting for
+            // an hour instead is the thing to avoid.
+            is TimeApproval.Outcome.Refused ->
+                _message.value = UiMessage(
+                    if (approve) R.string.vm_time_approval_refused
+                    else R.string.vm_time_rejection_refused,
+                    listOf(sent.detail)
+                )
+
+            // Nothing was saved anywhere. Said plainly, because the shift is
+            // still in the queue and the person needs to know to come back to
+            // it rather than assume it went through.
+            TimeApproval.Outcome.Unreachable ->
+                _message.value = UiMessage(
+                    if (approve) R.string.vm_time_approval_unreachable
+                    else R.string.vm_time_rejection_unreachable
+                )
+        }
     }
 
+    /**
+     * The decision written with this phone's own clock, for the two cases
+     * where there is genuinely nothing on the server to read it back from.
+     *
+     * Mirrors what `approve_time_entry` writes, column for column, so a shift
+     * decided offline and one decided against the cloud end up in the same
+     * shape: a decision is an approval OR a rejection, never both.
+     */
+    private fun localDecision(
+        entry: TimeEntry,
+        approve: Boolean,
+        approvedBy: String,
+        note: String,
+        startedAt: Long,
+        endedAt: Long?
+    ): TimeEntry = entry.copy(
+        startedAt = startedAt,
+        endedAt = endedAt ?: entry.endedAt,
+        approvedAt = if (approve) System.currentTimeMillis() else null,
+        approvedBy = if (approve) approvedBy else "",
+        rejectedAt = if (approve) null else System.currentTimeMillis(),
+        reviewNote = note
+    )
+
     fun reject(entry: TimeEntry, note: String) {
+        // The same rule as [approve], and the server applies it to a rejection
+        // too: the own-shift test in approve_time_entry runs before it looks at
+        // which way the decision goes. Sending your own hours back with a note
+        // is still deciding your own hours.
+        if (isOwnShift(entry)) {
+            _message.value = UiMessage(R.string.vm_time_cannot_decide_own)
+            return
+        }
         viewModelScope.launch {
-            runCatching { repository.rejectTimeEntry(entry, note) }
-                .onSuccess { _message.value = UiMessage(R.string.vm_time_rejected) }
-                .onFailure { _message.value = UiMessage(R.string.vm_couldnt_reject_time, listOf(it.message.orEmpty())) }
+            sendDecision(
+                entry, approve = false, note = note,
+                startedAt = entry.startedAt, endedAt = entry.endedAt,
+                approvedBy = "", corrected = false
+            )
         }
     }
 }

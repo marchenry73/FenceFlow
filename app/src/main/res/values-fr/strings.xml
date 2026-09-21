@@ -1572,6 +1572,15 @@
     <string name="vm_time_correction_unreachable">Non approuvé. La correction n’a pas pu être envoyée — aucune connexion. Réessayez quand vous aurez du réseau.</string>
     <string name="vm_time_rejected">Quart renvoyé à l\'employé.</string>
     <string name="vm_couldnt_reject_time">Impossible de renvoyer ce quart : %1$s</string>
+    <string name="vm_time_approved_will_sync">Approuvé. L’approbation partira avec ce quart à la prochaine synchronisation.</string>
+    <string name="vm_time_approved_on_this_phone">Approuvé sur ce téléphone.</string>
+    <string name="vm_time_approval_refused">Non approuvé : %1$s</string>
+    <string name="vm_time_approval_unreachable">Non approuvé. L’approbation n’a pas pu être envoyée — aucune connexion. Le quart reste en attente ; réessayez quand vous aurez du réseau.</string>
+    <string name="vm_time_rejected_will_sync">Renvoyé. Le renvoi partira avec ce quart à la prochaine synchronisation.</string>
+    <string name="vm_time_rejected_on_this_phone">Renvoyé, sur ce téléphone.</string>
+    <string name="vm_time_rejection_refused">Non renvoyé : %1$s</string>
+    <string name="vm_time_rejection_unreachable">Non renvoyé. L’envoi n’a pas pu se faire — aucune connexion. Le quart reste en attente ; réessayez quand vous aurez du réseau.</string>
+    <string name="vm_time_cannot_decide_own">Un quart ne peut pas être approuvé par la personne qui est payée pour. Demandez à quelqu’un d’autre de le réviser.</string>
     <string name="vm_time_fixed_will_retry">Corrigé. Ce quart sera téléversé à la prochaine synchronisation.</string>
     <string name="vm_couldnt_fix_time">Impossible de corriger ce quart : %1$s</string>
     <string name="vm_time_discarded">Quart supprimé.</string>

@@ -14,7 +14,27 @@
 --     anywhere in it.
 --   * the only RESTRICTIVE policy that mentions permissions,
 --     time_entries_pay_needs_see_pay, is SELECT-side. It decides who may READ
---     a rate. It has nothing to say about an UPDATE.
+--     a rate, and it did not stop the MANAGER above, who holds SEE_PAY.
+--
+--     CORRECTION, 2026-09-20. The sentence that stood here -- "It has nothing
+--     to say about an UPDATE" -- is wrong, and it is wrong in the direction
+--     that hides a live defect. Postgres applies SELECT policies to the row an
+--     UPDATE READS, and to the conflicting row an INSERT ... ON CONFLICT
+--     touches. So for a caller WITHOUT SEE_PAY a colleague's shift is not
+--     merely unreadable, it is unwritable: measured live on 2026-09-20 in a
+--     rolled-back transaction, a FOREMAN (APPROVE_TIME, no SEE_PAY) approving
+--     a colleague's shift moved 0 rows with no error on a plain UPDATE, and
+--     was refused 42501 'new row violates row-level security policy
+--     "time_entries_pay_needs_see_pay"' on the upsert shape
+--     EntitySync.pushTimeEntries actually sends -- with a MANAGER doing the
+--     same as the positive control. The refusal does not depend on which
+--     columns are sent: the same upsert carrying no approval columns at all,
+--     and the insert-only (ON CONFLICT DO NOTHING) pass, were refused too.
+--     It remains true that this policy asks nothing about PERMISSIONS on an
+--     update -- which is what this file is about, and what the MANAGER case
+--     above proves -- but it is not silent on updates. See
+--     supabase_p3_approve_time_entry.sql, which gives the foreman a door
+--     without widening this policy by a single row.
 --   * guard_time_entry_approval() returns early whenever approved_at,
 --     approved_by and rejected_at are all unchanged. That early return is
 --     correct and is kept -- crew clock out and the office corrects shifts
