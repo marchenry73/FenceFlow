@@ -3126,6 +3126,13 @@ const TL = {
     alertSeenTooltip:'Mark as seen — hide until this changes',
     alertAllClearMsg:'All clear — nothing is waiting on you.',
     alertSeenCountMsg:'%s more marked seen — hidden until they change.',
+    sevCriticalLabel:'Critical',
+    sevWarnLabel:'Warning',
+    sevInfoLabel:'Info',
+    alertInfoCollapsedMsg:'%s more routine items',
+    alertInfoHideMsg:'Hide routine items',
+    briefSectionCountFmt:'%s (%s)',
+    briefNothingElseMsg:'Nothing else today: %s.',
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
@@ -3989,6 +3996,13 @@ const TL = {
     alertSeenTooltip:'Marcar como visto — ocultar hasta que esto cambie',
     alertAllClearMsg:'Todo en orden — nada pendiente para usted.',
     alertSeenCountMsg:'%s más marcados como vistos — ocultos hasta que cambien.',
+    sevCriticalLabel:'Crítico',
+    sevWarnLabel:'Advertencia',
+    sevInfoLabel:'Información',
+    alertInfoCollapsedMsg:'%s elementos de rutina más',
+    alertInfoHideMsg:'Ocultar elementos de rutina',
+    briefSectionCountFmt:'%s (%s)',
+    briefNothingElseMsg:'Nada más por hoy: %s.',
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
@@ -4852,6 +4866,13 @@ const TL = {
     alertSeenTooltip:'Marquer comme vu — masquer jusqu\'à ce que cela change',
     alertAllClearMsg:'Tout est réglé — rien n\'est en attente pour vous.',
     alertSeenCountMsg:'%s de plus marqués vus — masqués jusqu\'à ce qu\'ils changent.',
+    sevCriticalLabel:'Critique',
+    sevWarnLabel:'Avertissement',
+    sevInfoLabel:'Info',
+    alertInfoCollapsedMsg:'%s éléments de routine de plus',
+    alertInfoHideMsg:'Masquer les éléments de routine',
+    briefSectionCountFmt:'%s (%s)',
+    briefNothingElseMsg:'Rien d\'autre aujourd\'hui : %s.',
   },
 };
 
@@ -5166,6 +5187,61 @@ const ALERT_DEFS = [
 // every alert reads as on -- exactly today's behaviour.
 const alertOn = key => !mutedAlerts.has(key);
 
+/* ---------- explicit severity for every ALERT_DEFS detector -- office audit,
+   "make the office show what matters" --------------------------------------
+   Ranked by consequence, same order the audit asked for: money already at
+   risk or already gone, a crew about to be sent to a job that is not ready,
+   or a legal/safety requirement (811, permit, HOA) outrank a mere
+   housekeeping item. This is documentation the owner can disagree with on a
+   line-by-line basis -- it is NOT what renderDash() reads at push time (each
+   items.push({severity:...}) call above stays the source of truth, because
+   one detector, uncontacted_lead, genuinely changes severity with the
+   fingerprint's age and a static map cannot express that); this table exists
+   so a person auditing the alert list, or a future screen that lists
+   detectors by name, does not have to go re-read 24 push sites to see the
+   ranking. Keep it in sync with the inline severities above if either
+   changes -- tests/dashboard-alert-severity.test.mjs checks the two agree
+   for every fixed-severity detector.
+   The two phone-only keys at the bottom (job_overdue, weekly_digest) have no
+   detector on this page at all -- see the ALERT_DEFS comment below them --
+   but a severity is still assigned so "manage what reaches me" in Settings
+   can eventually show a severity tag next to every row, not just the 24 this
+   page computes itself. */
+const ALERT_SEVERITY = {
+  // -- money already at risk or already gone --
+  dispute_open:          'critical', // a chargeback: the money is already gone, job still reads paid
+  no_deposit:             'critical', // scheduled work with zero money down
+  paid_then_declined:     'critical', // money collected on a job marked lost -- somebody owes somebody
+  payment_failed:         'critical', // a real charge attempt was declined or cancelled
+  // -- a crew about to be sent to a job that is not ready --
+  materials_missing:      'critical', // truck would arrive with nothing to build with
+  unassigned_scheduled:   'critical', // a date on the calendar with nobody assigned to show up
+  scheduled_but_blocked:  'critical', // combines every jobReadiness() failure for a job on the calendar
+  // -- legal/safety deadlines --
+  hoa_missing:            'critical', // built without HOA sign-off is the office's liability
+  permit_missing:         'critical', // built without a permit is the office's liability
+  locate_never_requested: 'critical', // 811 never called before a truck is due this week
+  // -- speed-to-lead: cheap to fix, expensive to ignore, escalates with age --
+  uncontacted_lead:       'warn',     // warn under 24h since first contact was due, critical past it (see push site)
+  // -- real money or a promise slipping, but nothing has failed outright --
+  unsigned_approved:      'warn',    // approved with no signature -- no contract to point to yet
+  needs_reapproval:       'warn',    // the drawing changed after approval; only a fresh approval clears it
+  labour_over:            'warn',    // labour has already cost more than it was priced at
+  material_over_budget:   'warn',    // same, for materials
+  job_overrun:            'warn',    // past its own estimated finish and not done
+  approved_unscheduled:   'warn',    // said yes, still no date three days later
+  clocked_in_long:        'warn',    // sixteen-plus hours on the clock, worth a look but not yet an emergency
+  clocked_in_finished:    'warn',    // clock still running against a job the office already closed
+  correction_disputed:    'warn',    // a crew member says a corrected shift is wrong -- pay is in question
+  // -- housekeeping: worth knowing, nothing is on fire --
+  stale_quote:            'info',    // gone quiet, not gone wrong -- no deadline has passed
+  unverified_prices:      'info',    // sending is already blocked elsewhere; this is a heads-up
+  stage_stalled:          'info',    // sitting in one production stage three weeks, not urgent by itself
+  correction_awaiting_answer: 'info', // a corrected shift the crew member has not opened yet
+  job_overdue:            'critical', // phone-raised; same deadline-passed shape as locate_expired above
+  weekly_digest:          'info',    // a scheduled recap, not an exception
+};
+
 /* ---------- "seen" state for the Needs-attention list -- launch audit §28 ----
    Muting (above) is "never show me this kind of alert again". This is the
    other half: "I have seen THIS one, for now".
@@ -5242,6 +5318,55 @@ async function dismissAlert(key, fp){
 // (a locate, a truck with nothing on it, money already moved); 'warn' = real
 // but not time-boxed; 'info' = worth knowing, nothing is on fire.
 const SEV_DOT = { critical: 'var(--bad,#b3261e)', warn: 'var(--warn-fg,#8A5200)', info: 'var(--muted)' };
+// Severity conveyed by more than the border colour, for anyone who cannot
+// tell the amber border from the red one (or is on a screen reader that
+// never sees a border at all): a short icon glyph and a translated text
+// label, both keyed off the same three tiers as SEV_DOT. The icon is
+// decorative (aria-hidden) since the label right after it says the same
+// thing in words.
+const SEV_META = {
+  critical: { icon: '⛔', labelKey: 'sevCriticalLabel' },
+  warn:     { icon: '⚠',  labelKey: 'sevWarnLabel' },
+  info:     { icon: 'ⓘ',  labelKey: 'sevInfoLabel' },
+};
+function sevMeta(sev){ return SEV_META[sev] || SEV_META.info; }
+
+/* Stable ordering for the Needs-attention list and the briefing's Risks
+   section: severity first (critical, then warn, then info), oldest within a
+   tier next. "Age" is read from `fp` when it parses as a date -- fp is
+   whichever field the detector fingerprints itself on, and for the great
+   majority of detectors above that IS the event timestamp the alert is
+   about (updated_at, scheduled_date, quote_approved_at...). Where fp is not
+   a date (a plain count, like pending_shifts), Date.parse returns NaN and
+   the item falls back to the order it was pushed in, which is what already
+   shipped -- this only adds ranking on top, it never reorders two items that
+   were previously unordered by anything meaningful.
+   A plain Array.sort is not used directly because it is not guaranteed
+   stable across every engine this page might run in; the (severity, age,
+   original index) triple below makes the fallback explicit instead of
+   relying on engine behaviour. */
+const SEV_RANK = { critical: 0, warn: 1, info: 2 };
+// getSev/getFp are pulled out so the SAME comparator serves both the
+// Needs-attention list (items carry severity/fp directly) and the daily
+// briefing's per-section lines (severity/fp live on `l.item`, and a plain
+// "since yesterday" activity line with no item at all falls back to the
+// lowest tier, same as an attention item with no severity would). Sorting
+// never clones the array's elements, only their order -- the objects
+// returned are the original ones, so any index a caller took before sorting
+// (e.g. allLines.indexOf(l) in renderBriefing) still finds the same item
+// after.
+function sortBySeverityThenAge(list, getSev = it => it.severity, getFp = it => it.fp){
+  return list
+    .map((it, i) => ({ it, i, rank: SEV_RANK[getSev(it)] ?? SEV_RANK.info, age: Date.parse(getFp(it)) }))
+    .sort((a, b) => (a.rank - b.rank) || (
+      // Both ages real: older (smaller timestamp) first. Either age missing
+      // (NaN): treat as equal so the stable original order decides.
+      (Number.isNaN(a.age) || Number.isNaN(b.age)) ? 0 : a.age - b.age
+    ) || (a.i - b.i))
+    .map(x => x.it);
+}
+const sortAttentionItems = items => sortBySeverityThenAge(items);
+const sortBriefingLines = lines => sortBySeverityThenAge(lines, l => l.item?.severity, l => l.item?.fp);
 
 /* ---------- desktop notifications for when nobody is looking at the tab ----
    Email is deliberately not built here: there is no mail key configured on
@@ -5269,6 +5394,11 @@ async function enableDesktopAlerts(){
 // for, so a tab left open in the background all afternoon does not re-notify
 // on every render -- only for a key+fingerprint pair not seen before.
 let notifiedAlertKeys = new Map();
+// Whether the collapsed "routine items" group under Needs Attention is
+// currently expanded. Per-session only (not persisted, not per-item) -- this
+// is a display fold, not another layer of dismiss/seen state; those stay
+// exactly as they were, keyed per item as always.
+let attnInfoExpanded = false;
 function notifyOfNewAlerts(items){
   if (!desktopAlertsEnabled() || document.visibilityState !== 'hidden') return;
   const fresh = items.filter(it => (it.severity === 'critical' || it.severity === 'warn')
@@ -6211,7 +6341,7 @@ function showBlocked(status){
   document.getElementById('blockedRetry')
     .addEventListener('click', () => location.reload());
   document.getElementById('blockedOut')
-    .addEventListener('click', async () => { await db.auth.signOut(); location.reload(); });
+    .addEventListener('click', async () => { await db.auth.signOut({scope:'local'}); location.reload(); });
 }
 
 /**
@@ -7888,8 +8018,20 @@ function renderDash(){
   dashSnapshot = { todaysJobs, onTheClock, soon, won, collected, owedTotal };
   notifyOfNewAlerts(items);
 
-  const visible = items.filter(it => !isAlertSeen(it));
+  // Severity first, then age within a tier -- see sortAttentionItems() above.
+  // Ordering never drops or adds a detector; every alert that fired before
+  // still fires, and mute/seen still work exactly as before.
+  const visible = sortAttentionItems(items.filter(it => !isAlertSeen(it)));
   const seenCount = items.length - visible.length;
+  // Quiet items (info: worth knowing, nothing on fire) collapse behind a
+  // count once there are more than a few, so a Money or Risks item that
+  // actually costs something is not diluted by a run of housekeeping rows
+  // beneath it. Loud items (critical, warn) never collapse.
+  const INFO_COLLAPSE_ABOVE = 3;
+  const loud = visible.filter(it => it.severity !== 'info');
+  const quiet = visible.filter(it => it.severity === 'info');
+  const collapseInfo = quiet.length > INFO_COLLAPSE_ABOVE && !attnInfoExpanded;
+  const idxOf = it => visible.indexOf(it);
   // "Alerts need to look better and does not need that much space, need to
   // be simpler and better." Every alert here still fires exactly as before
   // and mute/seen still work the same -- this is layout only. What changed:
@@ -7902,24 +8044,69 @@ function renderDash(){
   // clicked) instead of wrapping to a second line and doubling the row's
   // height. The job or person named in the alert is always the tail end of
   // the sentence, so truncation clips context, never the subject.
-  $('attention').innerHTML = (visible.length
-    ? visible.map((it,i)=>`<div class="att-row" data-att-idx="${i}" data-att-id="${it.id??''}" data-att-go="${it.go||''}"
+  //
+  // Severity now also carries visual WEIGHT, not just colour: critical rows
+  // are bold with a tinted background, info rows are smaller and muted, warn
+  // sits at the existing default weight in between. And severity is never
+  // colour alone -- an icon (aria-hidden, decorative) sits beside the text,
+  // and the row's aria-label spells out the tier in words for anyone who
+  // cannot see the border colour or the icon glyph at all.
+  const rowHtml = it => {
+    const meta = sevMeta(it.severity);
+    const sevLabel = tr(meta.labelKey);
+    const weight = it.severity === 'critical'
+      ? 'font-weight:700;background:var(--bad-bg,var(--paper));'
+      : it.severity === 'info'
+        ? 'font-size:12px;color:var(--muted);'
+        : '';
+    return `<div class="att-row" data-att-idx="${idxOf(it)}" data-att-id="${it.id??''}" data-att-go="${it.go||''}"
          style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;
-                background:var(--paper);margin-bottom:4px;
+                background:var(--paper);margin-bottom:4px;${weight}
                 border-left:3px solid ${SEV_DOT[it.severity]||SEV_DOT.info}">
-         <span class="att-open" style="flex:1;min-width:0;cursor:pointer;font-size:13px;
+         <span aria-hidden="true" title="${esc(sevLabel)}" style="flex:none;font-size:12px;line-height:1">${meta.icon}</span>
+         <span class="att-open" role="button" tabindex="0" aria-label="${esc(sevLabel)}: ${esc(it.text)}"
+               style="flex:1;min-width:0;cursor:pointer;font-size:inherit;
                white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(it.text)}">${esc(it.text)}</span>
-         ${it.key ? `<button type="button" class="btn-grey btn-sm" data-att-dismiss="${i}"
+         ${it.key ? `<button type="button" class="btn-grey btn-sm" data-att-dismiss="${idxOf(it)}"
                style="padding:3px 8px;font-size:11px;flex:none" title="${esc(tr('alertSeenTooltip'))}">${esc(tr('alertSeenBtn'))}</button>` : ''}
-         </div>`).join('')
+         </div>`;
+  };
+  const infoToggleHtml = collapseInfo
+    ? `<div class="att-row att-info-toggle" data-att-toggle-info="1" role="button" tabindex="0"
+           aria-label="${esc(tr('alertInfoCollapsedMsg', quiet.length))}"
+           style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;
+                  cursor:pointer;color:var(--muted);font-size:12px;border-left:3px solid ${SEV_DOT.info}">
+         <span aria-hidden="true">${SEV_META.info.icon}</span>
+         <span>${esc(tr('alertInfoCollapsedMsg', quiet.length))}</span>
+       </div>`
+    : (quiet.length > INFO_COLLAPSE_ABOVE
+        ? `<div class="att-row att-info-toggle" data-att-toggle-info="0" role="button" tabindex="0"
+               aria-label="${esc(tr('alertInfoHideMsg'))}"
+               style="display:flex;align-items:center;gap:8px;padding:4px 8px;cursor:pointer;color:var(--muted);font-size:12px">
+             <span>${esc(tr('alertInfoHideMsg'))}</span>
+           </div>`
+        : '');
+  $('attention').innerHTML = (visible.length
+    ? loud.map(rowHtml).join('')
+      + infoToggleHtml
+      + (collapseInfo ? '' : quiet.map(rowHtml).join(''))
     : `<div class="empty">${esc(tr('alertAllClearMsg'))}</div>`)
     + (seenCount ? `<div class="empty" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">${esc(tr('alertSeenCountMsg', seenCount))}</div>` : '');
-  document.querySelectorAll('.att-row').forEach(el=>{
+  document.querySelectorAll('.att-row:not(.att-info-toggle)').forEach(el=>{
     el.querySelectorAll('.att-open').forEach(span=>span.addEventListener('click',()=>{
       if (el.dataset.attId) showJob(el.dataset.attId);
       else if (el.dataset.attGo) switchTab(el.dataset.attGo);
     }));
   });
+  document.querySelectorAll('[data-att-toggle-info]').forEach(el=>el.addEventListener('click', () => {
+    attnInfoExpanded = el.dataset.attToggleInfo === '1';
+    renderDash();
+  }));
+  // Keyed by (key, fp) via the item itself, exactly as before -- data-att-idx
+  // only locates which entry of THIS render's `visible` array to read; the
+  // identity dismissAlert() actually stores is it.key + it.fp, so dismissing
+  // one row can never dismiss another one even though the list reorders
+  // between renders (see tests/dashboard-alert-severity.test.mjs).
   document.querySelectorAll('[data-att-dismiss]').forEach(btn=>btn.addEventListener('click', e=>{
     e.stopPropagation();
     const it = visible[Number(btn.dataset.attDismiss)];
@@ -8074,26 +8261,57 @@ function renderBriefing(){
       + dashSnapshot.onTheClock.length + ' on the clock now'
     : '';
 
-  const sectionsHtml = BRIEFING_SECTIONS
-    .filter(([key]) => key !== 'money' || seeMoney)
-    .map(([key, label]) => {
-      const lines = allLines.filter(l => l.section === key);
-      const body = lines.length
-        ? '<ul style="margin:0;padding-left:18px">' + lines.map((l,i) => {
-            const idx = allLines.indexOf(l);
-            return `<li class="brief-open" data-brief-idx="${idx}" style="cursor:pointer${l.urgent ? ';color:var(--bad,#b3261e)' : ''}">${esc(l.text)}</li>`;
-          }).join('') + '</ul>'
-        : '<div class="empty">Nothing here.</div>';
-      return `<div>
-        <div style="font-weight:700;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${esc(label)}</div>
+  // Section audit finding #1: six equal-weight columns, most of them usually
+  // "Nothing here." on an ordinary day -- that reads backwards, the one
+  // column with something in it gets diluted by four or five empty ones
+  // next to it at the same visual size. Fix is layout only, same six
+  // sections, same lines, nothing added or removed: a section with content
+  // keeps its own column and gets a count badge in its header (so "where is
+  // the volume" doesn't need a full read of every column); a section with
+  // nothing collapses out of the grid entirely and its name moves into one
+  // quiet line below, once, instead of a header + empty-state block each.
+  const applicableSections = BRIEFING_SECTIONS.filter(([key]) => key !== 'money' || seeMoney);
+  const sectionLines = applicableSections.map(([key, label]) => {
+    // Risks is the one section the audit named explicitly: HOA/permit/811
+    // gaps and open disputes sit beside routine housekeeping otherwise.
+    // The other five sections keep their existing order -- narrowing this
+    // to Risks only, rather than re-ordering everywhere, is a smaller,
+    // more reviewable change for the same asked-for fix.
+    const lines = key === 'risks'
+      ? sortBriefingLines(allLines.filter(l => l.section === key))
+      : allLines.filter(l => l.section === key);
+    return { key, label, lines };
+  });
+  const nonEmpty = sectionLines.filter(s => s.lines.length);
+  const empty = sectionLines.filter(s => !s.lines.length);
+
+  const sectionsHtml = nonEmpty.map(({ label, lines }) => {
+    const header = tr('briefSectionCountFmt', label, String(lines.length));
+    const body = '<ul style="margin:0;padding-left:18px">' + lines.map(l => {
+      const idx = allLines.indexOf(l);
+      return `<li class="brief-open" data-brief-idx="${idx}" style="cursor:pointer${l.urgent ? ';color:var(--bad,#b3261e)' : ''}">${esc(l.text)}</li>`;
+    }).join('') + '</ul>';
+    return `<div>
+        <div style="font-weight:700;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${esc(header)}</div>
         ${body}
       </div>`;
-    }).join('');
+  }).join('');
+  // Quiet by design: no grid cell, no per-section header, no "all clear"
+  // banner -- one small muted line naming what has nothing to report, so a
+  // healthy day stays visually silent instead of shouting "Nothing here"
+  // four or five times at full column weight.
+  // Only alongside sections that DO have something. On an all-clear day the
+  // all-clear line below already says it; naming every section a second time
+  // underneath it was the redundancy this layout exists to remove.
+  const nothingElseHtml = (empty.length && nonEmpty.length)
+    ? `<div style="margin-top:10px;color:var(--muted);font-size:12px">${esc(tr('briefNothingElseMsg', empty.map(s => s.label).join(', ')))}</div>`
+    : '';
 
   $('briefingBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px">
+    ${nonEmpty.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px">
       ${sectionsHtml}
-    </div>
+    </div>` : `<div class="empty">${esc(tr('alertAllClearMsg'))}</div>`}
+    ${nothingElseHtml}
     ${todayLine ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:13px">${esc(todayLine)}</div>` : ''}
   `;
 
@@ -16863,11 +17081,14 @@ $('authToggle').addEventListener('click',e=>{
 });
 // index.html's "Start free trial" buttons land here ready to sign up.
 if (location.hash === '#signup') setAuthMode('signup');
-$('signOut').addEventListener('click',async()=>{await db.auth.signOut();location.reload();});
+// Local scope, not the SDK's default of global. Global revokes every refresh
+// token the account holds, so an owner signing out of the office at a desk was
+// silently signed out of the phone app in the field as well.
+$('signOut').addEventListener('click',async()=>{await db.auth.signOut({scope:'local'});location.reload();});
 $('authSignOutLink').addEventListener('click',async e=>{
   e.preventDefault();
   msg('authMsg',tr('authSigningOut'),'working');
-  await db.auth.signOut();
+  await db.auth.signOut({scope:'local'});
   location.reload();
 });
 $('refresh').addEventListener('click',loadAll);

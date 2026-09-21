@@ -31,6 +31,27 @@ data class UnsyncedSummary(
 }
 
 /**
+ * Whether this phone holds an edit to [job] that the cloud has not got.
+ *
+ * Never stamped (a job made here and never pushed), or edited since the
+ * stamp. A local edit moves [Job.updatedAt] to the device clock
+ * (Repository.updateJob); a push stamps [Job.lastSyncedAt] after it; and a
+ * pull that writes the cloud's copy sets both to the cloud's own updated_at
+ * (JobSync's toLocalJob and mergeOnto), so a pulled job nobody touched reads
+ * as synced -- which it is.
+ *
+ * It did not, before: only a push stamped, and a job the office made was
+ * never pushed from here, so every one of them counted as unsynced work on
+ * every phone for ever. The sign-out warning that protects a signature taken
+ * in a yard with no signal cried wolf on every handset, and the button people
+ * learned to tap was the one that signs out anyway.
+ *
+ * Top level and pure so a test can hold the pull's stamp to it.
+ */
+internal fun jobHoldsUnpushedEdit(job: Job): Boolean =
+    job.lastSyncedAt == null || job.updatedAt > job.lastSyncedAt
+
+/**
  * What happened when a crew member tapped End Break, spelled out so the
  * screen can say why nothing was saved instead of guessing from a null.
  */
@@ -348,10 +369,11 @@ class Repository(private val db: AppDatabase) {
      * Counts what a wipe would actually destroy, using the same signals the
      * pushers themselves act on rather than inventing new ones.
      *
-     * A job counts as unsynced by the same test [com.fenceestimator.app.cloud.JobSync]
-     * effectively applies: [Job.lastSyncedAt] is only ever stamped the moment a
-     * push for that row succeeds, and never otherwise, so "never stamped, or
-     * stamped before the last edit" is exactly "the next sync would push this."
+     * A job counts as unsynced by [jobHoldsUnpushedEdit]: never stamped, or
+     * edited since the stamp. [Job.lastSyncedAt] is stamped when a push for
+     * that row succeeds AND when a pull writes the cloud's own copy onto the
+     * phone -- see that field's doc for why the second half matters (without
+     * it every job pulled from the office counted here for ever).
      * Files are counted the same way [JobFileUploader] decides whether to
      * upload one: a local path with no storage path yet, on a signature, a
      * survey, a final sign-off, a change-order signature, or a photo.
@@ -367,7 +389,7 @@ class Repository(private val db: AppDatabase) {
         var files = 0
 
         jobs.forEach { job ->
-            if (job.lastSyncedAt == null || job.updatedAt > job.lastSyncedAt) {
+            if (jobHoldsUnpushedEdit(job)) {
                 unsyncedJobIds += job.id
             }
             if (job.signatureImagePath != null && job.signatureStoragePath == null) {
@@ -726,6 +748,13 @@ class Repository(private val db: AppDatabase) {
      * tries it again. Works for any blocked shift, not only NEEDS_WORKER --
      * a person picking who worked it is also the right response to some
      * other permanent rejection tied to the employee link.
+     *
+     * Stamps [TimeEntry.workerChangedAt] as well. A shift the cloud has never
+     * held goes up whole on the insert-only pass, new worker and all -- but a
+     * shift it ALREADY holds is untouched by that pass, and the push writes a
+     * held shift again only when this stamp says there is a change to send.
+     * Without it the Fix would read "will upload on the next sync" and the
+     * cloud would keep the old worker for ever.
      */
     suspend fun assignEmployeeAndRetry(entry: TimeEntry, employeeId: Long) {
         // The cloud refuses a shift whose employee_sync_id is blank, so a
@@ -741,10 +770,24 @@ class Repository(private val db: AppDatabase) {
                 employeeId = employeeId,
                 syncBlockedReason = null,
                 syncBlockedAt = null,
-                syncBlockedDetail = null
+                syncBlockedDetail = null,
+                workerChangedAt = System.currentTimeMillis()
             )
         )
     }
+
+    /** The push's bookkeeping -- see the notes on [TimeEntryDao.markSyncBlocked]. */
+    suspend fun markTimeEntrySyncBlocked(entryId: Long, reason: String, at: Long, detail: String?) =
+        timeEntryDao.markSyncBlocked(entryId, reason, at, detail)
+
+    suspend fun clearTimeEntrySyncBlock(entryId: Long) = timeEntryDao.clearSyncBlock(entryId)
+
+    /**
+     * The cloud confirmed [entry]'s worker change. Returns 0, and clears
+     * nothing, when [entry]'s stamp is stale -- a newer Fix is still owed.
+     */
+    suspend fun confirmWorkerChangeSynced(entry: TimeEntry): Int =
+        entry.workerChangedAt?.let { timeEntryDao.confirmWorkerChange(entry.id, it) } ?: 0
 
     /**
      * Starts the clock for [employeeId] on this job. Returns the existing entry

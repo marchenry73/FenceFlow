@@ -382,6 +382,40 @@ interface TimeEntryDao {
     /** See [JobDao.scrubMoney] -- same reasoning. TimeEntry carries no edit clock to protect. */
     @Query("UPDATE time_entries SET hourlyRate = 0.0")
     suspend fun scrubMoney(): Int
+
+    /*
+     * The three below are the push's bookkeeping, written as column-level
+     * updates rather than `update(entry.copy(...))` on purpose: the push works
+     * from a snapshot read at the top of the pass, and writing that whole
+     * snapshot back would undo anything a person did to the shift while the
+     * requests were in flight -- a sign-off, or a second Fix.
+     */
+
+    /** Records the server's refusal of one shift, and when (see [TimeEntry.syncBlockedAt]). */
+    @Query(
+        "UPDATE time_entries SET syncBlockedReason = :reason, syncBlockedAt = :at, " +
+            "syncBlockedDetail = :detail WHERE id = :id"
+    )
+    suspend fun markSyncBlocked(id: Long, reason: String, at: Long, detail: String?): Int
+
+    /** Clears a refusal the shift has since got past. */
+    @Query(
+        "UPDATE time_entries SET syncBlockedReason = NULL, syncBlockedAt = NULL, " +
+            "syncBlockedDetail = NULL WHERE id = :id"
+    )
+    suspend fun clearSyncBlock(id: Long): Int
+
+    /**
+     * The cloud now holds the worker change stamped [changedAt]. A no-op when
+     * the stamp has moved on -- somebody picked again while this one was in
+     * flight, and that newer choice still has to go up.
+     */
+    @Query(
+        "UPDATE time_entries SET workerChangedAt = NULL, syncBlockedReason = NULL, " +
+            "syncBlockedAt = NULL, syncBlockedDetail = NULL " +
+            "WHERE id = :id AND workerChangedAt = :changedAt"
+    )
+    suspend fun confirmWorkerChange(id: Long, changedAt: Long): Int
 }
 
 @Dao

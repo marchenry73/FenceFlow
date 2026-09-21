@@ -1,0 +1,75 @@
+# Hourly trigger for the send-follow-ups edge function.
+#
+# send-follow-ups (supabase/functions/send-follow-ups/index.ts) is built,
+# tested, and safe-by-default -- but nothing calls it. There is no pg_cron in
+# this Supabase project (pg_net exists, pg_cron does not; see the function's
+# own RUNBOOK comment), and a second scheduled compute instance is explicitly
+# rejected by this repo's cost rule (CLAUDE.md). This workflow is "Option B"
+# from that RUNBOOK comment: an external cron caller, at zero infrastructure
+# cost, using a scheduler this repo already runs jobs on.
+#
+# This workflow can only trigger a send if a company has ALSO opted itself
+# into follow_up_settings.enabled = true (off by default) -- turning this
+# workflow on does not, by itself, start emailing anyone.
+#
+# Two things gate the request, both required, neither optional:
+#   - `apikey` / `Authorization: Bearer` carry the project's PUBLIC anon key
+#     (SUPABASE_ANON_KEY below is the same publishable key already shipped in
+#     website/config.js -- not a secret, just what the Supabase gateway needs
+#     to let any request through to the function at all).
+#   - `x-fenceflow-trigger` carries FOLLOWUPS_TRIGGER_SECRET, a GitHub
+#     repository secret this workflow never prints. This is the real gate --
+#     the function refuses any request without the matching value (constant-
+#     time compared against NOTIFY_TRIGGER_SECRET, same pattern as
+#     notify-job-change). See docs/FOLLOW_UPS_SCHEDULER.md for the one-time
+#     setup steps an owner (not this workflow) must do by hand.
+#
+# The run step checks the HTTP status itself and fails the job on anything
+# but 200 -- curl's own exit code does not reflect a 4xx/5xx response, so
+# `--fail` (turns a non-2xx into a real shell failure) plus reading the
+# trailing status code both have to be here, not just one of them.
+name: Follow-up email scheduler
+
+on:
+  schedule:
+    - cron: '0 * * * *' # hourly, on the hour, UTC
+  workflow_dispatch: {} # manual "run now" from the Actions tab
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke send-follow-ups
+        env:
+          TRIGGER_SECRET: ${{ secrets.FOLLOWUPS_TRIGGER_SECRET }}
+          SUPABASE_ANON_KEY: 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TRIGGER_SECRET:-}" ]; then
+            echo "::error::FOLLOWUPS_TRIGGER_SECRET is not set as a GitHub repository secret. Doing nothing -- see docs/FOLLOW_UPS_SCHEDULER.md." >&2
+            exit 1
+          fi
+
+          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST 'https://newcrgafcptspmapacrx.supabase.co/functions/v1/send-follow-ups' \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "x-fenceflow-trigger: ${TRIGGER_SECRET}" \
+            -H "Content-Type: application/json")
+
+          echo "HTTP status: ${http_status}"
+          cat response.json
+
+          if [ "${http_status}" != "200" ]; then
+            echo "::error::send-follow-ups returned HTTP ${http_status}, treating as failure." >&2
+            exit 1
+          fi
+
+          # A 200 with {"error": ...} in the body (e.g. "mail not configured")
+          # is still a failure the workflow should surface loudly rather than
+          # report green.
+          if grep -q '"error"' response.json; then
+            echo "::error::send-follow-ups responded 200 but its body reports an error (see above)." >&2
+            exit 1
+          fi

@@ -3,6 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+/* A sign-in link that lands HERE has to be sent on, before anything else.
+
+   Supabase falls back to the Site URL -- this page -- whenever it will not
+   honour the redirect a link asked for, and it does that silently: the
+   invitation, the reset or the magic link still arrives, still works once, and
+   brings its session in the URL hash. This page loads no Supabase client, so
+   nothing ever read that hash. The one-time token was already spent at the
+   auth server, the session died with this tab, and the person was left on the
+   marketing page holding a link that no longer worked.
+
+   So the hash is passed, untouched, to the page that knows what to do with it:
+     type=invite / type=magiclink -> welcome.html  (both kinds of invitation
+                                     link are addressed there, and it sends
+                                     anybody with nothing to set up on to the
+                                     dashboard)
+     type=recovery, or any other hash carrying an access_token
+                                  -> dashboard.html (it reads type=recovery
+                                     before anything else and asks for the new
+                                     password; any other session it simply opens)
+   The destinations are fixed names on this same site -- nothing in the URL can
+   choose where this goes, so it is not a redirect anybody can aim. An ordinary
+   #anchor has neither key and is left exactly as it was. */
+(function () {
+  var h = location.hash || '';
+  if (h.length < 2 || h.indexOf('=') < 0) return;
+  var p;
+  try { p = new URLSearchParams(h.slice(1)); } catch (e) { return; }
+  var type = p.get('type') || '';
+  var dest = null;
+  if (type === 'invite' || type === 'magiclink') dest = 'welcome.html';
+  else if (type === 'recovery' || p.get('access_token')) dest = 'dashboard.html';
+  if (dest) location.replace(dest + h);
+})();
+</script>
 <title>FenceFlow — Fence Estimating &amp; Job Management</title>
 <meta name="description" content="Draw the fence line, get the material list priced from your own supplier catalog. Estimating, crew, and payments for fence contractors. Built by one.">
 <meta property="og:title" content="FenceFlow — built for fence work, not adapted to it">

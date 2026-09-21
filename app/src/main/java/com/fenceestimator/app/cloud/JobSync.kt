@@ -834,6 +834,19 @@ object JobSync {
                         kind = if (!wasComplete && nowComplete) ChangeKind.MARKED_COMPLETE else ChangeKind.UPDATED
                     )
                 }
+
+                // A job pulled by an older build carries no sync stamp, because
+                // only a push used to write one -- so every job the office made
+                // counted as unsynced work on this phone for ever. The pull
+                // stamps it now (toLocalJob, mergeOnto); this repairs the ones
+                // already here, but only when the row is provably the cloud's
+                // own copy, untouched since. After the branches above, so their
+                // writes are not undone -- updateJobSyncStamp re-reads the row.
+                if (local != null) {
+                    pulledCopySyncStamp(local, cloudJob.updatedAtMillis())?.let { stamp ->
+                        repository.updateJobSyncStamp(local.id, stamp)
+                    }
+                }
             }
 
             SyncResult(uploaded, downloaded, incoming, heldBack)
@@ -1070,10 +1083,48 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     // ran because some OTHER field changed must still carry the current
     // stage down rather than leaving the phone on whatever it had cached.
     productionStage = productionStage,
-    updatedAt = updatedAtMillis()
+    updatedAt = updatedAtMillis(),
+    // The row now IS the cloud's copy as of that clock, so this phone and the
+    // cloud agree on it -- see [jobHoldsUnpushedEdit]. Only reached when the
+    // cloud row is newer than the local one, i.e. when any local edit has just
+    // lost to it anyway, so this never vouches for an edit still owed.
+    lastSyncedAt = updatedAtMillis()
 )
 
-private fun CloudJob.toLocalJob() = Job(
+/**
+ * The lastSyncedAt a job already on this phone should now carry, when its row
+ * is provably the cloud's own copy, untouched since it was pulled -- or null
+ * when there is nothing to repair or nothing can be vouched for.
+ *
+ * "Provably": [local]'s updatedAt equals the cloud's updated_at to the
+ * millisecond. A pull writes exactly that value (toLocalJob, mergeOnto), and
+ * every local edit replaces it with the device clock at the moment of the edit
+ * (Repository.updateJob), so a job anyone has touched here fails the test --
+ * and stays counted as unsynced, which is the point of the count.
+ *
+ * Exists for the jobs pulled before the pull stamped anything, which carry no
+ * stamp at all and so counted as unsynced work on every phone for ever.
+ */
+internal fun pulledCopySyncStamp(local: Job, cloudUpdatedAt: Long): Long? {
+    // 0 is updatedAtMillis()'s "could not read the cloud's clock" -- never a
+    // basis for saying two copies agree.
+    if (cloudUpdatedAt <= 0L) return null
+    if (local.updatedAt != cloudUpdatedAt) return null
+    val stamped = local.lastSyncedAt
+    return if (stamped == null || stamped < local.updatedAt) local.updatedAt else null
+}
+
+/**
+ * A job the cloud has and this phone does not, as this phone will hold it.
+ *
+ * Stamped as in step with the cloud ([Job.lastSyncedAt] = the cloud's
+ * updated_at, which is also its updatedAt), because it is: nothing on this
+ * phone has touched it yet. Without the stamp a job the office created counted
+ * as unsynced work here for ever -- see [jobHoldsUnpushedEdit].
+ *
+ * Internal, not private, so a test can hold the stamp to that.
+ */
+internal fun CloudJob.toLocalJob(): Job = Job(
     syncId = syncId,
     customerName = customerName,
     address = address,
@@ -1151,7 +1202,8 @@ private fun CloudJob.toLocalJob() = Job(
     pricedAt = CloudTime.parseMillis(pricedAt),
     pricingEngineVersion = pricingEngineVersion,
     quoteSentAt = CloudTime.parseMillis(quoteSentAt),
-    updatedAt = updatedAtMillis()
+    updatedAt = updatedAtMillis(),
+    lastSyncedAt = updatedAtMillis()
 )
 
 /**

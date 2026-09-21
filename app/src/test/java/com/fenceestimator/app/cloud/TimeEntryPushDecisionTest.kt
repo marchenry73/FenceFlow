@@ -1,6 +1,7 @@
 package com.fenceestimator.app.cloud
 
 import io.github.jan.supabase.exceptions.BadRequestRestException
+import io.github.jan.supabase.exceptions.NotFoundRestException
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.exceptions.UnauthorizedRestException
 import io.github.jan.supabase.exceptions.UnknownRestException
@@ -125,5 +126,97 @@ class TimeEntryPushDecisionTest {
         val error = UnknownRestException("upstream unavailable", response(HttpStatusCode.ServiceUnavailable), "details")
         assertEquals(503, error.statusCode)
         assertTrue(classifyRowRejection(error) is RowRejection.Retry)
+    }
+
+    // ---- the transient 4xx that used to tattoo a shift (2026-09-21) ----
+
+    /** What postgrest-kt throws for PGRST205 mid-migration: its own NotFound type. */
+    @Test
+    fun `a real 404 is a retry, not a mark`() {
+        val error = NotFoundRestException(
+            "Could not find the table 'public.time_entries' in the schema cache",
+            response(HttpStatusCode.NotFound), "details"
+        )
+        assertEquals(404, error.statusCode)
+        assertTrue(classifyRowRejection(error) is RowRejection.Retry)
+    }
+
+    @Test
+    fun `a real 429 is a retry, not a mark`() {
+        val error = UnknownRestException("rate limit exceeded", response(HttpStatusCode.TooManyRequests), "details")
+        assertEquals(429, error.statusCode)
+        assertTrue(classifyRowRejection(error) is RowRejection.Retry)
+    }
+
+    @Test
+    fun `a real 408 is a retry, not a mark`() {
+        val error = UnknownRestException("request timeout", response(HttpStatusCode.RequestTimeout), "details")
+        assertTrue(classifyRowRejection(error) is RowRejection.Retry)
+    }
+
+    // Planted-failure case: a real 409 (23503/23505) still marks the shift --
+    // the narrowing did not quietly make every 4xx a retry.
+    @Test
+    fun `a real 409 still marks the shift`() {
+        val error = UnknownRestException("duplicate key value violates unique constraint", response(HttpStatusCode.Conflict), "details")
+        assertEquals(409, error.statusCode)
+        assertTrue(classifyRowRejection(error) is RowRejection.Permanent)
+    }
+
+    /**
+     * The 23502 the update pass earned on every shift from 1.470: a real 400,
+     * so it WAS marked -- and before 2026-09-21 that mark was for ever. The
+     * classification is unchanged; what changed is that the mark it produces
+     * expires, so a shift wrongly marked this way goes back up by itself.
+     */
+    @Test
+    fun `the update pass's 23502 marks, and the mark expires`() {
+        val error = BadRequestRestException(
+            "null value in column \"started_at\" of relation \"time_entries\" violates not-null constraint",
+            response(HttpStatusCode.BadRequest), "Failing row contains (...)"
+        )
+        val decision = classifyRowRejection(error)
+        assertTrue(decision is RowRejection.Permanent)
+        val markedAt = 1_800_000_000_000L
+        val marked = com.fenceestimator.app.data.TimeEntry(jobId = 1L, startedAt = 0L, endedAt = 1L).copy(
+            syncBlockedReason = TimeEntrySyncBlock.SERVER_REJECTED.name,
+            syncBlockedAt = markedAt,
+            syncBlockedDetail = (decision as RowRejection.Permanent).detail
+        )
+        assertFalse(isDueForPush(marked, markedAt + 60_000L))
+        assertTrue(isDueForPush(marked, markedAt + SERVER_REJECTED_RETRY_AFTER_MS))
+    }
+
+    // ---- the worker-change PATCH ----
+
+    /** 42501 from guard_time_entry_write_permission arrives as a 403 -- postgrest-kt's Unknown type. */
+    @Test
+    fun `a real 403 on the worker PATCH is marked with the guard's sentence`() {
+        val guard = "Changing who worked a shift, or which job it is against, needs SCHEDULE_AND_ASSIGN. Whose hours these are is payroll."
+        val error = UnknownRestException(guard, response(HttpStatusCode.Forbidden), "details")
+        assertEquals(403, error.statusCode)
+        val decision = classifyWorkerChangeRejection(error)
+        assertTrue(decision is RowRejection.Permanent)
+        assertEquals(guard, (decision as RowRejection.Permanent).detail)
+        // Planted: the same exception on the ordinary row path is still a retry.
+        assertTrue(classifyRowRejection(error) is RowRejection.Retry)
+    }
+
+    @Test
+    fun `a real 401 on the worker PATCH stays a retry`() {
+        val error = UnauthorizedRestException("JWT expired", response(HttpStatusCode.Unauthorized), "details")
+        assertTrue(classifyWorkerChangeRejection(error) is RowRejection.Retry)
+    }
+
+    @Test
+    fun `a real 23514 on the worker PATCH is marked`() {
+        val error = BadRequestRestException(
+            "That crew member is not on this company. The shift was not changed.",
+            response(HttpStatusCode.BadRequest), "details"
+        )
+        val decision = classifyWorkerChangeRejection(error)
+        assertTrue(decision is RowRejection.Permanent)
+        assertEquals("That crew member is not on this company. The shift was not changed.",
+            (decision as RowRejection.Permanent).detail)
     }
 }

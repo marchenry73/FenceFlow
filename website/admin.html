@@ -243,7 +243,8 @@
 
   <!-- The step-up gate: an account with two-factor turned on lands here
        before the companies list, the crash reports, or anything else this
-       page knows is ever asked for. -->
+       page knows is ever asked for -- and again whenever the last code this
+       browser entered is more than 12 hours old. -->
   <div id="mfaChallengePanel" class="panel gate" style="display:none">
     <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit" data-t="mfaChallengeHead">Enter your code</h2>
     <p style="color:var(--muted);font-size:14px;margin:0 0 10px" data-t="mfaChallengeBody">
@@ -253,7 +254,14 @@
     <div class="msg" id="mfaChallengeMsg"></div>
     <label data-t="codeLabel">Code</label>
     <input id="mfaChallengeCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
-    <div style="margin-top:14px"><button class="primary" id="mfaChallengeSubmit" data-t="mfaVerifyContinueBtn">Verify and continue</button></div>
+    <div style="margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <button class="primary" id="mfaChallengeSubmit" data-t="mfaVerifyContinueBtn">Verify and continue</button>
+      <!-- Not a way past the code: it ends this browser's session and nothing
+           else. Without it the panel was a dead end for anyone without their
+           authenticator to hand, since the header's own Sign out only appears
+           once the console has opened. -->
+      <a href="#" id="mfaChallengeSignOut" style="font-size:13px;color:var(--muted)" data-t="signOut">Sign out</a>
+    </div>
   </div>
 </main>
 
@@ -409,6 +417,15 @@
         </div>
 
         <div class="msg" id="mfaMsg"></div>
+      </div>
+
+      <!-- Sign out in the header ends this browser only. This is the other
+           one: every session this account holds, everywhere. -->
+      <div class="panel">
+        <h2 style="margin-top:0" data-t="sessionsHead">Signed-in devices</h2>
+        <p class="sub" data-t="sessionsBody">Sign out ends this browser only. If a laptop or phone might still be signed in somewhere, sign out everywhere.</p>
+        <button class="danger" id="signOutEverywhere" type="button" data-t="signOutEverywhereBtn">Sign out of all devices</button>
+        <div class="msg" id="sessionsMsg"></div>
       </div>
     </section>
 
@@ -583,6 +600,17 @@ const TL = {
     codeLabel:'Code', mfaVerifyContinueBtn:'Verify and continue',
     sixDigitCode:'Enter the 6-digit code.', checkingEllipsis:'Checking…',
     mfaNoFactorFound:'No two-factor method found on this account.',
+    mfaStaleNotice:'It has been more than 12 hours since this browser last entered a code. Enter a fresh one to carry on.',
+
+    sessionsHead:'Signed-in devices',
+    sessionsBody:'Sign out ends this browser only. If a laptop or phone might still be signed in somewhere — left open, lost or borrowed — sign out everywhere: every device, including the FenceFlow app on your phone, has to sign in again.',
+    signOutEverywhereBtn:'Sign out of all devices',
+    confirmSignOutEverywhereTitle:'Sign out of every device?',
+    confirmSignOutEverywhereBody:'Every browser and phone signed in as %s is signed out straight away, this one included, and each has to sign in again.',
+    signOutEverywhereLabel:'Sign out everywhere',
+    signOutEverywhereFailed:'Signing out the other devices did not go through (%s). This browser is signed out — sign in and try again.',
+    signedOutEverywhere:'Signed out of every device, this one included.',
+    inviteNoticeOtherBusiness:'Invitation sent to %s — but that address already has a FenceFlow account in another business, so it cannot become this company\'s owner. Use a different address for this company.',
 
     navOverview:'Overview', navCompanies:'Companies', navCrashes:'Crashes',
     navReleases:'Releases', navDrift:'Pricing drift', navAccount:'Account',
@@ -755,6 +783,17 @@ const TL = {
     codeLabel:'Código', mfaVerifyContinueBtn:'Verificar y continuar',
     sixDigitCode:'Ingrese el código de 6 dígitos.', checkingEllipsis:'Comprobando…',
     mfaNoFactorFound:'No se encontró ningún método de verificación en dos pasos en esta cuenta.',
+    mfaStaleNotice:'Han pasado más de 12 horas desde que este navegador ingresó un código. Ingrese uno nuevo para continuar.',
+
+    sessionsHead:'Dispositivos con sesión iniciada',
+    sessionsBody:'Cerrar sesión solo cierra este navegador. Si una computadora o un teléfono podría seguir con la sesión iniciada en otro lugar — abierto, perdido o prestado — cierre la sesión en todas partes: cada dispositivo, incluida la aplicación FenceFlow de su teléfono, tendrá que iniciar sesión de nuevo.',
+    signOutEverywhereBtn:'Cerrar sesión en todos los dispositivos',
+    confirmSignOutEverywhereTitle:'¿Cerrar sesión en todos los dispositivos?',
+    confirmSignOutEverywhereBody:'Todos los navegadores y teléfonos con sesión iniciada como %s se cierran de inmediato, incluido este, y cada uno tendrá que iniciar sesión de nuevo.',
+    signOutEverywhereLabel:'Cerrar sesión en todas partes',
+    signOutEverywhereFailed:'No se pudo cerrar la sesión en los demás dispositivos (%s). Este navegador ya cerró sesión — inicie sesión e inténtelo de nuevo.',
+    signedOutEverywhere:'Sesión cerrada en todos los dispositivos, incluido este.',
+    inviteNoticeOtherBusiness:'Invitación enviada a %s — pero esa dirección ya tiene una cuenta de FenceFlow en otra empresa, así que no puede ser la propietaria de esta. Use otra dirección para esta empresa.',
 
     navOverview:'Resumen', navCompanies:'Empresas', navCrashes:'Fallos',
     navReleases:'Versiones', navDrift:'Diferencia de precios', navAccount:'Cuenta',
@@ -927,6 +966,17 @@ const TL = {
     codeLabel:'Code', mfaVerifyContinueBtn:'Vérifier et continuer',
     sixDigitCode:'Entrez le code à 6 chiffres.', checkingEllipsis:'Vérification…',
     mfaNoFactorFound:'Aucune méthode de vérification en deux étapes trouvée pour ce compte.',
+    mfaStaleNotice:'Plus de 12 heures se sont écoulées depuis le dernier code saisi dans ce navigateur. Entrez-en un nouveau pour continuer.',
+
+    sessionsHead:'Appareils connectés',
+    sessionsBody:'Se déconnecter ne ferme que ce navigateur. Si un ordinateur ou un téléphone pourrait encore être connecté ailleurs — resté ouvert, perdu ou prêté — déconnectez-vous partout : chaque appareil, y compris l\'appli FenceFlow sur votre téléphone, devra se reconnecter.',
+    signOutEverywhereBtn:'Se déconnecter de tous les appareils',
+    confirmSignOutEverywhereTitle:'Se déconnecter de tous les appareils ?',
+    confirmSignOutEverywhereBody:'Chaque navigateur et téléphone connecté en tant que %s est déconnecté immédiatement, celui-ci compris, et chacun devra se reconnecter.',
+    signOutEverywhereLabel:'Se déconnecter partout',
+    signOutEverywhereFailed:'La déconnexion des autres appareils n\'a pas abouti (%s). Ce navigateur est déconnecté — reconnectez-vous et réessayez.',
+    signedOutEverywhere:'Déconnecté de tous les appareils, celui-ci compris.',
+    inviteNoticeOtherBusiness:'Invitation envoyée à %s — mais cette adresse a déjà un compte FenceFlow dans une autre entreprise, elle ne peut donc pas devenir propriétaire de celle-ci. Utilisez une autre adresse pour cette entreprise.',
 
     navOverview:'Aperçu', navCompanies:'Entreprises', navCrashes:'Plantages',
     navReleases:'Versions', navDrift:'Écart de prix', navAccount:'Compte',
@@ -1166,6 +1216,10 @@ let inRecovery = /type=recovery/.test(location.hash);
 
 function showGate(which) {
   $('app').style.display = 'none';
+  // afterSignedIn() hides the whole gate; a gate raised after that (the
+  // sign-out-everywhere failure) has to bring it back or it shows nothing.
+  $('gate').style.display = '';
+  $('searchWrap').style.display = 'none';
   ['signInPanel', 'recoveryPanel', 'mfaChallengePanel'].forEach(id =>
     $(id).style.display = (id === which) ? '' : 'none');
 }
@@ -1241,18 +1295,115 @@ async function submitMfaChallenge() {
   await boot();
 }
 
+/* ------------------------------------------------ second-factor age ---- */
+/* Two-factor used to be asked for once per session, and a session here never
+   ends: the refresh token rotates for as long as the browser keeps coming
+   back. So once a browser had typed one code it stayed at aal2 for good --
+   the audit found a live staff session whose code was 13 days old, and a
+   36-day-old session on the same project. A laptop left signed in could
+   suspend any company on the platform with no code at all.
+
+   Now the code is asked for again once the last one is more than 12 hours
+   old. What "the last one" means is the auth server's own record, not a
+   guess: every verify upserts auth.mfa_amr_claims.updated_at, and GoTrue
+   (v2.197.0, Session.CalculateAALAndAMR) copies that into the access token's
+   amr claim as { method: 'totp', timestamp: <unix seconds> }. supabase-js
+   hands the amr back as getAuthenticatorAssuranceLevel().
+   currentAuthenticationMethods, and re-verifying on a session that is
+   already aal2 moves that timestamp to now -- which is exactly what the
+   turn-off-two-factor step on the Account view has always done.
+
+   "Now" is the later of this computer's clock and the token's own iat, which
+   the auth server stamped at the last refresh (at most an hour ago). Winding
+   the computer's clock back therefore cannot keep an old code alive; a clock
+   running fast only asks a little early.
+
+   This protects the page. The staff RPCs do not check aal at all -- that is
+   MFA_DECISION.md's known gap and needs a migration, not this file. */
+const MFA_MAX_AGE_S = 12 * 60 * 60;
+// Exactly GoTrue's own AAL2 set (AMRClaim.IsAAL2Claim, v2.197.0).
+const SECOND_FACTOR_METHODS = new Set(['totp', 'mfa/phone', 'mfa/webauthn', 'mfa/recovery_code']);
+
+function jwtClaims(token) {
+  try {
+    const part = String(token).split('.')[1] || '';
+    const bin = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)))) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/** Seconds since this session last proved a second factor. Infinity if never. */
+function secondFactorAgeS(aal, session) {
+  const stamps = (aal?.currentAuthenticationMethods || [])
+    .filter(m => SECOND_FACTOR_METHODS.has(m.method))
+    .map(m => Number(m.timestamp) || 0);
+  if (!stamps.length) return Infinity;
+  const issued = Number(jwtClaims(session?.access_token).iat) || 0;
+  return Math.max(Date.now() / 1000, issued) - Math.max(...stamps);
+}
+
+/**
+ * 'missing' -- enrolled, and this session never gave a code.
+ * 'stale'   -- enrolled, gave one, but more than MFA_MAX_AGE_S ago.
+ * null      -- nothing to ask. An account with no verified factor has nothing
+ *              to be asked for, exactly as before; this adds no new gate there.
+ */
+function secondFactorDue(aal, session) {
+  if (!aal) return null;
+  if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') return 'missing';
+  const enrolled = (session?.user?.factors || []).some(f => f.status === 'verified');
+  if (aal.currentLevel === 'aal2' && enrolled && secondFactorAgeS(aal, session) > MFA_MAX_AGE_S) {
+    return 'stale';
+  }
+  return null;
+}
+
+/**
+ * Checked again before anything that changes a company, and on a timer while
+ * the console sits open (below). When the code has gone stale the page is
+ * reloaded rather than covered over, so nothing already drawn -- the company
+ * list, the drawer, an open dialog -- stays in the page behind the prompt;
+ * boot() then raises the code prompt before loading anything. Returns false
+ * when it did that, so the caller stops.
+ */
+async function secondFactorFresh() {
+  const { data } = await db.auth.getSession();
+  const session = data?.session;
+  // No session to judge: the call that follows fails on its own and says so.
+  // Reloading here would bounce anyone whose connection blinked.
+  if (!session) return true;
+  const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (secondFactorDue(aal, session)) { location.reload(); return false; }
+  return true;
+}
+
+// A console left open is the case this exists for, so it is not only checked
+// on load: once a minute, and the moment the tab is looked at again.
+function recheckSecondFactor() {
+  if ($('app').style.display === 'none') return;
+  secondFactorFresh().catch(() => { /* next tick tries again */ });
+}
+setInterval(recheckSecondFactor, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) recheckSecondFactor(); });
+window.addEventListener('focus', recheckSecondFactor);
+
 async function boot() {
   if (inRecovery) return; // the recovery panel owns the screen until a new password is set
   const { data: { session } } = await db.auth.getSession();
   if (!session) { showGate('signInPanel'); return; }
 
-  // Two-factor is enforced right here, once per session, before anything this
-  // page can show is even asked for. getAuthenticatorAssuranceLevel is cheap
-  // and harmless to call on an account with no factor enrolled at all --
+  // Two-factor is enforced right here, before anything this page can show is
+  // even asked for -- on a session that never gave a code, and on one whose
+  // last code is more than 12 hours old. getAuthenticatorAssuranceLevel is
+  // cheap and harmless to call on an account with no factor enrolled at all --
   // currentLevel and nextLevel simply match and this falls straight through.
   const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+  const due = secondFactorDue(aal, session);
+  if (due) {
     showGate('mfaChallengePanel');
+    $('mfaChallengeMsg').textContent = due === 'stale' ? tr('mfaStaleNotice') : '';
     return;
   }
 
@@ -1715,6 +1866,8 @@ function ask({ title, body, confirmLabel = tr('confirmDefaultLabel'), danger = f
  * close it (a cancelled confirmation or a failed call should leave it open).
  */
 async function adminAction(fn, args, confirmOpts, btn) {
+  // A console left open for days must not suspend anybody on a code from last week.
+  if (!(await secondFactorFresh())) return false;
   let call = args;
   if (confirmOpts) {
     const answer = await ask(confirmOpts);
@@ -1761,6 +1914,7 @@ async function submitNewCompany() {
   const name = $('newName').value.trim();
   const email = $('newEmail').value.trim();
   if (!name) { $('newMsg').textContent = tr('newMsgGiveName'); return; }
+  if (!(await secondFactorFresh())) return;
 
   $('newCreate').disabled = true;
   $('newMsg').textContent = email ? tr('newMsgCreatingInviting') : tr('newMsgCreating');
@@ -1775,6 +1929,7 @@ async function submitNewCompany() {
   const code = row && row.setup_code;
 
   let invited = false;
+  let sentNote = '';
   if (email && companyId) {
     const { data: sess } = await db.auth.getSession();
     try {
@@ -1784,7 +1939,7 @@ async function submitNewCompany() {
         body: JSON.stringify({ companyId, email, companyName: name })
       });
       const body = await res.json();
-      if (body.sent) invited = true;
+      if (body.sent) { invited = true; sentNote = inviteSentNote(body, email); }
       else $('newMsg').textContent = tr('newMsgCreatedNotSent', body.error || 'unknown');
     } catch (e) {
       $('newMsg').textContent = tr('newMsgCreatedNotSent', e.message || e);
@@ -1796,8 +1951,10 @@ async function submitNewCompany() {
 
   if (invited) {
     $('newDialog').close();
-    $('msg').textContent = tr('inviteSent', email);
-    setTimeout(() => { $('msg').textContent = ''; }, 4000);
+    $('msg').textContent = sentNote;
+    // A plain "sent" can go quickly; anything with a catch in it stays long
+    // enough to be read.
+    setTimeout(() => { $('msg').textContent = ''; }, sentNote === tr('inviteSent', email) ? 4000 : 12000);
     return;
   }
   if (!email && code) {
@@ -1831,6 +1988,7 @@ async function inviteCompany(id, name, existingEmail, alreadyInvited) {
     confirmLabel: alreadyInvited ? tr('reinviteConfirmLabel') : tr('sendConfirmLabel')
   });
   if (!ok) return;
+  if (!(await secondFactorFresh())) return;
 
   $('msg').textContent = tr('inviteSending', email);
   const { data: sess } = await db.auth.getSession();
@@ -1844,14 +2002,29 @@ async function inviteCompany(id, name, existingEmail, alreadyInvited) {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) note = body.error || tr('inviteMailRefused', res.status);
-    else if (body.warning) note = body.warning;
-    else note = body.sent ? tr('inviteSent', email) : (body.error || tr('inviteCouldNotSend'));
+    else note = body.sent ? inviteSentNote(body, email) : (body.error || tr('inviteCouldNotSend'));
   } catch (e) {
     note = tr('inviteCouldNotReach', String(e.message || e));
   }
   await loadAll();
   $('msg').textContent = note;
   setTimeout(() => { $('msg').textContent = ''; }, 8000);
+}
+
+/**
+ * What to tell the admin after invite-company answered sent:true.
+ *
+ * `notice` is a code, not prose, so it is translated here: the address
+ * already belongs to an account in another business, which the server's own
+ * claim will refuse ("You already belong to a business."), so the invitation
+ * cannot make them this company's owner. `warning` is the function's own
+ * English sentence, shown as it always was.
+ */
+function inviteSentNote(body, email) {
+  const parts = [];
+  if (body.notice === 'account_in_other_business') parts.push(tr('inviteNoticeOtherBusiness', email));
+  if (body.warning) parts.push(body.warning);
+  return parts.length ? parts.join(' ') : tr('inviteSent', email);
 }
 
 /* ---------------------------------------------------------- crashes ---- */
@@ -2224,6 +2397,7 @@ async function saveEdit() {
     if (!ok) { $('editMsg').textContent = tr('editNothingChanged'); return; }
   }
 
+  if (!(await secondFactorFresh())) return;
   const { error } = await db.from('companies').update(patch).eq('id', editing.id);
 
   if (error) { $('editMsg').textContent = error.message; return; }
@@ -2246,6 +2420,7 @@ async function toggleSuspend() {
     args = { target: editing.id, note: null, hold: !!answer.hold };
   }
 
+  if (!(await secondFactorFresh())) return;
   $('editMsg').textContent = tr('workingEllipsis');
   const { error } = await db.rpc(turningOn ? 'admin_suspend' : 'admin_unsuspend', args);
   if (error) { $('editMsg').textContent = error.message; return; }
@@ -2389,6 +2564,54 @@ async function turnOffMfa() {
   await loadMfaStatus();
 }
 
+/* ------------------------------------------------------------ sign-out ---- */
+/* Sign out ends THIS browser. supabase-js's signOut() defaults to scope
+   'global' (auth-js: `signOut(e={scope:"global"})`, as served for this page's
+   pinned 2.39.0 import), which revokes every refresh token the account holds
+   -- so signing out at a desk also signed the same account out of its phone,
+   with no word to whoever was holding it. 'local' still revokes this
+   session on the server, not just in this browser; the others are left
+   alone. Signing out everywhere is its own button, on purpose. */
+async function signOutHere() {
+  await db.auth.signOut({ scope: 'local' });
+  location.reload();
+}
+
+const SIGNED_OUT_EVERYWHERE_KEY = 'ff_admin_signed_out_everywhere';
+
+async function signOutEverywhere() {
+  const { data } = await db.auth.getSession();
+  const who = data?.session?.user?.email || '';
+  const ok = await ask({
+    title: tr('confirmSignOutEverywhereTitle'),
+    body: tr('confirmSignOutEverywhereBody', who),
+    confirmLabel: tr('signOutEverywhereLabel'),
+    danger: true,
+  });
+  if (!ok) return;
+  $('sessionsMsg').textContent = tr('workingEllipsis');
+  const { error } = await db.auth.signOut({ scope: 'global' });
+  if (error) {
+    // supabase-js has already dropped this browser's session by now, so the
+    // honest thing is the sign-in form with the reason on it -- not a reload
+    // that would quietly suggest everything went through.
+    showGate('signInPanel');
+    $('who').style.display = 'none';
+    $('signOut').style.display = 'none';
+    $('gateMsg').textContent = tr('signOutEverywhereFailed', error.message);
+    return;
+  }
+  try { sessionStorage.setItem(SIGNED_OUT_EVERYWHERE_KEY, '1'); } catch (e) { /* message is a nicety */ }
+  location.reload();
+}
+
+// Said once on the sign-in form after the reload, then forgotten.
+(function () {
+  let flag = null;
+  try { flag = sessionStorage.getItem(SIGNED_OUT_EVERYWHERE_KEY); sessionStorage.removeItem(SIGNED_OUT_EVERYWHERE_KEY); } catch (e) {}
+  if (flag) $('gateMsg').textContent = tr('signedOutEverywhere');
+})();
+
 /* ------------------------------------------------------------- wiring ---- */
 document.querySelectorAll('.rail button').forEach(b =>
   b.addEventListener('click', () => switchView(b.dataset.view)));
@@ -2428,7 +2651,9 @@ $('newEmail').addEventListener('keydown', e => { if (e.key === 'Enter') submitNe
 $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newEmail').focus(); });
 $('setupDone').addEventListener('click', () => $('setupDialog').close());
 $('exportCsv').addEventListener('click', exportCsv);
-$('signOut').addEventListener('click', async () => { await db.auth.signOut(); location.reload(); });
+$('signOut').addEventListener('click', signOutHere);
+$('mfaChallengeSignOut').addEventListener('click', e => { e.preventDefault(); signOutHere(); });
+$('signOutEverywhere').addEventListener('click', signOutEverywhere);
 $('stackClose').addEventListener('click', () => $('stackDialog').close());
 
 $('e_cancel').addEventListener('click', () => $('editDialog').close());

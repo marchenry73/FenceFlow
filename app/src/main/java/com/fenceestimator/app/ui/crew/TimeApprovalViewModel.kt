@@ -58,10 +58,12 @@ class TimeApprovalViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * Shifts the cloud has permanently refused -- see [TimeEntry.isSyncBlocked].
-     * Never retried by [com.fenceestimator.app.cloud.EntitySync.pushTimeEntries]
-     * on its own; the only way one leaves this list is [fixAndRetry] or the
-     * shift being discarded.
+     * Shifts the cloud has refused -- see [TimeEntry.isSyncBlocked]. A
+     * SERVER_REJECTED one is tried once more by
+     * [com.fenceestimator.app.cloud.EntitySync.pushTimeEntries] when its mark
+     * expires ([com.fenceestimator.app.cloud.isDueForPush]) and leaves this
+     * list by itself if it goes up; otherwise it leaves by [fixAndRetry] or by
+     * being discarded. A NEEDS_WORKER one leaves when its worker resolves.
      */
     val syncBlocked: StateFlow<List<TimeEntry>> = repository.observeSyncBlockedTimeEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

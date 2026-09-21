@@ -477,6 +477,25 @@ async function currentUser() {
   return null;
 }
 
+async function currentAccessToken() {
+  const { data } = await db.auth.getSession();
+  return data?.session?.access_token || '';
+}
+
+/* Whether a token's own user_metadata already names this company. Decoded,
+   not verified -- it only decides whether a refresh is worth asking for; the
+   server verifies the token it is actually sent. */
+function tokenCarriesCompany(token, companyId) {
+  try {
+    const part = String(token).split('.')[1] || '';
+    const bin = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    const claims = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+    return claims?.user_metadata?.company_id === companyId;
+  } catch (e) {
+    return false;
+  }
+}
+
 /**
  * What Supabase says went wrong, said back plainly.
  *
@@ -546,6 +565,17 @@ async function boot() {
   }
 
   if (!prof?.company_id && invitedCompany) {
+    // The claim reads the company id from the signed token, not from the
+    // account. An invitation to an address that already had an account puts
+    // the id on the account when it is sent -- so somebody who was already
+    // signed in (the dashboard forwards them here) holds a token minted
+    // before it, which says nothing, and the claim answered "not invited".
+    // One refresh mints a token from the account as it is now. Only in that
+    // case: a token that already carries the id is left alone, and the
+    // server's own check still decides either way.
+    if (!tokenCarriesCompany(await currentAccessToken(), invitedCompany)) {
+      try { await db.auth.refreshSession(); } catch (e) { /* the claim below says what is wrong */ }
+    }
     const { error: claimError } = await db.rpc('claim_invited_company', {
       member_name: user.user_metadata?.full_name || ''
     });

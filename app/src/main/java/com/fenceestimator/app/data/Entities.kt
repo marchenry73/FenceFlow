@@ -277,7 +277,14 @@ data class Job(
      * both call their first job id 1 and overwrite each other in the shared cloud.
      */
     val syncId: String = java.util.UUID.randomUUID().toString(),
-    /** Set when this job was last pushed, so we only upload what actually changed. */
+    /**
+     * When this phone and the cloud last agreed on this job: stamped after a
+     * push succeeds (device clock), and by a pull that writes the cloud's copy
+     * onto the phone (the cloud's updated_at, which is then also [updatedAt]).
+     * Null means this phone has never been in step with a cloud copy -- a job
+     * made here and not yet pushed. See [jobHoldsUnpushedEdit], which is the
+     * only reader, and why the pull half exists.
+     */
     val lastSyncedAt: Long? = null,
     /**
      * Your own payment link (Square, Stripe, PayPal, Venmo -- whatever you already use).
@@ -977,18 +984,47 @@ data class TimeEntry(
      * [com.fenceestimator.app.cloud.needsWorkerAssignment], known without ever
      * asking the server) or "SERVER_REJECTED" (a permanent 4xx the server sent
      * back for some other reason). Null means nothing is wrong; retried every
-     * sync like any other row. A row marked here is deliberately left OUT of
-     * the next push -- retrying a rejection the row itself cannot fix is the
+     * sync like any other row. A row marked here is left OUT of the next push
+     * -- retrying a rejection the row itself cannot fix, on every sync, is the
      * trap this column exists to close.
+     *
+     * But a SERVER_REJECTED mark is not for ever. The phone cannot always tell
+     * a refusal of the ROW from a server that was briefly unable to take it
+     * (see [com.fenceestimator.app.cloud.isDueForPush]), and a mark nobody but
+     * a person could clear once tattooed good shifts as broken. So it expires:
+     * after [com.fenceestimator.app.cloud.SERVER_REJECTED_RETRY_AFTER_MS] the
+     * row is tried once more, and either goes up (mark cleared) or is refused
+     * again (mark re-stamped, and the clock starts over). NEEDS_WORKER does not
+     * expire -- it is known locally and clears itself the moment the worker
+     * resolves.
      */
     val syncBlockedReason: String? = null,
-    /** When [syncBlockedReason] was first set. Not touched again until it clears. */
+    /**
+     * When the server last refused this row, for a SERVER_REJECTED mark -- the
+     * clock [com.fenceestimator.app.cloud.isDueForPush] measures the retry
+     * window from, so it is re-stamped each time a retry is refused again. For
+     * NEEDS_WORKER, when the mark was first set. Also the Time screen's sort
+     * order (newest first).
+     */
     val syncBlockedAt: Long? = null,
     /**
      * What the server actually said, in its own words, for the Time screen's
      * Fix flow to show verbatim rather than a re-derived guess.
      */
-    val syncBlockedDetail: String? = null
+    val syncBlockedDetail: String? = null,
+    /**
+     * When a person on THIS phone changed who worked the shift (the Time
+     * screen's Fix), and the cloud has not yet confirmed holding that change.
+     *
+     * The only edit a phone can make to a shift after clocking out, and the
+     * only reason a shift the cloud already holds is ever written again by
+     * [com.fenceestimator.app.cloud.EntitySync.pushTimeEntries]: a non-null
+     * value is what earns the row its one PATCH of employee_sync_id, and the
+     * PATCH clears it only if it still holds the same value (a second Fix made
+     * while the first was in flight is not lost). Null on every other shift,
+     * which is why the push no longer rewrites every shift on every sync.
+     */
+    val workerChangedAt: Long? = null
 ) {
     val isRunning: Boolean get() = endedAt == null
 

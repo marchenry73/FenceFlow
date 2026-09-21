@@ -533,12 +533,20 @@ data class CloudTimeEntry(
 )
 
 /**
- * What a phone is allowed to send for a shift.
+ * What a phone sends for a shift the first time -- the insert-only pass of
+ * [EntitySync.pushTimeEntries], built by [toInsertRow] and by nothing else.
  *
- * Every field the phone legitimately owns, and none of the ones the office
- * owns. Splitting the shapes is the only way to add a pull-only field
- * safely: one class for both directions means every push asserts a value for
- * every column, including the ones it knows nothing about.
+ * Every field the phone legitimately owns at the moment it records a shift,
+ * and none of the ones the office owns. Splitting the shapes is the only way
+ * to add a pull-only field safely: one class for both directions means every
+ * push asserts a value for every column, including the ones it knows nothing
+ * about.
+ *
+ * Only ever sent insert-only (`ignoreDuplicates`), so none of it can land on
+ * a row the cloud already holds. That is what keeps an office correction of
+ * the clock, the break or the decision standing: this class is how a shift is
+ * BORN in the cloud, never how it is changed. The one later change a phone
+ * may make goes as [CloudTimeEntryWorkerPatch].
  */
 @Serializable
 data class CloudTimeEntryPush(
@@ -546,70 +554,71 @@ data class CloudTimeEntryPush(
     @SerialName("sync_id") val syncId: String,
     @SerialName("job_sync_id") val jobSyncId: String,
     /**
-     * Null means "say nothing about the clock", NOT "the shift has no start".
+     * Non-null, and that is the point.
      *
-     * started_at is NOT NULL in Postgres, so this can never legitimately be
-     * sent as null -- and it never is, because `explicitNulls = false` on the
-     * shared Json drops a null field from the body entirely rather than
-     * sending it (see [SupabaseModule], and [CloudJobStep.stepKey] for the
-     * same trick). Dropping the key is the whole point: an UPDATE that does
-     * not name a column leaves it alone, which is how an office time
-     * correction survives the next push from the phone that recorded the
-     * original. See [EntitySync.pushTimeEntries] for which of the two batches
-     * fills these in and which leaves them out.
-     *
-     * The batch matters as much as the row. PostgREST unions the keys across
-     * an array and fills the gaps with explicit nulls, so a batch mixing rows
-     * that carry started_at with rows that do not would send NULL for the
-     * ones that do not and be rejected outright -- the whole push, not the
-     * row. The two batches are kept separate for exactly that reason.
+     * This used to be `String? = null` so an "update pass" could drop the key
+     * and leave an office correction alone. But that pass was an upsert, and
+     * Postgres checks NOT NULL on the proposed row before ON CONFLICT is
+     * consulted -- so a row without started_at was refused 23502 on every
+     * shift, on every sync, from 1.470 (proved 2026-09-21; see
+     * [EntitySync.pushTimeEntries]). A shift row without its clock can no
+     * longer be built at all.
      */
-    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("started_at") val startedAt: String,
     @SerialName("ended_at") val endedAt: String? = null,
+    /**
+     * Sent, and then decided by the server: `stamp_time_entry_rate` replaces it
+     * with the employee record's rate whenever there is one. Only ever sent on
+     * the insert -- a later write of it could only re-assert a stale figure.
+     */
     @SerialName("hourly_rate") val hourlyRate: Double = 0.0,
     @SerialName("employee_sync_id") val employeeSyncId: String = "",
     val notes: String = "",
     /**
-     * The sign-off decision. Carried by the INSERT-ONLY pass and dropped from
-     * the update pass, gated by [EntitySync.pushTimeEntries]' `includeDecision`
-     * exactly as [startedAt] is gated by `includeTimes`, and for a harder
-     * reason: the phone may not be ALLOWED to write these at all.
+     * The sign-off decision, for a shift the cloud has never held -- decided
+     * offline or before its first upload ([TimeApproval.Outcome.NotInCloudYet]).
      *
-     * `approve_time_entry` (supabase_p3_approve_time_entry.sql) owns the
-     * decision on a row the cloud already holds. A FOREMAN has APPROVE_TIME and
-     * not SEE_PAY, and `time_entries_pay_needs_see_pay` hides a colleague's
-     * whole row from anyone without SEE_PAY -- so this upsert asserting
-     * approved_at on a colleague's stored row was refused 42501, which arrives
-     * as HTTP 403, which [isPermanentRejection] treats as retryable, which
-     * means the same doomed row went up on every sync for ever. Measured live
+     * On a row the cloud already holds, `approve_time_entry`
+     * (supabase_p3_approve_time_entry.sql) owns the decision, and this pass
+     * cannot reach that row anyway. A FOREMAN has APPROVE_TIME and not
+     * SEE_PAY, and `time_entries_pay_needs_see_pay` hides a colleague's whole
+     * row from anyone without SEE_PAY -- so the old upsert asserting
+     * approved_at on a colleague's stored row was refused 42501. Measured live
      * on 2026-09-20; see [TimeApproval].
-     *
-     * [approvedBy] and [reviewNote] are NULLABLE here where the rest of the
-     * app's strings are not, and that is load-bearing: the column is NOT NULL
-     * with a `''` default, `encodeDefaults = true` means a Kotlin `""` would
-     * be SENT, and sending `""` on the update pass would BLANK the office's
-     * own sign-off name and review note. Only `null` is dropped from the body
-     * (`explicitNulls = false`), and a key that is not in the body is a column
-     * the UPDATE never names. Same trick, same reason, as [startedAt].
      */
     @SerialName("approved_at") val approvedAt: String? = null,
-    @SerialName("approved_by") val approvedBy: String? = null,
+    @SerialName("approved_by") val approvedBy: String = "",
     @SerialName("rejected_at") val rejectedAt: String? = null,
-    @SerialName("review_note") val reviewNote: String? = null,
+    @SerialName("review_note") val reviewNote: String = "",
     /**
      * Set once, by the phone that recorded the break, exactly like started_at
-     * and ended_at just above -- and gated by the same [includeTimes]-style
-     * flag in [EntitySync.pushTimeEntries]'s two batches for the same reason:
-     * a phone re-pushing null here on its second (update) pass, once the crew
-     * member has moved past the break, must not blank a value the insert pass
-     * already landed. `explicitNulls = false` means a null field is dropped
-     * from the JSON entirely rather than sent, so a device with no break
-     * recorded never overwrites one the office (or another phone) already
-     * set -- see [SupabaseModule].
+     * and ended_at. `explicitNulls = false` drops a null from the body, so a
+     * shift with no break recorded lands with the column null ("nobody
+     * recorded one"), never 0 -- see [SupabaseModule].
      */
     @SerialName("break_minutes") val breakMinutes: Int? = null,
     @SerialName("break_started_at") val breakStartedAt: String? = null,
     @SerialName("break_ended_at") val breakEndedAt: String? = null
+)
+
+/**
+ * The only thing a phone ever writes to a shift the cloud already holds: who
+ * worked it, after a person picked again on the Time screen (the Fix action,
+ * [TimeEntry.workerChangedAt]).
+ *
+ * Sent as a PATCH -- an UPDATE filtered by company_id and sync_id -- never as
+ * an upsert, so it needs no started_at, and it names exactly one column, so
+ * it cannot move the clock, the break, the notes or the decision the office
+ * may have corrected. Built only by [workerChangeToSend].
+ *
+ * Refused server-side when it should be: moving a shift onto somebody who is
+ * not on the company (`time_entry_needs_a_person`, 23514), or by an account
+ * without SCHEDULE_AND_ASSIGN / APPROVE_TIME (`guard_time_entry_write_permission`,
+ * 42501). Both proved in the same rolled-back probe.
+ */
+@Serializable
+data class CloudTimeEntryWorkerPatch(
+    @SerialName("employee_sync_id") val employeeSyncId: String
 )
 
 /**
@@ -652,16 +661,20 @@ data class CloudTimeEntryPush(
  * against two pulls racing each other.
  *
  * **time_entries** -- NOT last-edit-wins, and split by column owner instead.
- * [pushTimeEntries] still compares nothing against the cloud row; what it
- * does instead is send each completed shift twice, once as an insert-only row
- * carrying started_at/ended_at and once as an update that omits them. So the
- * clock is written exactly once, by the phone that recorded it, and every
- * later push leaves it alone -- which is what stops a phone re-asserting its
- * original times over an office correction. started_at, ended_at,
- * original_started_at, original_ended_at, corrected_at and correction_reason
- * are the office's (and the trigger's) columns; notes, hourly_rate,
- * employee_sync_id and the approval decision are still the phone's and are
- * pushed on every pass. What protects an approval or rejection from being
+ * [pushTimeEntries] compares nothing against the cloud row. It sends each
+ * completed shift once as an insert-only row carrying everything the phone
+ * recorded (clock, break, notes, rate, worker, and a decision made before the
+ * first upload), which cannot touch a row the cloud already holds; and after
+ * that it writes a stored shift only to send a worker change a person made on
+ * this phone ([TimeEntry.workerChangedAt]), as a PATCH naming
+ * employee_sync_id alone. So the clock is written exactly once, by the phone
+ * that recorded it, and nothing later from a phone re-asserts it -- or the
+ * notes, the rate, or a worker the office has since moved. Corrections go
+ * through `correct_time_entry` and decisions through `approve_time_entry`,
+ * never through this push. (Until 2026-09-21 there was an "update pass" that
+ * re-sent notes, rate, worker and decision for every shift on every sync; it
+ * was an upsert without started_at and Postgres refused it 23502 every time
+ * from 1.470 on -- see [pushTimeEntries].) What protects an approval or rejection from being
  * clobbered lives entirely on the pull side ([pullJobChildren]'s time-entries
  * block): a decision already recorded locally is a one-way ratchet that a
  * cloud row without a decision cannot undo, and a decision the cloud DOES
@@ -1957,8 +1970,8 @@ object EntitySync {
                         ?: existing.correctedAt,
                     correctionReason = row.correctionReason.ifBlank { existing.correctionReason },
                     // Same "kept, not blanked" rule as the correction columns
-                    // just above, and for a related reason: the update half of
-                    // pushTimeEntries omits the break entirely (see
+                    // just above, and for a related reason: only the insert-only
+                    // pass of pushTimeEntries ever carries the break (see
                     // CloudTimeEntryPush.breakMinutes), so a pull that lands
                     // before this device's own insert-only push has reached
                     // the cloud would otherwise see a bare cloud row and wipe
@@ -2393,47 +2406,69 @@ object EntitySync {
     }
 
     /**
-     * Sends a shift up twice, on purpose: once as an insert that carries the
-     * clock, and once as an update that does not.
+     * Sends each finished shift up once, whole, as an insert that cannot touch
+     * a stored row -- and afterwards writes a stored shift again only when this
+     * phone holds a change the cloud does not have.
      *
-     * Every office time correction was being undone by the next sync from the
-     * phone that recorded the shift. This pushed started_at and ended_at
-     * unconditionally on every pass, with nothing compared against the cloud,
-     * so a manager fixing an 8:47 clock-in to 8:30 held until the handset next
-     * spoke and then reverted. The audit columns survived it -- the trigger
-     * keeps the first original, so original_started_at still held 8:47 -- but
-     * started_at is what pay is calculated from, and started_at went back.
-     * The correction notice stayed on screen pointing at a time that no longer
-     * differed from it.
+     * Every office time correction was once undone by the next sync from the
+     * phone that recorded the shift: this pushed started_at and ended_at
+     * unconditionally on every pass, so a manager fixing an 8:47 clock-in to
+     * 8:30 held until the handset next spoke and then reverted. started_at is
+     * what pay is calculated from. The fix (568e76c, 1.470) split the push in
+     * two -- an insert-only pass carrying the clock, and an "update pass"
+     * carrying everything but the clock -- and the second half never worked.
      *
-     * [pushFenceRuns]'s clock gate is the obvious fix and is not available
-     * here: a TimeEntry carries no local updatedAt to compare, only the
-     * server's own. Adding one is a Room change, in another package. So this
-     * takes the other route -- stop the push asserting the two columns the
-     * office owns for a shift the cloud already knows about -- and gets there
-     * without asking the cloud anything at all:
+     * It was an UPSERT without started_at. Postgres builds the proposed row
+     * and checks NOT NULL on it BEFORE it consults ON CONFLICT, so INSERT ...
+     * ON CONFLICT DO UPDATE with no started_at is refused 23502 "null value in
+     * column started_at" whether or not the row exists. Proved in a rolled-back
+     * transaction on 2026-09-21, in PostgREST's own statement shape, as a
+     * MANAGER and as a CREW member on their own shift: refused both ways; the
+     * same statement WITH started_at landed -- and put the phone's original
+     * clock back over the office correction, which is exactly why "just send
+     * the times" is not the fix. So from 1.470 every shift's update failed on
+     * every sync (hidden in app_errors behind the insert pass's own "2 of 7
+     * rows rejected", which is thrown first), and from 1.502, where a 400
+     * became a permanent mark, every shift the phone had already uploaded was
+     * tattooed SERVER_REJECTED by its own update. [isDueForPush] clears those.
      *
-     *  1. every completed shift, whole row, `insertOnly` -- so PostgREST
-     *     resolves a conflict by ignoring the row rather than updating it.
-     *     A shift the cloud has never seen lands complete; a shift it already
-     *     holds is untouchable by this batch, which is a property of the
-     *     request rather than a conclusion drawn from a read. Nothing here
-     *     can be fooled by an answer that came back short or empty.
-     *  2. every completed shift again, without started_at/ended_at -- the
-     *     keys are dropped from the body entirely (see [CloudTimeEntryPush]),
-     *     so the UPDATE never names those columns and the correction stands,
-     *     while notes, rate, employee and the approval decision still travel
-     *     as they always did.
+     * What is sent now:
      *
-     * Nothing is lost on the way up, because the phone cannot edit either time
-     * after the fact: [Repository.clockIn] sets the start, [Repository.clockOut]
-     * sets the end, and no screen writes them again.
+     *  1. every finished shift, whole, `insertOnly` -- unchanged. PostgREST
+     *     resolves a conflict by ignoring the row, so a shift the cloud has
+     *     never seen lands complete (clock, break, decision), and a shift it
+     *     already holds is untouchable by this pass. That is a property of
+     *     the request, not a conclusion drawn from a read.
+     *  2. for a shift whose worker a person changed on this phone
+     *     ([TimeEntry.workerChangedAt]) and only for that shift: a PATCH --
+     *     UPDATE, filtered by company_id and sync_id, naming employee_sync_id
+     *     and nothing else ([workerChangeToSend]). An UPDATE needs no
+     *     started_at, and one that does not name the clock cannot move it, so
+     *     an office correction stands.
+     *
+     * Why not PATCH every shift with the old update pass's columns? Three
+     * reasons, each measured or read, not guessed:
+     *  - it was a write per shift per sync. A PATCH cannot be batched with
+     *    different values per row, so a manager's phone holding the company's
+     *    two thousand shifts would send two thousand requests a minute in the
+     *    foreground.
+     *  - `stamp_time_entry_rate` runs on EVERY update and re-stamps the row's
+     *    hourly_rate from the employee's CURRENT rate (probe case 5: a shift
+     *    worked at 17 became 30 after the raise, on a same-value PATCH). Every
+     *    sync rewriting every shift would rewrite every past shift's pay rate.
+     *  - the office's correction sheet can move a shift to a different worker.
+     *    A phone re-asserting its own copy of employee_sync_id (and notes) on
+     *    every pass would undo that, the same way it once undid times.
+     * And nothing else in that pass was the phone's to send: no screen edits
+     * a stored shift's notes, rate or job after clock-out; the pull takes the
+     * cloud's notes and rate every pass; the decision goes through
+     * `approve_time_entry` and a clock correction through `correct_time_entry`.
      *
      * The one thing that WOULD be lost is a clock-out for a shift the cloud
-     * already held while it was still running, because batch 1 would decline
-     * to touch it and batch 2 would not carry ended_at. No such shift can
-     * exist: this is the only code in the app that writes time_entries at all,
-     * and it filters running shifts out, so a row only ever reaches the cloud
+     * already held while it was still running, because pass 1 would decline
+     * to touch it and pass 2 does not carry ended_at. No such shift can exist:
+     * this is the only code in the app that writes time_entries rows, it
+     * filters running shifts out, so a row only ever reaches the cloud
      * finished. The office page only ever UPDATEs the table -- it has no
      * insert path -- and no Edge Function touches it. Re-check those three
      * before adding an insert anywhere else.
@@ -2546,35 +2581,34 @@ object EntitySync {
         }
         if (sendable.isEmpty()) return 0
 
-        // Sync ids the insert pass marks SERVER_REJECTED, so the update pass
+        // One clock for the whole pass, so the two passes agree on which
+        // marks have expired.
+        val now = System.currentTimeMillis()
+
+        // Sync ids the insert pass marks SERVER_REJECTED, so the worker pass
         // behind it does not send them a second time. `sendable` was read
         // before either pass ran, so its copies still say "not blocked" after
-        // the mark has been written to Room -- the update pass has to be
-        // told, not left to re-read. Before this, every refused shift cost
-        // two guaranteed-400 requests per sync instead of one.
+        // the mark has been written to Room -- the worker pass has to be
+        // told, not left to re-read.
         val rejectedThisPass = HashSet<String>()
 
         // Caught rather than thrown, so one row the server will not accept
-        // cannot also block the update pass behind it -- and reported ahead of
-        // anything the update pass raises about the same row, because "could
-        // not insert this shift" is the cause and "started_at missing on an
-        // insert" would only be its symptom.
+        // cannot also block the worker changes behind it -- and reported ahead
+        // of anything the worker pass raises, because "could not insert this
+        // shift" is the cause and anything the PATCH says about the same row
+        // would only be its symptom.
         val firstSight = runCatching {
-            pushTimeEntryRows(
-                repository, companyId, sendable, employeeSyncById, rejectedThisPass,
-                insertOnly = true, includeTimes = true, includeDecision = true
-            )
+            pushTimeEntryRows(repository, companyId, sendable, employeeSyncById, rejectedThisPass, now)
         }
-        val updated = runCatching {
-            pushTimeEntryRows(
-                repository, companyId, sendable, employeeSyncById, rejectedThisPass,
-                insertOnly = false, includeTimes = false, includeDecision = false
-            )
+        val workerChanges = runCatching {
+            pushWorkerChanges(repository, companyId, sendable, employeeSyncById, rejectedThisPass, now)
         }
         firstSight.exceptionOrNull()?.let { throw it }
-        // The update pass covers every shift, so its count is the number of
-        // shifts synced. Summing the two would report each one twice.
-        return updated.getOrThrow()
+        workerChanges.exceptionOrNull()?.let { throw it }
+        // The insert pass covers every shift that was due, so its count is the
+        // number of shifts synced. A worker change is one of those same
+        // shifts; adding it would count it twice.
+        return firstSight.getOrThrow()
     }
 
     /** The trigger's own wording, kept in one place for [needsWorkerAssignment]'s local marker. */
@@ -2583,118 +2617,200 @@ object EntitySync {
             "or pick who is working, and clock in again."
 
     /**
+     * Pass 1 of [pushTimeEntries]: every due shift, whole, insert-only.
+     *
      * Like [upsert], chunked with a per-row fallback -- but for time entries
      * specifically, because a row the fallback still can't place needs more
      * than a count: it needs to be told apart from every other row so
      * [TimeEntrySyncBlock] can be recorded against the RIGHT shift rather
-     * than the whole batch. Rows already known to be permanently rejected
-     * (from an earlier pass) and unchanged are skipped rather than retried.
+     * than the whole batch.
+     *
+     * The request is the same one it always was -- `ignoreDuplicates`, the
+     * clock, the break and the decision all carried. There is deliberately no
+     * flag for any other shape any more: the upsert-without-started_at that
+     * this used to be asked for on its second call is the 23502 that failed
+     * every shift from 1.470, and a shape that cannot be requested cannot come
+     * back.
+     *
+     * Which rows: [isDueForPush] -- unmarked, or marked SERVER_REJECTED long
+     * enough ago to try once more. An expired mark goes up on its own, never
+     * inside a chunk: a row the server still refuses would fail its whole
+     * chunk and send up to two hundred good shifts one at a time behind it,
+     * every six hours.
      */
     private suspend fun pushTimeEntryRows(
         repository: Repository,
         companyId: String,
         shifts: List<Pair<TimeEntry, String>>,
         employeeSyncById: Map<Long, String>,
-        // Sync ids marked SERVER_REJECTED earlier in this same sync -- by the
-        // insert pass, when this is the update pass. Added to, never cleared.
+        // Sync ids this pass marks SERVER_REJECTED, for the worker pass behind
+        // it. Added to, never cleared.
         rejectedThisPass: MutableSet<String>,
-        insertOnly: Boolean,
-        includeTimes: Boolean,
-        includeDecision: Boolean
+        now: Long
     ): Int {
-        // A row already marked SERVER_REJECTED from a previous pass is not
-        // retried here either -- same reasoning as the local NEEDS_WORKER
-        // skip above, for whatever OTHER permanent 4xx the server gave it.
-        // Nor is one that this sync's own earlier pass just marked.
-        val toSend = shifts.filter { (entry, _) ->
-            entry.syncBlockedReason == null && entry.syncId !in rejectedThisPass
-        }
-        if (toSend.isEmpty()) return 0
-
-        val rows = toSend.map { (entry, jobSyncId) ->
-            // The very value the hold-back in pushTimeEntries tested.
-            entry.toCloud(
-                companyId, jobSyncId, resolveEmployeeSyncId(entry, employeeSyncById),
-                includeTimes, includeDecision
-            )
-        }
+        val due = shifts.filter { (entry, _) -> isDueForPush(entry, now) }
+        if (due.isEmpty()) return 0
+        val (retrying, fresh) = due.partition { (entry, _) -> entry.isSyncBlocked }
 
         var pushed = 0
         var firstRowFailure: Throwable? = null
         var failedCount = 0
 
-        toSend.zip(rows).chunked(200).forEach { chunk ->
-            val whole = runCatching {
+        // One row, on its own, with its outcome written against that shift.
+        suspend fun sendOne(entry: TimeEntry, row: CloudTimeEntryPush) {
+            val single = runCatching {
                 SupabaseModule.client.postgrest.from("time_entries")
-                    .upsert(chunk.map { it.second }) {
+                    .upsert(listOf(row)) {
                         onConflict = "company_id,sync_id"
-                        if (insertOnly) ignoreDuplicates = true
+                        ignoreDuplicates = true
                     }
             }
-            if (whole.isSuccess) {
-                pushed += chunk.size
-            } else {
-                chunk.forEach { (pair, row) ->
-                    val (entry, _) = pair
-                    val single = runCatching {
-                        SupabaseModule.client.postgrest.from("time_entries")
-                            .upsert(listOf(row)) {
-                                onConflict = "company_id,sync_id"
-                                if (insertOnly) ignoreDuplicates = true
-                            }
+            if (single.isSuccess) {
+                pushed++
+                // A row that goes through clean after previously being marked
+                // (its employee got fixed, or the mark was a wrong guess that
+                // has now expired) is no longer blocked -- clear it rather than
+                // leaving a stale reason on a shift that just synced fine.
+                if (entry.isSyncBlocked) {
+                    runCatching { repository.clearTimeEntrySyncBlock(entry.id) }
+                }
+                return
+            }
+            val cause = single.exceptionOrNull()!!
+            android.util.Log.w("EntitySync", "push time_entries: one row rejected and skipped", cause)
+            // One decision, made in one pure place -- see [classifyRowRejection],
+            // and TimeEntryPushDecisionTest, which feeds it the real exceptions.
+            when (val decision = classifyRowRejection(cause)) {
+                is RowRejection.Permanent -> {
+                    // Marked and held back until the mark expires -- not
+                    // counted as a failure here either, for the same reason
+                    // isNotOursToSync's refusals aren't: a sync that keeps
+                    // reporting FAILED for a row that will not go up teaches
+                    // people to ignore the banner. The Time screen is where
+                    // this belongs. Stamped NOW, every time: the stamp is the
+                    // retry clock (see [TimeEntry.syncBlockedAt]).
+                    rejectedThisPass += entry.syncId
+                    runCatching {
+                        repository.markTimeEntrySyncBlocked(
+                            entry.id, TimeEntrySyncBlock.SERVER_REJECTED.name,
+                            System.currentTimeMillis(), decision.detail
+                        )
                     }
-                    if (single.isSuccess) {
-                        pushed++
-                        // A row that goes through clean after previously being
-                        // marked (its employee got fixed, say) is no longer
-                        // blocked -- clear it rather than leaving a stale
-                        // reason sitting on a shift that just synced fine.
-                        if (entry.isSyncBlocked) {
-                            runCatching {
-                                repository.updateTimeEntry(
-                                    entry.copy(syncBlockedReason = null, syncBlockedAt = null, syncBlockedDetail = null)
-                                )
-                            }
-                        }
-                    } else {
-                        val cause = single.exceptionOrNull()!!
-                        android.util.Log.w("EntitySync", "push time_entries: one row rejected and skipped", cause)
-                        // One decision, made in one pure place -- see
-                        // [classifyRowRejection], and TimeEntryPushDecisionTest,
-                        // which feeds it the real BadRequestRestException.
-                        when (val decision = classifyRowRejection(cause)) {
-                            is RowRejection.Permanent -> {
-                                // Marked and left out of every future pass -- not
-                                // counted as a failure here either, for the same
-                                // reason isNotOursToSync's refusals aren't: a sync
-                                // that keeps reporting FAILED for a row that can
-                                // never go up teaches people to ignore the banner.
-                                // The Time screen is where this belongs now.
-                                rejectedThisPass += entry.syncId
-                                runCatching {
-                                    repository.updateTimeEntry(
-                                        entry.copy(
-                                            syncBlockedReason = TimeEntrySyncBlock.SERVER_REJECTED.name,
-                                            syncBlockedAt = entry.syncBlockedAt ?: System.currentTimeMillis(),
-                                            syncBlockedDetail = decision.detail
-                                        )
-                                    )
-                                }
-                            }
-                            is RowRejection.Retry -> {
-                                failedCount++
-                                if (firstRowFailure == null) firstRowFailure = decision.cause
-                            }
-                        }
-                    }
+                }
+                is RowRejection.Retry -> {
+                    failedCount++
+                    if (firstRowFailure == null) firstRowFailure = decision.cause
                 }
             }
         }
 
-        firstRowFailure?.let { throw PartialUpsertFailure("time_entries", failedCount, toSend.size, it) }
+        fun rowFor(entry: TimeEntry, jobSyncId: String) =
+            // The very value the hold-back in pushTimeEntries tested.
+            entry.toInsertRow(companyId, jobSyncId, resolveEmployeeSyncId(entry, employeeSyncById))
+
+        fresh.map { (entry, jobSyncId) -> entry to rowFor(entry, jobSyncId) }
+            .chunked(200)
+            .forEach { chunk ->
+                val whole = runCatching {
+                    SupabaseModule.client.postgrest.from("time_entries")
+                        .upsert(chunk.map { it.second }) {
+                            onConflict = "company_id,sync_id"
+                            ignoreDuplicates = true
+                        }
+                }
+                if (whole.isSuccess) {
+                    pushed += chunk.size
+                } else {
+                    chunk.forEach { (entry, row) -> sendOne(entry, row) }
+                }
+            }
+        retrying.forEach { (entry, jobSyncId) -> sendOne(entry, rowFor(entry, jobSyncId)) }
+
+        firstRowFailure?.let { throw PartialUpsertFailure("time_entries", failedCount, due.size, it) }
         return pushed
     }
+
+    /**
+     * Pass 2 of [pushTimeEntries]: the worker changes this phone owes the
+     * cloud, one PATCH each, and nothing else.
+     *
+     * Counted by what came back, not by the absence of an error. A PostgREST
+     * PATCH that matches no row answers 200 with nothing in it (probe case
+     * 3b), so `select("sync_id")` asks for the rows it actually changed. None
+     * means the cloud does not hold this shift yet -- pass 1 either refused it
+     * (then it is in [rejectedThisPass] and never reaches here) or could not
+     * reach the server -- so the stamp stays and the next pass tries again.
+     * One means the cloud holds the change: the stamp is cleared, unless a
+     * newer Fix replaced it while this was in flight
+     * ([Repository.confirmWorkerChangeSynced]).
+     */
+    private suspend fun pushWorkerChanges(
+        repository: Repository,
+        companyId: String,
+        shifts: List<Pair<TimeEntry, String>>,
+        employeeSyncById: Map<Long, String>,
+        rejectedThisPass: Set<String>,
+        now: Long
+    ): Int {
+        val owed = shifts.mapNotNull { (entry, _) ->
+            if (entry.syncId in rejectedThisPass || !isDueForPush(entry, now)) return@mapNotNull null
+            workerChangeToSend(entry, resolveEmployeeSyncId(entry, employeeSyncById))?.let { entry to it }
+        }
+        if (owed.isEmpty()) return 0
+
+        var confirmed = 0
+        var firstFailure: Throwable? = null
+        var failedCount = 0
+
+        for ((entry, patch) in owed) {
+            val result = runCatching {
+                SupabaseModule.client.postgrest.from("time_entries").update(patch) {
+                    select(io.github.jan.supabase.postgrest.query.Columns.list("sync_id"))
+                    filter {
+                        eq("company_id", companyId)
+                        eq("sync_id", entry.syncId)
+                    }
+                }.decodeList<SyncIdOnly>()
+            }
+            if (result.isSuccess) {
+                if (result.getOrThrow().isNotEmpty()) {
+                    runCatching { repository.confirmWorkerChangeSynced(entry) }
+                    confirmed++
+                } else {
+                    android.util.Log.i(
+                        "EntitySync",
+                        "push time_entries: worker change for ${entry.syncId} matched no cloud row yet; kept for the next pass"
+                    )
+                }
+                continue
+            }
+            val cause = result.exceptionOrNull()!!
+            android.util.Log.w("EntitySync", "push time_entries: worker change refused", cause)
+            when (val decision = classifyWorkerChangeRejection(cause)) {
+                // The stamp is kept: the change is still owed, and goes up
+                // again when the mark expires (or when somebody picks again,
+                // which clears the mark and re-stamps).
+                is RowRejection.Permanent -> runCatching {
+                    repository.markTimeEntrySyncBlocked(
+                        entry.id, TimeEntrySyncBlock.SERVER_REJECTED.name,
+                        System.currentTimeMillis(), decision.detail
+                    )
+                }
+                is RowRejection.Retry -> {
+                    failedCount++
+                    if (firstFailure == null) firstFailure = decision.cause
+                }
+            }
+        }
+
+        firstFailure?.let { throw PartialUpsertFailure("time_entries worker changes", failedCount, owed.size, it) }
+        return confirmed
+    }
 }
+
+/** What a PATCH with `select("sync_id")` answers with: the rows it changed, by identity. */
+@Serializable
+private data class SyncIdOnly(@SerialName("sync_id") val syncId: String = "")
 
 /* ---------------- mapping ---------------- */
 
@@ -2732,41 +2848,43 @@ private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceR
     splitRailCount = splitRailCount
 )
 
-private fun TimeEntry.toCloud(
+/**
+ * The whole shift, as the insert-only pass sends it -- the ONLY shape a
+ * TimeEntry is ever pushed in as a row.
+ *
+ * It used to take includeTimes/includeDecision flags so a second call could
+ * leave the clock and the decision out for an "update pass". That pass was an
+ * upsert, and an upsert without started_at is refused 23502 on every row (see
+ * [EntitySync.pushTimeEntries]), so the flags are gone: [CloudTimeEntryPush.startedAt]
+ * is non-null, and a row without the clock cannot be built. A change to a
+ * shift the cloud already holds goes up as [workerChangeToSend]'s PATCH.
+ *
+ * Internal, not private, so a test can serialize it through [cloudJson] and
+ * hold it to that.
+ */
+internal fun TimeEntry.toInsertRow(
     companyId: String,
     jobSyncId: String,
-    employeeSyncId: String? = null,
-    // False for the second of [EntitySync.pushTimeEntries]'s two batches: the
-    // clock is left out so the upsert's UPDATE never names those columns and
-    // an office time correction is not overwritten by the phone that recorded
-    // the original. Never mix the two shapes inside one batch -- see
-    // [CloudTimeEntryPush.startedAt] for what PostgREST does with the gap.
-    includeTimes: Boolean = true,
-    // Same gate, same batching rule, for the sign-off decision -- see
-    // [CloudTimeEntryPush.approvedAt]. True only on the insert-only pass,
-    // where the row is brand new and the decision is the shift's first and
-    // only version of itself. On a row the cloud already holds the decision
-    // belongs to `approve_time_entry`, which is the only door a phone without
-    // SEE_PAY can actually get through.
-    includeDecision: Boolean = true
-) = CloudTimeEntryPush(
+    employeeSyncId: String? = null
+): CloudTimeEntryPush = CloudTimeEntryPush(
     companyId = companyId, syncId = syncId, jobSyncId = jobSyncId,
     employeeSyncId = employeeSyncId ?: "",
-    startedAt = if (includeTimes) Instant.ofEpochMilli(startedAt).toString() else null,
-    endedAt = if (includeTimes) endedAt?.let { Instant.ofEpochMilli(it).toString() } else null,
+    startedAt = Instant.ofEpochMilli(startedAt).toString(),
+    endedAt = endedAt?.let { Instant.ofEpochMilli(it).toString() },
     hourlyRate = hourlyRate, notes = notes,
-    approvedAt = if (includeDecision) approvedAt?.let { CloudTime.format(it) } else null,
-    approvedBy = if (includeDecision) approvedBy else null,
-    rejectedAt = if (includeDecision) rejectedAt?.let { CloudTime.format(it) } else null,
-    reviewNote = if (includeDecision) reviewNote else null,
-    // Same gate as startedAt/endedAt above, and for the same reason: the break
-    // is recorded once, before the shift is ever pushed (a phone cannot edit
-    // it after clocking out -- see Repository.clockOut), so it belongs in the
-    // insert-only batch and must be left out of the update pass that runs
-    // behind it.
-    breakMinutes = if (includeTimes) breakMinutes else null,
-    breakStartedAt = if (includeTimes) breakStartedAt?.let { Instant.ofEpochMilli(it).toString() } else null,
-    breakEndedAt = if (includeTimes) breakEndedAt?.let { Instant.ofEpochMilli(it).toString() } else null
+    // The decision travels only here, on the shift's first and only insert:
+    // on a row the cloud already holds it belongs to `approve_time_entry`,
+    // which is the only door a phone without SEE_PAY can get through.
+    approvedAt = approvedAt?.let { CloudTime.format(it) },
+    approvedBy = approvedBy,
+    rejectedAt = rejectedAt?.let { CloudTime.format(it) },
+    reviewNote = reviewNote,
+    // Recorded once, before the shift is ever pushed (a phone cannot edit it
+    // after clocking out -- see Repository.clockOut). Null stays out of the
+    // body (explicitNulls = false): "no break recorded", never a break of 0.
+    breakMinutes = breakMinutes,
+    breakStartedAt = breakStartedAt?.let { Instant.ofEpochMilli(it).toString() },
+    breakEndedAt = breakEndedAt?.let { Instant.ofEpochMilli(it).toString() }
 )
 
 /**

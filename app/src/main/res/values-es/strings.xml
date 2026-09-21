@@ -1727,7 +1727,7 @@
     <string name="crew_shifts_waiting_note">%1$d turno(s) en espera. Las horas no cuentan para el pago ni el costo del trabajo hasta que se aprueben.</string>
     <string name="time_shifts_cannot_upload_note">%1$d turno(s) no se pueden subir: nadie está asignado como trabajador</string>
     <string name="time_no_worker_set">Nadie está asignado como trabajador</string>
-    <string name="time_generic_sync_blocked_detail">La nube rechazó este turno y no se volverá a intentar por sí solo.</string>
+    <string name="time_generic_sync_blocked_detail">La nube rechazó este turno. Se volverá a intentar una vez dentro de unas horas; si lo rechaza de nuevo, corrígelo o descártalo.</string>
     <string name="time_fix_shift">Corregir</string>
     <string name="time_discard_shift">Descartar</string>
     <string name="time_fix_shift_title">¿Quién trabajó este turno?</string>

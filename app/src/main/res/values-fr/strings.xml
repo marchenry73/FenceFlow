@@ -1727,7 +1727,7 @@
     <string name="crew_shifts_waiting_note">%1$d quart(s) en attente. Les heures ne comptent ni pour la paie ni pour le coût du chantier tant qu elles ne sont pas approuvées.</string>
     <string name="time_shifts_cannot_upload_note">%1$d quart(s) ne peuvent pas être téléversés : personne n\'est assigné comme travailleur</string>
     <string name="time_no_worker_set">Personne n\'est assigné comme travailleur</string>
-    <string name="time_generic_sync_blocked_detail">Le cloud a refusé ce quart et il ne sera pas réessayé automatiquement.</string>
+    <string name="time_generic_sync_blocked_detail">Le cloud a refusé ce quart. Il sera réessayé une fois dans quelques heures ; s\'il est refusé à nouveau, corrigez-le ou supprimez-le.</string>
     <string name="time_fix_shift">Corriger</string>
     <string name="time_discard_shift">Supprimer</string>
     <string name="time_fix_shift_title">Qui a travaillé ce quart ?</string>

@@ -1772,7 +1772,7 @@
          TimeEntrySyncRejection.kt. -->
     <string name="time_shifts_cannot_upload_note">%1$d shift(s) cannot be uploaded: nobody is set as the worker</string>
     <string name="time_no_worker_set">Nobody is set as the worker</string>
-    <string name="time_generic_sync_blocked_detail">The cloud refused this shift and it will not be retried on its own.</string>
+    <string name="time_generic_sync_blocked_detail">The cloud refused this shift. It will be tried once more in a few hours; if it is refused again, fix it or discard it.</string>
     <string name="time_fix_shift">Fix</string>
     <string name="time_discard_shift">Discard</string>
     <string name="time_fix_shift_title">Who worked this shift?</string>
