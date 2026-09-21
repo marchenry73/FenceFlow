@@ -1,0 +1,74 @@
+# Hourly trigger for the attention-sweep edge function.
+#
+# attention-sweep (supabase/functions/attention-sweep/index.ts) detects the
+# nine high-severity office alerts (money at risk, a crew about to be sent
+# to a job that is not ready, an 811/permit/HOA gap) server-side and pushes
+# owners/managers -- but nothing calls it, same gap send-follow-ups had
+# before .github/workflows/follow-ups.yml (this file's sibling). Modeled on
+# that workflow directly: "Option B" from send-follow-ups' own RUNBOOK
+# comment -- an external cron caller, zero infrastructure cost, no second
+# Supabase compute instance (CLAUDE.md's cost rule; there is no pg_cron in
+# this project either, same fact that workflow already documents).
+#
+# This workflow can only trigger a sweep if a company has ALSO opted itself
+# into attention_sweep_settings.enabled = true (off by default,
+# supabase_p4_attention_settings.sql) -- turning this workflow on does not,
+# by itself, start notifying anyone. Proved live: with every company's
+# setting at its default (off), attention_sweep_candidates() returns zero
+# rows even though real jobs in the database match several detectors.
+#
+# Same two-gate shape as follow-ups.yml:
+#   - `apikey` / `Authorization: Bearer` carry the project's PUBLIC anon key
+#     (not a secret -- see that workflow's own comment for why).
+#   - `x-fenceflow-trigger` carries ATTENTION_SWEEP_TRIGGER_SECRET, a GitHub
+#     repository secret. The function refuses any request without the exact
+#     matching value (constant-time compared, same pattern as
+#     notify-job-change and send-follow-ups). See docs/ATTENTION_SWEEP.md
+#     for the one-time setup step an owner (not this workflow) must do.
+#
+# Offset 15 minutes past the hour rather than on the hour, so this and
+# follow-ups.yml do not both start at :00 and compete for the same GitHub
+# Actions minute-of-the-hour slot -- cosmetic, not a correctness issue
+# either way, but free to avoid.
+name: Attention sweep scheduler
+
+on:
+  schedule:
+    - cron: '15 * * * *' # hourly, 15 past, UTC
+  workflow_dispatch: {} # manual "run now" from the Actions tab
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke attention-sweep
+        env:
+          TRIGGER_SECRET: ${{ secrets.ATTENTION_SWEEP_TRIGGER_SECRET }}
+          SUPABASE_ANON_KEY: 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TRIGGER_SECRET:-}" ]; then
+            echo "::error::ATTENTION_SWEEP_TRIGGER_SECRET is not set as a GitHub repository secret. Doing nothing -- see docs/ATTENTION_SWEEP.md." >&2
+            exit 1
+          fi
+
+          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST 'https://newcrgafcptspmapacrx.supabase.co/functions/v1/attention-sweep' \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "x-fenceflow-trigger: ${TRIGGER_SECRET}" \
+            -H "Content-Type: application/json")
+
+          echo "HTTP status: ${http_status}"
+          cat response.json
+
+          if [ "${http_status}" != "200" ]; then
+            echo "::error::attention-sweep returned HTTP ${http_status}, treating as failure." >&2
+            exit 1
+          fi
+
+          if grep -q '"error"' response.json; then
+            echo "::error::attention-sweep responded 200 but its body reports an error (see above)." >&2
+            exit 1
+          fi
