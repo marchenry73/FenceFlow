@@ -328,9 +328,9 @@ export interface CommitLineItemWrite {
 }
 
 export interface CommitPlan {
-  /** Rows to upsert into `estimate_line_items` on (company_id, sync_id). */
+  /** Rows to upsert into `estimate_line_items` on (company_id, sync_id). Never a row somebody edited. */
   upsertItems: CommitLineItemWrite[];
-  /** Sync ids of existing rows to tombstone -- update, never delete. */
+  /** Sync ids of generated rows to tombstone -- update, never delete. Never a row somebody edited. */
   tombstoneSyncIds: string[];
   jobPatch: {
     contract_total: number;
@@ -371,30 +371,143 @@ export function commitLineItemWrite(item: ItemOutput, companyId: string, jobSync
 /**
  * A role is a real material line, not a hand-typed extra, using the same
  * fallback the engine itself applies when reading `existing_items` (null or
- * unrecognised -> NONE): `lineItemFromRow` in index.ts. The tombstone rule
- * has to agree with THAT reading of the row, not with the raw column, or a
+ * unrecognised -> NONE): `lineItemFromRow` in index.ts. The commit rule has
+ * to agree with THAT reading of the row, not with the raw column, or a
  * legacy role string neither side recognises would be tombstoned here while
- * the engine's own survivor check kept it.
+ * the engine kept it.
  */
-function hasMaterialRole(role: string | null): boolean {
+function adaptedRole(role: string | null): string {
   const adapted = role === null || role === undefined ? null : enumValueOf(MATERIAL_ROLES, role);
-  return (adapted ?? "NONE") !== "NONE";
+  return adapted ?? "NONE";
+}
+
+function hasMaterialRole(role: string | null): boolean {
+  return adaptedRole(role) !== "NONE";
+}
+
+/** One line's content, from either side, in the shape the two comparisons below read. */
+interface LineContent {
+  sync_id: string;
+  fence_run_sync_id: string | null;
+  sort_order: number;
+  role: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  supplier_unit_price: number | null;
+  taxable: boolean;
+  auto_generated: boolean;
+}
+
+function rowContent(row: DbLineItemRow): LineContent {
+  return {
+    sync_id: row.sync_id,
+    fence_run_sync_id: row.fence_run_sync_id ?? null,
+    sort_order: row.sort_order,
+    role: adaptedRole(row.role),
+    description: row.description,
+    quantity: row.quantity,
+    unit: row.unit,
+    unit_price: row.unit_price,
+    supplier_unit_price: row.supplier_unit_price ?? null,
+    taxable: row.taxable,
+    auto_generated: row.auto_generated,
+  };
+}
+
+function itemContent(item: ItemOutput): LineContent {
+  return {
+    sync_id: item.sync_id,
+    fence_run_sync_id: item.fence_run_sync_id,
+    sort_order: item.sort_order,
+    role: item.role,
+    description: item.description,
+    quantity: item.quantity,
+    unit: item.unit,
+    unit_price: item.unit_price,
+    supplier_unit_price: item.supplier_unit_price,
+    taxable: item.taxable,
+    auto_generated: item.auto_generated,
+  };
 }
 
 /**
- * What `commit` writes, in the order index.ts must apply it: `upsertItems`
- * first, then tombstone `tombstoneSyncIds`, then `jobPatch`. This mirrors
- * `TakeoffRefresher.replaceGeneratedForRun` exactly: every NOT-deleted
- * existing row of a priced run whose role is not NONE is replaced -- edited
- * prices included, since editing a price is what clears the auto flag, not
- * what protects the row -- while a row with no run, or role NONE (a
- * hand-typed extra), is never touched. `pricedRunSyncIds` is every run this
- * call priced (dry_run and commit price the whole job, so that is every
- * non-deleted fence_run; `sample` never commits, so this function is never
- * called for it) -- a teardown run is included, and since it produced no
- * `output.items` at all, every one of its existing roled rows tombstones,
- * which is TakeoffRefresher's own "marking a run teardown clears its
- * materials" rule.
+ * A comparable key. Numbers compare the way a boxed Kotlin Double does in the
+ * phone's list comparison (-0.0 is not 0.0, NaN is NaN), which is Object.is.
+ */
+function contentKey(values: ReadonlyArray<string | number | boolean | null>): string {
+  return values.map((v) =>
+    typeof v === "number" ? `n${Object.is(v, -0) ? "-0" : String(v)}` : v === null ? "null" : `${typeof v}${JSON.stringify(v)}`
+  ).join("|");
+}
+
+/**
+ * What makes two takeoff lines the same line: the phone's takeoffFingerprint
+ * (TakeoffLineMerge.kt). The sync id is part of it; the sort order is not,
+ * so a rebuild that only renumbered lines is not a change.
+ */
+function takeoffFingerprint(c: LineContent): string {
+  return contentKey([
+    c.sync_id, c.role, c.description, c.quantity, c.unit, c.unit_price, c.supplier_unit_price, c.taxable, c.auto_generated,
+  ]);
+}
+
+/** Everything a write carries: the phone's pushContent. Two copies that agree on all of it need nothing sent. */
+function pushKey(c: LineContent): string {
+  return contentKey([
+    c.sync_id, c.fence_run_sync_id, c.sort_order, c.role, c.description, c.quantity, c.unit,
+    c.unit_price, c.supplier_unit_price, c.taxable, c.auto_generated,
+  ]);
+}
+
+/**
+ * TakeoffLineMerge.Plan.unchanged: the run's generated lines now and the
+ * rebuild are the same set of lines. Edited lines are on neither side --
+ * they are kept either way -- so they can no longer force a rewrite.
+ */
+function sameTakeoff(replacedAuto: readonly DbLineItemRow[], insert: readonly ItemOutput[]): boolean {
+  if (replacedAuto.length !== insert.length) return false;
+  const now = new Set(replacedAuto.map((r) => takeoffFingerprint(rowContent(r))));
+  const rebuilt = new Set(insert.map((i) => takeoffFingerprint(itemContent(i))));
+  return now.size === rebuilt.size && Array.from(now).every((k) => rebuilt.has(k));
+}
+
+/**
+ * What `commit` writes, in the order index.ts applies it: tombstone
+ * `tombstoneSyncIds`, then upsert `upsertItems`, then `jobPatch`. The rule
+ * is the phone's own regenerate (TakeoffLineMerge, via Repository
+ * .replaceAutoGeneratedLineItemsForRun), applied per priced run:
+ *
+ *  - **A line somebody edited is never written or tombstoned.** Every row
+ *    with auto_generated = false is off limits: the engine lists the ones on
+ *    a run in `output.items` exactly as they are, and this skips them. The
+ *    old plan tombstoned every roled row of the run and upserted the
+ *    rebuild over it, so an office rate change -- which re-prices on its own
+ *    -- put a quantity typed on the phone back to the engine's number.
+ *  - **Only generated lines give way.** Of the run's auto-generated roled
+ *    rows, the ones the rebuild no longer produces are tombstoned. That is
+ *    also exactly what the trash-bin trigger lets an EDIT_JOBS caller
+ *    tombstone without DELETE_RECORDS (enforce_delete_permission's takeoff
+ *    carve-out).
+ *  - **A rebuild that matches what is there writes nothing** for that run
+ *    (TakeoffLineMerge.Plan.unchanged). Within a run that did change, a line
+ *    whose content came back exactly as it is live is not rewritten either,
+ *    as the phone pushes only the lines that changed. An equal rewrite still
+ *    churned updated_at, realtime, the audit log and every other phone:
+ *    movement with no information in it.
+ *  - **A returning role is resurrected.** Line sync ids are deterministic, so
+ *    a role that left (tombstoned by an earlier commit or a phone) and came
+ *    back lands on the same row; it is not among the live rows read, so it is
+ *    written, and commitLineItemWrite clears its deleted_at.
+ *
+ * A row with no run, or role NONE (a hand-typed extra), is never touched.
+ * `pricedRunSyncIds` is every run this call priced (dry_run and commit price
+ * the whole job, so that is every non-deleted fence_run; `sample` never
+ * commits). A teardown run is included: the engine builds nothing for it, so
+ * its generated lines tombstone -- TakeoffRefresher's "marking a run teardown
+ * clears its materials" -- and its edited lines stay. `existingItems` must be
+ * the job's live (non-deleted) rows, as index.ts loads them.
  */
 export function buildCommitPlan(args: {
   output: PricingOutput;
@@ -407,15 +520,31 @@ export function buildCommitPlan(args: {
 }): CommitPlan {
   const { output, companyId, jobSyncId, pricedRunSyncIds, existingItems, nowIso } = args;
 
-  const upsertItems = output.items.map((item) => commitLineItemWrite(item, companyId, jobSyncId));
+  const liveById = new Map(existingItems.map((e) => [e.sync_id, e] as const));
+  // Every row a commit must never write over, wherever it sits. The engine
+  // reads a missing flag as edited (lineItemFromRow), and so does this.
+  const handEdited = new Set(existingItems.filter((e) => e.auto_generated !== true).map((e) => e.sync_id));
 
-  const writtenSyncIds = new Set(output.items.map((i) => i.sync_id));
-  const runSet = new Set(pricedRunSyncIds);
-  const tombstoneSyncIds = existingItems
-    .filter((e) => e.fence_run_sync_id !== null && runSet.has(e.fence_run_sync_id))
-    .filter((e) => hasMaterialRole(e.role))
-    .filter((e) => !writtenSyncIds.has(e.sync_id))
-    .map((e) => e.sync_id);
+  const upsertItems: CommitLineItemWrite[] = [];
+  const tombstoneSyncIds: string[] = [];
+  for (const runSyncId of new Set(pricedRunSyncIds)) {
+    const replacedAuto = existingItems.filter((e) =>
+      e.fence_run_sync_id === runSyncId && hasMaterialRole(e.role) && e.auto_generated === true
+    );
+    // The lines the merge built for this run: its items, less the edited
+    // lines it lists as they are.
+    const insert = output.items.filter((i) => i.fence_run_sync_id === runSyncId && !handEdited.has(i.sync_id));
+
+    if (sameTakeoff(replacedAuto, insert)) continue;
+
+    const insertIds = new Set(insert.map((i) => i.sync_id));
+    for (const row of replacedAuto) if (!insertIds.has(row.sync_id)) tombstoneSyncIds.push(row.sync_id);
+    for (const item of insert) {
+      const live = liveById.get(item.sync_id);
+      if (live !== undefined && pushKey(rowContent(live)) === pushKey(itemContent(item))) continue;
+      upsertItems.push(commitLineItemWrite(item, companyId, jobSyncId));
+    }
+  }
 
   return {
     upsertItems,

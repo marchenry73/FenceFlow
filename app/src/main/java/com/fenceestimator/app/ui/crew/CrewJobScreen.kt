@@ -74,7 +74,13 @@ import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit) {
+fun CrewJobScreen(
+    jobId: Long,
+    onBack: () -> Unit,
+    onOpenSurvey: (Long) -> Unit,
+    /** "Request access", offered on a job this person was taken off (see [kept] below). */
+    onOpenRequestAccess: () -> Unit = {}
+) {
     val app = currentApp()
     val context = LocalContext.current
     val viewModel: CrewJobViewModel = viewModel(
@@ -112,6 +118,18 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
         return
     }
     val currentJob = job!!
+    // Kept on this phone after its person was taken off it (Job.accessEndedAt):
+    // it opens here from "Kept on this phone" so a running shift can be
+    // clocked out, and nothing on it may pretend the job can still be worked.
+    // The server refuses a stage move on it (42501, "This job is not assigned
+    // to you."), and ticks, photos, a sign-off or "complete" made here would
+    // sit unsent until access came back -- so those are not offered, and the
+    // way back in is: ask.
+    val kept = currentJob.accessEndedAt != null
+    val scope by com.fenceestimator.app.cloud.JobAccess.scope.collectAsState()
+    // Only a linked, scoped login can ask -- the same rule as the job list's
+    // "Other jobs -- request access" row (scopedHome).
+    val mayAskForAccess = (scope as? com.fenceestimator.app.cloud.JobScope.Scoped)?.linked == true
 
     var pendingKind by remember { mutableStateOf(PhotoKind.BEFORE) }
     var pendingTarget by remember { mutableStateOf<NewPhotoTarget?>(null) }
@@ -147,6 +165,36 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
             contentPadding = PaddingValues(Space.screen),
             verticalArrangement = Arrangement.spacedBy(Space.section)
         ) {
+            // First: this job is no longer theirs (see [kept]), which decides
+            // how everything under it reads.
+            if (kept) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    ) {
+                        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            Text(
+                                stringResource(R.string.crew_kept_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                stringResource(R.string.crew_kept_body),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            if (mayAskForAccess) {
+                                Button(onClick = onOpenRequestAccess, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.access_request_button))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Above even the locate warning: the drawing changed after the
             // customer approved (docs/REAPPROVAL_RULE.md), so what the crew
             // would be building no longer matches what was agreed to. A crew
@@ -359,6 +407,9 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                 val crew by viewModel.employees.collectAsState()
                 TimeClockCard(
                     entries = entries,
+                    // A running shift on a kept job still ends here; a new
+                    // one does not start on a job this person is off.
+                    allowClockIn = !kept,
                     onClockIn = { viewModel.clockIn() },
                     onClockOut = { viewModel.clockOut() },
                     onStartBreak = { viewModel.startBreak() },
@@ -461,94 +512,99 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
                 }
             }
 
-            item {
-                val online by app.connectivity.online.collectAsState()
-                JobStageCard(
-                    stage = currentJob.productionStage,
-                    online = online,
-                    onAdvance = { next -> viewModel.moveStage(next, online) },
-                    onRevert = { prev -> viewModel.moveStage(prev, online) }
-                )
-            }
+            // Everything below works the job. None of it is offered on a kept
+            // job (see [kept]): the stage move is refused by the server, and
+            // the rest would only wait on this phone, unsent.
+            if (!kept) {
+                item {
+                    val online by app.connectivity.online.collectAsState()
+                    JobStageCard(
+                        stage = currentJob.productionStage,
+                        online = online,
+                        onAdvance = { next -> viewModel.moveStage(next, online) },
+                        onRevert = { prev -> viewModel.moveStage(prev, online) }
+                    )
+                }
 
-            item {
-                StepSection(
-                    title = stringResource(R.string.crew_walkthrough),
-                    subtitle = stringResource(R.string.misc_crew_walkthrough_subtitle),
-                    steps = walkthrough,
-                    onToggle = { viewModel.toggleStep(it) }
-                )
-            }
+                item {
+                    StepSection(
+                        title = stringResource(R.string.crew_walkthrough),
+                        subtitle = stringResource(R.string.misc_crew_walkthrough_subtitle),
+                        steps = walkthrough,
+                        onToggle = { viewModel.toggleStep(it) }
+                    )
+                }
 
-            item {
-                StepSection(
-                    title = stringResource(R.string.crew_install_steps),
-                    subtitle = null,
-                    steps = install,
-                    onToggle = { viewModel.toggleStep(it) }
-                )
-            }
+                item {
+                    StepSection(
+                        title = stringResource(R.string.crew_install_steps),
+                        subtitle = null,
+                        steps = install,
+                        onToggle = { viewModel.toggleStep(it) }
+                    )
+                }
 
-            item {
-                StepSection(
-                    title = stringResource(R.string.misc_crew_final_walkthrough_title),
-                    subtitle = stringResource(R.string.misc_crew_final_walkthrough_subtitle),
-                    steps = finalWalkthrough,
-                    onToggle = { viewModel.toggleStep(it) }
-                )
-            }
+                item {
+                    StepSection(
+                        title = stringResource(R.string.misc_crew_final_walkthrough_title),
+                        subtitle = stringResource(R.string.misc_crew_final_walkthrough_subtitle),
+                        steps = finalWalkthrough,
+                        onToggle = { viewModel.toggleStep(it) }
+                    )
+                }
 
-            item {
-                FinalSignOffCard(
-                    job = currentJob,
-                    steps = finalWalkthrough,
-                    onSign = { path -> viewModel.captureFinalSignOff(path) }
-                )
-            }
+                item {
+                    FinalSignOffCard(
+                        job = currentJob,
+                        steps = finalWalkthrough,
+                        onSign = { path -> viewModel.captureFinalSignOff(path) }
+                    )
+                }
 
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
-                        Text(stringResource(R.string.crew_photos), style = MaterialTheme.typography.titleMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                            listOf(PhotoKind.BEFORE, PhotoKind.AFTER).forEach { kind ->
-                                OutlinedButton(onClick = {
-                                    pendingKind = kind
-                                    val target = PhotoFiles.newTarget(context, "photos")
-                                    pendingTarget = target
-                                    cameraLauncher.launch(target.uri)
-                                }) {
-                                    Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                                    Text("  " + stringResource(if (kind == PhotoKind.BEFORE) R.string.misc_photo_before else R.string.misc_photo_after))
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
+                            Text(stringResource(R.string.crew_photos), style = MaterialTheme.typography.titleMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                                listOf(PhotoKind.BEFORE, PhotoKind.AFTER).forEach { kind ->
+                                    OutlinedButton(onClick = {
+                                        pendingKind = kind
+                                        val target = PhotoFiles.newTarget(context, "photos")
+                                        pendingTarget = target
+                                        cameraLauncher.launch(target.uri)
+                                    }) {
+                                        Icon(Icons.Filled.CameraAlt, contentDescription = null)
+                                        Text("  " + stringResource(if (kind == PhotoKind.BEFORE) R.string.misc_photo_before else R.string.misc_photo_after))
+                                    }
                                 }
                             }
-                        }
-                        if (photos.isNotEmpty()) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                                items(photos, key = { it.id }) { photo ->
-                                    Box {
-                                        AsyncImage(
-                                            model = photo.filePath,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.size(90.dp).clip(RoundedCornerShape(Radius.sm))
-                                        )
+                            if (photos.isNotEmpty()) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                                    items(photos, key = { it.id }) { photo ->
+                                        Box {
+                                            AsyncImage(
+                                                model = photo.filePath,
+                                                contentDescription = null,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.size(90.dp).clip(RoundedCornerShape(Radius.sm))
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                val allDone = install.isNotEmpty() && install.all { it.checked }
-                Button(
-                    onClick = { viewModel.markJobComplete() },
-                    enabled = allDone,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(if (allDone) R.string.crew_mark_complete else R.string.crew_finish_steps_first))
+                item {
+                    val allDone = install.isNotEmpty() && install.all { it.checked }
+                    Button(
+                        onClick = { viewModel.markJobComplete() },
+                        enabled = allDone,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(if (allDone) R.string.crew_mark_complete else R.string.crew_finish_steps_first))
+                    }
                 }
             }
         }
@@ -558,6 +614,8 @@ fun CrewJobScreen(jobId: Long, onBack: () -> Unit, onOpenSurvey: (Long) -> Unit)
 @Composable
 private fun TimeClockCard(
     entries: List<com.fenceestimator.app.data.TimeEntry>,
+    /** False on a kept job: a running shift can still end, a new one cannot start. */
+    allowClockIn: Boolean = true,
     onClockIn: () -> Unit,
     onClockOut: () -> Unit,
     onStartBreak: () -> Unit,
@@ -638,8 +696,14 @@ private fun TimeClockCard(
                         }
                     }
                 }
-            } else {
+            } else if (allowClockIn) {
                 Button(onClick = onClockIn, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_in)) }
+            } else {
+                Text(
+                    stringResource(R.string.crew_kept_no_clock_in),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             if (totalHours > 0.0) {

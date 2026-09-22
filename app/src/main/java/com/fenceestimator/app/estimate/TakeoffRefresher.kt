@@ -1,5 +1,6 @@
 package com.fenceestimator.app.estimate
 
+import com.fenceestimator.app.cloud.SessionState
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.data.Repository
@@ -22,45 +23,109 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
  * payment link and the invoice all hang off that figure, so the customer was
  * quoted and billed for material nobody was buying.
  *
- * Two rules keep this from being intrusive:
+ * The rules that keep this from being intrusive:
  *
+ *  - **Only a phone that prices may re-price** ([mayReprice]). A crew phone
+ *    holds a catalog with every price scrubbed to zero, so the product pick
+ *    breaks its ties by sync id and chooses different posts and panels than
+ *    the office's -- and the crew phone and the owner's then overwrote each
+ *    other's quantities on every sync (161 flips on Woody and John
+ *    Beaunissant, 2026-09-17..21).
+ *  - **Only a drawing change re-prices** ([pricingSignature]). A sync echo
+ *    that only moves a run's clock is not a change.
  *  - **Only runs that already have a takeoff are refreshed.** If nobody has
  *    pressed Suggest Quantities for a run, drawing on it does not conjure an
  *    estimate out of nowhere.
- *  - **Only auto-generated lines are replaced.** Hand-added items survive,
- *    hand-corrected prices are carried across, and roles the user removed stay
- *    removed -- the same guarantees the manual button already gives.
+ *  - **Only auto-generated lines are replaced.** A line somebody edited is
+ *    kept exactly as it is, hand-added items survive, and roles the user
+ *    removed stay removed -- the same rules the Suggest button applies
+ *    ([com.fenceestimator.app.data.TakeoffLineMerge]).
  */
 object TakeoffRefresher {
 
     /**
+     * Whether the person on this phone may re-price an estimate: they see
+     * money (their catalog carries real prices, so the product pick is the
+     * office's pick) and they may edit jobs (the estimate is part of the
+     * job). Crew and foremen have neither; an accountant sees money but may
+     * not change jobs. Signed out is working alone on your own phone, where
+     * [SessionState.permissions] is everything; signed in with a profile not
+     * read yet is nothing, and so is no.
+     */
+    fun mayReprice(session: SessionState): Boolean = session.canSeeMoney && session.canEditJobs
+
+    /**
+     * Everything about a run that changes what it costs in material -- the
+     * whole row minus the fields that are identity, bookkeeping or
+     * presentation.
+     *
+     * The whole row rather than a hand-picked list, because listing fields by
+     * hand makes every new spec field one the re-pricing silently ignores.
+     * But the old version subtracted only the label and sort order, and so
+     * kept `updatedAt` in: a pull that wrote the cloud's clock onto a run
+     * this phone had just pushed (the server's touch_updated_at moves it)
+     * looked like a drawing change, and re-priced -- over the quantities the
+     * owner was typing on the Estimate screen, which sits on top of the
+     * drawing screen and keeps its view model alive. Any other device's push
+     * did the same.
+     *
+     * Subtracted: the Room id, the job id and the sync id (identity -- a
+     * run's own never changes, and nothing is priced from it except the line
+     * ids it seeds, which follow it anyway); `updatedAt` (the sync clock);
+     * the label and sort order (shown, never priced); and the build template
+     * it was copied from (provenance: the spec was copied onto the run's own
+     * columns, which ARE compared).
+     */
+    fun pricingSignature(run: FenceRun): String =
+        run.copy(
+            id = 0L,
+            syncId = "",
+            jobId = 0L,
+            label = "",
+            sortOrder = 0,
+            buildTemplateSyncId = null,
+            updatedAt = 0L
+        ).toString()
+
+    /**
      * Rebuilds the takeoff for [run] if it has one.
      *
+     * @param mayReprice the answer [mayReprice] gave for the person on this
+     *   phone, asked by the caller at the moment of re-pricing. Required, with
+     *   no default, so a new caller has to answer it rather than inherit a
+     *   yes.
      * @return true if line items were actually rewritten.
      */
-    suspend fun refreshRun(repository: Repository, run: FenceRun): Boolean {
-        val existing = repository.getLineItems(run.jobId).filter { it.fenceRunId == run.id }
+    suspend fun refreshRun(repository: Repository, run: FenceRun, mayReprice: Boolean): Boolean {
+        if (!mayReprice) return false
+
+        val takeoffLines = repository.getLineItems(run.jobId)
+            .filter { it.fenceRunId == run.id && it.role != MaterialRole.NONE }
 
         // A teardown run is the OLD fence. Nobody is buying panels for it --
         // its cost is the teardown charge, not a bill of materials. Marking a
-        // run as teardown therefore clears any materials it accumulated while
+        // run as teardown therefore clears the materials it accumulated while
         // it was mistaken for new work, which is also what un-inflates an
-        // estimate that counted the old fence as fence to build.
+        // estimate that counted the old fence as fence to build. The
+        // generated ones: a line somebody typed a number into is theirs.
         if (run.isTeardown) {
-            val autos = existing.filter { it.isAutoGenerated }
-            if (autos.isEmpty()) return false
-            repository.replaceAutoGeneratedLineItemsForRun(run.id, emptyList())
-            return true
+            if (takeoffLines.none { it.isAutoGenerated }) return false
+            return !repository.replaceAutoGeneratedLineItemsForRun(run.id, emptyList()).unchanged
         }
 
-        // Never invent an estimate for a run nobody has priced yet.
-        if (existing.none { it.isAutoGenerated }) return false
+        // Never invent an estimate for a run nobody has priced yet. A run
+        // whose every line was edited by hand HAS been priced, and still
+        // gains the lines a new gate needs.
+        if (takeoffLines.isEmpty()) return false
 
         val job = repository.getJob(run.jobId) ?: return false
         val catalog = repository.getAllMaterialItems().filter { it.isActive }
         if (catalog.isEmpty()) return false
 
-        val pixelsPerFoot = job.calibrationPixelsPerFoot ?: GRID_PIXELS_PER_FOOT
+        // The job's calibration, or the grid's fixed 20 px/ft -- the same
+        // fallback price-job applies (load.ts buildPricingInput), so the
+        // office re-pricing this job reaches the same takeoff.
+        val pixelsPerFoot = job.calibrationPixelsPerFoot ?: DrawingScale.PIXELS_PER_FOOT_GRID
 
         val suggestions = EstimateEngine.suggestQuantities(
             run = run,
@@ -77,51 +142,13 @@ object TakeoffRefresher {
         )
         if (built.items.isEmpty()) return false
 
-        // Same carry-over the manual path does: a price somebody typed by hand
-        // is a decision, and regenerating must not quietly revert it to the
-        // catalog figure. Matched on role, and only for real roles -- the column
-        // is not nullable, so testing for null would sweep in every hand-typed
-        // line that has no role at all.
-        val editedPrices = existing
-            .filter { !it.isAutoGenerated && it.role != MaterialRole.NONE }
-            .associate { it.role to it.unitPrice }
-
-        // A price read off the supplier's own quote is the most authoritative
-        // number on the job, and regenerating threw every one of them away --
-        // silently, while the job went on claiming its prices were confirmed.
-        // The next reason to regenerate is usually the takeoff changing by a
-        // few feet, which is no reason at all to go back to catalog guesses.
-        val quotedPrices = existing
-            .filter { it.supplierUnitPrice != null && it.role != MaterialRole.NONE }
-            .associate { it.role to it.supplierUnitPrice }
-
-        val finalItems = built.items.map { item ->
-            val quoted = quotedPrices[item.role]
-            val withQuote = if (quoted != null) item.copy(supplierUnitPrice = quoted) else item
-            val kept = editedPrices[item.role]
-            if (kept != null && kept != withQuote.unitPrice) {
-                withQuote.copy(unitPrice = kept, isAutoGenerated = false)
-            } else {
-                withQuote
-            }
-        }
-
-        // If the rebuild landed on exactly what is already there, write
-        // nothing. The replace is a delete-and-insert that mints new sync ids,
-        // so an equal rebuild still churned the cloud, the audit log and every
-        // other phone -- movement with no information in it, which is how "the
-        // price kept changing by itself" felt even when the numbers came back
-        // the same.
-        val existingAuto = existing.filter { it.isAutoGenerated }
-        fun fingerprint(i: com.fenceestimator.app.data.EstimateLineItem) =
-            listOf(i.role, i.description, i.quantity, i.unit, i.unitPrice, i.supplierUnitPrice)
-        val unchanged = existingAuto.size == finalItems.count { it.isAutoGenerated } &&
-            existingAuto.map(::fingerprint).toSet() ==
-            finalItems.filter { it.isAutoGenerated }.map(::fingerprint).toSet()
-        if (unchanged) return false
-
-        repository.replaceAutoGeneratedLineItemsForRun(run.id, finalItems)
-        return true
+        // The merge keeps edited lines, carries supplier quotes, and writes
+        // nothing when the rebuild matches what is there -- the replace is a
+        // delete-and-insert, and an equal rebuild still churned the cloud,
+        // the audit log and every other phone: movement with no information
+        // in it, which is how "the price kept changing by itself" felt even
+        // when the numbers came back the same.
+        return !repository.replaceAutoGeneratedLineItemsForRun(run.id, built.items).unchanged
     }
 
     /**
@@ -132,13 +159,9 @@ object TakeoffRefresher {
     fun footageOf(run: FenceRun, pixelsPerFoot: Float?): Float {
         val manual = run.manualLinearFeet
         if (manual != null && manual > 0f) return manual
-        val pxPerFt = pixelsPerFoot ?: GRID_PIXELS_PER_FOOT
+        val pxPerFt = pixelsPerFoot ?: DrawingScale.PIXELS_PER_FOOT_GRID
         return FenceGeometryEngine.analyze(
             FenceCodec.decodePoints(run.pointsEncoded), pxPerFt, run.closedLoop
         ).totalLinearFeet
     }
-
-    /** One source of truth for the grid scale, rather than a second copy to drift. */
-    private val GRID_PIXELS_PER_FOOT: Float
-        get() = com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
 }

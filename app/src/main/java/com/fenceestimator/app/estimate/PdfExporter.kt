@@ -8,6 +8,7 @@ import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
 import com.fenceestimator.app.data.AppLanguage
 import com.fenceestimator.app.data.BusinessProfile
+import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.EstimateLineItem
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
@@ -64,6 +65,8 @@ private class PdfLabels(language: AppLanguage) {
     val markup = pick("Markup", "Margen", "Marge")
     val discount = pick("Discount", "Descuento", "Remise")
     val total = pick("TOTAL", "TOTAL", "TOTAL")
+    /** The price the customer agreed to, when the working estimate has since moved off it. */
+    val acceptedPrice = pick("Accepted price", "Precio aceptado", "Prix accepté")
     val deposit = pick("Deposit", "Depósito", "Acompte")
     val amountPaid = pick("Amount Paid", "Monto Pagado", "Montant Payé")
     val balanceDue = pick("Balance Due", "Saldo Pendiente", "Solde Dû")
@@ -138,9 +141,21 @@ object PdfExporter {
          * internal, quantities without prices go to the supplier, and the
          * customer gets scope, price and terms.
          */
-        document_: JobDocument = if (isInvoice) JobDocument.CUSTOMER_INVOICE else JobDocument.WORKING_ESTIMATE
+        document_: JobDocument = if (isInvoice) JobDocument.CUSTOMER_INVOICE else JobDocument.WORKING_ESTIMATE,
+        /**
+         * The job's change orders, so the price billed can be the one the
+         * customer accepted plus extra work signed since (see
+         * JobMoney.documentTotal). Null from a caller that has not been
+         * updated to pass them.
+         */
+        changeOrders: List<ChangeOrder>? = null
     ): File {
         val docKind = document_
+        // The figure the customer is billed against -- the same one the job
+        // screen, the quote page and the payment link use. The PDF printed the
+        // live estimate, so an invoice for a job accepted at $9,710 could go
+        // out at a recomputed $13,410. See JobMoney.documentTotal.
+        val billable = JobMoney.documentTotal(job, totals.grandTotal, totals.changeOrderCost, changeOrders)
         val labels = PdfLabels(business.language)
         val dateFormat = dateFormatFor(business.language)
         val document = PdfDocument()
@@ -428,7 +443,21 @@ object PdfExporter {
             y += 4f
             canvas.drawLine(colRate, y, rightX, y, linePaint)
             y += 18f
-            totalRow(labels.total, currency.format(totals.grandTotal), bold = true)
+            if (docKind.showsMaterialPricing) {
+                // The internal working estimate: its TOTAL has to be the sum
+                // of the rows printed above it, which are the live estimate.
+                // When the customer accepted a different figure, that is
+                // printed underneath, labelled, rather than silently swapped
+                // in under rows that do not add up to it.
+                totalRow(labels.total, currency.format(totals.grandTotal), bold = true)
+                if (kotlin.math.abs(billable - totals.grandTotal) > 0.005) {
+                    totalRow(labels.acceptedPrice, currency.format(billable))
+                }
+            } else {
+                // A customer's copy shows the price that stands, and nothing
+                // else: no breakdown for it to disagree with.
+                totalRow(labels.total, currency.format(billable), bold = true)
+            }
         }
 
         if (docKind.showsPaymentStatus) {
@@ -439,7 +468,7 @@ object PdfExporter {
             totalRow(labels.amountPaid, currency.format(JobMoney.netPaid(job)))
             totalRow(
                 labels.balanceDue,
-                currency.format(JobMoney.stillOwed(job, totals.grandTotal)),
+                currency.format(JobMoney.stillOwed(job, billable)),
                 bold = true
             )
         }
@@ -471,10 +500,11 @@ object PdfExporter {
         if (docKind.isExternal && !docKind.showsQuantitiesOnly) {
             val maxW = rightX - MARGIN
             val plan = job.surveyImagePath?.let { p -> runCatching { BitmapFactory.decodeFile(p) }.getOrNull() }
-            val drawableRuns = runs.filter {
-                com.fenceestimator.app.geometry.FenceCodec.decodePoints(it.pointsEncoded).size >= 2 ||
-                    com.fenceestimator.app.geometry.FenceCodec.decodeGates(it.gatesEncoded).isNotEmpty()
-            }
+            val drawableRuns = runs.filter { PlanExtent.hasSomethingToDraw(it) }
+            // A gate standing on its own, at the width it was sold at -- laid
+            // level where it was placed, the way the drawing screen lays it.
+            // Empty on every plan whose gates all sit on a fence line.
+            val standaloneGates = PlanExtent.standaloneGateSpans(drawableRuns, DrawingScale.of(job))
             if (plan != null && plan.width > 0 && plan.height > 0) {
                 val maxH = 260f
                 val scale = minOf(maxW / plan.width, maxH / plan.height)
@@ -486,22 +516,25 @@ object PdfExporter {
                 canvas.drawBitmap(plan, null, android.graphics.RectF(MARGIN, y, MARGIN + w, y + h), null)
                 // Points are stored in the image's own pixel space, so the
                 // same scale that placed the photo places the fence on it.
-                drawRunGeometry(canvas, drawableRuns, { MARGIN + it * scale }, { y + it * scale })
+                drawRunGeometry(canvas, drawableRuns, standaloneGates, { MARGIN + it * scale }, { y + it * scale })
                 y += h + 18f
             } else if (drawableRuns.isNotEmpty()) {
-                var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE
-                var maxX = -Float.MAX_VALUE; var maxYv = -Float.MAX_VALUE
-                drawableRuns.forEach { run ->
-                    com.fenceestimator.app.geometry.FenceCodec.decodePoints(run.pointsEncoded).forEach {
-                        minX = minOf(minX, it.x); minY = minOf(minY, it.y)
-                        maxX = maxOf(maxX, it.x); maxYv = maxOf(maxYv, it.y)
-                    }
-                    com.fenceestimator.app.geometry.FenceCodec.decodeGates(run.gatesEncoded).forEach {
-                        minX = minOf(minX, it.x); minY = minOf(minY, it.y)
-                        maxX = maxOf(maxX, it.x); maxYv = maxOf(maxYv, it.y)
-                    }
-                }
-                if (maxX > minX || maxYv > minY) {
+                // Fitted to every corner and every gate marker, as it always
+                // was, and to both posts of a gate standing on its own. A plan
+                // that is one such gate is one point otherwise -- a box with
+                // no size, which the check below refused, so a gate-only
+                // contract went out with no plan at all.
+                val box = PlanExtent.bounds(
+                    fitted = drawableRuns.flatMap { run ->
+                        com.fenceestimator.app.geometry.FenceCodec.decodePoints(run.pointsEncoded) +
+                            com.fenceestimator.app.geometry.FenceCodec.decodeGates(run.gatesEncoded)
+                                .map { com.fenceestimator.app.geometry.FencePoint(it.x, it.y) }
+                    },
+                    standalone = standaloneGates.map { it.second }
+                )
+                if (box != null) {
+                    var minX = box.minX; var minY = box.minY
+                    var maxX = box.maxX; var maxYv = box.maxY
                     val pad = 0.06f * maxOf(maxX - minX, maxYv - minY, 1f)
                     minX -= pad; minY -= pad; maxX += pad; maxYv += pad
                     val h = 220f
@@ -515,7 +548,7 @@ object PdfExporter {
                     canvas.drawRect(MARGIN, y, MARGIN + w, y + (maxYv - minY) * scale, bg)
                     canvas.drawRect(MARGIN, y, MARGIN + w, y + (maxYv - minY) * scale, border)
                     val yTop = y
-                    drawRunGeometry(canvas, drawableRuns,
+                    drawRunGeometry(canvas, drawableRuns, standaloneGates,
                         { MARGIN + (it - minX) * scale }, { yTop + (it - minY) * scale })
                     y += (maxYv - minY) * scale + 18f
                 }
@@ -542,7 +575,7 @@ object PdfExporter {
             val filled = source
                 .replace("{COMPANY}", business.businessName.ifBlank { "The contractor" })
                 .replace("{ADDRESS}", job.address.ifBlank { "the address above" })
-                .replace("{TOTAL}", currency.format(totals.grandTotal))
+                .replace("{TOTAL}", currency.format(billable))
                 .replace("{DEPOSIT}", currency.format(job.depositAmount))
                 .replace("{WARRANTY_PERIOD}", labels.warrantyPeriod)
 
@@ -624,10 +657,18 @@ object PdfExporter {
 
     private fun truncate(s: String, max: Int): String = if (s.length <= max) s else s.take(max - 1) + "…"
 
-    /** The fence line and its gates, mapped into page space. */
+    /**
+     * The fence line and its gates, mapped into page space.
+     *
+     * [standaloneGates] ([PlanExtent.standaloneGateSpans]) are also drawn at
+     * their width, post to post: a dot alone says a gate is there, not how
+     * wide an opening was sold. Nothing else changes, so a plan with no such
+     * gate prints exactly as it did.
+     */
     private fun drawRunGeometry(
         canvas: android.graphics.Canvas,
         runs: List<FenceRun>,
+        standaloneGates: List<Pair<com.fenceestimator.app.geometry.GateMarker, com.fenceestimator.app.geometry.GateSpan>>,
         mapX: (Float) -> Float,
         mapY: (Float) -> Float
     ) {
@@ -651,6 +692,11 @@ object PdfExporter {
             com.fenceestimator.app.geometry.FenceCodec.decodeGates(run.gatesEncoded).forEach { g ->
                 canvas.drawCircle(mapX(g.x), mapY(g.y), 5f, gate)
             }
+        }
+        standaloneGates.forEach { (_, span) ->
+            canvas.drawLine(mapX(span.start.x), mapY(span.start.y), mapX(span.end.x), mapY(span.end.y), gate)
+            canvas.drawCircle(mapX(span.start.x), mapY(span.start.y), 3f, gate)
+            canvas.drawCircle(mapX(span.end.x), mapY(span.end.y), 3f, gate)
         }
     }
 }

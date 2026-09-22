@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.fenceestimator.app.cloud.ClockInIdentity
+import com.fenceestimator.app.cloud.JobAccess
 import com.fenceestimator.app.cloud.SessionManager
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.data.Employee
@@ -25,11 +26,13 @@ import kotlinx.coroutines.flow.stateIn
  * Resolves "which jobs are mine" once, then reads only those jobs' shifts and
  * plan changes -- never the whole company's.
  *
- * This is the privacy boundary as much as it is a performance one: a crew
- * member's Room database already holds every job (sync pulls the company's
- * jobs, not a filtered slice -- there is no server-side view keyed to "my
- * jobs only"), so the boundary has to be drawn here, in what this screen
- * chooses to look at, rather than in what the phone downloaded.
+ * This is the privacy boundary as much as it is a performance one. Until
+ * supabase_crew_job_scope.sql is applied, a crew member's Room database holds
+ * every job (sync pulls the company's jobs, not a filtered slice), so the
+ * boundary has to be drawn here, in what this screen chooses to look at,
+ * rather than in what the phone downloaded. Once it is applied the server
+ * sends a scoped crew member only the jobs they are on, and every one of
+ * those counts as theirs, lead or not -- see [CrewAttention.jobsMineByScope].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CrewAttentionViewModel(
@@ -47,9 +50,21 @@ class CrewAttentionViewModel(
         }
         .distinctUntilChanged()
 
+    /**
+     * The lead's jobs, plus -- for a scoped crew member -- every job the
+     * server sent them (extra crew, let in). observeJobs() already leaves out
+     * jobs kept after their person was taken off them, so those never raise
+     * anything here.
+     */
     private val myJobs: Flow<List<Job>> = combine(
-        repository.observeJobs(), myEmployeeId
-    ) { jobs, id -> if (id == null) emptyList() else jobs.filter { it.assignedEmployeeId == id } }
+        repository.observeJobs(), myEmployeeId, JobAccess.scope
+    ) { jobs, id, scope ->
+        if (id == null) emptyList()
+        else {
+            val alsoMine = CrewAttention.jobsMineByScope(scope, jobs)
+            jobs.filter { it.assignedEmployeeId == id || it.id in alsoMine }
+        }
+    }
 
     /**
      * Per-job shifts and plan changes, refetched whenever the set of jobs
@@ -64,6 +79,30 @@ class CrewAttentionViewModel(
             if (ids.isEmpty()) flowOf(emptyList())
             else combine(ids.map { repository.observeTimeEntries(it) }) { arrays -> arrays.flatMap { it } }
         }
+
+    /**
+     * This person's own shifts the office sent back or corrected, on ANY job
+     * -- one they were moved off as lead, or taken off altogether and which
+     * is only kept on the phone now (Job.accessEndedAt). myJobs leaves those
+     * jobs out, so their shifts did too, and a correction to what someone is
+     * owed went unmentioned because of which job it was worked on. The server
+     * still sends a person their own shifts (time_entries_crew), so the rows
+     * are here; this is one indexed read, not the whole company's shifts.
+     */
+    private val myReviewedShifts: Flow<List<TimeEntry>> = myEmployeeId
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repository.observeReviewedShifts(id) }
+
+    private val myShifts: Flow<List<TimeEntry>> = combine(myTimeEntries, myReviewedShifts) { onMyJobs, reviewed ->
+        (onMyJobs + reviewed).distinctBy { it.id }
+    }
+
+    /**
+     * Every job on the phone, kept ones included, for naming an item's job:
+     * a shift on a job this person was taken off still says which job it was.
+     */
+    private val jobsForNames: Flow<Map<Long, Job>> = combine(
+        repository.observeJobs(), repository.observeHeldJobs()
+    ) { visible, held -> (visible + held).associateBy { it.id } }
 
     private val myFieldChanges: Flow<List<FieldChange>> = myJobs
         .map { jobs -> jobs.map { it.id } }
@@ -81,19 +120,22 @@ class CrewAttentionViewModel(
     private val ackTick = MutableStateFlow(0)
 
     val items = combine(
-        myEmployeeId, myJobs, myTimeEntries, myFieldChanges, ackTick
+        myEmployeeId, myJobs, myShifts, myFieldChanges, ackTick
     ) { id, jobs, times, changes, _ ->
         val dismissed = ackStore.dismissedKeys()
-        val jobsById = jobs.associateBy { it.id }
         CrewAttention.build(
             myEmployeeId = id,
             myEmail = session.state.value.email.orEmpty(),
             jobs = jobs,
             timeEntries = times,
-            fieldChanges = changes
+            fieldChanges = changes,
+            // Every job here was already judged to be this person's (myJobs),
+            // lead or not; without this build() would narrow it back to the
+            // lead's alone.
+            alsoMine = jobs.map { it.id }.toSet()
         ).filter { it.key !in dismissed }
-            .map { it to jobsById[it.jobId] }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.combine(jobsForNames) { found, names -> found.map { it to names[it.jobId] } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun dismiss(key: String) {
         ackStore.dismiss(key)

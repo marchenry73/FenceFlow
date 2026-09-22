@@ -32,10 +32,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonObject
 import java.time.Instant
 
 /**
@@ -283,8 +285,151 @@ data class CloudLineItem(
      * Nullable on purpose: null means not quoted separately, which is a
      * different statement from quoted at zero.
      */
-    @SerialName("supplier_unit_price") val supplierUnitPrice: Double? = null
+    @SerialName("supplier_unit_price") val supplierUnitPrice: Double? = null,
+    /**
+     * Sent ONLY to bring a tombstoned row back to life, and then as an
+     * explicit JSON null -- see [reviveLineItems].
+     *
+     * Typed as a JsonElement on purpose. Both Json configurations here have
+     * explicitNulls = false, which leaves a Kotlin null out of the body
+     * altogether, and an upsert that leaves deleted_at out leaves the cloud's
+     * deleted_at exactly as it was: the phone rewrote a tombstoned line's
+     * quantity and price while the row stayed deleted (Woody's LINE_POST and
+     * PANEL, $3,963.44 hidden in the cloud). [JsonNull] is a value, not a
+     * Kotlin null, so it is written as `"deleted_at": null`. Left at the
+     * Kotlin null default for every ordinary row, which is what keeps an
+     * ordinary push from undoing a delete made on another device.
+     */
+    @SerialName("deleted_at") val deletedAt: JsonElement? = null,
+    /** Cleared with [deletedAt] on a revival, as price-job's commit does; absent otherwise. */
+    @SerialName("deleted_by") val deletedBy: String? = null
 )
+
+/**
+ * The rows of one line-item push, split by whether they revive a tombstone.
+ *
+ * The two halves go up as separate upserts and must never share a batch:
+ * PostgREST names every column any row in a batch carries, so a row missing
+ * a key there is written with an explicit null (see CloudTimeEntry's
+ * employeeSyncId). One reviving row in a batch would clear deleted_at on
+ * every other row in it -- a delete made on another phone undone by this
+ * phone pushing its ordinary lines.
+ *
+ * @param revive sync ids this phone regenerated and has not yet revived
+ *   (Repository.lineItemResurrections).
+ * @return ordinary rows unchanged, and reviving rows with `deleted_at: null`
+ *   and `deleted_by: ""` set.
+ */
+internal fun reviveLineItems(
+    rows: List<CloudLineItem>,
+    revive: Set<String>
+): Pair<List<CloudLineItem>, List<CloudLineItem>> {
+    val (reviving, plain) = rows.partition { it.syncId in revive }
+    return plain to reviving.map { it.copy(deletedAt = JsonNull, deletedBy = "") }
+}
+
+/**
+ * The cloud line items the pull may write onto this phone: every one except
+ * those this phone has queued a delete for and not yet landed.
+ *
+ * The pull used to insert any cloud row it did not hold locally. A delete on
+ * this phone removes the row at once and queues the tombstone; until the
+ * tombstone lands -- next pass, or never, on a MANAGER phone the server
+ * refuses ("Deleting needs the delete permission") -- the cloud row is still
+ * live, and the pull put it straight back beside the new lines, counting
+ * twice in the price. The phone honours its own delete until the cloud
+ * agrees; the queue entry stays, so it keeps being retried.
+ */
+internal fun lineItemsToApply(rows: List<CloudLineItem>, queuedDeletes: Set<String>): List<CloudLineItem> =
+    rows.filterNot { it.syncId in queuedDeletes }
+
+/**
+ * Whether the pull may write [cloud]'s copy of a line over [local] (null:
+ * this phone does not hold it). Not over a line changed here and not yet
+ * taken by the cloud ([EstimateLineItem.pendingPush]): the pull runs straight
+ * after the push, and a push that failed or was held back would otherwise
+ * have its change overwritten by the cloud's older copy the same second --
+ * and with line items carrying no clock, that is how a typed quantity or a
+ * fresh Suggest snapped back.
+ */
+internal fun pullMayWriteLine(local: EstimateLineItem?): Boolean = local?.pendingPush != true
+
+/**
+ * Whether this pass may push [job]'s punch list, change orders, expenses,
+ * steps, markers and field changes.
+ *
+ * Not for a job this person is no longer on ([com.fenceestimator.app.data.Job.accessEndedAt]).
+ * The crew-scope policies refuse those rows one by one, so every pass cost a
+ * request per stale row and still sent nothing -- and nothing is lost by
+ * waiting: the rows stay on the phone and go up the pass the job comes back.
+ *
+ * Otherwise by the job clock, as before: not when the cloud's copy of the job
+ * is newer (this phone's children are then the stale ones, and the pull
+ * brings the fresh ones).
+ *
+ * @param cloudTouchedAt each job's cloud updated_at and whether it is
+ *   tombstoned, as read from the door this phone reads. Null when that read
+ *   failed: then only the held check applies, and the rest go up as they
+ *   always did -- a failed read is not "the cloud has none of these".
+ *
+ * A job missing from a read that worked is a job the cloud does not have for
+ * this phone. From the real table (ALLOWED) that means not uploaded yet, and
+ * its children go up behind it. From the crew door (anything else) it means
+ * this person may not see it -- not assigned, or created here and never sent,
+ * since a crew phone inserts no jobs -- and the server would refuse every row.
+ */
+internal fun mayPushJobChildren(
+    job: com.fenceestimator.app.data.Job,
+    cloudTouchedAt: Map<String, Pair<Long, Boolean>>?,
+    scope: MoneyScope
+): Boolean {
+    if (job.accessEndedAt != null) return false
+    if (cloudTouchedAt == null) return true
+    val cloudAt = cloudTouchedAt[job.syncId]?.first ?: return scope == MoneyScope.ALLOWED
+    return cloudAt <= job.updatedAt
+}
+
+/**
+ * Whether this pass may push [job]'s fence runs: the "whose job is it" half
+ * of [mayPushJobChildren] and not its clock half.
+ *
+ * Never a job this person is no longer on, and never -- from anything but the
+ * real table -- a job the crew door did not return ([cloudTouchedAt], the
+ * same read collectJobChildRows makes): not assigned, or made here and never
+ * sent, and the crew-scope policy on fence_runs refuses every one of its runs
+ * row by row. Leaving only held jobs out still sent those, on every pass,
+ * whenever the scope question had not been answered or the job had never
+ * reached the cloud. A failed read (null) is not "the cloud has none of
+ * these": the runs go up as they always did.
+ *
+ * Not the job clock: a run carries its own (pushFenceRuns compares each
+ * run's updatedAt with its cloud copy), and holding a redrawn run back
+ * because the office touched the job row since would let the pull put the
+ * cloud's older run over the new drawing.
+ */
+internal fun mayPushJobRuns(
+    job: com.fenceestimator.app.data.Job,
+    cloudTouchedAt: Map<String, Pair<Long, Boolean>>?,
+    scope: MoneyScope
+): Boolean {
+    if (job.accessEndedAt != null) return false
+    if (cloudTouchedAt == null) return true
+    return job.syncId in cloudTouchedAt || scope == MoneyScope.ALLOWED
+}
+
+/** One local line as the cloud stores it. */
+internal fun EstimateLineItem.toCloud(companyId: String, jobSyncId: String, runSyncIdById: Map<Long, String>) =
+    CloudLineItem(
+        companyId, syncId, jobSyncId, fenceRunId?.let { id -> runSyncIdById[id] },
+        sortOrder, description, quantity,
+        unit, unitPrice, taxable, role.name, isAutoGenerated,
+        // The price off the supplier's own quote. It was left off this list,
+        // so the cloud held null forever -- and the pull then wrote that null
+        // back over the figure somebody had just typed. Prices entered in the
+        // office never reached the crew's phone, and did not survive on the
+        // phone that entered them: one push-then-pull cycle erased them.
+        supplierUnitPrice = supplierUnitPrice
+    )
 
 /**
  * The crew list without the pay. What crew_roster() returns.
@@ -366,8 +511,177 @@ data class CloudChangeOrder(
     @SerialName("additional_feet") val additionalFeet: Double = 0.0,
     @SerialName("additional_cost") val additionalCost: Double = 0.0,
     @SerialName("material_cost") val materialCost: Double = 0.0,
-    @SerialName("signed_at") val signedAt: String? = null
+    @SerialName("signed_at") val signedAt: String? = null,
+    /**
+     * The order is inside a price the customer accepted (ChangeOrder.inAcceptedTotal).
+     * Sent only as `true`, by an order this phone marked at a signature, and
+     * in a batch of its own ([splitChangeOrdersByAcceptance]) -- so an
+     * ordinary push never mentions the column at all, and a database the
+     * column has not reached yet refuses only those rows. The server latches
+     * it (it can never go back to false), and a null here on the way down --
+     * change_orders_crew does not carry it -- reads as "not marked".
+     */
+    @SerialName("in_accepted_total") val inAcceptedTotal: Boolean? = null,
+    /**
+     * The customer's signature image in cloud storage --
+     * `<company>/<job>/change-order/<file>`, the path FileSync.upload returns
+     * and JobFileUploader stores on the order (ChangeOrder.signatureStoragePath).
+     * Never ChangeOrder.signatureImagePath, the file on this phone, which means
+     * nothing anywhere else. Sent only for an order signed here and uploaded
+     * ([changeOrderSignaturePathToSend]); null stays out of the body
+     * (explicitNulls = false). The image went up and the path never did, so
+     * every other device and the office saw a signed order with no signature.
+     */
+    @SerialName("signature_storage_path") val signatureStoragePath: String? = null
 )
+
+/**
+ * The storage path a push should carry for [order]'s signature, or null to
+ * send none.
+ *
+ * Only for an order that is signed ([ChangeOrder.signedAt]): editing the terms
+ * clears the signature on this phone but not the path of the image already
+ * uploaded, and that old image must not go up as the signature for the new
+ * terms. And only a path inside this order's own folder
+ * (`<company>/<job>/change-order/`), which is also the only shape
+ * crew_push_change_orders accepts -- so a local file path, or one that
+ * belongs to another job, can never be sent as the proof.
+ */
+internal fun changeOrderSignaturePathToSend(order: ChangeOrder, companyId: String, jobSyncId: String): String? =
+    order.signatureStoragePath
+        ?.takeIf { order.signedAt != null }
+        ?.takeIf { it.startsWith("$companyId/$jobSyncId/change-order/") && !it.contains("..") }
+
+/**
+ * The storage path this phone's copy of a pulled change order should hold
+ * ([local] null: the pull is inserting it).
+ *
+ * The cloud's, when it is signed there and this phone holds no signature of
+ * its own -- a crew phone took it, and without the path the office phone
+ * (and a new phone) had the date but never the image
+ * (JobFileUploader.downloadMissing fetches it from here). A signature this
+ * phone captured -- its file, or a path it uploaded -- is never replaced by
+ * another device's.
+ */
+internal fun pulledSignatureStoragePath(local: ChangeOrder?, cloud: CloudChangeOrder): String? {
+    val theirs = cloud.signatureStoragePath?.takeIf { it.isNotBlank() && cloud.signedAt != null }
+    if (local == null) return theirs
+    if (local.signatureImagePath != null || local.signatureStoragePath != null) return local.signatureStoragePath
+    return theirs
+}
+
+/**
+ * [rows] in batches whose rows all name the same columns.
+ *
+ * A batch upsert names every column any of its rows carries, and postgrest-kt
+ * writes NULL into that column for a row that does not have it (it sends
+ * `columns=` for the union and no `missing=default`; read from the 3.0.2
+ * bytecode). signed_at and signature_storage_path are left out of a row that
+ * has none (explicitNulls = false), so ONE signed order in a batch wrote NULL
+ * over the signing date and image path of every other order in it -- a
+ * signature taken on a crew phone, which this phone had not pulled yet,
+ * erased by this phone's next push. Grouped, a row only ever goes up beside
+ * rows that say the same things about it.
+ */
+internal fun changeOrdersInSameColumnBatches(rows: List<CloudChangeOrder>): List<List<CloudChangeOrder>> =
+    rows.groupBy { Triple(it.signedAt != null, it.signatureStoragePath != null, it.inAcceptedTotal != null) }
+        .values.toList()
+
+/** Which door a phone's change orders go up through. See [changeOrderDoor]. */
+internal enum class ChangeOrderDoor {
+    /** The table itself, by upsert: a phone that may see money. */
+    TABLE,
+    /** crew_push_change_orders: a phone that may not ([crewChangeOrderRows]). */
+    CREW_RPC,
+    /** Nothing this pass: the money question has no answer yet. */
+    NONE
+}
+
+/**
+ * The door [scope] sends change orders through.
+ *
+ * A crew phone (DENIED) cannot use the table: an upsert is INSERT ... ON
+ * CONFLICT, which needs the SELECT policies to pass on the row, and the
+ * restrictive change_orders_money_hidden_from_crew refuses any caller without
+ * SEE_MONEY -- 42501 for a new order and an existing one alike, so not one
+ * crew change order had ever reached the server (0 rows in production,
+ * 2026-09-22). crew_push_change_orders is its door
+ * (supabase_r6_crew_change_orders.sql). UNKNOWN sends nothing: which door is
+ * open is exactly what it does not know.
+ */
+internal fun changeOrderDoor(scope: MoneyScope): ChangeOrderDoor = when (scope) {
+    MoneyScope.ALLOWED -> ChangeOrderDoor.TABLE
+    MoneyScope.DENIED -> ChangeOrderDoor.CREW_RPC
+    MoneyScope.UNKNOWN -> ChangeOrderDoor.NONE
+}
+
+/** The columns a crew phone sends crew_push_change_orders: the ones it may write, and the keys that find the row. */
+internal val CREW_CHANGE_ORDER_KEYS = setOf(
+    "company_id", "sync_id", "job_sync_id",
+    "description", "additional_feet",
+    "signed_at", "signature_storage_path"
+)
+
+/**
+ * `rows_in` for crew_push_change_orders: each order with only
+ * [CREW_CHANGE_ORDER_KEYS]. The server ignores costs, in_accepted_total and
+ * deleted_* anyway -- and writes neither money nor a delete from this door --
+ * but a crew phone's payload should not assert a cost it cannot see, nor mark
+ * an order as inside a price, which is a statement about money too. A null
+ * signing date or path stays out (explicitNulls = false), which the server
+ * reads as "nothing to say", never as "clear it".
+ */
+internal fun crewChangeOrderRows(rows: List<CloudChangeOrder>): JsonArray = JsonArray(
+    rows.map { row ->
+        JsonObject(
+            SyncJson.encodeToJsonElement(CloudChangeOrder.serializer(), row).jsonObject
+                .filterKeys { it in CREW_CHANGE_ORDER_KEYS }
+        )
+    }
+)
+
+/**
+ * What crew_push_change_orders answers for one batch. Every field defaults to
+ * 0 so an answer missing one still decodes -- and then counts as not taken
+ * ([heldBack]), never as taken.
+ */
+@Serializable
+internal data class CrewChangeOrderPushResult(
+    val inserted: Int = 0,
+    val updated: Int = 0,
+    val unchanged: Int = 0,
+    val skipped: Int = 0
+) {
+    /** Orders the server wrote this call. */
+    val written: Int get() = inserted + updated
+
+    /**
+     * Of [sent] orders, how many the server did not take: the ones it
+     * skipped -- a job it will not show this person, an order tombstoned or
+     * on another job, feet that are not a real number, a signature arriving
+     * with terms the office has since changed -- and any it did not account
+     * for at all. "unchanged" is taken: the server already holds that order
+     * as this phone does, or holds terms that are the office's now.
+     */
+    fun heldBack(sent: Int): Int = maxOf(skipped, sent - (inserted + updated + unchanged), 0)
+}
+
+/**
+ * A change-order push as two batches: orders to mark as inside an accepted
+ * price, and every other order, which says nothing about it. A batch names
+ * every column any of its rows carries, so mixing them would write an
+ * explicit null onto every unmarked row -- harmless once the server's latch
+ * is in (it keeps what it had), but a refusal of the whole batch on a
+ * database the column has not reached yet.
+ */
+internal fun splitChangeOrdersByAcceptance(rows: List<CloudChangeOrder>): Pair<List<CloudChangeOrder>, List<CloudChangeOrder>> {
+    val (marked, plain) = rows.partition { it.inAcceptedTotal == true }
+    return plain.map { it.copy(inAcceptedTotal = null) } to marked
+}
+
+/** Whether [error], or anything that caused it, names [text] -- a column a database does not have yet, say. */
+internal fun failureMentions(error: Throwable, text: String): Boolean =
+    generateSequence(error) { it.cause }.any { it.message?.contains(text) == true }
 
 @Serializable
 data class CloudJobStep(
@@ -682,11 +996,23 @@ data class CloudTimeEntryWorkerPatch(
  * correction columns are read-only on the pull and never blanked by a cloud
  * row that lacks them.
  *
- * **estimate_line_items**, **change_orders** -- last-edit-wins is not
- * expressed as a push-side gate at all for these; the push always sends the
- * current local row ([pushLineItemsThroughCrewPen] and the ordinary upsert
- * paths), and the merge-on-pull applies whatever the cloud holds. In effect
- * whichever side syncs last wins, with no clock compared on either end.
+ * **estimate_line_items** -- a per-row mark, not a clock
+ * ([EstimateLineItem.pendingPush]): a line goes up only when this phone
+ * changed it and the cloud has not taken the change yet, and the pull writes
+ * the cloud's copy over every line that is not so marked ([pullMayWriteLine]).
+ * Two phones therefore resolve last-writer-wins on real edits only, instead
+ * of each re-sending its whole copy on every pass. Line items go up only
+ * from a phone confirmed ALLOWED -- never a crew phone, whose money-scrubbed
+ * catalog builds a different takeoff (see [pushAll]) -- and the pull never
+ * writes back a line this phone has a delete queued for ([lineItemsToApply]).
+ *
+ * **change_orders** -- last-edit-wins is not expressed as a push-side gate
+ * beyond the job clock; the push sends the current local row, and the
+ * merge-on-pull applies whatever the cloud holds. A phone that may see money
+ * upserts the table; a crew phone goes through crew_push_change_orders
+ * ([changeOrderDoor]), which freezes the terms once the office has priced
+ * them, a customer has accepted them or signed them, and takes a signature
+ * once -- so a crew phone's stale copy cannot undo the office's edit.
  *
  * **employees**, **manufacturers** -- unconditional upsert on every push
  * ([pushEmployees], [pushManufacturers]); the phone is the source of truth and
@@ -765,15 +1091,45 @@ object EntitySync {
                         skipped += 1
                         android.util.Log.i("EntitySync", "push $what skipped: not this phone's to send")
                     } else {
-                        if (firstRealFailure == null) firstRealFailure = e
+                        // A real fault outranks a dead spot that failed first,
+                        // so the one worth reporting is the one kept (see
+                        // SyncFailure.toReport, which AutoSync asks next).
+                        val kept = firstRealFailure
+                        if (kept == null || (SyncFailure.isTransientNetwork(kept) && !SyncFailure.isTransientNetwork(e))) {
+                            firstRealFailure = e
+                        }
                         android.util.Log.w("EntitySync", "push $what failed", e)
                     }
                 }
             }
 
+            // The job children are gathered FIRST, before this pass pushes
+            // anything. collectJobChildRows holds back a job's children when
+            // the cloud's job clock is newer than this phone's, and it used to
+            // read that clock after the fence runs had gone up. On an approved
+            // job the first drawing change's run push fires the server's
+            // reapproval_on_drawing_change, which withdraws the approval on
+            // the job row (quote_approved_at, reapproval_required_at,
+            // reapproval_count -- none of them quiet), so updated_at moved
+            // under this very pass: the gate then held back that job's punch
+            // list, steps, markers and field changes, and the pull put the
+            // cloud's older copies over them. Read now, the clocks are the
+            // ones JobSync has just reconciled, not ones this pass moved.
+            // (Line items no longer pass through that gate at all -- they go
+            // up by their own pendingPush mark -- but the rest still do.)
+            val rows: JobChildRows? = if (skipMoneySensitivePushes) null else
+                runCatching { collectJobChildRows(repository, companyId, scope) }
+                    .onFailure { e ->
+                        firstRealFailure = e
+                        android.util.Log.w("EntitySync", "collect job children failed", e)
+                    }
+                    .getOrNull()
+
             step("employees")      { pushEmployees(repository, companyId, scope) }
             step("manufacturers")  { pushManufacturers(repository, companyId) }
-            step("fence runs")     { pushFenceRuns(repository, companyId) }
+            // The crew-door read collectJobChildRows made (null when it failed,
+            // or was skipped on the promotion pass, which is ALLOWED anyway).
+            step("fence runs")     { pushFenceRuns(repository, companyId, scope, rows?.cloudTouchedAt) }
             step("time entries")   { pushTimeEntries(repository, companyId, employeePayScope) }
 
             // A DENIED phone holds zero prices for everything in the catalog
@@ -793,17 +1149,25 @@ object EntitySync {
             // steps, markers and plan-change requests never went up either,
             // on every build old enough to still hit that door. Splitting
             // them holds for every scope, not only the money-gated one.
-            if (!skipMoneySensitivePushes) {
-                val rows = collectJobChildRows(repository, companyId, scope)
-
+            if (rows != null) {
                 step("line items") {
                     when (scope) {
-                        MoneyScope.ALLOWED -> upsert("estimate_line_items", rows.lineItems)
-                        // The base table refuses this once the policy flips;
-                        // crew_push_line_items is the only door, and it drops
-                        // unit_price/supplier_unit_price server-side
-                        // regardless of what this phone sends.
-                        MoneyScope.DENIED -> pushLineItemsThroughCrewPen(rows.lineItems)
+                        MoneyScope.ALLOWED -> pushLineItems(repository, rows.lineItems, rows.lineItemSources)
+                        // Nothing, from a crew phone. It used to go through
+                        // crew_push_line_items, which drops prices but WRITES
+                        // quantity and description -- and a crew phone's
+                        // takeoff is not the office's: its catalog has every
+                        // price scrubbed to zero, so the product pick breaks
+                        // ties by sync id and lands on other posts and panels,
+                        // and its copy of the drawing can be stale. The owner's
+                        // phone and a crew phone overwrote each other's
+                        // quantities on every sync (161 flips, 2026-09-17..21:
+                        // Woody's concrete 3 and 85, John Beaunissant's panels
+                        // 402 and 177, back and forth). No crew screen edits a
+                        // line item, so nothing a crew member did is lost by
+                        // not sending them; the estimate is priced by people
+                        // who can see prices.
+                        MoneyScope.DENIED -> 0
                         MoneyScope.UNKNOWN -> 0
                     }
                 }
@@ -816,16 +1180,60 @@ object EntitySync {
                 }
                 step("punch list") { upsert("punch_list_items", rows.punch) }
                 step("change orders") {
-                    when (scope) {
-                        MoneyScope.ALLOWED -> upsert("change_orders", rows.orders)
-                        // The hold trigger zeroes these for an untrusted
-                        // caller regardless, but this phone's own payload
-                        // should not assert a real cost either.
-                        MoneyScope.DENIED -> upsert(
-                            "change_orders",
-                            rows.orders.map { it.copy(additionalCost = 0.0, materialCost = 0.0) }
-                        )
-                        MoneyScope.UNKNOWN -> 0
+                    when (changeOrderDoor(scope)) {
+                        ChangeOrderDoor.TABLE -> {
+                            // Two batches -- see splitChangeOrdersByAcceptance --
+                            // each sent in batches whose rows name the same
+                            // columns (changeOrdersInSameColumnBatches), so an
+                            // unsigned copy never writes NULL over a signature.
+                            // Both halves are attempted whatever the other did;
+                            // the first failure is what the step reports.
+                            val (plain, marked) = splitChangeOrdersByAcceptance(rows.orders)
+                            val plainResult = runCatching {
+                                changeOrdersInSameColumnBatches(plain).sumOf { upsert("change_orders", it) }
+                            }
+                            // A database the column has not reached yet
+                            // refuses the marked batch outright; those orders
+                            // still go up, unmarked, rather than failing the
+                            // sync on every pass until the migration lands.
+                            // The phone keeps its mark and sends it again.
+                            val markedResult = runCatching {
+                                changeOrdersInSameColumnBatches(marked).sumOf { upsert("change_orders", it) }
+                            }.recoverCatching { e ->
+                                if (!failureMentions(e, "in_accepted_total")) throw e
+                                changeOrdersInSameColumnBatches(marked.map { it.copy(inAcceptedTotal = null) })
+                                    .sumOf { upsert("change_orders", it) }
+                            }
+                            plainResult.exceptionOrNull()?.let { throw it }
+                            markedResult.exceptionOrNull()?.let { throw it }
+                            plainResult.getOrDefault(0) + markedResult.getOrDefault(0)
+                        }
+                        // The crew's own door, as crew_save_job is for jobs.
+                        // An order the server skipped stays on this phone and
+                        // goes again next pass (every pass sends every order
+                        // on a job it may push), and is counted as held back
+                        // so the phone never says everything is backed up
+                        // over it. A refusal of the whole call (42501: signed
+                        // out, suspended, no field-work permission) throws on
+                        // to step(), which counts it the same way; so does a
+                        // server this function has not reached yet.
+                        ChangeOrderDoor.CREW_RPC -> {
+                            val tally = runCatching { pushChangeOrdersThroughCrewDoor(rows.orders) }
+                                .getOrElse { e ->
+                                    if (!isNotDeployedYet(e)) throw e
+                                    android.util.Log.i("EntitySync", "crew_push_change_orders is not on this server yet; change orders kept on this phone")
+                                    CrewChangeOrderTally(written = 0, heldBack = rows.orders.size)
+                                }
+                            if (tally.heldBack > 0) {
+                                skipped += 1
+                                android.util.Log.i(
+                                    "EntitySync",
+                                    "push change orders: ${tally.heldBack} of ${rows.orders.size} not taken by crew_push_change_orders; kept on this phone for retry"
+                                )
+                            }
+                            tally.written
+                        }
+                        ChangeOrderDoor.NONE -> 0
                     }
                 }
                 step("job steps")     { upsert("job_steps", rows.steps) }
@@ -872,12 +1280,21 @@ object EntitySync {
     /** Everything [collectJobChildRows] gathers for the jobs eligible to push this pass. */
     private data class JobChildRows(
         val lineItems: List<CloudLineItem> = emptyList(),
+        /** The local rows [lineItems] were built from, as read, for Repository.markLineItemsPushed. */
+        val lineItemSources: List<EstimateLineItem> = emptyList(),
         val expenses: List<CloudExpense> = emptyList(),
         val punch: List<CloudPunchItem> = emptyList(),
         val orders: List<CloudChangeOrder> = emptyList(),
         val steps: List<CloudJobStep> = emptyList(),
         val markers: List<CloudSiteMarker> = emptyList(),
-        val changes: List<CloudFieldChange> = emptyList()
+        val changes: List<CloudFieldChange> = emptyList(),
+        /**
+         * Each job's cloud clock and tombstone as read this pass, from the door
+         * this phone reads -- null when that read failed. Handed on to
+         * pushFenceRuns (mayPushJobRuns), so the runs are judged against the
+         * same answer as every other child.
+         */
+        val cloudTouchedAt: Map<String, Pair<Long, Boolean>>? = null
     )
 
     /**
@@ -902,6 +1319,15 @@ object EntitySync {
         val allJobs = repository.getAllJobs()
         if (allJobs.isEmpty()) return JobChildRows()
 
+        // Line items by their own mark, not by the job clock below: every
+        // line changed here and not yet taken by the cloud
+        // (EstimateLineItem.pendingPush), plus any still waiting to be revived.
+        // Read first, before the cloud call, so a line changed while that call
+        // is in flight is simply sent next pass.
+        val waitingRevival = repository.lineItemResurrections.pending()
+        val lineSources = repository.getAllLineItemsByJob().values.flatten()
+            .filter { it.pendingPush || it.syncId in waitingRevival }
+
         // Don't write this phone's copy of a job whose cloud row is newer.
         //
         // Every job's children -- line items, change orders, expenses -- were
@@ -918,7 +1344,9 @@ object EntitySync {
         // ALLOWED reads "jobs"; anything else reads "jobs_crew" -- readable by
         // any signed-in company member regardless of SEE_MONEY, so this stays
         // accurate rather than silently empty even under UNKNOWN.
-        val cloudTouchedAt = runCatching {
+        // Null when the read failed -- which is not the same as "the cloud has
+        // none of these" (see mayPushJobChildren).
+        val cloudTouchedAt: Map<String, Pair<Long, Boolean>>? = runCatching {
             // Paged: this is the push-side "what does the cloud already have"
             // read, so a truncation here is worse than on a pull -- it decides
             // which jobs' children get held back, and a job past the first
@@ -941,16 +1369,26 @@ object EntitySync {
                     // deleted_at same as the base table.
                     eq("company_id", companyId)
                 }
-            rows.associate { it.syncId to it.updatedAtMillis() }
-        }.getOrDefault(emptyMap())
+            rows.associate { it.syncId to (it.updatedAtMillis() to (it.deletedAt != null)) }
+        }.getOrNull()
 
-        val jobs = allJobs.filter { job ->
-            val cloudAt = cloudTouchedAt[job.syncId] ?: return@filter true
-            cloudAt <= job.updatedAt
+        // A line changed here still never goes up for a job deleted
+        // elsewhere: its children are exactly what must not come back. Nor
+        // for a job this person is no longer on (Job.accessEndedAt): the line
+        // stays marked, and goes up if access comes back.
+        val jobById = allJobs.associateBy { it.id }
+        val runSyncIdById = repository.getAllFenceRunsByJob().values.flatten().associate { it.id to it.syncId }
+        val sentLines = lineSources.filter { line ->
+            val job = jobById[line.jobId] ?: return@filter false
+            job.accessEndedAt == null && cloudTouchedAt?.get(job.syncId)?.second != true
         }
-        if (jobs.isEmpty()) return JobChildRows()
+        val lineItems = sentLines.map { it.toCloud(companyId, jobById.getValue(it.jobId).syncId, runSyncIdById) }
 
-        val lineItems = mutableListOf<CloudLineItem>()
+        val jobs = allJobs.filter { job -> mayPushJobChildren(job, cloudTouchedAt, scope) }
+        if (jobs.isEmpty()) {
+            return JobChildRows(lineItems = lineItems, lineItemSources = sentLines, cloudTouchedAt = cloudTouchedAt)
+        }
+
         val expenses = mutableListOf<CloudExpense>()
         val punch = mutableListOf<CloudPunchItem>()
         val orders = mutableListOf<CloudChangeOrder>()
@@ -960,21 +1398,6 @@ object EntitySync {
 
         jobs.forEach { job ->
             val js = job.syncId
-            val runSyncIdById = repository.getFenceRuns(job.id).associate { it.id to it.syncId }
-            repository.getLineItems(job.id).forEach {
-                lineItems += CloudLineItem(
-                    companyId, it.syncId, js, it.fenceRunId?.let { id -> runSyncIdById[id] },
-                    it.sortOrder, it.description, it.quantity,
-                    it.unit, it.unitPrice, it.taxable, it.role?.name, it.isAutoGenerated,
-                    // The price off the supplier's own quote. It was left off
-                    // this list, so the cloud held null forever -- and the pull
-                    // then wrote that null back over the figure somebody had
-                    // just typed. Prices entered in the office never reached
-                    // the crew's phone, and did not survive on the phone that
-                    // entered them: one push-then-pull cycle erased them.
-                    supplierUnitPrice = it.supplierUnitPrice
-                )
-            }
             repository.getExpenses(job.id).forEach {
                 expenses += CloudExpense(companyId, it.syncId, js, it.category.name, it.description, it.amount)
             }
@@ -985,7 +1408,12 @@ object EntitySync {
                 orders += CloudChangeOrder(
                     companyId, it.syncId, js, it.description, it.additionalFeet, it.additionalCost,
                     it.materialCost,
-                    it.signedAt?.let { at -> Instant.ofEpochMilli(at).toString() }
+                    it.signedAt?.let { at -> Instant.ofEpochMilli(at).toString() },
+                    // Only ever sent as true (see splitChangeOrdersByAcceptance).
+                    inAcceptedTotal = if (it.inAcceptedTotal) true else null,
+                    // The uploaded image's storage path, never the file on
+                    // this phone -- see changeOrderSignaturePathToSend.
+                    signatureStoragePath = changeOrderSignaturePathToSend(it, companyId, js)
                 )
             }
             repository.getJobSteps(job.id).forEach {
@@ -1019,24 +1447,105 @@ object EntitySync {
             }
         }
 
-        return JobChildRows(lineItems, expenses, punch, orders, steps, markers, changes)
+        return JobChildRows(
+            lineItems = lineItems, lineItemSources = sentLines, expenses = expenses, punch = punch,
+            orders = orders, steps = steps, markers = markers, changes = changes,
+            cloudTouchedAt = cloudTouchedAt
+        )
     }
 
     /**
-     * The crew door for line items: quantities, descriptions, runs and sort
-     * order still reach the office; prices are stripped server-side
-     * regardless of what this phone sends (crew_push_line_items' drop_keys).
+     * Line items from a phone that prices, in two upserts: the ordinary rows,
+     * and the rows that revive a tombstone ([reviveLineItems] for why they
+     * can never share one).
+     *
+     * A reviving row is one a regenerate on this phone just wrote under a
+     * sync id the cloud may hold deleted (Repository.lineItemResurrections).
+     * It is sent with `deleted_at: null` -- the same resurrection price-job's
+     * commit does -- and forgotten once the cloud has taken it. If that
+     * upsert fails, the ids stay waiting: the reaper keeps sparing them and
+     * the next pass tries again, since sending a revival twice changes
+     * nothing. Both halves are attempted whatever the other did, and the
+     * first failure is what the step reports.
+     *
+     * Sent a chunk at a time, and each chunk the cloud took has its lines'
+     * pendingPush cleared -- where the row still holds what went up
+     * (Repository.markLineItemsPushed). A chunk that failed stays marked and
+     * goes again next pass; the pull leaves marked lines alone meanwhile.
      */
-    private suspend fun pushLineItemsThroughCrewPen(lineItems: List<CloudLineItem>): Int {
-        if (lineItems.isEmpty()) return 0
-        return lineItems.chunked(200).sumOf { chunk ->
-            SupabaseModule.client.postgrest.rpc(
-                "crew_push_line_items",
-                buildJsonObject {
-                    put("rows", SyncJson.encodeToJsonElement(ListSerializer(CloudLineItem.serializer()), chunk))
+    private suspend fun pushLineItems(
+        repository: Repository,
+        lineItems: List<CloudLineItem>,
+        sources: List<EstimateLineItem>
+    ): Int {
+        val (plain, reviving) = reviveLineItems(lineItems, repository.lineItemResurrections.pending())
+        val sourceBySyncId = sources.associateBy { it.syncId }
+        var sent = 0
+        var firstFailure: Throwable? = null
+
+        plain.chunked(200).forEach { chunk ->
+            runCatching { upsert("estimate_line_items", chunk) }
+                .onSuccess { n ->
+                    sent += n
+                    repository.markLineItemsPushed(chunk.mapNotNull { sourceBySyncId[it.syncId] })
                 }
-            ).decodeAs<Int>()
+                .onFailure { if (firstFailure == null) firstFailure = it }
         }
+        reviving.chunked(200).forEach { chunk ->
+            runCatching { upsert("estimate_line_items", chunk) }
+                .onSuccess { n ->
+                    sent += n
+                    repository.lineItemResurrections.confirmPushed(chunk.map { it.syncId })
+                    repository.markLineItemsPushed(chunk.mapNotNull { sourceBySyncId[it.syncId] })
+                }
+                .onFailure { if (firstFailure == null) firstFailure = it }
+        }
+        firstFailure?.let { throw it }
+        return sent
+    }
+
+    /** What one crew change-order push came to: orders written, and orders the server did not take. */
+    internal data class CrewChangeOrderTally(val written: Int, val heldBack: Int)
+
+    /**
+     * A crew phone's change orders, through crew_push_change_orders
+     * (supabase_r6_crew_change_orders.sql) a batch at a time.
+     *
+     * The server writes only what the crew may: a new order, and the terms
+     * (description, extra feet) of one nobody has priced, accepted or signed
+     * yet; the signing date and image path once each, never over another. It
+     * never writes money and never deletes. Row by row it SKIPS what it will
+     * not take -- counted, not raised, so one stale order cannot sink the
+     * batch -- and those are held back here ([CrewChangeOrderPushResult.heldBack]).
+     * Nothing on this phone is marked as sent either way: change orders carry
+     * no such mark, and every pass sends every order on the jobs it may push.
+     *
+     * An answer that will not decode is treated as nothing taken: an answer
+     * nobody can read is not news that the orders arrived.
+     *
+     * A refusal of the whole call (42501) is thrown, not counted, so the
+     * caller's step() files it the way it files every refusal: held back, not
+     * a crash, and not the database's words on screen. It is a verdict on the
+     * caller, so the batches after it are not tried.
+     */
+    private suspend fun pushChangeOrdersThroughCrewDoor(orders: List<CloudChangeOrder>): CrewChangeOrderTally {
+        if (orders.isEmpty()) return CrewChangeOrderTally(written = 0, heldBack = 0)
+        var written = 0
+        var heldBack = 0
+        orders.chunked(200).forEach { chunk ->
+            val answer = SupabaseModule.client.postgrest.rpc(
+                "crew_push_change_orders",
+                buildJsonObject { put("rows_in", crewChangeOrderRows(chunk)) }
+            )
+            val result = runCatching { answer.decodeAs<CrewChangeOrderPushResult>() }.getOrNull()
+            if (result == null) {
+                heldBack += chunk.size
+            } else {
+                written += result.written
+                heldBack += result.heldBack(chunk.size)
+            }
+        }
+        return CrewChangeOrderTally(written = written, heldBack = heldBack)
     }
 
     /**
@@ -1216,6 +1725,19 @@ object EntitySync {
             if (whole.isSuccess) {
                 pushed += chunk.size
             } else {
+                // No connection for the batch is no connection for each row
+                // in it. Retrying them one by one while offline sent 125
+                // doomed requests and reported "125 of 125 rows rejected"
+                // (job_steps, 1.509) -- no row was rejected; none arrived.
+                // The next pass sends the lot.
+                //
+                // Only when the request never left the phone, though. A chunk
+                // that timed out or lost its connection half way still falls
+                // back to single rows: on a slow upload link 200 rows can
+                // outlast the client's ten-second timeout every pass while
+                // each row alone gets through, and stopping there left the
+                // table never syncing with nothing reported.
+                whole.exceptionOrNull()?.let { if (SyncFailure.neverReachedServer(it)) throw it }
                 chunk.forEach { row ->
                     val single = runCatching {
                         SupabaseModule.client.postgrest.from(table)
@@ -1299,8 +1821,9 @@ object EntitySync {
                     async { runCatching { netGate.withPermit { pullBuildTemplates(repository, companyId) } } }
                 ).awaitAll()
             }
-            val realFailure = results.mapNotNull { it.exceptionOrNull() }
-                .firstOrNull { !isNotOursToSync(it) }
+            val failures = results.mapNotNull { it.exceptionOrNull() }
+            // A real fault first, a dead spot only if that is all there was.
+            val realFailure = SyncFailure.toReport(failures) ?: failures.firstOrNull { !isNotOursToSync(it) }
             realFailure?.let { Result.failure<Int>(it) }
                 ?: Result.success(results.sumOf { it.getOrDefault(0) })
         }
@@ -1613,6 +2136,16 @@ object EntitySync {
                 .flatMap { repository.getFenceRuns(it) }.associate { it.syncId to it.id }
             val localItemsBySyncId = jobIdBySyncId.values
                 .flatMap { repository.getLineItems(it) }.associateBy { it.syncId }
+            // Deletes this phone made and the cloud has not taken yet. See
+            // [lineItemsToApply]: their cloud rows are still live, and must
+            // not be written back here while the delete waits. Through
+            // pendingDeletionsForSync, so a stale entry for a line that is
+            // alive again (an old build's) no longer stops this phone taking
+            // the office's changes to it.
+            val queuedDeletes = repository.pendingDeletionsForSync()
+                .filter { it.tableName == "estimate_line_items" }
+                .map { it.syncId }
+                .toSet()
 
             // Refuse legacy orphans outright rather than pulling them and cleaning
             // up afterwards. A row with a real material role but no run was pushed
@@ -1623,16 +2156,28 @@ object EntitySync {
                 row.fenceRunSyncId == null && row.role != null && row.role != "NONE"
             }
             legacyOrphans.forEach { row ->
-                repository.queueDeletion(row.syncId, "estimate_line_items")
+                // Not when this phone holds a live line under that id: a
+                // queued delete for a live line is exactly what
+                // pendingDeletionsForSync cancels as stale, and the two would
+                // chase each other on every pass. (None exist in production
+                // today; the rule is what keeps "a live line never has a
+                // queued delete" true.)
+                if (localItemsBySyncId[row.syncId] == null) {
+                    repository.queueDeletion(row.syncId, "estimate_line_items")
+                }
             }
 
-            usable.forEach { row ->
+            lineItemsToApply(usable, queuedDeletes).forEach { row ->
                 val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
                 val role = row.role?.let { r -> runCatching { MaterialRole.valueOf(r) }.getOrNull() }
                     ?: MaterialRole.NONE
                 val existing = localItemsBySyncId[row.syncId]
+                // A line changed here and not yet up stays as it is; it goes
+                // up next pass (see pullMayWriteLine).
+                if (!pullMayWriteLine(existing)) return@forEach
                 if (existing == null) {
-                    repository.saveLineItem(
+                    // A job (or run) gone mid-pass skips the row: see OrphanRows.
+                    skipIfOrphaned { repository.saveLineItemFromCloud(
                         EstimateLineItem(
                             syncId = row.syncId, jobId = jobId,
                             fenceRunId = row.fenceRunSyncId?.let { runIdBySyncId[it] },
@@ -1644,7 +2189,7 @@ object EntitySync {
                             isAutoGenerated = row.autoGenerated,
                             supplierUnitPrice = if (scope == MoneyScope.ALLOWED) row.supplierUnitPrice else 0.0
                         )
-                    )
+                    ) } ?: return@forEach
                     added++
                 } else {
                     // Quantities and prices are the estimate. Not applying a change
@@ -1675,7 +2220,7 @@ object EntitySync {
                         supplierUnitPrice = if (scope == MoneyScope.ALLOWED) row.supplierUnitPrice else existing.supplierUnitPrice
                     )
                     if (merged != existing) {
-                        repository.updateLineItem(merged)
+                        skipIfOrphaned { repository.saveLineItemFromCloud(merged) } ?: return@forEach
                         added++
                     }
                 }
@@ -1701,13 +2246,13 @@ object EntitySync {
                 .getOrDefault(ExpenseCategory.OTHER)
             val existing = localExpensesBySyncId[row.syncId]
             if (existing == null) {
-                repository.saveExpense(
+                skipIfOrphaned { repository.saveExpense(
                     Expense(
                         syncId = row.syncId, jobId = jobId,
                         category = category,
                         description = row.description, amount = row.amount
                     )
-                )
+                ) } ?: return@forEach
                 added++
             } else {
                 // copy() keeps date, which the cloud shape does not carry.
@@ -1718,7 +2263,7 @@ object EntitySync {
                     description = row.description,
                     amount = row.amount
                 )
-                if (merged != existing) { repository.updateExpense(merged); added++ }
+                if (merged != existing) { skipIfOrphaned { repository.updateExpense(merged) } ?: return@forEach; added++ }
             }
         }
         }
@@ -1735,12 +2280,12 @@ object EntitySync {
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
             val existing = localPunchBySyncId[row.syncId]
             if (existing == null) {
-                repository.addPunchListItem(
+                skipIfOrphaned { repository.addPunchListItem(
                     PunchListItem(
                         syncId = row.syncId, jobId = jobId,
                         description = row.description, resolved = row.resolved
                     )
-                )
+                ) } ?: return@forEach
                 added++
             } else {
                 // Ticking a callback off on site has to reach the office.
@@ -1749,7 +2294,7 @@ object EntitySync {
                     description = row.description,
                     resolved = row.resolved
                 )
-                if (merged != existing) { repository.updatePunchListItem(merged); added++ }
+                if (merged != existing) { skipIfOrphaned { repository.updatePunchListItem(merged) } ?: return@forEach; added++ }
             }
         }
 
@@ -1759,41 +2304,12 @@ object EntitySync {
         }
         val localChangesBySyncId = jobIdBySyncId.values
             .flatMap { repository.getFieldChanges(it) }.associateBy { it.syncId }
-        cloudChanges.forEach { row ->
-            val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            val existing = localChangesBySyncId[row.syncId]
-            val at = CloudTime.parseMillis(row.at) ?: System.currentTimeMillis()
-            if (existing == null) {
-                repository.recordFieldChange(
-                    FieldChange(
-                        syncId = row.syncId, jobId = jobId, summary = row.summary, detail = row.detail,
-                        changedBy = row.changedBy, changedByRole = row.changedByRole, at = at,
-                        acknowledgedAt = CloudTime.parseMillis(row.acknowledgedAt),
-                        isRequest = row.isRequest,
-                        approvedAt = CloudTime.parseMillis(row.approvedAt),
-                        rejectedAt = CloudTime.parseMillis(row.rejectedAt),
-                        decidedBy = row.decidedBy, decisionNote = row.decisionNote
-                    )
-                )
-                added++
-            } else {
-                // A decision already made here is never un-made by a cloud row
-                // that has not heard about it yet; the cloud wins when it
-                // actually carries one. Same ratchet as shift approvals.
-                val cloudApproved = CloudTime.parseMillis(row.approvedAt)
-                val cloudRejected = CloudTime.parseMillis(row.rejectedAt)
-                val cloudDecided = cloudApproved != null || cloudRejected != null
-                val merged = existing.copy(
-                    summary = row.summary, detail = row.detail,
-                    acknowledgedAt = existing.acknowledgedAt ?: CloudTime.parseMillis(row.acknowledgedAt),
-                    approvedAt = if (cloudDecided) cloudApproved else existing.approvedAt,
-                    rejectedAt = if (cloudDecided) cloudRejected else existing.rejectedAt,
-                    decidedBy = if (cloudDecided) row.decidedBy else existing.decidedBy,
-                    decisionNote = if (cloudDecided) row.decisionNote else existing.decisionNote
-                )
-                if (merged != existing) { repository.updateFieldChangeFromCloud(merged); added++ }
-            }
-        }
+        // The table that hit the foreign key on 2026-09-21 -- see OrphanRows.
+        added += mergeFieldChanges(
+            cloudChanges, jobIdBySyncId, localChangesBySyncId,
+            insert = { repository.recordFieldChange(it) },
+            update = { repository.updateFieldChangeFromCloud(it) }
+        )
 
         // These four were pushed but never pulled back, so switching phones lost
         // signed change orders and clocked hours -- money and payroll records --
@@ -1816,27 +2332,33 @@ object EntitySync {
             .flatMap { repository.getChangeOrders(it) }.associateBy { it.syncId }
         orders.forEach { row ->
             val jobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
-            // The signature image itself is a local file that isn't synced yet,
-            // so only the fact and date of signing survive.
+            // The fact and date of signing, and where the image is in cloud
+            // storage (pulledSignatureStoragePath) -- JobFileUploader's
+            // downloadMissing fetches the image itself from there after the
+            // pull. The file path on the phone that signed never travels.
             val signedAt = row.signedAt?.let { at -> CloudTime.parseMillis(at) }
             val existing = localOrdersBySyncId[row.syncId]
             if (existing == null) {
-                repository.saveChangeOrder(
+                skipIfOrphaned { repository.saveChangeOrder(
                     ChangeOrder(
                         syncId = row.syncId, jobId = jobId,
                         description = row.description,
                         additionalFeet = row.additionalFeet,
                         additionalCost = if (scope == MoneyScope.ALLOWED) row.additionalCost else 0.0,
                         materialCost = if (scope == MoneyScope.ALLOWED) row.materialCost else 0.0,
-                        signedAt = signedAt
+                        signatureStoragePath = pulledSignatureStoragePath(null, row),
+                        signedAt = signedAt,
+                        inAcceptedTotal = row.inAcceptedTotal == true
                     )
-                )
+                ) } ?: return@forEach
                 added++
             } else {
                 // Amounts change when extra work is repriced, and that has to
                 // reach the other phone or two people quote the same job
                 // differently. copy() keeps createdAt and the local signature
-                // file path, which the cloud does not carry.
+                // file path, which the cloud does not carry; the storage path
+                // is taken from the cloud only when this phone has no
+                // signature of its own (pulledSignatureStoragePath).
                 //
                 // Costs are left alone under DENIED: change_orders_crew
                 // carries neither column, so row.additionalCost/materialCost
@@ -1846,10 +2368,15 @@ object EntitySync {
                     additionalFeet = row.additionalFeet,
                     additionalCost = if (scope == MoneyScope.ALLOWED) row.additionalCost else existing.additionalCost,
                     materialCost = if (scope == MoneyScope.ALLOWED) row.materialCost else existing.materialCost,
-                    signedAt = signedAt
+                    signatureStoragePath = pulledSignatureStoragePath(existing, row),
+                    signedAt = signedAt,
+                    // Latches, as it does server-side: a null from the crew
+                    // view, or a phone's copy from before the mark, never
+                    // unmarks an order that was inside an accepted price.
+                    inAcceptedTotal = existing.inAcceptedTotal || row.inAcceptedTotal == true
                 )
                 if (merged != existing) {
-                    repository.updateChangeOrder(merged)
+                    skipIfOrphaned { repository.updateChangeOrder(merged) } ?: return@forEach
                     added++
                 }
             }
@@ -1884,7 +2411,7 @@ object EntitySync {
                 ?: return@forEach
             val existing = localTimesBySyncId[row.syncId]
             if (existing == null) {
-                repository.insertTimeEntry(
+                skipIfOrphaned { repository.insertTimeEntry(
                     TimeEntry(
                         syncId = row.syncId, jobId = jobId,
                         // "" matches no employee, which is exactly right for a
@@ -1908,7 +2435,7 @@ object EntitySync {
                         breakStartedAt = CloudTime.parseMillis(row.breakStartedAt),
                         breakEndedAt = CloudTime.parseMillis(row.breakEndedAt)
                     )
-                )
+                ) } ?: return@forEach
                 added++
             } else {
                 // copy() from the local row, naming only the fields the cloud
@@ -1986,7 +2513,7 @@ object EntitySync {
                         ?: existing.breakEndedAt
                 )
                 if (merged != existing) {
-                    repository.updateTimeEntry(merged)
+                    skipIfOrphaned { repository.updateTimeEntry(merged) } ?: return@forEach
                     added++
                 }
             }
@@ -2005,7 +2532,7 @@ object EntitySync {
                 .getOrDefault(JobStepKind.INSTALL)
             val existing = localStepsBySyncId[row.syncId]
             if (existing == null) {
-                repository.insertJobStep(
+                skipIfOrphaned { repository.insertJobStep(
                     JobStep(
                         syncId = row.syncId, jobId = jobId,
                         kind = kind,
@@ -2015,7 +2542,7 @@ object EntitySync {
                         completedAt = CloudTime.parseMillis(row.completedAt),
                         stepKey = row.stepKey
                     )
-                )
+                ) } ?: return@forEach
                 added++
             } else {
                 // The install checklist is what the crew works from, so a step
@@ -2053,7 +2580,7 @@ object EntitySync {
                     // only when it actually has one.
                     stepKey = row.stepKey ?: existing.stepKey
                 )
-                if (merged != existing) { repository.updateJobStep(merged); added++ }
+                if (merged != existing) { skipIfOrphaned { repository.updateJobStep(merged) } ?: return@forEach; added++ }
             }
         }
 
@@ -2069,19 +2596,19 @@ object EntitySync {
                 .getOrDefault(SiteMarkerKind.OBSTACLE)
             val existing = localMarkersBySyncId[row.syncId]
             if (existing == null) {
-                repository.addSiteMarker(
+                skipIfOrphaned { repository.addSiteMarker(
                     SiteMarker(
                         syncId = row.syncId, jobId = jobId,
                         kind = kind, x = row.x, y = row.y, label = row.label
                     )
-                )
+                ) } ?: return@forEach
                 added++
             } else {
                 // A marked obstacle that moved has to reach whoever is digging.
                 val merged = existing.copy(
                     kind = kind, x = row.x, y = row.y, label = row.label
                 )
-                if (merged != existing) { repository.updateSiteMarker(merged); added++ }
+                if (merged != existing) { skipIfOrphaned { repository.updateSiteMarker(merged) } ?: return@forEach; added++ }
             }
         }
 
@@ -2264,7 +2791,8 @@ object EntitySync {
                 .getOrDefault(FenceType.VINYL)
             val existing = localBySyncId[row.syncId]
             if (existing == null) {
-                repository.createFenceRunFromCloud(
+                // A job gone mid-pass skips the run: see OrphanRows.
+                skipIfOrphaned { repository.createFenceRunFromCloud(
                     FenceRun(
                         syncId = row.syncId,
                         jobId = localJobId,
@@ -2298,7 +2826,7 @@ object EntitySync {
                         splitRailCount = row.splitRailCount,
                         updatedAt = row.updatedAtMillis()
                     )
-                )
+                ) } ?: return@forEach
                 added++
             } else if (row.updatedAtMillis() > existing.updatedAt) {
                 // Redrawing a fence line, or correcting its footage, has to
@@ -2349,7 +2877,7 @@ object EntitySync {
                     splitRailCount = row.splitRailCount,
                     updatedAt = row.updatedAtMillis()
                 )
-                if (merged != existing) { repository.updateFenceRunFromCloud(merged); added++ }
+                if (merged != existing) { skipIfOrphaned { repository.updateFenceRunFromCloud(merged) } ?: return@forEach; added++ }
             }
         }
         return added
@@ -2374,8 +2902,19 @@ object EntitySync {
         return upsert("manufacturers", rows)
     }
 
-    private suspend fun pushFenceRuns(repository: Repository, companyId: String): Int {
-        val jobs = repository.getAllJobs()
+    private suspend fun pushFenceRuns(
+        repository: Repository,
+        companyId: String,
+        scope: MoneyScope,
+        cloudTouchedAt: Map<String, Pair<Long, Boolean>>?
+    ): Int {
+        // Not the runs of a job this person is no longer on (Job.accessEndedAt),
+        // nor -- on a phone reading the crew door -- of a job that door did
+        // not return (mayPushJobRuns): the fence_runs read below cannot see
+        // them either, so every one read as "no cloud copy" and went up on
+        // every pass to be refused row by row. They stay here, and go up if
+        // the job comes back.
+        val jobs = repository.getAllJobs().filter { mayPushJobRuns(it, cloudTouchedAt, scope) }
         val local = jobs.flatMap { job ->
             repository.getFenceRuns(job.id).map { it to job.syncId }
         }
@@ -2721,6 +3260,10 @@ object EntitySync {
                 if (whole.isSuccess) {
                     pushed += chunk.size
                 } else {
+                    // Offline: see upsert. Every row would fail the same way --
+                    // but only when the request never left the phone; a
+                    // timeout still goes row by row.
+                    whole.exceptionOrNull()?.let { if (SyncFailure.neverReachedServer(it)) throw it }
                     chunk.forEach { (entry, row) -> sendOne(entry, row) }
                 }
             }
@@ -2917,23 +3460,55 @@ object DeletionReaper {
             // exists to close -- and is skipped instead. estimate_line_items
             // is gated the same way once the policy flips: DENIED reads the
             // money-free view for the same tombstoned sync ids, and UNKNOWN
-            // cannot tell which door is open, so it asks neither.
+            // cannot tell which door is open, so it asks neither. DENIED
+            // reads change_orders' tombstones through its view too. All of
+            // it is reapSource.
             kotlinx.coroutines.coroutineScope {
             com.fenceestimator.app.data.SyncTables.ALL.mapNotNull { table ->
-                if (table == "pricing_tiers" && scope != MoneyScope.ALLOWED) return@mapNotNull null
-                if (table == "estimate_line_items" && scope == MoneyScope.UNKNOWN) return@mapNotNull null
-                val source = if (table == "estimate_line_items" && scope == MoneyScope.DENIED)
-                    "estimate_line_items_crew" else table
+                val source = reapSource(table, scope) ?: return@mapNotNull null
                 async { netGate.withPermit {
-                val deletedIds = tombstonedSyncIds(source, companyId)
-
-                if (deletedIds.isNotEmpty()) {
+                val tombstoned = tombstonedSyncIds(source, companyId)
+                when {
+                    tombstoned.isEmpty() -> 0
+                    // Except a takeoff line this phone has just written again
+                    // under the same (deterministic) sync id and not yet
+                    // revived: deleting it here took a line that had come
+                    // back, about a second and a half after Suggest Quantities
+                    // put it there, and the price dropped with it. The push
+                    // that follows sends it back with deleted_at cleared
+                    // (EntitySync.pushLineItems). reapLineItems reads the
+                    // waiting ids and deletes in one transaction, so a
+                    // regenerate can never slip its line in between the two.
+                    table == "estimate_line_items" -> repository.reapLineItems(tombstoned)
                     // The local table name, always -- Room has no "_crew" table.
-                    repository.deleteLocalRowsBySyncId(table, deletedIds)
-                } else 0
+                    else -> repository.deleteLocalRowsBySyncId(table, tombstoned)
+                }
             } } }.awaitAll().sum()
             }
         }
+
+    /**
+     * Where [reap] asks for [table]'s tombstones under [scope], or null to not
+     * ask at all.
+     *
+     * The rules the reap has always had -- pricing_tiers only when ALLOWED,
+     * estimate_line_items never when UNKNOWN and through its crew view when
+     * DENIED -- and change_orders through change_orders_crew when DENIED. The
+     * base table hides every row from a crew login (the restrictive
+     * change_orders_money_hidden_from_crew SELECT policy), which reads as no
+     * tombstones rather than an error: an order the office deleted stayed on
+     * the crew phone for good, and now that its orders reach the server
+     * (crew_push_change_orders), it would be sent every pass, skipped every
+     * pass, and hold the phone at "not backed up" for ever. The view carries
+     * sync_id and deleted_at and no money.
+     */
+    internal fun reapSource(table: String, scope: MoneyScope): String? = when {
+        table == "pricing_tiers" && scope != MoneyScope.ALLOWED -> null
+        table == "estimate_line_items" && scope == MoneyScope.UNKNOWN -> null
+        table == "estimate_line_items" && scope == MoneyScope.DENIED -> "estimate_line_items_crew"
+        table == "change_orders" && scope == MoneyScope.DENIED -> "change_orders_crew"
+        else -> table
+    }
 
     /**
      * Every tombstoned sync id in one table, a page at a time.
@@ -3025,6 +3600,16 @@ data class CloudPaymentRecord(
  * no common type -- the same reason looksLikeNoSignal is written this way.
  */
 internal fun isNotOursToSync(error: Throwable): Boolean {
+    // By status first. PostgREST answers SQLSTATE 42501 with HTTP 403 for a
+    // signed-in caller, and postgrest-kt 3.0.2 keeps that status but drops the
+    // code from the message -- so a refusal raised with its own sentence
+    // ("This job is not assigned to you.", crew_job_guard; "Not allowed to
+    // write jobs", crew_save_job) carried none of the words below, and a crew
+    // phone taken off a job between reading it and pushing it failed the
+    // whole pass instead of holding that one job back.
+    if (generateSequence(error) { it.cause }
+            .any { (it as? io.github.jan.supabase.exceptions.RestException)?.statusCode == 403 }
+    ) return true
     val text = generateSequence(error) { it.cause }
         .mapNotNull { "${it::class.simpleName} ${it.message}" }
         .joinToString(" ")
@@ -3171,12 +3756,18 @@ object PaymentLedgerSync {
                 )
             }
             if (landed.isNotEmpty()) {
-                repository.insertPaymentsFromCloud(landed)
-                moved += landed.size
+                // One statement for the lot, and INSERT OR IGNORE does not
+                // ignore a foreign key: a job that left mid-pass failed every
+                // payment in the batch (see OrphanRows). The batch rolls back
+                // whole, so on that failure each row goes in alone and only
+                // the orphan is skipped.
+                val inserted = if (skipIfOrphaned { repository.insertPaymentsFromCloud(landed) } != null) landed
+                    else landed.filter { row -> skipIfOrphaned { repository.insertPaymentsFromCloud(listOf(row)) } != null }
+                moved += inserted.size
                 // Job totals are a cache of these rows, so they are rebuilt for
                 // every job that just gained one. Otherwise the ledger and the
                 // job would disagree until something else touched the job.
-                landed.map { it.jobId }.distinct().forEach { repository.syncJobTotalsFromLedger(it) }
+                inserted.map { it.jobId }.distinct().forEach { repository.syncJobTotalsFromLedger(it) }
             }
 
             // Rebuild every job's cached total from its rows. The cache is what

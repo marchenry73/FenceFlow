@@ -551,43 +551,6 @@ private data class LockCandidate(
 /** Two corners closer than this, in drawing pixels, are the same corner. */
 private const val SAME_CORNER_PX = 0.01f
 
-/**
- * What pressing Undo should remove next, and why -- worked out as a pure
- * function of counts so it can be tested without a ViewModel, a run, or a
- * database.
- *
- * Which one goes is decided by the tool in hand rather than by a history
- * stack: while placing gates, Undo takes back a gate; while drawing (or any
- * other mode), it takes back a point, falling back to a gate once there are
- * no points left to unpick. [NONE] carries a reason, so a press that removes
- * nothing can say why instead of looking broken.
- */
-sealed class UndoPlan {
-    /** Remove the last point (always index `pointCount - 1`). */
-    object RemoveLastPoint : UndoPlan()
-
-    /** Remove the last gate (always index `gateCount - 1`). */
-    object RemoveLastGate : UndoPlan()
-
-    /** Nothing to undo, with a machine-readable reason for the UI to explain. */
-    data class None(val reason: UndoNoneReason) : UndoPlan()
-}
-
-enum class UndoNoneReason {
-    /** No fence run is selected at all -- draw or pick one first. */
-    NO_RUN_SELECTED,
-    /** A run is selected, but it has no points and no gates. */
-    NOTHING_ON_RUN
-}
-
-fun planUndo(gateMode: Boolean, hasSelectedRun: Boolean, pointCount: Int, gateCount: Int): UndoPlan {
-    if (!hasSelectedRun) return UndoPlan.None(UndoNoneReason.NO_RUN_SELECTED)
-    if (gateMode && gateCount > 0) return UndoPlan.RemoveLastGate
-    if (pointCount > 0) return UndoPlan.RemoveLastPoint
-    if (gateCount > 0) return UndoPlan.RemoveLastGate
-    return UndoPlan.None(UndoNoneReason.NOTHING_ON_RUN)
-}
-
 /** Signed smallest difference between two headings, in the range (-180, 180]. */
 private fun angleDifference(a: Float, b: Float): Float {
     var d = (a - b) % 360f

@@ -159,6 +159,7 @@
 const L = {
   en: {
     loading: 'Opening your quote…',
+    pageHead: 'Your fence quote',
     badge: 'Your fence · 3D preview',
     removeOld: 'Remove the old fence',
     turnFence: 'Turn the fence to match',
@@ -202,6 +203,7 @@ const L = {
     connErrorRetry: 'Could not reach the server — check your connection and try again.',
     genericError: 'Something went wrong. Please try again in a moment.',
     approvalError: 'Could not record the approval.',
+    quoteChanged: 'This quote was updated after you opened it. Reload the page to see the current price, then approve.',
     paymentPageError: 'Could not open the payment page.',
     phoneLast4Label: 'Last 4 digits of your phone number on file',
     phoneLast4Placeholder: '1234',
@@ -212,6 +214,7 @@ const L = {
   },
   es: {
     loading: 'Abriendo su presupuesto…',
+    pageHead: 'Su presupuesto de cerca',
     badge: 'Su cerca · vista 3D',
     removeOld: 'Quitar la cerca vieja',
     turnFence: 'Girar la cerca',
@@ -255,6 +258,7 @@ const L = {
     connErrorRetry: 'No se pudo contactar con el servidor — revise su conexión e inténtelo de nuevo.',
     genericError: 'Algo salió mal. Inténtelo de nuevo en un momento.',
     approvalError: 'No se pudo registrar la aprobación.',
+    quoteChanged: 'Este presupuesto se actualizó después de que lo abrió. Recargue la página para ver el precio actual y luego apruébelo.',
     paymentPageError: 'No se pudo abrir la página de pago.',
     phoneLast4Label: 'Últimos 4 dígitos del teléfono registrado',
     phoneLast4Placeholder: '1234',
@@ -265,6 +269,7 @@ const L = {
   },
   fr: {
     loading: 'Ouverture de votre devis…',
+    pageHead: 'Votre devis de clôture',
     badge: 'Votre clôture · aperçu 3D',
     removeOld: 'Retirer l’ancienne clôture',
     turnFence: 'Faire pivoter la clôture',
@@ -308,6 +313,7 @@ const L = {
     connErrorRetry: 'Impossible de joindre le serveur — vérifiez votre connexion et réessayez.',
     genericError: 'Une erreur est survenue. Merci de réessayer dans un instant.',
     approvalError: 'Impossible d’enregistrer la validation.',
+    quoteChanged: 'Ce devis a été modifié après son ouverture. Rechargez la page pour voir le prix actuel, puis validez-le.',
     paymentPageError: 'Impossible d’ouvrir la page de paiement.',
     phoneLast4Label: '4 derniers chiffres du téléphone enregistré',
     phoneLast4Placeholder: '1234',
@@ -472,12 +478,15 @@ async function load(){
   $('langPick').querySelectorAll('a[data-lang]').forEach(a =>
     a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
 
-  if(!token){ $('loading').textContent=tr('linkMissing'); return; }
+  // A link that cannot open still gets a heading: the company name never
+  // arrives on these paths, and the band above the message sat empty.
+  const fail = text => { $('coName').textContent = tr('pageHead'); $('loading').textContent = text; };
+  if(!token){ fail(tr('linkMissing')); return; }
   let r;
   try{ r=await fetch(API+'/quote-view?t='+encodeURIComponent(token)); }
-  catch(e){ $('loading').textContent=tr('noServer'); return; }
+  catch(e){ fail(tr('noServer')); return; }
   const j=await r.json().catch(()=>({}));
-  if(!r.ok){ $('loading').textContent=j.error||tr('quoteUnavailable'); return; }
+  if(!r.ok){ fail(j.error||tr('quoteUnavailable')); return; }
   quote=j;
   render();
 }
@@ -709,8 +718,13 @@ async function doApprove(thenPay){
   try{
     const r=await fetch(API+'/quote-view?t='+encodeURIComponent(token),{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'approve',name,phone4})});
+      // The total this page is showing travels with the approval, and the
+      // approval records it as the accepted price. If the contractor changed
+      // the quote while this page sat open, the server answers 409
+      // quote_changed instead of recording a price the homeowner never saw.
+      body:JSON.stringify({action:'approve',name,phone4,total:quote?quote.total:undefined})});
     const j=await r.json().catch(()=>({}));
+    if(r.status===409 && j.code==='quote_changed') throw new Error(tr('quoteChanged'));
     if(!r.ok){
       // The server's own wording already refuses to say whether the digits
       // were wrong, there was no phone on file, or the quote didn't exist --

@@ -1,16 +1,24 @@
 package com.fenceestimator.app.cloud
 
 import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.RealtimeChannel
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Keeps the phone live on the money, with nothing to press.
@@ -34,6 +42,7 @@ class RealtimeWatcher(
     private val autoSync: AutoSync
 ) {
     private var subscription: Job? = null
+    private var accessSubscription: Job? = null
 
     fun start() {
         if (!SupabaseModule.isConfigured) return
@@ -48,8 +57,93 @@ class RealtimeWatcher(
                 .filterNotNull()
                 .collect { companyId ->
                     subscription?.cancel()
+                    accessSubscription?.cancel()
                     subscription = scope.launch { listen(companyId) }
+                    accessSubscription = scope.launch { listenForAccess(companyId) }
                 }
+        }
+    }
+
+    /**
+     * Who is on which job, and who asked: `job_assignments` and
+     * `job_access_requests` (supabase_crew_job_scope.sql). An approval lands on
+     * the crew phone within seconds -- the job appears, or comes back from
+     * "kept on this phone" -- and a new ask reaches whoever answers them.
+     * Realtime applies each table's read policy per subscriber, so a crew
+     * phone hears only its own rows.
+     *
+     * On its OWN channel, and only once the server has the tables. Realtime
+     * sets up every table a channel names in one join, and a table that does
+     * not exist fails that join -- so naming these two beside the others, on a
+     * database the change has not reached, would have taken the whole change
+     * feed down with them: jobs, payments, shifts, everything. Gated on
+     * [JobAccess.scope] answering from a database that has the change (the
+     * sync asks every pass, so a database that gets it mid-session is picked
+     * up by the next pass), and a join that does not complete is dropped and
+     * tried again later rather than waited on for ever.
+     */
+    private suspend fun listenForAccess(companyId: String) {
+        var backoffMs = ACCESS_INITIAL_BACKOFF_MS
+        while (true) {
+            JobAccess.scope.first { it.isDeployed }
+            val channel = SupabaseModule.client.channel("company-$companyId-access")
+            val startedAt = System.currentTimeMillis()
+            val joined = try {
+                coroutineScope {
+                    ACCESS_TABLES.forEach { tableName ->
+                        val flow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                            table = tableName
+                            filter("company_id", io.github.jan.supabase.postgrest.query.filter.FilterOperator.EQ, companyId)
+                        }
+                        // Somebody is waiting on this -- the crew member for
+                        // an answer, the office for the ask -- so not the
+                        // bulk-edit quiet period, and not the echo window
+                        // either: a sync pass never writes these tables (only
+                        // the access RPCs do), so nothing here is our own echo.
+                        launch {
+                            flow.collect {
+                                JobAccess.noteRemoteChange()
+                                autoSync.requestSync()
+                            }
+                        }
+                    }
+                    SupabaseModule.client.realtime.connect()
+                    val subscribed = withTimeoutOrNull(ACCESS_JOIN_TIMEOUT_MS) {
+                        channel.subscribe(blockUntilSubscribed = true)
+                        true
+                    } ?: false
+                    if (subscribed) {
+                        // Held until the channel is closed for good (the
+                        // client rejoins by itself across a dropped socket);
+                        // the collectors above live exactly as long as this.
+                        channel.status.first { it == RealtimeChannel.Status.UNSUBSCRIBED }
+                    }
+                    coroutineContext.cancelChildren()
+                    subscribed
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.i("RealtimeWatcher", "access feed not joined: ${e.message}")
+                false
+            } finally {
+                // Never leave a half-joined channel registered: a later join
+                // for the same topic would stack on it.
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(ACCESS_LEAVE_TIMEOUT_MS) {
+                        runCatching { SupabaseModule.client.realtime.removeChannel(channel) }
+                    }
+                }
+            }
+            // A channel that held for a while starts the next wait short; one
+            // refused or closed straight away backs off, so a server that
+            // keeps saying no is not asked in a loop.
+            val heldFor = System.currentTimeMillis() - startedAt
+            if (joined && heldFor >= ACCESS_HEALTHY_MS) backoffMs = ACCESS_INITIAL_BACKOFF_MS
+            delay(backoffMs)
+            if (!joined || heldFor < ACCESS_HEALTHY_MS) {
+                backoffMs = (backoffMs * 2).coerceAtMost(ACCESS_MAX_BACKOFF_MS)
+            }
         }
     }
 
@@ -154,5 +248,24 @@ class RealtimeWatcher(
 
         const val INITIAL_BACKOFF_MS = 2_000L
         const val MAX_BACKOFF_MS = 60_000L
+
+        /**
+         * On their own channel -- see [listenForAccess] for why these two must
+         * never join [LIVE_TABLES]. RealtimeAccessChannelTest holds that.
+         */
+        private val ACCESS_TABLES = listOf("job_assignments", "job_access_requests")
+
+        const val ACCESS_INITIAL_BACKOFF_MS = 5_000L
+
+        /** A join that fails does not always say so; this long is long enough. */
+        const val ACCESS_JOIN_TIMEOUT_MS = 20_000L
+
+        /** A server that keeps refusing the join is asked again at most this often. */
+        const val ACCESS_MAX_BACKOFF_MS = 15 * 60 * 1000L
+
+        /** A channel that stayed joined this long was working, so the next join starts quick. */
+        const val ACCESS_HEALTHY_MS = 60_000L
+
+        const val ACCESS_LEAVE_TIMEOUT_MS = 5_000L
     }
 }

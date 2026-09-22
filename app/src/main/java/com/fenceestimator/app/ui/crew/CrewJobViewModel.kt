@@ -27,6 +27,17 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
+/**
+ * Whether [error] is set_production_stage refusing a job this person is no
+ * longer on: crew_job_guard's "This job is not assigned to you."
+ * (supabase_crew_job_scope.sql, 42501). postgrest-kt keeps the sentence and
+ * drops the SQLSTATE, so the sentence is what is matched, through the cause
+ * chain.
+ */
+internal fun isNotYourJobRefusal(error: Throwable): Boolean =
+    generateSequence(error) { it.cause }
+        .any { it.message?.contains("not assigned to you", ignoreCase = true) == true }
+
 class CrewJobViewModel(
     private val repository: Repository,
     private val jobId: Long,
@@ -239,7 +250,15 @@ class CrewJobViewModel(
                 // same column.
                 repository.updateJobFromCloud(current.copy(productionStage = nextStage))
             }.onFailure { e ->
-                _message.tryEmit(UiMessage(R.string.crew_stage_move_failed, listOf(e.message.orEmpty())))
+                // One refusal is said in the phone's own words rather than the
+                // server's English: the job is no longer this person's (the
+                // crew scope's guard). The screen hides the stage buttons on a
+                // job kept after its person was taken off it, but the office
+                // can take someone off between two syncs.
+                _message.tryEmit(
+                    if (isNotYourJobRefusal(e)) UiMessage(R.string.crew_stage_not_yours)
+                    else UiMessage(R.string.crew_stage_move_failed, listOf(e.message.orEmpty()))
+                )
             }
         }
     }

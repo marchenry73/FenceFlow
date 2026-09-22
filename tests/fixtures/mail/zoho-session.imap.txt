@@ -1,0 +1,127 @@
+# A Zoho-shaped IMAP session, played by the fake server in
+# tests/mail-imap-client.test.mjs against the real ImapClient + StreamTransport.
+#
+# Hand-written and sanitized: example.com / example.org addresses, a made-up
+# company, no real person or mailbox. It follows the shape imappro.zoho.com
+# answers in (untagged OK codes for UIDVALIDITY/UIDNEXT, [READ-ONLY] on the
+# tagged EXAMINE reply, \Sent special-use on LIST), not a captured session.
+#
+# What it plays, in order, is what mail-connect and then mail-sync do:
+#   greeting -> CAPABILITY -> LOGIN -> LIST (find Sent)
+#   INBOX, first run:  EXAMINE -> UID SEARCH SINCE -> UID FETCH headers (3),
+#                      each block capped with a partial fetch (<0.32768>),
+#                      which the server echoes as BODY[...]<0>
+#   Sent, later run:   EXAMINE -> UID SEARCH UID 88:* -> UID FETCH 80:* (FLAGS)
+#   LOGOUT
+#
+# Two traps are planted in it on purpose:
+#   - Message 4102's header literal contains ")" and ends a line with "{5}".
+#     Both are data: a parser that scanned the literal instead of counting it
+#     would either close the FETCH list early or wait for 5 bytes that never
+#     come.
+#   - "UID SEARCH UID 88:*" in Sent answers 87. Nothing is new; the server
+#     is reading 88:* as 87:88 because 88 is above every UID. The client must
+#     report zero new messages, not one.
+# And one removal: UID 83 is cached but absent from the flags reply, so it
+# must come back in goneUids.
+#
+# Format (one step per line; blank lines and # comments ignored):
+#   S: <text>    server sends <text> CRLF. <tag> becomes the tag of the most
+#                recent client command. A line ending in {LITERAL} is sent
+#                with {N}, followed by the L: lines below it as the literal.
+#   L: <text>    one line of that literal; each gets CRLF, N counts them all.
+#   C: <text>    client must send "<tag> <text>" CRLF (any tag).
+#   C+: <text>   client must send <text> CRLF, untagged (after a literal or a
+#                continuation).
+#   CL: <text>   client must send exactly the bytes of <text>, no CRLF.
+#   HANG         server stops answering and never closes.
+#   {password} and {since} are filled in by the test.
+
+S: * OK Zoho Mail IMAP4rev1 Server Ready
+C: CAPABILITY
+S: * CAPABILITY IMAP4rev1 IDLE NAMESPACE UIDPLUS CHILDREN UNSELECT SPECIAL-USE MOVE ID AUTH=PLAIN AUTH=XOAUTH2
+S: <tag> OK CAPABILITY completed
+C: LOGIN "owner@acmefence.com" "{password}"
+S: <tag> OK [CAPABILITY IMAP4rev1 IDLE NAMESPACE UIDPLUS CHILDREN UNSELECT SPECIAL-USE MOVE ID] LOGIN completed
+C: LIST "" "*"
+S: * LIST (\HasNoChildren) "/" "INBOX"
+S: * LIST (\HasNoChildren \Drafts) "/" "Drafts"
+S: * LIST (\HasNoChildren) "/" "Templates"
+S: * LIST (\HasNoChildren) "/" "Snoozed"
+S: * LIST (\HasNoChildren) "/" "Sent Items"
+S: * LIST (\HasNoChildren \Sent) "/" "Sent"
+S: * LIST (\HasNoChildren \Junk) "/" "Spam"
+S: * LIST (\HasNoChildren \Trash) "/" "Trash"
+S: * LIST (\HasNoChildren) "/" "Outbox"
+S: * LIST (\HasChildren) "/" "Jobs"
+S: * LIST (\HasNoChildren) "/" "Jobs/Oak Lane"
+S: <tag> OK LIST completed
+C: EXAMINE "INBOX"
+S: * FLAGS (\Answered \Flagged \Deleted \Seen \Draft $Forwarded)
+S: * OK [PERMANENTFLAGS ()] No permanent flags permitted
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * OK [UIDVALIDITY 1729000001] UIDs valid
+S: * OK [UIDNEXT 4104] Predicted next UID
+S: <tag> OK [READ-ONLY] EXAMINE completed
+C: UID SEARCH SINCE {since}
+S: * SEARCH 4101 4102 4103
+S: <tag> OK SEARCH completed
+C: UID FETCH 4101:4103 (UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC REPLY-TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE)]<0.32768>)
+S: * 1 FETCH (UID 4101 RFC822.SIZE 4821 FLAGS (\Seen) INTERNALDATE "14-Sep-2026 09:12:44 -0400" BODY[HEADER.FIELDS (FROM TO CC REPLY-TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE)]<0> {LITERAL}
+L: From: "Pat Rivera (Homeowner)" <pat.rivera@example.com>
+L: To: Acme Fence Co <owner@acmefence.com>
+L: Subject: Fence quote for 14 Oak Lane
+L: Date: Mon, 14 Sep 2026 09:12:40 -0400
+L: Message-ID: <CAF1a2b3c4d5e6f7@mail.example.com>
+L: Content-Type: multipart/alternative;
+L:  boundary="000000000000a1b2c3d4e5f6"
+L:
+S: )
+S: * 2 FETCH (UID 4102 RFC822.SIZE 2210 FLAGS () INTERNALDATE "16-Sep-2026 17:03:15 -0400" BODY[HEADER.FIELDS (FROM TO CC REPLY-TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE)]<0> {LITERAL}
+L: From: Pat Rivera <pat.rivera@example.com>
+L: To: owner@acmefence.com
+L: Cc: "HOA Board (Oak Lane)" <board@oaklane-hoa.example.org>
+L: Subject: Re: Gate options (A) or {5}
+L: Date: Wed, 16 Sep 2026 17:03:11 -0400
+L: Message-ID: <CAF9z8y7x6w5@mail.example.com>
+L: In-Reply-To: <a7f3c1d2-5b6e-4f80-9a1b-2c3d4e5f6a7b@acmefence.com>
+L: References: <b1c2d3e4-0000-4000-8000-000000000001@acmefence.com>
+L:  <a7f3c1d2-5b6e-4f80-9a1b-2c3d4e5f6a7b@acmefence.com>
+L: Content-Type: text/plain; charset="UTF-8"
+L:
+S: )
+S: * 3 FETCH (UID 4103 RFC822.SIZE 9730 FLAGS (\Flagged) INTERNALDATE " 9-Sep-2026 08:00:04 +0000" BODY[HEADER.FIELDS (FROM TO CC REPLY-TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES CONTENT-TYPE)]<0> {LITERAL}
+L: From: Payments <receipts@payments.example.com>
+L: To: owner@acmefence.com
+L: Reply-To: support@payments.example.com
+L: Subject: Deposit received - thank you
+L: Date: Wed, 09 Sep 2026 08:00:02 +0000
+L: Message-ID: <20260909080002.1234@payments.example.com>
+L: Content-Type: text/html; charset=utf-8
+L:
+S: )
+S: <tag> OK FETCH completed
+C: EXAMINE "Sent"
+S: * FLAGS (\Answered \Flagged \Deleted \Seen \Draft $Forwarded)
+S: * OK [PERMANENTFLAGS ()] No permanent flags permitted
+S: * 12 EXISTS
+S: * 0 RECENT
+S: * OK [UIDVALIDITY 1729000002] UIDs valid
+S: * OK [UIDNEXT 88] Predicted next UID
+S: <tag> OK [READ-ONLY] EXAMINE completed
+C: UID SEARCH UID 88:*
+S: * SEARCH 87
+S: <tag> OK SEARCH completed
+C: UID FETCH 80:* (UID FLAGS)
+S: * 5 FETCH (UID 80 FLAGS (\Seen))
+S: * 6 FETCH (UID 81 FLAGS (\Seen \Answered))
+S: * 7 FETCH (UID 82 FLAGS (\Seen))
+S: * 8 FETCH (UID 84 FLAGS (\Seen))
+S: * 9 FETCH (UID 85 FLAGS (\Seen $Forwarded))
+S: * 10 FETCH (UID 86 FLAGS (\Seen))
+S: * 11 FETCH (UID 87 FLAGS (\Seen))
+S: <tag> OK FETCH completed
+C: LOGOUT
+S: * BYE Zoho Mail IMAP4rev1 Server logging out
+S: <tag> OK LOGOUT completed

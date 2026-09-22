@@ -94,3 +94,36 @@ there are enough customers that one of them asks.
 Confidence: high on the finding, which is measured, not guessed. Moderate on the
 timing — this is a real gap, but it is not the thing most likely to hurt the
 business this month.
+
+---
+
+## If you lose the phone
+
+The staff console's code comes only from the authenticator app. There is no
+email code and no way around the code from the page itself -- that is what it
+is for. The way back in goes through the Supabase project, which has its own
+sign-in and which only you hold:
+
+1. Sign in at supabase.com and open the FenceFlow project
+   (`newcrgafcptspmapacrx`).
+2. **SQL Editor -> New query**, put your own staff address in, and run:
+
+   ```sql
+   -- Removes the authenticator(s) on the staff account. Nothing else changes:
+   -- no company, job, payment or setting is touched.
+   delete from auth.mfa_factors
+    where user_id = (select id from auth.users where email = 'your staff email');
+   ```
+
+3. Open `fenceflowapp.com/admin.html` and sign in with your email and
+   password. No code is asked for now, because the account has none.
+4. **Account -> Turn on two-factor**, and scan the new QR code with the new
+   phone. The entry is labelled **FenceFlow** (entries set up before
+   22 September 2026 said "localhost" instead).
+5. **Account -> Sign out of all devices**, so any session the lost phone still
+   holds ends too.
+
+Anyone who can run SQL on the project can do step 2, which is why the Supabase
+account itself needs a strong password and its own two-factor. Until a second
+staff account or saved recovery codes exist (GO_LIVE.md, item 3), this is the
+only way back in.

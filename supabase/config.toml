@@ -91,3 +91,63 @@ verify_jwt = false
 # Homeowners posting quote requests hold no JWT; the leads token is the key.
 [functions.lead-intake]
 verify_jwt = false
+
+# Called by a Postgres trigger through pg_net (supabase_r6_welcome_email.sql),
+# which carries no user session -- same shape as notify-job-change. What
+# replaces the gateway's check: the trigger sends a secret it reads from
+# Vault, and the function refuses anything whose secret
+# welcome_email_trigger_ok() (service role only) does not accept, before it
+# reads the body. The recipient and the words come from the database, and
+# welcome_sent_at is claimed atomically, so even a valid call can only cause
+# the one welcome email, to the company's own owner, once.
+[functions.send-welcome-email]
+verify_jwt = false
+
+# ---- Company email (supabase_mail.sql). All five are verify_jwt = false. ----
+# None of them trusts the gateway, and three of them could not work with it:
+# the office's CORS preflight carries no token, and Resend and the GitHub
+# schedule carry no Supabase JWT at all. Each one is its own bouncer, and
+# the service-role client they use exists only after that check passes.
+#
+# The office door, shared by mail-connect, mail-message, mail-send and
+# mail-sync, is _shared/mail/caller.ts mailCaller(): a bearer token, then
+# getUser() on it, then can_use_company_mail() asked with the CALLER's own
+# token, which must answer exactly true (crew, suspended companies and
+# anyone without "See prices and money" get false). Any row named by id is
+# then read through the caller's own client, so RLS proves it is in their
+# company before the service role touches it.
+
+# Connect, check, change the app password of, and disconnect the company's
+# mailbox; plus a status read. The office door above; everything except
+# "status" also requires the OWNER role, checked in the function. The app
+# password is verified against the mail server and stored only in Vault.
+[functions.mail-connect]
+verify_jwt = false
+
+# Two doors. The office (the door above) syncs its own company's mailboxes.
+# The schedule in .github/workflows/mail-sync.yml holds no JWT; it sends
+# x-fenceflow-trigger, compared in constant time against
+# MAIL_SYNC_TRIGGER_SECRET, and an unset secret refuses everything
+# (caller.ts triggerCaller). That door answers with counts only.
+[functions.mail-sync]
+verify_jwt = false
+
+# Opens a message, marks it read or unread, mints a 60-second attachment
+# link. The office door above; the message is read through the caller's own
+# client first, so RLS decides whether they may see it at all.
+[functions.mail-message]
+verify_jwt = false
+
+# Sends from a connected mailbox or as FenceFlow mail. The office door
+# above, plus rate limits from the mail_events ledger; the From address is
+# always the account's own (or FenceFlow's fixed one), never the request's.
+[functions.mail-send]
+verify_jwt = false
+
+# Resend's email.received webhook: signed by svix, no Supabase JWT. The
+# function verifies the svix signature over the raw body with
+# RESEND_WEBHOOK_SECRET (unset = refuse) and answers 401 before acting on
+# anything unsigned; mail is routed only by an inbound_token that exists,
+# and each company is capped per day.
+[functions.resend-inbound]
+verify_jwt = false

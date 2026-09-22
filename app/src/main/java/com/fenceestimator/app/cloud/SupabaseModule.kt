@@ -69,26 +69,19 @@ data class CloudProfile(
  * Shared deliberately: when two places decide this separately they drift, and
  * the cost of drifting is telling somebody to check their signal when they
  * have actually been signed out.
+ *
+ * And so it is the sync's own classifier, [SyncFailure.isTransientNetwork].
+ * This was a phrase list of its own, and drifted exactly that way: the
+ * commonest dead spot of all reaches here as "HTTP request to .../token
+ * failed with message: " with nothing after the colon (Ktor CIO's failed DNS
+ * lookup), the list had nothing to match, and an offline token refresh read
+ * as SIGNED_OUT -- AutoSync telling a phone that was only out of signal to
+ * sign in again, and the sign-in form showing the raw request line. Every
+ * phrase the list held is covered there. What changes: an answer from the
+ * server (a RestException, even a 504 that says "timeout") is no longer read
+ * as no network, and phrases are read off I/O failures only.
  */
-internal fun looksLikeNoNetwork(error: Throwable): Boolean {
-    val text = generateSequence(error) { it.cause }
-        .mapNotNull { "${it::class.simpleName} ${it.message}" }
-        .joinToString(" ")
-        .lowercase()
-    return listOf(
-        "unable to resolve host", "failed to connect", "timeout", "timed out",
-        "no address associated", "network is unreachable", "unknownhost",
-        "connectexception", "sockettimeout", "connect timeout",
-        "software caused connection abort",
-        // A connection that dies mid-response is the network, not a fault in
-        // the request. Without these two a dropped signal was reported as
-        // "Could not sync" -- the alarming wording, for the one condition that
-        // genuinely does clear itself.
-        "prematurely closed", "failed to parse http response",
-        "connection reset", "stream was reset", "unexpected end of stream",
-        "broken pipe"
-    ).any { it in text }
-}
+internal fun looksLikeNoNetwork(error: Throwable): Boolean = SyncFailure.isTransientNetwork(error)
 
 /**
  * The one Json every cloud row is encoded and decoded with.

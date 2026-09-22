@@ -59,7 +59,14 @@ class FenceFlowMessagingService : FirebaseMessagingService() {
         // cleared, a job was reassigned. Showing "Payment received: $500" while
         // the job behind it still reads unpaid for the next fifteen minutes is
         // worse than not notifying at all: it tells someone the app is wrong.
+        //
+        // Only once the app is running on its database. A push can start the
+        // process while the app is being updated, when the database may not
+        // load (FenceEstimatorApp.startIfPossible); reaching for autoSync
+        // then built the database here instead and crashed the process. The
+        // notification above still shows, and the next launch syncs anyway.
         (applicationContext as? com.fenceestimator.app.FenceEstimatorApp)
+            ?.takeIf { it.started }
             ?.autoSync?.requestSync()
     }
 

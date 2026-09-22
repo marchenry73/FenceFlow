@@ -1,6 +1,7 @@
 package com.fenceestimator.app.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -246,6 +247,81 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = 0L }
     }
 
+    /**
+     * The address that last signed in on this phone, offered in the sign-in
+     * box next time so coming back is one field rather than two.
+     *
+     * The address only. There is deliberately no password key anywhere in this
+     * store and there must never be one -- a password written to disk is one
+     * backup, one rooted phone or one careless export away from somebody else.
+     *
+     * Kept out of [BusinessProfile] on purpose: the profile is pushed to the
+     * company's cloud settings, and who last signed in on one handset is
+     * nobody else's business.
+     */
+    val lastSignInEmail: Flow<String> = context.dataStore.data.map { it[Keys.LAST_SIGN_IN_EMAIL].orEmpty() }
+
+    /** Only ever called after a sign-in that actually got in. */
+    suspend fun saveLastSignInEmail(email: String) {
+        context.dataStore.edit { it[Keys.LAST_SIGN_IN_EMAIL] = email }
+    }
+
+    /**
+     * Theme, language, auto-lock and fingerprint unlock -- the four settings
+     * that belong to the handset rather than to the company -- and nothing else.
+     *
+     * The personal Settings screen saves through here, never through [save].
+     * That is the screen for everyone without "Change catalog and settings":
+     * crew by default, and foreman, sales and bookkeeper too. [save] writes the
+     * whole [BusinessProfile] and stamps UPDATED_AT, and SettingsViewModel then
+     * pushes the profile to company_settings. For somebody who may not change
+     * company settings both halves are wrong. The push is refused by the
+     * server every time, so each theme change would report "saved on this
+     * phone only" as though something had failed. And the stamp makes this
+     * phone's copy look newer than the cloud's, so a seller or bookkeeper whose
+     * phone pulls company settings would stop receiving the owner's changes
+     * until the owner happened to save again.
+     *
+     * Not stamped, for the same reason [startGuestSession] is not: none of the
+     * four is in CloudSettings, so a device choice has nothing to win against
+     * the cloud and must not look as though it does. Nothing here calls
+     * SettingsSync, and nothing should.
+     */
+    suspend fun saveDevicePrefs(
+        themeMode: ThemeMode,
+        language: AppLanguage,
+        autoLockMinutes: Int,
+        biometricUnlockEnabled: Boolean
+    ) {
+        context.dataStore.edit {
+            writeDevicePrefs(it, themeMode, language, autoLockMinutes, biometricUnlockEnabled)
+        }
+    }
+
+    companion object {
+        /**
+         * The body of [saveDevicePrefs], kept apart from DataStore so a unit
+         * test can run it on a plain [MutablePreferences] and see exactly which
+         * keys it touched (DevicePrefsWriteTest). Four keys, and never
+         * UPDATED_AT.
+         */
+        internal fun writeDevicePrefs(
+            prefs: MutablePreferences,
+            themeMode: ThemeMode,
+            language: AppLanguage,
+            autoLockMinutes: Int,
+            biometricUnlockEnabled: Boolean
+        ) {
+            // By enum NAME, the way [save] writes them, because [profile] reads
+            // them back with valueOf. The language's tag ("fr") would read back
+            // as nothing and quietly put the phone back into English.
+            prefs[Keys.THEME_MODE] = themeMode.name
+            prefs[Keys.LANGUAGE] = language.name
+            prefs[Keys.AUTO_LOCK_MINUTES] = autoLockMinutes
+            prefs[Keys.BIOMETRIC_UNLOCK] = biometricUnlockEnabled
+        }
+    }
+
     private object Keys {
         val BUSINESS_NAME = stringPreferencesKey("business_name")
         val OWNER_NAME = stringPreferencesKey("owner_name")
@@ -277,6 +353,7 @@ class SettingsStore(private val context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val LANGUAGE = stringPreferencesKey("language")
         val GUEST_SESSION_STARTED_AT = longPreferencesKey("guest_session_started_at")
+        val LAST_SIGN_IN_EMAIL = stringPreferencesKey("last_sign_in_email")
         // How fast this crew works -- drives every duration estimate.
         val FEET_PER_DAY = doublePreferencesKey("feet_per_day")
         val WORKDAY_HOURS = doublePreferencesKey("workday_hours")
@@ -343,9 +420,19 @@ class SettingsStore(private val context: Context) {
      * but the Square token is the sharp one: it is a live payment credential,
      * and leaving it behind would let whoever signs in next take money into the
      * previous company's account.
+     *
+     * Everything except [lastSignInEmail]. This runs on every sign-out, and
+     * again straight after a sign-in into a different company -- a moment
+     * after that sign-in recorded its address -- so clearing it here would
+     * mean the box was never filled in the one situation it exists for. It
+     * is an email address, not the company's books, prices or payment keys.
      */
     suspend fun clearAll() {
-        context.dataStore.edit { it.clear() }
+        context.dataStore.edit { prefs ->
+            val lastEmail = prefs[Keys.LAST_SIGN_IN_EMAIL]
+            prefs.clear()
+            lastEmail?.let { prefs[Keys.LAST_SIGN_IN_EMAIL] = it }
+        }
     }
 
     /**

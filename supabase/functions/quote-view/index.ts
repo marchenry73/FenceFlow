@@ -8,7 +8,12 @@
  * exactly like a bank's document link.
  *
  *   GET  ?t=<token>                      -> the quote, whitelisted fields only
- *   POST ?t=<token>  {action:"approve", name} -> records the approval
+ *   POST ?t=<token>  {action:"approve", name[, phone4][, total]}
+ *                                        -> records the approval, and with it
+ *                                           the total the page showed
+ *                                           (jobs.accepted_total). A `total`
+ *                                           that no longer matches -> 409
+ *                                           {code:"quote_changed"}.
  *
  * Everything goes through an explicit whitelist. The jobs row also carries
  * labour rates, margins and markup; estimate lines carry supplier_unit_price,
@@ -17,7 +22,15 @@
  * whole rows and hoping.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
-import { depositFigures } from "../_shared/quote-deposit.ts";
+import {
+  CHANGE_ORDER_COLUMNS,
+  CHANGE_ORDER_COLUMNS_BEFORE_ACCEPTANCE_FLAG,
+  changeOrderInputs,
+  depositFigures,
+  missingAcceptanceFlag,
+} from "../_shared/quote-deposit.ts";
+import { standingJobEvent } from "../_shared/job-push.ts";
+import { jobDevices } from "../_shared/push-recipients.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +41,133 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
+
+const JOB_COLUMNS = "id, sync_id, company_id, customer_name, address, phone, status, deleted_at, " +
+  "contract_total, deposit_amount, amount_paid, refunded_amount, " +
+  "tax_rate_percent, discount_percent, " +
+  "quote_viewed_at, quote_approved_at, quote_approved_name, calibration_pixels_per_foot, " +
+  "quote_phone_attempts, quote_phone_locked_until, reapproval_required_at, reapproval_reason";
+
+/**
+ * The price the customer accepted and what it is measured from
+ * (supabase_r6_price_stability.sql). Read separately named so a database
+ * without the column yet -- this function deployed before the migration --
+ * can be read without them, and the page then behaves exactly as it did.
+ */
+const ACCEPTANCE_COLUMNS = "accepted_total, signed_at";
+
+/** Whether an error is only "this database has no accepted_total yet". */
+const lacksAcceptanceColumns = (error: { message?: string } | null | undefined) =>
+  /accepted_total/.test(String(error?.message ?? ""));
+
+type QuoteJob = {
+  company_id: string;
+  sync_id: string;
+  contract_total: number | null;
+  deposit_amount: number | null;
+  amount_paid: number | null;
+  refunded_amount: number | null;
+  tax_rate_percent: number | null;
+  quote_approved_at: string | null;
+  reapproval_required_at: string | null;
+  accepted_total?: number | string | null;
+  signed_at?: string | null;
+};
+
+/**
+ * The price the page shows, the deposit under it and -- when the homeowner
+ * approves -- the price recorded as accepted (jobs.accepted_total). One
+ * function for all three, so what they approve is by construction the figure
+ * they were shown.
+ *
+ * Why it records one at all: an online approval used to store only the time
+ * and the name, and every figure downstream went on following contract_total,
+ * which the phones kept moving after acceptance. The quote page, the payment
+ * link and the deposit cap then asked for a price nobody had agreed to (job
+ * 4598: signed at $9,710, asked against $13,410).
+ *
+ * While an acceptance stands the page shows that accepted price plus extra
+ * work signed since -- the same depositFigures().total create-payment-link
+ * bills against, so the page and the card machine agree. Before it, and while
+ * a re-approval is pending, it shows contract_total as it always did, falling
+ * back to the lines when nothing is priced yet.
+ *
+ * ok is false when a read failed. The page view shrugs that off, as it always
+ * has; an approval refuses rather than record a figure built from half the
+ * data.
+ */
+async function pageFigures(admin: ReturnType<typeof createClient>, job: QuoteJob) {
+  // in_accepted_total says which orders the accepted price already contains;
+  // a database without the column yet is read the old way.
+  const readOrders = async () => {
+    const read = (columns: string) => admin.from("change_orders")
+      .select(columns)
+      .eq("company_id", job.company_id)
+      .eq("job_sync_id", job.sync_id);
+    const first = await read(CHANGE_ORDER_COLUMNS);
+    return first.error && missingAcceptanceFlag(first.error)
+      ? await read(CHANGE_ORDER_COLUMNS_BEFORE_ACCEPTANCE_FLAG)
+      : first;
+  };
+  const [itemsRead, ordersRead] = await Promise.all([
+    // Pinned to the company as well as the job. The job id alone was the
+    // key, so a row written under another company but carrying this job's
+    // id would have been priced into this quote -- defence in depth against
+    // exactly the cross-company write the rest of the system guards for.
+    admin.from("estimate_line_items")
+      .select("description, quantity, unit, unit_price, taxable, sort_order")
+      .eq("company_id", job.company_id)
+      .eq("job_sync_id", job.sync_id).is("deleted_at", null)
+      .order("sort_order"),
+    // Extra work signed since acceptance moves the accepted price; it matters
+    // only once there is one, so no other quote pays for the read.
+    job.accepted_total != null
+      ? readOrders()
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const lines = (itemsRead.data ?? []).map((i: { quantity: number; unit_price: number; taxable: boolean }) => ({
+    total: (Number(i.quantity) || 0) * (Number(i.unit_price) || 0),
+    taxable: !!i.taxable,
+  }));
+  const subtotal = lines.reduce((s: number, l: { total: number }) => s + l.total, 0);
+  const taxRate = Number(job.tax_rate_percent) || 0;
+  const tax = lines.filter((l: { taxable: boolean }) => l.taxable)
+    .reduce((s: number, l: { total: number }) => s + l.total, 0) * taxRate / 100;
+
+  // The deposit exists so the materials can be bought before labour starts.
+  //
+  // This used to invent one from the material cost when the contractor had
+  // not set any -- rounded up to the next hundred -- and print it on the
+  // page. create-payment-link knew nothing about that invented figure and
+  // refused to charge it, so the page asked for a deposit the product would
+  // not take. Worse, it put a number in front of a customer that their
+  // contractor had never agreed to. Both functions now read one rule
+  // (_shared/quote-deposit.ts): a deposit is a thing the contractor asks
+  // for, and what is shown is what is still owed on it.
+  const money = depositFigures({
+    depositAmount: job.deposit_amount,
+    contractTotal: job.contract_total,
+    amountPaid: job.amount_paid,
+    refundedAmount: job.refunded_amount,
+    acceptedTotal: job.accepted_total == null ? null : Number(job.accepted_total),
+    signedAt: job.signed_at ?? null,
+    quoteApprovedAt: job.quote_approved_at,
+    reapprovalRequiredAt: job.reapproval_required_at,
+    changeOrders: changeOrderInputs(ordersRead.data as Parameters<typeof changeOrderInputs>[0]),
+  });
+
+  // The billable total as it stands -- the same figure create-payment-link
+  // charges from and the app bills -- and rounded UP to the next ten only
+  // when the page falls back to adding up the lines itself. It used to round
+  // every source: harmless while the total was always the engine's (already
+  // a multiple of ten), wrong once an accepted price plus a signed change
+  // order of $455 became $10,165 -- the page said $10,170 while the balance
+  // link charged from $10,165, and an approval then recorded $10,170 as the
+  // accepted price, $5 above anything anybody agreed.
+  const total = money.total > 0 ? money.total : Math.ceil((subtotal + tax) / 10) * 10;
+  return { ok: !itemsRead.error && !ordersRead.error, total, money };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -43,15 +183,17 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const { data: job } = await admin
+  let { data: job, error: jobError } = await admin
     .from("jobs")
-    .select("id, sync_id, company_id, customer_name, address, phone, status, deleted_at, " +
-      "contract_total, deposit_amount, amount_paid, refunded_amount, " +
-      "tax_rate_percent, discount_percent, " +
-      "quote_viewed_at, quote_approved_at, quote_approved_name, calibration_pixels_per_foot, " +
-      "quote_phone_attempts, quote_phone_locked_until, reapproval_required_at, reapproval_reason")
+    .select(`${JOB_COLUMNS}, ${ACCEPTANCE_COLUMNS}`)
     .eq("quote_token", token)
     .maybeSingle();
+  // Deployed before supabase_r6_price_stability.sql: read as before, and
+  // approve as before (without recording the figure) until the column lands.
+  const canRecordAcceptance = !lacksAcceptanceColumns(jobError);
+  if (!canRecordAcceptance) {
+    ({ data: job } = await admin.from("jobs").select(JOB_COLUMNS).eq("quote_token", token).maybeSingle());
+  }
   if (!job || job.deleted_at) return json({ error: "That quote is no longer available." }, 404);
 
   // Suspension reaches the public pages too. This runs as the service role,
@@ -149,19 +291,63 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Whether this request's approval is the one that landed. Only that one
+    // tells the company's phones.
+    let landed = false;
+    let approvedBy = job.quote_approved_name || name;
     if (justApproved) {
-      await admin.from("jobs").update({
+      // The figure the page shows right now (pageFigures -- the same function
+      // the view below uses) is the price being agreed to, and it is recorded
+      // with the approval, in the same UPDATE, so there is never an approved
+      // quote without its price or a price without its approval.
+      const figures = await pageFigures(admin, job);
+      if (!figures.ok) {
+        return json({ error: "We could not record your approval just now. Please try again in a moment." }, 500);
+      }
+      // A page may say which total it showed. If the contractor changed the
+      // quote while it sat open, approving must not record a price the
+      // homeowner never saw: they reload, see the new figure, and approve that.
+      // A page that does not send it (every page cached before this) is
+      // judged by the current figure, as before.
+      const seen = Number(body?.total);
+      if (body?.total != null && Number.isFinite(seen) && Math.abs(seen - figures.total) > 0.5) {
+        return json({
+          code: "quote_changed",
+          error: "This quote was updated after you opened it. Reload the page to see the current price, then approve.",
+        }, 409);
+      }
+      const approval = {
         quote_approved_at: new Date().toISOString(),
         quote_approved_name: name,
         ...(approvedWithoutPhoneCheck ? { quote_approved_without_phone_check: true } : {}),
         // Approval is acceptance. DRAFT/SENT move forward; anything already
         // further along (deposit paid, completed) is left exactly where it is.
         ...(["DRAFT", "SENT"].includes(job.status) ? { status: "ACCEPTED" } : {}),
-      }).eq("id", job.id);
+      };
+      // First signature wins, in the database rather than by the read above:
+      // two approvals in flight at once both saw "not approved yet", and the
+      // second used to overwrite the first's name. Only a row still
+      // unapproved is written.
+      const write = (fields: Record<string, unknown>) =>
+        admin.from("jobs").update(fields).eq("id", job.id).is("quote_approved_at", null).select("id");
+      let written = await write(canRecordAcceptance ? { ...approval, accepted_total: figures.total } : approval);
+      if (written.error && lacksAcceptanceColumns(written.error)) written = await write(approval);
+      // This used to be fire-and-forget: a failed write still answered "ok",
+      // and the homeowner saw a thank-you for an approval that never landed.
+      if (written.error) {
+        console.error("quote-view approve", written.error.message);
+        return json({ error: "We could not record your approval just now. Please try again in a moment." }, 500);
+      }
+      landed = (written.data ?? []).length > 0;
+      if (!landed) {
+        // Somebody else's approval landed first. Theirs stands; say whose.
+        const { data: now } = await admin.from("jobs").select("quote_approved_name").eq("id", job.id).maybeSingle();
+        approvedBy = now?.quote_approved_name || approvedBy;
+      }
     }
     // The whole point of an approval is somebody hearing about it. Every
-    // phone signed into the company gets the push the moment the name goes
-    // on the record; failures are swallowed because the approval itself must
+    // phone that can open this job gets the push the moment the name goes on
+    // the record; failures are swallowed because the approval itself must
     // never fail for want of a notification.
     //
     // Only on the approval that actually landed, though. This sat outside the
@@ -169,12 +355,21 @@ Deno.serve(async (req) => {
     // at the front of it -- so anyone holding a forwarded quote link could
     // buzz every phone in the company in a loop until the crew turned
     // notifications off and stopped seeing real job alerts.
-    if (justApproved) try {
+    //
+    // And only the people who can open the job: the same audience as
+    // notify-job-change's "Quote accepted" (../_shared/push-recipients.ts).
+    // It carries no amount, so the crew on this job are told too; crew on
+    // other jobs are not. Until 2026-09-22 it went to every device in the
+    // company. The lead is read here because the quote's own read does not
+    // select it; if that read fails the lead is simply not told.
+    if (landed) try {
       const sa = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT") ?? "null");
       if (sa) {
-        const { data: toks } = await admin
-          .from("device_tokens").select("token").eq("company_id", job.company_id);
-        if (toks?.length) {
+        const { data: lead } = await admin
+          .from("jobs").select("assigned_employee_sync_id").eq("id", job.id).maybeSingle();
+        const toks = await jobDevices(admin, job.company_id,
+          standingJobEvent({ ...job, assigned_employee_sync_id: lead?.assigned_employee_sync_id }, "ACCEPTED"));
+        if (toks.length) {
           const jwtHeader = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }))
             .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
           const now = Math.floor(Date.now() / 1000);
@@ -223,22 +418,14 @@ Deno.serve(async (req) => {
       }
     } catch (_e) { /* the approval stands regardless */ }
 
-    return json({ ok: true, approvedBy: job.quote_approved_name || name });
+    return json({ ok: true, approvedBy });
   }
 
   // ---------------------------------------------------------------- view ---
-  const [{ data: company }, { data: items }, { data: runs }, { data: conn }] =
+  const [{ data: company }, figures, { data: runs }, { data: conn }] =
     await Promise.all([
       admin.from("companies").select("name, phone, email").eq("id", job.company_id).single(),
-      // Pinned to the company as well as the job. The job id alone was the
-      // key, so a row written under another company but carrying this job's
-      // id would have been priced into this quote -- defence in depth against
-      // exactly the cross-company write the rest of the system guards for.
-      admin.from("estimate_line_items")
-        .select("description, quantity, unit, unit_price, taxable, sort_order")
-        .eq("company_id", job.company_id)
-        .eq("job_sync_id", job.sync_id).is("deleted_at", null)
-        .order("sort_order"),
+      pageFigures(admin, job),
       admin.from("fence_runs")
         .select("label, fence_type, color_or_finish, points_encoded, gates_encoded, " +
           "closed_loop, panel_height_ft, post_spacing_ft, manual_linear_feet, " +
@@ -256,36 +443,9 @@ Deno.serve(async (req) => {
       .eq("id", job.id);
   }
 
-  const lines = (items ?? []).map((i) => ({
-    description: i.description,
-    quantity: i.quantity,
-    unit: i.unit,
-    unitPrice: i.unit_price,
-    total: (Number(i.quantity) || 0) * (Number(i.unit_price) || 0),
-    taxable: !!i.taxable,
-  }));
-  const subtotal = lines.reduce((s, l) => s + l.total, 0);
-  const taxRate = Number(job.tax_rate_percent) || 0;
-  const tax = lines.filter((l) => l.taxable).reduce((s, l) => s + l.total, 0) * taxRate / 100;
-  // Whatever the source, the customer-facing figure rounds UP to the next
-  // ten -- the number on the page always covers the buy.
-  const total = Math.ceil((Number(job.contract_total) || (subtotal + tax)) / 10) * 10;
-  // The deposit exists so the materials can be bought before labour starts.
-  //
-  // This used to invent one from the material cost when the contractor had
-  // not set any -- rounded up to the next hundred -- and print it on the
-  // page. create-payment-link knew nothing about that invented figure and
-  // refused to charge it, so the page asked for a deposit the product would
-  // not take. Worse, it put a number in front of a customer that their
-  // contractor had never agreed to. Both functions now read one rule
-  // (_shared/quote-deposit.ts): a deposit is a thing the contractor asks
-  // for, and what is shown is what is still owed on it.
-  const money = depositFigures({
-    depositAmount: job.deposit_amount,
-    contractTotal: job.contract_total,
-    amountPaid: job.amount_paid,
-    refundedAmount: job.refunded_amount,
-  });
+  // The price and the deposit: pageFigures, the one function the approve
+  // step above records from.
+  const { total, money } = figures;
   const deposit = money.asked;
 
   // Whether the deposit button can do anything. A connected processor means

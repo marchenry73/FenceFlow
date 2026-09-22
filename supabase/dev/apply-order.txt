@@ -212,3 +212,27 @@ supabase_p4_attention_findings.sql
 supabase_p4_attention_candidates_fn.sql
 supabase_p4_auth_events.sql
 supabase_p4_auth_events_fix.sql
+supabase_r6_welcome_email.sql
+supabase_r6_crew_views_readonly.sql
+supabase_r6_business_report.sql
+supabase_r6_price_stability.sql
+supabase_r6_crew_writes.sql
+supabase_r6_first_contact_actor.sql
+supabase_r6_hold_money_columns_fix.sql
+supabase_r6_money_rpc_plan_gate.sql
+supabase_r6_quiet_dispute_restore.sql
+supabase_r6_crew_change_orders.sql
+supabase_r6_change_order_feet_check.sql
+supabase_mail.sql
+
+# --- appended 21 September 2026: crew job scope ------------------------------
+# Crew see only the jobs they are on and ask for the rest; the office assigns.
+# Place AFTER supabase_r6_price_stability.sql and supabase_r6_crew_writes.sql
+# wherever those land in this list: this file patches the LIVE bodies of
+# crew_save_job, crew_push_line_items and set_production_stage (anchored,
+# idempotent), so a wholesale replacement applied after it would drop the
+# guard -- its own self-check then fails until it is re-run. Link every crew
+# login to a crew record in the office BEFORE applying it; an unlinked login
+# correctly sees no jobs. Proof: supabase_crew_job_scope_probe.sql (rolled
+# back) and tests/crew-job-scope.test.mjs.
+supabase_crew_job_scope.sql

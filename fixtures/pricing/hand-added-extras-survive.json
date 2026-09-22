@@ -2,10 +2,10 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-05T12:20:05.317629100Z"
+    "generated_at": "2026-09-22T17:17:57.735Z"
   },
   "case": "hand-added-extras-survive",
-  "note": "Role-NONE rows on the run and any row with no run survive into the totals; a stale auto row and an edited roled row on the run are replaced; a roled row with no run survives but feeds no carry-over.",
+  "note": "Role-NONE rows on the run and any row with no run survive into the totals; a stale generated row on the run is replaced; an edited HOLE_PLUG the run no longer builds is kept as it is; a roled row with no run survives but carries nothing.",
   "input": {
     "engine_version": "2026.09.1",
     "pixels_per_foot": 20.0,
@@ -626,6 +626,20 @@
         "role": "CONCRETE_BAG",
         "auto_generated": true,
         "category": null
+      },
+      {
+        "sync_id": "00000036-0000-4000-8000-000000000068",
+        "fence_run_sync_id": "00000036-0000-4000-8000-000000000001",
+        "sort_order": 9,
+        "description": "5/8\" Hole Plug, White",
+        "quantity": 4.0,
+        "unit": "EA",
+        "unit_price": 0.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HOLE_PLUG",
+        "auto_generated": false,
+        "category": null
       }
     ],
     "unmatched_roles": [],
@@ -638,13 +652,14 @@
       "f773561a-d821-3bb1-ab1c-a4ebb254a0da",
       "b353a789-92b9-3b99-92bd-f88e914844f9",
       "b45e6e47-c81f-37c6-b8f3-f7e9f382c985",
+      "00000036-0000-4000-8000-000000000068",
       "00000036-0000-4000-8000-000000000065",
       "00000036-0000-4000-8000-000000000066"
     ],
     "totals": {
-      "materials_subtotal": 1512.85,
-      "taxable_subtotal": 472.9,
-      "tax": 33.103,
+      "materials_subtotal": 1514.85,
+      "taxable_subtotal": 474.9,
+      "tax": 33.243,
       "labor_cost": 800.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -654,7 +669,7 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 2345.953,
+      "pre_markup_total": 2348.093,
       "grand_total": 2350.0,
       "billable_linear_feet": 100.0
     }

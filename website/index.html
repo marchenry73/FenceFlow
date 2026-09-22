@@ -277,7 +277,10 @@
   }
   @media (max-width:620px){
     section{padding:60px 0}
-    nav a:not(.btn-line){display:none}
+    /* The section links go on a phone; the language links stay. They are
+       anchors too, so this used to hide ES and FR and leave "EN · ·". */
+    nav a:not(.btn-line):not([data-lang]){display:none}
+    nav{gap:14px}
     .bento{grid-template-columns:1fr}
     .steps{grid-template-columns:1fr}
     .tally{grid-template-columns:1fr}

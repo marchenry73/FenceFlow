@@ -196,6 +196,19 @@ rollback;
   // =========================================================================
   console.log("\n2. set_follow_up_settings -- the DB-side write for the follow-up settings RPC:");
 
+  // CO is the owner's REAL company, and the owner really did switch
+  // follow-ups on in the office on 2026-09-21 -- so "no settings row after
+  // rollback" stopped being true the moment the product was used. What must
+  // hold is that this run changed nothing: snapshot the real row (or its
+  // absence) now and compare it exactly at the end.
+  const settingsSnapshot = () => runSql(`
+    select count(*) as n,
+           coalesce(max(updated_at)::text, '') as updated_at,
+           coalesce(string_agg(to_jsonb(f)::text, ''), '') as body
+      from follow_up_settings f where f.company_id = '${CO}';
+  `)[0] || {};
+  const settingsBefore = settingsSnapshot();
+
   const check2 = runSql(`
 begin;
 ${SUBJECT_SETUP}
@@ -346,7 +359,12 @@ rollback;
       (select count(*) from profiles where id in ('${CREW_SUBJECT}', '${STRANGER_SUBJECT}')) as probe_profiles;
   `);
   const a = after[0] || {};
-  ok("the follow_up_settings write was rolled back", Number(a.settings_rows) === 0, `got ${JSON.stringify(a)}`);
+  const settingsAfter = settingsSnapshot();
+  ok("the follow_up_settings write was rolled back (the company's real settings row is exactly as it was)",
+     Number(settingsAfter.n) === Number(settingsBefore.n)
+       && settingsAfter.updated_at === settingsBefore.updated_at
+       && settingsAfter.body === settingsBefore.body,
+     `before ${JSON.stringify(settingsBefore).slice(0, 200)} after ${JSON.stringify(settingsAfter).slice(0, 200)}`);
   ok("no employee is linked to a probe subject", Number(a.crew_linked_employees) === 0, `got ${a.crew_linked_employees}`);
   ok("the probe shift row is gone", Number(a.probe_shift_rows) === 0, `got ${a.probe_shift_rows}`);
   ok("the synthetic subjects themselves did not survive (transaction rolled back)",

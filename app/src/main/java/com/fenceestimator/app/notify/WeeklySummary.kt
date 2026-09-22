@@ -72,7 +72,9 @@ class WeeklySummary(
         if (prefs[lastSentKey] == thisWeekStart) return
 
         val lastWeekStart = thisWeekStart - WEEK_MS
-        val jobs = repository.getAllJobs()
+        // The visible list: a job kept on this phone after its person was
+        // taken off it (Job.accessEndedAt) is not theirs to count.
+        val jobs = repository.getVisibleJobs()
         val wonLastWeek = jobs.count {
             it.status.isWon && (it.scheduledDate ?: it.createdAt) in lastWeekStart until thisWeekStart
         }

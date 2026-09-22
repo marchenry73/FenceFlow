@@ -1,6 +1,7 @@
 package com.fenceestimator.app.estimate
 
 import com.fenceestimator.app.R
+import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.Job
 
 /**
@@ -13,7 +14,8 @@ import com.fenceestimator.app.data.Job
  *
  * The rule everything hangs off: **the customer owes the contract total minus
  * what they have actually paid, net of refunds.** Never the original deposit,
- * never a figure captured earlier.
+ * never a figure captured earlier. "The contract total" means [billableTotal]:
+ * the price the customer accepted once they have, the live estimate until then.
  */
 object JobMoney {
 
@@ -104,6 +106,122 @@ object JobMoney {
      * quote" should call this instead of reading [Job.signedAt] alone.
      */
     fun isAccepted(job: Job): Boolean = job.signedAt != null || job.quoteApprovedAt != null
+
+    // ---- the price the customer accepted ----
+    //
+    // Every figure above takes "the contract total" as an argument, and every
+    // caller used to pass the LIVE estimate. After acceptance that number kept
+    // moving -- a catalog price changed, a takeoff was regenerated, a sync
+    // reverted a quantity -- and it was pushed to the cloud as contract_total,
+    // which the quote page, the payment link and the deposit cap all read.
+    // Woody was signed at $3,620 and showed $200; job 4598 was signed at
+    // $9,710 and asked against $13,410. [billableTotal] is what those callers
+    // pass now: the accepted figure while one stands, the live estimate only
+    // until then.
+
+    /**
+     * When the customer last agreed to this job -- the later of the two ways
+     * they can ([Job.signedAt], [Job.quoteApprovedAt]), because a later
+     * acceptance is the one the server re-stamps [Job.acceptedTotal] from.
+     */
+    fun acceptedAt(job: Job): Long? = listOfNotNull(job.signedAt, job.quoteApprovedAt).maxOrNull()
+
+    /**
+     * Extra work the customer has signed for since they accepted the price:
+     * change orders whose own signature came after [acceptedAt], and that
+     * were not already inside the price they accepted.
+     *
+     * A change order that existed at acceptance is already inside the figure
+     * they accepted -- the engine counts every order in grandTotal, signed or
+     * not -- so adding it again bills it twice. The signature's time alone
+     * could not tell: an order added while the quote was out, left unsigned,
+     * and signed the day after the contract has a signature AFTER acceptance
+     * and was inside the accepted figure all along ($9,710 accepted with a
+     * $900 order in it billed as $10,610). [ChangeOrder.inAcceptedTotal] is
+     * the record of which orders an acceptance covered: marked on this phone
+     * at a signature, on the server at an online approval. createdAt cannot
+     * stand in for it: change orders do not carry created_at to the cloud, so
+     * a second phone stamps them with the moment it pulled them.
+     *
+     * An unsigned change order added after acceptance does not move the price
+     * until the customer signs it. That is the agreement working, not a gap.
+     */
+    fun extraWorkSinceAcceptance(job: Job, changeOrders: List<ChangeOrder>): Double {
+        val since = acceptedAt(job) ?: return 0.0
+        return changeOrders
+            .filter { order -> !order.inAcceptedTotal && order.signedAt?.let { it > since } == true }
+            .sumOf { it.additionalCost }
+    }
+
+    /**
+     * The price that stands once the customer has accepted: [Job.acceptedTotal]
+     * plus [extraWorkSinceAcceptance]. Null when nothing anchors the price --
+     * not accepted, no accepted figure recorded (every job accepted before the
+     * column existed), or a drawing change has withdrawn the approval
+     * ([Job.reapprovalRequiredAt]), in which case the live estimate is what the
+     * customer is being asked to approve again and must be free to move.
+     */
+    fun anchoredTotal(job: Job, changeOrders: List<ChangeOrder>): Double? {
+        if (!isAccepted(job)) return null
+        if (job.reapprovalRequiredAt != null) return null
+        val accepted = job.acceptedTotal ?: return null
+        if (accepted <= 0.005) return null
+        return accepted + extraWorkSinceAcceptance(job, changeOrders)
+    }
+
+    /**
+     * The figure to bill against: [anchoredTotal] while one stands, else the
+     * live estimate's grand total. The one argument every [stillOwed],
+     * [nextRequestAmount], [balance] and deposit check on the job screen and
+     * the customer PDF should be given, so the three can never disagree.
+     */
+    fun billableTotal(job: Job, liveGrandTotal: Double, changeOrders: List<ChangeOrder>): Double =
+        anchoredTotal(job, changeOrders) ?: liveGrandTotal
+
+    /**
+     * [billableTotal] for a document whose caller may not have the change
+     * orders to hand ([changeOrders] null -- the PDF export's callers, until
+     * they pass them).
+     *
+     * Without the list, the accepted price is still used when the estimate
+     * carries no change-order money at all ([liveChangeOrderCost] zero): then
+     * there is provably no extra work to add, so the anchored figure is exact.
+     * With change orders on the job and no list, the extra work signed since
+     * acceptance cannot be told apart from work already inside the accepted
+     * figure, and guessing low would under-bill signed extra work -- so the
+     * live estimate is printed, as it always was, rather than a wrong price.
+     */
+    fun documentTotal(
+        job: Job,
+        liveGrandTotal: Double,
+        liveChangeOrderCost: Double,
+        changeOrders: List<ChangeOrder>?
+    ): Double = when {
+        changeOrders != null -> billableTotal(job, liveGrandTotal, changeOrders)
+        liveChangeOrderCost <= 0.005 -> billableTotal(job, liveGrandTotal, emptyList())
+        else -> liveGrandTotal
+    }
+
+    /**
+     * The "Set deposit to cover materials" suggestion: what is still needed to
+     * buy the materials, net of money already in, rounded up to the next $10 --
+     * and never more than is still owed on [billableTotal].
+     *
+     * Only ever offered, never written by itself. It used to be written
+     * automatically the first time the materials figure was non-zero, which on
+     * a takeoff that was flip-flopping (see the line-item sync fixes) meant
+     * whatever snapshot happened to be on screen became the customer's deposit,
+     * for good. The cap is new too: materials can outrun the agreed price (a
+     * $3,620 job carrying $3,963 of hidden lines), and a deposit above the
+     * price is a bill for money the customer never agreed to.
+     */
+    fun suggestedMaterialsDeposit(job: Job, materialCost: Double, billableTotal: Double): Double {
+        if (materialCost <= 0.0 || billableTotal <= 0.0) return 0.0
+        val outstanding = materialCost - netPaid(job)
+        if (outstanding <= 0.0) return 0.0
+        val rounded = kotlin.math.ceil(outstanding / 10.0) * 10.0
+        return minOf(rounded, stillOwed(job, billableTotal))
+    }
 
     /**
      * Whether the customer's signature still describes the job they signed for.

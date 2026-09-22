@@ -74,10 +74,32 @@ import com.fenceestimator.app.guest.WelcomeScreen
 // FragmentActivity to host its dialog. FragmentActivity is itself a
 // ComponentActivity, so Compose and the result APIs are unaffected.
 class MainActivity : FragmentActivity() {
+
+    /** True when this launch came up without its database -- see [FenceEstimatorApp.startIfPossible]. */
+    private var settling = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         Notifications.ensureChannels(this)
+        // Every screen below reads the database. A process started while the
+        // app was being updated can be without it; rather than crash on the
+        // first screen, say what is happening and let the next launch -- a
+        // fresh process -- load it. A real fault never gets here: the guard
+        // rethrows anything that is not a class failing to load.
+        val app = application as FenceEstimatorApp
+        if (!app.startIfPossible()) {
+            settling = true
+            setContent {
+                val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
+                WithAppLanguage(profile.language) {
+                    FenceEstimatorTheme(darkTheme = isSystemInDarkTheme()) {
+                        com.fenceestimator.app.ui.onboarding.UpdateSettlingScreen(onClose = { finishAndRemoveTask() })
+                    }
+                }
+            }
+            return
+        }
         setContent {
             // Android 13+ won't post anything without this, and silently drops
             // notifications rather than telling you -- so ask once on launch.
@@ -255,6 +277,15 @@ class MainActivity : FragmentActivity() {
                                 var checkingService by remember { mutableStateOf(false) }
                                 var couldNotCheck by remember { mutableStateOf(false) }
                                 var signingOut by remember { mutableStateOf(false) }
+                                // Another phone holds this login (device_still_mine
+                                // said no). Its own state, not folded into
+                                // `service`: it used to be disguised as the
+                                // company being blocked (allowed = false), so an
+                                // active company's displaced crew phone read
+                                // "FenceFlow is paused" and was sent to billing.
+                                var displaced by remember { mutableStateOf(false) }
+                                var reclaiming by remember { mutableStateOf(false) }
+                                var reclaimFailed by remember { mutableStateOf(false) }
                                 // Work the phone is holding because a wipe was
                                 // refused; see HeldWorkScreen for the two ways
                                 // out. Checked before the service gate because
@@ -305,27 +336,31 @@ class MainActivity : FragmentActivity() {
                                         // says so definitely. Offline leaves it
                                         // alone: nobody gets thrown out of the
                                         // app on a guess in a dead spot.
-                                        if (fresh != null) {
-                                            val holds = com.fenceestimator.app.cloud.ServiceGate
-                                                .holdsLogin(ctx)
-                                            if (!holds) {
-                                                service = fresh.copy(
-                                                    allowed = false,
-                                                    reason = getString(R.string.svc_signed_in_elsewhere)
-                                                )
-                                            }
-                                        }
+                                        //
+                                        // Kept apart from `service` (see
+                                        // `displaced`): the server said this
+                                        // company is allowed, and the screen
+                                        // must say what actually happened.
+                                        // Not answered offline, and then
+                                        // cleared -- the same fail-open the
+                                        // disguised version had, since the
+                                        // remembered answer above reopened
+                                        // the app on a failed check too.
+                                        displaced = fresh != null &&
+                                            !com.fenceestimator.app.cloud.ServiceGate.holdsLogin(ctx)
                                         // After the gate, because by then the
                                         // token is known to be live.
                                         runCatching {
                                             com.fenceestimator.app.cloud.SupabaseModule
                                                 .recordAppVersion()
                                         }
+                                    } else {
+                                        displaced = false
                                     }
                                     checkedService = true
                                 }
 
-                                val blocked = service?.allowed == false
+                                val blocked = service?.allowed == false || displaced
                                 if (heldWork != null) {
                                     com.fenceestimator.app.ui.onboarding.HeldWorkScreen(
                                         held = heldWork!!,
@@ -361,10 +396,35 @@ class MainActivity : FragmentActivity() {
                                     )
                                 } else if (checkedService && blocked) {
                                     com.fenceestimator.app.ui.onboarding.ServiceBlockedScreen(
-                                        status = service!!,
+                                        status = service ?: com.fenceestimator.app.cloud.ServiceStatus(),
                                         checking = checkingService,
                                         couldNotCheck = couldNotCheck,
                                         signingOut = signingOut,
+                                        // A company the server itself has paused
+                                        // gets the paused screen even if the login
+                                        // also moved: taking the login back would
+                                        // not open anything.
+                                        displaced = displaced && service?.allowed != false,
+                                        reclaiming = reclaiming,
+                                        reclaimFailed = reclaimFailed,
+                                        onUseThisPhone = {
+                                            reclaiming = true
+                                            reclaimFailed = false
+                                            app.applicationScope.launch {
+                                                val claimed = com.fenceestimator.app.cloud.ServiceGate
+                                                    .reclaim(applicationContext)
+                                                reclaiming = false
+                                                if (claimed) {
+                                                    displaced = false
+                                                    // Re-asked rather than assumed, so
+                                                    // the gate's own answer is what
+                                                    // opens the app.
+                                                    recheck++
+                                                } else {
+                                                    reclaimFailed = true
+                                                }
+                                            }
+                                        },
                                         onRetry = { recheck++ },
                                         onSignOut = {
                                             signingOut = true
@@ -480,7 +540,17 @@ class MainActivity : FragmentActivity() {
                                                     service?.plan.orEmpty()
                                                 )
                                         ) {
-                                            FenceEstimatorNavHost(startDestination = postWelcomeStartRoute)
+                                            // Read once per NavHost: a live one handed a new
+                                            // start destination throws its whole back stack
+                                            // away. It is rebuilt after the held-work, paused
+                                            // and lock screens, and by then somebody the
+                                            // welcome screen sent to sign in who has signed in
+                                            // belongs at home, not back on the sign-in screen.
+                                            val startRoute = remember {
+                                                if (appSession.signedIn && appSession.companyId != null) Routes.JOBS
+                                                else postWelcomeStartRoute
+                                            }
+                                            FenceEstimatorNavHost(startDestination = startRoute)
                                         }
                                     }
                                 }
@@ -491,6 +561,35 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        // Back on Android 12 and later, and Home or the app switcher on any
+        // version, leave the "finishing an update" screen without finishing
+        // it: the task goes behind, the process lives on, and opening the app
+        // again brings this very screen back -- with sync, pushes and the
+        // widget all still off. So coming back asks again, and a database
+        // that loads now gets the real app. One that still will not load
+        // leaves the screen as it was; Close (or Back, see
+        // UpdateSettlingScreen) is then what gives the next launch a new
+        // process.
+        if (settling && (application as FenceEstimatorApp).startIfPossible()) {
+            // Cleared first so onDestroy, run by recreate, does not end the
+            // process it just got working.
+            settling = false
+            recreate()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Leaving the "finishing an update" screen ends this process too, so
+        // the next launch gets a new one -- the class loader that could not
+        // see the database belongs to this process, and Android would
+        // otherwise hand it straight back. Nothing is running to lose: a
+        // settling launch starts no sync and holds no data.
+        if (settling && isFinishing) android.os.Process.killProcess(android.os.Process.myPid())
     }
 }
 
@@ -525,8 +624,31 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
                 onOpenReports = { navController.navigate(Routes.REPORTS) },
                 onOpenPipeline = { navController.navigate(Routes.PIPELINE) },
                 onOpenTimeApproval = { navController.navigate(Routes.TIME_APPROVAL) },
-                onOpenAccount = { navController.navigate(Routes.ACCOUNT) }
+                onOpenAccount = { navController.navigate(Routes.ACCOUNT) },
+                onOpenRequestAccess = { navController.navigate(Routes.REQUEST_ACCESS) },
+                onOpenAccessRequests = { navController.navigate(Routes.ACCESS_REQUESTS) },
+                onOpenCrewJob = { id -> navController.navigate(Routes.crewJob(id)) }
             )
+        }
+        // A scoped crew member asking for a job they are not on. No guard:
+        // the server decides who may ask (request_job_access), and the screen
+        // says so in words for anyone it refuses.
+        composable(Routes.REQUEST_ACCESS) {
+            com.fenceestimator.app.ui.jobs.RequestAccessScreen(onBack = { navController.popBackStack() })
+        }
+        // Answering those requests: SCHEDULE_AND_ASSIGN, the one permission
+        // decide_job_access accepts.
+        composable(Routes.ACCESS_REQUESTS) {
+            com.fenceestimator.app.ui.components.AccessGuard(
+                allowed = session.canScheduleAndAssign,
+                permissionName = "Schedule work and assign crew",
+                onLeave = { navController.popBackStack() }
+            ) {
+                com.fenceestimator.app.ui.jobs.AccessRequestsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenJob = { id -> navController.navigate(Routes.jobDetail(id)) }
+                )
+            }
         }
         composable(Routes.REPORTS) {
             com.fenceestimator.app.ui.components.AccessGuard(
@@ -582,7 +704,10 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
                 // Crew get the read-only plan. The editable drawing is what the
                 // estimate, post count and material order were built from, so a
                 // stray tap on it costs real money.
-                onOpenSurvey = { id -> navController.navigate(Routes.crewPlan(id)) }
+                onOpenSurvey = { id -> navController.navigate(Routes.crewPlan(id)) },
+                // A job kept after its person was taken off it offers the way
+                // back in (Routes.REQUEST_ACCESS decides who may ask).
+                onOpenRequestAccess = { navController.navigate(Routes.REQUEST_ACCESS) }
             )
         }
         composable(
@@ -655,26 +780,49 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
             }
         }
         composable(Routes.SETTINGS) {
-          com.fenceestimator.app.ui.components.AccessGuard(
-              allowed = session.canEditCatalogAndSettings,
-              permissionName = "Edit catalog and settings",
-              onLeave = { navController.popBackStack() }
-          ) {
-            SettingsScreen(
-                onBack = { navController.popBackStack() },
-                onOpenManufacturers = { navController.navigate(Routes.MANUFACTURERS) },
-                onOpenEmployees = { navController.navigate(Routes.EMPLOYEES) },
-                onOpenAccount = { navController.navigate(Routes.ACCOUNT) },
-                onOpenHelp = { navController.navigate(Routes.HELP) },
-                onOpenFeedback = { navController.navigate(Routes.FEEDBACK) }
-            )
-          }
+            // Everyone gets Settings; what is on it depends on who they are. The
+            // full screen writes company settings and carries backups and an
+            // export with every payment in it, so it stays behind "Change catalog
+            // and settings". Everyone else gets only what belongs to their own
+            // phone. No AccessGuard: nothing here is refused to anyone, and an
+            // unread session (no permissions yet) gets the personal screen.
+            if (session.canEditCatalogAndSettings) {
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenManufacturers = { navController.navigate(Routes.MANUFACTURERS) },
+                    onOpenEmployees = { navController.navigate(Routes.EMPLOYEES) },
+                    onOpenAccount = { navController.navigate(Routes.ACCOUNT) },
+                    onOpenHelp = { navController.navigate(Routes.HELP) },
+                    onOpenFeedback = { navController.navigate(Routes.FEEDBACK) }
+                )
+            } else {
+                com.fenceestimator.app.ui.settings.PersonalSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenAccount = { navController.navigate(Routes.ACCOUNT) },
+                    onOpenHelp = { navController.navigate(Routes.HELP) },
+                    onOpenFeedback = { navController.navigate(Routes.FEEDBACK) }
+                )
+            }
         }
         composable(Routes.ACCOUNT) {
+            // Home with nothing behind it, so Back from the dashboard leaves
+            // the app instead of returning to a sign-in screen with nothing
+            // more to say. JOBS is everyone's home -- crew included.
+            val goHome = {
+                navController.navigate(Routes.JOBS) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+            }
             AccountScreen(
-                onBack = { navController.popBackStack() },
+                // Sent here by the welcome screen, Account is the only screen
+                // on the stack, and popping it left an empty window.
+                onBack = {
+                    if (navController.previousBackStackEntry != null) navController.popBackStack()
+                    else goHome()
+                },
                 onOpenAccess = { navController.navigate(Routes.ACCESS) },
-                onOpenTrash = { navController.navigate(Routes.TRASH) }
+                onOpenTrash = { navController.navigate(Routes.TRASH) },
+                onSignedIn = goHome
             )
         }
         composable(Routes.TIME_APPROVAL) {

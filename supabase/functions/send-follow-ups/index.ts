@@ -71,6 +71,52 @@ function senderWithName(name: string, address: string): string {
 const escapeHtml = (s: unknown): string =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Resend's default limit is 2 requests a second per account. This loop used
+// to send as fast as the round trips allowed, so any run with more than a
+// couple of due follow-ups met 429s -- and each refused one kept its claimed
+// follow_up_log row, which meant it was never tried again and never sent.
+const MIN_SEND_GAP_MS = 550;
+
+// Supabase answers 504 for any function that has not responded within 150 s
+// (its request idle timeout), and the workflow reads that as a failed run.
+// Paced as above, a backlog -- up to daily_cap (25) per enabled company --
+// can take longer than that. So the run stops claiming new sends once this
+// much time has gone and returns normally; nothing unsent was claimed, so
+// whatever is left is still due, and the next hourly run sends it.
+const RUN_BUDGET_MS = 100_000;
+// And no single send may eat the margin: an unanswered request is abandoned
+// after this long and handled like any other "could not reach" (claim kept).
+// Worst case after the last budget check is two of these plus the 429 wait,
+// about 37 s, which still answers inside the 150 s.
+const SEND_TIMEOUT_MS = 15_000;
+
+/**
+ * What a refusal from the mail provider means for the claimed log row.
+ *
+ *   release  -- the provider certainly did not send it (bad key, unverified
+ *               domain, rate limit or quota). The claim is deleted so the
+ *               next run tries again once the cause is fixed, and the run
+ *               stops sending: every further attempt would fail the same way.
+ *   keep     -- a problem with this one message (a malformed address). The
+ *               claim stays, so a bad address is not retried every hour.
+ *   unknown  -- the provider may or may not have sent it (5xx). The claim
+ *               stays -- "logged, maybe not sent" beats "sent twice", the
+ *               rule this file already follows for a crash mid-send -- and
+ *               the run stops, because the provider is not answering sanely.
+ *
+ * Everything but "keep" is a real failure of the scheduler, reported with an
+ * `error` in the response so the workflow run fails and somebody hears of it.
+ * A refused send used to be logged to the console and nowhere else: the run
+ * went green while nothing was going out.
+ */
+function refusalKind(status: number): "release" | "keep" | "unknown" {
+  if (status === 401 || status === 403 || status === 429) return "release";
+  if (status >= 500) return "unknown";
+  return "keep";
+}
+
 const SUBJECT: Record<string, string> = {
   new_lead_not_contacted: "Following up on your fence quote request",
   quote_sent_no_view: "Your fence quote is ready",
@@ -130,6 +176,7 @@ function buildEmail(
 }
 
 Deno.serve(async (req) => {
+  const startedAt = Date.now();
   try {
     const expected = Deno.env.get("NOTIFY_TRIGGER_SECRET");
     if (!expected) {
@@ -165,8 +212,19 @@ Deno.serve(async (req) => {
 
     const now = new Date();
     const results: Record<string, unknown>[] = [];
+    // Scheduler-level failures (see refusalKind). Any entry here turns the
+    // response into an error, and stops further sending for this run.
+    const mailErrors: string[] = [];
+    let lastSendAt = 0;
+    // Set once RUN_BUDGET_MS is used up; checked before any new claim.
+    let outOfTime = false;
+    const timeLeft = () => {
+      if (!outOfTime && Date.now() - startedAt >= RUN_BUDGET_MS) outOfTime = true;
+      return !outOfTime;
+    };
 
     for (const row of settingsRows ?? []) {
+      if (mailErrors.length || !timeLeft()) break;
       const settings: FollowUpSettings = { ...DEFAULT_SETTINGS, ...row };
       const companyId = String((row as any).company_id);
 
@@ -214,9 +272,10 @@ Deno.serve(async (req) => {
         .not("email", "eq", "");
 
       for (const j of (jobs ?? []) as FollowUpJob[]) {
-        if (remaining <= 0) break;
+        if (remaining <= 0 || mailErrors.length) break;
         const due = dueFollowUp(j, settings, now);
         if (!due) continue;
+        if (!timeLeft()) break; // before the claim, so nothing is left claimed-but-unsent
 
         // Claim the log row FIRST. If another run (or a retry) already
         // claimed this exact (company, job, kind, stageKey), the insert is
@@ -242,23 +301,51 @@ Deno.serve(async (req) => {
         const { subject, html, text } = buildEmail(due.kind, j, company?.name ?? "", quoteUrl);
         const replyTo = (company?.email ?? "").trim();
 
-        try {
-          const res = await fetch(mailUrl, {
+        const payload = JSON.stringify({
+          from: senderWithName(company?.name ?? "", mailFrom),
+          to: [j.email],
+          subject,
+          html,
+          text,
+          ...(replyTo ? { reply_to: replyTo } : {}),
+        });
+        const send = async () => {
+          const wait = MIN_SEND_GAP_MS - (Date.now() - lastSendAt);
+          if (wait > 0) await sleep(wait);
+          lastSendAt = Date.now();
+          return await fetch(mailUrl, {
             method: "POST",
             headers: { Authorization: `Bearer ${mailKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: senderWithName(company?.name ?? "", mailFrom),
-              to: [j.email],
-              subject,
-              html,
-              text,
-              ...(replyTo ? { reply_to: replyTo } : {}),
-            }),
+            body: payload,
+            signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
           });
+        };
+
+        try {
+          let res = await send();
+          // One patient retry on a rate limit before counting it: a single
+          // 429 is usually a burst, not a quota.
+          if (res.status === 429) {
+            await res.text().catch(() => "");
+            const after = Number(res.headers.get("retry-after"));
+            await sleep(Math.min(Number.isFinite(after) && after > 0 ? after * 1000 : 1100, 5000));
+            res = await send();
+          }
           if (!res.ok) {
             const detail = await res.text();
             console.error("send-follow-ups: mail provider refused", res.status, detail.slice(0, 300));
-            continue;
+            const kind = refusalKind(res.status);
+            if (kind === "keep") {
+              results.push({ company_id: companyId, job_sync_id: j.sync_id, kind: due.kind, refused: res.status });
+              continue;
+            }
+            if (kind === "release") {
+              // Certainly not sent, so the next run may try it again.
+              await db.from("follow_up_log").delete().eq("id", claimed.id);
+            }
+            mailErrors.push(`mail provider answered ${res.status}` +
+              (kind === "release" ? " (nothing was sent; it will be retried next run)" : " (may or may not have sent)"));
+            break;
           }
           const sent = await res.json().catch(() => ({}));
           if (sent?.id) {
@@ -267,12 +354,25 @@ Deno.serve(async (req) => {
           remaining -= 1;
           results.push({ company_id: companyId, job_sync_id: j.sync_id, kind: due.kind, sent: true });
         } catch (e) {
+          // No answer at all, or none within SEND_TIMEOUT_MS: the claim stays
+          // (it may have gone out), and the run reports it rather than going green.
           console.error("send-follow-ups: send failed", String(e));
+          mailErrors.push("could not reach the mail provider");
+          break;
         }
       }
     }
 
-    return json({ ok: true, results });
+    if (mailErrors.length) {
+      return json({ error: `Sending stopped: ${mailErrors.join("; ")}.`, results }, 502);
+    }
+    // Running out of time is not a failure: the run did what fit, and the
+    // rest is still due. The workflow turns this field into a notice.
+    return json({
+      ok: true,
+      results,
+      ...(outOfTime ? { unfinished: `Stopped after ${Math.round(RUN_BUDGET_MS / 1000)} s to answer inside Supabase's time limit; the remaining follow-ups go out next run.` } : {}),
+    });
   } catch (e) {
     console.error("send-follow-ups:", e);
     return json({ error: String(e instanceof Error ? e.message : e) }, 500);

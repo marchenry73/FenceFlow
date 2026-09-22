@@ -12,10 +12,10 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,15 +31,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncPhase
@@ -48,17 +55,31 @@ import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.resolve
 import com.fenceestimator.app.ui.theme.Space
 
+/**
+ * How long a fresh sign-in waits for the app-wide session to catch up before
+ * giving up on going home by itself. That catch-up can include waiting out
+ * the auth plugin (up to five seconds, see SessionManager) and a profile read
+ * on poor signal. Giving up only means staying here, which is where sign-in
+ * always used to leave people.
+ */
+private const val SESSION_CATCH_UP_MS = 20_000L
+
+/**
+ * @param onSignedIn a sign-in made on this screen got in and the account has
+ *   nothing left to do here -- the caller takes it to the home screen.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountScreen(
     onBack: () -> Unit,
     onOpenAccess: () -> Unit = {},
-    onOpenTrash: () -> Unit = {}
+    onOpenTrash: () -> Unit = {},
+    onSignedIn: () -> Unit = {}
 ) {
     val app = currentApp()
     val viewModel: AccountViewModel = viewModel(
         factory = com.fenceestimator.app.ui.components.GenericViewModelFactory {
-            AccountViewModel(app.repository, app.dataOwnership)
+            AccountViewModel(app.repository, app.dataOwnership, app.settingsStore)
         }
     )
     val state by viewModel.state.collectAsState()
@@ -97,12 +118,57 @@ fun AccountScreen(
         if (state.profile?.companyId != null) app.autoSync.requestSync()
     }
 
+    // Straight on to the home screen after a sign-in made here, rather than
+    // leaving somebody on a card that says "Signed in" to find their own way
+    // back. Everyone's home is the same route: the jobs screen draws the
+    // office dashboard or the crew's own view from the role.
+    //
+    // Not before the app-wide session has caught up with who just signed in.
+    // Until it does it still reads signed out, and signed out means full
+    // access on your own phone -- arriving early would draw a crew member the
+    // owner's dashboard, money and all, for as long as the gap lasted.
+    //
+    // And not at all while a step is left. No company yet stays here for the
+    // setup form below -- which is also where the welcome screen's "Sign in"
+    // leaves a brand-new account -- and a profile that could not be read stays
+    // for its retry. The held-work and paused screens need nothing from here:
+    // they sit above every route and take over wherever this lands.
+    var goingHome by remember { mutableStateOf(false) }
+    LaunchedEffect(state.justSignedIn) {
+        if (!state.justSignedIn) return@LaunchedEffect
+        val email = state.signedInEmail
+        goingHome = true
+        val caughtUp = email?.let {
+            withTimeoutOrNull(SESSION_CATCH_UP_MS) {
+                app.session.state.first { s ->
+                    s.signedIn && s.accessKnown && s.email.equals(email, ignoreCase = true)
+                }
+            }
+        }
+        goingHome = false
+        viewModel.consumeJustSignedIn()
+        // Both have to agree there is a company. The session can answer from
+        // this phone's memory of an earlier sign-in; the profile read here is
+        // fresh, and is what decides whether the setup form shows.
+        if (caughtUp?.companyId != null && state.profile?.companyId != null) onSignedIn()
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.account_title)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
-            )
+            Column {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.account_title)) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } }
+                )
+                // Up here, not as a row at the top of the list. Inserting it
+                // there shifted every card below it down one slot, and a card
+                // in a new slot is a new card: the sign-in form was rebuilt
+                // blank the moment Sign in was tapped, which is how a wrong
+                // password cost people the email they had typed as well.
+                if (state.busy || goingHome) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
@@ -124,12 +190,8 @@ fun AccountScreen(
                 return@LazyColumn
             }
 
-            if (state.busy) {
-                item { CircularProgressIndicator() }
-            }
-
             if (!state.isSignedIn) {
-                item { SignedOutSection(viewModel) }
+                item { SignedOutSection(state, viewModel) }
             } else {
                 item {
                     SignedInSection(
@@ -159,10 +221,38 @@ fun AccountScreen(
 }
 
 @Composable
-private fun SignedOutSection(viewModel: AccountViewModel) {
-    var email by remember { mutableStateOf("") }
+private fun SignedOutSection(state: AccountUiState, viewModel: AccountViewModel) {
+    // Saveable, so the address also survives the phone being turned sideways.
+    var email by rememberSaveable { mutableStateOf("") }
+    // Never saveable. Saved state is written out with the activity, and a
+    // password has no business being anywhere but this box.
     var password by remember { mutableStateOf("") }
-    var isSignUp by remember { mutableStateOf(false) }
+    var isSignUp by rememberSaveable { mutableStateOf(false) }
+    val passwordFocus = remember { FocusRequester() }
+
+    // The address that last got in on this phone, once the settings store has
+    // answered. Only ever fills an empty box -- never what somebody has
+    // already started typing.
+    LaunchedEffect(state.lastSignInEmail) {
+        val remembered = state.lastSignInEmail
+        if (email.isEmpty() && !remembered.isNullOrBlank()) email = remembered
+    }
+
+    // Wrong password: the address stays, only the password is emptied, and the
+    // cursor goes back into it -- so trying again is one box, not two.
+    LaunchedEffect(state.passwordRejected) {
+        if (state.passwordRejected) {
+            password = ""
+            runCatching { passwordFocus.requestFocus() }
+            viewModel.consumePasswordRejected()
+        }
+    }
+
+    // Not while one is already running: a second tap used to fire a second
+    // sign-in behind the first.
+    val canSubmit = !state.busy && email.isNotBlank() && password.length >= 6
+    val submit = { if (isSignUp) viewModel.signUp(email, password) else viewModel.signIn(email, password) }
+    val errorText = state.signInError?.resolve()
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -176,26 +266,52 @@ private fun SignedOutSection(viewModel: AccountViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedTextField(
-                value = email, onValueChange = { email = it },
+                value = email,
+                onValueChange = {
+                    email = it
+                    viewModel.clearSignInError()
+                },
                 label = { Text(stringResource(R.string.field_email)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
-                value = password, onValueChange = { password = it },
+                value = password,
+                onValueChange = {
+                    password = it
+                    viewModel.clearSignInError()
+                },
                 label = { Text(stringResource(R.string.acct_password)) },
+                singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth()
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = { if (canSubmit) submit() else defaultKeyboardAction(ImeAction.Done) }
+                ),
+                modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus)
             )
+            if (errorText != null) {
+                Text(
+                    errorText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             Button(
-                onClick = { if (isSignUp) viewModel.signUp(email, password) else viewModel.signIn(email, password) },
-                enabled = email.isNotBlank() && password.length >= 6,
+                onClick = submit,
+                enabled = canSubmit,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(if (isSignUp) R.string.acct_create_account else R.string.action_sign_in))
             }
-            TextButton(onClick = { isSignUp = !isSignUp }, modifier = Modifier.fillMaxWidth()) {
+            TextButton(
+                onClick = {
+                    isSignUp = !isSignUp
+                    viewModel.clearSignInError()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(stringResource(if (isSignUp) R.string.acct_already_have_account else R.string.acct_need_create_account))
             }
         }

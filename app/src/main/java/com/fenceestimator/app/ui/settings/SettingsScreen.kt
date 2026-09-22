@@ -849,9 +849,13 @@ fun SettingsScreen(
  * one you want, and the thing you came for is buried among thirteen things you
  * did not. Closed by default, remembered while the screen is open, with a
  * one-line summary so a shut section still tells you what is inside.
+ *
+ * Internal rather than private because PersonalSettingsScreen is built from
+ * the same pieces -- two settings screens that looked different would read as
+ * two different apps. The same goes for the three helpers further down.
  */
 @Composable
-private fun SectionCard(
+internal fun SectionCard(
     title: String,
     subtitle: String = "",
     startExpanded: Boolean = false,
@@ -927,7 +931,7 @@ private fun SectionCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun <T> SettingsEnumDropdown(label: String, options: List<T>, selected: T, display: (T) -> String, onSelect: (T) -> Unit) {
+internal fun <T> SettingsEnumDropdown(label: String, options: List<T>, selected: T, display: (T) -> String, onSelect: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
@@ -1032,7 +1036,7 @@ private fun EditTierDialog(
  * which is worth hearing rather than being left to wonder.
  */
 @Composable
-private fun UpdateCheckRow(modifier: Modifier = Modifier) {
+internal fun UpdateCheckRow(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
@@ -1132,7 +1136,7 @@ private fun UpdateCheckRow(modifier: Modifier = Modifier) {
  * business, how work gets priced, how the app behaves, their data, and help.
  */
 @Composable
-private fun GroupHeading(text: String) {
+internal fun GroupHeading(text: String) {
     Text(
         text.uppercase(Locale.getDefault()),
         style = MaterialTheme.typography.labelMedium,

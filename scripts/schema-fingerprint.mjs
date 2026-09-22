@@ -153,7 +153,15 @@ const rows = JSON.parse(raw.slice(start)).rows ?? [];
 // which would split one entry across several lines and make the diff report
 // fragments instead of facts. Collapsing whitespace also means two projects
 // that formatted the same expression differently still compare equal.
-const lines = rows.map(r => r.line);
+// Trigger definitions carry their webhook arguments verbatim, and the
+// job-change-push trigger's arguments include the x-fenceflow-trigger shared
+// secret. This file is committed to a PUBLIC repository, so the secret was
+// published with it (found 2026-09-22). Redact every header value that
+// looks like a credential; a fingerprint only needs to know the header is
+// there, not what it holds.
+const SECRET_HEADER = /("?(?:x-fenceflow-trigger|authorization|apikey|x-[a-z-]*secret[a-z-]*)"?\s*:\s*"?)(?:Bearer\s+)?[^"',}\s]{8,}/gi;
+const redact = (s) => String(s).replace(SECRET_HEADER, "$1<redacted>");
+const lines = rows.map(r => redact(r.line));
 
 mkdirSync(dirname(outFile), { recursive: true });
 writeFileSync(outFile, lines.join("\n") + "\n", "utf8");

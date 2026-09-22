@@ -385,6 +385,11 @@ begin;
 insert into auth.users(id) values ('${OWNER_NEW}');
 insert into profiles(id, company_id, role, full_name)
   values ('${OWNER_NEW}', '${ZZ_NEW}', 'OWNER', 'ZZ TEST Pricing Owner');
+-- job_costing() is a Pro report (supabase_r6_money_rpc_plan_gate.sql), and
+-- ZZ_NEW is on Solo. Lift it to Pro for this rolled-back transaction only, so
+-- the check below still reads the price back through the report the office
+-- trusts rather than silently reading nothing.
+update companies set subscription_plan = 'Pro' where id = '${ZZ_NEW}';
 
 insert into jobs(company_id, sync_id, customer_name, status,
                   tax_rate_percent, markup_percent, discount_percent, labor_rate_per_ft,

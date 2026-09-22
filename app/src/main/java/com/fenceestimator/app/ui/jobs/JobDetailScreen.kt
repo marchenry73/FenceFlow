@@ -166,7 +166,7 @@ fun JobDetailScreen(
     val context = LocalContext.current
     val viewModel: JobDetailViewModel = viewModel(
         key = "job_detail_$jobId",
-        factory = GenericViewModelFactory { JobDetailViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { JobDetailViewModel(app.repository, jobId, app.settingsStore.profile) }
     )
     val runsViewModel: FenceRunListViewModel = viewModel(
         key = "job_runs_$jobId",
@@ -308,13 +308,28 @@ fun JobDetailScreen(
                     )
                 }
             }
-            item { SectionCard(title = stringResource(R.string.section_customer), icon = Icons.Filled.Person) { CustomerFields(currentJob, viewModel) } }
+            item {
+                SectionCard(title = stringResource(R.string.section_customer), icon = Icons.Filled.Person) {
+                    CustomerFields(
+                        job = currentJob,
+                        editable = session.canEditJobs,
+                        showContact = session.canSeeCustomerContact,
+                        viewModel = viewModel
+                    )
+                }
+            }
             item {
                 // Everything already saves as you type -- this is here because
                 // an app with no Save button leaves people unsure whether their
                 // work is safe, and they leave the screen expecting to lose it.
+                // On a read-only card it promised a save the server would then
+                // refuse, so that phone is told who can change them instead.
+                // Always one item either way: sectionOrder counts it.
                 Text(
-                    stringResource(R.string.jd_saved_automatically),
+                    stringResource(
+                        if (session.canEditJobs) R.string.jd_saved_automatically
+                        else R.string.jd_customer_read_only
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -466,8 +481,42 @@ fun JobDetailScreen(
             }
             item(key = SECTION_SCHEDULE) {
                 SectionCard(title = stringResource(R.string.section_schedule_crew), icon = Icons.Filled.Event) {
-                    ScheduleFields(currentJob, runs, timeEntries, profile, viewModel)
-                    CrewFields(currentJob, employees, viewModel)
+                    ScheduleFields(
+                        job = currentJob,
+                        runs = runs,
+                        timeEntries = timeEntries,
+                        profile = profile,
+                        // The date is who-and-when: SCHEDULE_AND_ASSIGN only.
+                        // EDIT_JOBS alone never moved it -- the jobs table's
+                        // guard (guard_job_assignment) refuses the whole save,
+                        // and crew_save_job strips it (crew_strip_assignment)
+                        // -- so offering it there changed one phone.
+                        canMoveDate = session.canScheduleAndAssign,
+                        canSetDuration = session.canEditJobs || session.canScheduleAndAssign,
+                        viewModel = viewModel
+                    )
+                    // Who leads it: SCHEDULE_AND_ASSIGN, the foreman's and the
+                    // office's permission -- the same line crew_save_job draws
+                    // (CREW_SCHEDULER_JOB_KEYS) and the jobs table's guard
+                    // holds. Gating this on EDIT_JOBS alone took reassigning
+                    // away from the one role that exists to do it; offering it
+                    // on EDIT_JOBS without SCHEDULE_AND_ASSIGN offered a pick
+                    // the server refuses.
+                    CrewFields(
+                        currentJob, employees,
+                        editable = session.canScheduleAndAssign,
+                        flagNoLogin = session.canSeePay &&
+                            com.fenceestimator.app.cloud.JobAccess.scope.collectAsState().value.isDeployed,
+                        viewModel = viewModel
+                    )
+                    // Everyone else on it: extra crew and people let in on a
+                    // request. Absent until the server has the crew scope.
+                    JobCrewSection(
+                        job = currentJob,
+                        employees = employees,
+                        canAssign = session.canScheduleAndAssign,
+                        canSeePay = session.canSeePay
+                    )
                 }
             }
             if (session.canSeeMoney) {
@@ -480,7 +529,7 @@ fun JobDetailScreen(
             // Directly above HOA and permits, because they are the same kind of
             // thing: the paperwork that has to be right before anyone starts.
             item(key = SECTION_LOCATE) { LocateSection(currentJob, viewModel) }
-            item(key = SECTION_HOA) { SectionCard(title = stringResource(R.string.section_hoa_permits), icon = Icons.Filled.Gavel) { HoaFields(currentJob, runs, profile, viewModel) } }
+            item(key = SECTION_HOA) { SectionCard(title = stringResource(R.string.section_hoa_permits), icon = Icons.Filled.Gavel) { HoaFields(currentJob, runs, profile, editable = session.canEditJobs, viewModel = viewModel) } }
             if (session.canSeeMoney) {
                 item { SectionCard(title = stringResource(R.string.section_change_orders), icon = Icons.Filled.EditNote) { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
                 // Above the money, because a job running over is the thing
@@ -529,7 +578,7 @@ fun JobDetailScreen(
                 }
             }
             item { SectionCard(title = stringResource(R.string.section_review), icon = Icons.Filled.StarRate) { ReviewRequestFields(currentJob, profile, viewModel) } }
-            item { StatusSelector(currentJob, viewModel) }
+            item { StatusSelector(currentJob, fullControl = session.canEditJobs, viewModel = viewModel) }
             // Owner only, and behind a typed confirmation. Deleting a job takes
             // its signed change orders, its payment record and its photos with
             // it -- exactly the evidence you would need in a dispute.
@@ -869,8 +918,52 @@ private fun SectionCard(
     }
 }
 
+/**
+ * One line of a read-only card: what it is, and what it says. Nothing to tap,
+ * so nothing a phone without the right to change it can send.
+ */
 @Composable
-private fun CustomerFields(job: Job, viewModel: JobDetailViewModel) {
+private fun ReadOnlyField(label: String, value: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value.ifBlank { stringResource(R.string.jd_not_given) },
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (value.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+/**
+ * The customer's details.
+ *
+ * Editable only with EDIT_JOBS. Crew used to get the same editable card as
+ * the office, marked "Saved automatically", and whatever they typed went up
+ * with their whole copy of the job; protect_customer_identity put the name
+ * back on the server but still moved updated_at, so the pull then wrote the
+ * server's value over the phone while the job was open -- "I opened a job and
+ * it erased the name" (4598150b). A phone that cannot change these gets them
+ * as plain text, and without SEE_CUSTOMER_CONTACT the phone number and email
+ * are not shown at all, as the crew role describes. The server holds the same
+ * line (crew_save_job's allowlist, CREW_WRITABLE_JOB_KEYS).
+ */
+@Composable
+private fun CustomerFields(job: Job, editable: Boolean, showContact: Boolean, viewModel: JobDetailViewModel) {
+    if (!editable) {
+        ReadOnlyField(stringResource(R.string.field_customer_name), job.customerName)
+        ReadOnlyField(stringResource(R.string.field_address), job.address)
+        if (showContact) {
+            ReadOnlyField(stringResource(R.string.field_phone), job.phone)
+            ReadOnlyField(stringResource(R.string.field_email), job.email)
+        }
+        if (job.notes.isNotBlank()) ReadOnlyField(stringResource(R.string.field_notes), job.notes)
+        return
+    }
     DraftTextField(
         stableKey = job.id, initialValue = job.customerName, label = stringResource(R.string.field_customer_name),
         modifier = Modifier.fillMaxWidth()
@@ -924,19 +1017,28 @@ private fun PricingFields(job: Job, viewModel: JobDetailViewModel) {
     }
 }
 
+/**
+ * The job's status. Without EDIT_JOBS ([fullControl] false) the only move on
+ * offer is finishing the job: crew_save_job takes COMPLETED from crew and
+ * nothing else (a stale crew copy must never roll a job back to DRAFT), so any
+ * other choice here would have changed this phone alone and never reached the
+ * office.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StatusSelector(job: Job, viewModel: JobDetailViewModel) {
+private fun StatusSelector(job: Job, fullControl: Boolean, viewModel: JobDetailViewModel) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+    val choices = if (fullControl) JobStatus.values().toList()
+        else listOf(JobStatus.COMPLETED).filter { it != job.status }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it && choices.isNotEmpty() }) {
         OutlinedTextField(
             value = statusLabel(job.status), onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.jd_status)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            trailingIcon = { if (choices.isNotEmpty()) ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            JobStatus.values().forEach { status ->
+            choices.forEach { status ->
                 DropdownMenuItem(
                     text = { Text(statusLabel(status)) },
                     onClick = { viewModel.setStatus(status); expanded = false }
@@ -1049,12 +1151,26 @@ private fun TeardownFields(job: Job, viewModel: JobDetailViewModel) {
     )
 }
 
+/**
+ * The date and the hours.
+ *
+ * [canMoveDate] (SCHEDULE_AND_ASSIGN) and [canSetDuration] (EDIT_JOBS or
+ * SCHEDULE_AND_ASSIGN) are the same lines the server draws: the date and the
+ * hours are not on the crew allowlist, and go through only for a scheduler
+ * (CREW_SCHEDULER_JOB_KEYS); the date needs SCHEDULE_AND_ASSIGN everywhere
+ * (guard_job_assignment on the jobs table, crew_strip_assignment in
+ * crew_save_job). A control past that line changed this phone alone and was
+ * quietly refused by the server, so it is not offered; a foreman, whose role
+ * is scheduling, keeps both.
+ */
 @Composable
 private fun ScheduleFields(
     job: Job,
     runs: List<FenceRun>,
     timeEntries: List<com.fenceestimator.app.data.TimeEntry>,
     profile: BusinessProfile,
+    canMoveDate: Boolean,
+    canSetDuration: Boolean,
     viewModel: JobDetailViewModel
 ) {
     val context = LocalContext.current
@@ -1063,6 +1179,7 @@ private fun ScheduleFields(
     val dateButtonLabel = job.scheduledDate?.let { stringResource(R.string.jd_scheduled_on, dateFormat.format(Date(it))) }
         ?: stringResource(R.string.jd_set_job_date)
     Button(
+        enabled = canMoveDate,
         onClick = {
             val cal = Calendar.getInstance()
             job.scheduledDate?.let { cal.timeInMillis = it }
@@ -1085,39 +1202,30 @@ private fun ScheduleFields(
     val pxPerFt = job.calibrationPixelsPerFoot
         ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
     val markers by viewModel.siteMarkers.collectAsState()
-    val rates = remember(profile) {
-        com.fenceestimator.app.estimate.DurationEstimator.Rates(
-            feetPerDay = profile.feetPerDay,
-            workdayHours = profile.workdayHours,
-            breakHoursPerDay = profile.breakHoursPerDay,
-            hoursPerGate = profile.hoursPerGate,
-            hoursPerTree = profile.hoursPerTree,
-            hoursPerObstacle = profile.hoursPerObstacle,
-            hoursPerCorner = profile.hoursPerCorner,
-            setupHours = profile.setupHours,
-            teardownHoursPerFoot = profile.teardownHoursPerFoot
-        )
-    }
+    val rates = remember(profile) { durationRatesOf(profile) }
     val estimate = remember(job, runs, rates, markers) {
         com.fenceestimator.app.estimate.DurationEstimator.estimate(job, runs, pxPerFt, rates, markers)
     }
 
     // Keep the stored duration in step with the footage until someone types
     // their own. Without this, changing the length left the hours frozen.
-    LaunchedEffect(estimate.totalHours, job.durationManuallySet) {
-        if (!job.durationManuallySet &&
-            estimate.totalHours > 0.0 &&
-            kotlin.math.abs(estimate.totalHours - job.estimatedDurationHours) > 0.005
-        ) {
-            viewModel.update { j -> j.copy(estimatedDurationHours = estimate.totalHours) }
-        }
-    }
+    //
+    // But only a change made while this job is open, and only on a phone
+    // that may reschedule -- see JobDetailViewModel.followComputedDuration.
+    // This used to save whenever the computed hours differed from the stored
+    // ones, the moment the screen opened, on every phone: a crew handset
+    // pushed 93.33 hours over the office's 4 (4598150b) by opening the job.
+    LaunchedEffect(canSetDuration) { viewModel.followComputedDuration(mayWrite = canSetDuration) }
 
-    DraftNumberField(
-        stableKey = job.id, label = stringResource(R.string.jd_est_duration), initialValue = job.estimatedDurationHours.toFloat(),
-        modifier = Modifier.fillMaxWidth()
-    ) { viewModel.update { j -> j.copy(estimatedDurationHours = it.toDouble(), durationManuallySet = true) } }
-    if (job.durationManuallySet) {
+    if (canSetDuration) {
+        DraftNumberField(
+            stableKey = job.id, label = stringResource(R.string.jd_est_duration), initialValue = job.estimatedDurationHours.toFloat(),
+            modifier = Modifier.fillMaxWidth()
+        ) { viewModel.update { j -> j.copy(estimatedDurationHours = it.toDouble(), durationManuallySet = true) } }
+    } else {
+        ReadOnlyField(stringResource(R.string.jd_est_duration), "%.1f".format(job.estimatedDurationHours))
+    }
+    if (canSetDuration && job.durationManuallySet) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.jd_duration_manual),
@@ -1163,13 +1271,15 @@ private fun ScheduleFields(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        OutlinedButton(
-            onClick = {
-                viewModel.update { j -> j.copy(estimatedDurationHours = estimate.totalHours) }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.jd_use_calculated, "%.1f".format(estimate.totalHours)))
+        if (canSetDuration) {
+            OutlinedButton(
+                onClick = {
+                    viewModel.update { j -> j.copy(estimatedDurationHours = estimate.totalHours) }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.jd_use_calculated, "%.1f".format(estimate.totalHours)))
+            }
         }
     } else {
         Text(
@@ -1222,11 +1332,44 @@ private fun ScheduleFields(
     }
 }
 
+/**
+ * Who leads the job. Shown to everyone, changeable only with
+ * SCHEDULE_AND_ASSIGN ([editable]): the jobs table's guard refuses anyone
+ * else a new assignee, and crew_save_job strips it, so a pick made on a phone
+ * without it changed that phone alone. Everyone else gets the name as plain
+ * text -- a greyed-out dropdown still reads as something to try.
+ *
+ * @param flagNoLogin say so when the lead's crew record has no app login.
+ *   Only a SEE_PAY phone knows (Employee.profileId comes down with pay), and
+ *   only once the server scopes crew to their jobs is it true that such a
+ *   person cannot see the job on any phone.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CrewFields(job: Job, employees: List<Employee>, viewModel: JobDetailViewModel) {
+private fun CrewFields(
+    job: Job,
+    employees: List<Employee>,
+    editable: Boolean,
+    flagNoLogin: Boolean,
+    viewModel: JobDetailViewModel
+) {
     var expanded by remember { mutableStateOf(false) }
     val selected = employees.firstOrNull { it.id == job.assignedEmployeeId }
+    val noLoginNote: @Composable () -> Unit = {
+        if (flagNoLogin && selected != null && selected.profileId.isBlank()) {
+            Text(
+                stringResource(R.string.job_crew_no_login, selected.name.ifBlank { stringResource(R.string.jd_unnamed) }),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+
+    if (!editable) {
+        ReadOnlyField(stringResource(R.string.jd_assigned_crew), selected?.name ?: stringResource(R.string.jd_unassigned))
+        noLoginNote()
+        return
+    }
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
@@ -1251,6 +1394,7 @@ private fun CrewFields(job: Job, employees: List<Employee>, viewModel: JobDetail
             }
         }
     }
+    noLoginNote()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1317,9 +1461,25 @@ private fun OrderFields(
     }
 }
 
+/**
+ * HOA and permit paperwork. Read-only without EDIT_JOBS, for the same reason
+ * as [CustomerFields]: none of these columns is on crew_save_job's allowlist,
+ * and a crew phone's older copy used to blank the office's HOA name and permit
+ * number whenever it pushed (10b0407f, rolled-back probe diag/c10.sql). The
+ * HOA email is the customer's HOA contact, so it follows SEE_CUSTOMER_CONTACT.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, viewModel: JobDetailViewModel) {
+private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, editable: Boolean, viewModel: JobDetailViewModel) {
+    if (!editable) {
+        val session by currentApp().session.state.collectAsState()
+        ReadOnlyField(stringResource(R.string.jd_hoa_name), job.hoaName)
+        if (session.canSeeCustomerContact) ReadOnlyField(stringResource(R.string.jd_hoa_email), job.hoaEmail)
+        ReadOnlyField(stringResource(R.string.jd_hoa_status), job.hoaApprovalStatus.label())
+        ReadOnlyField(stringResource(R.string.jd_permit_number), job.permitNumber)
+        ReadOnlyField(stringResource(R.string.jd_permit_status), job.permitStatus.label())
+        return
+    }
     val context = LocalContext.current
     DraftTextField(stableKey = job.id, initialValue = job.hoaName, label = stringResource(R.string.jd_hoa_name), modifier = Modifier.fillMaxWidth()) {
         viewModel.update { j -> j.copy(hoaName = it) }
@@ -1453,22 +1613,36 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // A deposit that doesn't cover materials means buying the customer's fence
     // with your own money, so offer the covering figure in one tap.
     val materialCost by viewModel.materialCost.collectAsState()
+    // Read here so the figures below recompose when a change order is signed:
+    // billableTotal adds extra work signed since acceptance.
+    val orders by viewModel.changeOrders.collectAsState()
 
-    // And fill it in automatically the first time there is a figure to use.
-    // Waiting for someone to notice the button is how the default becomes
-    // "no deposit at all".
-    LaunchedEffect(materialCost) { viewModel.autoFillDepositFromMaterials() }
+    // Offered, never filled in by itself. This used to write the materials
+    // figure into the deposit on its own the first time there was one
+    // (autoFillDepositFromMaterials) -- whatever snapshot the takeoff showed
+    // at that moment became the customer's deposit, for good, tied to no
+    // agreed price. See JobDetailViewModel.suggestedDeposit.
+    //
     // suggestedDeposit() is already net of what has been paid, and returns zero
     // once payments cover materials -- so this disappears rather than asking for
-    // money that has already changed hands.
+    // money that has already changed hands. It is also capped at what is still
+    // owed on the price that stands, so it can never ask for more than that.
     val suggested = viewModel.suggestedDeposit()
     val paidSoFar = JobMoney.netPaid(job)
-    if (suggested > 0.0 && job.depositAmount < materialCost) {
+    val suggestionIsCapped = suggested > 0.0 &&
+        suggested + 0.005 < kotlin.math.ceil((materialCost - paidSoFar) / 10.0) * 10.0
+    if (suggested > 0.0 && job.depositAmount < materialCost &&
+        kotlin.math.abs(job.depositAmount - suggested) > 0.005
+    ) {
         OutlinedButton(
             onClick = { viewModel.applySuggestedDeposit() },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(R.string.jd_set_deposit_covers, "%.0f".format(suggested)))
+            Text(
+                // Exact, not rounded: capped, it is the balance to the cent.
+                if (suggestionIsCapped) stringResource(R.string.jd_set_deposit_capped, Money.format(suggested).removePrefix("$"))
+                else stringResource(R.string.jd_set_deposit_covers, "%.0f".format(suggested))
+            )
         }
         Text(
             if (paidSoFar > 0.005)
@@ -1503,7 +1677,17 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // off the estimate total instead, and anything that disagrees with it is
     // called out rather than quietly billed.
     val totals by viewModel.contractTotal.collectAsState()
-    val contractTotal = totals.grandTotal
+    // The figure the customer is billed against (JobMoney.billableTotal): the
+    // price they accepted, plus extra work they have signed since, once they
+    // have accepted -- the live estimate only until then. Everything below
+    // used to take the live estimate, which kept moving after acceptance
+    // (a catalog price, a regenerated takeoff, a reverted quantity), so the
+    // balance, the payment request and the "deposit is more than the job"
+    // check all moved with it. The quote page and the payment link read the
+    // same figure now, through the contract_total JobSync pushes.
+    val liveTotal = totals.grandTotal
+    val anchored = JobMoney.anchoredTotal(job, orders)
+    val contractTotal = anchored ?: liveTotal
     val netPaid = JobMoney.netPaid(job)
     val stillOwed = JobMoney.stillOwed(job, contractTotal)
 
@@ -1547,7 +1731,24 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
             Column(Modifier.padding(12.dp)) {
-                MoneyLine(stringResource(R.string.jd_contract_total), contractTotal)
+                MoneyLine(
+                    stringResource(if (anchored != null) R.string.jd_accepted_price else R.string.jd_contract_total),
+                    contractTotal
+                )
+                // Both figures when they part company, so nobody wonders which
+                // one is real: the accepted price is what is billed, and the
+                // estimate moving since changes nothing until the customer
+                // agrees to it (a signed change order, or a new approval).
+                if (anchored != null && kotlin.math.abs(liveTotal - anchored) > 0.005) {
+                    Text(
+                        stringResource(
+                            R.string.jd_accepted_vs_estimate,
+                            Money.format(liveTotal).removePrefix("$")
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
                 // With a refund in play the lines have to SUM: paid gross,
                 // minus refunded, equals kept. The old box put the net figure
                 // on the "Paid so far" line and then listed the refund under
@@ -1582,9 +1783,14 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
-                if (totals.changeOrderCost > 0.0) {
+                // Against an accepted price, the extra work in it is what was
+                // signed since acceptance; anything before is already inside
+                // the figure the customer accepted.
+                val extraWork = if (anchored != null) JobMoney.extraWorkSinceAcceptance(job, orders)
+                    else totals.changeOrderCost
+                if (extraWork > 0.0) {
                     Text(
-                        stringResource(R.string.jd_includes_extra_work, Money.format(totals.changeOrderCost).removePrefix("$")),
+                        stringResource(R.string.jd_includes_extra_work, Money.format(extraWork).removePrefix("$")),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -2121,19 +2327,32 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
             Column(Modifier.padding(12.dp)) {
+                val jobNow by viewModel.job.collectAsState()
+                // Once a price is accepted, the "+" line is what moves that
+                // price -- extra work signed since -- so it adds up to the new
+                // total under it. It showed every order's cost (unsigned ones,
+                // and ones already inside the accepted price) above a total
+                // that had not moved: "+$900" over the same figure as before.
+                val j = jobNow
+                val anchored = j?.let { JobMoney.anchoredTotal(it, orders) }
+                val extra = if (j != null && anchored != null) JobMoney.extraWorkSinceAcceptance(j, orders) else totals.changeOrderCost
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.jd_extra_work_approved), color = MaterialTheme.colorScheme.onSecondaryContainer)
                     Text(
-                        "+" + Money.format(totals.changeOrderCost) +
-                            if (totals.changeOrderFeet > 0) "  " + stringResource(R.string.jd_plus_feet_paren, "%.0f".format(totals.changeOrderFeet)) else "",
+                        "+" + Money.format(extra) +
+                            if (anchored == null && totals.changeOrderFeet > 0) "  " + stringResource(R.string.jd_plus_feet_paren, "%.0f".format(totals.changeOrderFeet)) else "",
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
+                // The same figure the payment section bills against: once the
+                // customer has accepted a price, the new total is that price
+                // plus extra work signed since, not the live recompute.
+                val newTotal = anchored ?: totals.grandTotal
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.jd_new_contract_total), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     Text(
-                        Money.format(totals.grandTotal),
+                        Money.format(newTotal),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -2935,6 +3154,12 @@ private suspend fun fetchQuoteToken(context: android.content.Context, syncId: St
             }
             .decodeSingleOrNull<QuoteTokenRow>()?.quoteToken
     }.onFailure { e ->
+        // Leaving the job screen mid-fetch cancels this. That is not a
+        // failure, and must stay a cancellation: runCatching caught it, and
+        // it reached the admin page as "The coroutine scope left the
+        // composition" (1.279). CrashReporter now drops cancellations and
+        // lost connections itself; rethrown here so the caller stops too.
+        if (e is kotlinx.coroutines.CancellationException) throw e
         // Swallowing this was why the app could only ever blame the signal.
         CrashReporter.report(context, "quote-link", e)
     }

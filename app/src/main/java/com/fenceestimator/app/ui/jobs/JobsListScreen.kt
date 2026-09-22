@@ -31,7 +31,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Handyman
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewKanban
@@ -91,15 +93,31 @@ fun JobsListScreen(
     onOpenPipeline: () -> Unit,
     onOpenTimeApproval: () -> Unit,
     /**
-     * Straight to Account & Team, not via Settings. Settings is behind the
-     * catalog permission, so telling a signed-out crew member to go that way
-     * sends them into a wall on the one screen that could fix their problem.
+     * Straight to Account & Team, not via Settings. It is one tap from the
+     * sync card, and a signed-out phone should not have to find its way
+     * through a menu to the one screen that fixes its problem.
      */
-    onOpenAccount: () -> Unit
+    onOpenAccount: () -> Unit,
+    /** "Other jobs -- request access", for a crew member the server shows only their own jobs. */
+    onOpenRequestAccess: () -> Unit,
+    /** The waiting access requests, for someone who answers them. */
+    onOpenAccessRequests: () -> Unit,
+    /**
+     * A job kept on this phone after its person was taken off it opens on the
+     * crew screen, not the office one: that is where a running shift is
+     * clocked out, and nothing on it pretends the job can still be edited.
+     */
+    onOpenCrewJob: (Long) -> Unit
 ) {
     val app = currentApp()
-    val viewModel: JobsViewModel = viewModel(factory = GenericViewModelFactory { JobsViewModel(app.repository) })
+    val viewModel: JobsViewModel = viewModel(
+        factory = GenericViewModelFactory { JobsViewModel(app.repository, app.session) }
+    )
     val jobs by viewModel.jobs.collectAsState()
+    val heldJobs by viewModel.heldJobs.collectAsState()
+    val jobScope by viewModel.jobScope.collectAsState()
+    val accessRequestsWaiting by viewModel.accessRequestsWaiting.collectAsState()
+    val online by app.connectivity.online.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = com.fenceestimator.app.data.BusinessProfile())
     val session by app.session.state.collectAsState()
     val ent = com.fenceestimator.app.ui.components.LocalEntitlements.current
@@ -167,6 +185,34 @@ fun JobsListScreen(
         updateLifecycle.lifecycle.addObserver(watcher)
         onDispose { updateLifecycle.lifecycle.removeObserver(watcher) }
     }
+    // Which jobs this person may see, asked again on the way back to the
+    // front -- an assignment made while the phone was in a pocket should be
+    // reflected when it comes out, not at the next sync pass. One small RPC;
+    // offline it keeps the last answer (JobAccess.scope never flickers).
+    androidx.compose.runtime.DisposableEffect(updateLifecycle) {
+        val watcher = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.refreshScope()
+        }
+        updateLifecycle.lifecycle.addObserver(watcher)
+        onDispose { updateLifecycle.lifecycle.removeObserver(watcher) }
+    }
+    // Only a definite "scoped" answer changes the list; see scopedHome().
+    val scoped = scopedHome(jobScope, visibleJobs = jobs.size, keptJobs = heldJobs.size)
+    // The crew's own card (see the list item below), read up here so the list
+    // can ask whether it has anything to say even when no job is showing: a
+    // shift sent back on a job this person has since been taken off is still
+    // their pay, and with only kept jobs left the list itself is empty.
+    val isCrewRole = session.role == com.fenceestimator.app.cloud.UserRole.CREW
+    val crewAttentionViewModel: com.fenceestimator.app.ui.crew.CrewAttentionViewModel? =
+        if (isCrewRole) viewModel(
+            factory = GenericViewModelFactory {
+                com.fenceestimator.app.ui.crew.CrewAttentionViewModel(
+                    app.repository, app.session, com.fenceestimator.app.ui.crew.CrewAttentionAckStore(app)
+                )
+            }
+        ) else null
+    val crewAttentionItems = crewAttentionViewModel?.items?.collectAsState()?.value.orEmpty()
+    val keptJobIds = heldJobs.map { it.id }.toSet()
     pendingUpdate?.takeIf { !updateDismissed }?.let { release ->
         val ctx = androidx.compose.ui.platform.LocalContext.current
         val updateScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -270,8 +316,13 @@ fun JobsListScreen(
                     IconButton(onClick = onOpenSchedule) {
                         Icon(Icons.Filled.CalendarMonth, contentDescription = "Schedule")
                     }
-                    IconButton(onClick = onOpenCustomers) {
-                        Icon(Icons.Filled.People, contentDescription = "Customers")
+                    // The customer list is nothing but contact details, and its
+                    // route refuses anyone without them -- so the icon only
+                    // led crew to a wall.
+                    if (session.canSeeCustomerContact) {
+                        IconButton(onClick = onOpenCustomers) {
+                            Icon(Icons.Filled.People, contentDescription = "Customers")
+                        }
                     }
                     if (session.canSeeMoney && ent.pipeline) {
                         IconButton(onClick = onOpenPipeline) {
@@ -284,34 +335,44 @@ fun JobsListScreen(
                     // Catalog and settings live in the overflow rather than on
                     // the bar: they are opened occasionally, and each icon on
                     // the bar is width taken from the business name.
-                    if (session.canEditCatalogAndSettings) {
-                        var moreOpen by remember { mutableStateOf(false) }
-                        IconButton(onClick = { moreOpen = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
-                        }
-                        DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                    // The menu is for everyone. Crew had no way to reach theme,
+                    // language, auto-lock, Help or sign-out; Settings now opens
+                    // the screen that fits the person (see Routes.SETTINGS). The
+                    // catalog stays with the people who can edit it.
+                    var moreOpen by remember { mutableStateOf(false) }
+                    IconButton(onClick = { moreOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                        if (session.canEditCatalogAndSettings) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.jobs_materials_catalog)) },
                                 leadingIcon = { Icon(Icons.Filled.Handyman, contentDescription = null) },
                                 onClick = { moreOpen = false; onOpenCatalog() }
                             )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.jobs_settings)) },
-                                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                                onClick = { moreOpen = false; onOpenSettings() }
-                            )
                         }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.jobs_settings)) },
+                            leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                            onClick = { moreOpen = false; onOpenSettings() }
+                        )
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.createJob(profile) { id -> onOpenJob(id) } },
-                containerColor = MaterialTheme.colorScheme.secondary,
-                contentColor = MaterialTheme.colorScheme.onSecondary
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.jobs_new_job))
+            // Only for someone who can make a job. A crew phone's new job
+            // could never reach the office -- the crew door takes updates to
+            // jobs it already has, never a new one -- so the button made work
+            // that lived and died on one handset.
+            if (session.canEditJobs) {
+                FloatingActionButton(
+                    onClick = { viewModel.createJob(profile) { id -> onOpenJob(id) } },
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.jobs_new_job))
+                }
             }
         }
     ) { padding ->
@@ -339,12 +400,24 @@ fun JobsListScreen(
             onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize().padding(padding)
         ) {
-        if (jobs.isEmpty()) {
+        // The plain empty state only when the scope has nothing to add. A
+        // scoped crew member with no jobs gets the list below instead, which
+        // says why in words (not linked, none yet, on the way), keeps the
+        // sync card in view so an empty list is never read as a failed sync,
+        // and still offers "request access" and anything kept on the phone.
+        val nothingToSay = scoped.notice == ScopedNotice.NONE && !scoped.offerRequestAccess && !scoped.showKept
+        if (jobs.isEmpty() && nothingToSay) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(stringResource(R.string.jobs_no_jobs), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.jobs_tap_to_start), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        // "Tap +" only where there is a + to tap.
+                        stringResource(
+                            if (session.canEditJobs) R.string.jobs_tap_to_start else R.string.jobs_empty_office_adds
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         } else {
@@ -548,46 +621,119 @@ fun JobsListScreen(
                         }
                     }
                 }
+                // Crew waiting on an answer, for whoever gives one. A banner
+                // for the same reason as the hours above: a request sits in a
+                // queue nobody opens, and the person who asked is stood in a
+                // yard waiting. Zero -- no banner -- on a server without the
+                // crew scope, or when the count could not be read.
+                if (session.canScheduleAndAssign && accessRequestsWaiting > 0) {
+                    item {
+                        Card(
+                            onClick = onOpenAccessRequests,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Column(Modifier.padding(14.dp)) {
+                                Text(
+                                    stringResource(R.string.jobs_access_requests_waiting, accessRequestsWaiting),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Text(
+                                    stringResource(R.string.jobs_access_requests_waiting_body),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
+                // Why a scoped crew member's list is short or empty, in words.
+                // "Not linked" above all must never look like a sync that
+                // failed: it is the office's to fix, and nothing on this phone
+                // will change it.
+                if (scoped.notice != ScopedNotice.NONE) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    stringResource(
+                                        when (scoped.notice) {
+                                            ScopedNotice.NOT_LINKED -> R.string.jobs_scope_not_linked
+                                            ScopedNotice.ON_THE_WAY -> R.string.jobs_scope_on_the_way
+                                            else -> R.string.jobs_scope_none_assigned
+                                        }
+                                    ),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    stringResource(
+                                        when (scoped.notice) {
+                                            ScopedNotice.NOT_LINKED -> R.string.jobs_scope_not_linked_body
+                                            ScopedNotice.ON_THE_WAY -> R.string.jobs_scope_on_the_way_body
+                                            else -> R.string.jobs_scope_none_assigned_body
+                                        }
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
                 // Crew's own view of "what is waiting on me" -- see
                 // ui/crew/CrewAttention.kt for why this is a closed, separate
                 // list rather than a filtered slice of the office dashboard
                 // below. Gated on the base CREW role only: a foreman already
                 // gets the fuller picture (schedule, approvals, customer
                 // contact) below, and this narrower card would only bury the
-                // things a foreman is actually meant to see first.
-                if (session.role == com.fenceestimator.app.cloud.UserRole.CREW) {
+                // things a foreman is actually meant to see first. Not shown
+                // with no jobs and nothing to say: "all clear" under "no jobs
+                // assigned to you" says nothing, and under "not linked" says
+                // something false. Shown whenever it HAS something, though --
+                // a shift sent back on a job this person was taken off is
+                // theirs to answer, and it used to be hidden along with the
+                // card whenever the list was empty.
+                if (isCrewRole && (jobs.isNotEmpty() || crewAttentionItems.isNotEmpty())) {
                     item {
-                        val ackStore = remember { com.fenceestimator.app.ui.crew.CrewAttentionAckStore(app) }
-                        val attentionViewModel: com.fenceestimator.app.ui.crew.CrewAttentionViewModel = viewModel(
-                            factory = GenericViewModelFactory {
-                                com.fenceestimator.app.ui.crew.CrewAttentionViewModel(
-                                    app.repository, app.session, ackStore
-                                )
-                            }
-                        )
-                        val attentionItems by attentionViewModel.items.collectAsState()
-                        val online by app.connectivity.online.collectAsState()
                         val sync by app.autoSync.state.collectAsState()
                         com.fenceestimator.app.ui.crew.CrewAttentionSection(
-                            items = attentionItems,
+                            items = crewAttentionItems,
                             online = online,
                             lastSyncedAt = sync.lastSyncedAt,
-                            onOpenJob = onOpenJob,
-                            onDismiss = { key -> attentionViewModel.dismiss(key) }
+                            // A kept job opens where a kept job opens (see
+                            // onOpenCrewJob), not on the office screen.
+                            onOpenJob = { id -> if (id in keptJobIds) onOpenCrewJob(id) else onOpenJob(id) },
+                            onDismiss = { key -> crewAttentionViewModel?.dismiss(key) }
                         )
                     }
                 }
-                item {
+                if (jobs.isNotEmpty()) item {
                     HomeDashboard(
                         ownerName = profile.ownerName,
                         jobs = jobs,
                         jobTotals = jobTotals,
                         payments = allPayments,
-                        pendingHours = pendingHours.size,
+                        // Only someone who can approve hours gets the count at
+                        // all. It is every finished shift on the phone -- the
+                        // crew member's own the moment they clock out, and every
+                        // colleague's -- and it opened a queue that told crew
+                        // they could not approve anything.
+                        pendingHours = if (session.canApproveTime && ent.timeAndCrew) pendingHours.size else 0,
                         pendingPlanChanges = pendingPlanChanges,
                         outstanding = outstanding,
                         cards = com.fenceestimator.app.data.HomeCard.parse(profile.homeCardsCsv),
                         showMoney = session.canSeeMoney,
+                        permissions = session.permissions,
+                        isCrew = session.role == com.fenceestimator.app.cloud.UserRole.CREW,
                         workdayHours = (profile.workdayHours - profile.breakHoursPerDay)
                             .coerceAtLeast(1.0),
                         onOpenJob = onOpenJob,
@@ -612,7 +758,7 @@ fun JobsListScreen(
                             j.customerName.contains(query, ignoreCase = true) ||
                             j.address.contains(query, ignoreCase = true))
                 }
-                item {
+                if (jobs.isNotEmpty()) item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
                         Text(
                             stringResource(R.string.home_jobs),
@@ -667,7 +813,10 @@ fun JobsListScreen(
                         customerName = job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
                         address = job.address,
                         status = job.status,
-                        trailingText = Money.short(jobTotals[job.id] ?: 0.0),
+                        // No price without SEE_MONEY. A crew phone's copy of
+                        // the job has had its money scrubbed to defaults, so
+                        // this was a made-up figure as well as a forbidden one.
+                        trailingText = if (session.canSeeMoney) Money.short(jobTotals[job.id] ?: 0.0) else "",
                         onClick = { onOpenJob(job.id) },
                         showStatusPill = true,
                         action = if (session.canDelete) {
@@ -682,6 +831,83 @@ fun JobsListScreen(
                             }
                         } else null
                     )
+                }
+
+                // The rest of the company's won work, which this person may
+                // ask for. Offered only to a linked, scoped login (the only
+                // one the server lets ask), and online only -- the list lives
+                // on the server, so offline it says so instead of opening.
+                if (scoped.offerRequestAccess) {
+                    item {
+                        Card(
+                            onClick = onOpenRequestAccess,
+                            enabled = online,
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                        ) {
+                            Row(
+                                Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(Icons.Filled.LockOpen, contentDescription = null)
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.jobs_other_jobs_request),
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                    Text(
+                                        stringResource(
+                                            if (online) R.string.jobs_other_jobs_request_body
+                                            else R.string.access_needs_connection
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    Icons.Filled.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Jobs this phone keeps after its person was taken off them.
+                // Hidden from the list, never deleted: a shift may still be
+                // running on one, and anything not sent yet waits here until
+                // access comes back. They open on the crew screen, where a
+                // shift is clocked out.
+                if (scoped.showKept) {
+                    item {
+                        Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                stringResource(R.string.jobs_kept_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                stringResource(R.string.jobs_kept_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    items(heldJobs, key = { "kept-${it.id}" }) { job ->
+                        JobRow(
+                            customerName = job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
+                            address = job.address,
+                            status = job.status,
+                            trailingText = "",
+                            onClick = { onOpenCrewJob(job.id) },
+                            // Only the job row itself can say it holds an edit
+                            // the office has not got; shifts and photos are
+                            // covered by the explanation above.
+                            caption = if (com.fenceestimator.app.data.jobHoldsUnpushedEdit(job))
+                                stringResource(R.string.jobs_kept_unsent) else null
+                        )
+                    }
                 }
             }
         }

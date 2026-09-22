@@ -376,13 +376,19 @@ class ReportsViewModel(
                 // it never was -- nobody agreed to pay it.
                 outstanding = jobs.filter { it.status.isWon }.map { job ->
                     val runs = repository.getFenceRuns(job.id)
-                    val contract = EstimateEngine.computeTotals(
+                    val orders = repository.getChangeOrders(job.id)
+                    val live = EstimateEngine.computeTotals(
                         job,
                         repository.getLineItems(job.id),
                         EstimateEngine.linearFeet(job, runs),
-                        repository.getChangeOrders(job.id),
+                        orders,
                         runs
                     ).grandTotal
+                    // What the customer agreed to pay, as the job screen and
+                    // the payment link bill it. The live recompute moves after
+                    // acceptance, and listed a job accepted at $3,620 as owing
+                    // nothing because it now recomputed to $200.
+                    val contract = JobMoney.billableTotal(job, live, orders)
                     OwedRow(
                         job.customerName.ifBlank { untitled }, job.status.name,
                         contract, JobMoney.netPaid(job)

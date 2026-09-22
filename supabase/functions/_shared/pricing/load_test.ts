@@ -285,7 +285,7 @@ check("isStale: an unparsable actual value cannot be proven fresh either", isSta
 {
   // A run that used to have a PANEL and a hand-typed extra (role NONE), plus
   // a job-level line with no run at all. The regenerate keeps the same PANEL
-  // sync id (carried over), drops a CONCRETE_BAG that no longer matches
+  // sync id at a new quantity, drops a CONCRETE_BAG that no longer matches
   // anything, and must never touch the NONE row or the job-level row.
   const existing: DbLineItemRow[] = [
     lineItemRow("panel-1", { fence_run_sync_id: "run-1", role: "PANEL" }),
@@ -295,7 +295,7 @@ check("isStale: an unparsable actual value cannot be proven fresh either", isSta
     lineItemRow("otherrun-1", { fence_run_sync_id: "run-2", role: "PANEL" }),
   ];
   const plan = buildCommitPlan({
-    output: output([itemOutput({ sync_id: "panel-1", fence_run_sync_id: "run-1" })]),
+    output: output([itemOutput({ sync_id: "panel-1", fence_run_sync_id: "run-1", quantity: 12 })]),
     companyId: "company-1",
     jobSyncId: "job-1",
     pricedRunSyncIds: ["run-1"],
@@ -306,7 +306,7 @@ check("isStale: an unparsable actual value cannot be proven fresh either", isSta
   check("buildCommitPlan: upserts exactly the output rows", plan.upsertItems.map((i) => i.sync_id), ["panel-1"]);
   check("buildCommitPlan: upserted row carries company/job ids and resets the tombstone", plan.upsertItems[0], {
     company_id: "company-1", sync_id: "panel-1", job_sync_id: "job-1", fence_run_sync_id: "run-1",
-    sort_order: 0, description: "Panel", quantity: 10, unit: "EA", unit_price: 52.35,
+    sort_order: 0, description: "Panel", quantity: 12, unit: "EA", unit_price: 52.35,
     supplier_unit_price: null, taxable: true, role: "PANEL", auto_generated: true,
     deleted_at: null, deleted_by: "",
   });
@@ -315,17 +315,23 @@ check("isStale: an unparsable actual value cannot be proven fresh either", isSta
   });
 }
 {
-  // A teardown run: it never produces items, so every roled row of it
-  // tombstones -- TakeoffRefresher's "marking a run teardown clears its
-  // materials", reproduced without any special case in buildCommitPlan.
+  // A teardown run: the engine builds nothing for it, so every generated
+  // roled row of it tombstones -- TakeoffRefresher's "marking a run teardown
+  // clears its materials", reproduced without any special case in
+  // buildCommitPlan. A line somebody typed a number into is theirs: the
+  // engine lists it as it is, and the commit neither writes nor removes it.
+  const edited = lineItemRow("typed-bag-1", { fence_run_sync_id: "teardown-1", role: "CONCRETE_BAG", auto_generated: false, quantity: 5 });
   const existing: DbLineItemRow[] = [
     lineItemRow("old-panel-1", { fence_run_sync_id: "teardown-1", role: "PANEL" }),
+    edited,
   ];
   const plan = buildCommitPlan({
-    output: output([]), companyId: "co", jobSyncId: "job-1",
+    output: output([itemOutput({ sync_id: "typed-bag-1", fence_run_sync_id: "teardown-1", role: "CONCRETE_BAG", quantity: 5, auto_generated: false })]),
+    companyId: "co", jobSyncId: "job-1",
     pricedRunSyncIds: ["teardown-1"], existingItems: existing, nowIso: "now",
   });
-  check("buildCommitPlan: teardown run's materials all tombstone", plan.tombstoneSyncIds, ["old-panel-1"]);
+  check("buildCommitPlan: teardown run's generated materials all tombstone", plan.tombstoneSyncIds, ["old-panel-1"]);
+  check("buildCommitPlan: teardown run's edited line is never written", plan.upsertItems, []);
 }
 {
   // An existing row naming a run this call did NOT price is left alone --

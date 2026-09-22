@@ -27,7 +27,7 @@ const d = s => s ? new Date(s) : null;
 const netPaid = j => Math.max(0, (j.amount_paid || 0) - (j.refunded_amount || 0));
 
 const lib = new Function('money', 'd', 'netPaid',
-  grab('jobReadiness') + '\n' + grab('jobHeaderModel') +
+  grab('depositAskedOf') + '\n' + grab('jobReadiness') + '\n' + grab('jobHeaderModel') +
   '\nreturn { jobReadiness, jobHeaderModel };')(money, d, netPaid);
 const { jobHeaderModel } = lib;
 

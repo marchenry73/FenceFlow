@@ -349,12 +349,22 @@ object ParityCases {
         }
     )
 
-    /* ---------------- existing rows: carry-over and survivors ---------------- */
+    /*
+     * ---------------- existing rows: the regenerate and what survives it ----------------
+     *
+     * What a regenerate does to the lines already on a run is the phone's
+     * TakeoffLineMerge (PricingRunner calls it): an edited line is kept as it
+     * is and stands in for the built line it corrects, generated lines give
+     * way, supplier quotes carry by role, a typed price is never copied onto
+     * another line. Existing rows get ids at slot 100+ unless a case gives the
+     * one the build produces ([CaseBuilder.lineId]).
+     */
 
     private fun carryOverCases() = listOf(
-        case(52, "hand-edited-price-carry-over") {
-            note = "An edited LINE_POST price is carried and flips the line to auto_generated=false; an edited price equal to " +
-                "the catalog's does not flip; an edit on a role this run no longer produces is dropped."
+        case(52, "hand-edited-lines-kept") {
+            note = "Lines edited by hand stand in for the built line of their role and keep their own quantity and price " +
+                "(LINE_POST at a typed \$14, POST_CAP at the catalog's own price); an edited GATE_PANEL on a run that builds " +
+                "no gate is kept, never dropped; the generated CONCRETE_BAG row gives way to the rebuild."
             val r = run(FenceType.VINYL, feet = 100.0, colour = "White")
             existing(1, r.syncId, "LINE_POST", "5\"x5\" Co-Ex Line Post, White", 16.0, 14.0, auto = false, sort = 1)
             existing(2, r.syncId, "POST_CAP", "5\" External Pyramid PVC Post Cap, White", 18.0, 0.74, auto = false, sort = 4)
@@ -362,22 +372,81 @@ object ParityCases {
             existing(4, r.syncId, "GATE_PANEL", "Regular PVC Gate 6'H x 5'W, White", 1.0, 199.0, auto = false, sort = 6)
         },
         case(53, "supplier-price-carry-over") {
-            note = "Supplier prices ride over by role whatever the auto flag; the totals use them; a supplier price plus " +
-                "an edited catalog price carries both."
+            note = "The quote on a generated LINE_POST carries by role onto the rebuilt line and the totals use it; the " +
+                "edited PANEL and END_POST stand in for their built lines and keep their own quote and typed price."
             val r = run(FenceType.VINYL, feet = 100.0, colour = "White")
             existing(1, r.syncId, "LINE_POST", "5\"x5\" Co-Ex Line Post, White", 16.0, 16.56, supplier = 15.0, auto = true, sort = 1)
             existing(2, r.syncId, "PANEL", "Panel T&G Vinyl Privacy 6'H x 6'W - White", 17.0, 52.35, supplier = 50.0, auto = false, sort = 0, taxable = false)
             existing(3, r.syncId, "END_POST", "5\"x5\" Co-Ex End Post, White", 2.0, 20.0, supplier = 18.0, auto = false, sort = 3)
         },
         case(54, "hand-added-extras-survive") {
-            note = "Role-NONE rows on the run and any row with no run survive into the totals; a stale auto row and an edited " +
-                "roled row on the run are replaced; a roled row with no run survives but feeds no carry-over."
+            note = "Role-NONE rows on the run and any row with no run survive into the totals; a stale generated row on the " +
+                "run is replaced; an edited HOLE_PLUG the run no longer builds is kept as it is; a roled row with no run " +
+                "survives but carries nothing."
             val r = run(FenceType.VINYL, feet = 100.0, colour = "White")
             existing(1, r.syncId, "NONE", "Permit fee", 1.0, 150.0, auto = false, sort = 50, taxable = false)
             existing(2, null, "NONE", "Delivery", 1.0, 75.0, auto = false, sort = 51)
             existing(3, r.syncId, "LINE_POST", "5\"x5\" Co-Ex Line Post, White", 99.0, 16.56, auto = true, sort = 1)
             existing(4, r.syncId, "HOLE_PLUG", "5/8\" Hole Plug, White", 4.0, 0.5, auto = false, sort = 9)
             existing(5, null, "LINE_POST", "Loose post", 1.0, 1.0, auto = false, sort = 2)
+        },
+        case(78, "edited-quantity-stands-in-by-sync-id") {
+            note = "The owner typed 18 panels where the drawing says 17. The edited line carries the built line's own sync id, " +
+                "so it IS that line: kept at 18 and nothing written beside it. The untouched LINE_POST is rebuilt as it " +
+                "was, and the quote on the generated END_POST carries."
+            val r = run(FenceType.VINYL, feet = 100.0, colour = "White")
+            existing(
+                1, r.syncId, "PANEL", "Panel T&G Vinyl Privacy 6'H x 6'W - White", 18.0, 52.35, auto = false, sort = 0,
+                taxable = false, syncId = lineId(r, MaterialRole.PANEL)
+            )
+            existing(
+                2, r.syncId, "LINE_POST", "5\"x5\" Co-Ex Line Post, White", 16.0, 16.56, auto = true, sort = 1,
+                syncId = lineId(r, MaterialRole.LINE_POST)
+            )
+            existing(
+                3, r.syncId, "END_POST", "5\"x5\" Co-Ex End Post, White", 2.0, 16.56, supplier = 15.5, auto = true, sort = 2,
+                syncId = lineId(r, MaterialRole.END_POST)
+            )
+        },
+        case(79, "edited-gate-claimed-by-name") {
+            note = "A 4 ft gate panel priced by hand at \$185, under the id it had as the only gate. A 6 ft gate added since " +
+                "makes GATE_PANEL repeat, so both built panels get width ids; the edited line claims the one with its " +
+                "product name (the 4 ft), and the 6 ft is written at its catalog \$230, not the typed \$185."
+            item(20, MaterialRole.GATE_PANEL, FenceType.VINYL, "Vinyl Gate 6'H x 4'W, White", 170.0, MaterialCategory.GATE, covers = 4.0, colour = "White")
+            item(21, MaterialRole.GATE_PANEL, FenceType.VINYL, "Vinyl Gate 6'H x 6'W, White", 230.0, MaterialCategory.GATE, covers = 6.0, colour = "White")
+            val r = run(FenceType.VINYL, feet = 100.0, colour = "White", gates = gates(gate(400, 0, 4.0), gate(1200, 0, 6.0)))
+            existing(
+                1, r.syncId, "GATE_PANEL", "Vinyl Gate 6'H x 4'W, White", 1.0, 185.0, auto = false, sort = 4,
+                syncId = lineId(r, MaterialRole.GATE_PANEL)
+            )
+        },
+        case(80, "edited-gate-unidentified-kept-beside") {
+            note = "An edited GATE_PANEL whose id the build does not produce and whose name matches neither built panel: " +
+                "nothing identifies it, so nothing is claimed. Both built panels are written and the edited line stays " +
+                "beside them -- an extra line beats a gate missing from the order."
+            item(20, MaterialRole.GATE_PANEL, FenceType.VINYL, "Vinyl Gate 6'H x 4'W, White", 170.0, MaterialCategory.GATE, covers = 4.0, colour = "White")
+            item(21, MaterialRole.GATE_PANEL, FenceType.VINYL, "Vinyl Gate 6'H x 6'W, White", 230.0, MaterialCategory.GATE, covers = 6.0, colour = "White")
+            val r = run(FenceType.VINYL, feet = 100.0, colour = "White", gates = gates(gate(400, 0, 4.0), gate(1200, 0, 6.0)))
+            existing(1, r.syncId, "GATE_PANEL", "Custom arch gate", 1.0, 400.0, auto = false, sort = 4)
+        },
+        case(81, "teardown-run-keeps-edited-line") {
+            note = "A teardown run builds nothing: its generated WOOD_PICKET row goes, and the CONCRETE_BAG somebody typed onto " +
+                "it stays and counts. The teardown charge prices as in teardown-drawn-run."
+            job = job.copy(teardownEnabled = true, teardownRatePerFt = 3.0)
+            run(FenceType.VINYL, feet = 100.0)
+            val old = run(FenceType.WOOD, feet = 60.0, teardown = true, label = "old fence")
+            existing(1, old.syncId, "WOOD_PICKET", "Wood picket", 131.0, 3.25, auto = true, sort = 0)
+            existing(2, old.syncId, "CONCRETE_BAG", "Concrete Mix 60lb Bag", 4.0, 4.75, auto = false, sort = 1)
+        },
+        case(82, "quote-carry-in-estimate-order") {
+            note = "Two gate panel quotes on one run, handed over out of order. The carry reads the run's lines the way the " +
+                "phone's DAO does (sort_order, then sync_id), so the $250 quote on the later line is the one both widths " +
+                "carry, whatever order the rows arrive in -- and a database read has no order of its own."
+            item(20, MaterialRole.GATE_PANEL, FenceType.VINYL, "Vinyl Gate 6'H x 4'W, White", 170.0, MaterialCategory.GATE, covers = 4.0, colour = "White")
+            item(21, MaterialRole.GATE_PANEL, FenceType.VINYL, "Vinyl Gate 6'H x 6'W, White", 230.0, MaterialCategory.GATE, covers = 6.0, colour = "White")
+            val r = run(FenceType.VINYL, feet = 100.0, colour = "White", gates = gates(gate(400, 0, 4.0), gate(1200, 0, 6.0)))
+            existing(1, r.syncId, "GATE_PANEL", "Vinyl Gate 6'H x 6'W, White", 1.0, 230.0, supplier = 250.0, auto = true, sort = 11)
+            existing(2, r.syncId, "GATE_PANEL", "Vinyl Gate 6'H x 4'W, White", 1.0, 170.0, supplier = 190.0, auto = true, sort = 4)
         }
     )
 
@@ -598,6 +667,14 @@ object ParityCases {
             changeOrders += PricingChangeOrder(uuid(slot), feet, cost, materialCost)
         }
 
+        /**
+         * The sync id the engine gives [run]'s line of a [role] that appears
+         * once (EstimateEngine.deterministicSyncId, private there): what an
+         * existing row carries when it IS the line the build produces.
+         */
+        fun lineId(run: PricingRun, role: MaterialRole): String =
+            UUID.nameUUIDFromBytes("fenceflow-line:${run.syncId}:${role.name}".toByteArray()).toString()
+
         fun existing(
             slot: Int,
             runSyncId: String?,
@@ -609,11 +686,12 @@ object ParityCases {
             auto: Boolean,
             sort: Int,
             unit: String = "EA",
-            taxable: Boolean = true
+            taxable: Boolean = true,
+            syncId: String? = null
         ) {
             // Slots 1..n are the runs; existing rows live at 100+ so they never collide.
             existingItems += PricingExistingItem(
-                syncId = uuid(100 + slot), fenceRunSyncId = runSyncId, role = role, description = description,
+                syncId = syncId ?: uuid(100 + slot), fenceRunSyncId = runSyncId, role = role, description = description,
                 quantity = quantity, unit = unit, unitPrice = unitPrice, supplierUnitPrice = supplier,
                 taxable = taxable, autoGenerated = auto, sortOrder = sort
             )

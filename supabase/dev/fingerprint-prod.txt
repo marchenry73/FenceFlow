@@ -1,4 +1,5 @@
 BUCKET job-files public=f
+BUCKET mail-files public=f
 BUCKET releases public=t
 COLUMN app_errors.android text null default=-
 COLUMN app_errors.at timestamp with time zone notnull default=now()
@@ -13,6 +14,11 @@ COLUMN app_errors.stack text notnull default=''::text
 COLUMN app_errors.version_code integer null default=-
 COLUMN app_errors.version_name text null default=-
 COLUMN app_errors.where_at text notnull default=''::text
+COLUMN app_release_audience.added_at timestamp with time zone notnull default=now()
+COLUMN app_release_audience.company_id uuid notnull default=-
+COLUMN app_release_audience.release_id uuid notnull default=-
+COLUMN app_releases.audience text notnull default='everyone'::text
+COLUMN app_releases.available_from timestamp with time zone null default=-
 COLUMN app_releases.download_url text notnull default=''::text
 COLUMN app_releases.id uuid notnull default=gen_random_uuid()
 COLUMN app_releases.is_mandatory boolean notnull default=false
@@ -20,6 +26,24 @@ COLUMN app_releases.notes text notnull default=''::text
 COLUMN app_releases.released_at timestamp with time zone notnull default=now()
 COLUMN app_releases.version_code integer notnull default=-
 COLUMN app_releases.version_name text notnull default=-
+COLUMN attention_findings.cleared_at timestamp with time zone null default=-
+COLUMN attention_findings.cleared_by uuid null default=-
+COLUMN attention_findings.company_id uuid notnull default=-
+COLUMN attention_findings.created_at timestamp with time zone notnull default=now()
+COLUMN attention_findings.detector text notnull default=-
+COLUMN attention_findings.fp text notnull default=-
+COLUMN attention_findings.id uuid notnull default=gen_random_uuid()
+COLUMN attention_findings.job_sync_id uuid notnull default=-
+COLUMN attention_findings.message text notnull default=-
+COLUMN attention_findings.notified_at timestamp with time zone null default=-
+COLUMN attention_findings.severity text notnull default='critical'::text
+COLUMN attention_sweep_settings.company_id uuid notnull default=-
+COLUMN attention_sweep_settings.enabled boolean notnull default=false
+COLUMN attention_sweep_settings.quiet_hours_end smallint notnull default=8
+COLUMN attention_sweep_settings.quiet_hours_start smallint notnull default=21
+COLUMN attention_sweep_settings.timezone text notnull default='America/New_York'::text
+COLUMN attention_sweep_settings.updated_at timestamp with time zone notnull default=now()
+COLUMN attention_sweep_settings.updated_by uuid null default=-
 COLUMN audit_log.action text notnull default=-
 COLUMN audit_log.actor uuid null default=-
 COLUMN audit_log.actor_email text null default=-
@@ -32,6 +56,78 @@ COLUMN audit_log.new_value text null default=-
 COLUMN audit_log.old_value text null default=-
 COLUMN audit_log.record_id text notnull default=-
 COLUMN audit_log.table_name text notnull default=-
+COLUMN auth_events.attempt_key text null default=-
+COLUMN auth_events.client_reported boolean notnull default=false
+COLUMN auth_events.created_at timestamp with time zone notnull default=now()
+COLUMN auth_events.detail text null default=-
+COLUMN auth_events.event_type text notnull default=-
+COLUMN auth_events.id uuid notnull default=gen_random_uuid()
+COLUMN auth_events.source_key text null default=-
+COLUMN auth_events.success boolean notnull default=-
+COLUMN auth_events.user_agent text null default=-
+COLUMN auth_events.user_id uuid null default=-
+COLUMN auth_events_suppressed.bucket timestamp with time zone notnull default=-
+COLUMN auth_events_suppressed.reason text notnull default=-
+COLUMN auth_events_suppressed.suppressed integer notnull default=0
+COLUMN automation_flags.cleared_at timestamp with time zone null default=-
+COLUMN automation_flags.cleared_by uuid null default=-
+COLUMN automation_flags.company_id uuid notnull default=-
+COLUMN automation_flags.created_at timestamp with time zone notnull default=now()
+COLUMN automation_flags.id uuid notnull default=gen_random_uuid()
+COLUMN automation_flags.job_sync_id uuid notnull default=-
+COLUMN automation_flags.message text notnull default=-
+COLUMN automation_flags.rule_key text notnull default=-
+COLUMN automation_rules.company_id uuid notnull default=-
+COLUMN automation_rules.enabled boolean notnull default=false
+COLUMN automation_rules.id uuid notnull default=gen_random_uuid()
+COLUMN automation_rules.rule_key text notnull default=-
+COLUMN automation_rules.updated_at timestamp with time zone notnull default=now()
+COLUMN automation_rules.updated_by uuid null default=-
+COLUMN automation_runs.company_id uuid notnull default=-
+COLUMN automation_runs.detail text null default=-
+COLUMN automation_runs.fired_at timestamp with time zone notnull default=now()
+COLUMN automation_runs.fired_by uuid null default=-
+COLUMN automation_runs.id uuid notnull default=gen_random_uuid()
+COLUMN automation_runs.job_sync_id uuid notnull default=-
+COLUMN automation_runs.result text notnull default='pending'::text
+COLUMN automation_runs.rule_key text notnull default=-
+COLUMN build_template_uses.company_id uuid notnull default=-
+COLUMN build_template_uses.fence_type text notnull default=-
+COLUMN build_template_uses.id bigint notnull default=nextval('build_template_uses_id_seq'::regclass)
+COLUMN build_template_uses.run_sync_id uuid null default=-
+COLUMN build_template_uses.template_sync_id uuid notnull default=-
+COLUMN build_template_uses.used_at timestamp with time zone notnull default=now()
+COLUMN build_template_uses.used_by uuid notnull default=auth.uid()
+COLUMN build_templates.aluminum_style text notnull default='RACKABLE'::text
+COLUMN build_templates.color_or_finish text notnull default=''::text
+COLUMN build_templates.company_id uuid null default=-
+COLUMN build_templates.concrete_bags_per_post real notnull default=1
+COLUMN build_templates.deleted_at timestamp with time zone null default=-
+COLUMN build_templates.deleted_by text notnull default=''::text
+COLUMN build_templates.derived_from_sync_id uuid null default=-
+COLUMN build_templates.description text notnull default=''::text
+COLUMN build_templates.fabric_height_ft real notnull default=4
+COLUMN build_templates.fence_type text notnull default='VINYL'::text
+COLUMN build_templates.gate_mounting text notnull default='LINE'::text
+COLUMN build_templates.gate_width_ft real notnull default=4
+COLUMN build_templates.id uuid notnull default=gen_random_uuid()
+COLUMN build_templates.include_barbed_wire_arms boolean notnull default=false
+COLUMN build_templates.include_privacy_slats boolean notnull default=false
+COLUMN build_templates.include_tension_wire boolean notnull default=false
+COLUMN build_templates.include_top_rail boolean notnull default=true
+COLUMN build_templates.is_default boolean notnull default=false
+COLUMN build_templates.name text notnull default=''::text
+COLUMN build_templates.panel_height_ft real notnull default=6
+COLUMN build_templates.panel_width_ft real notnull default=6
+COLUMN build_templates.picket_gap_in real notnull default=0
+COLUMN build_templates.picket_width_in real notnull default=5.5
+COLUMN build_templates.post_spacing_ft real notnull default=6
+COLUMN build_templates.sort_order integer notnull default=0
+COLUMN build_templates.split_rail_count integer notnull default=2
+COLUMN build_templates.sync_id uuid notnull default=gen_random_uuid()
+COLUMN build_templates.updated_at timestamp with time zone notnull default=now()
+COLUMN build_templates.wood_rail_count integer notnull default=3
+COLUMN build_templates.wood_style text notnull default='PRIVACY'::text
 COLUMN change_orders.additional_cost double precision notnull default=0
 COLUMN change_orders.additional_feet double precision notnull default=0
 COLUMN change_orders.company_id uuid notnull default=-
@@ -40,6 +136,7 @@ COLUMN change_orders.deleted_at timestamp with time zone null default=-
 COLUMN change_orders.deleted_by text notnull default=''::text
 COLUMN change_orders.description text notnull default=''::text
 COLUMN change_orders.id uuid notnull default=gen_random_uuid()
+COLUMN change_orders.in_accepted_total boolean notnull default=false
 COLUMN change_orders.job_sync_id uuid notnull default=-
 COLUMN change_orders.material_cost double precision notnull default=0
 COLUMN change_orders.signature_storage_path text null default=-
@@ -59,9 +156,11 @@ COLUMN companies.id uuid notnull default=gen_random_uuid()
 COLUMN companies.invited_at timestamp with time zone null default=-
 COLUMN companies.invited_email text null default=-
 COLUMN companies.joined_at timestamp with time zone null default=-
+COLUMN companies.leads_token uuid notnull default=gen_random_uuid()
 COLUMN companies.license_no text notnull default=''::text
 COLUMN companies.monthly_price numeric(10,2) notnull default=0
 COLUMN companies.name text notnull default=''::text
+COLUMN companies.pass_card_fee boolean notnull default=false
 COLUMN companies.phone text notnull default=''::text
 COLUMN companies.stripe_account_id text null default=-
 COLUMN companies.stripe_customer_id text null default=-
@@ -72,6 +171,7 @@ COLUMN companies.subscription_status text notnull default='pending'::text
 COLUMN companies.suspended boolean notnull default=false
 COLUMN companies.suspended_reason text notnull default=''::text
 COLUMN companies.trial_ends_at timestamp with time zone null default=-
+COLUMN companies.welcome_sent_at timestamp with time zone null default=-
 COLUMN company_settings.company_id uuid notnull default=-
 COLUMN company_settings.settings jsonb notnull default='{}'::jsonb
 COLUMN company_settings.updated_at timestamp with time zone notnull default=now()
@@ -145,6 +245,7 @@ COLUMN expenses.spent_at timestamp with time zone notnull default=now()
 COLUMN expenses.sync_id uuid null default=gen_random_uuid()
 COLUMN expenses.updated_at timestamp with time zone notnull default=now()
 COLUMN fence_runs.aluminum_style text notnull default='RACKABLE'::text
+COLUMN fence_runs.build_template_sync_id uuid null default=-
 COLUMN fence_runs.closed_loop boolean notnull default=false
 COLUMN fence_runs.color_or_finish text notnull default=''::text
 COLUMN fence_runs.company_id uuid notnull default=-
@@ -190,17 +291,47 @@ COLUMN field_changes.deleted_by text notnull default=''::text
 COLUMN field_changes.detail text notnull default=''::text
 COLUMN field_changes.id uuid notnull default=gen_random_uuid()
 COLUMN field_changes.is_request boolean notnull default=false
-COLUMN field_changes.job_sync_id text notnull default=-
+COLUMN field_changes.job_sync_id uuid notnull default=-
 COLUMN field_changes.rejected_at timestamp with time zone null default=-
 COLUMN field_changes.summary text notnull default=''::text
 COLUMN field_changes.sync_id text notnull default=-
+COLUMN follow_up_log.channel text notnull default='email'::text
+COLUMN follow_up_log.company_id uuid notnull default=-
+COLUMN follow_up_log.id uuid notnull default=gen_random_uuid()
+COLUMN follow_up_log.job_sync_id uuid notnull default=-
+COLUMN follow_up_log.kind text notnull default=-
+COLUMN follow_up_log.message_id text null default=-
+COLUMN follow_up_log.sent_at timestamp with time zone notnull default=now()
+COLUMN follow_up_log.stage_key text notnull default=-
+COLUMN follow_up_settings.approved_no_deposit_days integer notnull default=2
+COLUMN follow_up_settings.approved_no_deposit_enabled boolean notnull default=false
+COLUMN follow_up_settings.company_id uuid notnull default=-
+COLUMN follow_up_settings.daily_cap integer notnull default=25
+COLUMN follow_up_settings.enabled boolean notnull default=false
+COLUMN follow_up_settings.new_lead_not_contacted_enabled boolean notnull default=false
+COLUMN follow_up_settings.new_lead_not_contacted_hours integer notnull default=4
+COLUMN follow_up_settings.quiet_hours_end smallint notnull default=8
+COLUMN follow_up_settings.quiet_hours_start smallint notnull default=21
+COLUMN follow_up_settings.quote_sent_no_view_days integer notnull default=2
+COLUMN follow_up_settings.quote_sent_no_view_enabled boolean notnull default=false
+COLUMN follow_up_settings.quote_viewed_not_approved_days integer notnull default=3
+COLUMN follow_up_settings.quote_viewed_not_approved_enabled boolean notnull default=false
+COLUMN follow_up_settings.timezone text notnull default='America/New_York'::text
+COLUMN follow_up_settings.updated_at timestamp with time zone notnull default=now()
+COLUMN follow_up_settings.updated_by uuid null default=-
+COLUMN invite_sends.company_id uuid notnull default=-
+COLUMN invite_sends.email_hash text notnull default=''::text
+COLUMN invite_sends.id bigint notnull default=nextval('invite_sends_id_seq'::regclass)
+COLUMN invite_sends.sent_at timestamp with time zone notnull default=now()
+COLUMN invite_sends.sent_by uuid null default=-
 COLUMN job_payments.amount_cents bigint notnull default=-
 COLUMN job_payments.company_id uuid notnull default=-
 COLUMN job_payments.created_at timestamp with time zone notnull default=now()
 COLUMN job_payments.currency text notnull default='usd'::text
 COLUMN job_payments.external_id text notnull default=''::text
+COLUMN job_payments.fee_cents integer notnull default=0
 COLUMN job_payments.id uuid notnull default=gen_random_uuid()
-COLUMN job_payments.job_sync_id text notnull default=-
+COLUMN job_payments.job_sync_id uuid notnull default=-
 COLUMN job_payments.kind text notnull default='deposit'::text
 COLUMN job_payments.livemode boolean notnull default=false
 COLUMN job_payments.paid_at timestamp with time zone null default=-
@@ -208,6 +339,13 @@ COLUMN job_payments.payment_url text notnull default=''::text
 COLUMN job_payments.processor text notnull default='stripe'::text
 COLUMN job_payments.status text notnull default='pending'::text
 COLUMN job_payments.stripe_id text null default=-
+COLUMN job_stage_events.company_id uuid notnull default=-
+COLUMN job_stage_events.entered_at timestamp with time zone notnull default=now()
+COLUMN job_stage_events.entered_by uuid null default=-
+COLUMN job_stage_events.id uuid notnull default=gen_random_uuid()
+COLUMN job_stage_events.job_sync_id uuid notnull default=-
+COLUMN job_stage_events.left_stage production_stage null default=-
+COLUMN job_stage_events.stage production_stage notnull default=-
 COLUMN job_steps.checked boolean notnull default=false
 COLUMN job_steps.company_id uuid notnull default=-
 COLUMN job_steps.completed_at timestamp with time zone null default=-
@@ -218,15 +356,18 @@ COLUMN job_steps.id uuid notnull default=gen_random_uuid()
 COLUMN job_steps.job_sync_id uuid notnull default=-
 COLUMN job_steps.kind text notnull default='INSTALL'::text
 COLUMN job_steps.sort_order integer notnull default=0
+COLUMN job_steps.step_key text null default=-
 COLUMN job_steps.sync_id uuid notnull default=-
 COLUMN job_steps.updated_at timestamp with time zone notnull default=now()
 COLUMN job_steps.verified_with_customer boolean notnull default=false
+COLUMN jobs.accepted_total numeric null default=-
 COLUMN jobs.address text notnull default=''::text
 COLUMN jobs.amount_paid double precision notnull default=0
 COLUMN jobs.assigned_employee_id uuid null default=-
 COLUMN jobs.assigned_employee_sync_id text null default=-
 COLUMN jobs.blocked_at timestamp with time zone null default=-
 COLUMN jobs.blocked_reason text notnull default=''::text
+COLUMN jobs.build_template_sync_id uuid null default=-
 COLUMN jobs.calibration_known_feet double precision null default=-
 COLUMN jobs.calibration_pixels_per_foot double precision null default=-
 COLUMN jobs.company_id uuid notnull default=-
@@ -240,11 +381,18 @@ COLUMN jobs.deleted_at timestamp with time zone null default=-
 COLUMN jobs.deleted_by text notnull default=''::text
 COLUMN jobs.deposit_amount double precision notnull default=0
 COLUMN jobs.discount_percent double precision notnull default=0
+COLUMN jobs.dispute_amount numeric null default=-
+COLUMN jobs.dispute_closed_at timestamp with time zone null default=-
+COLUMN jobs.dispute_opened_at timestamp with time zone null default=-
+COLUMN jobs.dispute_reason text null default=-
+COLUMN jobs.dispute_status text null default=-
 COLUMN jobs.duration_manually_set boolean notnull default=false
 COLUMN jobs.email text notnull default=''::text
 COLUMN jobs.estimated_duration_hours double precision notnull default=4
 COLUMN jobs.final_sign_off_at timestamp with time zone null default=-
 COLUMN jobs.final_sign_off_storage_path text null default=-
+COLUMN jobs.first_contact_at timestamp with time zone null default=-
+COLUMN jobs.first_contact_by uuid null default=-
 COLUMN jobs.gate_rate_per_ft double precision null default=0
 COLUMN jobs.grid_extent_ft real notnull default=400
 COLUMN jobs.grid_feet_per_square double precision notnull default=0
@@ -253,6 +401,7 @@ COLUMN jobs.hoa_email text notnull default=''::text
 COLUMN jobs.hoa_name text notnull default=''::text
 COLUMN jobs.id uuid notnull default=gen_random_uuid()
 COLUMN jobs.is_invoiced boolean notnull default=false
+COLUMN jobs.is_test_fixture boolean notnull default=false
 COLUMN jobs.labor_flat_fee double precision notnull default=0
 COLUMN jobs.labor_rate_per_ft double precision notnull default=0
 COLUMN jobs.local_id bigint null default=-
@@ -263,8 +412,13 @@ COLUMN jobs.locate_notes text notnull default=''::text
 COLUMN jobs.locate_ticket_no text notnull default=''::text
 COLUMN jobs.markup_percent double precision notnull default=0
 COLUMN jobs.material_prices_confirmed_at timestamp with time zone null default=-
+COLUMN jobs.materials_note text null default=-
+COLUMN jobs.materials_ordered_at timestamp with time zone null default=-
+COLUMN jobs.materials_received_at timestamp with time zone null default=-
+COLUMN jobs.materials_status text notnull default='NOT_ORDERED'::text
 COLUMN jobs.minimum_job_charge double precision null default=0
 COLUMN jobs.notes text notnull default=''::text
+COLUMN jobs.opted_out_at timestamp with time zone null default=-
 COLUMN jobs.overrun_reason text notnull default=''::text
 COLUMN jobs.payment_link_amount double precision notnull default=0
 COLUMN jobs.payment_link_url text notnull default=''::text
@@ -274,12 +428,22 @@ COLUMN jobs.permit_number text notnull default=''::text
 COLUMN jobs.permit_status text notnull default='NOT_REQUIRED'::text
 COLUMN jobs.phone text notnull default=''::text
 COLUMN jobs.preferred_manufacturer_sync_id text null default=-
+COLUMN jobs.priced_at timestamp with time zone null default=-
+COLUMN jobs.priced_by text notnull default=''::text
+COLUMN jobs.pricing_engine_version text notnull default=''::text
 COLUMN jobs.pricing_tier_name text notnull default=''::text
+COLUMN jobs.production_stage production_stage null default=-
 COLUMN jobs.quote_approved_at timestamp with time zone null default=-
 COLUMN jobs.quote_approved_name text notnull default=''::text
+COLUMN jobs.quote_approved_without_phone_check boolean notnull default=false
+COLUMN jobs.quote_phone_attempts integer notnull default=0
+COLUMN jobs.quote_phone_locked_until timestamp with time zone null default=-
 COLUMN jobs.quote_sent_at timestamp with time zone null default=-
 COLUMN jobs.quote_token uuid notnull default=gen_random_uuid()
 COLUMN jobs.quote_viewed_at timestamp with time zone null default=-
+COLUMN jobs.reapproval_count integer notnull default=0
+COLUMN jobs.reapproval_reason text notnull default=''::text
+COLUMN jobs.reapproval_required_at timestamp with time zone null default=-
 COLUMN jobs.referral_source text notnull default=''::text
 COLUMN jobs.refund_reason text notnull default=''::text
 COLUMN jobs.refunded_amount double precision notnull default=0
@@ -289,6 +453,8 @@ COLUMN jobs.signature_storage_path text null default=-
 COLUMN jobs.signed_at timestamp with time zone null default=-
 COLUMN jobs.signed_contract_total double precision notnull default=0
 COLUMN jobs.signed_linear_feet real notnull default=0
+COLUMN jobs.site_lat double precision null default=-
+COLUMN jobs.site_lon double precision null default=-
 COLUMN jobs.status text notnull default='DRAFT'::text
 COLUMN jobs.supplier_quote_reference text notnull default=''::text
 COLUMN jobs.survey_storage_path text null default=-
@@ -302,6 +468,121 @@ COLUMN jobs.tip_amount double precision null default=0
 COLUMN jobs.trash_haul_fee double precision null default=0
 COLUMN jobs.updated_at timestamp with time zone notnull default=now()
 COLUMN jobs.waste_percent double precision notnull default=0
+COLUMN jobs.wizard_step integer notnull default=0
+COLUMN mail_access.allowed boolean notnull default=-
+COLUMN mail_access.company_id uuid notnull default=-
+COLUMN mail_access.profile_id uuid notnull default=-
+COLUMN mail_access.set_at timestamp with time zone notnull default=now()
+COLUMN mail_access.set_by uuid notnull default=-
+COLUMN mail_account_secrets.account_id uuid notnull default=-
+COLUMN mail_account_secrets.created_at timestamp with time zone notnull default=now()
+COLUMN mail_account_secrets.rotated_at timestamp with time zone null default=-
+COLUMN mail_account_secrets.vault_secret_id uuid notnull default=-
+COLUMN mail_accounts.company_id uuid notnull default=-
+COLUMN mail_accounts.connected_at timestamp with time zone notnull default=now()
+COLUMN mail_accounts.connected_by uuid null default=-
+COLUMN mail_accounts.disconnected_at timestamp with time zone null default=-
+COLUMN mail_accounts.disconnected_by uuid null default=-
+COLUMN mail_accounts.display_name text null default=-
+COLUMN mail_accounts.email_address text notnull default=-
+COLUMN mail_accounts.id uuid notnull default=gen_random_uuid()
+COLUMN mail_accounts.imap_host text null default=-
+COLUMN mail_accounts.imap_port integer null default=-
+COLUMN mail_accounts.inbound_token text null default=-
+COLUMN mail_accounts.kind text notnull default=-
+COLUMN mail_accounts.last_error text null default=-
+COLUMN mail_accounts.last_error_at timestamp with time zone null default=-
+COLUMN mail_accounts.last_error_code text null default=-
+COLUMN mail_accounts.last_synced_at timestamp with time zone null default=-
+COLUMN mail_accounts.provider text notnull default=-
+COLUMN mail_accounts.sent_folder text null default=-
+COLUMN mail_accounts.signature text null default=-
+COLUMN mail_accounts.smtp_host text null default=-
+COLUMN mail_accounts.smtp_port integer null default=-
+COLUMN mail_accounts.smtp_saves_sent boolean null default=-
+COLUMN mail_accounts.status text notnull default='connected'::text
+COLUMN mail_accounts.sync_lock_until timestamp with time zone null default=-
+COLUMN mail_accounts.updated_at timestamp with time zone notnull default=now()
+COLUMN mail_accounts.username text null default=-
+COLUMN mail_events.actor uuid null default=-
+COLUMN mail_events.at timestamp with time zone notnull default=now()
+COLUMN mail_events.company_id uuid null default=-
+COLUMN mail_events.id bigint notnull default=nextval('mail_events_id_seq'::regclass)
+COLUMN mail_events.kind text notnull default=-
+COLUMN mail_folder_state.account_id uuid notnull default=-
+COLUMN mail_folder_state.backfill_below_uid bigint null default=-
+COLUMN mail_folder_state.initial_done boolean notnull default=false
+COLUMN mail_folder_state.last_uid bigint notnull default=0
+COLUMN mail_folder_state.path text notnull default=-
+COLUMN mail_folder_state.role text notnull default=-
+COLUMN mail_folder_state.uidvalidity bigint null default=-
+COLUMN mail_folder_state.updated_at timestamp with time zone notnull default=now()
+COLUMN mail_inbound_events.company_id uuid null default=-
+COLUMN mail_inbound_events.email_id text null default=-
+COLUMN mail_inbound_events.received_at timestamp with time zone notnull default=now()
+COLUMN mail_inbound_events.svix_id text notnull default=-
+COLUMN mail_messages.account_id uuid notnull default=-
+COLUMN mail_messages.attachments jsonb notnull default='[]'::jsonb
+COLUMN mail_messages.body_html text null default=-
+COLUMN mail_messages.body_state text notnull default='none'::text
+COLUMN mail_messages.body_text text null default=-
+COLUMN mail_messages.body_truncated boolean notnull default=false
+COLUMN mail_messages.cc_list jsonb notnull default='[]'::jsonb
+COLUMN mail_messages.client_send_id uuid null default=-
+COLUMN mail_messages.company_id uuid notnull default=-
+COLUMN mail_messages.counterpart_emails text[] notnull default='{}'::text[]
+COLUMN mail_messages.created_at timestamp with time zone notnull default=now()
+COLUMN mail_messages.folder_role text notnull default=-
+COLUMN mail_messages.from_address text null default=-
+COLUMN mail_messages.from_name text null default=-
+COLUMN mail_messages.has_attachments boolean notnull default=false
+COLUMN mail_messages.id uuid notnull default=gen_random_uuid()
+COLUMN mail_messages.is_answered boolean notnull default=false
+COLUMN mail_messages.is_flagged boolean notnull default=false
+COLUMN mail_messages.is_seen boolean notnull default=false
+COLUMN mail_messages.job_sync_id uuid null default=-
+COLUMN mail_messages.message_id_header text null default=-
+COLUMN mail_messages.parent_ids text[] notnull default='{}'::text[]
+COLUMN mail_messages.provider_message_id text null default=-
+COLUMN mail_messages.received_at timestamp with time zone notnull default=-
+COLUMN mail_messages.reply_to_list jsonb notnull default='[]'::jsonb
+COLUMN mail_messages.search_tsv tsvector null default=to_tsvector('simple'::regconfig, ((((((((COALESCE(subject, ''::text) || ' '::text) || COALESCE(from_name, ''::text)) || ' '::text) || COALESCE(from_address, ''::text)) || ' '::text) || COALESCE(to_text, ''::text)) || ' '::text) || translate(((COALESCE(from_address, ''::text) || ' '::text) || COALESCE(to_text, ''::text)), '@<>,"'::text, ' '::text)))
+COLUMN mail_messages.send_error text null default=-
+COLUMN mail_messages.send_state text null default=-
+COLUMN mail_messages.sent_at timestamp with time zone null default=-
+COLUMN mail_messages.sent_by uuid null default=-
+COLUMN mail_messages.server_gone_at timestamp with time zone null default=-
+COLUMN mail_messages.size_bytes bigint null default=-
+COLUMN mail_messages.snippet text notnull default=''::text
+COLUMN mail_messages.source text notnull default=-
+COLUMN mail_messages.subject text notnull default=''::text
+COLUMN mail_messages.thread_id uuid notnull default=-
+COLUMN mail_messages.to_list jsonb notnull default='[]'::jsonb
+COLUMN mail_messages.to_text text notnull default=''::text
+COLUMN mail_messages.uid bigint null default=-
+COLUMN mail_messages.uidvalidity bigint null default=-
+COLUMN mail_platform_settings.id integer notnull default=-
+COLUMN mail_platform_settings.inbound_domain text null default=-
+COLUMN mail_platform_settings.inbound_verified_at timestamp with time zone null default=-
+COLUMN mail_platform_settings.last_inbound_at timestamp with time zone null default=-
+COLUMN mail_thread_jobs.company_id uuid notnull default=-
+COLUMN mail_thread_jobs.job_sync_id uuid notnull default=-
+COLUMN mail_thread_jobs.linked_at timestamp with time zone notnull default=now()
+COLUMN mail_thread_jobs.linked_by uuid null default=-
+COLUMN mail_thread_jobs.thread_id uuid notnull default=-
+COLUMN mail_threads.company_id uuid notnull default=-
+COLUMN mail_threads.created_at timestamp with time zone notnull default=now()
+COLUMN mail_threads.has_attachments boolean notnull default=false
+COLUMN mail_threads.id uuid notnull default=gen_random_uuid()
+COLUMN mail_threads.in_inbox boolean notnull default=false
+COLUMN mail_threads.in_sent boolean notnull default=false
+COLUMN mail_threads.last_message_at timestamp with time zone null default=-
+COLUMN mail_threads.message_count integer notnull default=0
+COLUMN mail_threads.participants text[] notnull default='{}'::text[]
+COLUMN mail_threads.reply_token text notnull default=encode(gen_random_bytes(6), 'hex'::text)
+COLUMN mail_threads.snippet text notnull default=''::text
+COLUMN mail_threads.subject text notnull default=''::text
+COLUMN mail_threads.unread_count integer notnull default=0
 COLUMN manufacturers.address text notnull default=''::text
 COLUMN manufacturers.company_id uuid notnull default=-
 COLUMN manufacturers.deleted_at timestamp with time zone null default=-
@@ -327,11 +608,17 @@ COLUMN material_items.manufacturer_sync_id uuid null default=-
 COLUMN material_items.name text notnull default=''::text
 COLUMN material_items.role text notnull default='NONE'::text
 COLUMN material_items.source_doc text notnull default=''::text
+COLUMN material_items.supplier_sku text null default=-
 COLUMN material_items.sync_id uuid notnull default=-
 COLUMN material_items.taxable boolean notnull default=true
 COLUMN material_items.unit text notnull default='EA'::text
 COLUMN material_items.unit_price double precision notnull default=0
 COLUMN material_items.updated_at timestamp with time zone notnull default=now()
+COLUMN notification_prefs.dismissed_setup_steps text[] notnull default='{}'::text[]
+COLUMN notification_prefs.muted_alerts text[] notnull default='{}'::text[]
+COLUMN notification_prefs.seen_alerts jsonb notnull default='{}'::jsonb
+COLUMN notification_prefs.updated_at timestamp with time zone notnull default=now()
+COLUMN notification_prefs.user_id uuid notnull default=-
 COLUMN payment_connections.access_token text null default=-
 COLUMN payment_connections.company_id uuid notnull default=-
 COLUMN payment_connections.connected_at timestamp with time zone null default=-
@@ -356,6 +643,17 @@ COLUMN payment_records.recorded_by text notnull default=''::text
 COLUMN payment_records.reference text notnull default=''::text
 COLUMN payment_records.sync_id text notnull default=-
 COLUMN payment_records.updated_at timestamp with time zone notnull default=now()
+COLUMN pricing_drift.company_id uuid notnull default=-
+COLUMN pricing_drift.detail jsonb notnull default='{}'::jsonb
+COLUMN pricing_drift.id uuid notnull default=gen_random_uuid()
+COLUMN pricing_drift.job_sync_id uuid notnull default=-
+COLUMN pricing_drift.noted_at timestamp with time zone notnull default=now()
+COLUMN pricing_drift.noted_by uuid null default=auth.uid()
+COLUMN pricing_drift.office_engine text notnull default=''::text
+COLUMN pricing_drift.office_total numeric null default=-
+COLUMN pricing_drift.phone_engine text notnull default=''::text
+COLUMN pricing_drift.phone_total numeric null default=-
+COLUMN pricing_drift.seen_at timestamp with time zone null default=-
 COLUMN pricing_tiers.company_id uuid notnull default=-
 COLUMN pricing_tiers.deleted_at timestamp with time zone null default=-
 COLUMN pricing_tiers.deleted_by text notnull default=''::text
@@ -395,6 +693,27 @@ COLUMN punch_list_items.resolved boolean notnull default=false
 COLUMN punch_list_items.resolved_at timestamp with time zone null default=-
 COLUMN punch_list_items.sync_id uuid null default=gen_random_uuid()
 COLUMN punch_list_items.updated_at timestamp with time zone notnull default=now()
+COLUMN quote_reapprovals.actor uuid null default=-
+COLUMN quote_reapprovals.actor_email text null default=-
+COLUMN quote_reapprovals.at timestamp with time zone notnull default=now()
+COLUMN quote_reapprovals.change_kind text notnull default='UPDATE'::text
+COLUMN quote_reapprovals.company_id uuid notnull default=-
+COLUMN quote_reapprovals.id uuid notnull default=gen_random_uuid()
+COLUMN quote_reapprovals.job_id uuid notnull default=-
+COLUMN quote_reapprovals.job_sync_id uuid null default=-
+COLUMN quote_reapprovals.prior_approved_at timestamp with time zone null default=-
+COLUMN quote_reapprovals.prior_approved_name text notnull default=''::text
+COLUMN quote_reapprovals.prior_contract_total numeric null default=-
+COLUMN quote_reapprovals.prior_signature_path text notnull default=''::text
+COLUMN quote_reapprovals.prior_signed_at timestamp with time zone null default=-
+COLUMN quote_reapprovals.prior_without_phone_check boolean notnull default=false
+COLUMN quote_reapprovals.reason text notnull default=''::text
+COLUMN quote_reapprovals.resolved_at timestamp with time zone null default=-
+COLUMN quote_reapprovals.resolved_name text notnull default=''::text
+COLUMN quote_reapprovals.run_label text notnull default=''::text
+COLUMN quote_reapprovals.run_sync_id uuid null default=-
+COLUMN quote_reapprovals.takeoff_after text notnull default=''::text
+COLUMN quote_reapprovals.takeoff_before text notnull default=''::text
 COLUMN site_markers.company_id uuid notnull default=-
 COLUMN site_markers.deleted_at timestamp with time zone null default=-
 COLUMN site_markers.deleted_by text notnull default=''::text
@@ -406,11 +725,24 @@ COLUMN site_markers.sync_id uuid notnull default=-
 COLUMN site_markers.updated_at timestamp with time zone notnull default=now()
 COLUMN site_markers.x real notnull default=0
 COLUMN site_markers.y real notnull default=0
+COLUMN sync_signals.company_id uuid notnull default=-
+COLUMN sync_signals.sync_id text notnull default=-
+COLUMN sync_signals.table_name text notnull default=-
+COLUMN sync_signals.touched_at timestamp with time zone notnull default=now()
 COLUMN time_entries.approved_at timestamp with time zone null default=-
 COLUMN time_entries.approved_by text notnull default=''::text
+COLUMN time_entries.break_ended_at timestamp with time zone null default=-
+COLUMN time_entries.break_minutes integer null default=-
+COLUMN time_entries.break_started_at timestamp with time zone null default=-
 COLUMN time_entries.company_id uuid notnull default=-
+COLUMN time_entries.corrected_at timestamp with time zone null default=-
+COLUMN time_entries.corrected_by uuid null default=-
+COLUMN time_entries.correction_disputed_at timestamp with time zone null default=-
+COLUMN time_entries.correction_reason text null default=-
+COLUMN time_entries.correction_seen_at timestamp with time zone null default=-
 COLUMN time_entries.deleted_at timestamp with time zone null default=-
 COLUMN time_entries.deleted_by text notnull default=''::text
+COLUMN time_entries.dispute_note text null default=-
 COLUMN time_entries.employee_id uuid null default=-
 COLUMN time_entries.employee_sync_id text notnull default=''::text
 COLUMN time_entries.ended_at timestamp with time zone null default=-
@@ -418,15 +750,56 @@ COLUMN time_entries.hourly_rate double precision notnull default=0
 COLUMN time_entries.id uuid notnull default=gen_random_uuid()
 COLUMN time_entries.job_sync_id uuid notnull default=-
 COLUMN time_entries.notes text notnull default=''::text
+COLUMN time_entries.original_ended_at timestamp with time zone null default=-
+COLUMN time_entries.original_started_at timestamp with time zone null default=-
 COLUMN time_entries.rejected_at timestamp with time zone null default=-
 COLUMN time_entries.review_note text notnull default=''::text
 COLUMN time_entries.started_at timestamp with time zone notnull default=-
 COLUMN time_entries.sync_id uuid notnull default=-
 COLUMN time_entries.updated_at timestamp with time zone notnull default=now()
 CONSTR app_errors.app_errors_pkey PRIMARY KEY (id)
+CONSTR app_release_audience.app_release_audience_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR app_release_audience.app_release_audience_pkey PRIMARY KEY (release_id, company_id)
+CONSTR app_release_audience.app_release_audience_release_id_fkey FOREIGN KEY (release_id) REFERENCES app_releases(id) ON DELETE CASCADE
+CONSTR app_releases.app_releases_audience_check CHECK ((audience = ANY (ARRAY['everyone'::text, 'limited'::text])))
 CONSTR app_releases.app_releases_pkey PRIMARY KEY (id)
 CONSTR app_releases.app_releases_version_code_key UNIQUE (version_code)
+CONSTR attention_findings.attention_findings_cleared_by_fkey FOREIGN KEY (cleared_by) REFERENCES profiles(id)
+CONSTR attention_findings.attention_findings_company_id_detector_job_sync_id_fp_key UNIQUE (company_id, detector, job_sync_id, fp)
+CONSTR attention_findings.attention_findings_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR attention_findings.attention_findings_pkey PRIMARY KEY (id)
+CONSTR attention_findings.attention_findings_severity_check CHECK ((severity = ANY (ARRAY['critical'::text, 'warn'::text, 'info'::text])))
+CONSTR attention_sweep_settings.attention_sweep_settings_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR attention_sweep_settings.attention_sweep_settings_pkey PRIMARY KEY (company_id)
+CONSTR attention_sweep_settings.attention_sweep_settings_quiet_hours_end_check CHECK (((quiet_hours_end >= 0) AND (quiet_hours_end <= 23)))
+CONSTR attention_sweep_settings.attention_sweep_settings_quiet_hours_start_check CHECK (((quiet_hours_start >= 0) AND (quiet_hours_start <= 23)))
+CONSTR attention_sweep_settings.attention_sweep_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES profiles(id)
 CONSTR audit_log.audit_log_pkey PRIMARY KEY (id)
+CONSTR auth_events.auth_events_client_reported_shape CHECK ( CASE WHEN client_reported THEN ((user_id IS NULL) AND (event_type = 'sign_in_failure'::text) AND (success = false) AND (detail IS NULL) AND (attempt_key IS NOT NULL)) ELSE ((attempt_key IS NULL) AND (source_key IS NULL)) END)
+CONSTR auth_events.auth_events_event_type_check CHECK ((event_type = ANY (ARRAY['sign_in_success'::text, 'sign_in_failure'::text, 'mfa_challenge_success'::text, 'mfa_challenge_failure'::text, 'mfa_enroll'::text, 'mfa_unenroll'::text, 'sign_out'::text, 'mfa_reauth_required'::text])))
+CONSTR auth_events.auth_events_pkey PRIMARY KEY (id)
+CONSTR auth_events.auth_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL
+CONSTR auth_events_suppressed.auth_events_suppressed_pkey PRIMARY KEY (bucket, reason)
+CONSTR auth_events_suppressed.auth_events_suppressed_reason_check CHECK ((reason = ANY (ARRAY['source'::text, 'global'::text])))
+CONSTR auth_events_suppressed.auth_events_suppressed_suppressed_check CHECK ((suppressed >= 0))
+CONSTR automation_flags.automation_flags_cleared_by_fkey FOREIGN KEY (cleared_by) REFERENCES profiles(id)
+CONSTR automation_flags.automation_flags_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR automation_flags.automation_flags_pkey PRIMARY KEY (id)
+CONSTR automation_rules.automation_rules_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR automation_rules.automation_rules_company_id_rule_key_key UNIQUE (company_id, rule_key)
+CONSTR automation_rules.automation_rules_pkey PRIMARY KEY (id)
+CONSTR automation_rules.automation_rules_rule_key_check CHECK ((rule_key = ANY (ARRAY['materials_received_advance_stage'::text, 'quote_gone_quiet_note'::text, 'approved_no_deposit_flag'::text, 'materials_missing_scheduled_flag'::text])))
+CONSTR automation_rules.automation_rules_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES profiles(id)
+CONSTR automation_runs.automation_runs_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR automation_runs.automation_runs_company_id_rule_key_job_sync_id_key UNIQUE (company_id, rule_key, job_sync_id)
+CONSTR automation_runs.automation_runs_fired_by_fkey FOREIGN KEY (fired_by) REFERENCES profiles(id)
+CONSTR automation_runs.automation_runs_pkey PRIMARY KEY (id)
+CONSTR build_template_uses.build_template_uses_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR build_template_uses.build_template_uses_pkey PRIMARY KEY (id)
+CONSTR build_templates.build_templates_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR build_templates.build_templates_not_universal CHECK ((fence_type <> 'UNIVERSAL'::text))
+CONSTR build_templates.build_templates_panel_spacing CHECK (((fence_type <> ALL (ARRAY['VINYL'::text, 'ALUMINUM'::text, 'ORNAMENTAL_IRON'::text])) OR (post_spacing_ft = panel_width_ft)))
+CONSTR build_templates.build_templates_pkey PRIMARY KEY (id)
 CONSTR change_orders.change_orders_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR change_orders.change_orders_pkey PRIMARY KEY (id)
 CONSTR companies.companies_pkey PRIMARY KEY (id)
@@ -441,6 +814,8 @@ CONSTR device_tokens.device_tokens_company_id_fkey FOREIGN KEY (company_id) REFE
 CONSTR device_tokens.device_tokens_pkey PRIMARY KEY (token)
 CONSTR device_tokens.device_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 CONSTR employees.employees_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR employees.employees_pay_type_check CHECK ((pay_type = ANY (ARRAY['HOURLY'::text, 'PER_FOOT'::text])))
+CONSTR employees.employees_per_foot_rate_nonneg CHECK ((per_foot_rate >= (0)::double precision))
 CONSTR employees.employees_pkey PRIMARY KEY (id)
 CONSTR employees.employees_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE SET NULL
 CONSTR estimate_line_items.estimate_line_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
@@ -452,17 +827,108 @@ CONSTR fence_runs.fence_runs_company_id_fkey FOREIGN KEY (company_id) REFERENCES
 CONSTR fence_runs.fence_runs_pkey PRIMARY KEY (id)
 CONSTR field_changes.field_changes_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR field_changes.field_changes_pkey PRIMARY KEY (id)
+CONSTR follow_up_log.follow_up_log_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR follow_up_log.follow_up_log_company_id_job_sync_id_kind_stage_key_key UNIQUE (company_id, job_sync_id, kind, stage_key)
+CONSTR follow_up_log.follow_up_log_kind_check CHECK ((kind = ANY (ARRAY['new_lead_not_contacted'::text, 'quote_sent_no_view'::text, 'quote_viewed_not_approved'::text, 'approved_no_deposit'::text])))
+CONSTR follow_up_log.follow_up_log_pkey PRIMARY KEY (id)
+CONSTR follow_up_settings.follow_up_settings_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR follow_up_settings.follow_up_settings_daily_cap_check CHECK ((daily_cap > 0))
+CONSTR follow_up_settings.follow_up_settings_pkey PRIMARY KEY (company_id)
+CONSTR follow_up_settings.follow_up_settings_quiet_hours_end_check CHECK (((quiet_hours_end >= 0) AND (quiet_hours_end <= 23)))
+CONSTR follow_up_settings.follow_up_settings_quiet_hours_start_check CHECK (((quiet_hours_start >= 0) AND (quiet_hours_start <= 23)))
+CONSTR follow_up_settings.follow_up_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES profiles(id)
+CONSTR invite_sends.invite_sends_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR invite_sends.invite_sends_pkey PRIMARY KEY (id)
 CONSTR job_payments.job_payments_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR job_payments.job_payments_fee_cents_nonneg CHECK ((fee_cents >= 0))
 CONSTR job_payments.job_payments_pkey PRIMARY KEY (id)
+CONSTR job_stage_events.job_stage_events_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id)
+CONSTR job_stage_events.job_stage_events_entered_by_fkey FOREIGN KEY (entered_by) REFERENCES profiles(id)
+CONSTR job_stage_events.job_stage_events_pkey PRIMARY KEY (id)
 CONSTR job_steps.job_steps_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR job_steps.job_steps_pkey PRIMARY KEY (id)
 CONSTR jobs.jobs_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR jobs.jobs_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+CONSTR jobs.jobs_first_contact_by_fkey FOREIGN KEY (first_contact_by) REFERENCES profiles(id)
+CONSTR jobs.jobs_materials_status_check CHECK ((materials_status = ANY (ARRAY['NOT_ORDERED'::text, 'ORDERED'::text, 'RECEIVED'::text, 'NOT_NEEDED'::text])))
 CONSTR jobs.jobs_pkey PRIMARY KEY (id)
+CONSTR mail_access.mail_access_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR mail_access.mail_access_pkey PRIMARY KEY (company_id, profile_id)
+CONSTR mail_access.mail_access_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+CONSTR mail_account_secrets.mail_account_secrets_account_id_fkey FOREIGN KEY (account_id) REFERENCES mail_accounts(id) ON DELETE CASCADE
+CONSTR mail_account_secrets.mail_account_secrets_pkey PRIMARY KEY (account_id)
+CONSTR mail_accounts.mail_accounts_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR mail_accounts.mail_accounts_display_name_check CHECK (((display_name IS NULL) OR (length(display_name) <= 70)))
+CONSTR mail_accounts.mail_accounts_email_address_check CHECK (((length(email_address) <= 254) AND (email_address ~ '^[a-z0-9.!#$%&''*+/=?^_{|}~-]+@[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text)))
+CONSTR mail_accounts.mail_accounts_id_company_id_key UNIQUE (id, company_id)
+CONSTR mail_accounts.mail_accounts_imap_host_check CHECK (((imap_host IS NULL) OR ((length(imap_host) <= 253) AND (imap_host ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$'::text) AND (imap_host !~ '\.(local|localhost|internal)$'::text))))
+CONSTR mail_accounts.mail_accounts_imap_port_check CHECK (((imap_port IS NULL) OR (imap_port = 993)))
+CONSTR mail_accounts.mail_accounts_inbound_token_check CHECK (((inbound_token IS NULL) OR (inbound_token ~ '^[a-f0-9]{12,32}$'::text)))
+CONSTR mail_accounts.mail_accounts_inbound_token_key UNIQUE (inbound_token)
+CONSTR mail_accounts.mail_accounts_kind_check CHECK ((kind = ANY (ARRAY['imap'::text, 'fenceflow'::text])))
+CONSTR mail_accounts.mail_accounts_last_error_code_check CHECK (((last_error_code IS NULL) OR (last_error_code ~ '^[a-z0-9_]{1,60}$'::text)))
+CONSTR mail_accounts.mail_accounts_pkey PRIMARY KEY (id)
+CONSTR mail_accounts.mail_accounts_provider_check CHECK ((provider = ANY (ARRAY['zoho'::text, 'gmail'::text, 'custom'::text, 'resend'::text])))
+CONSTR mail_accounts.mail_accounts_sent_folder_check CHECK (((sent_folder IS NULL) OR ((length(sent_folder) <= 300) AND (sent_folder !~ '[[:cntrl:]]'::text))))
+CONSTR mail_accounts.mail_accounts_shape CHECK ( CASE kind WHEN 'imap'::text THEN ((provider = ANY (ARRAY['zoho'::text, 'gmail'::text, 'custom'::text])) AND (username IS NOT NULL) AND (imap_host IS NOT NULL) AND (smtp_host IS NOT NULL) AND (inbound_token IS NULL)) WHEN 'fenceflow'::text THEN ((provider = 'resend'::text) AND (username IS NULL) AND (imap_host IS NULL) AND (smtp_host IS NULL) AND (inbound_token IS NOT NULL)) ELSE NULL::boolean END)
+CONSTR mail_accounts.mail_accounts_signature_check CHECK (((signature IS NULL) OR (length(signature) <= 2000)))
+CONSTR mail_accounts.mail_accounts_smtp_host_check CHECK (((smtp_host IS NULL) OR ((length(smtp_host) <= 253) AND (smtp_host ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$'::text) AND (smtp_host !~ '\.(local|localhost|internal)$'::text))))
+CONSTR mail_accounts.mail_accounts_smtp_port_check CHECK (((smtp_port IS NULL) OR (smtp_port = 465)))
+CONSTR mail_accounts.mail_accounts_status_check CHECK ((status = ANY (ARRAY['connected'::text, 'auth_failed'::text, 'error'::text, 'disconnected'::text])))
+CONSTR mail_accounts.mail_accounts_username_check CHECK (((username IS NULL) OR (((length(username) >= 1) AND (length(username) <= 254)) AND (username !~ '[[:cntrl:]]'::text))))
+CONSTR mail_events.mail_events_check CHECK (((company_id IS NOT NULL) OR (kind = 'inbound_dropped'::text)))
+CONSTR mail_events.mail_events_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR mail_events.mail_events_kind_check CHECK ((kind = ANY (ARRAY['connect_attempt'::text, 'send_smtp'::text, 'send_resend'::text, 'inbound'::text, 'inbound_dropped'::text, 'message_session'::text])))
+CONSTR mail_events.mail_events_pkey PRIMARY KEY (id)
+CONSTR mail_folder_state.mail_folder_state_account_id_fkey FOREIGN KEY (account_id) REFERENCES mail_accounts(id) ON DELETE CASCADE
+CONSTR mail_folder_state.mail_folder_state_last_uid_check CHECK ((last_uid >= 0))
+CONSTR mail_folder_state.mail_folder_state_path_check CHECK ((((length(path) >= 1) AND (length(path) <= 300)) AND (path !~ '[[:cntrl:]]'::text)))
+CONSTR mail_folder_state.mail_folder_state_pkey PRIMARY KEY (account_id, role)
+CONSTR mail_folder_state.mail_folder_state_role_check CHECK ((role = ANY (ARRAY['inbox'::text, 'sent'::text])))
+CONSTR mail_inbound_events.mail_inbound_events_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR mail_inbound_events.mail_inbound_events_email_id_check CHECK (((email_id IS NULL) OR (length(email_id) <= 200)))
+CONSTR mail_inbound_events.mail_inbound_events_pkey PRIMARY KEY (svix_id)
+CONSTR mail_inbound_events.mail_inbound_events_svix_id_check CHECK (((length(svix_id) >= 1) AND (length(svix_id) <= 200)))
+CONSTR mail_messages.mail_messages_account_id_company_id_fkey FOREIGN KEY (account_id, company_id) REFERENCES mail_accounts(id, company_id) ON DELETE CASCADE
+CONSTR mail_messages.mail_messages_attachments_check CHECK ((jsonb_typeof(attachments) = 'array'::text))
+CONSTR mail_messages.mail_messages_body_html_check CHECK (((body_html IS NULL) OR (octet_length(body_html) <= 1048576)))
+CONSTR mail_messages.mail_messages_body_state_check CHECK ((body_state = ANY (ARRAY['none'::text, 'cached'::text, 'too_large'::text, 'error'::text])))
+CONSTR mail_messages.mail_messages_body_text_check CHECK (((body_text IS NULL) OR (octet_length(body_text) <= 262144)))
+CONSTR mail_messages.mail_messages_cc_list_check CHECK ((jsonb_typeof(cc_list) = 'array'::text))
+CONSTR mail_messages.mail_messages_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR mail_messages.mail_messages_counterpart_emails_check CHECK ((cardinality(counterpart_emails) <= 200))
+CONSTR mail_messages.mail_messages_folder_role_check CHECK ((folder_role = ANY (ARRAY['inbox'::text, 'sent'::text])))
+CONSTR mail_messages.mail_messages_message_id_header_check CHECK (((message_id_header IS NULL) OR (length(message_id_header) <= 998)))
+CONSTR mail_messages.mail_messages_parent_ids_check CHECK ((cardinality(parent_ids) <= 50))
+CONSTR mail_messages.mail_messages_pkey PRIMARY KEY (id)
+CONSTR mail_messages.mail_messages_provider_message_id_check CHECK (((provider_message_id IS NULL) OR (length(provider_message_id) <= 200)))
+CONSTR mail_messages.mail_messages_reply_to_list_check CHECK ((jsonb_typeof(reply_to_list) = 'array'::text))
+CONSTR mail_messages.mail_messages_send_error_check CHECK (((send_error IS NULL) OR (length(send_error) <= 300)))
+CONSTR mail_messages.mail_messages_send_state_check CHECK (((send_state IS NULL) OR (send_state = ANY (ARRAY['sending'::text, 'sent'::text, 'failed'::text]))))
+CONSTR mail_messages.mail_messages_sent_by_fkey FOREIGN KEY (sent_by) REFERENCES profiles(id) ON DELETE SET NULL
+CONSTR mail_messages.mail_messages_size_bytes_check CHECK (((size_bytes IS NULL) OR (size_bytes >= 0)))
+CONSTR mail_messages.mail_messages_snippet_check CHECK ((length(snippet) <= 200))
+CONSTR mail_messages.mail_messages_source_check CHECK ((source = ANY (ARRAY['imap'::text, 'resend_inbound'::text, 'fenceflow_send'::text])))
+CONSTR mail_messages.mail_messages_source_shape CHECK ( CASE source WHEN 'imap'::text THEN ((uid IS NOT NULL) AND (send_state IS NULL)) WHEN 'resend_inbound'::text THEN ((folder_role = 'inbox'::text) AND (provider_message_id IS NOT NULL) AND (send_state IS NULL)) WHEN 'fenceflow_send'::text THEN ((folder_role = 'sent'::text) AND (client_send_id IS NOT NULL) AND (send_state IS NOT NULL)) ELSE NULL::boolean END)
+CONSTR mail_messages.mail_messages_thread_id_company_id_fkey FOREIGN KEY (thread_id, company_id) REFERENCES mail_threads(id, company_id) ON DELETE CASCADE
+CONSTR mail_messages.mail_messages_to_list_check CHECK ((jsonb_typeof(to_list) = 'array'::text))
+CONSTR mail_messages.mail_messages_uid_pair CHECK (((uid IS NULL) = (uidvalidity IS NULL)))
+CONSTR mail_platform_settings.mail_platform_settings_id_check CHECK ((id = 1))
+CONSTR mail_platform_settings.mail_platform_settings_inbound_domain_check CHECK (((inbound_domain IS NULL) OR (length(inbound_domain) <= 253)))
+CONSTR mail_platform_settings.mail_platform_settings_pkey PRIMARY KEY (id)
+CONSTR mail_thread_jobs.mail_thread_jobs_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR mail_thread_jobs.mail_thread_jobs_pkey PRIMARY KEY (thread_id, job_sync_id)
+CONSTR mail_thread_jobs.mail_thread_jobs_thread_id_company_id_fkey FOREIGN KEY (thread_id, company_id) REFERENCES mail_threads(id, company_id) ON DELETE CASCADE
+CONSTR mail_threads.mail_threads_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR mail_threads.mail_threads_id_company_id_key UNIQUE (id, company_id)
+CONSTR mail_threads.mail_threads_pkey PRIMARY KEY (id)
+CONSTR mail_threads.mail_threads_reply_token_key UNIQUE (reply_token)
 CONSTR manufacturers.manufacturers_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR manufacturers.manufacturers_pkey PRIMARY KEY (id)
 CONSTR material_items.material_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR material_items.material_items_pkey PRIMARY KEY (id)
+CONSTR notification_prefs.notification_prefs_pkey PRIMARY KEY (user_id)
+CONSTR notification_prefs.notification_prefs_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
 CONSTR payment_connections.payment_connections_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR payment_connections.payment_connections_connected_by_fkey FOREIGN KEY (connected_by) REFERENCES auth.users(id)
 CONSTR payment_connections.payment_connections_pkey PRIMARY KEY (company_id)
@@ -470,6 +936,8 @@ CONSTR payment_connections.payment_connections_processor_known CHECK ((processor
 CONSTR payment_records.payment_records_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR payment_records.payment_records_company_id_sync_id_key UNIQUE (company_id, sync_id)
 CONSTR payment_records.payment_records_pkey PRIMARY KEY (id)
+CONSTR pricing_drift.pricing_drift_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR pricing_drift.pricing_drift_pkey PRIMARY KEY (id)
 CONSTR pricing_tiers.pricing_tiers_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR pricing_tiers.pricing_tiers_pkey PRIMARY KEY (id)
 CONSTR profiles.profiles_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
@@ -479,10 +947,18 @@ CONSTR profiles.profiles_removed_from_company_id_fkey FOREIGN KEY (removed_from_
 CONSTR punch_list_items.punch_list_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR punch_list_items.punch_list_items_job_id_fkey FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
 CONSTR punch_list_items.punch_list_items_pkey PRIMARY KEY (id)
+CONSTR quote_reapprovals.quote_reapprovals_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR quote_reapprovals.quote_reapprovals_job_id_fkey FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+CONSTR quote_reapprovals.quote_reapprovals_pkey PRIMARY KEY (id)
 CONSTR site_markers.site_markers_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR site_markers.site_markers_pkey PRIMARY KEY (id)
+CONSTR sync_signals.sync_signals_pkey PRIMARY KEY (company_id, table_name, sync_id)
+CONSTR time_entries.time_entries_break_not_longer_than_shift_chk CHECK (((break_minutes IS NULL) OR (started_at IS NULL) OR (ended_at IS NULL) OR ((break_minutes)::numeric <= (EXTRACT(epoch FROM (ended_at - started_at)) / (60)::numeric))))
+CONSTR time_entries.time_entries_break_order_chk CHECK (((break_ended_at IS NULL) OR (break_started_at IS NULL) OR (break_ended_at > break_started_at)))
 CONSTR time_entries.time_entries_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR time_entries.time_entries_corrected_by_fkey FOREIGN KEY (corrected_by) REFERENCES profiles(id)
 CONSTR time_entries.time_entries_pkey PRIMARY KEY (id)
+ENUM production_stage MATERIALS,DIG,SET,BUILD,PUNCH,DONE
 ENUM user_role OWNER,MANAGER,CREW,SALES,ACCOUNTANT,FOREMAN
 EXTENSION pg_net 0.20.4
 EXTENSION pg_stat_statements 1.11
@@ -490,62 +966,188 @@ EXTENSION pgcrypto 1.3
 EXTENSION plpgsql 1.0
 EXTENSION supabase_vault 0.3.1
 EXTENSION uuid-ossp 1.1
+FUNC acknowledge_my_shift(shift_sync_id text) returns=boolean secdef=t volatility=v body_md5=518270d60973f2d9e1a147d7458259ba
 FUNC admin_companies() returns=TABLE(id uuid, name text, email text, subscription_status text, subscription_plan text, monthly_price numeric, suspended boolean, suspended_reason text, trial_ends_at timestamp with time zone, days_left integer, allowed boolean, people bigint, jobs bigint, last_active timestamp with time zone, admin_notes text, billing_email text, grace_ends_at timestamp with time zone, oldest_app_version text, newest_app_version text, last_seen timestamp with time zone, invited_at timestamp with time zone, invited_email text, joined_at timestamp with time zone, details_completed_at timestamp with time zone, agreement_signed_at timestamp with time zone, agreement_signed_name text, subscription_ends_at timestamp with time zone, stripe_subscription_id text) secdef=t volatility=v body_md5=5dfff78180ccee92fa8a15f67f3169d2
+FUNC admin_companies_count() returns=bigint secdef=t volatility=s body_md5=b48ef13c4b831dbee342ca67241ff4e5
 FUNC admin_create_company(company_name text, contact_email text) returns=TABLE(company_id uuid, setup_code text) secdef=t volatility=v body_md5=32c1e536df1a0d85d8d183cb361d3825
+FUNC admin_demote_release(target_id uuid) returns=void secdef=t volatility=v body_md5=41b8533a139c3f00aa4ecb35f6f16732
 FUNC admin_error_summary(days integer) returns=TABLE(message text, where_at text, occurrences bigint, devices bigint, companies bigint, first_seen timestamp with time zone, last_seen timestamp with time zone, latest_version text, sample_stack text, any_unseen boolean) secdef=t volatility=v body_md5=d3d1181095f77b5e9abf125f31afc6fc
 FUNC admin_extend_trial(target uuid, days integer) returns=void secdef=t volatility=v body_md5=dd0d86d12b5c6a0a58f3a1566c421365
 FUNC admin_grant_access(target uuid, note text) returns=void secdef=t volatility=v body_md5=31f7e9a4c633bfca168f19b3d83e931d
 FUNC admin_mark_errors_seen(msg text, wh text) returns=void secdef=t volatility=v body_md5=efa0f0810271c7bf8f9a528f039b1418
 FUNC admin_mark_invited(target uuid, to_email text) returns=void secdef=t volatility=v body_md5=f373f1fb6f764bb4fbfa86140c3f12d3
+FUNC admin_promote_release(target_id uuid) returns=void secdef=t volatility=v body_md5=6c8ba4a232347928911939ea7917886d
+FUNC admin_releases() returns=SETOF app_releases secdef=t volatility=s body_md5=f92575bf8be8eef46e9964e29bd5c03d
+FUNC admin_sign_in_attempt_groups(p_days integer, p_limit integer) returns=TABLE(attempt_key text, attempts bigint, sources bigint, first_at timestamp with time zone, last_at timestamp with time zone, is_mine boolean, total_groups bigint) secdef=f volatility=s body_md5=280709ce0f02a0328baa6563616eba64
 FUNC admin_start_trial(target uuid, days integer) returns=void secdef=t volatility=v body_md5=cee0252014602e569ef29e35abd40a85
 FUNC admin_suspend(target uuid, note text, hold boolean) returns=void secdef=t volatility=v body_md5=dc09a89744b257a0ed098cfb94384e03
 FUNC admin_unsuspend(target uuid) returns=void secdef=t volatility=v body_md5=4a578cc4269e13c24d11b074de44b4e7
+FUNC advanced_reports_company_id() returns=uuid secdef=t volatility=s body_md5=b88c763a27755503788f5cb31cffb71b
 FUNC allow_rejoin(member_id uuid) returns=void secdef=t volatility=v body_md5=72fb5512fa95b552f1fdeca867d127bd
-FUNC ar_aging() returns=TABLE(job_sync_id text, customer_name text, phone text, email text, status text, contract_total numeric, paid numeric, owed numeric, since timestamp with time zone, days_out integer, bucket text) secdef=t volatility=s body_md5=b1a9b89171e106366248f70c19f80bfa
-FUNC audit_changes() returns=trigger secdef=t volatility=v body_md5=360ee771b975a43e111f7866e515bebe
+FUNC approve_time_entry(shift_sync_id text, approve boolean, note text) returns=jsonb secdef=t volatility=v body_md5=b80a8a3d0e36fae056e7abfccc440388
+FUNC ar_aging() returns=TABLE(job_sync_id text, customer_name text, phone text, email text, status text, contract_total numeric, paid numeric, owed numeric, since timestamp with time zone, days_out integer, bucket text) secdef=t volatility=s body_md5=121e9667a3951b0fb899b94f950efaa9
+FUNC attention_sweep_candidates() returns=TABLE(company_id uuid, job_sync_id uuid, detector text, severity text, message text, fp text) secdef=t volatility=s body_md5=3b4995030995cb18dfd8cecfb858dfb3
+FUNC audit_changes() returns=trigger secdef=t volatility=v body_md5=c4f40a44e26c9a58bde82748a99f5795
+FUNC auth_events_before_insert() returns=trigger secdef=f volatility=v body_md5=b95342a61afa220fff258c37533da238
+FUNC auth_events_clean_text(p text, p_max integer) returns=text secdef=f volatility=i body_md5=3abfef061ceeb138151ccfccc0860dda
+FUNC auth_events_hmac(p_kind text, p_value text) returns=text secdef=f volatility=s body_md5=724ca1132948c809e9d7814b94c0a505
+FUNC auth_events_normalise_identifier(p text) returns=text secdef=f volatility=i body_md5=fd75a50807f6d818b9decc8533541fa1
+FUNC auth_events_request_source() returns=text secdef=f volatility=s body_md5=e4aad872a622adaebfbf3a8e667af2af
+FUNC business_report(p_from timestamp with time zone, p_to timestamp with time zone, p_include_test boolean) returns=jsonb secdef=t volatility=s body_md5=ad731d812b9f88c8473da0f322c9ae80
+FUNC can_see_employee_pay() returns=boolean secdef=t volatility=s body_md5=52da9bf87789a963155e568b18ff15b9
 FUNC can_see_pay() returns=boolean secdef=t volatility=s body_md5=8789f750ccf03b1dc1b9173f89fcdffc
+FUNC can_use_company_mail() returns=boolean secdef=t volatility=s body_md5=b74b000e84b265768968d74a1b527548
 FUNC choose_payment_processor(which text) returns=void secdef=t volatility=v body_md5=d9cff6b108982923b36f9c8206554c99
 FUNC claim_company_setup(setup_code text, owner_name text) returns=uuid secdef=t volatility=v body_md5=b6431f00113fc611dc98123685360da1
 FUNC claim_device(device_id text) returns=void secdef=t volatility=v body_md5=530f1b2d70086fbdac95d57e527ebf21
-FUNC claim_invited_company(member_name text) returns=uuid secdef=t volatility=v body_md5=0f5e68c3e93477f4610cd80079f61442
+FUNC claim_invited_company(member_name text) returns=uuid secdef=t volatility=v body_md5=4e0d3f0a664b6de1b30fa945a5e78611
+FUNC clear_attention_finding(p_finding_id uuid) returns=void secdef=t volatility=v body_md5=a272b9598f7cb928a2f851ad0410df7f
+FUNC clear_automation_flag(p_flag_id uuid) returns=void secdef=t volatility=v body_md5=5e805a899b4c0a1eed71cd61cf1e650d
 FUNC company_allowed(cid uuid) returns=boolean secdef=t volatility=s body_md5=c4c8eb61539e7e57e7261c0caaee5e41
 FUNC company_is_suspended() returns=boolean secdef=t volatility=s body_md5=ad7f282ceaf88ba4848b3025d63256ee
 FUNC company_members() returns=TABLE(id uuid, full_name text, role text, requested_role text, is_me boolean) secdef=t volatility=v body_md5=29cf79b1d989fc0a1dce2ae3cdabe45b
-FUNC complete_company_details(biz_name text, biz_phone text, biz_email text, license_no text) returns=void secdef=t volatility=v body_md5=bab8c8c4ea247274d09822beead979c9
+FUNC complete_company_details(biz_name text, biz_phone text, biz_email text, license_no text) returns=void secdef=t volatility=v body_md5=a36c61bcb33518d845d7204cee7b23f8
+FUNC correct_time_entry(shift_sync_id text, new_started_at timestamp with time zone, new_ended_at timestamp with time zone, reason text) returns=jsonb secdef=t volatility=v body_md5=709d9e8c7edbf70eefe97b83e0f2143e
 FUNC create_company_with_owner(company_name text, owner_name text) returns=uuid secdef=t volatility=v body_md5=1e379670f2510857e679d030271a60f8
+FUNC create_run_from_template(p_job_sync_id uuid, p_template_sync_id uuid, p_overrides jsonb) returns=uuid secdef=t volatility=v body_md5=2d6aa0ff42dc29e5404c1244b38450bd
+FUNC crew_push_line_items(rows jsonb) returns=integer secdef=t volatility=v body_md5=a4b78a7cf6773f49cfd36f1756775a5d
 FUNC crew_roster() returns=TABLE(id uuid, sync_id text, name text, role text, is_active boolean) secdef=t volatility=s body_md5=bd86eb72874ec935014630d829626c10
+FUNC crew_save_job(row_in jsonb) returns=boolean secdef=t volatility=v body_md5=7d7fc7647286803a6de344675d743963
+FUNC crew_settings() returns=jsonb secdef=t volatility=s body_md5=a593bca36ce79e282b41cdf9c8fd7d50
+FUNC crew_writable_job_columns() returns=text[] secdef=f volatility=i body_md5=cbc741bac5d62a6f8c07279a3b42f975
 FUNC current_company_id() returns=uuid secdef=t volatility=s body_md5=0e378283e9992afd40879b1db4bab17d
 FUNC current_user_role() returns=user_role secdef=t volatility=s body_md5=2ffccc970bea2f258c42d6ade37a818d
 FUNC device_still_mine(device_id text) returns=boolean secdef=t volatility=s body_md5=f0d6c85403db6440ed840afed8d27b90
-FUNC enforce_delete_permission() returns=trigger secdef=t volatility=v body_md5=ccaec54755bb381d52d824041f3208e3
-FUNC has_permission(perm text) returns=boolean secdef=t volatility=s body_md5=b00199e403cde04acb9a187419fba6ff
+FUNC dispute_my_shift(shift_sync_id text, note text) returns=boolean secdef=t volatility=v body_md5=f6b95678871f7f4132564d281894d93b
+FUNC enforce_delete_permission() returns=trigger secdef=t volatility=v body_md5=d82b9bb7eb3f6da9f88ddee83e9ec107
+FUNC first_contact_is_first() returns=trigger secdef=f volatility=v body_md5=dab74dfcd279098ab1b04e7fe455575e
+FUNC guard_expense_amount() returns=trigger secdef=f volatility=v body_md5=d70ada942461b2af491fda28f1b4da1c
+FUNC guard_job_assignment() returns=trigger secdef=f volatility=v body_md5=ac5fa614c7cde086b3ff0eb5ac12cd6a
+FUNC guard_time_entry_approval() returns=trigger secdef=f volatility=v body_md5=5497db55cb19c9d36732211a68aed2d1
+FUNC guard_time_entry_write_permission() returns=trigger secdef=f volatility=v body_md5=6f604905131fa755349b4a4e88d362bf
+FUNC has_permission(perm text) returns=boolean secdef=t volatility=s body_md5=282689e9f23eae011ec2ba52ea5ce151
+FUNC hold_contract_columns() returns=trigger secdef=t volatility=v body_md5=8b5c542ec60be7e4a7a1aaacbfebe45c
+FUNC hold_first_contact_by() returns=trigger secdef=t volatility=v body_md5=780f273d3afd7fb2b8da1b4205911eea
+FUNC hold_line_item_takeoff_identity() returns=trigger secdef=f volatility=v body_md5=c6da228a4c9fe060c2678fed96a0900a
+FUNC hold_money_columns() returns=trigger secdef=t volatility=v body_md5=cfe724ad52634c7fa43a88bbf95d95b5
+FUNC hold_quote_gate_columns() returns=trigger secdef=t volatility=v body_md5=f49690e7bc1debe636c9d1ca8deb49de
+FUNC hold_reapproval_columns() returns=trigger secdef=f volatility=v body_md5=1882331aef7853da6c5032b7c980322d
+FUNC is_my_shift(es text) returns=boolean secdef=t volatility=s body_md5=2eb21815c38a599c1d5cb7395c8f7341
 FUNC is_platform_admin() returns=boolean secdef=t volatility=s body_md5=4018787e2df56489c5276e402039cf6f
 FUNC is_service_role() returns=boolean secdef=t volatility=s body_md5=1a5a026abe58cb34a16523b06390d4a7
-FUNC job_costing(from_date timestamp with time zone, to_date timestamp with time zone) returns=TABLE(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric, material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric, projected_profit numeric, margin_percent numeric, cash_position numeric, costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric) secdef=t volatility=s body_md5=571d901fe3469fd05473adafe6d47469
-FUNC join_company(target_company_id uuid, member_name text, requested_role_in text) returns=void secdef=t volatility=v body_md5=09d4648b3f083fc3d0581b82d7d33c0d
+FUNC job_contract_columns() returns=text[] secdef=f volatility=i body_md5=80c626b73c08a07299fa50eb55f4b7f0
+FUNC job_costing(from_date timestamp with time zone, to_date timestamp with time zone) returns=TABLE(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric, material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric, projected_profit numeric, margin_percent numeric, cash_position numeric, costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric, quoted_material numeric) secdef=t volatility=s body_md5=507cde9b1e15aa38192087c3703fe3e2
+FUNC job_money_columns() returns=text[] secdef=f volatility=i body_md5=64072f0644f50fec5ec75bf8eaff46ff
+FUNC join_company(target_company_id uuid, member_name text, requested_role_in text) returns=void secdef=t volatility=v body_md5=7283468b880d459cb46fe1036405eee3
+FUNC latch_change_order_acceptance() returns=trigger secdef=f volatility=v body_md5=4b7a551666c729b9d90b5b610fcdba8d
 FUNC locate_state(j jobs) returns=text secdef=f volatility=i body_md5=b252b47ccf76cc81fbbea32d66681f78
-FUNC my_billing_status() returns=TABLE(subscription_status text, subscription_plan text, subscription_ends_at timestamp with time zone, trial_ends_at timestamp with time zone, stripe_account_id text, has_subscription boolean) secdef=t volatility=v body_md5=a54fa4c473e21cf5dd5081a48a94c6fe
+FUNC mail_account_secrets_forget_vault() returns=trigger secdef=t volatility=v body_md5=bc90fc8c11884de14c45f2e59a79ba85
+FUNC mail_accounts_guard() returns=trigger secdef=t volatility=v body_md5=8827d78032bd7a7fd31ba7f3103ee65a
+FUNC mail_cap_bytes(p text, n integer) returns=text secdef=f volatility=i body_md5=0d2e0269eac4ad0eb6afa3fc23d0de54
+FUNC mail_claim_sync(p_account uuid, p_seconds integer) returns=boolean secdef=t volatility=v body_md5=c1231f1ea0dfa905718d9c6e4f67018a
+FUNC mail_event_count(p_company uuid, p_kind text, p_window interval) returns=integer secdef=t volatility=s body_md5=6e8550a63f1276828614173ed2fa7108
+FUNC mail_fenceflow_account(p_company uuid, p_email text) returns=uuid secdef=t volatility=v body_md5=3029f2c13a774013817da707d66acfef
+FUNC mail_for_job(p_job_sync_id uuid, p_limit integer) returns=TABLE(id uuid, subject text, last_message_at timestamp with time zone, message_count integer, unread_count integer, has_attachments boolean, snippet text, participants text[], linked boolean, matched_customer boolean, matched_hoa boolean) secdef=f volatility=s body_md5=608baa80549425a284a9f91e9708dd0e
+FUNC mail_ingest(p_account uuid, p_rows jsonb) returns=TABLE(message_id uuid, thread_id uuid, inserted boolean) secdef=t volatility=v body_md5=3efc82a3f6d513a113c9cd91777a8fd8
+FUNC mail_is_backend() returns=boolean secdef=f volatility=s body_md5=86cbb2b13006aea3cbfce649cd6c23e3
+FUNC mail_jarray(j jsonb, n integer) returns=jsonb secdef=f volatility=i body_md5=29d38e1eb20a512a8da3da2288b9f74d
+FUNC mail_link_thread(p_thread uuid, p_job_sync_id uuid) returns=boolean secdef=t volatility=v body_md5=20a15e571edf55e698610993aa296f5c
+FUNC mail_list_threads(p_folder text, p_account uuid, p_query text, p_before timestamp with time zone, p_limit integer, p_before_id uuid) returns=TABLE(id uuid, subject text, last_message_at timestamp with time zone, message_count integer, unread_count integer, has_attachments boolean, snippet text, participants text[], in_inbox boolean, in_sent boolean, latest_from_name text, latest_from_address text, job_sync_ids uuid[]) secdef=f volatility=s body_md5=5bc7932b99a52c9ba525b2fce3cc90eb
+FUNC mail_mark_gone(p_account uuid, p_role text, p_uidvalidity bigint, p_uids bigint[]) returns=integer secdef=t volatility=v body_md5=597bfdda154c51e3de30c03ee271f34d
+FUNC mail_messages_clean() returns=trigger secdef=t volatility=v body_md5=5984d145975c56d326c06e34f21973bd
+FUNC mail_messages_refresh_threads() returns=trigger secdef=t volatility=v body_md5=4843615bab19d44739a2e05f776b57ad
+FUNC mail_refresh_threads(p_threads uuid[]) returns=void secdef=t volatility=v body_md5=3ae5663ad2f81366637d25a9f6a1085a
+FUNC mail_refresh_threads_core(p_threads uuid[]) returns=void secdef=t volatility=v body_md5=57f2355bf84db562de191fe8ff0bcb05
+FUNC mail_search_query(p text) returns=tsquery secdef=f volatility=i body_md5=3d26bab7e3b756a8900c76c8a6f86869
+FUNC mail_secret_forget(p_account uuid) returns=boolean secdef=t volatility=v body_md5=e512d58f61f509715146a0b2879381aa
+FUNC mail_secret_get(p_account uuid) returns=text secdef=t volatility=s body_md5=1390b4022675aee1af29e9d3024e03a4
+FUNC mail_secret_put(p_account uuid, p_secret text) returns=void secdef=t volatility=v body_md5=c6bd8d6953050c3c9b0b78700433e35e
+FUNC mail_set_flags(p_account uuid, p_role text, p_uidvalidity bigint, p_flags jsonb) returns=integer secdef=t volatility=v body_md5=38233c604db05b5a0b47d57b759ddeed
+FUNC mail_try_ts(p text) returns=timestamp with time zone secdef=f volatility=s body_md5=4072e95aaabbc241bcbe2717ca8c6ab9
+FUNC mail_unlink_thread(p_thread uuid, p_job_sync_id uuid) returns=boolean secdef=t volatility=v body_md5=1a5de44b0aa46be85c034ca73066452d
+FUNC mail_unread_count() returns=integer secdef=f volatility=s body_md5=4f12ec97a4d3e75f57dfe2b86065c50f
+FUNC mark_alert_seen(alert_key text, fingerprint text) returns=void secdef=t volatility=v body_md5=a9320a240dae16aeea0a1ba6fea4049d
+FUNC mark_change_orders_accepted() returns=trigger secdef=t volatility=v body_md5=b1338d1b2dd988258aa366b01806028d
+FUNC money_caller_trusted() returns=boolean secdef=t volatility=s body_md5=5cb08b8169076034d34c806e8aa1e29c
+FUNC money_scope_company_id() returns=uuid secdef=t volatility=s body_md5=ba5dc640668705c3d1891a6c565c65ba
+FUNC my_auth_attempt_key() returns=text secdef=t volatility=s body_md5=9ec81a9a6bf4a60ac4641b742ec5a943
+FUNC my_billing_status() returns=TABLE(subscription_status text, subscription_plan text, subscription_ends_at timestamp with time zone, trial_ends_at timestamp with time zone, stripe_account_id text, has_subscription boolean) secdef=t volatility=v body_md5=736b457a4aba0cff466c87953045abce
+FUNC my_build_templates() returns=jsonb secdef=t volatility=s body_md5=1e1cc0f398ebeb207693d5cec2b8597d
+FUNC my_leads_token() returns=uuid secdef=t volatility=s body_md5=27a1c11016e391c19f60696eb33c852f
 FUNC my_onboarding() returns=TABLE(details_done boolean, agreement_done boolean, plan_done boolean, agreement_name text, agreement_at timestamp with time zone) secdef=t volatility=v body_md5=318fb674b298fae9783797080c11a32b
 FUNC my_payment_connection() returns=TABLE(processor text, display_name text, connected boolean, connected_at timestamp with time zone) secdef=t volatility=s body_md5=580244b71d4bdb25cd629cac4f506507
 FUNC my_role() returns=text secdef=t volatility=s body_md5=b08dd0e62b764f980973e98378110aa3
-FUNC my_service_status() returns=TABLE(allowed boolean, subscription_status text, subscription_plan text, reason text, grace_ends_at timestamp with time zone, trial_days_left integer, suspended boolean, suspended_reason text, can_self_serve boolean) secdef=t volatility=v body_md5=bef7d1086dab0c4263738d3759ab440e
-FUNC my_setup_progress() returns=TABLE(step text, label text, detail text, done boolean, essential boolean, where_to_go text) secdef=t volatility=s body_md5=726ae0dc87639a23287da87c08f15515
+FUNC my_service_status() returns=TABLE(allowed boolean, subscription_status text, subscription_plan text, reason text, grace_ends_at timestamp with time zone, trial_days_left integer, suspended boolean, suspended_reason text, can_self_serve boolean, subscribed boolean) secdef=t volatility=v body_md5=29719ee7afb7838a50ebfe2a9386ff33
+FUNC my_setup_progress() returns=TABLE(step text, label text, detail text, done boolean, essential boolean, where_to_go text) secdef=t volatility=s body_md5=cfb37be4d031ebec62e18a38f1ef956f
+FUNC my_shift_answer(shift_sync_id text) returns=jsonb secdef=t volatility=s body_md5=2859c3fcf52b416a5d59452381735a63
+FUNC note_invite_send(p_email text) returns=integer secdef=t volatility=v body_md5=714febbc9fbe07d59212ee1819f377a8
+FUNC note_mail_event(p_company uuid, p_actor uuid, p_kind text, p_window interval) returns=integer secdef=t volatility=v body_md5=5b8390259ee38119f8bec7584744c4c5
 FUNC payment_records_recompute() returns=trigger secdef=t volatility=v body_md5=7e1e48e4f8fdac0dc5851622f23c4294
-FUNC protect_billing_columns() returns=trigger secdef=t volatility=v body_md5=2fae28ba204ea80d47161f359107b35a
-FUNC protect_customer_identity() returns=trigger secdef=t volatility=v body_md5=a524b5d600d98e3f8b17dafccb9714f3
+FUNC per_foot_crew_count(p_job_sync_id uuid) returns=integer secdef=t volatility=s body_md5=0f185066b72aa78d9163c224e5cf7721
+FUNC preserve_original_shift() returns=trigger secdef=t volatility=v body_md5=dc41f010e9b963b18f50ccd0fefc192e
+FUNC protect_billing_columns() returns=trigger secdef=t volatility=v body_md5=4aca9239b0e6f3ab84d65d4547d4999d
+FUNC protect_customer_identity() returns=trigger secdef=t volatility=v body_md5=5249866d6b654490f5459104d5383f0d
 FUNC protect_platform_admin_flag() returns=trigger secdef=t volatility=v body_md5=85b2ee3bf7b864cde03790d0737ee687
-FUNC recalculate_my_job_totals() returns=integer secdef=t volatility=v body_md5=5cc2ae2a15b00c3862e06608663b177f
+FUNC protect_welcome_sent_at() returns=trigger secdef=t volatility=v body_md5=7978af6df3086f43044a4ada65d9f814
+FUNC queue_welcome_email() returns=trigger secdef=t volatility=v body_md5=49cfbf6c13e00d68692405f170c97200
+FUNC quote_phone_clear(jid uuid) returns=void secdef=t volatility=v body_md5=31da07ecc57b807cd86d1bae189e7882
+FUNC quote_phone_try(jid uuid) returns=text secdef=t volatility=v body_md5=d5acf96356ae7267de6df4994aa49ae0
+FUNC reapp_is_empty(fingerprint text) returns=boolean secdef=f volatility=i body_md5=b455787c108f2fb76d417aec19847d2b
+FUNC reapp_on_run_change() returns=trigger secdef=t volatility=v body_md5=c4e389a7d3445bc0ef93642e103a8bb0
+FUNC reapp_resolve_on_approval() returns=trigger secdef=t volatility=v body_md5=6cad098a247a0cf336d95282bad90ded
+FUNC reapp_row_takeoff(r fence_runs, ppf double precision) returns=text secdef=f volatility=i body_md5=364a4c6f72b62d3759f4d53095d22c99
+FUNC reapp_run_takeoff(points_encoded text, gates_encoded text, closed_loop boolean, manual_ft double precision, manual_corners integer, is_teardown boolean, ppf double precision) returns=text secdef=f volatility=i body_md5=91278a1875d243ac5b507a81f3f890cd
+FUNC reapp_withdraw_approval(jid uuid, run_sync uuid, run_label text, kind text, before_fp text, after_fp text) returns=void secdef=t volatility=v body_md5=4090199dd5a25be52629437f139e4460
+FUNC recalculate_my_job_totals() returns=integer secdef=t volatility=v body_md5=1a388ac1edb171d6ef6acf72bcb1338e
 FUNC recompute_job_totals(co uuid, job_sid uuid) returns=void secdef=t volatility=v body_md5=bae9c833ae488be6c95af0911786011a
 FUNC record_app_version(code integer, name text) returns=void secdef=t volatility=v body_md5=d1eafdeb5a697090adc3b28865ac3dd2
+FUNC record_auth_event(p_event_type text, p_success boolean, p_user_agent text, p_detail text) returns=void secdef=t volatility=v body_md5=dd6faeab285473efa368cc9210a99eb2
+FUNC record_sign_in_failure(p_email text, p_user_agent text) returns=void secdef=t volatility=v body_md5=543c1f9035884bc3ae47488bfcb18591
 FUNC register_device_token(device_token text) returns=void secdef=t volatility=v body_md5=0da047d983bbd4e251a99e2c44f7899f
 FUNC release_for_payment(cid uuid) returns=boolean secdef=t volatility=v body_md5=9bd5a2469b9db6a8a71c3952ab5b5348
 FUNC release_seat(member_id uuid) returns=void secdef=t volatility=v body_md5=8c3f6ce967adf29306a326134c4673b9
+FUNC release_visible_to_caller(rid uuid) returns=boolean secdef=t volatility=s body_md5=2f633801db5cd50ab534fb9ef9113ec9
 FUNC removed_people() returns=TABLE(id uuid, full_name text, removed_at timestamp with time zone) secdef=t volatility=v body_md5=9ae414daeb0a07e400ea907bbfd48ffe
+FUNC retire_build_template(p_sync_id uuid) returns=boolean secdef=t volatility=v body_md5=bab03ef64a08c844aa895b65fee1ca44
+FUNC run_automation_rule(p_rule_key text, p_job_sid text) returns=text secdef=t volatility=v body_md5=a4c8e08dd07cad68cef498c0887dfeb7
+FUNC save_build_template(p jsonb) returns=uuid secdef=t volatility=v body_md5=53fe5cedcc62799ca48daf2b0690cec5
 FUNC save_company_settings(new_settings jsonb) returns=void secdef=t volatility=v body_md5=2c203d583e2c7ddab22fada4132ceec8
+FUNC set_attention_sweep_enabled(p_enabled boolean, p_quiet_hours_start smallint, p_quiet_hours_end smallint, p_timezone text) returns=void secdef=t volatility=v body_md5=b4466fec1c720f03bddde876824f63dd
+FUNC set_automation_rule_enabled(p_rule_key text, p_enabled boolean) returns=void secdef=t volatility=v body_md5=ab566e0135a3e4d7c8ddeee06143997c
+FUNC set_follow_up_settings(p jsonb) returns=void secdef=t volatility=v body_md5=79561de82a7b5a8bdc55f9d56805063a
+FUNC set_mail_access(p_profile uuid, p_allowed boolean) returns=void secdef=t volatility=v body_md5=527ab31a30790725576b98b1278e314a
 FUNC set_member_role(member_id uuid, new_role text) returns=void secdef=t volatility=v body_md5=0c5af0a5ff3eec5429ab194cb948bf16
-FUNC sign_service_agreement(typed_name text, version text) returns=void secdef=t volatility=v body_md5=d4a9bea01f3372b779c338f5c024062e
+FUNC set_production_stage(job_sid text, next_stage text) returns=boolean secdef=t volatility=v body_md5=11911f7d8da2d8e14e0a661a3b436eb4
+FUNC sign_service_agreement(typed_name text, version text) returns=void secdef=t volatility=v body_md5=606eedabece2cf48e33998385284fe7b
+FUNC signal_sync() returns=trigger secdef=t volatility=v body_md5=1087ca37e4a1296dfc439d29ee650dd3
+FUNC stamp_accepted_total() returns=trigger secdef=f volatility=v body_md5=60e64f2b4cad3529ecee082dd341b368
+FUNC stamp_line_item_price() returns=trigger secdef=t volatility=v body_md5=582122bea09183dd3dc806a1b8089b61
+FUNC stamp_materials_dates() returns=trigger secdef=f volatility=v body_md5=acac25a41702450131826b840b0414a6
 FUNC stamp_time_entry_rate() returns=trigger secdef=t volatility=v body_md5=c09e4f09de340afb7d8c2f2ff9d29e9f
-FUNC touch_updated_at() returns=trigger secdef=f volatility=v body_md5=43f84444243c0270daf9eb9b1d6fc759
+FUNC time_entry_needs_a_person() returns=trigger secdef=t volatility=v body_md5=014383147733df7526d1675f3a53eb3d
+FUNC touch_updated_at() returns=trigger secdef=f volatility=v body_md5=e12af0b2afbb31e09a3f45eb17916d90
+FUNC welcome_email_trigger_ok(p_secret text) returns=boolean secdef=t volatility=s body_md5=ee3320a19f203787699ca551c700cd06
+GRANT admin_release_audience anon DELETE
+GRANT admin_release_audience anon INSERT
+GRANT admin_release_audience anon REFERENCES
+GRANT admin_release_audience anon SELECT
+GRANT admin_release_audience anon TRIGGER
+GRANT admin_release_audience anon TRUNCATE
+GRANT admin_release_audience anon UPDATE
+GRANT admin_release_audience authenticated DELETE
+GRANT admin_release_audience authenticated INSERT
+GRANT admin_release_audience authenticated REFERENCES
+GRANT admin_release_audience authenticated SELECT
+GRANT admin_release_audience authenticated TRIGGER
+GRANT admin_release_audience authenticated TRUNCATE
+GRANT admin_release_audience authenticated UPDATE
+GRANT admin_release_audience service_role DELETE
+GRANT admin_release_audience service_role INSERT
+GRANT admin_release_audience service_role REFERENCES
+GRANT admin_release_audience service_role SELECT
+GRANT admin_release_audience service_role TRIGGER
+GRANT admin_release_audience service_role TRUNCATE
+GRANT admin_release_audience service_role UPDATE
 GRANT app_errors anon DELETE
 GRANT app_errors anon INSERT
 GRANT app_errors anon REFERENCES
@@ -567,6 +1169,27 @@ GRANT app_errors service_role SELECT
 GRANT app_errors service_role TRIGGER
 GRANT app_errors service_role TRUNCATE
 GRANT app_errors service_role UPDATE
+GRANT app_release_audience anon DELETE
+GRANT app_release_audience anon INSERT
+GRANT app_release_audience anon REFERENCES
+GRANT app_release_audience anon SELECT
+GRANT app_release_audience anon TRIGGER
+GRANT app_release_audience anon TRUNCATE
+GRANT app_release_audience anon UPDATE
+GRANT app_release_audience authenticated DELETE
+GRANT app_release_audience authenticated INSERT
+GRANT app_release_audience authenticated REFERENCES
+GRANT app_release_audience authenticated SELECT
+GRANT app_release_audience authenticated TRIGGER
+GRANT app_release_audience authenticated TRUNCATE
+GRANT app_release_audience authenticated UPDATE
+GRANT app_release_audience service_role DELETE
+GRANT app_release_audience service_role INSERT
+GRANT app_release_audience service_role REFERENCES
+GRANT app_release_audience service_role SELECT
+GRANT app_release_audience service_role TRIGGER
+GRANT app_release_audience service_role TRUNCATE
+GRANT app_release_audience service_role UPDATE
 GRANT app_releases anon DELETE
 GRANT app_releases anon INSERT
 GRANT app_releases anon REFERENCES
@@ -588,6 +1211,48 @@ GRANT app_releases service_role SELECT
 GRANT app_releases service_role TRIGGER
 GRANT app_releases service_role TRUNCATE
 GRANT app_releases service_role UPDATE
+GRANT attention_findings anon DELETE
+GRANT attention_findings anon INSERT
+GRANT attention_findings anon REFERENCES
+GRANT attention_findings anon SELECT
+GRANT attention_findings anon TRIGGER
+GRANT attention_findings anon TRUNCATE
+GRANT attention_findings anon UPDATE
+GRANT attention_findings authenticated DELETE
+GRANT attention_findings authenticated INSERT
+GRANT attention_findings authenticated REFERENCES
+GRANT attention_findings authenticated SELECT
+GRANT attention_findings authenticated TRIGGER
+GRANT attention_findings authenticated TRUNCATE
+GRANT attention_findings authenticated UPDATE
+GRANT attention_findings service_role DELETE
+GRANT attention_findings service_role INSERT
+GRANT attention_findings service_role REFERENCES
+GRANT attention_findings service_role SELECT
+GRANT attention_findings service_role TRIGGER
+GRANT attention_findings service_role TRUNCATE
+GRANT attention_findings service_role UPDATE
+GRANT attention_sweep_settings anon DELETE
+GRANT attention_sweep_settings anon INSERT
+GRANT attention_sweep_settings anon REFERENCES
+GRANT attention_sweep_settings anon SELECT
+GRANT attention_sweep_settings anon TRIGGER
+GRANT attention_sweep_settings anon TRUNCATE
+GRANT attention_sweep_settings anon UPDATE
+GRANT attention_sweep_settings authenticated DELETE
+GRANT attention_sweep_settings authenticated INSERT
+GRANT attention_sweep_settings authenticated REFERENCES
+GRANT attention_sweep_settings authenticated SELECT
+GRANT attention_sweep_settings authenticated TRIGGER
+GRANT attention_sweep_settings authenticated TRUNCATE
+GRANT attention_sweep_settings authenticated UPDATE
+GRANT attention_sweep_settings service_role DELETE
+GRANT attention_sweep_settings service_role INSERT
+GRANT attention_sweep_settings service_role REFERENCES
+GRANT attention_sweep_settings service_role SELECT
+GRANT attention_sweep_settings service_role TRIGGER
+GRANT attention_sweep_settings service_role TRUNCATE
+GRANT attention_sweep_settings service_role UPDATE
 GRANT audit_log anon REFERENCES
 GRANT audit_log anon SELECT
 GRANT audit_log anon TRIGGER
@@ -603,6 +1268,127 @@ GRANT audit_log service_role SELECT
 GRANT audit_log service_role TRIGGER
 GRANT audit_log service_role TRUNCATE
 GRANT audit_log service_role UPDATE
+GRANT auth_events authenticated SELECT
+GRANT auth_events service_role DELETE
+GRANT auth_events service_role INSERT
+GRANT auth_events service_role REFERENCES
+GRANT auth_events service_role SELECT
+GRANT auth_events service_role TRIGGER
+GRANT auth_events service_role TRUNCATE
+GRANT auth_events service_role UPDATE
+GRANT auth_events_suppressed authenticated SELECT
+GRANT auth_events_suppressed service_role DELETE
+GRANT auth_events_suppressed service_role INSERT
+GRANT auth_events_suppressed service_role REFERENCES
+GRANT auth_events_suppressed service_role SELECT
+GRANT auth_events_suppressed service_role TRIGGER
+GRANT auth_events_suppressed service_role TRUNCATE
+GRANT auth_events_suppressed service_role UPDATE
+GRANT automation_flags anon DELETE
+GRANT automation_flags anon INSERT
+GRANT automation_flags anon REFERENCES
+GRANT automation_flags anon SELECT
+GRANT automation_flags anon TRIGGER
+GRANT automation_flags anon TRUNCATE
+GRANT automation_flags anon UPDATE
+GRANT automation_flags authenticated DELETE
+GRANT automation_flags authenticated INSERT
+GRANT automation_flags authenticated REFERENCES
+GRANT automation_flags authenticated SELECT
+GRANT automation_flags authenticated TRIGGER
+GRANT automation_flags authenticated TRUNCATE
+GRANT automation_flags authenticated UPDATE
+GRANT automation_flags service_role DELETE
+GRANT automation_flags service_role INSERT
+GRANT automation_flags service_role REFERENCES
+GRANT automation_flags service_role SELECT
+GRANT automation_flags service_role TRIGGER
+GRANT automation_flags service_role TRUNCATE
+GRANT automation_flags service_role UPDATE
+GRANT automation_rules anon DELETE
+GRANT automation_rules anon INSERT
+GRANT automation_rules anon REFERENCES
+GRANT automation_rules anon SELECT
+GRANT automation_rules anon TRIGGER
+GRANT automation_rules anon TRUNCATE
+GRANT automation_rules anon UPDATE
+GRANT automation_rules authenticated DELETE
+GRANT automation_rules authenticated INSERT
+GRANT automation_rules authenticated REFERENCES
+GRANT automation_rules authenticated SELECT
+GRANT automation_rules authenticated TRIGGER
+GRANT automation_rules authenticated TRUNCATE
+GRANT automation_rules authenticated UPDATE
+GRANT automation_rules service_role DELETE
+GRANT automation_rules service_role INSERT
+GRANT automation_rules service_role REFERENCES
+GRANT automation_rules service_role SELECT
+GRANT automation_rules service_role TRIGGER
+GRANT automation_rules service_role TRUNCATE
+GRANT automation_rules service_role UPDATE
+GRANT automation_runs anon DELETE
+GRANT automation_runs anon INSERT
+GRANT automation_runs anon REFERENCES
+GRANT automation_runs anon SELECT
+GRANT automation_runs anon TRIGGER
+GRANT automation_runs anon TRUNCATE
+GRANT automation_runs anon UPDATE
+GRANT automation_runs authenticated DELETE
+GRANT automation_runs authenticated INSERT
+GRANT automation_runs authenticated REFERENCES
+GRANT automation_runs authenticated SELECT
+GRANT automation_runs authenticated TRIGGER
+GRANT automation_runs authenticated TRUNCATE
+GRANT automation_runs authenticated UPDATE
+GRANT automation_runs service_role DELETE
+GRANT automation_runs service_role INSERT
+GRANT automation_runs service_role REFERENCES
+GRANT automation_runs service_role SELECT
+GRANT automation_runs service_role TRIGGER
+GRANT automation_runs service_role TRUNCATE
+GRANT automation_runs service_role UPDATE
+GRANT build_template_uses anon DELETE
+GRANT build_template_uses anon INSERT
+GRANT build_template_uses anon REFERENCES
+GRANT build_template_uses anon SELECT
+GRANT build_template_uses anon TRIGGER
+GRANT build_template_uses anon TRUNCATE
+GRANT build_template_uses anon UPDATE
+GRANT build_template_uses authenticated DELETE
+GRANT build_template_uses authenticated INSERT
+GRANT build_template_uses authenticated REFERENCES
+GRANT build_template_uses authenticated SELECT
+GRANT build_template_uses authenticated TRIGGER
+GRANT build_template_uses authenticated TRUNCATE
+GRANT build_template_uses authenticated UPDATE
+GRANT build_template_uses service_role DELETE
+GRANT build_template_uses service_role INSERT
+GRANT build_template_uses service_role REFERENCES
+GRANT build_template_uses service_role SELECT
+GRANT build_template_uses service_role TRIGGER
+GRANT build_template_uses service_role TRUNCATE
+GRANT build_template_uses service_role UPDATE
+GRANT build_templates anon DELETE
+GRANT build_templates anon INSERT
+GRANT build_templates anon REFERENCES
+GRANT build_templates anon SELECT
+GRANT build_templates anon TRIGGER
+GRANT build_templates anon TRUNCATE
+GRANT build_templates anon UPDATE
+GRANT build_templates authenticated DELETE
+GRANT build_templates authenticated INSERT
+GRANT build_templates authenticated REFERENCES
+GRANT build_templates authenticated SELECT
+GRANT build_templates authenticated TRIGGER
+GRANT build_templates authenticated TRUNCATE
+GRANT build_templates authenticated UPDATE
+GRANT build_templates service_role DELETE
+GRANT build_templates service_role INSERT
+GRANT build_templates service_role REFERENCES
+GRANT build_templates service_role SELECT
+GRANT build_templates service_role TRIGGER
+GRANT build_templates service_role TRUNCATE
+GRANT build_templates service_role UPDATE
 GRANT change_orders anon DELETE
 GRANT change_orders anon INSERT
 GRANT change_orders anon REFERENCES
@@ -624,6 +1410,14 @@ GRANT change_orders service_role SELECT
 GRANT change_orders service_role TRIGGER
 GRANT change_orders service_role TRUNCATE
 GRANT change_orders service_role UPDATE
+GRANT change_orders_crew authenticated SELECT
+GRANT change_orders_crew service_role DELETE
+GRANT change_orders_crew service_role INSERT
+GRANT change_orders_crew service_role REFERENCES
+GRANT change_orders_crew service_role SELECT
+GRANT change_orders_crew service_role TRIGGER
+GRANT change_orders_crew service_role TRUNCATE
+GRANT change_orders_crew service_role UPDATE
 GRANT companies anon DELETE
 GRANT companies anon INSERT
 GRANT companies anon REFERENCES
@@ -634,7 +1428,6 @@ GRANT companies anon UPDATE
 GRANT companies authenticated DELETE
 GRANT companies authenticated INSERT
 GRANT companies authenticated REFERENCES
-GRANT companies authenticated SELECT
 GRANT companies authenticated TRIGGER
 GRANT companies authenticated TRUNCATE
 GRANT companies authenticated UPDATE
@@ -771,20 +1564,7 @@ GRANT estimate_line_items service_role SELECT
 GRANT estimate_line_items service_role TRIGGER
 GRANT estimate_line_items service_role TRUNCATE
 GRANT estimate_line_items service_role UPDATE
-GRANT estimate_line_items_crew anon DELETE
-GRANT estimate_line_items_crew anon INSERT
-GRANT estimate_line_items_crew anon REFERENCES
-GRANT estimate_line_items_crew anon SELECT
-GRANT estimate_line_items_crew anon TRIGGER
-GRANT estimate_line_items_crew anon TRUNCATE
-GRANT estimate_line_items_crew anon UPDATE
-GRANT estimate_line_items_crew authenticated DELETE
-GRANT estimate_line_items_crew authenticated INSERT
-GRANT estimate_line_items_crew authenticated REFERENCES
 GRANT estimate_line_items_crew authenticated SELECT
-GRANT estimate_line_items_crew authenticated TRIGGER
-GRANT estimate_line_items_crew authenticated TRUNCATE
-GRANT estimate_line_items_crew authenticated UPDATE
 GRANT estimate_line_items_crew service_role DELETE
 GRANT estimate_line_items_crew service_role INSERT
 GRANT estimate_line_items_crew service_role REFERENCES
@@ -855,6 +1635,69 @@ GRANT field_changes service_role SELECT
 GRANT field_changes service_role TRIGGER
 GRANT field_changes service_role TRUNCATE
 GRANT field_changes service_role UPDATE
+GRANT follow_up_log anon DELETE
+GRANT follow_up_log anon INSERT
+GRANT follow_up_log anon REFERENCES
+GRANT follow_up_log anon SELECT
+GRANT follow_up_log anon TRIGGER
+GRANT follow_up_log anon TRUNCATE
+GRANT follow_up_log anon UPDATE
+GRANT follow_up_log authenticated DELETE
+GRANT follow_up_log authenticated INSERT
+GRANT follow_up_log authenticated REFERENCES
+GRANT follow_up_log authenticated SELECT
+GRANT follow_up_log authenticated TRIGGER
+GRANT follow_up_log authenticated TRUNCATE
+GRANT follow_up_log authenticated UPDATE
+GRANT follow_up_log service_role DELETE
+GRANT follow_up_log service_role INSERT
+GRANT follow_up_log service_role REFERENCES
+GRANT follow_up_log service_role SELECT
+GRANT follow_up_log service_role TRIGGER
+GRANT follow_up_log service_role TRUNCATE
+GRANT follow_up_log service_role UPDATE
+GRANT follow_up_settings anon DELETE
+GRANT follow_up_settings anon INSERT
+GRANT follow_up_settings anon REFERENCES
+GRANT follow_up_settings anon SELECT
+GRANT follow_up_settings anon TRIGGER
+GRANT follow_up_settings anon TRUNCATE
+GRANT follow_up_settings anon UPDATE
+GRANT follow_up_settings authenticated DELETE
+GRANT follow_up_settings authenticated INSERT
+GRANT follow_up_settings authenticated REFERENCES
+GRANT follow_up_settings authenticated SELECT
+GRANT follow_up_settings authenticated TRIGGER
+GRANT follow_up_settings authenticated TRUNCATE
+GRANT follow_up_settings authenticated UPDATE
+GRANT follow_up_settings service_role DELETE
+GRANT follow_up_settings service_role INSERT
+GRANT follow_up_settings service_role REFERENCES
+GRANT follow_up_settings service_role SELECT
+GRANT follow_up_settings service_role TRIGGER
+GRANT follow_up_settings service_role TRUNCATE
+GRANT follow_up_settings service_role UPDATE
+GRANT invite_sends anon DELETE
+GRANT invite_sends anon INSERT
+GRANT invite_sends anon REFERENCES
+GRANT invite_sends anon SELECT
+GRANT invite_sends anon TRIGGER
+GRANT invite_sends anon TRUNCATE
+GRANT invite_sends anon UPDATE
+GRANT invite_sends authenticated DELETE
+GRANT invite_sends authenticated INSERT
+GRANT invite_sends authenticated REFERENCES
+GRANT invite_sends authenticated SELECT
+GRANT invite_sends authenticated TRIGGER
+GRANT invite_sends authenticated TRUNCATE
+GRANT invite_sends authenticated UPDATE
+GRANT invite_sends service_role DELETE
+GRANT invite_sends service_role INSERT
+GRANT invite_sends service_role REFERENCES
+GRANT invite_sends service_role SELECT
+GRANT invite_sends service_role TRIGGER
+GRANT invite_sends service_role TRUNCATE
+GRANT invite_sends service_role UPDATE
 GRANT job_payments anon DELETE
 GRANT job_payments anon INSERT
 GRANT job_payments anon REFERENCES
@@ -876,6 +1719,27 @@ GRANT job_payments service_role SELECT
 GRANT job_payments service_role TRIGGER
 GRANT job_payments service_role TRUNCATE
 GRANT job_payments service_role UPDATE
+GRANT job_stage_events anon DELETE
+GRANT job_stage_events anon INSERT
+GRANT job_stage_events anon REFERENCES
+GRANT job_stage_events anon SELECT
+GRANT job_stage_events anon TRIGGER
+GRANT job_stage_events anon TRUNCATE
+GRANT job_stage_events anon UPDATE
+GRANT job_stage_events authenticated DELETE
+GRANT job_stage_events authenticated INSERT
+GRANT job_stage_events authenticated REFERENCES
+GRANT job_stage_events authenticated SELECT
+GRANT job_stage_events authenticated TRIGGER
+GRANT job_stage_events authenticated TRUNCATE
+GRANT job_stage_events authenticated UPDATE
+GRANT job_stage_events service_role DELETE
+GRANT job_stage_events service_role INSERT
+GRANT job_stage_events service_role REFERENCES
+GRANT job_stage_events service_role SELECT
+GRANT job_stage_events service_role TRIGGER
+GRANT job_stage_events service_role TRUNCATE
+GRANT job_stage_events service_role UPDATE
 GRANT job_steps anon DELETE
 GRANT job_steps anon INSERT
 GRANT job_steps anon REFERENCES
@@ -918,27 +1782,89 @@ GRANT jobs service_role SELECT
 GRANT jobs service_role TRIGGER
 GRANT jobs service_role TRUNCATE
 GRANT jobs service_role UPDATE
-GRANT jobs_crew_view anon DELETE
-GRANT jobs_crew_view anon INSERT
-GRANT jobs_crew_view anon REFERENCES
-GRANT jobs_crew_view anon SELECT
-GRANT jobs_crew_view anon TRIGGER
-GRANT jobs_crew_view anon TRUNCATE
-GRANT jobs_crew_view anon UPDATE
-GRANT jobs_crew_view authenticated DELETE
-GRANT jobs_crew_view authenticated INSERT
-GRANT jobs_crew_view authenticated REFERENCES
-GRANT jobs_crew_view authenticated SELECT
-GRANT jobs_crew_view authenticated TRIGGER
-GRANT jobs_crew_view authenticated TRUNCATE
-GRANT jobs_crew_view authenticated UPDATE
-GRANT jobs_crew_view service_role DELETE
-GRANT jobs_crew_view service_role INSERT
-GRANT jobs_crew_view service_role REFERENCES
-GRANT jobs_crew_view service_role SELECT
-GRANT jobs_crew_view service_role TRIGGER
-GRANT jobs_crew_view service_role TRUNCATE
-GRANT jobs_crew_view service_role UPDATE
+GRANT jobs_crew authenticated SELECT
+GRANT jobs_crew service_role DELETE
+GRANT jobs_crew service_role INSERT
+GRANT jobs_crew service_role REFERENCES
+GRANT jobs_crew service_role SELECT
+GRANT jobs_crew service_role TRIGGER
+GRANT jobs_crew service_role TRUNCATE
+GRANT jobs_crew service_role UPDATE
+GRANT mail_access authenticated SELECT
+GRANT mail_access service_role DELETE
+GRANT mail_access service_role INSERT
+GRANT mail_access service_role REFERENCES
+GRANT mail_access service_role SELECT
+GRANT mail_access service_role TRIGGER
+GRANT mail_access service_role TRUNCATE
+GRANT mail_access service_role UPDATE
+GRANT mail_account_secrets service_role DELETE
+GRANT mail_account_secrets service_role INSERT
+GRANT mail_account_secrets service_role REFERENCES
+GRANT mail_account_secrets service_role SELECT
+GRANT mail_account_secrets service_role TRIGGER
+GRANT mail_account_secrets service_role TRUNCATE
+GRANT mail_account_secrets service_role UPDATE
+GRANT mail_accounts authenticated SELECT
+GRANT mail_accounts service_role DELETE
+GRANT mail_accounts service_role INSERT
+GRANT mail_accounts service_role REFERENCES
+GRANT mail_accounts service_role SELECT
+GRANT mail_accounts service_role TRIGGER
+GRANT mail_accounts service_role TRUNCATE
+GRANT mail_accounts service_role UPDATE
+GRANT mail_events service_role DELETE
+GRANT mail_events service_role INSERT
+GRANT mail_events service_role REFERENCES
+GRANT mail_events service_role SELECT
+GRANT mail_events service_role TRIGGER
+GRANT mail_events service_role TRUNCATE
+GRANT mail_events service_role UPDATE
+GRANT mail_folder_state service_role DELETE
+GRANT mail_folder_state service_role INSERT
+GRANT mail_folder_state service_role REFERENCES
+GRANT mail_folder_state service_role SELECT
+GRANT mail_folder_state service_role TRIGGER
+GRANT mail_folder_state service_role TRUNCATE
+GRANT mail_folder_state service_role UPDATE
+GRANT mail_inbound_events service_role DELETE
+GRANT mail_inbound_events service_role INSERT
+GRANT mail_inbound_events service_role REFERENCES
+GRANT mail_inbound_events service_role SELECT
+GRANT mail_inbound_events service_role TRIGGER
+GRANT mail_inbound_events service_role TRUNCATE
+GRANT mail_inbound_events service_role UPDATE
+GRANT mail_messages authenticated SELECT
+GRANT mail_messages service_role DELETE
+GRANT mail_messages service_role INSERT
+GRANT mail_messages service_role REFERENCES
+GRANT mail_messages service_role SELECT
+GRANT mail_messages service_role TRIGGER
+GRANT mail_messages service_role TRUNCATE
+GRANT mail_messages service_role UPDATE
+GRANT mail_platform_settings service_role DELETE
+GRANT mail_platform_settings service_role INSERT
+GRANT mail_platform_settings service_role REFERENCES
+GRANT mail_platform_settings service_role SELECT
+GRANT mail_platform_settings service_role TRIGGER
+GRANT mail_platform_settings service_role TRUNCATE
+GRANT mail_platform_settings service_role UPDATE
+GRANT mail_thread_jobs authenticated SELECT
+GRANT mail_thread_jobs service_role DELETE
+GRANT mail_thread_jobs service_role INSERT
+GRANT mail_thread_jobs service_role REFERENCES
+GRANT mail_thread_jobs service_role SELECT
+GRANT mail_thread_jobs service_role TRIGGER
+GRANT mail_thread_jobs service_role TRUNCATE
+GRANT mail_thread_jobs service_role UPDATE
+GRANT mail_threads authenticated SELECT
+GRANT mail_threads service_role DELETE
+GRANT mail_threads service_role INSERT
+GRANT mail_threads service_role REFERENCES
+GRANT mail_threads service_role SELECT
+GRANT mail_threads service_role TRIGGER
+GRANT mail_threads service_role TRUNCATE
+GRANT mail_threads service_role UPDATE
 GRANT manufacturers anon DELETE
 GRANT manufacturers anon INSERT
 GRANT manufacturers anon REFERENCES
@@ -981,6 +1907,35 @@ GRANT material_items service_role SELECT
 GRANT material_items service_role TRIGGER
 GRANT material_items service_role TRUNCATE
 GRANT material_items service_role UPDATE
+GRANT material_items_crew authenticated SELECT
+GRANT material_items_crew service_role DELETE
+GRANT material_items_crew service_role INSERT
+GRANT material_items_crew service_role REFERENCES
+GRANT material_items_crew service_role SELECT
+GRANT material_items_crew service_role TRIGGER
+GRANT material_items_crew service_role TRUNCATE
+GRANT material_items_crew service_role UPDATE
+GRANT notification_prefs anon DELETE
+GRANT notification_prefs anon INSERT
+GRANT notification_prefs anon REFERENCES
+GRANT notification_prefs anon SELECT
+GRANT notification_prefs anon TRIGGER
+GRANT notification_prefs anon TRUNCATE
+GRANT notification_prefs anon UPDATE
+GRANT notification_prefs authenticated DELETE
+GRANT notification_prefs authenticated INSERT
+GRANT notification_prefs authenticated REFERENCES
+GRANT notification_prefs authenticated SELECT
+GRANT notification_prefs authenticated TRIGGER
+GRANT notification_prefs authenticated TRUNCATE
+GRANT notification_prefs authenticated UPDATE
+GRANT notification_prefs service_role DELETE
+GRANT notification_prefs service_role INSERT
+GRANT notification_prefs service_role REFERENCES
+GRANT notification_prefs service_role SELECT
+GRANT notification_prefs service_role TRIGGER
+GRANT notification_prefs service_role TRUNCATE
+GRANT notification_prefs service_role UPDATE
 GRANT payment_connections service_role DELETE
 GRANT payment_connections service_role INSERT
 GRANT payment_connections service_role REFERENCES
@@ -1030,6 +1985,27 @@ GRANT platform_clients service_role SELECT
 GRANT platform_clients service_role TRIGGER
 GRANT platform_clients service_role TRUNCATE
 GRANT platform_clients service_role UPDATE
+GRANT pricing_drift anon DELETE
+GRANT pricing_drift anon INSERT
+GRANT pricing_drift anon REFERENCES
+GRANT pricing_drift anon SELECT
+GRANT pricing_drift anon TRIGGER
+GRANT pricing_drift anon TRUNCATE
+GRANT pricing_drift anon UPDATE
+GRANT pricing_drift authenticated DELETE
+GRANT pricing_drift authenticated INSERT
+GRANT pricing_drift authenticated REFERENCES
+GRANT pricing_drift authenticated SELECT
+GRANT pricing_drift authenticated TRIGGER
+GRANT pricing_drift authenticated TRUNCATE
+GRANT pricing_drift authenticated UPDATE
+GRANT pricing_drift service_role DELETE
+GRANT pricing_drift service_role INSERT
+GRANT pricing_drift service_role REFERENCES
+GRANT pricing_drift service_role SELECT
+GRANT pricing_drift service_role TRIGGER
+GRANT pricing_drift service_role TRUNCATE
+GRANT pricing_drift service_role UPDATE
 GRANT pricing_tiers anon DELETE
 GRANT pricing_tiers anon INSERT
 GRANT pricing_tiers anon REFERENCES
@@ -1093,6 +2069,21 @@ GRANT punch_list_items service_role SELECT
 GRANT punch_list_items service_role TRIGGER
 GRANT punch_list_items service_role TRUNCATE
 GRANT punch_list_items service_role UPDATE
+GRANT quote_reapprovals anon REFERENCES
+GRANT quote_reapprovals anon SELECT
+GRANT quote_reapprovals anon TRIGGER
+GRANT quote_reapprovals anon TRUNCATE
+GRANT quote_reapprovals authenticated REFERENCES
+GRANT quote_reapprovals authenticated SELECT
+GRANT quote_reapprovals authenticated TRIGGER
+GRANT quote_reapprovals authenticated TRUNCATE
+GRANT quote_reapprovals service_role DELETE
+GRANT quote_reapprovals service_role INSERT
+GRANT quote_reapprovals service_role REFERENCES
+GRANT quote_reapprovals service_role SELECT
+GRANT quote_reapprovals service_role TRIGGER
+GRANT quote_reapprovals service_role TRUNCATE
+GRANT quote_reapprovals service_role UPDATE
 GRANT site_markers anon DELETE
 GRANT site_markers anon INSERT
 GRANT site_markers anon REFERENCES
@@ -1114,6 +2105,27 @@ GRANT site_markers service_role SELECT
 GRANT site_markers service_role TRIGGER
 GRANT site_markers service_role TRUNCATE
 GRANT site_markers service_role UPDATE
+GRANT sync_signals anon DELETE
+GRANT sync_signals anon INSERT
+GRANT sync_signals anon REFERENCES
+GRANT sync_signals anon SELECT
+GRANT sync_signals anon TRIGGER
+GRANT sync_signals anon TRUNCATE
+GRANT sync_signals anon UPDATE
+GRANT sync_signals authenticated DELETE
+GRANT sync_signals authenticated INSERT
+GRANT sync_signals authenticated REFERENCES
+GRANT sync_signals authenticated SELECT
+GRANT sync_signals authenticated TRIGGER
+GRANT sync_signals authenticated TRUNCATE
+GRANT sync_signals authenticated UPDATE
+GRANT sync_signals service_role DELETE
+GRANT sync_signals service_role INSERT
+GRANT sync_signals service_role REFERENCES
+GRANT sync_signals service_role SELECT
+GRANT sync_signals service_role TRIGGER
+GRANT sync_signals service_role TRUNCATE
+GRANT sync_signals service_role UPDATE
 GRANT time_entries anon DELETE
 GRANT time_entries anon INSERT
 GRANT time_entries anon REFERENCES
@@ -1135,18 +2147,53 @@ GRANT time_entries service_role SELECT
 GRANT time_entries service_role TRIGGER
 GRANT time_entries service_role TRUNCATE
 GRANT time_entries service_role UPDATE
+GRANT time_entries_crew authenticated SELECT
+GRANT time_entries_crew service_role DELETE
+GRANT time_entries_crew service_role INSERT
+GRANT time_entries_crew service_role REFERENCES
+GRANT time_entries_crew service_role SELECT
+GRANT time_entries_crew service_role TRIGGER
+GRANT time_entries_crew service_role TRUNCATE
+GRANT time_entries_crew service_role UPDATE
 INDEX app_errors_at CREATE INDEX app_errors_at ON public.app_errors USING btree (at DESC)
 INDEX app_errors_pkey CREATE UNIQUE INDEX app_errors_pkey ON public.app_errors USING btree (id)
+INDEX app_release_audience_pkey CREATE UNIQUE INDEX app_release_audience_pkey ON public.app_release_audience USING btree (release_id, company_id)
 INDEX app_releases_pkey CREATE UNIQUE INDEX app_releases_pkey ON public.app_releases USING btree (id)
 INDEX app_releases_version_code_key CREATE UNIQUE INDEX app_releases_version_code_key ON public.app_releases USING btree (version_code)
+INDEX attention_findings_company_id_detector_job_sync_id_fp_key CREATE UNIQUE INDEX attention_findings_company_id_detector_job_sync_id_fp_key ON public.attention_findings USING btree (company_id, detector, job_sync_id, fp)
+INDEX attention_findings_company_open CREATE INDEX attention_findings_company_open ON public.attention_findings USING btree (company_id, cleared_at)
+INDEX attention_findings_pkey CREATE UNIQUE INDEX attention_findings_pkey ON public.attention_findings USING btree (id)
+INDEX attention_sweep_settings_pkey CREATE UNIQUE INDEX attention_sweep_settings_pkey ON public.attention_sweep_settings USING btree (company_id)
 INDEX audit_log_company_at CREATE INDEX audit_log_company_at ON public.audit_log USING btree (company_id, at DESC)
 INDEX audit_log_pkey CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)
 INDEX audit_log_record CREATE INDEX audit_log_record ON public.audit_log USING btree (table_name, record_id)
+INDEX auth_events_client_attempt_idx CREATE INDEX auth_events_client_attempt_idx ON public.auth_events USING btree (attempt_key, created_at DESC) WHERE client_reported
+INDEX auth_events_client_created_idx CREATE INDEX auth_events_client_created_idx ON public.auth_events USING btree (created_at DESC) WHERE client_reported
+INDEX auth_events_client_source_idx CREATE INDEX auth_events_client_source_idx ON public.auth_events USING btree (source_key, created_at DESC) WHERE client_reported
+INDEX auth_events_created_idx CREATE INDEX auth_events_created_idx ON public.auth_events USING btree (created_at DESC)
+INDEX auth_events_pkey CREATE UNIQUE INDEX auth_events_pkey ON public.auth_events USING btree (id)
+INDEX auth_events_suppressed_pkey CREATE UNIQUE INDEX auth_events_suppressed_pkey ON public.auth_events_suppressed USING btree (bucket, reason)
+INDEX auth_events_type_idx CREATE INDEX auth_events_type_idx ON public.auth_events USING btree (event_type)
+INDEX auth_events_user_id_idx CREATE INDEX auth_events_user_id_idx ON public.auth_events USING btree (user_id, created_at DESC)
+INDEX automation_flags_open CREATE INDEX automation_flags_open ON public.automation_flags USING btree (company_id, cleared_at)
+INDEX automation_flags_pkey CREATE UNIQUE INDEX automation_flags_pkey ON public.automation_flags USING btree (id)
+INDEX automation_rules_company_id_rule_key_key CREATE UNIQUE INDEX automation_rules_company_id_rule_key_key ON public.automation_rules USING btree (company_id, rule_key)
+INDEX automation_rules_pkey CREATE UNIQUE INDEX automation_rules_pkey ON public.automation_rules USING btree (id)
+INDEX automation_runs_company CREATE INDEX automation_runs_company ON public.automation_runs USING btree (company_id, fired_at DESC)
+INDEX automation_runs_company_id_rule_key_job_sync_id_key CREATE UNIQUE INDEX automation_runs_company_id_rule_key_job_sync_id_key ON public.automation_runs USING btree (company_id, rule_key, job_sync_id)
+INDEX automation_runs_pkey CREATE UNIQUE INDEX automation_runs_pkey ON public.automation_runs USING btree (id)
+INDEX build_template_uses_memory_idx CREATE INDEX build_template_uses_memory_idx ON public.build_template_uses USING btree (company_id, used_by, fence_type, used_at DESC)
+INDEX build_template_uses_pkey CREATE UNIQUE INDEX build_template_uses_pkey ON public.build_template_uses USING btree (id)
+INDEX build_templates_company_idx CREATE INDEX build_templates_company_idx ON public.build_templates USING btree (company_id, fence_type, deleted_at)
+INDEX build_templates_company_sync_idx CREATE UNIQUE INDEX build_templates_company_sync_idx ON public.build_templates USING btree (company_id, sync_id) WHERE (company_id IS NOT NULL)
+INDEX build_templates_pkey CREATE UNIQUE INDEX build_templates_pkey ON public.build_templates USING btree (id)
+INDEX build_templates_shipped_sync_idx CREATE UNIQUE INDEX build_templates_shipped_sync_idx ON public.build_templates USING btree (sync_id) WHERE (company_id IS NULL)
 INDEX change_orders_company_idx CREATE INDEX change_orders_company_idx ON public.change_orders USING btree (company_id)
 INDEX change_orders_company_sync_idx CREATE UNIQUE INDEX change_orders_company_sync_idx ON public.change_orders USING btree (company_id, sync_id)
 INDEX change_orders_deleted_idx CREATE INDEX change_orders_deleted_idx ON public.change_orders USING btree (company_id, deleted_at)
 INDEX change_orders_job_idx CREATE INDEX change_orders_job_idx ON public.change_orders USING btree (job_sync_id)
 INDEX change_orders_pkey CREATE UNIQUE INDEX change_orders_pkey ON public.change_orders USING btree (id)
+INDEX companies_leads_token_idx CREATE INDEX companies_leads_token_idx ON public.companies USING btree (leads_token)
 INDEX companies_pkey CREATE UNIQUE INDEX companies_pkey ON public.companies USING btree (id)
 INDEX company_settings_pkey CREATE UNIQUE INDEX company_settings_pkey ON public.company_settings USING btree (company_id)
 INDEX company_setup_codes_pkey CREATE UNIQUE INDEX company_setup_codes_pkey ON public.company_setup_codes USING btree (code)
@@ -1158,15 +2205,19 @@ INDEX device_tokens_pkey CREATE UNIQUE INDEX device_tokens_pkey ON public.device
 INDEX employees_company_sync_idx CREATE UNIQUE INDEX employees_company_sync_idx ON public.employees USING btree (company_id, sync_id)
 INDEX employees_deleted_idx CREATE INDEX employees_deleted_idx ON public.employees USING btree (company_id, deleted_at)
 INDEX employees_pkey CREATE UNIQUE INDEX employees_pkey ON public.employees USING btree (id)
+INDEX employees_profile_id_unique CREATE UNIQUE INDEX employees_profile_id_unique ON public.employees USING btree (profile_id) WHERE (profile_id IS NOT NULL)
 INDEX employees_profile_unique CREATE UNIQUE INDEX employees_profile_unique ON public.employees USING btree (company_id, profile_id) WHERE ((profile_id IS NOT NULL) AND (deleted_at IS NULL))
 INDEX estimate_line_items_company_idx CREATE INDEX estimate_line_items_company_idx ON public.estimate_line_items USING btree (company_id)
 INDEX estimate_line_items_company_sync_idx CREATE UNIQUE INDEX estimate_line_items_company_sync_idx ON public.estimate_line_items USING btree (company_id, sync_id)
+INDEX estimate_line_items_company_updated_idx CREATE INDEX estimate_line_items_company_updated_idx ON public.estimate_line_items USING btree (company_id, updated_at)
 INDEX estimate_line_items_deleted_idx CREATE INDEX estimate_line_items_deleted_idx ON public.estimate_line_items USING btree (company_id, deleted_at)
 INDEX estimate_line_items_job_idx CREATE INDEX estimate_line_items_job_idx ON public.estimate_line_items USING btree (job_sync_id)
 INDEX estimate_line_items_pkey CREATE UNIQUE INDEX estimate_line_items_pkey ON public.estimate_line_items USING btree (id)
 INDEX estimate_line_items_run_idx CREATE INDEX estimate_line_items_run_idx ON public.estimate_line_items USING btree (fence_run_sync_id)
+INDEX expenses_company_spent_idx CREATE INDEX expenses_company_spent_idx ON public.expenses USING btree (company_id, spent_at)
 INDEX expenses_company_sync_idx CREATE UNIQUE INDEX expenses_company_sync_idx ON public.expenses USING btree (company_id, sync_id)
 INDEX expenses_deleted_idx CREATE INDEX expenses_deleted_idx ON public.expenses USING btree (company_id, deleted_at)
+INDEX expenses_job_idx CREATE INDEX expenses_job_idx ON public.expenses USING btree (job_sync_id)
 INDEX expenses_pkey CREATE UNIQUE INDEX expenses_pkey ON public.expenses USING btree (id)
 INDEX fence_runs_company_idx CREATE INDEX fence_runs_company_idx ON public.fence_runs USING btree (company_id)
 INDEX fence_runs_company_sync_idx CREATE UNIQUE INDEX fence_runs_company_sync_idx ON public.fence_runs USING btree (company_id, sync_id)
@@ -1177,12 +2228,21 @@ INDEX field_changes_deleted_idx CREATE INDEX field_changes_deleted_idx ON public
 INDEX field_changes_job_idx CREATE INDEX field_changes_job_idx ON public.field_changes USING btree (job_sync_id)
 INDEX field_changes_pkey CREATE UNIQUE INDEX field_changes_pkey ON public.field_changes USING btree (id)
 INDEX field_changes_sync_idx CREATE UNIQUE INDEX field_changes_sync_idx ON public.field_changes USING btree (company_id, sync_id)
+INDEX follow_up_log_company_id_job_sync_id_kind_stage_key_key CREATE UNIQUE INDEX follow_up_log_company_id_job_sync_id_kind_stage_key_key ON public.follow_up_log USING btree (company_id, job_sync_id, kind, stage_key)
+INDEX follow_up_log_company_idx CREATE INDEX follow_up_log_company_idx ON public.follow_up_log USING btree (company_id, sent_at DESC)
+INDEX follow_up_log_pkey CREATE UNIQUE INDEX follow_up_log_pkey ON public.follow_up_log USING btree (id)
+INDEX follow_up_settings_pkey CREATE UNIQUE INDEX follow_up_settings_pkey ON public.follow_up_settings USING btree (company_id)
+INDEX invite_sends_company_recent_idx CREATE INDEX invite_sends_company_recent_idx ON public.invite_sends USING btree (company_id, sent_at DESC)
+INDEX invite_sends_pkey CREATE UNIQUE INDEX invite_sends_pkey ON public.invite_sends USING btree (id)
 INDEX job_payments_company_idx CREATE INDEX job_payments_company_idx ON public.job_payments USING btree (company_id)
 INDEX job_payments_external_id_idx CREATE INDEX job_payments_external_id_idx ON public.job_payments USING btree (processor, external_id)
 INDEX job_payments_job_idx CREATE INDEX job_payments_job_idx ON public.job_payments USING btree (job_sync_id)
 INDEX job_payments_mode_idx CREATE INDEX job_payments_mode_idx ON public.job_payments USING btree (company_id, job_sync_id, status, livemode)
 INDEX job_payments_pkey CREATE UNIQUE INDEX job_payments_pkey ON public.job_payments USING btree (id)
+INDEX job_payments_processor_external_uidx CREATE UNIQUE INDEX job_payments_processor_external_uidx ON public.job_payments USING btree (processor, external_id) WHERE ((external_id IS NOT NULL) AND (external_id <> ''::text))
 INDEX job_payments_stripe_idx CREATE UNIQUE INDEX job_payments_stripe_idx ON public.job_payments USING btree (stripe_id) WHERE (stripe_id IS NOT NULL)
+INDEX job_stage_events_job CREATE INDEX job_stage_events_job ON public.job_stage_events USING btree (company_id, job_sync_id, entered_at)
+INDEX job_stage_events_pkey CREATE UNIQUE INDEX job_stage_events_pkey ON public.job_stage_events USING btree (id)
 INDEX job_steps_company_idx CREATE INDEX job_steps_company_idx ON public.job_steps USING btree (company_id)
 INDEX job_steps_company_sync_idx CREATE UNIQUE INDEX job_steps_company_sync_idx ON public.job_steps USING btree (company_id, sync_id)
 INDEX job_steps_deleted_idx CREATE INDEX job_steps_deleted_idx ON public.job_steps USING btree (company_id, deleted_at)
@@ -1192,6 +2252,35 @@ INDEX jobs_company_sync_id_idx CREATE UNIQUE INDEX jobs_company_sync_id_idx ON p
 INDEX jobs_deleted_idx CREATE INDEX jobs_deleted_idx ON public.jobs USING btree (company_id, deleted_at)
 INDEX jobs_pkey CREATE UNIQUE INDEX jobs_pkey ON public.jobs USING btree (id)
 INDEX jobs_quote_token_idx CREATE INDEX jobs_quote_token_idx ON public.jobs USING btree (quote_token)
+INDEX mail_access_pkey CREATE UNIQUE INDEX mail_access_pkey ON public.mail_access USING btree (company_id, profile_id)
+INDEX mail_account_secrets_pkey CREATE UNIQUE INDEX mail_account_secrets_pkey ON public.mail_account_secrets USING btree (account_id)
+INDEX mail_accounts_id_company_id_key CREATE UNIQUE INDEX mail_accounts_id_company_id_key ON public.mail_accounts USING btree (id, company_id)
+INDEX mail_accounts_inbound_token_key CREATE UNIQUE INDEX mail_accounts_inbound_token_key ON public.mail_accounts USING btree (inbound_token)
+INDEX mail_accounts_live_imap_address_idx CREATE UNIQUE INDEX mail_accounts_live_imap_address_idx ON public.mail_accounts USING btree (company_id, email_address) WHERE ((kind = 'imap'::text) AND (status <> 'disconnected'::text))
+INDEX mail_accounts_one_fenceflow_idx CREATE UNIQUE INDEX mail_accounts_one_fenceflow_idx ON public.mail_accounts USING btree (company_id) WHERE (kind = 'fenceflow'::text)
+INDEX mail_accounts_pkey CREATE UNIQUE INDEX mail_accounts_pkey ON public.mail_accounts USING btree (id)
+INDEX mail_events_company_kind_at_idx CREATE INDEX mail_events_company_kind_at_idx ON public.mail_events USING btree (company_id, kind, at DESC)
+INDEX mail_events_pkey CREATE UNIQUE INDEX mail_events_pkey ON public.mail_events USING btree (id)
+INDEX mail_folder_state_pkey CREATE UNIQUE INDEX mail_folder_state_pkey ON public.mail_folder_state USING btree (account_id, role)
+INDEX mail_inbound_events_pkey CREATE UNIQUE INDEX mail_inbound_events_pkey ON public.mail_inbound_events USING btree (svix_id)
+INDEX mail_messages_client_send_idx CREATE UNIQUE INDEX mail_messages_client_send_idx ON public.mail_messages USING btree (company_id, client_send_id) WHERE (client_send_id IS NOT NULL)
+INDEX mail_messages_company_mid_idx CREATE INDEX mail_messages_company_mid_idx ON public.mail_messages USING btree (company_id, message_id_header)
+INDEX mail_messages_counterparts_idx CREATE INDEX mail_messages_counterparts_idx ON public.mail_messages USING gin (counterpart_emails)
+INDEX mail_messages_folder_recent_idx CREATE INDEX mail_messages_folder_recent_idx ON public.mail_messages USING btree (account_id, folder_role, received_at DESC)
+INDEX mail_messages_parent_ids_idx CREATE INDEX mail_messages_parent_ids_idx ON public.mail_messages USING gin (parent_ids)
+INDEX mail_messages_pkey CREATE UNIQUE INDEX mail_messages_pkey ON public.mail_messages USING btree (id)
+INDEX mail_messages_provider_id_idx CREATE UNIQUE INDEX mail_messages_provider_id_idx ON public.mail_messages USING btree (account_id, provider_message_id) WHERE (provider_message_id IS NOT NULL)
+INDEX mail_messages_search_idx CREATE INDEX mail_messages_search_idx ON public.mail_messages USING gin (search_tsv)
+INDEX mail_messages_thread_idx CREATE INDEX mail_messages_thread_idx ON public.mail_messages USING btree (thread_id, received_at)
+INDEX mail_messages_uid_idx CREATE UNIQUE INDEX mail_messages_uid_idx ON public.mail_messages USING btree (account_id, folder_role, uidvalidity, uid) WHERE (uid IS NOT NULL)
+INDEX mail_platform_settings_pkey CREATE UNIQUE INDEX mail_platform_settings_pkey ON public.mail_platform_settings USING btree (id)
+INDEX mail_thread_jobs_job_idx CREATE INDEX mail_thread_jobs_job_idx ON public.mail_thread_jobs USING btree (company_id, job_sync_id)
+INDEX mail_thread_jobs_pkey CREATE UNIQUE INDEX mail_thread_jobs_pkey ON public.mail_thread_jobs USING btree (thread_id, job_sync_id)
+INDEX mail_threads_company_recent_idx CREATE INDEX mail_threads_company_recent_idx ON public.mail_threads USING btree (company_id, last_message_at DESC)
+INDEX mail_threads_id_company_id_key CREATE UNIQUE INDEX mail_threads_id_company_id_key ON public.mail_threads USING btree (id, company_id)
+INDEX mail_threads_participants_idx CREATE INDEX mail_threads_participants_idx ON public.mail_threads USING gin (participants)
+INDEX mail_threads_pkey CREATE UNIQUE INDEX mail_threads_pkey ON public.mail_threads USING btree (id)
+INDEX mail_threads_reply_token_key CREATE UNIQUE INDEX mail_threads_reply_token_key ON public.mail_threads USING btree (reply_token)
 INDEX manufacturers_company_idx CREATE INDEX manufacturers_company_idx ON public.manufacturers USING btree (company_id)
 INDEX manufacturers_company_sync_idx CREATE UNIQUE INDEX manufacturers_company_sync_idx ON public.manufacturers USING btree (company_id, sync_id)
 INDEX manufacturers_deleted_idx CREATE INDEX manufacturers_deleted_idx ON public.manufacturers USING btree (company_id, deleted_at)
@@ -1200,11 +2289,14 @@ INDEX material_items_company_idx CREATE INDEX material_items_company_idx ON publ
 INDEX material_items_company_sync_idx CREATE UNIQUE INDEX material_items_company_sync_idx ON public.material_items USING btree (company_id, sync_id)
 INDEX material_items_deleted_idx CREATE INDEX material_items_deleted_idx ON public.material_items USING btree (company_id, deleted_at)
 INDEX material_items_pkey CREATE UNIQUE INDEX material_items_pkey ON public.material_items USING btree (id)
+INDEX notification_prefs_pkey CREATE UNIQUE INDEX notification_prefs_pkey ON public.notification_prefs USING btree (user_id)
 INDEX payment_connections_pkey CREATE UNIQUE INDEX payment_connections_pkey ON public.payment_connections USING btree (company_id)
 INDEX payment_records_company_id_sync_id_key CREATE UNIQUE INDEX payment_records_company_id_sync_id_key ON public.payment_records USING btree (company_id, sync_id)
 INDEX payment_records_company_received_idx CREATE INDEX payment_records_company_received_idx ON public.payment_records USING btree (company_id, received_at)
 INDEX payment_records_job_idx CREATE INDEX payment_records_job_idx ON public.payment_records USING btree (company_id, job_sync_id)
 INDEX payment_records_pkey CREATE UNIQUE INDEX payment_records_pkey ON public.payment_records USING btree (id)
+INDEX pricing_drift_company_idx CREATE INDEX pricing_drift_company_idx ON public.pricing_drift USING btree (company_id, seen_at, noted_at DESC)
+INDEX pricing_drift_pkey CREATE UNIQUE INDEX pricing_drift_pkey ON public.pricing_drift USING btree (id)
 INDEX pricing_tiers_company_idx CREATE INDEX pricing_tiers_company_idx ON public.pricing_tiers USING btree (company_id)
 INDEX pricing_tiers_company_sync_idx CREATE UNIQUE INDEX pricing_tiers_company_sync_idx ON public.pricing_tiers USING btree (company_id, sync_id)
 INDEX pricing_tiers_deleted_idx CREATE INDEX pricing_tiers_deleted_idx ON public.pricing_tiers USING btree (company_id, deleted_at)
@@ -1213,12 +2305,17 @@ INDEX profiles_pkey CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING b
 INDEX punch_list_items_company_sync_idx CREATE UNIQUE INDEX punch_list_items_company_sync_idx ON public.punch_list_items USING btree (company_id, sync_id)
 INDEX punch_list_items_deleted_idx CREATE INDEX punch_list_items_deleted_idx ON public.punch_list_items USING btree (company_id, deleted_at)
 INDEX punch_list_items_pkey CREATE UNIQUE INDEX punch_list_items_pkey ON public.punch_list_items USING btree (id)
+INDEX quote_reapprovals_company_idx CREATE INDEX quote_reapprovals_company_idx ON public.quote_reapprovals USING btree (company_id, at DESC)
+INDEX quote_reapprovals_job_idx CREATE INDEX quote_reapprovals_job_idx ON public.quote_reapprovals USING btree (job_id, at DESC)
+INDEX quote_reapprovals_pkey CREATE UNIQUE INDEX quote_reapprovals_pkey ON public.quote_reapprovals USING btree (id)
 INDEX site_markers_company_idx CREATE INDEX site_markers_company_idx ON public.site_markers USING btree (company_id)
 INDEX site_markers_company_sync_idx CREATE UNIQUE INDEX site_markers_company_sync_idx ON public.site_markers USING btree (company_id, sync_id)
 INDEX site_markers_deleted_idx CREATE INDEX site_markers_deleted_idx ON public.site_markers USING btree (company_id, deleted_at)
 INDEX site_markers_job_idx CREATE INDEX site_markers_job_idx ON public.site_markers USING btree (job_sync_id)
 INDEX site_markers_pkey CREATE UNIQUE INDEX site_markers_pkey ON public.site_markers USING btree (id)
+INDEX sync_signals_pkey CREATE UNIQUE INDEX sync_signals_pkey ON public.sync_signals USING btree (company_id, table_name, sync_id)
 INDEX time_entries_company_idx CREATE INDEX time_entries_company_idx ON public.time_entries USING btree (company_id)
+INDEX time_entries_company_started_idx CREATE INDEX time_entries_company_started_idx ON public.time_entries USING btree (company_id, started_at)
 INDEX time_entries_company_sync_idx CREATE UNIQUE INDEX time_entries_company_sync_idx ON public.time_entries USING btree (company_id, sync_id)
 INDEX time_entries_deleted_idx CREATE INDEX time_entries_deleted_idx ON public.time_entries USING btree (company_id, deleted_at)
 INDEX time_entries_job_idx CREATE INDEX time_entries_job_idx ON public.time_entries USING btree (job_sync_id)
@@ -1226,15 +2323,34 @@ INDEX time_entries_pkey CREATE UNIQUE INDEX time_entries_pkey ON public.time_ent
 POLICY app_errors.app_errors_insert cmd=INSERT roles=public using=- check=(auth.role() = 'authenticated'::text)
 POLICY app_errors.app_errors_read cmd=SELECT roles=public using=is_platform_admin() check=-
 POLICY app_errors.app_errors_update cmd=UPDATE roles=public using=is_platform_admin() check=-
-POLICY app_releases.app_releases_read cmd=SELECT roles=public using=true check=-
+POLICY app_release_audience.app_release_audience_admin_read cmd=SELECT roles=public using=is_platform_admin() check=-
+POLICY app_releases.app_releases_read cmd=SELECT roles=public using=(((available_from IS NULL) OR (available_from <= now())) AND ((audience = 'everyone'::text) OR release_visible_to_caller(id))) check=-
+POLICY attention_findings.attention_findings_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
+POLICY attention_sweep_settings.attention_sweep_settings_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY audit_log.audit_log_read cmd=SELECT roles=public using=((company_id = current_company_id()) AND (( SELECT (profiles.role)::text AS role FROM profiles WHERE (profiles.id = auth.uid())) = ANY (ARRAY['OWNER'::text, 'MANAGER'::text, 'ACCOUNTANT'::text]))) check=-
+POLICY auth_events.auth_events_admin_read cmd=SELECT roles=public using=is_platform_admin() check=-
+POLICY auth_events_suppressed.auth_events_suppressed_admin_read cmd=SELECT roles=public using=is_platform_admin() check=-
+POLICY automation_flags.automation_flags_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
+POLICY automation_rules.automation_rules_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
+POLICY automation_runs.automation_runs_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
+POLICY build_template_uses.build_template_uses_insert cmd=INSERT roles=public using=- check=((company_id = current_company_id()) AND (used_by = auth.uid()))
+POLICY build_template_uses.build_template_uses_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=-
+POLICY build_template_uses.build_template_uses_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
+POLICY build_templates.build_templates_insert cmd=INSERT roles=public using=- check=((company_id = current_company_id()) AND ((current_user_role())::text = ANY (ARRAY['OWNER'::text, 'MANAGER'::text])))
+POLICY build_templates.build_templates_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=-
+POLICY build_templates.build_templates_read cmd=SELECT roles=public using=((company_id IS NULL) OR (company_id = current_company_id())) check=-
+POLICY build_templates.build_templates_update cmd=UPDATE roles=public using=((company_id = current_company_id()) AND ((current_user_role())::text = ANY (ARRAY['OWNER'::text, 'MANAGER'::text]))) check=(company_id = current_company_id())
 POLICY change_orders.change_orders_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
+POLICY change_orders.change_orders_money_hidden_from_crew cmd=SELECT roles=public using=has_permission('SEE_MONEY'::text) check=-
 POLICY change_orders.change_orders_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY change_orders.change_orders_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY change_orders.change_orders_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
-POLICY companies.companies_platform_admin_all cmd=ALL roles=public using=is_platform_admin() check=-
+POLICY companies.companies_platform_admin_insert cmd=INSERT roles=public using=- check=is_platform_admin()
+POLICY companies.companies_platform_admin_read cmd=SELECT roles=public using=is_platform_admin() check=-
+POLICY companies.companies_platform_admin_update cmd=UPDATE roles=public using=is_platform_admin() check=is_platform_admin()
 POLICY companies.companies_read cmd=SELECT roles=public using=(id = current_company_id()) check=-
 POLICY companies.companies_update cmd=UPDATE roles=public using=((id = current_company_id()) AND (current_user_role() = 'OWNER'::user_role)) check=-
+POLICY company_settings.company_settings_money_needs_permission cmd=SELECT roles=authenticated using=(has_permission('SEE_MONEY'::text) OR (current_user_role() = ANY (ARRAY['OWNER'::user_role, 'MANAGER'::user_role]))) check=-
 POLICY company_settings.company_settings_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY company_settings.company_settings_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY company_settings.company_settings_update cmd=UPDATE roles=public using=((company_id = current_company_id()) AND (current_user_role() = ANY (ARRAY['OWNER'::user_role, 'MANAGER'::user_role]))) check=-
@@ -1248,14 +2364,18 @@ POLICY device_tokens.device_tokens_own_insert cmd=INSERT roles=public using=- ch
 POLICY device_tokens.device_tokens_own_select cmd=SELECT roles=public using=(user_id = auth.uid()) check=-
 POLICY device_tokens.device_tokens_own_update cmd=UPDATE roles=public using=(user_id = auth.uid()) check=((user_id = auth.uid()) AND (company_id = current_company_id()))
 POLICY employees.employees_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
+POLICY employees.employees_insert_needs_settings cmd=INSERT roles=authenticated using=- check=has_permission('EDIT_CATALOG_AND_SETTINGS'::text)
 POLICY employees.employees_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
-POLICY employees.employees_read cmd=SELECT roles=public using=((company_id = current_company_id()) AND (has_permission('SEE_MONEY'::text) OR (profile_id = auth.uid()))) check=-
+POLICY employees.employees_read cmd=SELECT roles=public using=((company_id = current_company_id()) AND (has_permission('SEE_PAY'::text) OR (profile_id = auth.uid()))) check=-
 POLICY employees.employees_update cmd=UPDATE roles=public using=((company_id = current_company_id()) AND has_permission('EDIT_CATALOG_AND_SETTINGS'::text)) check=((company_id = current_company_id()) AND has_permission('EDIT_CATALOG_AND_SETTINGS'::text))
 POLICY estimate_line_items.estimate_line_items_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
 POLICY estimate_line_items.estimate_line_items_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY estimate_line_items.estimate_line_items_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY estimate_line_items.estimate_line_items_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY estimate_line_items.line_items_insert_needs_money_or_edit cmd=INSERT roles=public using=- check=(has_permission('EDIT_JOBS'::text) OR has_permission('SEE_MONEY'::text))
+POLICY estimate_line_items.line_items_money_hidden_from_crew cmd=SELECT roles=public using=has_permission('SEE_MONEY'::text) check=-
 POLICY expenses.expenses_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
+POLICY expenses.expenses_money_hidden_from_crew cmd=SELECT roles=public using=has_permission('SEE_MONEY'::text) check=-
 POLICY expenses.expenses_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY expenses.expenses_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY expenses.expenses_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
@@ -1267,18 +2387,28 @@ POLICY field_changes.field_changes_insert cmd=INSERT roles=public using=- check=
 POLICY field_changes.field_changes_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY field_changes.field_changes_select cmd=SELECT roles=public using=(company_id = ( SELECT profiles.company_id FROM profiles WHERE (profiles.id = auth.uid()))) check=-
 POLICY field_changes.field_changes_update cmd=UPDATE roles=public using=((company_id = ( SELECT profiles.company_id FROM profiles WHERE (profiles.id = auth.uid()))) AND (( SELECT (profiles.role)::text AS role FROM profiles WHERE (profiles.id = auth.uid())) = ANY (ARRAY['OWNER'::text, 'MANAGER'::text, 'FOREMAN'::text]))) check=-
+POLICY follow_up_log.follow_up_log_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
+POLICY follow_up_settings.follow_up_settings_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY job_payments.job_payments_insert cmd=INSERT roles=public using=- check=((company_id = ( SELECT profiles.company_id FROM profiles WHERE (profiles.id = auth.uid()))) AND (( SELECT profiles.role FROM profiles WHERE (profiles.id = auth.uid())) = ANY (ARRAY['OWNER'::user_role, 'MANAGER'::user_role])))
+POLICY job_payments.job_payments_money_hidden_from_crew cmd=SELECT roles=public using=has_permission('SEE_MONEY'::text) check=-
 POLICY job_payments.job_payments_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY job_payments.job_payments_select cmd=SELECT roles=public using=(company_id = ( SELECT profiles.company_id FROM profiles WHERE (profiles.id = auth.uid()))) check=-
 POLICY job_payments.job_payments_update cmd=UPDATE roles=public using=((company_id = ( SELECT profiles.company_id FROM profiles WHERE (profiles.id = auth.uid()))) AND (( SELECT profiles.role FROM profiles WHERE (profiles.id = auth.uid())) = ANY (ARRAY['OWNER'::user_role, 'MANAGER'::user_role]))) check=-
+POLICY job_stage_events.job_stage_events_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY job_steps.job_steps_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
 POLICY job_steps.job_steps_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY job_steps.job_steps_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY job_steps.job_steps_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
 POLICY jobs.jobs_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
+POLICY jobs.jobs_money_hidden_from_crew cmd=SELECT roles=public using=has_permission('SEE_MONEY'::text) check=-
 POLICY jobs.jobs_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY jobs.jobs_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY jobs.jobs_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY mail_access.mail_access_read cmd=SELECT roles=authenticated using=((company_id = ( SELECT current_company_id() AS current_company_id)) AND (((( SELECT current_user_role() AS current_user_role))::text = 'OWNER'::text) OR (profile_id = ( SELECT auth.uid() AS uid)))) check=-
+POLICY mail_accounts.mail_accounts_read cmd=SELECT roles=authenticated using=((company_id = ( SELECT current_company_id() AS current_company_id)) AND ( SELECT can_use_company_mail() AS can_use_company_mail)) check=-
+POLICY mail_messages.mail_messages_read cmd=SELECT roles=authenticated using=((company_id = ( SELECT current_company_id() AS current_company_id)) AND ( SELECT can_use_company_mail() AS can_use_company_mail)) check=-
+POLICY mail_thread_jobs.mail_thread_jobs_read cmd=SELECT roles=authenticated using=((company_id = ( SELECT current_company_id() AS current_company_id)) AND ( SELECT can_use_company_mail() AS can_use_company_mail)) check=-
+POLICY mail_threads.mail_threads_read cmd=SELECT roles=authenticated using=((company_id = ( SELECT current_company_id() AS current_company_id)) AND ( SELECT can_use_company_mail() AS can_use_company_mail)) check=-
 POLICY manufacturers.manufacturers_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
 POLICY manufacturers.manufacturers_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY manufacturers.manufacturers_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
@@ -1287,14 +2417,25 @@ POLICY material_items.material_items_insert cmd=INSERT roles=public using=- chec
 POLICY material_items.material_items_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY material_items.material_items_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY material_items.material_items_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY material_items.materials_money_hidden_from_crew cmd=SELECT roles=public using=has_permission('SEE_MONEY'::text) check=-
+POLICY notification_prefs.notification_prefs_own_insert cmd=INSERT roles=authenticated using=- check=(user_id = auth.uid())
+POLICY notification_prefs.notification_prefs_own_select cmd=SELECT roles=public using=(user_id = auth.uid()) check=-
+POLICY notification_prefs.notification_prefs_own_update cmd=UPDATE roles=authenticated using=(user_id = auth.uid()) check=(user_id = auth.uid())
+POLICY payment_records.payment_records_edit_needs_request_payment cmd=UPDATE roles=authenticated using=(has_permission('REQUEST_PAYMENT'::text) AND ((amount >= (0)::double precision) OR has_permission('RECORD_REFUNDS'::text))) check=(has_permission('REQUEST_PAYMENT'::text) AND ((amount >= (0)::double precision) OR has_permission('RECORD_REFUNDS'::text)))
 POLICY payment_records.payment_records_insert cmd=INSERT roles=public using=- check=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text))
 POLICY payment_records.payment_records_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY payment_records.payment_records_read cmd=SELECT roles=public using=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text)) check=-
 POLICY payment_records.payment_records_update cmd=UPDATE roles=public using=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text)) check=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text))
-POLICY pricing_tiers.pricing_tiers_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
+POLICY payment_records.payment_records_write_needs_request_payment cmd=INSERT roles=authenticated using=- check=(has_permission('REQUEST_PAYMENT'::text) AND ((amount >= (0)::double precision) OR has_permission('RECORD_REFUNDS'::text)))
+POLICY pricing_drift.pricing_drift_admin_read cmd=SELECT roles=public using=is_platform_admin() check=-
+POLICY pricing_drift.pricing_drift_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
+POLICY pricing_drift.pricing_drift_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=-
+POLICY pricing_drift.pricing_drift_read cmd=SELECT roles=public using=((company_id = current_company_id()) AND ((current_user_role())::text = ANY (ARRAY['OWNER'::text, 'MANAGER'::text]))) check=-
+POLICY pricing_drift.pricing_drift_update cmd=UPDATE roles=public using=((company_id = current_company_id()) AND ((current_user_role())::text = ANY (ARRAY['OWNER'::text, 'MANAGER'::text]))) check=(company_id = current_company_id())
+POLICY pricing_tiers.pricing_tiers_insert cmd=INSERT roles=public using=- check=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text))
 POLICY pricing_tiers.pricing_tiers_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
-POLICY pricing_tiers.pricing_tiers_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
-POLICY pricing_tiers.pricing_tiers_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY pricing_tiers.pricing_tiers_read cmd=SELECT roles=public using=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text)) check=-
+POLICY pricing_tiers.pricing_tiers_update cmd=UPDATE roles=public using=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text)) check=((company_id = current_company_id()) AND has_permission('SEE_MONEY'::text))
 POLICY profiles.profiles_manage cmd=UPDATE roles=public using=((company_id = current_company_id()) AND has_permission('MANAGE_ACCESS'::text) AND (id <> auth.uid())) check=-
 POLICY profiles.profiles_self_read cmd=SELECT roles=public using=((id = auth.uid()) OR (company_id = current_company_id())) check=-
 POLICY profiles.profiles_update_own_company cmd=UPDATE roles=public using=((company_id = ( SELECT profiles_1.company_id FROM profiles profiles_1 WHERE (profiles_1.id = auth.uid()))) AND (( SELECT (profiles_1.role)::text AS role FROM profiles profiles_1 WHERE (profiles_1.id = auth.uid())) = 'OWNER'::text)) check=-
@@ -1302,14 +2443,19 @@ POLICY punch_list_items.punch_list_items_insert cmd=INSERT roles=public using=- 
 POLICY punch_list_items.punch_list_items_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY punch_list_items.punch_list_items_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY punch_list_items.punch_list_items_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY quote_reapprovals.quote_reapprovals_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY site_markers.site_markers_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
 POLICY site_markers.site_markers_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
 POLICY site_markers.site_markers_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY site_markers.site_markers_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY sync_signals.sync_signals_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=-
+POLICY sync_signals.sync_signals_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY time_entries.time_entries_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
 POLICY time_entries.time_entries_not_suspended cmd=ALL roles=public using=(NOT company_is_suspended()) check=(NOT company_is_suspended())
+POLICY time_entries.time_entries_pay_needs_see_pay cmd=SELECT roles=authenticated using=(has_permission('SEE_PAY'::text) OR is_my_shift(employee_sync_id)) check=-
 POLICY time_entries.time_entries_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY time_entries.time_entries_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY time_entries.time_entries_update_stays_in_company cmd=UPDATE roles=anon,authenticated using=(company_id = current_company_id()) check=(company_id = current_company_id())
 REALTIME public.change_orders
 REALTIME public.employees
 REALTIME public.estimate_line_items
@@ -1325,10 +2471,21 @@ REALTIME public.pricing_tiers
 REALTIME public.profiles
 REALTIME public.punch_list_items
 REALTIME public.site_markers
+REALTIME public.sync_signals
 REALTIME public.time_entries
 TABLE app_errors rls=t
+TABLE app_release_audience rls=t
 TABLE app_releases rls=t
+TABLE attention_findings rls=t
+TABLE attention_sweep_settings rls=t
 TABLE audit_log rls=t
+TABLE auth_events rls=t
+TABLE auth_events_suppressed rls=t
+TABLE automation_flags rls=t
+TABLE automation_rules rls=t
+TABLE automation_runs rls=t
+TABLE build_template_uses rls=t
+TABLE build_templates rls=t
 TABLE change_orders rls=t
 TABLE companies rls=t
 TABLE company_settings rls=t
@@ -1340,21 +2497,59 @@ TABLE estimate_line_items rls=t
 TABLE expenses rls=t
 TABLE fence_runs rls=t
 TABLE field_changes rls=t
+TABLE follow_up_log rls=t
+TABLE follow_up_settings rls=t
+TABLE invite_sends rls=t
 TABLE job_payments rls=t
+TABLE job_stage_events rls=t
 TABLE job_steps rls=t
 TABLE jobs rls=t
+TABLE mail_access rls=t
+TABLE mail_account_secrets rls=t
+TABLE mail_accounts rls=t
+TABLE mail_events rls=t
+TABLE mail_folder_state rls=t
+TABLE mail_inbound_events rls=t
+TABLE mail_messages rls=t
+TABLE mail_platform_settings rls=t
+TABLE mail_thread_jobs rls=t
+TABLE mail_threads rls=t
 TABLE manufacturers rls=t
 TABLE material_items rls=t
+TABLE notification_prefs rls=t
 TABLE payment_connections rls=t
 TABLE payment_records rls=t
+TABLE pricing_drift rls=t
 TABLE pricing_tiers rls=t
 TABLE profiles rls=t
 TABLE punch_list_items rls=t
+TABLE quote_reapprovals rls=t
 TABLE site_markers rls=t
+TABLE sync_signals rls=t
 TABLE time_entries rls=t
-TRIGGER CREATE TRIGGER "job-change-push" AFTER INSERT OR UPDATE OF status, assigned_employee_id ON public.jobs FOR EACH ROW WHEN ((pg_trigger_depth() = 0)) EXECUTE FUNCTION supabase_functions.http_request('https://newcrgafcptspmapacrx.supabase.co/functions/v1/notify-job-change', 'POST', '{"Content-type":"application/json","x-fenceflow-trigger":"1de9019ef0638e651e108b7dabdcd07faea0f6651ce0886e96695939c9d55500"}', '{}', '5000')
+TRIGGER CREATE TRIGGER "00_hold_change_order_costs" BEFORE UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION hold_money_columns('additional_cost', 'material_cost')
+TRIGGER CREATE TRIGGER "00_hold_contract_columns" BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION hold_contract_columns()
+TRIGGER CREATE TRIGGER "00_hold_first_contact_by" BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION hold_first_contact_by()
+TRIGGER CREATE TRIGGER "00_hold_line_item_prices" BEFORE UPDATE ON public.estimate_line_items FOR EACH ROW EXECUTE FUNCTION hold_money_columns('unit_price', 'supplier_unit_price')
+TRIGGER CREATE TRIGGER "00_hold_line_item_takeoff_identity" BEFORE UPDATE ON public.estimate_line_items FOR EACH ROW EXECUTE FUNCTION hold_line_item_takeoff_identity()
+TRIGGER CREATE TRIGGER "00_hold_material_price" BEFORE UPDATE ON public.material_items FOR EACH ROW EXECUTE FUNCTION hold_money_columns('unit_price')
+TRIGGER CREATE TRIGGER "00_hold_quote_gate" BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION hold_quote_gate_columns()
+TRIGGER CREATE TRIGGER "00_latch_change_order_acceptance" BEFORE INSERT OR UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION latch_change_order_acceptance()
+TRIGGER CREATE TRIGGER "00_protect_customer_identity" BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION protect_customer_identity()
+TRIGGER CREATE TRIGGER "00_protect_job_money" BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION hold_money_columns()
+TRIGGER CREATE TRIGGER "00_stamp_line_item_price" BEFORE INSERT ON public.estimate_line_items FOR EACH ROW EXECUTE FUNCTION stamp_line_item_price()
+TRIGGER CREATE TRIGGER "00_zero_change_order_costs" BEFORE INSERT ON public.change_orders FOR EACH ROW EXECUTE FUNCTION hold_money_columns('additional_cost', 'material_cost')
+TRIGGER CREATE TRIGGER "10_reapproval_resolve" BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION reapp_resolve_on_approval()
+TRIGGER CREATE TRIGGER "11_hold_reapproval_columns" BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION hold_reapproval_columns()
+TRIGGER CREATE TRIGGER "12_stamp_accepted_total" BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION stamp_accepted_total()
+TRIGGER CREATE TRIGGER "90_mark_change_orders_accepted" AFTER INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION mark_change_orders_accepted()
+TRIGGER CREATE TRIGGER "job-change-push" AFTER INSERT OR UPDATE OF status, assigned_employee_id ON public.jobs FOR EACH ROW WHEN ((pg_trigger_depth() = 0)) EXECUTE FUNCTION supabase_functions.http_request('https://newcrgafcptspmapacrx.supabase.co/functions/v1/notify-job-change', 'POST', '{"Content-type":"application/json","x-fenceflow-trigger":"<redacted>"}', '{}', '5000')
+TRIGGER CREATE TRIGGER auth_events_clean_text BEFORE INSERT ON public.auth_events FOR EACH ROW EXECUTE FUNCTION auth_events_before_insert()
+TRIGGER CREATE TRIGGER build_templates_touch BEFORE UPDATE ON public.build_templates FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
 TRIGGER CREATE TRIGGER change_orders_audit AFTER INSERT OR DELETE OR UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION audit_changes()
 TRIGGER CREATE TRIGGER change_orders_touch BEFORE UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER companies_protect_welcome_sent_at BEFORE UPDATE ON public.companies FOR EACH ROW WHEN ((new.welcome_sent_at IS DISTINCT FROM old.welcome_sent_at)) EXECUTE FUNCTION protect_welcome_sent_at()
+TRIGGER CREATE TRIGGER companies_queue_welcome_email AFTER UPDATE ON public.companies FOR EACH ROW WHEN (((new.welcome_sent_at IS NULL) AND (new.details_completed_at IS NOT NULL))) EXECUTE FUNCTION queue_welcome_email()
 TRIGGER CREATE TRIGGER employees_audit AFTER INSERT OR DELETE OR UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION audit_changes()
 TRIGGER CREATE TRIGGER enforce_delete_permission BEFORE UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
 TRIGGER CREATE TRIGGER enforce_delete_permission BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
@@ -1370,27 +2565,48 @@ TRIGGER CREATE TRIGGER enforce_delete_permission BEFORE UPDATE ON public.pricing
 TRIGGER CREATE TRIGGER enforce_delete_permission BEFORE UPDATE ON public.punch_list_items FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
 TRIGGER CREATE TRIGGER enforce_delete_permission BEFORE UPDATE ON public.site_markers FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
 TRIGGER CREATE TRIGGER enforce_delete_permission BEFORE UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
+TRIGGER CREATE TRIGGER enforce_delete_permission_build_templates BEFORE UPDATE ON public.build_templates FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
 TRIGGER CREATE TRIGGER enforce_delete_permission_customers BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
 TRIGGER CREATE TRIGGER enforce_delete_permission_manufacturers BEFORE UPDATE ON public.manufacturers FOR EACH ROW EXECUTE FUNCTION enforce_delete_permission()
 TRIGGER CREATE TRIGGER estimate_line_items_audit AFTER INSERT OR DELETE OR UPDATE ON public.estimate_line_items FOR EACH ROW EXECUTE FUNCTION audit_changes()
+TRIGGER CREATE TRIGGER estimate_line_items_signal AFTER INSERT OR UPDATE ON public.estimate_line_items FOR EACH ROW EXECUTE FUNCTION signal_sync()
 TRIGGER CREATE TRIGGER estimate_line_items_touch BEFORE UPDATE ON public.estimate_line_items FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER expense_amount_needs_permission BEFORE INSERT OR UPDATE ON public.expenses FOR EACH ROW EXECUTE FUNCTION guard_expense_amount()
 TRIGGER CREATE TRIGGER fence_runs_touch BEFORE UPDATE ON public.fence_runs FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER fence_runs_touch_updated_at BEFORE UPDATE ON public.fence_runs FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER first_contact_is_first_trg BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION first_contact_is_first()
+TRIGGER CREATE TRIGGER job_assignment_needs_permission BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_assignment()
 TRIGGER CREATE TRIGGER job_steps_touch BEFORE UPDATE ON public.job_steps FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
 TRIGGER CREATE TRIGGER jobs_audit AFTER INSERT OR DELETE OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION audit_changes()
+TRIGGER CREATE TRIGGER jobs_signal AFTER INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION signal_sync()
 TRIGGER CREATE TRIGGER jobs_touch_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER mail_account_secrets_forget_vault AFTER DELETE ON public.mail_account_secrets FOR EACH ROW EXECUTE FUNCTION mail_account_secrets_forget_vault()
+TRIGGER CREATE TRIGGER mail_accounts_guard BEFORE INSERT OR UPDATE ON public.mail_accounts FOR EACH ROW EXECUTE FUNCTION mail_accounts_guard()
+TRIGGER CREATE TRIGGER mail_messages_clean BEFORE INSERT OR UPDATE ON public.mail_messages FOR EACH ROW EXECUTE FUNCTION mail_messages_clean()
+TRIGGER CREATE TRIGGER mail_messages_refresh_ins AFTER INSERT ON public.mail_messages REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION mail_messages_refresh_threads()
+TRIGGER CREATE TRIGGER mail_messages_refresh_upd AFTER UPDATE ON public.mail_messages REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION mail_messages_refresh_threads()
 TRIGGER CREATE TRIGGER manufacturers_touch BEFORE UPDATE ON public.manufacturers FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
 TRIGGER CREATE TRIGGER material_items_touch BEFORE UPDATE ON public.material_items FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
 TRIGGER CREATE TRIGGER payment_records_audit AFTER INSERT OR DELETE OR UPDATE ON public.payment_records FOR EACH ROW EXECUTE FUNCTION audit_changes()
 TRIGGER CREATE TRIGGER payment_records_totals AFTER INSERT OR DELETE OR UPDATE ON public.payment_records FOR EACH ROW EXECUTE FUNCTION payment_records_recompute()
 TRIGGER CREATE TRIGGER payment_records_touch_updated_at BEFORE UPDATE ON public.payment_records FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER preserve_original_shift_trg BEFORE UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION preserve_original_shift()
 TRIGGER CREATE TRIGGER pricing_tiers_touch BEFORE UPDATE ON public.pricing_tiers FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
 TRIGGER CREATE TRIGGER protect_billing_columns BEFORE UPDATE ON public.companies FOR EACH ROW EXECUTE FUNCTION protect_billing_columns()
-TRIGGER CREATE TRIGGER protect_customer_identity BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION protect_customer_identity()
 TRIGGER CREATE TRIGGER protect_platform_admin BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION protect_platform_admin_flag()
+TRIGGER CREATE TRIGGER reapproval_on_drawing_change AFTER INSERT OR DELETE OR UPDATE ON public.fence_runs FOR EACH ROW EXECUTE FUNCTION reapp_on_run_change()
 TRIGGER CREATE TRIGGER site_markers_touch BEFORE UPDATE ON public.site_markers FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER stamp_materials_dates_trg BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION stamp_materials_dates()
 TRIGGER CREATE TRIGGER stamp_time_entry_rate BEFORE INSERT OR UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION stamp_time_entry_rate()
 TRIGGER CREATE TRIGGER time_entries_audit AFTER INSERT OR DELETE OR UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION audit_changes()
 TRIGGER CREATE TRIGGER time_entries_touch BEFORE UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
-VIEW estimate_line_items_crew definition_md5=b853e1eb91d1ae021485cbb78ffed62b
-VIEW jobs_crew_view definition_md5=0abbfea578a589ca686867d70efbd52c
+TRIGGER CREATE TRIGGER time_entry_approval_needs_permission BEFORE INSERT OR UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION guard_time_entry_approval()
+TRIGGER CREATE TRIGGER time_entry_needs_a_person BEFORE INSERT OR UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION time_entry_needs_a_person()
+TRIGGER CREATE TRIGGER time_entry_write_needs_permission BEFORE UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION guard_time_entry_write_permission()
+VIEW admin_release_audience definition_md5=709704c70855a72d2e95f7db00fde2b3
+VIEW change_orders_crew definition_md5=62102a3654c492a35fdd1b64aef6232e
+VIEW estimate_line_items_crew definition_md5=a043fbd6100fef686438c2dbb82252d4
+VIEW jobs_crew definition_md5=2f452f433df14c608d3709c2542b3b09
+VIEW material_items_crew definition_md5=23ba6555584d2c4d425d671e3e82a6c1
 VIEW platform_clients definition_md5=414ff5b7a389a8fd0d7cb477f37c44fd
+VIEW time_entries_crew definition_md5=d46d898b63d0cc0ccf2c5609a3f6c34b

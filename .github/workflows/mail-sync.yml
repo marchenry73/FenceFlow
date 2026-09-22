@@ -1,0 +1,151 @@
+# Background trigger for the mail-sync edge function (company email).
+#
+# mail-sync (supabase/functions/mail-sync/index.ts) fetches new mail headers
+# from every company mailbox connected over IMAP. The office already calls it
+# whenever someone opens the Email tab (and every 90 s while it stays open);
+# this workflow is what keeps mailboxes current when nobody is looking, so a
+# customer's reply is linked to its job before anyone opens the inbox. Same
+# "Option B" as follow-ups.yml and attention-sweep.yml: an external cron
+# caller at zero infrastructure cost. There is no pg_cron in this project and
+# a second compute instance is ruled out by the cost rule (CLAUDE.md).
+#
+# Two actions, both on the function's scheduled door:
+#   - sync, every 10 minutes. GitHub delays scheduled runs under load and
+#     switches schedules off after 60 days without repository activity, so
+#     the office promises "about every 10-15 minutes", never real time.
+#   - reach, once a day at 06:05 UTC (or by hand): connects to the preset
+#     Zoho and Gmail servers on 993/465 with no credentials, reads their
+#     greetings, and checks that the negative controls fail. It is the Track 0
+#     probe kept as a regression check -- if Supabase ever blocks these ports,
+#     this run goes red instead of every tenant's mailbox quietly going stale.
+#
+# Two things gate the request, both required:
+#   - `apikey` / `Authorization: Bearer` carry the project's PUBLIC anon key
+#     (the same publishable key already shipped in website/config.js -- not
+#     a secret; see follow-ups.yml for why the gateway wants it).
+#   - `x-fenceflow-trigger` carries MAIL_SYNC_TRIGGER_SECRET, a GitHub
+#     repository secret this workflow never prints. It must equal the
+#     function secret of the same name; the function hashes both and
+#     compares them in constant time, and refuses everything when its own
+#     copy is unset.
+#
+# THIS LOG IS PUBLIC (the repository is public). The function's scheduled
+# door answers counts and fixed error codes only -- no account id, address,
+# host or server text -- which is why printing the response below is safe.
+# The reach answer names only the public preset hosts.
+#
+# NOT CONFIGURED IS NOT A FAILURE. Until MAIL_SYNC_TRIGGER_SECRET exists as a
+# repository secret, a run has nothing to do: it posts a notice, writes the
+# same sentence to the run summary, and exits 0 -- on the schedule AND when
+# pressed by hand. Mail still arrives whenever someone opens the Email tab;
+# only the background refresh is off. Once the secret is set, every real
+# failure (refused secret, function error, unreachable mail servers) fails
+# the run. A tenant's own mailbox refusing its password is NOT a failure of
+# this scheduler: the function reports it in the counts with ok:true, and
+# the office shows it on that company's Settings page.
+#
+# The run step checks the HTTP status itself. `--fail` is deliberately not
+# used: it exits before the body is written, and the body is the only place
+# the function says why it refused. curl's own exit code only covers the
+# call not completing at all (DNS, TLS, timeout), which `set -e` turns into
+# a failed run.
+name: Mail sync scheduler
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # sync, every 10 minutes, UTC
+    - cron: '5 6 * * *' # reach, daily at 06:05 UTC
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'sync = fetch new mail now; reach = check the mail servers can be reached'
+        type: choice
+        options:
+          - sync
+          - reach
+        default: sync
+
+# Nothing here needs the repository or a token.
+permissions: {}
+
+# A run still going when the next is due is left to finish; the function's
+# per-mailbox lock would make the second one skip everything anyway.
+concurrency:
+  group: mail-sync
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Invoke mail-sync
+        env:
+          TRIGGER_SECRET: ${{ secrets.MAIL_SYNC_TRIGGER_SECRET }}
+          SUPABASE_ANON_KEY: 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
+          FUNCTION_URL: 'https://newcrgafcptspmapacrx.supabase.co/functions/v1/mail-sync'
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          INPUT_ACTION: ${{ github.event.inputs.action }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TRIGGER_SECRET:-}" ]; then
+            why="MAIL_SYNC_TRIGGER_SECRET is not set (GitHub -> Settings -> Secrets and variables -> Actions). Background mail sync is switched off, so nothing was fetched; mail still arrives whenever someone opens the Email tab. Set the same random value as a GitHub secret and as a Supabase function secret to switch it on."
+            echo "### Mail sync scheduler: not configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "$why" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::${why}"
+            exit 0
+          fi
+
+          action=sync
+          if [ "${EVENT_NAME}" = "schedule" ] && [ "${EVENT_SCHEDULE:-}" = "5 6 * * *" ]; then
+            action=reach
+          fi
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ "${INPUT_ACTION:-}" = "reach" ]; then
+            action=reach
+          fi
+          echo "Action: ${action}"
+
+          # --retry covers a blip between GitHub and Supabase. Repeating a sync
+          # is safe: each mailbox is locked while it syncs, and stored mail is
+          # de-duplicated on its UID, so a retried run adds nothing twice.
+          # --max-time 170 sits above Supabase's own 150 s limit; the function
+          # answers inside 150 s by design (it stops starting mailboxes early
+          # and says "stopped_early"), so curl only gives up on a call the
+          # network has lost.
+          http_status=$(curl -sS --retry 2 --retry-delay 15 --max-time 170 \
+            -o response.json -w '%{http_code}' \
+            -X POST "${FUNCTION_URL}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "x-fenceflow-trigger: ${TRIGGER_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data "{\"action\":\"${action}\"}")
+
+          echo "HTTP status: ${http_status}"
+          cat response.json
+          # The body has no trailing newline, and a ::error:: line only counts
+          # as an annotation at the start of a line.
+          echo
+
+          if [ "${http_status}" != "200" ]; then
+            echo "::error::mail-sync (${action}) returned HTTP ${http_status}, treating as failure." >&2
+            exit 1
+          fi
+
+          # The function answers compact JSON (JSON.stringify) with "ok" as its
+          # FIRST key, so the verdict is the first 10 bytes. Not a grep: the
+          # reach answer also has an "ok":true inside every target, which
+          # would pass a run whose overall ok is false. ok is false only for
+          # FenceFlow's own failures (sync) or an unreachable preset server /
+          # a negative control that did not fail (reach) -- never for one
+          # tenant's refused password.
+          if [ "$(head -c 10 response.json)" != '{"ok":true' ]; then
+            echo "::error::mail-sync (${action}) responded 200 but did not report ok:true (see above)." >&2
+            exit 1
+          fi
+
+          if grep -q '"stopped_early"' response.json; then
+            echo "::notice::mail-sync ran out of time before every due mailbox was synced; the rest go first on the next run."
+          fi

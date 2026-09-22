@@ -1,5 +1,15 @@
 // FenceFlow push notifications. Triggered by a Database Webhook on `jobs`.
+//
+// A job push goes only to people who can open that job (the rule and its
+// reasons live in ../_shared/job-push.ts, which is pure and tested by
+// tests/notify-job-change.test.mjs; the reads that feed it are
+// ../_shared/push-recipients.ts, which quote-view shares so a quote approval
+// reaches the same people). Until 2026-09-22 every job push went to
+// every device in the company, crew included, so a crew phone was told the
+// customer name of jobs it is not allowed to see.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { jobPushEvent, jobPushMessage } from "../_shared/job-push.ts";
+import { jobAudience } from "../_shared/push-recipients.ts";
 
 const b64 = (o: unknown) =>
   btoa(JSON.stringify(o)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
@@ -88,58 +98,56 @@ Deno.serve(async (req) => {
     // this arrives from profiles, not jobs -- and it goes only to the owner,
     // because it is the owner's decision to make and because fanning it out
     // would notify the person who just joined that they had just joined.
-    let ownersOnly = false;
-    const who = rec.customer_name || "a job";
-    let title = "", body = "";
-    if (p.table === "profiles") {
-      const joined = rec.company_id && !old.company_id;
-      if (!joined) return new Response("no notification needed");
-      ownersOnly = true;
-      const name = rec.full_name?.trim() || "Somebody";
-      const asked = rec.requested_role
-        ? `${rec.requested_role.charAt(0)}${rec.requested_role.slice(1).toLowerCase()}`
-        : null;
-      title = "Someone joined your crew";
-      body = asked
-        ? `${name} joined and asked to be ${asked}. Say yes or no in the office.`
-        : `${name} joined your company on FenceFlow.`;
-    } else if (p.type === "INSERT") {
-      title = "New job added";
-      body = `${who} was added to the schedule.`;
-    } else if (rec.status === "ACCEPTED" && old.status !== "ACCEPTED") {
-      title = "Job marked complete";
-      body = `${who} was finished by the crew.`;
-    } else if (
-      rec.assigned_employee_id &&
-      rec.assigned_employee_id !== old.assigned_employee_id
-    ) {
-      title = "Crew assignment changed";
-      body = `Someone was assigned to ${who}.`;
-    } else {
-      return new Response("no notification needed");
-    }
-
+    //
+    // Everything else is a job, and goes only to the people who can open it:
+    // everyone who sees every job, plus the crew whose own record is on it.
+    // Each person gets their own words -- the one this change made the lead
+    // is told "You were assigned", not "Someone was assigned".
     const db = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    // Everyone's phone, or just the owner's.
-    let deviceQuery = db
-      .from("device_tokens").select("token").eq("company_id", rec.company_id);
-    if (ownersOnly) {
-      const { data: owners } = await db
+    const notes = new Map<string, { title: string; body: string }>(); // user id -> words
+    if (p.table === "profiles") {
+      const joined = rec.company_id && !old.company_id;
+      if (!joined) return new Response("no notification needed");
+      const name = rec.full_name?.trim() || "Somebody";
+      const asked = rec.requested_role
+        ? `${rec.requested_role.charAt(0)}${rec.requested_role.slice(1).toLowerCase()}`
+        : null;
+      const title = "Someone joined your crew";
+      const body = asked
+        ? `${name} joined and asked to be ${asked}. Say yes or no in the office.`
+        : `${name} joined your company on FenceFlow.`;
+      const { data: owners, error } = await db
         .from("profiles").select("id")
         .eq("company_id", rec.company_id).eq("role", "OWNER");
-      const ids = (owners ?? []).map((o: any) => o.id);
-      if (!ids.length) return new Response("no owner to tell");
-      deviceQuery = deviceQuery.in("user_id", ids);
+      if (error) throw new Error(`profiles: ${error.message}`);
+      for (const o of owners ?? []) notes.set(o.id, { title, body });
+      if (!notes.size) return new Response("no owner to tell");
+    } else {
+      const event = jobPushEvent(p);
+      if (!event) return new Response("no notification needed");
+      const audience = await jobAudience(db, rec.company_id, event);
+      for (const [userId, who] of audience) notes.set(userId, jobPushMessage(event, who.newLead));
+      if (!notes.size) return new Response("nobody can see this job");
     }
-    const { data: rows } = await deviceQuery;
+
+    // Only those people's phones. A device row whose user is not in `notes`
+    // -- crew off this job, or anyone the reads above could not place -- is
+    // never addressed.
+    const { data: rows, error: devicesError } = await db
+      .from("device_tokens").select("token, user_id")
+      .eq("company_id", rec.company_id).in("user_id", [...notes.keys()]);
+    if (devicesError) throw new Error(`device_tokens: ${devicesError.message}`);
     if (!rows?.length) return new Response("no devices");
 
     const tok = await accessToken(sa);
     const stale: string[] = [];
+    let sent = 0;
     for (const r of rows) {
+      const note = notes.get(r.user_id);
+      if (!note) continue; // the .in() above already guarantees this; never guess
       const send = await fetch(
         `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
         {
@@ -148,17 +156,18 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             message: {
               token: r.token,
-              data: { title, body, jobId: String(rec.id ?? "") },
+              data: { title: note.title, body: note.body, jobId: String(rec.id ?? "") },
               android: { priority: "HIGH" },
             },
           }),
         },
       );
       if (send.status === 404 || send.status === 400) stale.push(r.token);
+      else sent++;
     }
     if (stale.length) await db.from("device_tokens").delete().in("token", stale);
 
-    return new Response(JSON.stringify({ sent: rows.length - stale.length }));
+    return new Response(JSON.stringify({ sent }));
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500 });

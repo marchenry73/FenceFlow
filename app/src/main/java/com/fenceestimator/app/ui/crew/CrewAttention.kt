@@ -1,5 +1,6 @@
 package com.fenceestimator.app.ui.crew
 
+import com.fenceestimator.app.cloud.JobScope
 import com.fenceestimator.app.data.FieldChange
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
@@ -96,13 +97,22 @@ data class CrewAttentionItem(
  *   plan-change request records who asked -- see Repository.requestPlanChange.
  * @param jobs every job on the phone. Filtered down to this person's own
  *   assignment before anything else runs.
- * @param timeEntries every shift on the phone for jobs this person is
- *   assigned to. A shift on a job this person has since been moved off of is
- *   out of scope -- the same boundary [jobs] draws.
+ * @param timeEntries the shifts to look through: those on this person's jobs,
+ *   and this person's own answered shifts on any other job. Only their OWN
+ *   ([TimeEntry.employeeId]) ever raises anything, on whichever job it was
+ *   worked -- a shift sent back or corrected is about their pay, and being
+ *   moved off the job since, or taken off it (kept on the phone,
+ *   Job.accessEndedAt), does not make it any less theirs. It used to need the
+ *   job to still be theirs too, so someone taken off a job never heard that
+ *   the office had sent back the day they worked on it.
  * @param fieldChanges every plan change on the phone for jobs this person is
  *   assigned to.
  * @param now injected so a test can pick a fixed "today" instead of the
  *   moment it happens to run.
+ * @param alsoMine jobs this person is on without being the lead -- extra
+ *   crew, or let in on a request (job_assignments) -- which the lead column
+ *   alone cannot show. Decided by [jobsMineByScope] from the server's own
+ *   answer, never guessed here.
  */
 object CrewAttention {
 
@@ -112,11 +122,12 @@ object CrewAttention {
         jobs: List<Job>,
         timeEntries: List<TimeEntry>,
         fieldChanges: List<FieldChange>,
-        now: Long = System.currentTimeMillis()
+        now: Long = System.currentTimeMillis(),
+        alsoMine: Set<Long> = emptySet()
     ): List<CrewAttentionItem> {
         if (myEmployeeId == null) return emptyList()
 
-        val myJobs = jobs.filter { it.assignedEmployeeId == myEmployeeId }
+        val myJobs = jobs.filter { it.assignedEmployeeId == myEmployeeId || it.id in alsoMine }
         val myJobIds = myJobs.map { it.id }.toSet()
         val active = myJobs.filter { it.status != JobStatus.COMPLETED && it.status != JobStatus.DECLINED }
 
@@ -138,7 +149,7 @@ object CrewAttention {
         // A shift sent back is the office saying something about THIS
         // person's hours is wrong and needs their side of it, not a
         // read-only fact -- so it is next after the safety item.
-        timeEntries.filter { it.employeeId == myEmployeeId && it.isRejected && it.jobId in myJobIds }
+        timeEntries.filter { it.employeeId == myEmployeeId && it.isRejected }
             .forEach { t ->
                 items += CrewAttentionItem(
                     key = "shift_sent_back:${t.syncId}:${t.rejectedAt}",
@@ -155,7 +166,7 @@ object CrewAttention {
         //
         // correctedAt is stamped by the server when the times actually move,
         // so this cannot fire on an ordinary edit that changed nothing.
-        timeEntries.filter { it.employeeId == myEmployeeId && it.correctedAt != null && it.jobId in myJobIds }
+        timeEntries.filter { it.employeeId == myEmployeeId && it.correctedAt != null }
             .forEach { t ->
                 items += CrewAttentionItem(
                     key = "hours_corrected:" + t.syncId + ":" + t.correctedAt,
@@ -200,6 +211,39 @@ object CrewAttention {
             }
 
         return items
+    }
+
+    /**
+     * Which of [visibleJobs] are this person's without being the lead: for a
+     * scoped crew member, every job the server sent. Once
+     * supabase_crew_job_scope.sql is live, a scoped phone receives only the
+     * jobs its person is on -- lead, extra crew, or let in -- and JobSync
+     * hides the rest, so a job still in the list IS theirs, whoever the lead
+     * is. Without this, someone added as extra crew never heard that their
+     * job was today or that its locate had lapsed.
+     *
+     * Empty -- the lead column alone, as before -- whenever that cannot be
+     * trusted:
+     * - no scope ([JobScope.Scoped] only), including a server without the
+     *   change, where every phone still holds every job;
+     * - a login not linked to a crew record, which is on nothing;
+     * - more jobs from the cloud on the phone than the server says this
+     *   person is on ([JobScope.Scoped.visible]). The hiding has not happened
+     *   yet (it runs in the sync after the scope is first asked), or was
+     *   skipped on purpose (JobSync.planJobHolds keeps everything when the
+     *   crew door answers empty but the count says otherwise). Treating the
+     *   whole company as "mine" then would put every job in the yard on one
+     *   phone's list.
+     *
+     * Jobs made on this phone and never sent ([Job.lastSyncedAt] null) are
+     * not the server's to vouch for, so they stay on the lead test.
+     */
+    fun jobsMineByScope(scope: JobScope, visibleJobs: List<Job>): Set<Long> {
+        val scoped = scope as? JobScope.Scoped ?: return emptySet()
+        if (!scoped.linked) return emptySet()
+        val fromCloud = visibleJobs.filter { it.lastSyncedAt != null }
+        if (fromCloud.size > scoped.visible) return emptySet()
+        return fromCloud.map { it.id }.toSet()
     }
 
     private fun isToday(millis: Long, now: Long): Boolean {

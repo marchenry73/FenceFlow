@@ -86,9 +86,10 @@ internal fun foldPayAnswer(result: Result<Boolean>): MoneyScope = result.fold(
  * money fields in agreement.
  *
  * Used two ways: filtered out of the JSON this phone sends `crew_save_job`
- * (belt-and-suspenders -- the RPC drops the same keys server-side regardless),
- * and as the field list [Repository.forgetMoney] resets to [Job]'s own
- * defaults the moment this phone is confirmed [MoneyScope.DENIED].
+ * (belt-and-suspenders -- the RPC drops the same keys server-side regardless,
+ * and [CREW_WRITABLE_JOB_KEYS] already leaves them out), and as the field
+ * list [Repository.forgetMoney] resets to [Job]'s own defaults the moment
+ * this phone is confirmed [MoneyScope.DENIED].
  */
 val MONEY_KEYS: Set<String> = setOf(
     "tax_rate_percent", "markup_percent", "discount_percent",
@@ -99,7 +100,62 @@ val MONEY_KEYS: Set<String> = setOf(
     "contract_total", "signed_contract_total", "tip_amount",
     "payment_link_url", "payment_link_amount",
     "pricing_tier_name", "supplier_quote_reference",
-    "quote_token", "quote_sent_at", "quote_viewed_at"
+    "quote_token", "quote_sent_at", "quote_viewed_at",
+    // What the customer agreed to pay (the server change that adds
+    // jobs.accepted_total adds it to job_money_columns() too). It is a price, so crew never
+    // read it and never send it -- and the phone never sends it at all: the
+    // server stamps it at acceptance. See Job.acceptedTotal.
+    "accepted_total"
+)
+
+/**
+ * The only `jobs` columns a phone WITHOUT EDIT_JOBS (crew, foreman) may send
+ * through `crew_save_job`. A verbatim copy of `public.crew_writable_job_columns()`;
+ * `JobSyncCrewDoorTest` finds the supabase_*.sql file that defines it, reads
+ * its array, and fails the moment the two lists differ -- so change both
+ * together.
+ *
+ * An allowlist, not "everything minus [MONEY_KEYS]". The phone used to send
+ * its whole local row, and the RPC wrote every key it was given, so a crew
+ * phone holding an older copy of a job blanked the office's notes, HOA and
+ * permit details, and wrote priced_by = '' over a real pricing record
+ * (job 10b0407f, 2026-09-21) -- and a customer name typed into the crew
+ * phone's editable Customer card moved updated_at with nothing behind it, so
+ * the pull then wrote a blank name back over the phone (job 4598150b). What a
+ * crew member legitimately changes from the field is this list: finishing the
+ * job, the held-up report, the locate ticket, the closing sign-off and the
+ * drawing they made. Nothing else.
+ *
+ * `status` is on it only so a crew phone can mark a job COMPLETED; the server
+ * drops any other value, and [buildCrewSaveJobPayload] never sends one.
+ */
+val CREW_WRITABLE_JOB_KEYS: Set<String> = setOf(
+    "status",
+    "blocked_reason", "blocked_at", "customer_must_clear", "customer_notified_at", "overrun_reason",
+    "locate_ticket_no", "locate_called_at", "locate_dig_after", "locate_expires_at", "locate_notes",
+    "teardown_feet", "final_sign_off_storage_path", "final_sign_off_at",
+    "survey_storage_path", "calibration_pixels_per_foot", "calibration_known_feet",
+    "grid_extent_ft", "grid_feet_per_square", "site_lat", "site_lon"
+)
+
+/**
+ * Added to [CREW_WRITABLE_JOB_KEYS] only for a caller holding
+ * SCHEDULE_AND_ASSIGN (a foreman), the same condition `crew_save_job` applies
+ * server-side. A crew phone without it must not send a duration at all: the
+ * job screen used to write its own computed hours on open, and a crew
+ * handset pushed 93.33 hours over the office's 4 on job 4598150b.
+ *
+ * When and who, too. Scheduling and assigning is what the FOREMAN role is
+ * for, and crew_save_job let it move both until the allowlist went in and
+ * dropped them for everyone without EDIT_JOBS -- foremen could no longer
+ * reschedule or reassign anywhere (supabase_crew_job_scope.sql's
+ * crew_strip_assignment had kept exactly these for SCHEDULE_AND_ASSIGN).
+ * The server lets the same keys through for the same permission
+ * (supabase_r6_crew_writes.sql), plus the never-written assigned_employee_id.
+ */
+val CREW_SCHEDULER_JOB_KEYS: Set<String> = setOf(
+    "estimated_duration_hours", "duration_manually_set",
+    "scheduled_date", "assigned_employee_sync_id"
 )
 
 /**

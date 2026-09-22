@@ -18,8 +18,14 @@ import java.util.Locale
 
 class TodaysJobsWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        val pendingResult = goAsync()
+        // Android refreshes widgets right after this app is updated -- one of
+        // the ways the process gets started mid-replace, when the database may
+        // not load (FenceEstimatorApp.startIfPossible). Reading it then would
+        // throw on a background thread and take the process down; the widget
+        // keeps what it last showed and the next refresh fills it in.
         val app = context.applicationContext as FenceEstimatorApp
+        if (!app.started) return
+        val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val startOfDay = Calendar.getInstance().apply {

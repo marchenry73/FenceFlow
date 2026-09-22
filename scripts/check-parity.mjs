@@ -8,6 +8,16 @@
  * sides must reproduce exactly. This runs both suites and says, in one line
  * each, whether they did.
  *
+ * Then two more, for what a commit WRITES, which the fixtures never reach:
+ * they prove priceJob's output, not the rows buildCommitPlan turns it into.
+ * The rows are where a quantity typed on the phone was lost -- the job sheet
+ * re-prices on its own when a rate is saved, and the old plan tombstoned every
+ * roled line and upserted the rebuild over it. load_test.ts and
+ * tests/price-job-takeoff-merge.test.mjs are the only checks of that rule
+ * (never write or tombstone an edited line, write nothing for an unchanged
+ * run, and the tombstone UPDATE asking the row itself), so they run here, in
+ * the gate deploy-functions.mjs runs before price-job ships.
+ *
  * publish-release.mjs and deploy-functions.mjs call this first and refuse to
  * continue when it is red. There is deliberately no --skip flag: the day the
  * gate is skipped is the day the office quotes one number and the phone
@@ -16,7 +26,7 @@
  * Usage:
  *   node scripts/check-parity.mjs
  *
- * Exit status is non-zero when either suite fails, including when the
+ * Exit status is non-zero when any suite fails, including when the
  * fixtures have not been generated yet -- no evidence is not green.
  *
  * The Kotlin suite needs the two files Gradle reads but git does not carry:
@@ -86,13 +96,24 @@ const kotlin = suite(
   },
 );
 
+const npx = isWindows ? "npx.cmd" : "npx";
+
 const typescript = suite(
   "typescript parity",
-  `${isWindows ? "npx.cmd" : "npx"} -y tsx supabase/functions/_shared/pricing/parity.ts`,
+  `${npx} -y tsx supabase/functions/_shared/pricing/parity.ts`,
 );
+
+// What a commit writes -- see the header. Both run whatever the parity
+// suites said, so one red run names every broken piece.
+const commitPlan = suite("commit plan", `${npx} -y tsx supabase/functions/_shared/pricing/load_test.ts`);
+const takeoffMerge = suite("takeoff merge", `${npx} -y tsx tests/price-job-takeoff-merge.test.mjs`);
 
 if (!(kotlin && typescript)) {
   console.log("\nParity is red. Nothing ships until both engines agree on the same fixtures.");
   process.exit(1);
 }
-console.log("\nParity is green: both engines reproduce the fixtures exactly.");
+if (!(commitPlan && takeoffMerge)) {
+  console.log("\nThe commit plan is red. Nothing ships until a re-price leaves the lines somebody edited alone.");
+  process.exit(1);
+}
+console.log("\nParity is green: both engines reproduce the fixtures exactly, and a commit leaves edited lines alone.");

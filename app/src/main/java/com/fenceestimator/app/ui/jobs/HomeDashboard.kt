@@ -57,7 +57,6 @@ import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.isWon
 import com.fenceestimator.app.estimate.JobSchedule
-import com.fenceestimator.app.estimate.LocateTicket
 import com.fenceestimator.app.ui.theme.Graphite20
 import com.fenceestimator.app.ui.theme.Graphite40
 import com.fenceestimator.app.ui.theme.SafetyOrange80
@@ -90,6 +89,14 @@ fun HomeDashboard(
     outstanding: Double,
     cards: List<HomeCard>,
     showMoney: Boolean,
+    /**
+     * What this person may do (SessionState.permissions). Decides which
+     * attention lines and which tiles are theirs -- see [HomeAudience] and
+     * [HomeCard.shownTo].
+     */
+    permissions: Set<com.fenceestimator.app.cloud.Permission>,
+    /** The base CREW role: their own card replaces "Needs attention" (see [HomeAudience.isCrew]). */
+    isCrew: Boolean,
     workdayHours: Double,
     onOpenJob: (Long) -> Unit,
     onOpenSchedule: () -> Unit,
@@ -123,18 +130,26 @@ fun HomeDashboard(
             ScheduleHero(jobs = jobs, onClick = onOpenSchedule)
         }
 
-        // Built with plain getString rather than stringResource, because it
-        // runs inside remember() -- a non-composable scope.
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val attention = remember(jobs, pendingHours, pendingPlanChanges, showMoney, workdayHours) {
-            attentionItems(context, jobs, pendingHours, pendingPlanChanges, showMoney, workdayHours)
+        val audience = remember(permissions, isCrew, showMoney) {
+            HomeAudience.of(permissions, isCrew).copy(showMoney = showMoney)
         }
-        AttentionCard(attention, onOpenJob, onOpenTimeApproval)
+        // Not drawn for crew at all: their own card, above this one, is the
+        // list they act on, and this one would repeat its locate lines.
+        if (audience.showsAttentionCard) {
+            // Built with plain getString rather than stringResource, because it
+            // runs inside remember() -- a non-composable scope.
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val attention = remember(jobs, pendingHours, pendingPlanChanges, audience, workdayHours) {
+                attentionItems(context, jobs, pendingHours, pendingPlanChanges, audience, workdayHours)
+            }
+            AttentionCard(attention, onOpenJob, onOpenTimeApproval)
+        }
 
-        ThisWeek(jobs, jobTotals, onOpenJob, onOpenSchedule)
+        ThisWeek(jobs, jobTotals, showMoney, onOpenJob, onOpenSchedule)
 
         StatTiles(
-            jobs = jobs, cards = cards, showMoney = showMoney, workdayHours = workdayHours,
+            jobs = jobs, cards = cards.filter { it.shownTo(permissions) }, showMoney = showMoney,
+            workdayHours = workdayHours,
             pendingHours = pendingHours, outstanding = outstanding,
             collectedThisMonth = collectedThisMonth, collectedLastMonth = collectedLastMonth,
             monthStart = monthStart, lastMonthStart = lastMonthStart,
@@ -314,60 +329,53 @@ private data class Attention(
 )
 
 /**
- * Everything that is waiting on a person, in the order it costs money.
- *
- * Built from the lists the screen already holds; no extra queries. Each line
- * opens the thing itself rather than a report about it.
+ * The lines for "Needs attention", worded. What goes on the card, and for
+ * whom, is decided in [attentionFacts]; this only gives each line its icon
+ * and its sentence. Each line opens the thing itself rather than a report
+ * about it.
  */
 private fun attentionItems(
     context: android.content.Context,
     jobs: List<Job>,
     pendingHours: Int,
     pendingPlanChanges: List<FieldChange>,
-    showMoney: Boolean,
+    audience: HomeAudience,
     workdayHours: Double
 ): List<Attention> {
-    val out = mutableListOf<Attention>()
-    val byId = jobs.associateBy { it.id }
     fun s(id: Int, vararg args: Any) = context.getString(id, *args)
     fun name(j: Job) = j.customerName.ifBlank { j.address.ifBlank { s(R.string.home_untitled_job) } }
-
-    jobs.filter { JobSchedule.hasOverrun(it, workdayHours) }.forEach {
-        out += Attention(Icons.Filled.PriorityHigh, s(R.string.home_running_late, name(it)), it.id, urgent = true)
-    }
-    // The best news the screen can carry. Recent approvals lead for two days,
-    // then step aside -- an approval from last month is history, not news.
-    val twoDays = System.currentTimeMillis() - 2L * 86_400_000
-    jobs.filter { (it.quoteApprovedAt ?: 0) > twoDays }.forEach {
-        out += Attention(
-            Icons.Filled.Star,
-            s(R.string.home_quote_approved,
-                it.quoteApprovedName.ifBlank { name(it) }, name(it)),
-            it.id,
-            urgent = true
-        )
-    }
-    if (pendingHours > 0) {
-        out += Attention(Icons.Filled.Event, s(R.string.home_shifts_to_approve, pendingHours), null, urgent = false)
-    }
-    pendingPlanChanges
-        .filter { it.isRequest && it.approvedAt == null && it.rejectedAt == null }
-        .mapNotNull { byId[it.jobId] }.distinctBy { it.id }.forEach {
-            out += Attention(Icons.Filled.PriorityHigh, s(R.string.home_plan_change, name(it)), it.id, urgent = true)
+    // Every kind but the approvals queue is about one job; a fact without one
+    // is dropped rather than opening the queue by accident (jobId null).
+    return attentionFacts(jobs, pendingHours, pendingPlanChanges, audience, workdayHours).mapNotNull { f ->
+        val j = f.job
+        when (f.kind) {
+            AttentionKind.SHIFTS_TO_APPROVE ->
+                Attention(Icons.Filled.Event, s(R.string.home_shifts_to_approve, f.count), null, urgent = false)
+            AttentionKind.RUNNING_LATE -> j?.let {
+                Attention(Icons.Filled.PriorityHigh, s(R.string.home_running_late, name(it)), it.id, urgent = true)
+            }
+            AttentionKind.QUOTE_APPROVED -> j?.let {
+                Attention(
+                    Icons.Filled.Star,
+                    s(R.string.home_quote_approved, it.quoteApprovedName.ifBlank { name(it) }, name(it)),
+                    it.id,
+                    urgent = true
+                )
+            }
+            AttentionKind.PLAN_CHANGE -> j?.let {
+                Attention(Icons.Filled.PriorityHigh, s(R.string.home_plan_change, name(it)), it.id, urgent = true)
+            }
+            AttentionKind.LOCATE_EXPIRED -> j?.let {
+                Attention(Icons.Filled.PriorityHigh, s(R.string.home_locate_expired, name(it)), it.id, urgent = true)
+            }
+            AttentionKind.FINISHED_UNPAID -> j?.let {
+                Attention(Icons.Filled.Event, s(R.string.home_finished_unpaid, name(it)), it.id, urgent = false)
+            }
+            AttentionKind.STALE_DRAFT -> j?.let {
+                Attention(Icons.Filled.Event, s(R.string.home_stale_draft, name(it)), it.id, urgent = false)
+            }
         }
-    jobs.filter { LocateTicket.stateOf(it) == LocateTicket.State.EXPIRED }.forEach {
-        out += Attention(Icons.Filled.PriorityHigh, s(R.string.home_locate_expired, name(it)), it.id, urgent = true)
     }
-    if (showMoney) {
-        jobs.filter { it.status == JobStatus.COMPLETED && it.paymentStatus != PaymentStatus.PAID_IN_FULL }.forEach {
-            out += Attention(Icons.Filled.Event, s(R.string.home_finished_unpaid, name(it)), it.id, urgent = false)
-        }
-    }
-    val weekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
-    jobs.filter { it.status == JobStatus.DRAFT && it.updatedAt < weekAgo }.forEach {
-        out += Attention(Icons.Filled.Event, s(R.string.home_stale_draft, name(it)), it.id, urgent = false)
-    }
-    return out
 }
 
 @Composable
@@ -442,6 +450,7 @@ private fun AttentionCard(items: List<Attention>, onOpenJob: (Long) -> Unit, onO
 private fun ThisWeek(
     jobs: List<Job>,
     jobTotals: Map<Long, Double>,
+    showMoney: Boolean,
     onOpenJob: (Long) -> Unit,
     onOpenSchedule: () -> Unit
 ) {
@@ -477,7 +486,12 @@ private fun ThisWeek(
                         customerName = job.customerName.ifBlank { stringResource(R.string.home_untitled_job) },
                         address = job.address,
                         status = job.status,
-                        trailingText = Money.short(jobTotals[job.id] ?: 0.0),
+                        // A price only for someone who may see it. On a crew
+                        // phone the job's money has been scrubbed to defaults
+                        // (JobDao.scrubMoney), so this was an invented figure
+                        // -- $20 a foot for any gate -- as well as one they
+                        // must not be shown.
+                        trailingText = if (showMoney) Money.short(jobTotals[job.id] ?: 0.0) else "",
                         onClick = { onOpenJob(job.id) },
                         modifier = Modifier.padding(horizontal = Space.screen, vertical = 4.dp),
                         leading = {
@@ -567,7 +581,9 @@ private fun StatTiles(
 
     // Money cards are dropped rather than blanked for anyone without permission
     // to see money -- an empty card labelled "Collected" still tells them there
-    // is money to know about.
+    // is money to know about. The caller has already dropped every card that
+    // is not this person's (HomeCard.shownTo); the money line is held here
+    // again so the tiles never lean on the caller alone for it.
     val visible = cards.filter { showMoney || !it.needsMoney }
 
     var lockedFeature by remember { mutableStateOf<String?>(null) }

@@ -46,6 +46,17 @@ fun ServiceBlockedScreen(
     couldNotCheck: Boolean = false,
     /** True while signing out, which involves the network and is not instant. */
     signingOut: Boolean = false,
+    /**
+     * The company is fine; this LOGIN was taken by another phone (one login,
+     * one phone at a time -- device_still_mine said no). A different screen
+     * with a different way out: see [SignedInElsewhere].
+     */
+    displaced: Boolean = false,
+    /** True while "Use this phone" is talking to the server. */
+    reclaiming: Boolean = false,
+    /** True when the last "Use this phone" never got through. */
+    reclaimFailed: Boolean = false,
+    onUseThisPhone: () -> Unit = {},
     onRetry: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -112,6 +123,14 @@ fun ServiceBlockedScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        if (displaced) {
+            SignedInElsewhere(
+                reclaiming = reclaiming,
+                reclaimFailed = reclaimFailed,
+                signingOut = signingOut,
+                onUseThisPhone = onUseThisPhone
+            )
+        } else {
         Text(
             stringResource(
                 if (neverSubscribed) R.string.onb_trial_title else R.string.onb_paused_title
@@ -184,6 +203,7 @@ fun ServiceBlockedScreen(
         ) {
             Text(stringResource(if (checking) R.string.onb_checking else R.string.onb_check_again))
         }
+        }
         // Told before it is lost, not after -- shown as soon as the first tap
         // asks for it, so the button's changed label ("Sign out anyway and
         // lose it") is not the first anyone hears of what it now means.
@@ -233,6 +253,75 @@ fun ServiceBlockedScreen(
                 )
             )
         }
+    }
+}
+
+/**
+ * The top of the screen when the company is fine and only this LOGIN has moved
+ * to another phone.
+ *
+ * It used to be the paused screen with the reason swapped in: the title came
+ * from the subscription status alone, so an active company read "FenceFlow is
+ * paused", told crew "this is one for the office" and offered Open billing --
+ * while the manager app worked perfectly, because the only thing that had
+ * happened was the crew login being signed in on a third handset. None of
+ * that was true or useful. This says what happened, that one login works on
+ * one phone at a time, and offers the one thing that fixes it from here: take
+ * the login back (ServiceGate.reclaim -- the same claim a fresh sign-in makes,
+ * so no seat is gained), or sign out below.
+ */
+@Composable
+private fun SignedInElsewhere(
+    reclaiming: Boolean,
+    reclaimFailed: Boolean,
+    signingOut: Boolean,
+    onUseThisPhone: () -> Unit
+) {
+    Text(
+        stringResource(R.string.svc_elsewhere_title),
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold
+    )
+    Text(
+        stringResource(R.string.svc_elsewhere_body),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Text(
+        stringResource(R.string.svc_elsewhere_nothing_lost),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Text(
+        stringResource(R.string.svc_elsewhere_seat_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    // What the tap actually did, for the same reason Check again says so: a
+    // button that changes nothing on screen reads as a broken button.
+    if (reclaiming) {
+        Text(
+            stringResource(R.string.svc_use_this_phone_working),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else if (reclaimFailed) {
+        Text(
+            stringResource(R.string.svc_use_this_phone_failed),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+    Button(
+        onClick = onUseThisPhone,
+        enabled = !reclaiming && !signingOut,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            stringResource(
+                if (reclaiming) R.string.svc_use_this_phone_working else R.string.svc_use_this_phone
+            )
+        )
     }
 }
 

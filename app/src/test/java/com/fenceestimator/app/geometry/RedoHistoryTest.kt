@@ -2,21 +2,20 @@ package com.fenceestimator.app.geometry
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Redo, to match Undo ([planUndo]). The guarantees:
+ * Redo, to match Undo ([UndoHistory]). The guarantees:
  *  - Undo then Redo puts back EXACTLY the drawing that was there -- the same
  *    stored strings, gates included with their width, mounting and swing;
  *  - any other edit clears what there is to redo, including an edit the
  *    screen never saw (a sync from the office);
  *  - it is per run, and a press with nothing to redo says why.
  *
- * [Store] below replays the view model's own sequence -- plan, apply, write,
- * record -- over plain values, so the protocol is proved here without Room,
- * coroutines or Compose.
+ * [DrawHistoryStore] replays the view model's own sequence -- edit and record,
+ * plan, restore, record -- over plain values, so the protocol is proved here
+ * without Room, coroutines or Compose.
  */
 class RedoHistoryTest {
 
@@ -24,52 +23,6 @@ class RedoHistoryTest {
 
     private fun snapshot(points: List<FencePoint>, gates: String = "", closed: Boolean = false) =
         DrawingSnapshot(FenceCodec.encodePoints(points), gates, closed)
-
-    /** The view model's undo and redo, over an in-memory "database". */
-    private class Store(initial: Map<Long, DrawingSnapshot>) {
-        val runs = initial.toMutableMap()
-        var history = RedoHistory()
-        var lastUndoNone: UndoNoneReason? = null
-        var lastRedoNone: RedoNoneReason? = null
-
-        fun undo(runId: Long, gateMode: Boolean = false) {
-            val before = runs[runId] ?: return
-            val plan = planUndo(
-                gateMode = gateMode,
-                hasSelectedRun = true,
-                pointCount = FenceCodec.decodePoints(before.pointsEncoded).size,
-                gateCount = FenceCodec.decodeGates(before.gatesEncoded).size
-            )
-            if (plan is UndoPlan.None) { lastUndoNone = plan.reason; return }
-            val after = applyUndo(before, plan)!!
-            runs[runId] = after
-            history = history.afterUndo(runId, before, after)
-        }
-
-        fun redo(runId: Long?) {
-            when (val plan = history.plan(runId, runId?.let { runs[it] })) {
-                is RedoPlan.Restore -> {
-                    runs[runId!!] = plan.snapshot
-                    history = history.afterRedo(runId)
-                }
-                is RedoPlan.None -> {
-                    if (plan.reason == RedoNoneReason.DRAWING_CHANGED) history = history.afterEdit(runId!!)
-                    lastRedoNone = plan.reason
-                }
-            }
-        }
-
-        /** Any ordinary edit made through the screen. */
-        fun edit(runId: Long, change: (DrawingSnapshot) -> DrawingSnapshot) {
-            runs[runId] = change(runs.getValue(runId))
-            history = history.afterEdit(runId)
-        }
-
-        /** A change arriving from elsewhere (sync), which the screen never hooked. */
-        fun externalChange(runId: Long, change: (DrawingSnapshot) -> DrawingSnapshot) {
-            runs[runId] = change(runs.getValue(runId))
-        }
-    }
 
     // Three corners, and two gates: one in the current format, one saved in
     // the old three-part form with no mounting or swing.
@@ -79,68 +32,83 @@ class RedoHistoryTest {
         closedLoop = false
     )
 
+    private val wallGate get() = FenceCodec.decodeGates(drawing.gatesEncoded).first()
+    private val oldFormatGate get() = FenceCodec.decodeGates(drawing.gatesEncoded).last()
+
     // ------------------------------------------------------------ round trips
 
     @Test
     fun `undo a point, redo it, and the drawing is exactly what it was`() {
-        val s = Store(mapOf(1L to drawing))
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        s.addDrawPoint(1, p(2400f, 1612.25f))
+        val drawn = s.runs[1]!!
         s.undo(1)
-        assertEquals("1000.0:1000.0,1937.3:1000.0", s.runs[1]!!.pointsEncoded)
-        s.redo(1)
         assertEquals(drawing, s.runs[1])
+        s.redo(1)
+        assertEquals(drawn, s.runs[1])
     }
 
     @Test
-    fun `undo a gate, redo it, and it comes back byte for byte -- old format and all`() {
-        val s = Store(mapOf(1L to drawing))
-        s.undo(1, gateMode = true)
-        s.undo(1, gateMode = true)
-        assertEquals("", s.runs[1]!!.gatesEncoded)
-        s.redo(1)
-        s.redo(1)
-        // Not "decodes the same": the very same string, so the three-part
-        // gate is not silently rewritten into a four-part one by a redo.
+    fun `undo a gate removal, redo it, and it comes back byte for byte -- old format and all`() {
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        s.removeGate(1, wallGate)
+        // Removing one gate re-encodes the one left in today's five-part form...
+        assertEquals("1937.3:1300.0:12.5:LINE:IN", s.runs[1]!!.gatesEncoded)
+        val removed = s.runs[1]!!
+        s.undo(1)
+        // ...and Undo puts back the very string that was there. Not "decodes
+        // the same": the three-part gate is not silently rewritten.
         assertEquals(drawing.gatesEncoded, s.runs[1]!!.gatesEncoded)
         assertEquals(drawing, s.runs[1])
+        s.redo(1)
+        assertEquals(removed, s.runs[1])
     }
 
     @Test
-    fun `a mixed run of undos redoes back in reverse order to the original`() {
-        val s = Store(mapOf(1L to drawing))
+    fun `a mixed run of undos redoes back in reverse order to the last edit`() {
+        val s = DrawHistoryStore(mapOf(1L to drawing))
         val seen = mutableListOf(s.runs[1]!!)
-        s.undo(1, gateMode = true); seen += s.runs[1]!!
-        s.undo(1); seen += s.runs[1]!!
-        s.undo(1, gateMode = true); seen += s.runs[1]!!
-        s.undo(1); seen += s.runs[1]!!
-        assertEquals(4, s.history.depth(1))
-        // Each redo steps back through exactly the states undo passed through.
-        for (i in seen.size - 2 downTo 0) {
+        s.addGate(1, GateMarker(1200f, 1000f, 5f)); seen += s.runs[1]!!
+        s.addDrawPoint(1, p(2400f, 1612.25f)); seen += s.runs[1]!!
+        s.moveGate(1, 0, 1450f, 1000f); seen += s.runs[1]!!
+        s.toggleClosedLoop(1, true); seen += s.runs[1]!!
+        repeat(4) { s.undo(1) }
+        assertEquals(drawing, s.runs[1])
+        assertEquals(4, s.redoHistory.depth(1))
+        // Each redo steps forward through exactly the states the edits made.
+        for (i in 1 until seen.size) {
             s.redo(1)
-            assertEquals("after redo back to state $i", seen[i], s.runs[1])
+            assertEquals("after redo forward to state $i", seen[i], s.runs[1])
         }
-        assertEquals(0, s.history.depth(1))
+        assertEquals(0, s.redoHistory.depth(1))
         s.redo(1)
         assertEquals(RedoNoneReason.NOTHING_TO_REDO, s.lastRedoNone)
-        assertEquals(drawing, s.runs[1])
+        assertEquals(seen.last(), s.runs[1])
     }
 
     @Test
     fun `undo after a redo keeps what is still left to redo`() {
-        val s = Store(mapOf(1L to drawing))
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        s.addDrawPoint(1, p(2400f, 1612.25f))
+        s.addDrawPoint(1, p(2400f, 2000f))
+        val latest = s.runs[1]!!
         s.undo(1); s.undo(1)
         s.redo(1)
         s.undo(1)
         s.redo(1); s.redo(1)
-        assertEquals(drawing, s.runs[1])
+        assertEquals(latest, s.runs[1])
     }
 
     @Test
     fun `a closed loop round trips with its closing flag`() {
         val loop = snapshot(listOf(p(0f, 0f), p(400f, 0f), p(400f, 300f), p(0f, 300f)), closed = true)
-        val s = Store(mapOf(7L to loop))
+        val s = DrawHistoryStore(mapOf(7L to loop))
+        s.movePoint(7, 2, p(450f, 350f))
+        val moved = s.runs[7]!!
         s.undo(7)
-        s.redo(7)
         assertEquals(loop, s.runs[7])
+        s.redo(7)
+        assertEquals(moved, s.runs[7])
         assertTrue(s.runs[7]!!.closedLoop)
     }
 
@@ -148,9 +116,10 @@ class RedoHistoryTest {
 
     @Test
     fun `a new edit clears the redo stack`() {
-        val s = Store(mapOf(1L to drawing))
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        s.addDrawPoint(1, p(2400f, 1612.25f))
         s.undo(1)
-        s.edit(1) { it.copy(pointsEncoded = it.pointsEncoded + ",2100.0:1612.25") }
+        s.addDrawPoint(1, p(2100f, 1612.25f))
         s.redo(1)
         assertEquals(RedoNoneReason.NOTHING_TO_REDO, s.lastRedoNone)
         assertTrue(s.runs[1]!!.pointsEncoded.endsWith("2100.0:1612.25"))
@@ -158,7 +127,8 @@ class RedoHistoryTest {
 
     @Test
     fun `an edit the screen never saw still stops redo pasting over it`() {
-        val s = Store(mapOf(1L to drawing))
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        s.addDrawPoint(1, p(2400f, 1612.25f))
         s.undo(1)
         // The office moved a corner and it synced down.
         s.externalChange(1) { it.copy(pointsEncoded = "1000.0:1000.0,1950.0:1000.0") }
@@ -166,12 +136,13 @@ class RedoHistoryTest {
         assertEquals(RedoNoneReason.DRAWING_CHANGED, s.lastRedoNone)
         assertEquals("1000.0:1000.0,1950.0:1000.0", s.runs[1]!!.pointsEncoded)
         // And the stale step is gone, so the next press says "nothing".
-        assertEquals(0, s.history.depth(1))
+        assertEquals(0, s.redoHistory.depth(1))
     }
 
     @Test
     fun `closing the loop after an undo counts as an edit`() {
-        val s = Store(mapOf(1L to drawing))
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        s.addDrawPoint(1, p(2400f, 1612.25f))
         s.undo(1)
         s.externalChange(1) { it.copy(closedLoop = true) }
         s.redo(1)
@@ -192,7 +163,7 @@ class RedoHistoryTest {
     @Test
     fun `planted failure - a history that ignored edits would redo over new work`() {
         val before = drawing
-        val after = applyUndo(before, UndoPlan.RemoveLastPoint)!!
+        val after = drawing.copy(pointsEncoded = "1000.0:1000.0,1937.3:1000.0")
         val edited = after.copy(pointsEncoded = after.pointsEncoded + ",5.0:5.0")
         val history = RedoHistory().afterUndo(1, before, after)
         // Had the view model forgotten afterEdit, only the snapshot comparison
@@ -207,49 +178,33 @@ class RedoHistoryTest {
     @Test
     fun `redo is per run`() {
         val other = snapshot(listOf(p(0f, 0f), p(100f, 0f), p(100f, 100f)))
-        val s = Store(mapOf(1L to drawing, 2L to other))
+        val s = DrawHistoryStore(mapOf(1L to drawing, 2L to other))
+        s.addDrawPoint(1, p(2400f, 1612.25f))
+        val drawn = s.runs[1]!!
+        s.addDrawPoint(2, p(0f, 100f))
         s.undo(1)
         s.undo(2)
-        s.edit(2) { it.copy(closedLoop = true) }
+        s.toggleClosedLoop(2, true)
         // Editing run 2 did not throw away run 1's redo.
         s.redo(1)
-        assertEquals(drawing, s.runs[1])
+        assertEquals(drawn, s.runs[1])
         s.redo(2)
         assertEquals(RedoNoneReason.NOTHING_TO_REDO, s.lastRedoNone)
     }
 
     @Test
     fun `no run selected explains itself`() {
-        val s = Store(mapOf(1L to drawing))
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        s.addDrawPoint(1, p(2400f, 1612.25f))
         s.undo(1)
         s.redo(null)
         assertEquals(RedoNoneReason.NO_RUN_SELECTED, s.lastRedoNone)
-        assertEquals(RedoPlan.None(RedoNoneReason.NO_RUN_SELECTED), s.history.plan(1, null))
+        assertEquals(RedoPlan.None(RedoNoneReason.NO_RUN_SELECTED), s.redoHistory.plan(1, null))
     }
 
     @Test
     fun `nothing undone means nothing to redo`() {
         assertEquals(RedoPlan.None(RedoNoneReason.NOTHING_TO_REDO), RedoHistory().plan(1, drawing))
-    }
-
-    @Test
-    fun `applying an undo that removes nothing gives nothing`() {
-        val empty = DrawingSnapshot("", "", false)
-        assertNull(applyUndo(empty, UndoPlan.RemoveLastPoint))
-        assertNull(applyUndo(empty, UndoPlan.RemoveLastGate))
-        assertNull(applyUndo(drawing, UndoPlan.None(UndoNoneReason.NOTHING_ON_RUN)))
-    }
-
-    @Test
-    fun `undo removes what the old undo removed`() {
-        // The same change the view model always made: drop the last point, or
-        // the last gate -- and nothing else.
-        val noPoint = applyUndo(drawing, UndoPlan.RemoveLastPoint)!!
-        assertEquals(FenceCodec.decodePoints(drawing.pointsEncoded).dropLast(1), FenceCodec.decodePoints(noPoint.pointsEncoded))
-        assertEquals(drawing.gatesEncoded, noPoint.gatesEncoded)
-        val noGate = applyUndo(drawing, UndoPlan.RemoveLastGate)!!
-        assertEquals(FenceCodec.decodeGates(drawing.gatesEncoded).dropLast(1), FenceCodec.decodeGates(noGate.gatesEncoded))
-        assertEquals(drawing.pointsEncoded, noGate.pointsEncoded)
     }
 
     @Test
@@ -263,23 +218,26 @@ class RedoHistoryTest {
 
     // --- Planted failure: proves the exactness check can tell a gate apart. ---
     @Test
-    fun `planted failure - a redo that put back a default gate would be caught`() {
+    fun `planted failure - putting back a default gate would be caught`() {
         // A tempting shortcut: re-add the removed gate from its position and
         // width alone. It decodes to a gate in the same place -- and is still
-        // wrong, because the wall mount and outward swing are gone.
-        val s = Store(mapOf(1L to drawing))
-        s.undo(1, gateMode = true)
-        val removed = FenceCodec.decodeGates(drawing.gatesEncoded).last()
-        val firstGate = FenceCodec.decodeGates(drawing.gatesEncoded).first()
+        // wrong, because the old string form is gone, and for the wall gate
+        // the mounting and outward swing would be gone too.
+        val s = DrawHistoryStore(mapOf(1L to drawing))
+        val removed = oldFormatGate
+        s.removeGate(1, removed)
         val shortcut = FenceCodec.encodeGates(
             FenceCodec.decodeGates(s.runs[1]!!.gatesEncoded) + GateMarker(removed.x, removed.y, removed.widthFt)
         )
         // The shortcut differs from the real drawing (old-format string)...
         assertNotEquals(drawing.gatesEncoded, shortcut)
-        // ...and for the first gate would lose mounting and swing outright.
-        assertNotEquals(firstGate, GateMarker(firstGate.x, firstGate.y, firstGate.widthFt))
-        // The real redo is exact.
+        // ...and for the wall gate would lose mounting and swing outright.
+        assertNotEquals(wallGate, GateMarker(wallGate.x, wallGate.y, wallGate.widthFt))
+        // The real undo is exact, and so is an undo after a redo.
+        s.undo(1)
+        assertEquals(drawing.gatesEncoded, s.runs[1]!!.gatesEncoded)
         s.redo(1)
+        s.undo(1)
         assertEquals(drawing.gatesEncoded, s.runs[1]!!.gatesEncoded)
     }
 }

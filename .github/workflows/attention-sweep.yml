@@ -30,6 +30,13 @@
 # follow-ups.yml do not both start at :00 and compete for the same GitHub
 # Actions minute-of-the-hour slot -- cosmetic, not a correctness issue
 # either way, but free to avoid.
+#
+# NOT CONFIGURED IS NOT A FAILURE -- same rule, same reason as follow-ups.yml:
+# without ATTENTION_SWEEP_TRIGGER_SECRET an hourly run posts a notice, writes
+# it to the run summary and exits 0, instead of failing and making GitHub
+# email "run failed" every hour for a sweep nobody has switched on. A manual
+# "Run workflow" press without the secret still fails, and once the secret is
+# set every real failure still fails the run.
 name: Attention sweep scheduler
 
 on:
@@ -45,15 +52,32 @@ jobs:
         env:
           TRIGGER_SECRET: ${{ secrets.ATTENTION_SWEEP_TRIGGER_SECRET }}
           SUPABASE_ANON_KEY: 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
 
           if [ -z "${TRIGGER_SECRET:-}" ]; then
-            echo "::error::ATTENTION_SWEEP_TRIGGER_SECRET is not set as a GitHub repository secret. Doing nothing -- see docs/ATTENTION_SWEEP.md." >&2
-            exit 1
+            why="ATTENTION_SWEEP_TRIGGER_SECRET is not set (GitHub -> Settings -> Secrets and variables -> Actions). The attention sweep is switched off, so nobody was notified. See docs/ATTENTION_SWEEP.md to switch it on."
+            echo "### Attention sweep scheduler: not configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "$why" >> "$GITHUB_STEP_SUMMARY"
+            if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+              # Pressed by hand: a green tick would claim a sweep that cannot happen.
+              echo "::error::${why}"
+              exit 1
+            fi
+            echo "::notice::${why}"
+            exit 0
           fi
 
-          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+          # --retry covers a blip between GitHub and Supabase. Repeating a
+          # sweep is safe: each finding is claimed in attention_findings
+          # before anyone is notified, so a retried run notifies nobody twice.
+          # --max-time 170 sits just above Supabase's own 150 s limit (it
+          # answers 504 for a function silent that long), so curl only gives
+          # up on a call the network has lost. The sweep sends one unpaced
+          # push per owner/manager device, far inside that limit.
+          http_status=$(curl -sS --retry 2 --retry-delay 15 --max-time 170 \
+            -o response.json -w '%{http_code}' \
             -X POST 'https://newcrgafcptspmapacrx.supabase.co/functions/v1/attention-sweep' \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
@@ -62,6 +86,9 @@ jobs:
 
           echo "HTTP status: ${http_status}"
           cat response.json
+          # The body has no trailing newline, and a ::error:: line only counts
+          # as an annotation at the start of a line.
+          echo
 
           if [ "${http_status}" != "200" ]; then
             echo "::error::attention-sweep returned HTTP ${http_status}, treating as failure." >&2

@@ -133,7 +133,7 @@ test("sortBriefingLines returns the SAME objects, not clones -- allLines.indexOf
 // and a Supabase RPC -- rather than stub all three out of the real function
 // (which would mostly be re-testing the stub), the identity rule itself is
 // pulled directly off the file: `key:'<name>:'+id` at every push site, plus
-// isAlertSeen's own key+fingerprint comparison, both grabbed as source text
+// isAlertSeen's own per-key comparison, both grabbed as source text
 // so a change to either is what this test actually watches.
 test("every attention-item key in renderDash is built from a stable detector name and the row's own id/sync-id, never a shared constant", () => {
   const renderDashSrc = grab("renderDash");
@@ -152,36 +152,128 @@ test("every attention-item key in renderDash is built from a stable detector nam
 // isAlertSeen's own two dependencies (seenAlerts, loadSeenAlerts) are passed
 // in as real-shaped stand-ins rather than pulling loadSeenAlerts's own source
 // (which reaches into localStorage and profile.id, neither available under
-// plain Node) -- the function under test is isAlertSeen itself, and its
-// actual key+fingerprint comparison is exactly what this test watches.
-const makeIsAlertSeen = (seenAlerts, localCache = new Map()) =>
+// plain Node) -- the functions under test are isAlertSeen and the snooze
+// helpers it is built on, lifted verbatim, and the stored values below are
+// built exactly the way dismissAlert() builds them.
+const makeSeenLib = (seenAlerts, localCache = new Map()) =>
   new Function(
     "seenAlerts", "loadSeenAlerts",
-    grab("isAlertSeen") + "\nreturn isAlertSeen;"
+    [grabConst("ALERT_SNOOZE_MS"), grabConst("ALERT_SNOOZE_SKEW_MS"),
+     grab("alertFpToken"), grab("parseSeenStamp"), grab("alertSeenUntil"), grab("isAlertSeen")].join("\n")
+    + "\nreturn { isAlertSeen, alertSeenUntil, alertFpToken, parseSeenStamp, ALERT_SNOOZE_MS };"
   )(seenAlerts, () => localCache);
+const makeIsAlertSeen = (seenAlerts, localCache) => makeSeenLib(seenAlerts, localCache).isAlertSeen;
 
-test("isAlertSeen compares BOTH key and fingerprint -- dismissing one job's alert does not hide the same alert re-appearing for a different job, or the same job after the fact changes", () => {
-  const seenAlerts = new Map([["stale_quote:job-1", "2026-09-01T00:00:00Z"]]);
-  const isAlertSeen = makeIsAlertSeen(seenAlerts);
+// The value dismissAlert() stores: '@' + the moment Seen was pressed + '|' +
+// the fingerprint token. Rebuilt here from the page's own alertFpToken so a
+// change to the stored shape is a change this test sees.
+const DISMISS_SRC = grab("dismissAlert");
+const HOUR = 36e5;
+const T0 = Date.parse("2026-09-21T12:00:00Z");
+const stampAt = (fp, at) => "@" + at + "|" + makeSeenLib(new Map()).alertFpToken(fp);
 
-  // Same key, same job, same fingerprint -> seen.
-  assert.equal(isAlertSeen({ key: "stale_quote:job-1", fp: "2026-09-01T00:00:00Z" }), true);
-  // Same key, DIFFERENT job (different fingerprint carried in the key string
-  // itself -- job-2's stale_quote row has its own key) -> not seen. This is
-  // the exact bug shape the brief names: dismissing one item must dismiss
-  // only that one.
-  assert.equal(isAlertSeen({ key: "stale_quote:job-2", fp: "2026-09-01T00:00:00Z" }), false);
-  // Same job, same key, but the underlying fact changed (a new fingerprint,
-  // e.g. the quote was re-sent) -> not seen, even though it was dismissed
-  // once before.
-  assert.equal(isAlertSeen({ key: "stale_quote:job-1", fp: "2026-09-15T00:00:00Z" }), false);
+test("dismissAlert stores the time as well as the fingerprint, through the RPC that already exists", () => {
+  assert.match(DISMISS_SRC, /const stamp = '@' \+ Date\.now\(\) \+ '\|' \+ alertFpToken\(fp\)/);
+  assert.match(DISMISS_SRC, /db\.rpc\('mark_alert_seen', \{ alert_key: key, fingerprint: stamp \}\)/);
 });
 
-test("PLANTED FAILURE: comparing by key alone (dropping the fingerprint) would wrongly hide a different job's same-named alert", () => {
-  const seenAlerts = new Map([["stale_quote:job-1", "2026-09-01T00:00:00Z"]]);
+test("isAlertSeen is per key -- dismissing one job's alert does not hide the same alert on a different job", () => {
+  const seenAlerts = new Map([["stale_quote:job-1", stampAt("2026-09-01T00:00:00Z", T0)]]);
+  const isAlertSeen = makeIsAlertSeen(seenAlerts);
+  const now = T0 + HOUR;
+
+  // Same key, same job, inside the snooze -> seen.
+  assert.equal(isAlertSeen({ key: "stale_quote:job-1", fp: "2026-09-01T00:00:00Z" }, now), true);
+  // Same detector, DIFFERENT job -- job-2's stale_quote row has its own key
+  // -> not seen. This is the exact bug shape the brief names: dismissing one
+  // item must dismiss only that one.
+  assert.equal(isAlertSeen({ key: "stale_quote:job-2", fp: "2026-09-01T00:00:00Z" }, now), false);
+});
+
+// The owner: "if I dismiss it, don't show it again for at least 3 hrs". Eleven
+// detectors fingerprint on the job's updated_at, which any write moves -- a
+// save on the job sheet, a phone sync, a payment webhook, the customer
+// opening the quote. The snooze used to require the fingerprint to still
+// match, so each of those brought a dismissed alert back inside the three
+// hours. It no longer reads the fingerprint at all.
+test("inside the three hours a changed fingerprint (an updated_at-only write) does NOT bring a dismissed alert back", () => {
+  const item = { key: "no_deposit:42", fp: "2026-09-21T11:00:00.000Z" };           // jobs.updated_at when Seen was pressed
+  const touched = { ...item, fp: "2026-09-21T12:20:00.000Z" };                       // the same job, saved twenty minutes later
+  const lib = makeSeenLib(new Map([[item.key, stampAt(item.fp, T0)]]));
+  assert.equal(lib.isAlertSeen(touched, T0 + 20 * 60e3), true, "twenty minutes in, after the job was saved");
+  assert.equal(lib.isAlertSeen(touched, T0 + 2.9 * HOUR), true, "still inside three hours");
+  assert.equal(lib.alertSeenUntil(touched, T0), T0 + 3 * HOUR, "the snooze runs from the press, not from the fingerprint");
+  // After the window it shows again while it is still true, fingerprint
+  // changed or not -- a snooze, not a permanent dismissal.
+  assert.equal(lib.isAlertSeen(touched, T0 + 3 * HOUR), false);
+  assert.equal(lib.isAlertSeen(item, T0 + 3 * HOUR), false);
+});
+
+test("PLANTED FAILURE: the old fingerprint-matching snooze resurfaces that alert inside three hours; the real one does not", () => {
+  const item = { key: "field_change:7", fp: "2026-09-21T11:00:00.000Z" };
+  const touched = { ...item, fp: "2026-09-21T11:45:00.000Z" };
+  const lib = makeSeenLib(new Map([[item.key, stampAt(item.fp, T0)]]));
+  const stored = new Map([[item.key, stampAt(item.fp, T0)]]);
+  // The rule as it was: hidden only while the stored fingerprint still matches.
+  const oldRule = (it, now) => {
+    const s = lib.parseSeenStamp(stored.get(it.key));
+    return !!s && s.fp === lib.alertFpToken(it.fp) && now < s.at + lib.ALERT_SNOOZE_MS;
+  };
+  const now = T0 + HOUR;
+  assert.equal(oldRule(touched, now), false, "the old rule shows it again an hour after Seen, just because the job was saved");
+  assert.equal(oldRule(item, now), true, "(and agrees with the real one while nothing changed, so it is the fingerprint talking)");
+  assert.equal(lib.isAlertSeen(touched, now), true, "the real function keeps it hidden");
+});
+
+test("Seen is a three-hour snooze: hidden until then, back afterwards if the alert still fires", () => {
+  const item = { key: "no_deposit:42", fp: "2026-09-20T08:00:00Z" };
+  const lib = makeSeenLib(new Map([[item.key, stampAt(item.fp, T0)]]));
+  assert.equal(lib.ALERT_SNOOZE_MS, 3 * HOUR);
+  assert.equal(lib.isAlertSeen(item, T0), true, "just pressed");
+  assert.equal(lib.isAlertSeen(item, T0 + 2.9 * HOUR), true, "still inside three hours");
+  assert.equal(lib.isAlertSeen(item, T0 + 3 * HOUR), false, "three hours up -- shows again");
+  assert.equal(lib.isAlertSeen(item, T0 + 30 * HOUR), false, "and stays shown");
+  assert.equal(lib.alertSeenUntil(item, T0), T0 + 3 * HOUR);
+});
+
+test("a dismissal stored in the old shape (bare fingerprint, no time) counts as expired", () => {
+  const item = { key: "stale_quote:job-1", fp: "2026-09-01T00:00:00Z" };
+  const isAlertSeen = makeIsAlertSeen(new Map([[item.key, item.fp]]), new Map([[item.key, item.fp]]));
+  assert.equal(isAlertSeen(item, T0), false);
+});
+
+test("the later of the server row and this browser's cache wins", () => {
+  const item = { key: "labour_over:7", fp: "x" };
+  const server = new Map([[item.key, stampAt("x", T0)]]);
+  const local = new Map([[item.key, stampAt("x", T0 + 2 * HOUR)]]);
+  const isAlertSeen = makeIsAlertSeen(server, local);
+  assert.equal(isAlertSeen(item, T0 + 4 * HOUR), true, "the local dismissal two hours later still holds");
+  assert.equal(isAlertSeen(item, T0 + 5 * HOUR), false);
+});
+
+test("a dismissal time far in the future (another clock) is not trusted to hide the alert", () => {
+  const item = { key: "job_overrun:9", fp: "DONE|2026-09-01" };
+  const isAlertSeen = makeIsAlertSeen(new Map([[item.key, stampAt(item.fp, T0 + 24 * HOUR)]]));
+  assert.equal(isAlertSeen(item, T0), false);
+});
+
+test("a fingerprint longer than the RPC keeps still leaves a stamp that survives the round trip", () => {
+  const longFp = "2026-09-25T08:00:00Z|" + Array(20).fill("Prices confirmed with a supplier").join(",");
+  const item = { key: "scheduled_but_blocked:3", fp: longFp };
+  // mark_alert_seen stores left(fingerprint, 200) -- the stored value must
+  // survive that cut intact.
+  const stored = stampAt(longFp, T0);
+  assert.ok(stored.length <= 200, `stored value is ${stored.length} chars`);
+  const isAlertSeen = makeIsAlertSeen(new Map([[item.key, stored.slice(0, 200)]]));
+  assert.equal(isAlertSeen(item, T0 + HOUR), true);
+});
+
+test("PLANTED FAILURE: matching on the detector name alone (dropping the row id) would wrongly hide a different job's same-named alert", () => {
+  const seenAlerts = new Map([["stale_quote:job-1", stampAt("2026-09-01T00:00:00Z", T0)]]);
   // A deliberately wrong stand-in: keyed on the alert NAME only, exactly the
   // regression this test exists to catch if isAlertSeen ever loses the
-  // fingerprint half of its comparison.
+  // row-id half of the key. (The fingerprint is not part of the identity any
+  // more -- see the three-hour tests above -- so the key is all there is.)
   const keyOnlyIsAlertSeen = (item) => seenAlerts.has(String(item.key).split(":")[0] + ":job-1");
   assert.equal(
     keyOnlyIsAlertSeen({ key: "stale_quote:job-2", fp: "2026-09-01T00:00:00Z" }),
@@ -191,8 +283,11 @@ test("PLANTED FAILURE: comparing by key alone (dropping the fingerprint) would w
   // The real function must NOT make that mistake -- re-asserted here so this
   // planted-failure test fails loudly if the real one is ever weakened to
   // match the broken stand-in above.
+  // Inside the snooze, so a false here is the key check talking, not the
+  // three hours having run out.
   const isAlertSeen = makeIsAlertSeen(seenAlerts);
-  assert.equal(isAlertSeen({ key: "stale_quote:job-2", fp: "2026-09-01T00:00:00Z" }), false);
+  assert.equal(isAlertSeen({ key: "stale_quote:job-1", fp: "2026-09-01T00:00:00Z" }, T0 + HOUR), true);
+  assert.equal(isAlertSeen({ key: "stale_quote:job-2", fp: "2026-09-01T00:00:00Z" }, T0 + HOUR), false);
 });
 
 // --------------------------------------------------- ALERT_SEVERITY doc map

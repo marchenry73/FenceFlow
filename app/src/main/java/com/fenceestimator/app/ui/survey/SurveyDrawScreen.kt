@@ -110,7 +110,9 @@ import com.fenceestimator.app.data.SiteMarkerKind
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
+import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
+import com.fenceestimator.app.geometry.GateSpan
 import com.fenceestimator.app.geometry.VertexKind
 import com.fenceestimator.app.geometry.angleCue
 import com.fenceestimator.app.ui.components.FeetInches
@@ -311,12 +313,24 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
     // Undo's one-shot "I did nothing, here's why" event (see
     // SurveyViewModel.undoNothingToDo) -- surfaced as a snackbar so a press
-    // that removes nothing is never silent.
+    // that removes nothing is never silent. DRAWING_CHANGED gets its own
+    // words: there WAS something to undo a moment ago, and it was dropped
+    // because the office or another phone changed the run since. "Nothing to
+    // undo on this run yet" reads as though the last edit never registered,
+    // and sends people tapping Undo again or redoing work that is already
+    // there. Branches on the reason enum, never on the words, the same as Redo.
     val snackbarHostState = remember { SnackbarHostState() }
     val undoNothingMessage = stringResource(R.string.draw_undo_nothing_to_undo)
+    val undoChangedMessage = stringResource(R.string.draw_undo_drawing_changed)
     LaunchedEffect(Unit) {
-        viewModel.undoNothingToDo.collect {
-            snackbarHostState.showSnackbar(undoNothingMessage)
+        viewModel.undoNothingToDo.collect { reason ->
+            snackbarHostState.showSnackbar(
+                when (reason) {
+                    com.fenceestimator.app.geometry.UndoNoneReason.DRAWING_CHANGED -> undoChangedMessage
+                    com.fenceestimator.app.geometry.UndoNoneReason.NOTHING_TO_UNDO,
+                    com.fenceestimator.app.geometry.UndoNoneReason.NO_RUN_SELECTED -> undoNothingMessage
+                }
+            )
         }
     }
     // Redo explains itself the same way. Branches on the reason enum, never
@@ -368,10 +382,14 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 return@Column
             }
 
-            // Full screen hides everything above the drawing. Everything
-            // else -- tools, layers, stats, undo/clear -- already floats over
-            // the canvas rather than stacking beside it, so it costs no
-            // height in either mode; only the run picker actually goes away.
+            // Full screen hides the run picker above the drawing and the
+            // button on to the estimate below it, and nothing else. The
+            // tools, layers, zoom, the property panel and Undo/Redo all float
+            // over the canvas rather than stacking beside it, so they cost no
+            // height in either mode -- and Undo and Redo are what a thumb
+            // reaches for most while drawing, which is exactly when full
+            // screen is on. (They were hidden with the estimate button once,
+            // so a slip in full screen could only be put right by leaving it.)
             if (!fullScreenDrawing) {
                 RunSelector(runs = runs, selectedRunId = selectedRunId, onSelect = { viewModel.selectRun(it) })
             }
@@ -407,7 +425,17 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 // the arrows move it a known distance you can see.
                 var selectedPoint by remember(activeRun.id) { mutableStateOf<Int?>(null) }
                 val points = draftPoints ?: committedPoints
-                val pxPerFt = job2.calibrationPixelsPerFoot
+                // Not the stored calibration read raw. A grid drawing that was
+                // never given one -- ensureGridCalibration, up in the
+                // LaunchedEffect(usingGrid), usually fires before the job has
+                // loaded on a first open and so never seeds it -- had null
+                // here, and null hides every gate and every length on the plan
+                // while the estimate goes on charging for them. The grid
+                // always knows its own scale; only an uncalibrated photo comes
+                // back null, and that still gets the tap-to-calibrate prompt.
+                // Same rule the view model measures edits by, so a typed
+                // length matches the label it replaces.
+                val pxPerFt = SurveyViewModel.drawingScale(job2)
 
                 // The magnifier loupe (see MagnifierLoupe below): where to draw
                 // it (screen space), what ground it should be centered on
@@ -445,7 +473,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 val committedGeometry = if (pxPerFt != null && pxPerFt > 0f && committedPoints.size >= 2) {
                     FenceGeometryEngine.analyze(committedPoints, pxPerFt, activeRun.closedLoop)
                 } else null
-                val otherRuns = runs.filter { it.id != activeRun.id }
+                // Every run but the one being edited, decoded once per change
+                // to the runs rather than on every frame the canvas draws --
+                // the fence layer below draws their lines AND their gates now,
+                // which is two decodes per run per frame otherwise.
+                val otherRuns = remember(runs, activeRun.id) {
+                    runs.filter { it.id != activeRun.id }.map { r ->
+                        OtherRunDrawing(
+                            run = r,
+                            points = FenceCodec.decodePoints(r.pointsEncoded),
+                            gates = FenceCodec.decodeGates(r.gatesEncoded)
+                        )
+                    }
+                }
                 // Job-wide total (every run, not just the one on screen) --
                 // the active run's draft points stand in for its own saved
                 // ones so the total updates live while drawing, same as
@@ -770,29 +810,146 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             job2.gridFeetPerSquare, satelliteOn, satelliteAnchor, satelliteTiles
                         )
 
-                        // Fence layer: every other run's faded line, the active
-                        // run's own line and dimensions, its vertices, and its
-                        // gates -- everything that is the fence rather than the
-                        // ground it sits on. Gated by the Layers toggle so
-                        // hiding it is a real hide, not a decoration; the
-                        // background and the in-progress calibration dots below
-                        // are unaffected because they aren't the fence.
-                        if (showFenceLayer) {
-                        otherRuns.forEach { other ->
-                            val otherPoints = FenceCodec.decodePoints(other.pointsEncoded)
-                            if (otherPoints.size >= 2) {
-                                // Faded because it isn't the run being worked on
-                                // right now, not because it means anything
-                                // different -- teardown vs. build still has to
-                                // read correctly at a glance even dimmed.
-                                val otherColor = (if (other.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine)
-                                    .copy(alpha = OTHER_RUN_ALPHA)
-                                val canvasPts = otherPoints.map { transform.toCanvas(it) }
-                                val segCount = if (other.closedLoop) otherPoints.size else otherPoints.size - 1
-                                for (i in 0 until max(0, segCount)) {
-                                    drawLine(otherColor, canvasPts[i], canvasPts[(i + 1) % canvasPts.size], strokeWidth = 4f)
+                        // A gate at its real width, hung on real posts, drawn
+                        // the same way whichever run it belongs to -- see the
+                        // active run's gates further down for why it looks the
+                        // way it does. [fade] is 1 for the run being edited and
+                        // OTHER_RUN_ALPHA for the rest, multiplied into every
+                        // colour so a faded gate keeps the same proportions
+                        // (posts solid against the arc, say) as a full one.
+                        fun drawGate(gate: GateMarker, span: GateSpan, fade: Float) {
+                            val gateColor = PlanColors.gate.copy(alpha = PlanColors.gate.alpha * fade)
+                            val a = transform.toCanvas(span.start)
+                            val b = transform.toCanvas(span.end)
+
+                            // The two posts the gate hangs between. These are
+                            // the things that get set in concrete, so they are
+                            // what the crew is really looking for.
+                            listOf(a, b).forEach { post ->
+                                drawCircle(gateColor, radius = 7f, center = post)
+                                drawCircle(
+                                    Color.White.copy(alpha = fade), radius = 7f, center = post,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                                )
+                            }
+
+                            // The leaf, swung open at 45 degrees, and the arc it
+                            // sweeps -- the way a gate is drawn on any site plan,
+                            // and the thing that shows which way it opens and
+                            // what has to be kept clear for it.
+                            val dx = b.x - a.x
+                            val dy = b.y - a.y
+                            val leafLength = kotlin.math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+                            if (leafLength > 1f) {
+                                val ux = dx / leafLength
+                                val uy = dy / leafLength
+                                val alongDegrees =
+                                    Math.toDegrees(kotlin.math.atan2(uy.toDouble(), ux.toDouble())).toFloat()
+
+                                // Which side of the fence the gate opens to.
+                                //
+                                // A gate swinging the wrong way into a slope, a
+                                // step or a parked car is a return visit, and it
+                                // is the first thing forgotten between quoting
+                                // and installing. Drawn the way a site plan draws
+                                // it: the leaf where it ends up, and the arc it
+                                // sweeps through to get there.
+                                val directions = when (gate.swing) {
+                                    com.fenceestimator.app.geometry.GateSwing.IN -> listOf(1f)
+                                    com.fenceestimator.app.geometry.GateSwing.OUT -> listOf(-1f)
+                                    // Both ways, so both arcs are drawn.
+                                    com.fenceestimator.app.geometry.GateSwing.BOTH -> listOf(1f, -1f)
+                                }
+
+                                directions.forEach { side ->
+                                    val angle = Math.toRadians((alongDegrees + 45f * side).toDouble())
+                                    val tip = Offset(
+                                        a.x + kotlin.math.cos(angle).toFloat() * leafLength,
+                                        a.y + kotlin.math.sin(angle).toFloat() * leafLength
+                                    )
+                                    drawLine(gateColor, a, tip, strokeWidth = 3f)
+                                    drawArc(
+                                        color = PlanColors.gate.copy(alpha = 0.35f * fade),
+                                        startAngle = if (side > 0f) alongDegrees else alongDegrees - 45f,
+                                        sweepAngle = 45f,
+                                        useCenter = false,
+                                        topLeft = Offset(a.x - leafLength, a.y - leafLength),
+                                        size = androidx.compose.ui.geometry.Size(leafLength * 2f, leafLength * 2f),
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                                    )
                                 }
                             }
+
+                            // Its width, so the plan states it rather than
+                            // leaving it to be measured off the drawing.
+                            val mid = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
+                            val swingLabel = context.getString(
+                                when (gate.swing) {
+                                    com.fenceestimator.app.geometry.GateSwing.IN -> R.string.misc_survey_swing_in
+                                    com.fenceestimator.app.geometry.GateSwing.OUT -> R.string.misc_survey_swing_out
+                                    com.fenceestimator.app.geometry.GateSwing.BOTH -> R.string.misc_survey_swing_both
+                                }
+                            )
+                            val widthText = if (gate.widthFt % 1f == 0f) gate.widthFt.toInt().toString() else gate.widthFt.toString()
+                            drawContext.canvas.nativeCanvas.drawText(
+                                context.getString(R.string.misc_survey_gate_width_swing, widthText, swingLabel),
+                                mid.x, mid.y - 10f,
+                                android.graphics.Paint().apply {
+                                    color = gateColor.toArgb()
+                                    textSize = 26f
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                    isFakeBoldText = true
+                                }
+                            )
+                        }
+
+                        // Fence layer: every other run's faded line and gates,
+                        // the active run's own line and dimensions, its
+                        // vertices, and its gates -- everything that is the
+                        // fence rather than the ground it sits on. Gated by the
+                        // Layers toggle so hiding it is a real hide, not a
+                        // decoration; the background and the in-progress
+                        // calibration dots below are unaffected because they
+                        // aren't the fence.
+                        if (showFenceLayer) {
+
+                        // Every other run, gates included.
+                        //
+                        // These used to be drawn as a bare faded line and
+                        // nothing else, and a run with no line -- a standalone
+                        // gate on a run of its own -- was skipped outright. Only
+                        // the selected run's gates were ever on the plan, so on
+                        // a job with a back fence and a side fence, or a gate
+                        // run beside a fence run, most of the gates being
+                        // charged for could not be seen ("I'm not able to see
+                        // the gates in the drawing"). Now each run's gates are
+                        // placed by the same rule as the selected run's, and
+                        // cut the same openings in its line.
+                        //
+                        // Faded, not selectable: tapping and dragging still act
+                        // on the selected run only, and the run picker is how
+                        // another run's gates are edited.
+                        val otherSpans = otherRuns.map { other ->
+                            GateGeometry.spansFor(other.gates, other.points, other.run.closedLoop, pxPerFt)
+                        }
+                        otherRuns.forEachIndexed { i, other ->
+                            // Faded because it isn't the run being worked on
+                            // right now, not because it means anything
+                            // different -- teardown vs. build still has to
+                            // read correctly at a glance even dimmed.
+                            val otherColor = (if (other.run.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine)
+                                .copy(alpha = OTHER_RUN_ALPHA)
+                            GateGeometry.fencePieces(other.points, other.run.closedLoop, otherSpans[i].map { it.second })
+                                .forEach { (from, to) ->
+                                    drawLine(otherColor, transform.toCanvas(from), transform.toCanvas(to), strokeWidth = 4f)
+                                }
+                        }
+                        // Gates after every line, so one run's line can never be
+                        // drawn across another run's gate. Gate colour on every
+                        // run, teardown or not, the same as the selected run's
+                        // gates.
+                        if (showGatesLayer) otherSpans.forEach { spans ->
+                            spans.forEach { (gate, span) -> drawGate(gate, span, OTHER_RUN_ALPHA) }
                         }
 
                         val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
@@ -801,12 +958,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // Where each gate actually sits, and how much fence it
                         // takes up. Worked out once and used for both the gaps
                         // in the fence and the gates drawn into them.
-                        val gateSpans = if (pxPerFt != null && pxPerFt > 0f) {
-                            gates.mapNotNull { g ->
-                                GateGeometry.spanFor(g, points, activeRun.closedLoop, pxPerFt)
-                                    ?.let { span -> g to span }
-                            }
-                        } else emptyList()
+                        //
+                        // A gate with no line to sit on -- a standalone gate
+                        // sale, whose run has no corners, or a run whose
+                        // corners sit on top of each other -- is drawn level
+                        // at the point it was placed instead. spanFor returns
+                        // null there, and that null used to be the end of it:
+                        // the gate was priced and charged for and never drawn.
+                        // Its span has no segment (NO_SEGMENT), so the gap
+                        // cutting below never matches it. Nothing here hides a
+                        // gate for being far from its line, either: one that
+                        // sits well off the fence still snaps onto it. Every
+                        // other run above goes through this same spansFor.
+                        val gateSpans = GateGeometry.spansFor(gates, points, activeRun.closedLoop, pxPerFt)
 
                         // A run marked as the old fence coming out is drawn in
                         // teardown's colour instead of the build colour -- same
@@ -815,18 +979,14 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // crew's copy of it.
                         val activeLineColor = if (activeRun.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine
                         val segCount = if (activeRun.closedLoop) points.size else points.size - 1
-                        for (i in 0 until max(0, segCount)) {
-                            val a = points[i]
-                            val b = points[(i + 1) % points.size]
-                            // The fence is drawn as the pieces either side of
-                            // each opening rather than one line with a symbol
-                            // on top, so a gate reads as a way through. It also
-                            // makes an opening too wide for its run obvious:
-                            // the fence either side simply is not there.
-                            val onThisSegment = gateSpans
-                                .filter { it.second.segmentIndex == i }
-                                .map { it.second }
-                            GateGeometry.segmentGaps(a, b, onThisSegment).forEach { (from, to) ->
+                        // The fence is drawn as the pieces either side of each
+                        // opening rather than one line with a symbol on top, so
+                        // a gate reads as a way through. It also makes an
+                        // opening too wide for its run obvious: the fence
+                        // either side simply is not there. fencePieces is the
+                        // same cut every other run's line gets above.
+                        GateGeometry.fencePieces(points, activeRun.closedLoop, gateSpans.map { it.second })
+                            .forEach { (from, to) ->
                                 drawLine(
                                     activeLineColor,
                                     transform.toCanvas(from),
@@ -834,7 +994,6 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                     strokeWidth = 4f
                                 )
                             }
-                        }
 
                         // Every segment says how long it is.
                         //
@@ -910,90 +1069,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // looked identical and neither took up any fence. On a
                         // plan somebody builds from, that is the difference
                         // between an opening that fits and one that does not.
-                        if (showGatesLayer) gateSpans.forEach { (gate, span) ->
-                            val a = transform.toCanvas(span.start)
-                            val b = transform.toCanvas(span.end)
-
-                            // The two posts the gate hangs between. These are
-                            // the things that get set in concrete, so they are
-                            // what the crew is really looking for.
-                            listOf(a, b).forEach { post ->
-                                drawCircle(PlanColors.gate, radius = 7f, center = post)
-                                drawCircle(
-                                    Color.White, radius = 7f, center = post,
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
-                                )
-                            }
-
-                            // The leaf, swung open at 45 degrees, and the arc it
-                            // sweeps -- the way a gate is drawn on any site plan,
-                            // and the thing that shows which way it opens and
-                            // what has to be kept clear for it.
-                            val dx = b.x - a.x
-                            val dy = b.y - a.y
-                            val leafLength = kotlin.math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
-                            if (leafLength > 1f) {
-                                val ux = dx / leafLength
-                                val uy = dy / leafLength
-                                val alongDegrees =
-                                    Math.toDegrees(kotlin.math.atan2(uy.toDouble(), ux.toDouble())).toFloat()
-
-                                // Which side of the fence the gate opens to.
-                                //
-                                // A gate swinging the wrong way into a slope, a
-                                // step or a parked car is a return visit, and it
-                                // is the first thing forgotten between quoting
-                                // and installing. Drawn the way a site plan draws
-                                // it: the leaf where it ends up, and the arc it
-                                // sweeps through to get there.
-                                val directions = when (gate.swing) {
-                                    com.fenceestimator.app.geometry.GateSwing.IN -> listOf(1f)
-                                    com.fenceestimator.app.geometry.GateSwing.OUT -> listOf(-1f)
-                                    // Both ways, so both arcs are drawn.
-                                    com.fenceestimator.app.geometry.GateSwing.BOTH -> listOf(1f, -1f)
-                                }
-
-                                directions.forEach { side ->
-                                    val angle = Math.toRadians((alongDegrees + 45f * side).toDouble())
-                                    val tip = Offset(
-                                        a.x + kotlin.math.cos(angle).toFloat() * leafLength,
-                                        a.y + kotlin.math.sin(angle).toFloat() * leafLength
-                                    )
-                                    drawLine(PlanColors.gate, a, tip, strokeWidth = 3f)
-                                    drawArc(
-                                        color = PlanColors.gate.copy(alpha = 0.35f),
-                                        startAngle = if (side > 0f) alongDegrees else alongDegrees - 45f,
-                                        sweepAngle = 45f,
-                                        useCenter = false,
-                                        topLeft = Offset(a.x - leafLength, a.y - leafLength),
-                                        size = androidx.compose.ui.geometry.Size(leafLength * 2f, leafLength * 2f),
-                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
-                                    )
-                                }
-                            }
-
-                            // Its width, so the plan states it rather than
-                            // leaving it to be measured off the drawing.
-                            val mid = Offset((a.x + b.x) / 2f, (a.y + b.y) / 2f)
-                            val swingLabel = context.getString(
-                                when (gate.swing) {
-                                    com.fenceestimator.app.geometry.GateSwing.IN -> R.string.misc_survey_swing_in
-                                    com.fenceestimator.app.geometry.GateSwing.OUT -> R.string.misc_survey_swing_out
-                                    com.fenceestimator.app.geometry.GateSwing.BOTH -> R.string.misc_survey_swing_both
-                                }
-                            )
-                            val widthText = if (gate.widthFt % 1f == 0f) gate.widthFt.toInt().toString() else gate.widthFt.toString()
-                            drawContext.canvas.nativeCanvas.drawText(
-                                context.getString(R.string.misc_survey_gate_width_swing, widthText, swingLabel),
-                                mid.x, mid.y - 10f,
-                                android.graphics.Paint().apply {
-                                    color = PlanColors.gate.toArgb()
-                                    textSize = 26f
-                                    textAlign = android.graphics.Paint.Align.CENTER
-                                    isFakeBoldText = true
-                                }
-                            )
-                        }
+                        if (showGatesLayer) gateSpans.forEach { (gate, span) -> drawGate(gate, span, 1f) }
 
                         } // showFenceLayer
 
@@ -1104,30 +1180,40 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     // extra tap so a thumb reaching for Undo, Redo or the
                     // estimate can never land on the destructive one by
                     // accident.
-                    if (!fullScreenDrawing) {
-                        Row(
-                            modifier = Modifier.align(Alignment.BottomStart).padding(Space.sm),
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            ToolIconButton(
-                                icon = Icons.Filled.Undo,
-                                contentDescription = stringResource(R.string.draw_undo),
-                                // The snap cue describes the last point placed;
-                                // once that point is gone it describes nothing.
-                                onClick = { lastSnap = null; viewModel.undoLast(mode) }
-                            )
-                            // Redo sits beside Undo, the pair every drawing
-                            // tool has. Dimmed when there is nothing to redo
-                            // but still pressable, so a press explains why
-                            // (the same as Undo) instead of doing nothing.
-                            ToolIconButton(
-                                icon = Icons.Filled.Redo,
-                                contentDescription = stringResource(R.string.draw_redo),
-                                dimmed = !canRedo,
-                                dimmedStateDescription = stringResource(R.string.draw_redo_nothing_to_redo),
-                                onClick = { lastSnap = null; viewModel.redo() }
-                            )
+                    //
+                    // Undo and Redo stay in full screen: the same round
+                    // floating buttons as full screen and Layers at the top,
+                    // so they cost the drawing no more room than those do.
+                    // Only the estimate button goes -- leaving the drawing is
+                    // not a drawing control, and Exit full screen brings it
+                    // back.
+                    Row(
+                        modifier = Modifier.align(Alignment.BottomStart).padding(Space.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ToolIconButton(
+                            icon = Icons.Filled.Undo,
+                            contentDescription = stringResource(R.string.draw_undo),
+                            // The snap cue describes the last point placed;
+                            // once that point is gone it describes nothing.
+                            // Undo takes back the last change of any kind
+                            // (a history, see UndoHistory), so it no longer
+                            // needs to know which tool is in hand.
+                            onClick = { lastSnap = null; viewModel.undoLast() }
+                        )
+                        // Redo sits beside Undo, the pair every drawing
+                        // tool has. Dimmed when there is nothing to redo
+                        // but still pressable, so a press explains why
+                        // (the same as Undo) instead of doing nothing.
+                        ToolIconButton(
+                            icon = Icons.Filled.Redo,
+                            contentDescription = stringResource(R.string.draw_redo),
+                            dimmed = !canRedo,
+                            dimmedStateDescription = stringResource(R.string.draw_redo_nothing_to_redo),
+                            onClick = { lastSnap = null; viewModel.redo() }
+                        )
+                        if (!fullScreenDrawing) {
                             Surface(
                                 tonalElevation = 3.dp,
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.md),
@@ -2062,8 +2148,19 @@ private fun GateMountingChoice(selected: GateMounting, onSelect: (GateMounting) 
 // off the theme (the per-vertex-kind dots), so this drawing and the crew's
 // read-only copy of the same plan are never one accidental hex digit apart.
 
-/** Alpha applied to another run's line so the one being worked on stands out; 0x66 of 0xFF. */
+/** Alpha applied to another run's line and gates so the one being worked on stands out; 0x66 of 0xFF. */
 private const val OTHER_RUN_ALPHA = 0.4f
+
+/**
+ * A run that is on the plan but not the one being edited, with its points and
+ * gates already decoded -- the fence layer draws both for every such run, and
+ * decoding them on every frame the canvas draws would be wasted work.
+ */
+private data class OtherRunDrawing(
+    val run: FenceRun,
+    val points: List<FencePoint>,
+    val gates: List<GateMarker>
+)
 
 /** Screen-space tap tolerance for grabbing a vertex in Adjust mode, independent of zoom level. */
 private const val VERTEX_HIT_RADIUS_PX = 40f

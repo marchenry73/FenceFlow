@@ -24,6 +24,13 @@
  * the first two steps leaves a job briefly without an estimate, which is
  * visible and fixed by pressing the button again; new before old would have
  * left both sets of lines counting, which is invisible and wrong.
+ *
+ * What a commit writes is the phone's own regenerate rule (load.ts
+ * buildCommitPlan, pricing/line-items.ts mergeTakeoff): a line somebody
+ * edited by hand is never written or tombstoned, only generated lines give
+ * way, and a run whose rebuild matches what is there is not written at all.
+ * The job sheet commits on its own whenever a rate is saved, so anything
+ * less put a quantity typed on the phone back to the engine's number.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { PRICING_ENGINE_VERSION, priceJob } from "../_shared/pricing/index.ts";
@@ -220,22 +227,31 @@ Deno.serve(async (req) => {
       nowIso,
     });
 
-    // Replacing lines is a delete, and deletes are gated: the trash-bin
-    // trigger refuses a tombstone from anyone without DELETE_RECORDS, which a
-    // MANAGER does not hold by default. Asked BEFORE anything is written --
-    // the first draft upserted the new lines first, so a manager's re-price
-    // would have landed the new estimate on top of the old one and failed
-    // only at the tombstone, leaving both sets of lines counting.
+    // Replacing lines tombstones the generated ones that went away, and
+    // tombstones are gated: the trash-bin trigger (enforce_delete_permission)
+    // refuses one from anyone without DELETE_RECORDS -- except a generated
+    // takeoff line on a run, tombstoned by someone with EDIT_JOBS, because
+    // replacing generated lines is editing the estimate (the r6 carve-out,
+    // live). Now that a commit never tombstones a line somebody edited, that
+    // carve-out is exactly what it tombstones, so either permission will do;
+    // asking for DELETE_RECORDS alone refused a MANAGER's re-price that the
+    // database would have taken. Asked BEFORE anything is written -- the
+    // first draft upserted the new lines first, so a refused re-price would
+    // have landed the new estimate on top of the old one and failed only at
+    // the tombstone, leaving both sets of lines counting.
     if (plan.tombstoneSyncIds.length > 0) {
-      const { data: mayDelete, error: delPermError } = await supabase
-        .rpc("has_permission", { perm: "DELETE_RECORDS" });
-      if (delPermError) {
-        console.error("price-job: has_permission DELETE_RECORDS", delPermError.message);
+      const [del, edit] = await Promise.all([
+        supabase.rpc("has_permission", { perm: "DELETE_RECORDS" }),
+        supabase.rpc("has_permission", { perm: "EDIT_JOBS" }),
+      ]);
+      const tombstonePermError = del.error ?? edit.error;
+      if (tombstonePermError) {
+        console.error("price-job: has_permission DELETE_RECORDS/EDIT_JOBS", tombstonePermError.message);
         return json({ error: "Could not check your permissions." }, 500);
       }
-      if (mayDelete !== true) {
+      if (del.data !== true && edit.data !== true) {
         return json({
-          error: "Re-pricing replaces this job's estimate lines, which needs the Delete records permission. Ask the owner to re-price it, or to grant you that permission.",
+          error: "Re-pricing replaces this job's generated estimate lines, which needs the Edit jobs or Delete records permission. Ask the owner to re-price it, or to grant you one of those.",
         }, 403);
       }
     }
@@ -244,11 +260,21 @@ Deno.serve(async (req) => {
       // Never delete -- update the same two columns every other table's
       // trash bin uses, so a mistaken re-price stays recoverable the same
       // way a mistaken delete anywhere else in FenceFlow is.
+      //
+      // Still generated and still live, asked of the row itself: the plan
+      // chose these from the rows it read, and a phone can edit one of them
+      // between that read and this write. By sync id alone an OWNER's
+      // re-price tombstoned the freshly edited line (DELETE_RECORDS passes
+      // the trash-bin trigger), and a MANAGER's failed whole on the trigger's
+      // carve-out. Filtered, the edited line stays beside the rebuild -- an
+      // extra line, which somebody sees, rather than a missing one.
       const { error } = await supabase
         .from("estimate_line_items")
         .update({ deleted_at: nowIso, deleted_by: uid })
         .eq("company_id", profile.company_id)
-        .in("sync_id", plan.tombstoneSyncIds);
+        .in("sync_id", plan.tombstoneSyncIds)
+        .eq("auto_generated", true)
+        .is("deleted_at", null);
       if (error) {
         console.error("price-job: tombstone items", error.message);
         return json({ error: "Could not clear the old estimate lines." }, 500);

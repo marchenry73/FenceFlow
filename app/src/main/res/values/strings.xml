@@ -168,6 +168,13 @@
          "This shift is not linked to a crew member..."), never re-derived. -->
     <string name="sync_plain_rejected">Couldn\'t sync: %1$s</string>
     <string name="svc_signed_in_elsewhere">This account was signed in on another phone, so this one has been signed out. Your work is safe. If that wasn\'t you, change your password.</string>
+    <string name="svc_elsewhere_title">Signed in on another phone</string>
+    <string name="svc_elsewhere_body">This account has been signed in on another phone. One login works on one phone at a time, so FenceFlow has stopped on this one.</string>
+    <string name="svc_elsewhere_nothing_lost">Nothing on this phone has been deleted. Tap Use this phone to carry on here -- the other phone will stop until it signs in again.</string>
+    <string name="svc_elsewhere_seat_note">If two people share this login, each of you needs your own -- ask the office. If it wasn\'t you, change your password.</string>
+    <string name="svc_use_this_phone">Use this phone</string>
+    <string name="svc_use_this_phone_working">Switching to this phone…</string>
+    <string name="svc_use_this_phone_failed">Couldn\'t reach FenceFlow to switch phones. Check the connection and try again.</string>
     <string name="sync_failed">Couldn\'t reach the cloud</string>
     <string name="sync_local_only">Saving on this phone only</string>
     <string name="sync_explain">Your jobs save automatically — when you make a change, when you open the app, and every so often in the background. Everything works offline; changes upload once you have signal.</string>
@@ -258,6 +265,7 @@
     <string name="draw_closed_perimeter">Closed perimeter (no open ends)</string>
     <string name="draw_undo">Undo</string>
     <string name="draw_undo_nothing_to_undo">Nothing to undo on this run yet</string>
+    <string name="draw_undo_drawing_changed">This drawing changed from another device, so there\'s nothing here to undo.</string>
     <string name="seg_len_title">Set this length</string>
     <string name="snap_toggle">Snap</string>
     <string name="snap_help">Corners, square angles and whole feet</string>
@@ -511,6 +519,8 @@
     <string name="acct_access_give_carefully">Give these carefully</string>
     <string name="jd_new_job">New Job</string>
     <string name="jd_saved_automatically">Saved automatically as you type.</string>
+    <string name="jd_customer_read_only">Only the office can change the customer\'s details.</string>
+    <string name="jd_not_given">Not given</string>
     <string name="jd_save_and_close">Save &amp; Close</string>
     <string name="jd_open_crew_view">Open Job-Day Crew View</string>
     <string name="jd_inventory_checklist">Job-Day Inventory &amp; Tools Checklist</string>
@@ -595,6 +605,9 @@
     <string name="jd_paid_use_record">Use Record a payment below</string>
     <string name="jd_refunded_amount">Refunded: $%1$s</string>
     <string name="jd_set_deposit_covers">Set deposit to $%1$s (covers materials)</string>
+    <string name="jd_set_deposit_capped">Set deposit to $%1$s (all that is still owed)</string>
+    <string name="jd_accepted_price">Accepted price</string>
+    <string name="jd_accepted_vs_estimate">The estimate now comes to $%1$s. The customer is billed the price they accepted -- a change goes through a signed change order or a new approval.</string>
     <string name="jd_materials_partly_paid">Materials come to $%1$s and $%2$s has been paid, so $%3$s is still needed to cover them. Rounded up to the next $10.</string>
     <string name="jd_materials_come_to">Materials on this estimate come to $%1$s. Rounded up to the next $10.</string>
     <string name="jd_contract_total">Contract total (from the estimate)</string>
@@ -1687,6 +1700,8 @@
     <string name="ntf_new_job_body">%1$s was added by your team.</string>
     <string name="ntf_job_complete_title">Job marked complete</string>
     <string name="ntf_job_complete_body">%1$s was finished by the crew.</string>
+    <string name="ntf_quote_accepted_title">Quote accepted</string>
+    <string name="ntf_quote_accepted_body">%1$s accepted the quote.</string>
     <string name="ntf_assigned_title">You\'ve been assigned a job</string>
     <string name="ntf_assigned_body">You\'re on %1$s.</string>
     <string name="eng2_reason_price_moved">the price moved from $%1$s to $%2$s</string>
@@ -1733,6 +1748,14 @@
     <string name="evm_saved_some_catalog">Saved. Some lines still use the catalog estimate.</string>
     <string name="evm_replaced_lines">Replaced with %1$d line items.</string>
     <string name="evm_replaced_lines_check">Replaced with %1$d line items. Check: %2$s</string>
+    <string name="evm_replaced_lines_kept">Replaced with %1$d line items. Kept %2$d you changed by hand.</string>
+    <string name="evm_replaced_lines_kept_check">Replaced with %1$d line items. Kept %2$d you changed by hand. Check: %3$s</string>
+    <string name="est_line_edited">Changed by hand. Keeps this number when the drawing changes.</string>
+    <string name="est_use_suggested">Use suggested</string>
+    <string name="est_delete_needs_permission">Deleting a line you changed or typed in needs the delete permission.</string>
+    <string name="sync_crew_unsent_summary">Changed on a crew phone but not saved: %1$s</string>
+    <string name="sync_delete_refused_title">Something you deleted is back</string>
+    <string name="sync_delete_refused_body">Deleting it needs the delete permission, so it was put back. Ask the owner to delete it.</string>
 
     <!-- Crew fence plan. The crew screen carries the site rules, so it is
          the last place that should have been English only. -->
@@ -1740,6 +1763,7 @@
     <string name="crew_plan_debris_rule">Leaves and loose debris are ours to clear. Anything needing a tool — bushes, planters, sheds, limbs, old posts — is the customer\'s, or it goes on a change order. Don\'t remove it without checking.</string>
     <string name="crew_plan_legend_build">Fence line &amp; posts</string>
     <string name="crew_plan_legend_teardown">Fence coming out</string>
+    <string name="crew_plan_legend_gate">Gate</string>
     <string name="crew_plan_run_untitled">Fence run</string>
     <string name="crew_plan_not_measured">Nothing measured for this run yet — check with the office before starting.</string>
     <string name="crew_plan_spec_type">Type</string>
@@ -1759,6 +1783,8 @@
     <string name="crew_plan_something_wrong">Something not right?</string>
     <string name="crew_plan_office_has_it">Saved on this phone. It reaches the office as soon as you have signal. Carry on with the rest of the job while you wait.</string>
     <string name="crew_plan_ask_office">Ask the office before building it different. They will see it straight away.</string>
+    <string name="crew_plan_not_sent">Request not sent</string>
+    <string name="crew_plan_job_gone">This job is no longer on this phone, so the request had nothing to go with and was not saved. The office may have removed it or taken you off it. Ask them directly.</string>
 
     <!-- Removing a line from the on-site materials checklist. It says what it
          does NOT do, because a delete button beside a camera button is easy
@@ -1801,4 +1827,104 @@
     <string name="reapproval_warn_editing">Changing the drawing will cancel the customer\'s approval, and they will have to approve it again.</string>
     <string name="reapproval_warn_editing_dismiss">Continue editing</string>
     <string name="reapproval_do_not_build">Do not build yet — waiting on the customer to approve the change.</string>
+
+    <!-- Personal Settings: the screen for everyone without "Change catalog
+         and settings" (crew by default). Device-only choices; see
+         PersonalSettingsScreen.kt. Typographic apostrophes, not escaped
+         straight ones: see the note on gate_offline_too_long in values/. -->
+    <string name="pset_intro">These settings are for this phone only, and each one saves as soon as you change it. Company settings, such as the business details, the catalog and the email templates, are looked after by the owner or a manager.</string>
+    <string name="pset_language_note">Only this phone changes. Everyone else on the team keeps their own language.</string>
+    <string name="pset_group_account">Your account</string>
+    <string name="pset_account_title">Account</string>
+    <string name="pset_account_explain">Who is signed in on this phone, your access level, cloud sync, and signing out.</string>
+    <string name="pset_open_account">Open Account</string>
+
+    <!-- Crew see the jobs they are on, and ask for the rest
+         (supabase_crew_job_scope.sql): the job list's notices, the "Other
+         jobs" and "Access requests" screens, and the job screen's "Also on
+         this job". See ui/jobs/JobScopeUi.kt. Typographic apostrophes and
+         quotes: see the note on gate_offline_too_long. -->
+    <string name="jobs_empty_office_adds">Jobs show up here once the office adds them.</string>
+    <string name="jobs_access_requests_waiting">Access requests waiting: %1$d</string>
+    <string name="jobs_access_requests_waiting_body">Crew asked to see jobs they aren’t on. Tap to answer.</string>
+    <string name="jobs_scope_not_linked">Your login is not linked to a crew member yet — ask the office.</string>
+    <string name="jobs_scope_not_linked_body">Until it is, no jobs can come to this phone. Nothing is wrong with the sync, and nothing on this phone is lost.</string>
+    <string name="jobs_scope_none_assigned">No jobs assigned to you yet</string>
+    <string name="jobs_scope_none_assigned_body">Jobs the office puts you on appear here by themselves. You can also ask for one below.</string>
+    <string name="jobs_scope_on_the_way">Your jobs are on their way</string>
+    <string name="jobs_scope_on_the_way_body">The office has put you on work this phone hasn’t received yet. It arrives with the next sync — pull down to fetch it now.</string>
+    <string name="jobs_other_jobs_request">Other jobs — request access</string>
+    <string name="jobs_other_jobs_request_body">See the rest of the company’s work and ask to be let in.</string>
+    <string name="jobs_kept_title">Kept on this phone</string>
+    <string name="jobs_kept_body">No longer assigned to you. Anything not sent yet stays here; request access to send it. A running shift can still be clocked out.</string>
+    <string name="jobs_kept_unsent">Has changes not sent yet</string>
+    <string name="access_needs_connection">Needs a connection.</string>
+    <string name="access_refused_ask_not_allowed">This login can’t ask for jobs. Check with the office.</string>
+    <string name="access_refused_answer_not_allowed">Not allowed. Answering requests needs “Schedule work and assign crew”, and nobody answers their own request.</string>
+    <string name="access_refused_crew_not_allowed">Not allowed. Changing who is on a job needs “Schedule work and assign crew”.</string>
+    <string name="access_refused_ask_not_found">That job can’t be asked for any more.</string>
+    <string name="access_refused_answer_not_found">That request isn’t there any more.</string>
+    <string name="access_refused_crew_not_found">This job hasn’t reached the office yet. Try again once it has synced.</string>
+    <string name="access_refused_nothing_to_ask">Nothing to ask for: you can already see that job. Pull down on the job list to bring it in.</string>
+    <string name="access_refused_limit">You’ve asked for a lot of jobs at once. Wait for the office to answer some, then try again.</string>
+    <string name="access_refused_signed_out">Your sign-in has run out. Open Account and sign in again.</string>
+    <string name="access_refused_not_available">Asking for other jobs isn’t switched on for your company yet.</string>
+    <string name="access_refused_failed">That didn’t go through. Try again in a moment.</string>
+    <string name="access_request_sent">Asked. The office will see your request.</string>
+    <string name="access_request_withdrawn">Request withdrawn.</string>
+    <string name="access_request_already_answered">The office had already answered that request.</string>
+    <string name="access_request_title">Other jobs</string>
+    <string name="access_refresh">Refresh</string>
+    <string name="access_request_intro">Won work you aren’t on. Ask for a job and the office decides; if they say yes, it comes to your phone by itself.</string>
+    <string name="access_request_offline">The list of other jobs is kept by the office. Connect to see it and ask.</string>
+    <string name="access_try_again">Try again</string>
+    <string name="access_request_none">No other jobs to ask for right now.</string>
+    <string name="access_chip_waiting">Requested</string>
+    <string name="access_chip_declined">Declined</string>
+    <string name="access_scheduled_on">Scheduled %1$s</string>
+    <string name="access_no_date">No date yet</string>
+    <string name="access_office_note">Office: %1$s</string>
+    <string name="access_ask_again">Ask again</string>
+    <string name="access_request_button">Request access</string>
+    <string name="access_withdraw">Withdraw</string>
+    <string name="access_ask_title">Ask for %1$s?</string>
+    <string name="access_ask_body">The office sees who asked and why. A reason is optional.</string>
+    <string name="access_reason_label">Reason (optional)</string>
+    <string name="access_reason_count">%1$d / %2$d</string>
+    <string name="access_send_request">Send request</string>
+    <string name="access_already_answered_other">Someone had already answered that request.</string>
+    <string name="access_approved">Approved. The job goes to their phone at its next sync.</string>
+    <string name="access_declined">Declined.</string>
+    <string name="access_answer_title">Access requests</string>
+    <string name="access_answer_intro">Crew asking to see a job they aren’t on. Approving lets that person see that one job; you can take them off it again from the job’s screen.</string>
+    <string name="access_answer_offline">Requests are answered on the server. Connect to see them and answer.</string>
+    <string name="access_answer_none">Nobody is waiting for an answer.</string>
+    <string name="access_someone">A crew member</string>
+    <string name="access_asked_by">%1$s asked for access</string>
+    <string name="access_job_not_here">A job not on this phone yet</string>
+    <string name="access_their_reason">Why: %1$s</string>
+    <string name="access_approve">Approve</string>
+    <string name="access_decline">Decline</string>
+    <string name="access_decline_title">Decline the request from %1$s?</string>
+    <string name="access_decline_note_label">Note for them (optional)</string>
+    <string name="job_crew_added">Added. They’ll see this job at their next sync.</string>
+    <string name="job_crew_removed">Taken off this job.</string>
+    <string name="job_crew_already_off">They were already off this job.</string>
+    <string name="job_crew_offline">Needs a connection to change who is on this job.</string>
+    <string name="job_crew_also_on">Also on this job</string>
+    <string name="job_crew_nobody_else">Nobody else yet.</string>
+    <string name="job_crew_let_in">let in on request</string>
+    <string name="job_crew_no_login_short">no app login linked</string>
+    <string name="job_crew_remove">Take %1$s off this job</string>
+    <string name="job_crew_add">Add crew</string>
+    <string name="job_crew_asked">Asked to see this job</string>
+    <string name="job_crew_no_login">%1$s has no app login linked, so this job won’t reach their phone. Link one from the Crew tab in the office.</string>
+    <string name="crew_kept_title">No longer assigned to you</string>
+    <string name="crew_kept_body">The office took you off this job. It stays on this phone with anything not sent yet, and a running shift can still be clocked out. Ask for access to work on it again.</string>
+    <string name="crew_kept_no_clock_in">Clock-in is off: you’re no longer on this job.</string>
+    <string name="crew_stage_not_yours">You’re no longer on this job, so its stage can’t be moved from this phone.</string>
+    <string name="startup_settling_title">FenceFlow is finishing an update</string>
+    <string name="startup_settling_body">Close FenceFlow and open it again in a moment. It could not start while the update was still being put in place.</string>
+    <string name="startup_settling_nothing_lost">Nothing on this phone was changed or lost.</string>
+    <string name="startup_settling_close">Close FenceFlow</string>
 </resources>

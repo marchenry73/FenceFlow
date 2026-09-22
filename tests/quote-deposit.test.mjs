@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { depositFigures } from '../supabase/functions/_shared/quote-deposit.ts';
 
 /**
  * The one deposit rule, exercised as JavaScript.
@@ -10,20 +10,11 @@ import { readFileSync } from 'node:fs';
  * because the failure mode is a button that promises a figure the card
  * machine refuses.
  *
- * The module is TypeScript for Deno. Rather than add a build step for four
- * lines of arithmetic, the type annotations are stripped and the function is
- * evaluated directly -- if the shape of the file changes enough to break
- * that, this test fails loudly, which is the correct outcome.
+ * The module is TypeScript for Deno, imported as it is: Node strips the
+ * types itself. (This used to strip them with a few regular expressions and
+ * evaluate the result, which broke the first time the module gained a
+ * function with a type the expressions did not know.)
  */
-const src = readFileSync('supabase/functions/_shared/quote-deposit.ts', 'utf8');
-const body = src
-  .replace(/export interface[\s\S]*?\n}\n/g, '')
-  .replace(/export /g, '')
-  .replace(/: DepositInput/g, '')
-  .replace(/: DepositFigures/g, '')
-  .replace(/: number \| null \| undefined/g, '')
-  .replace(/\(v\)/g, '(v)');
-const depositFigures = new Function(`${body}; return depositFigures;`)();
 
 const job = (o = {}) => ({
   depositAmount: 0, contractTotal: 0, amountPaid: 0, refundedAmount: 0, ...o,

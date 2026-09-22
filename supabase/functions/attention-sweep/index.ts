@@ -29,8 +29,8 @@
 //      once, not once per sweep run.
 //   3. Push to device_tokens, same FCM path notify-job-change already uses
 //      (copied, not re-invented, so the two functions cannot drift on how a
-//      token is addressed or pruned) -- to OWNER/MANAGER only (see the
-//      recipient-scope comment below), respecting each person's
+//      token is addressed or pruned) -- to OWNER/MANAGER who hold SEE_MONEY
+//      only (see the recipient-scope comment below), respecting each person's
 //      notification_prefs.muted_alerts (the SAME keys ALERT_DEFS already
 //      uses, reused rather than inventing a second mute list) and the
 //      company's attention_sweep_settings quiet hours.
@@ -46,6 +46,7 @@
 // same job.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { approximateUtcOffsetHours, isQuietHour } from "../_shared/follow-up-logic.ts";
+import { moneyAudience, type PushProfile } from "../_shared/job-push.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -220,14 +221,21 @@ Deno.serve(async (req) => {
     // dispute) in front of someone who couldn't see it on the dashboard
     // anyway -- every one of these nine detectors requires SEE_MONEY or
     // EDIT_JOBS to even render as an alert on the page, and OWNER/MANAGER
-    // are the only two roles that always hold both.
+    // are the only two roles that hold both BY DEFAULT.
+    //
+    // By default is not always: a -SEE_MONEY override takes the money off a
+    // manager's screens, and four of these messages carry a figure
+    // ("Chargeback on Dana Smith (4,200.00)"). So the role is where the list
+    // starts and SEE_MONEY decides who is on it, by the same rule the
+    // payment pushes use (moneyAudience in ../_shared/job-push.ts). A profiles
+    // read that fails tells nobody, as it always did here.
     for (const companyId of new Set(toNotify.map((c) => c.company_id))) {
       const { data: recipients } = await db
         .from("profiles")
-        .select("id")
+        .select("id, role, permission_overrides")
         .eq("company_id", companyId)
         .in("role", ["OWNER", "MANAGER"]);
-      const recipientIds = (recipients ?? []).map((r: any) => r.id);
+      const recipientIds = [...moneyAudience((recipients ?? []) as PushProfile[])];
       if (!recipientIds.length) continue;
 
       const { data: prefRows } = await db
@@ -249,8 +257,15 @@ Deno.serve(async (req) => {
         const forThisUser = companyFindings.filter((c) => !muted.has(c.detector));
         if (!forThisUser.length) continue;
 
+        // This person's phones in THIS company, the same two filters every
+        // other push uses (devicesOf in ../_shared/push-recipients.ts): a
+        // phone last registered under a company they have since left is not
+        // told this one's findings. Not devicesOf itself, because that throws
+        // on a failed read and one person's missing phones must not end the
+        // sweep for everyone after them.
         const { data: tokens } = await db
-          .from("device_tokens").select("token").eq("user_id", userId);
+          .from("device_tokens").select("token")
+          .eq("company_id", companyId).eq("user_id", userId);
         if (!tokens?.length) continue;
 
         const title = forThisUser.length === 1 ? "Needs attention" : `${forThisUser.length} things need attention`;

@@ -6,7 +6,14 @@
 //
 // Secrets: STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
-import { depositFigures } from "../_shared/quote-deposit.ts";
+import {
+  CHANGE_ORDER_COLUMNS,
+  CHANGE_ORDER_COLUMNS_BEFORE_ACCEPTANCE_FLAG,
+  changeOrderInputs,
+  depositFigures,
+  missingAcceptanceFlag,
+} from "../_shared/quote-deposit.ts";
+import type { ChangeOrderInput } from "../_shared/quote-deposit.ts";
 
 const STRIPE = "https://api.stripe.com/v1";
 
@@ -21,6 +28,87 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
+
+// ---- the price the customer accepted -------------------------------------
+//
+// jobs.accepted_total (supabase_r6_price_stability.sql) is what the customer
+// agreed to pay: the quote page's total when they approved online, the
+// signed figure when they signed on the phone. While that acceptance stands,
+// the balance and every cap below are measured against it -- plus change
+// orders signed since -- and not against contract_total, which old phone
+// builds went on moving after acceptance: job 4598 was signed at $9,710 and
+// asked against $13,410, Marco was signed at $19,810 with a $10,930 link
+// against $9,300. The rule is billableTotal in _shared/quote-deposit.ts,
+// reached through depositFigures().total, so this file and quote-view (which
+// shows the homeowner the same figures) read exactly one rule.
+
+/**
+ * Read beside a job's money whenever it is billed. quote_approved_at is not
+ * here because both reads below already select it.
+ */
+const ACCEPTANCE_COLUMNS = "accepted_total, signed_at, reapproval_required_at";
+
+/**
+ * Whether a read failed only because this database has no accepted_total yet
+ * -- the function deployed before the migration. The caller then reads its
+ * old column list and bills against contract_total exactly as it did before,
+ * instead of refusing every link until the SQL lands.
+ */
+export function lacksAcceptanceColumns(error: { message?: string } | null | undefined): boolean {
+  return /accepted_total/.test(String(error?.message ?? ""));
+}
+
+type AcceptanceRow = {
+  accepted_total?: number | string | null;
+  signed_at?: string | null;
+  quote_approved_at?: string | null;
+  reapproval_required_at?: string | null;
+};
+
+/**
+ * The acceptance half of depositFigures' input for one job. The change orders
+ * are read only when an accepted figure is recorded -- they matter to no
+ * other job, so a job accepted before accepted_total existed costs no extra
+ * read and gains no new way to fail. Null when they were needed and could not
+ * be read: the caller refuses, like every other failed read here, rather than
+ * billing a total that silently leaves signed extra work out.
+ */
+async function acceptanceFor(
+  admin: ReturnType<typeof createClient>,
+  companyId: string,
+  jobSyncId: string,
+  job: AcceptanceRow,
+): Promise<{
+  acceptedTotal: number | null;
+  signedAt: string | null;
+  quoteApprovedAt: string | null;
+  reapprovalRequiredAt: string | null;
+  changeOrders: ChangeOrderInput[];
+} | null> {
+  const acceptedTotal = job.accepted_total == null ? null : Number(job.accepted_total);
+  let changeOrders: ChangeOrderInput[] = [];
+  if (acceptedTotal != null) {
+    // in_accepted_total says which orders the accepted price already
+    // contains, so they are not billed on top of it a second time. A
+    // database without the column yet is read the old way.
+    const read = (columns: string) => admin
+      .from("change_orders")
+      .select(columns)
+      .eq("company_id", companyId)
+      .eq("job_sync_id", jobSyncId);
+    let { data, error } = await read(CHANGE_ORDER_COLUMNS);
+    if (error && missingAcceptanceFlag(error)) ({ data, error } = await read(CHANGE_ORDER_COLUMNS_BEFORE_ACCEPTANCE_FLAG));
+    if (error || !Array.isArray(data)) return null;
+    changeOrders = changeOrderInputs(data);
+  }
+  return {
+    acceptedTotal,
+    signedAt: job.signed_at ?? null,
+    quoteApprovedAt: job.quote_approved_at ?? null,
+    reapprovalRequiredAt: job.reapproval_required_at ?? null,
+    changeOrders,
+  };
+}
 
 /** Stripe's API is form-encoded, not JSON. */
 async function stripe(path: string, form: Record<string, string>, account?: string) {
@@ -445,10 +533,15 @@ Deno.serve(async (req) => {
       publicDoor = true;
       const tok = String(body.quoteToken).trim();
       if (!/^[0-9a-f-]{36}$/.test(tok)) return json({ error: "That link is not valid." }, 400);
-      const { data: qjob } = await admin
+      const tokenColumns =
+        "sync_id, company_id, customer_name, deposit_amount, contract_total, amount_paid, refunded_amount, deleted_at, quote_approved_at";
+      let { data: qjob, error: qjobError } = await admin
         .from("jobs")
-        .select("sync_id, company_id, customer_name, deposit_amount, contract_total, amount_paid, refunded_amount, deleted_at, quote_approved_at")
+        .select(`${tokenColumns}, ${ACCEPTANCE_COLUMNS}`)
         .eq("quote_token", tok).maybeSingle();
+      if (qjobError && lacksAcceptanceColumns(qjobError)) {
+        ({ data: qjob } = await admin.from("jobs").select(tokenColumns).eq("quote_token", tok).maybeSingle());
+      }
       if (!qjob || qjob.deleted_at) return json({ error: "That quote is no longer available." }, 404);
 
       // Paying is a commitment, so it goes behind the same door as approving.
@@ -483,14 +576,25 @@ Deno.serve(async (req) => {
       // never exceed the total of the job.
       // The deposit half of this is the shared rule, so what the quote page
       // shows and what this charges cannot come apart again.
+      //
+      // Both halves are measured against what the customer accepted while
+      // that acceptance stands (depositFigures().total -- see the top of this
+      // file), so the balance a homeowner pays is the price they agreed to
+      // plus the extra work they signed for, never a later recompute.
+      const acceptance = await acceptanceFor(admin, qjob.company_id, qjob.sync_id, qjob);
+      if (!acceptance) {
+        console.error("create-payment-link change orders unreadable", qjob.sync_id);
+        return json({ code: "owed_unreadable" }, 500);
+      }
       const netPaid = (Number(qjob.amount_paid) || 0) - (Number(qjob.refunded_amount) || 0);
-      const total = Number(qjob.contract_total) || 0;
       const deposit = depositFigures({
         depositAmount: qjob.deposit_amount,
         contractTotal: qjob.contract_total,
         amountPaid: qjob.amount_paid,
         refundedAmount: qjob.refunded_amount,
+        ...acceptance,
       });
+      const total = deposit.total;
       const dollars = kindWanted === "deposit"
         ? deposit.due
         : Math.max(0, total - netPaid);
@@ -632,12 +736,26 @@ async function makeLink(
     // -- the one state in which the cap waves everything through. The
     // open-links read is held to the same rule: failing must not read as
     // "nothing open".
-    const { data: jobRow, error: jobReadError } = await admin
+    //
+    // The cap is measured against what the customer accepted while that
+    // acceptance stands, not against a contract_total an old phone build may
+    // have moved since (see the top of this file). The read falls back to the
+    // old column list only when the database has no accepted_total yet.
+    const jobColumns = "contract_total, amount_paid, refunded_amount, quote_approved_at";
+    let { data: jobRow, error: jobReadError } = await admin
       .from("jobs")
-      .select("contract_total, amount_paid, refunded_amount")
+      .select(`${jobColumns}, ${ACCEPTANCE_COLUMNS}`)
       .eq("company_id", profile.company_id)
       .eq("sync_id", jobSyncId)
       .maybeSingle();
+    if (jobReadError && lacksAcceptanceColumns(jobReadError)) {
+      ({ data: jobRow, error: jobReadError } = await admin
+        .from("jobs")
+        .select(jobColumns)
+        .eq("company_id", profile.company_id)
+        .eq("sync_id", jobSyncId)
+        .maybeSingle());
+    }
     const { data: openLinks, error: openReadError } = await admin
       .from("job_payments")
       .select("id, kind, amount_cents, processor, livemode, stripe_id, external_id")
@@ -653,8 +771,33 @@ async function makeLink(
       }, 500);
     }
 
+    // The same failed-read rule for the change orders an accepted price needs.
+    const acceptance = jobRow ? await acceptanceFor(admin, profile.company_id, jobSyncId, jobRow) : null;
+    if (jobRow && !acceptance) {
+      console.error("create-payment-link change orders unreadable", jobSyncId);
+      return json(publicDoor ? { code: "open_links_unreadable" } : {
+        code: "open_links_unreadable",
+        error: "Could not check what this job already owes and has open, so no link was made. Try again in a moment.",
+      }, 500);
+    }
+    // planOpenLinks caps against contract_total; hand it the billable figure
+    // in that slot, so its tested arithmetic is unchanged and only the total
+    // it measures against moves.
+    const billedJob = jobRow && acceptance
+      ? {
+        ...jobRow,
+        contract_total: depositFigures({
+          depositAmount: 0,
+          contractTotal: jobRow.contract_total,
+          amountPaid: 0,
+          refundedAmount: 0,
+          ...acceptance,
+        }).total,
+      }
+      : jobRow;
+
     const live = liveNow();
-    const plan = planOpenLinks(jobRow, openLinks as OpenLink[], { kind, amountCents: amount }, live);
+    const plan = planOpenLinks(billedJob, openLinks as OpenLink[], { kind, amountCents: amount }, live);
     if (!plan.ok) {
       if (plan.code === "over_owed") {
         return json({

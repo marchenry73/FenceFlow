@@ -1,0 +1,43 @@
+X-Fixture-Note: Hand-written in the shape of a Gmail reply. Not captured
+ mail: every name, address and Message-ID is invented.
+Return-Path: <dana.whitfield@example.org>
+Delivered-To: owner@acmefence.com
+MIME-Version: 1.0
+Date: Mon, 14 Sep 2026 09:12:44 -0400
+Message-ID: <CAF7k2+Qx9L0wQ-4102@mail.example.org>
+In-Reply-To: <0f8e3a1c-2b4d-4e6f-8a9b-1c2d3e4f5a6b@acmefence.com>
+References: <root-quote-1@acmefence.com>
+ <CAF7k2+first-answer@mail.example.org>
+	<0f8e3a1c-2b4d-4e6f-8a9b-1c2d3e4f5a6b@acmefence.com>
+Subject: =?UTF-8?Q?Re=3A_Quote_for_14_Oak_Lane_=E2=80=93_cl=C3=B4ture?=
+ =?UTF-8?B?IGVuIGPDqGRyZQ==?=
+From: =?UTF-8?Q?Dana_Whitfield?= <Dana.Whitfield@Example.org>
+To: Acme Fence <OWNER@acmefence.com>
+Cc: "Whitfield, Sam" <sam@example.org>, hoa-board@oaklane-hoa.example,
+ Bad <not an address>
+Reply-To: Dana Whitfield <dana.whitfield@example.org>
+Content-Type: multipart/alternative; boundary="000000000000a1b2c3"
+
+--000000000000a1b2c3
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+Thanks Mike =E2=80=93 the cedar option looks right. Can you start the week =
+of the 28th?
+
+Dana
+
+On Fri, Sep 11, 2026 at 4:02 PM Acme Fence <owner@acmefence.com> wrote:
+> Hi Dana,
+> Here is the quote for 14 Oak Lane.
+
+--000000000000a1b2c3
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<div dir=3D"ltr">Thanks Mike =E2=80=93 the cedar option looks right. Can yo=
+u start the week of the 28th?<div><br></div><div>Dana</div></div><br><div c=
+lass=3D"gmail_quote"><blockquote>Hi Dana,<br>Here is the quote for 14 Oak L=
+ane.</blockquote></div>
+
+--000000000000a1b2c3--

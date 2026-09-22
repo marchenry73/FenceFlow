@@ -21,12 +21,12 @@ import com.fenceestimator.app.geometry.DrawingSnapshot
 import com.fenceestimator.app.geometry.RedoHistory
 import com.fenceestimator.app.geometry.RedoNoneReason
 import com.fenceestimator.app.geometry.RedoPlan
+import com.fenceestimator.app.geometry.UndoHistory
 import com.fenceestimator.app.geometry.UndoNoneReason
 import com.fenceestimator.app.geometry.UndoPlan
-import com.fenceestimator.app.geometry.applyUndo
-import com.fenceestimator.app.geometry.planUndo
 import kotlinx.coroutines.Dispatchers
 import com.fenceestimator.app.cloud.CrashReporter
+import com.fenceestimator.app.estimate.DrawingScale
 import com.fenceestimator.app.estimate.TakeoffRefresher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,7 +48,25 @@ import java.util.UUID
 
 enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, PAN }
 
-class SurveyViewModel(private val repository: Repository, private val jobId: Long, private val appContext: Context) : ViewModel() {
+class SurveyViewModel(
+    private val repository: Repository,
+    private val jobId: Long,
+    private val appContext: Context,
+    /**
+     * Whether this screen may re-price the takeoff when the drawing moves.
+     *
+     * False for the crew's read-only plan (CrewFencePlanScreen), which built
+     * this view model only to read the drawing -- and so, through init,
+     * started the re-pricing watcher on crew phones. A crew catalog has every
+     * price scrubbed to zero, the product pick breaks the tie by sync id, and
+     * the crew's takeoff chose different posts and panels than the office's:
+     * the two phones then overwrote each other's quantities on every sync
+     * (audit 2026-09-17..21, 161 flips on Woody and John Beaunissant). Even
+     * when true, [TakeoffRefresher.mayReprice] is asked again at the moment of
+     * re-pricing, because the drawing screen is open to crew too.
+     */
+    private val repriceOnDrawingChange: Boolean = true
+) : ViewModel() {
     val job: StateFlow<Job?> = repository.observeJob(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -78,13 +96,17 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      *
      * [TakeoffRefresher] declines to act on runs that have never been priced,
      * so this cannot invent an estimate for a job nobody has estimated.
+     *
+     * Only on a phone that prices ([TakeoffRefresher.mayReprice]), asked at
+     * the moment of re-pricing rather than once at start: the drawing screen
+     * is open to crew, and a role can change while the screen is open.
      */
     @kotlinx.coroutines.FlowPreview
     private fun watchDrawingForRepricing() {
         viewModelScope.launch {
             var lastSeen: Map<Long, String>? = null
             repository.observeFenceRuns(jobId)
-                .map { runs -> runs.associate { it.id to it.geometrySignature() } }
+                .map { runs -> runs.associate { it.id to TakeoffRefresher.pricingSignature(it) } }
                 .debounce(REPRICE_DEBOUNCE_MS)
                 .collect { current ->
                     val previous = lastSeen
@@ -92,6 +114,8 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                     if (previous == null) return@collect
                     val movedRunIds = current.filter { (id, sig) -> previous[id] != null && previous[id] != sig }.keys
                     if (movedRunIds.isEmpty()) return@collect
+                    val mayReprice = viewerMayReprice()
+                    if (!mayReprice) return@collect
                     withContext(Dispatchers.IO) {
                         movedRunIds.forEach { id ->
                             repository.getFenceRun(id)?.let { run ->
@@ -103,7 +127,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                                 // CrashReporter usage elsewhere) and flagged so
                                 // the drawing screen can say so too -- cleared
                                 // the moment a later refresh actually succeeds.
-                                runCatching { TakeoffRefresher.refreshRun(repository, run) }
+                                runCatching { TakeoffRefresher.refreshRun(repository, run, mayReprice) }
                                     .onSuccess { _repriceFailed.value = false }
                                     .onFailure { e ->
                                         CrashReporter.report(appContext, "survey-reprice", e)
@@ -117,17 +141,22 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     }
 
     /**
-     * Everything about a run that changes what it costs in material.
-     *
-     * Taken from the whole row rather than a hand-listed set of fields, minus
-     * the two that are presentation only. Listing them by hand means every new
-     * spec field added later is one the re-pricing silently ignores.
+     * Whether the person on this phone may re-price, read from the session
+     * the app already keeps. Unknown counts as no: a view model built outside
+     * the app has no session to ask, and guessing generously is how a crew
+     * phone briefly became an owner.
      */
-    private fun FenceRun.geometrySignature(): String =
-        copy(label = "", sortOrder = 0).toString()
+    private fun viewerMayReprice(): Boolean {
+        val session = (appContext.applicationContext as? com.fenceestimator.app.FenceEstimatorApp)
+            ?.session?.state?.value
+            ?: return false
+        return TakeoffRefresher.mayReprice(session)
+    }
 
     init {
-        watchDrawingForRepricing()
+        // The crew plan reads the drawing and must never re-price it; see
+        // [repriceOnDrawingChange].
+        if (repriceOnDrawingChange) watchDrawingForRepricing()
     }
 
     private val _selectedRunId = MutableStateFlow<Long?>(null)
@@ -156,6 +185,17 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      * the run afresh ([editRun]).
      */
     private val drawingWrites = Mutex()
+
+    /**
+     * What Undo can put back, per run. See [UndoHistory].
+     *
+     * Every change to a run's drawing goes through [commitEdit], which records
+     * the run as it was a moment before; Undo restores exactly that. Held in
+     * this view model and nowhere else, so it starts empty each time the
+     * drawing screen opens -- reopening a job cannot restore a drawing from an
+     * earlier visit, or from another run, over what is there now.
+     */
+    private val _undo = MutableStateFlow(UndoHistory())
 
     /** What Redo can put back, per run. See [RedoHistory]. */
     private val _redo = MutableStateFlow(RedoHistory())
@@ -203,6 +243,54 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         }
     }
 
+    /**
+     * Writes [updated] over [run] as one step Undo can take back.
+     *
+     * The one door every ordinary drawing edit goes through -- a point added,
+     * a corner dragged, a length typed, a gate placed, moved or removed, the
+     * loop closed or opened, the run cleared. Undo used to be hooked to none
+     * of them: it guessed, dropping the last point or gate, so undoing a drag
+     * or a typed length took away a corner nobody had touched and left the
+     * change itself in place. Routing every edit through here is what makes
+     * "Undo takes back the last change" true for all of them, including ones
+     * added later.
+     *
+     * [run] must be the fresh read [editRun] handed in -- the drawing as it is
+     * in the database right now -- because that is what Undo will put back.
+     * Called inside [drawingWrites], so nothing can land between the read and
+     * this write.
+     *
+     * An edit that changes nothing -- a corner dragged back to where it sat,
+     * the loop "closed" when it already was -- is not an edit, and stops here
+     * before touching anything. [UndoHistory.record] already refused to make
+     * it a step, but the Redo stack used to be emptied first regardless, so
+     * undo, then a drag that went nowhere, and the Redo that was offered a
+     * moment ago said there was nothing to redo. Nor is it written: every
+     * write stamps `updatedAt`, and fence runs sync last-edit-wins on that
+     * clock, so re-saving an unchanged drawing would make this phone's copy
+     * look newer than an office change that has not come down yet.
+     */
+    private suspend fun commitEdit(run: FenceRun, updated: FenceRun) {
+        val before = run.drawingSnapshot()
+        val after = updated.drawingSnapshot()
+        if (before == after) return
+        _redo.update { it.afterEdit(run.id) }
+        repository.updateFenceRun(updated)
+        // Recorded as exactly what was written, so the next Undo can tell
+        // whether anything else has touched the run since.
+        _undo.update { it.record(run.id, before, after) }
+    }
+
+    /**
+     * A change to the whole drawing -- its scale, its background -- after which
+     * no run's history applies: an old drawing put back onto a new scale is a
+     * different length from the one it was drawn at.
+     */
+    private fun clearDrawingHistory() {
+        _undo.update { it.afterDrawingWideEdit() }
+        _redo.update { it.afterDrawingWideEdit() }
+    }
+
     private val _mode = MutableStateFlow(SurveyMode.DRAW)
     val mode: StateFlow<SurveyMode> = _mode
 
@@ -232,11 +320,23 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                     calibrationKnownFeet = null
                 )
             )
-            _redo.update { it.afterDrawingWideEdit() }
+            clearDrawingHistory()
         }
     }
 
     private fun selectedRun(): FenceRun? = runs.value.firstOrNull { it.id == _selectedRunId.value }
+
+    /**
+     * The scale edits here are measured at: the one the drawing is shown at
+     * ([drawingScale]), so a typed length, a snap to a whole foot and the
+     * footage reported to the office all agree with the dimension printed on
+     * the plan. These used to fall back to [PIXELS_PER_FOOT_GRID] on their
+     * own, which is the same number for a grid of the default size but not
+     * for a grid of another size that was never given a calibration. That
+     * default is still what an uncalibrated photo gets, as it always did --
+     * the plan shows no lengths there to disagree with.
+     */
+    private fun editScale(): Float = job.value?.let { drawingScale(it) } ?: PIXELS_PER_FOOT_GRID
 
     /**
      * Every corner already on this job, from every run, so a point being
@@ -270,7 +370,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
             previous = pts.lastOrNull(),
             beforePrevious = pts.getOrNull(pts.size - 2),
             otherVertices = snapTargets(run.id, pts.size),
-            pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID,
+            pxPerFt = editScale(),
         )
     }
 
@@ -299,7 +399,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
             previous = pts.getOrNull(index - 1),
             beforePrevious = pts.getOrNull(index - 2),
             otherVertices = snapTargets(run.id, index),
-            pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID,
+            pxPerFt = editScale(),
             avoid = avoid,
         )
     }
@@ -311,7 +411,6 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     fun addDrawPoint(point: FencePoint) {
         editRun(_selectedRunId.value) { run ->
             val points = FenceCodec.decodePoints(run.pointsEncoded) + point
-            _redo.update { it.afterEdit(run.id) }
             writePoints(run, points)
         }
     }
@@ -343,7 +442,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      * can say so instead of closing the dialog as though it had worked.
      */
     fun setSegmentLengthFeet(index: Int, feet: Float) {
-        val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
+        val pxPerFt = editScale()
         if (!feet.isFinite() || feet <= 0f || pxPerFt <= 0f) {
             _lengthRefused.tryEmit(Unit)
             return
@@ -361,7 +460,9 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                 _lengthRefused.tryEmit(Unit)
                 return@editRun
             }
-            _redo.update { it.afterEdit(run.id) }
+            // One Undo step for the whole edit -- the side, every later corner
+            // that travelled with it and any gate carried along -- because
+            // writePoints records the run exactly as it was before all of it.
             writePoints(
                 run, edit.points,
                 // Left byte-for-byte alone when no gate moved, so an edit
@@ -378,7 +479,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      */
     fun segmentFeet(index: Int): Float? {
         val run = selectedRun() ?: return null
-        val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
+        val pxPerFt = editScale()
         return com.fenceestimator.app.geometry.sideLengthFeet(
             FenceCodec.decodePoints(run.pointsEncoded), index, pxPerFt, run.closedLoop
         )
@@ -392,29 +493,23 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         )
     }
 
-    /** Moves a single already-placed vertex -- for fixing a point without redrawing the whole run. */
+    /**
+     * Moves a single already-placed vertex -- for fixing a point without redrawing the whole run.
+     *
+     * One call is one Undo step. The screen calls this once per gesture, when
+     * the finger lifts (the drag itself only moves a draft on screen), and
+     * once per arrow-pad tap -- so Undo takes back a whole drag, not a frame of
+     * it, and one nudge at a time.
+     */
     fun movePoint(index: Int, point: FencePoint) {
         editRun(_selectedRunId.value) { run ->
             val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
             if (index !in points.indices) return@editRun
             points[index] = point
-            _redo.update { it.afterEdit(run.id) }
             writePoints(run, points)
         }
     }
 
-    /**
-     * Undoes the last thing put on the drawing, gates included.
-     *
-     * It only ever removed points, so placing a gate and pressing Undo did
-     * nothing at all -- and with no way to delete a gate anywhere else, a
-     * mis-tapped gate was permanent and kept being charged for.
-     *
-     * Which one goes is decided by the tool in hand rather than by a history
-     * stack: while placing gates, Undo takes back a gate; while drawing, it
-     * takes back a point. That is what the button means to somebody mid-task,
-     * and it cannot surprise them by removing something off-screen.
-     */
     /**
      * One-shot events the Undo button can't express as state -- specifically
      * "I did nothing, and here is why" -- so a press that removes nothing
@@ -424,34 +519,58 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     private val _undoNothingToDo = MutableSharedFlow<UndoNoneReason>(extraBufferCapacity = 1)
     val undoNothingToDo: SharedFlow<UndoNoneReason> = _undoNothingToDo
 
-    fun undoLast(mode: SurveyMode) {
+    /**
+     * Takes back the last change to the selected run, whatever it was.
+     *
+     * Undo used to guess instead of remember: it dropped the last point, or
+     * the last gate while the gate tool was in hand. That was right only when
+     * the last thing done was adding one. After dragging a middle corner or
+     * typing a length, it deleted the run's far corner -- a change nobody made
+     * -- and left the real one standing; closing or opening the loop could
+     * never be undone at all.
+     *
+     * Now every edit records the drawing as it was just before ([commitEdit]),
+     * and Undo puts back exactly that: the points, the gates and the closed
+     * flag, byte for byte, the same way [redo] restores. What it replaced goes
+     * onto the Redo stack, so Undo and Redo walk back and forth through the
+     * same states.
+     *
+     * Only while the run still looks exactly as the last edit here left it.
+     * If it has changed some other way since (synced in from the office), the
+     * history is stale and is dropped rather than pasted over newer work --
+     * the same rule Redo follows.
+     */
+    fun undoLast() {
         editRun(
             _selectedRunId.value,
             onMissing = { _undoNothingToDo.tryEmit(UndoNoneReason.NO_RUN_SELECTED) }
         ) { run ->
-            val plan = planUndo(
-                gateMode = mode == SurveyMode.GATE,
-                hasSelectedRun = true,
-                pointCount = FenceCodec.decodePoints(run.pointsEncoded).size,
-                gateCount = FenceCodec.decodeGates(run.gatesEncoded).size
-            )
-            if (plan is UndoPlan.None) {
-                _undoNothingToDo.tryEmit(plan.reason)
-                return@editRun
+            val current = run.drawingSnapshot()
+            when (val plan = _undo.value.plan(run.id, current)) {
+                is UndoPlan.Restore -> {
+                    val restored = run.copy(
+                        pointsEncoded = plan.snapshot.pointsEncoded,
+                        gatesEncoded = plan.snapshot.gatesEncoded,
+                        closedLoop = plan.snapshot.closedLoop
+                    )
+                    repository.updateFenceRun(restored)
+                    // A footage change is reported whichever way it goes, as
+                    // it always was when Undo took a point away. A gate-only
+                    // step moves no footage and so reports nothing, as before.
+                    noteFootageChange(run, measure(run), measure(restored))
+                    _undo.update { it.afterUndo(run.id) }
+                    // [plan.snapshot] is byte-for-byte what was just written,
+                    // which is what lets Redo tell whether anything has
+                    // touched the run since.
+                    _redo.update { it.afterUndo(run.id, current, plan.snapshot) }
+                }
+                is UndoPlan.None -> {
+                    if (plan.reason == UndoNoneReason.DRAWING_CHANGED) {
+                        _undo.update { it.forget(run.id) }
+                    }
+                    _undoNothingToDo.tryEmit(plan.reason)
+                }
             }
-            val before = run.drawingSnapshot()
-            val after = applyUndo(before, plan) ?: return@editRun
-            // Removing a point changes the footage, and always has been
-            // reported as such; removing a gate does not and never was.
-            if (plan == UndoPlan.RemoveLastPoint) {
-                writePoints(run, FenceCodec.decodePoints(after.pointsEncoded))
-            } else {
-                repository.updateFenceRun(run.copy(gatesEncoded = after.gatesEncoded))
-            }
-            // [after] is byte-for-byte what was just written (re-encoding a
-            // decoded point list gives back the same string), which is what
-            // lets Redo tell whether anything has touched the run since.
-            _redo.update { it.afterUndo(run.id, before, after) }
         }
     }
 
@@ -480,6 +599,10 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                     // Same footage report Undo made when it took the point away.
                     noteFootageChange(run, measure(run), measure(restored))
                     _redo.update { it.afterRedo(run.id) }
+                    // A redone edit is an edit again, so Undo can take it back
+                    // -- recorded directly rather than through commitEdit,
+                    // which would also empty what is left to redo.
+                    _undo.update { it.record(run.id, run.drawingSnapshot(), restored.drawingSnapshot()) }
                 }
                 is RedoPlan.None -> {
                     if (plan.reason == RedoNoneReason.DRAWING_CHANGED) {
@@ -493,15 +616,15 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
 
     fun clearPoints() {
         editRun(_selectedRunId.value) { run ->
-            _redo.update { it.afterEdit(run.id) }
-            repository.updateFenceRun(run.copy(pointsEncoded = "", gatesEncoded = ""))
+            // One Undo step brings the whole run back -- every point and gate
+            // Clear took, which is what makes a mistaken Clear recoverable.
+            commitEdit(run, run.copy(pointsEncoded = "", gatesEncoded = ""))
         }
     }
 
     fun toggleClosedLoop(closed: Boolean) {
         editRun(_selectedRunId.value) { run ->
-            _redo.update { it.afterEdit(run.id) }
-            repository.updateFenceRun(run.copy(closedLoop = closed))
+            commitEdit(run, run.copy(closedLoop = closed))
         }
     }
 
@@ -513,9 +636,9 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
     var editorRole: String? = null
 
     /**
-     * Writes new points (and, when given, a new gate string) onto [run] and
-     * reports the footage change. Called from inside [editRun], so [run] is
-     * the row as it is in the database now.
+     * Writes new points (and, when given, a new gate string) onto [run] as
+     * one Undo step ([commitEdit]) and reports the footage change. Called from
+     * inside [editRun], so [run] is the row as it is in the database now.
      */
     private suspend fun writePoints(
         run: FenceRun,
@@ -523,7 +646,8 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         gatesEncoded: String = run.gatesEncoded
     ) {
         val before = measure(run, FenceCodec.decodePoints(run.pointsEncoded))
-        repository.updateFenceRun(
+        commitEdit(
+            run,
             run.copy(pointsEncoded = FenceCodec.encodePoints(points), gatesEncoded = gatesEncoded)
         )
         val after = measure(run, points)
@@ -534,7 +658,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
 
     private fun measure(run: FenceRun, points: List<FencePoint>): Float {
         if (points.size < 2) return 0f
-        val pxPerFt = job.value?.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID
+        val pxPerFt = editScale()
         return FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop).totalLinearFeet
     }
 
@@ -551,19 +675,24 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         val name = editorName ?: return
         if (kotlin.math.abs(after - before) < MIN_REPORTABLE_FEET) return
 
-        repository.recordFieldChange(
-            FieldChange(
-                jobId = jobId,
-                summary = "${run.label.ifBlank { "Fence run" }}: " +
-                    "${"%.0f".format(before)} ft → ${"%.0f".format(after)} ft",
-                detail = if (after > before)
-                    "Longer than planned — the estimate and material order may need redoing."
-                else
-                    "Shorter than planned — there may be material left over.",
-                changedBy = name,
-                changedByRole = editorRole.orEmpty()
+        // A job the sync removed while the drawing was open took its runs
+        // with it, so the note has nothing to describe -- and inserting it hit
+        // the foreign key and crashed. Skipped instead (see OrphanRows).
+        com.fenceestimator.app.cloud.skipIfOrphaned {
+            repository.recordFieldChange(
+                FieldChange(
+                    jobId = jobId,
+                    summary = "${run.label.ifBlank { "Fence run" }}: " +
+                        "${"%.0f".format(before)} ft → ${"%.0f".format(after)} ft",
+                    detail = if (after > before)
+                        "Longer than planned — the estimate and material order may need redoing."
+                    else
+                        "Shorter than planned — there may be material left over.",
+                    changedBy = name,
+                    changedByRole = editorRole.orEmpty()
+                )
             )
-        )
+        }
     }
 
     fun tapCalibrationPoint(point: FencePoint, onNeedDistance: (FencePoint, FencePoint) -> Unit) {
@@ -583,8 +712,8 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         val pxPerFt = distPx / knownFeet
         viewModelScope.launch {
             repository.updateJob(current.copy(calibrationPixelsPerFoot = pxPerFt, calibrationKnownFeet = knownFeet))
-            // A new scale is a new drawing as far as Redo is concerned.
-            _redo.update { it.afterDrawingWideEdit() }
+            // A new scale is a new drawing as far as Undo and Redo are concerned.
+            clearDrawingHistory()
         }
     }
 
@@ -629,8 +758,10 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
                     createGateOnlyRun(runDefaults) ?: return@withLock
                 }
                 val gates = FenceCodec.decodeGates(run.gatesEncoded) + GateMarker(x, y, widthFt, mounting, swing)
-                _redo.update { it.afterEdit(run.id) }
-                repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+                // On a gate-only run just created above, the drawing before is
+                // the empty run, so Undo takes the gate back off and leaves the
+                // run -- what the old "remove the last gate" Undo did too.
+                commitEdit(run, run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
             }
         }
     }
@@ -652,14 +783,16 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
      * Moves an already-placed gate. Previously a gate in the wrong spot had to
      * be deleted and re-added, which loses its width and is a poor trade for
      * something you nudge a few feet.
+     *
+     * Called once per drag, when the finger lifts, so a whole drag is one Undo
+     * step (see [movePoint]).
      */
     fun moveGate(index: Int, x: Float, y: Float) {
         editRun(_selectedRunId.value) { run ->
             val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
             if (index !in gates.indices) return@editRun
             gates[index] = gates[index].copy(x = x, y = y)
-            _redo.update { it.afterEdit(run.id) }
-            repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+            commitEdit(run, run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
         }
     }
 
@@ -674,8 +807,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         editRun(_selectedRunId.value) { run ->
             val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
             if (!gates.remove(gate)) return@editRun
-            _redo.update { it.afterEdit(run.id) }
-            repository.updateFenceRun(run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+            commitEdit(run, run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
         }
     }
 
@@ -728,7 +860,9 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         if (current.surveyImagePath != null) return
         if (extentFt <= 0f) return
 
-        val before = current.calibrationPixelsPerFoot ?: unitsPerFoot(current.gridExtentFt)
+        // The same scale the drawing is shown at ([drawingScale]); never
+        // null here, since a job with a photo returned above.
+        val before = drawingScale(current) ?: return
         val after = unitsPerFoot(extentFt)
         if (before <= 0f || kotlin.math.abs(before - after) < 0.0001f) {
             viewModelScope.launch { repository.updateJob(current.copy(gridExtentFt = extentFt)) }
@@ -739,8 +873,8 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         viewModelScope.launch {
           drawingWrites.withLock {
             // Every run is about to be rewritten; nothing on any of them can
-            // be redone onto the rescaled drawing.
-            _redo.update { it.afterDrawingWideEdit() }
+            // be undone or redone onto the rescaled drawing.
+            clearDrawingHistory()
             repository.getFenceRuns(current.id).forEach { run ->
                 val points = FenceCodec.decodePoints(run.pointsEncoded)
                 val gates = FenceCodec.decodeGates(run.gatesEncoded)
@@ -836,7 +970,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
             repository.updateJob(
                 current.copy(calibrationPixelsPerFoot = PIXELS_PER_FOOT_GRID, calibrationKnownFeet = null)
             )
-            _redo.update { it.afterDrawingWideEdit() }
+            clearDrawingHistory()
         }
     }
 
@@ -853,7 +987,7 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         val current = job.value ?: return
         viewModelScope.launch {
             repository.updateJob(current.copy(surveyImagePath = null, calibrationPixelsPerFoot = null, calibrationKnownFeet = null))
-            _redo.update { it.afterDrawingWideEdit() }
+            clearDrawingHistory()
         }
     }
 
@@ -861,9 +995,11 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
         /**
          * Units per foot on the no-photo grid, for a job that has not chosen a
          * size. Kept as the old fixed value so existing drawings measure
-         * exactly what they always did.
+         * exactly what they always did. Lives in [DrawingScale] now, so the
+         * estimate side reads the same number without reaching into a view
+         * model; kept here so every existing caller still compiles unchanged.
          */
-        const val PIXELS_PER_FOOT_GRID = 20f
+        const val PIXELS_PER_FOOT_GRID = DrawingScale.PIXELS_PER_FOOT_GRID
 
         /**
          * Grid sizes to choose from, in feet across.
@@ -882,15 +1018,37 @@ class SurveyViewModel(private val repository: Repository, private val jobId: Lon
          */
         const val SATELLITE_CANVAS_EXTENT_FT = 400f
 
-        /** Units per foot for a grid covering [extentFt] across. */
-        fun unitsPerFoot(extentFt: Float): Float =
-            if (extentFt <= 0f) PIXELS_PER_FOOT_GRID
-            else GRID_CANVAS_SIZE / extentFt
+        /** Units per foot for a grid covering [extentFt] across. See [DrawingScale.unitsPerFoot]. */
+        fun unitsPerFoot(extentFt: Float): Float = DrawingScale.unitsPerFoot(extentFt)
+
+        /**
+         * The scale a drawing is measured at, in canvas units per foot, or
+         * null when it genuinely has none yet.
+         *
+         * A stored calibration always wins. Without one, a grid drawing (no
+         * survey photo) still has a scale: the grid's own, [unitsPerFoot] of
+         * its extent -- the value [ensureGridCalibration] would have seeded
+         * and the one [setGridExtent] rescales from. The drawing screen used
+         * to read the stored calibration raw, so a grid job that was never
+         * given one drew no gates and no lengths at all, while the estimate
+         * went on pricing those same gates. Only a photo nobody has
+         * calibrated has no answer: the app cannot know how big the picture
+         * is, and the screen asks for a calibration instead.
+         *
+         * The rule itself is [DrawingScale.of], in the estimate package, so
+         * Suggest seeds the scale this screen is already drawing at rather
+         * than a constant of its own (which rescaled every non-400 ft grid).
+         */
+        fun drawingScale(calibrationPixelsPerFoot: Float?, surveyImagePath: String?, gridExtentFt: Float): Float? =
+            DrawingScale.of(calibrationPixelsPerFoot, surveyImagePath, gridExtentFt)
+
+        /** [drawingScale] for [job]. */
+        fun drawingScale(job: Job): Float? = DrawingScale.of(job)
 
         /** Long enough that dragging a corner re-prices once, not once per frame. */
         private const val REPRICE_DEBOUNCE_MS = 700L
         /** Virtual canvas size (width == height) used when there's no survey photo -- 400ft x 400ft of drawable area. */
-        const val GRID_CANVAS_SIZE = 8000
+        const val GRID_CANVAS_SIZE = DrawingScale.GRID_CANVAS_SIZE
         /** Below this, a footage change is someone nudging a corner, not a real change. */
         const val MIN_REPORTABLE_FEET = 3f
     }

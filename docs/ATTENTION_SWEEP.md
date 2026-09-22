@@ -22,6 +22,19 @@ that has both turned it on and is allowed to use the product
   nothing kept) immediately surfaces that company's real findings across
   multiple detectors, then rolls back to exactly the prior state.
 
+## Before the secret is set
+
+`.github/workflows/attention-sweep.yml` runs every hour whether or not it is
+configured. Without `ATTENTION_SWEEP_TRIGGER_SECRET` a scheduled run skips:
+it exits green with a notice ("ATTENTION_SWEEP_TRIGGER_SECRET is not set ...
+nobody was notified") on the run page and in its summary, and GitHub sends no
+"run failed" email. (Until 21 September 2026 it failed instead, and GitHub
+emailed about it every hour.) A manual **Run workflow** press without the
+secret still fails, and once the secret is set a refused secret (HTTP 401) or
+a function error still fails the run. A blip between GitHub and Supabase is
+retried twice before it counts; a retried sweep notifies nobody twice, because
+each finding is claimed in `attention_findings` first.
+
 ## One-time setup (owner only)
 
 Same shape as `docs/FOLLOW_UPS_SCHEDULER.md` -- read that file's reasoning
@@ -76,7 +89,9 @@ select set_attention_sweep_enabled(true, 22, 6, 'America/Chicago');
 
 Trigger it by hand from **Actions -> Attention sweep scheduler -> Run
 workflow**, or wait for the next :15-past-the-hour run. A green run means
-the function responded `200` with no `error` field. Check `attention_findings`
+the function responded `200` with no `error` field -- as long as the run page
+does not carry the "not set" notice, which is what a green run looks like
+while the sweep is still off. Check `attention_findings`
 in the database for new rows (`notified_at` is set once a push actually
 went out; a row with `notified_at` still null and `FIREBASE_SERVICE_ACCOUNT`
 unset means the finding was recorded but nothing was pushed -- see the
@@ -133,7 +148,11 @@ chosen because those are the only two roles that always hold both
 `SEE_MONEY` and `EDIT_JOBS` (the two permissions that already gate every one
 of these nine conditions from appearing on the dashboard at all today), so
 this cannot put a figure or a liability detail in front of someone who
-couldn't already see it there. If a narrower routing is wanted, that is a
+couldn't already see it there. "Always" held for the role but not for the
+person: a `-SEE_MONEY` override takes the figures off a manager's screens, so
+since 2026-09-22 the function also requires `SEE_MONEY` itself (the same
+`moneyAudience` rule the payment pushes use) -- an OWNER or MANAGER whose
+money was switched off gets no sweep push. If a narrower routing is wanted, that is a
 product decision for the owner to make, not something this function should
 have guessed at silently.
 

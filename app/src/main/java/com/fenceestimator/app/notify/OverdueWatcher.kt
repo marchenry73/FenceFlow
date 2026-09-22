@@ -2,13 +2,18 @@ package com.fenceestimator.app.notify
 
 import android.content.Context
 import com.fenceestimator.app.R
+import com.fenceestimator.app.cloud.SessionManager
+import com.fenceestimator.app.cloud.SessionState
+import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.data.isWon
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Tells you when a job has run past the time it was supposed to take.
@@ -22,10 +27,14 @@ import kotlinx.coroutines.launch
  * Deliberately quiet: one notification per job per day. A crew that gets
  * pinged every fifteen minutes about the same job stops reading any of them,
  * and then the alert that mattered goes unread too.
+ *
+ * Only for whoever can move the job ([overrunAlertsFor]). A crew member can
+ * no more reschedule a late job than they can approve its hours.
  */
 class OverdueWatcher(
     private val scope: CoroutineScope,
     private val repository: Repository,
+    private val session: SessionManager,
     private val context: Context
 ) {
 
@@ -62,6 +71,13 @@ class OverdueWatcher(
         // dashboard (see AlertPrefs) -- checked once per pass rather than
         // per job, since it is one person's setting, not a per-job fact.
         if (AlertPrefs.isMuted(AlertPrefs.Keys.JOB_OVERDUE)) return
+        // Office work: see [overrunAlertsFor]. Asked of a settled answer only.
+        // checkOnce() runs at launch, before the session has said who this
+        // is, and the state it starts from -- signed out -- is "working
+        // alone, everything allowed", which would have told a crew phone
+        // about every late job in the company once per launch.
+        val who = settledSession() ?: return
+        if (!overrunAlertsFor(who)) return
 
         val now = System.currentTimeMillis()
         val today = now / DAY_MS
@@ -75,7 +91,10 @@ class OverdueWatcher(
             }
         }
 
-        repository.getAllJobs().forEach { job ->
+        // The visible list, not every row: a job this person was taken off is
+        // kept on the phone (Job.accessEndedAt) but is nobody's to chase from
+        // here. For anyone who sees every job the two are the same.
+        repository.getVisibleJobs().forEach { job ->
             val due = overdueSince(job, now) ?: return@forEach
             if (lastWarnedDay(job.id) == today) return@forEach
             warnedOn.edit().putLong(job.id.toString(), today).apply()
@@ -103,6 +122,16 @@ class OverdueWatcher(
             )
         }
     }
+
+    /**
+     * Who is signed in, once the app has actually established it; null when
+     * it has not within [SESSION_WAIT_MS], and this pass simply waits for the
+     * next. A build with no cloud configured never resolves -- there is
+     * nobody to ask -- and its default (working alone) is the answer.
+     */
+    private suspend fun settledSession(): SessionState? =
+        if (!SupabaseModule.isConfigured) session.state.value
+        else withTimeoutOrNull(SESSION_WAIT_MS) { session.state.first { it.resolved } }
 
     /**
      * When this job should have been done, or null if it isn't late.
@@ -133,5 +162,23 @@ class OverdueWatcher(
         const val OVERDUE_NOTIFICATION_BASE = 900_000
         /** How long a remembered warning is kept before it is pruned. */
         const val FORGET_AFTER_DAYS = 60L
+        /** How long a pass waits for the session to say who is signed in. */
+        const val SESSION_WAIT_MS = 30_000L
     }
 }
+
+/**
+ * Whether [state] is someone a job running late is told to.
+ *
+ * The same rule as the home screen's "Needs attention" line
+ * (HomeAudience.sees(RUNNING_LATE)): SCHEDULE_AND_ASSIGN or EDIT_JOBS -- a
+ * capability, never a role name, so a per-person override moves someone
+ * either way. This watcher sent every phone, crew included, "Running late:
+ * <customer>" on the crew channel for every late job the phone held, which
+ * before the crew scope was every job in the company. Signed out (working
+ * alone) is everything allowed; signed in but not yet read is nothing.
+ *
+ * Top level and pure so a test can hold it to the rule.
+ */
+internal fun overrunAlertsFor(state: SessionState): Boolean =
+    state.canScheduleAndAssign || state.canEditJobs

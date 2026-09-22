@@ -81,6 +81,14 @@
   .row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
   .msg{color:var(--muted);font-size:13px;min-height:18px}
   .code-input{max-width:150px;letter-spacing:.3em;font:600 18px ui-monospace,monospace;text-align:center}
+  /* A checkbox row, not one of the uppercase field captions above it. */
+  label.check{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;cursor:pointer;
+        text-transform:none;letter-spacing:0;font-weight:400;color:var(--text);margin:14px 0 2px}
+  label.check input{width:auto;margin-top:3px;flex:none}
+  .gate-note{font-size:12.5px;color:var(--muted);margin:4px 0 0;line-height:1.5}
+  .gate details{margin-top:18px;font-size:13px;color:var(--muted)}
+  .gate summary{cursor:pointer;color:var(--text);font-weight:600}
+  .gate details p{margin:8px 0 0;line-height:1.5}
 
   dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);
          color:var(--text);max-width:560px;width:92%;padding:20px}
@@ -164,6 +172,14 @@
         overflow:hidden;word-break:break-word;font-size:13.5px;font-weight:600}
   .crash-msg button{display:block;margin-top:4px}
   .crash-row .truncate{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Above the list: the current-build filter, and what it leaves out. */
+  .crash-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0 0 10px;font-size:13px}
+  /* label.check is the page's own checkbox row; only its spacing changes here. */
+  .crash-controls label.check{margin:0;font-weight:600}
+  .crash-controls .sub{margin:0}
+  .crash-msg .pill{margin:0 0 4px}
+  .crash-msg .merged{display:block;margin-top:2px;font-size:11.5px;color:var(--muted)}
+  .crash-ver .pill{margin-top:4px;white-space:normal}
   @media (max-width:900px){
     .crash-row{grid-template-columns:1fr 1fr 1fr;row-gap:8px}
     .crash-row .lbl{display:block}
@@ -228,12 +244,23 @@
 </header>
 
 <main id="gate">
-  <!-- Ordinary sign-in. -->
+  <!-- Ordinary sign-in. This page keeps its own session, apart from the
+       office's (see ADMIN_AUTH_KEY in the script), so being signed in to
+       dashboard.html never walks anyone past this form. -->
   <div id="signInPanel" class="panel gate">
     <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit" data-t="signInHead">Sign in</h2>
+    <p class="gate-note" style="margin:0 0 6px" data-t="signInSeparate">
+      The staff console has its own sign-in. Being signed in to the office does not open it,
+      and signing out here does not sign you out of the office.
+    </p>
     <div class="msg" id="gateMsg"></div>
     <label data-t="emailLabel">Email</label><input id="email" type="email" autocomplete="username">
     <label data-t="passwordLabel">Password</label><input id="password" type="password" autocomplete="current-password">
+    <label class="check"><input type="checkbox" id="rememberMe"><span data-t="rememberMeLabel">Keep me signed in on this computer</span></label>
+    <p class="gate-note" data-t="rememberMeHint">
+      Leave it off on a shared computer: you then stay signed in only in this tab, until you
+      close it. Either way, your authenticator code is asked for again every 12 hours.
+    </p>
     <div style="margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <button class="primary" id="signIn" data-t="signInBtn">Sign in</button>
       <a href="#" id="forgotLink" style="font-size:13px;color:var(--muted)" data-t="forgotLink">Forgot your password?</a>
@@ -261,12 +288,23 @@
        page knows is ever asked for -- and again whenever the last code this
        browser entered is more than 12 hours old. -->
   <div id="mfaChallengePanel" class="panel gate" style="display:none">
-    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit" data-t="mfaChallengeHead">Enter your code</h2>
-    <p style="color:var(--muted);font-size:14px;margin:0 0 10px" data-t="mfaChallengeBody">
-      Two-factor is on for this account. Open your authenticator app and type the
-      current 6-digit code.
+    <h2 style="margin-top:0;text-transform:none;letter-spacing:0;font-family:inherit" data-t="mfaChallengeHead">Enter your 2-step code</h2>
+    <!-- The owner waited here for an email that never comes: the code is
+         TOTP only (MFA_DECISION.md) and his app listed it as "localhost",
+         because it was enrolled before the issuer was set. So this says, in
+         so many words, where the code comes from, what the entry is called,
+         and that nothing is sent. -->
+    <p style="color:var(--text);font-size:14px;margin:0 0 6px" data-t="mfaChallengeBody">
+      Open your authenticator app and enter the 6-digit code for FenceFlow (it may be
+      labelled "localhost" if you set it up before September 22, 2026).
     </p>
-    <div class="msg" id="mfaChallengeMsg"></div>
+    <p class="gate-note" id="mfaLabelHint" style="display:none"></p>
+    <p class="gate-note" data-t="mfaNoEmailNote">
+      The code only ever comes from that app. FenceFlow does not email or text it, so there is
+      nothing to wait for. A new code shows every 30 seconds; type the one on screen now.
+    </p>
+    <p class="gate-note" id="mfaWho" style="display:none"></p>
+    <div class="msg" id="mfaChallengeMsg" style="margin-top:8px"></div>
     <label data-t="codeLabel">Code</label>
     <input id="mfaChallengeCode" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
     <div style="margin-top:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -277,6 +315,17 @@
            once the console has opened. -->
       <a href="#" id="mfaChallengeSignOut" style="font-size:13px;color:var(--muted)" data-t="signOut">Sign out</a>
     </div>
+    <!-- Deliberately no way around the code from here. Recovery happens
+         outside this page, by someone who holds the Supabase project. -->
+    <details>
+      <summary data-t="mfaLostHead">Lost the phone, or changed phones?</summary>
+      <p data-t="mfaLostBody">
+        There is no way past the code from this page — that is what it is for. The recovery
+        steps are in MFA_DECISION.md in the FenceFlow repository, under "If you lose the
+        phone": the old authenticator is removed from the Supabase dashboard, then you sign in
+        and set up a new one. If you cannot do that, write to support@fenceflowapp.com.
+      </p>
+    </details>
   </div>
 </main>
 
@@ -351,6 +400,13 @@
           Nobody reports a crash — they just stop using the app — so this
           is the only place you find out.
         </p>
+        <!-- Which of these are still happening: a report names the build that
+             WROTE it, so anything only older builds send stops once those
+             phones update. Hidden until a release exists to compare with. -->
+        <div class="crash-controls" id="crashControls" style="display:none">
+          <label class="check"><input type="checkbox" id="crashCurrentOnly"> <span id="crashCurrentLabel"></span></label>
+          <span class="sub" id="crashSummary"></span>
+        </div>
         <div class="crash-list" id="errRows"></div>
         <div class="msg" id="errNote"></div>
       </div>
@@ -582,10 +638,55 @@
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
+/* ------------------------------------------------- this page's session ---- */
+/* The staff console keeps its own session, apart from the office's.
+   supabase-js stores a session under one key per origin by default
+   (sb-<ref>-auth-token), and dashboard.html and this page share the origin --
+   so signing in to the office silently signed this page in too, and the owner
+   never saw a sign-in form here: he landed straight on a code prompt he did
+   not expect and could not get off. A key of its own ends that. Nothing here
+   reads or clears the office's key: signing out of this page must not sign
+   anybody out of the office.
+
+   Where the session lives is the "Keep me signed in" choice. Remembered: this
+   browser's localStorage, so it survives a restart. Not remembered:
+   sessionStorage, which dies with the tab. The 12-hour code re-challenge below
+   applies either way. The choice is read from where a session already sits,
+   so a token refresh writes back to the same place, and signIn() sets it
+   before the new session exists. The in-memory map only catches a browser
+   that refuses both stores (some private windows); a session there lasts
+   exactly as long as the page. */
+const ADMIN_AUTH_KEY = 'ff-admin-auth';
+const memoryStore = new Map();
+// By name, not by object: merely touching window.localStorage throws when
+// the browser blocks site data, so the lookup itself sits inside the try.
+function storeGet(name, k) { try { return window[name].getItem(k); } catch (e) { return null; } }
+function storeSet(name, k, v) { try { window[name].setItem(k, v); return true; } catch (e) { return false; } }
+function storeDel(name, k) { try { window[name].removeItem(k); } catch (e) { /* nothing to remove */ } }
+// Read from the store getItem() will actually answer from: this tab's own
+// session wins, then the remembered one.
+let rememberMe = storeGet('sessionStorage', ADMIN_AUTH_KEY) === null &&
+                 storeGet('localStorage', ADMIN_AUTH_KEY) !== null;
+const adminAuthStorage = {
+  getItem(k) {
+    return storeGet('sessionStorage', k) ?? storeGet('localStorage', k) ?? memoryStore.get(k) ?? null;
+  },
+  setItem(k, v) {
+    const keep = rememberMe ? 'localStorage' : 'sessionStorage';
+    storeDel(rememberMe ? 'sessionStorage' : 'localStorage', k);
+    if (storeSet(keep, k, v)) memoryStore.delete(k); else memoryStore.set(k, v);
+  },
+  removeItem(k) {
+    storeDel('sessionStorage', k); storeDel('localStorage', k); memoryStore.delete(k);
+  },
+};
+
 // Publishable key by design -- Row Level Security is the actual gate, and the
 // platform-admin policy is what makes this page show anything at all.
 const SUPA_URL = window.FENCEFLOW_CONFIG.SUPABASE_URL;
-const db = createClient(SUPA_URL, window.FENCEFLOW_CONFIG.SUPABASE_KEY);
+const db = createClient(SUPA_URL, window.FENCEFLOW_CONFIG.SUPABASE_KEY, {
+  auth: { storageKey: ADMIN_AUTH_KEY, storage: adminAuthStorage, persistSession: true },
+});
 
 const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n || 0).toFixed(0);
@@ -627,16 +728,29 @@ const TL = {
     gateLinkExpired:'That link has expired or was already used — request a new one.',
     gateSigningIn:'Signing in…', gateTypeEmailFirst:'Type your email above first, then press this.',
     gateSending:'Sending…', gateCheckEmail:'Check your email for a link to set a new password.',
-    notAdminNotice:'This page is for the owner of FenceFlow, not for a fencing company. Your own jobs and customers are on the %s — you are still signed in there.',
+    notAdminNotice:'This page is for the owner of FenceFlow, not for a fencing company. Your own jobs and customers are on the %s — signing in here changed nothing there.',
     notAdminLinkText:'FenceFlow dashboard',
+    signInSeparate:'The staff console has its own sign-in. Being signed in to the office does not open it, and signing out here does not sign you out of the office.',
+    rememberMeLabel:'Keep me signed in on this computer',
+    rememberMeHint:'Leave it off on a shared computer: you then stay signed in only in this tab, until you close it. Either way, your authenticator code is asked for again every 12 hours.',
+    gateEnterEmailPassword:'Enter your email and password.',
+    gateBadCredentials:'That email and password do not match. Check the password and try again.',
+    staffCheckFailed:'Could not check your staff access (%s). Reload the page to try again.',
 
     recoveryHead:'Set a new password', newPasswordLabel:'New password', confirmPasswordLabel:'Confirm password',
     setPasswordBtn:'Set password and continue',
     recoveryAtLeast8:'At least 8 characters.', recoveryMismatch:'Those two do not match.',
     savingEllipsis:'Saving…',
 
-    mfaChallengeHead:'Enter your code',
-    mfaChallengeBody:'Two-factor is on for this account. Open your authenticator app and type the current 6-digit code.',
+    mfaChallengeHead:'Enter your 2-step code',
+    mfaChallengeBody:'Open your authenticator app and enter the 6-digit code for FenceFlow (it may be labelled "localhost" if you set it up before September 22, 2026).',
+    mfaLabelLocalhost:'Yours was set up before the FenceFlow name was added, so look for the entry called "localhost" — that is the right one.',
+    mfaLabelNamed:'Yours is the entry called FenceFlow, with %s under it.',
+    mfaNoEmailNote:'The code only ever comes from that app. FenceFlow does not email or text it, so there is nothing to wait for. A new code shows every 30 seconds; type the one on screen now.',
+    mfaSignedInAs:'Signed in as %s.',
+    mfaLostHead:'Lost the phone, or changed phones?',
+    mfaLostBody:'There is no way past the code from this page — that is what it is for. The recovery steps are in MFA_DECISION.md in the FenceFlow repository, under "If you lose the phone": the old authenticator is removed from the Supabase dashboard, then you sign in and set up a new one. If you cannot do that, write to support@fenceflowapp.com.',
+    mfaCodeRejected:'That code was not accepted. Codes change every 30 seconds — type the one showing in the FenceFlow (or "localhost") entry right now. If it keeps failing, check that your phone\'s clock is set automatically.',
     codeLabel:'Code', mfaVerifyContinueBtn:'Verify and continue',
     sixDigitCode:'Enter the 6-digit code.', checkingEllipsis:'Checking…',
     mfaNoFactorFound:'No two-factor method found on this account.',
@@ -764,6 +878,12 @@ const TL = {
     crashLblScreen:'Screen', crashLblCount:'Count', crashLblPhones:'Phones',
     crashLblFirstSeen:'First seen', crashMarkSeen:'Mark seen', crashHandled:'Handled',
     crashNoMessage:'(no message)', crashNoStackRecorded:'(none recorded)',
+    crashCurrentOnly:'Only what still happens on the current build (%s)',
+    crashSummary:'%s of %s problems were reported by %s or newer. The rest come only from older builds, and stop once those phones update.',
+    crashSummaryNoRows:'Which builds each problem came from could not be read, so this goes by the newest report in each group.',
+    crashNoneCurrent:'Nothing reported by %s or newer in the last 14 days.',
+    crashPillCurrent:'On %s', crashPillOldOnly:'Older builds only', crashPillFatal:'App closed',
+    crashSeenOn:'Seen on', crashMerged:'%s wordings of the same problem, counted together.',
 
     releasesHead:'Releases',
     releasesSub:'What has shipped — publish a new one from the CLI, not here. A limited release can be promoted to everyone from this page.',
@@ -831,16 +951,29 @@ const TL = {
     gateLinkExpired:'Ese enlace venció o ya se usó — solicite uno nuevo.',
     gateSigningIn:'Iniciando sesión…', gateTypeEmailFirst:'Escriba su correo arriba primero y luego presione esto.',
     gateSending:'Enviando…', gateCheckEmail:'Revise su correo para ver un enlace y crear una nueva contraseña.',
-    notAdminNotice:'Esta página es para el dueño de FenceFlow, no para una empresa de cercas. Sus propios trabajos y clientes están en el %s — sigue con la sesión iniciada ahí.',
+    notAdminNotice:'Esta página es para el dueño de FenceFlow, no para una empresa de cercas. Sus propios trabajos y clientes están en el %s — iniciar sesión aquí no cambió nada ahí.',
     notAdminLinkText:'panel de FenceFlow',
+    signInSeparate:'La consola del personal tiene su propio inicio de sesión. Tener la sesión iniciada en la oficina no la abre, y cerrar sesión aquí no cierra la de la oficina.',
+    rememberMeLabel:'Mantener la sesión iniciada en esta computadora',
+    rememberMeHint:'Déjelo desmarcado en una computadora compartida: así la sesión solo sigue abierta en esta pestaña, hasta que la cierre. En cualquier caso, el código de su aplicación de autenticación se vuelve a pedir cada 12 horas.',
+    gateEnterEmailPassword:'Escriba su correo y su contraseña.',
+    gateBadCredentials:'Ese correo y esa contraseña no coinciden. Revise la contraseña e inténtelo de nuevo.',
+    staffCheckFailed:'No se pudo comprobar su acceso de personal (%s). Recargue la página para intentarlo de nuevo.',
 
     recoveryHead:'Crear una nueva contraseña', newPasswordLabel:'Nueva contraseña', confirmPasswordLabel:'Confirmar contraseña',
     setPasswordBtn:'Guardar contraseña y continuar',
     recoveryAtLeast8:'Al menos 8 caracteres.', recoveryMismatch:'Esas dos no coinciden.',
     savingEllipsis:'Guardando…',
 
-    mfaChallengeHead:'Ingrese su código',
-    mfaChallengeBody:'La verificación en dos pasos está activada en esta cuenta. Abra su aplicación de autenticación y escriba el código de 6 dígitos actual.',
+    mfaChallengeHead:'Ingrese su código de verificación en dos pasos',
+    mfaChallengeBody:'Abra su aplicación de autenticación e ingrese el código de 6 dígitos de FenceFlow (puede aparecer como "localhost" si lo configuró antes del 22 de septiembre de 2026).',
+    mfaLabelLocalhost:'El suyo se configuró antes de que se agregara el nombre FenceFlow, así que busque la entrada llamada "localhost": esa es la correcta.',
+    mfaLabelNamed:'El suyo es la entrada llamada FenceFlow, con %s debajo.',
+    mfaNoEmailNote:'El código solo sale de esa aplicación. FenceFlow no lo envía por correo ni por mensaje de texto, así que no hay nada que esperar. Cada 30 segundos aparece un código nuevo; escriba el que se ve ahora.',
+    mfaSignedInAs:'Sesión iniciada como %s.',
+    mfaLostHead:'¿Perdió el teléfono o lo cambió?',
+    mfaLostBody:'Desde esta página no hay forma de saltarse el código: para eso existe. Los pasos de recuperación están en MFA_DECISION.md, en el repositorio de FenceFlow, en "If you lose the phone": se quita el autenticador anterior desde el panel de Supabase, y luego usted inicia sesión y configura uno nuevo. Si no puede hacerlo, escriba a support@fenceflowapp.com.',
+    mfaCodeRejected:'Ese código no fue aceptado. Los códigos cambian cada 30 segundos: escriba el que se ve ahora en la entrada FenceFlow (o "localhost"). Si sigue fallando, revise que la hora de su teléfono se ajuste automáticamente.',
     codeLabel:'Código', mfaVerifyContinueBtn:'Verificar y continuar',
     sixDigitCode:'Ingrese el código de 6 dígitos.', checkingEllipsis:'Comprobando…',
     mfaNoFactorFound:'No se encontró ningún método de verificación en dos pasos en esta cuenta.',
@@ -968,6 +1101,12 @@ const TL = {
     crashLblScreen:'Pantalla', crashLblCount:'Cantidad', crashLblPhones:'Teléfonos',
     crashLblFirstSeen:'Primera vez visto', crashMarkSeen:'Marcar como visto', crashHandled:'Atendido',
     crashNoMessage:'(sin mensaje)', crashNoStackRecorded:'(no se registró ninguna)',
+    crashCurrentOnly:'Solo lo que sigue pasando en la versión actual (%s)',
+    crashSummary:'%s de %s problemas vinieron de la %s o una más nueva. Los demás vienen solo de versiones anteriores y paran cuando esos teléfonos se actualizan.',
+    crashSummaryNoRows:'No se pudo leer de qué versión vino cada problema, así que esto usa el reporte más reciente de cada grupo.',
+    crashNoneCurrent:'Nada reportado por la %s o una más nueva en los últimos 14 días.',
+    crashPillCurrent:'En %s', crashPillOldOnly:'Solo versiones anteriores', crashPillFatal:'La app se cerró',
+    crashSeenOn:'Visto en', crashMerged:'%s formas de escribir el mismo problema, contadas juntas.',
 
     releasesHead:'Versiones',
     releasesSub:'Lo que se ha publicado — publique una nueva desde la CLI, no aquí. Una versión limitada se puede promover a todos desde esta página.',
@@ -1035,16 +1174,29 @@ const TL = {
     gateLinkExpired:'Ce lien a expiré ou a déjà été utilisé — demandez-en un nouveau.',
     gateSigningIn:'Connexion…', gateTypeEmailFirst:'Écrivez d\'abord votre courriel ci-dessus, puis appuyez ici.',
     gateSending:'Envoi…', gateCheckEmail:'Consultez votre courriel pour un lien qui permet de définir un nouveau mot de passe.',
-    notAdminNotice:'Cette page est pour le propriétaire de FenceFlow, pas pour une entreprise de clôtures. Vos propres chantiers et clients se trouvent sur le %s — vous y êtes toujours connecté.',
+    notAdminNotice:'Cette page est pour le propriétaire de FenceFlow, pas pour une entreprise de clôtures. Vos propres chantiers et clients se trouvent sur le %s — vous connecter ici n\'y a rien changé.',
     notAdminLinkText:'tableau de bord FenceFlow',
+    signInSeparate:'La console du personnel a sa propre connexion. Être connecté au bureau ne l\'ouvre pas, et se déconnecter ici ne vous déconnecte pas du bureau.',
+    rememberMeLabel:'Rester connecté sur cet ordinateur',
+    rememberMeHint:'Laissez décoché sur un ordinateur partagé : vous ne restez alors connecté que dans cet onglet, jusqu\'à sa fermeture. Dans tous les cas, le code de votre application d\'authentification est redemandé toutes les 12 heures.',
+    gateEnterEmailPassword:'Entrez votre courriel et votre mot de passe.',
+    gateBadCredentials:'Ce courriel et ce mot de passe ne correspondent pas. Vérifiez le mot de passe et réessayez.',
+    staffCheckFailed:'Impossible de vérifier votre accès personnel (%s). Rechargez la page pour réessayer.',
 
     recoveryHead:'Définir un nouveau mot de passe', newPasswordLabel:'Nouveau mot de passe', confirmPasswordLabel:'Confirmer le mot de passe',
     setPasswordBtn:'Enregistrer le mot de passe et continuer',
     recoveryAtLeast8:'Au moins 8 caractères.', recoveryMismatch:'Les deux ne correspondent pas.',
     savingEllipsis:'Enregistrement…',
 
-    mfaChallengeHead:'Entrez votre code',
-    mfaChallengeBody:'La vérification en deux étapes est activée pour ce compte. Ouvrez votre application d\'authentification et tapez le code actuel à 6 chiffres.',
+    mfaChallengeHead:'Entrez votre code de vérification',
+    mfaChallengeBody:'Ouvrez votre application d\'authentification et entrez le code à 6 chiffres de FenceFlow (il peut s\'afficher sous le nom « localhost » si vous l\'avez configuré avant le 22 septembre 2026).',
+    mfaLabelLocalhost:'Le vôtre a été configuré avant l\'ajout du nom FenceFlow : cherchez l\'entrée appelée « localhost », c\'est la bonne.',
+    mfaLabelNamed:'Le vôtre est l\'entrée appelée FenceFlow, avec %s en dessous.',
+    mfaNoEmailNote:'Le code ne vient que de cette application. FenceFlow ne l\'envoie ni par courriel ni par texto : il n\'y a rien à attendre. Un nouveau code s\'affiche toutes les 30 secondes ; tapez celui qui est à l\'écran maintenant.',
+    mfaSignedInAs:'Connecté en tant que %s.',
+    mfaLostHead:'Téléphone perdu ou changé ?',
+    mfaLostBody:'Il n\'y a aucun moyen de contourner le code depuis cette page : c\'est son rôle. La marche à suivre se trouve dans MFA_DECISION.md, dans le dépôt FenceFlow, sous « If you lose the phone » : l\'ancien authentificateur est retiré depuis le tableau de bord Supabase, puis vous vous connectez et en configurez un nouveau. Si vous ne pouvez pas le faire, écrivez à support@fenceflowapp.com.',
+    mfaCodeRejected:'Ce code n\'a pas été accepté. Les codes changent toutes les 30 secondes : tapez celui qui s\'affiche maintenant dans l\'entrée FenceFlow (ou « localhost »). Si cela échoue encore, vérifiez que l\'heure de votre téléphone est réglée automatiquement.',
     codeLabel:'Code', mfaVerifyContinueBtn:'Vérifier et continuer',
     sixDigitCode:'Entrez le code à 6 chiffres.', checkingEllipsis:'Vérification…',
     mfaNoFactorFound:'Aucune méthode de vérification en deux étapes trouvée pour ce compte.',
@@ -1172,6 +1324,12 @@ const TL = {
     crashLblScreen:'Écran', crashLblCount:'Nombre', crashLblPhones:'Téléphones',
     crashLblFirstSeen:'Vu la première fois', crashMarkSeen:'Marquer comme traité', crashHandled:'Traité',
     crashNoMessage:'(aucun message)', crashNoStackRecorded:'(aucune enregistrée)',
+    crashCurrentOnly:'Seulement ce qui arrive encore sur la version actuelle (%s)',
+    crashSummary:'%s problèmes sur %s viennent de la %s ou d\'une plus récente. Les autres viennent seulement d\'anciennes versions et cessent quand ces téléphones se mettent à jour.',
+    crashSummaryNoRows:'Impossible de lire de quelle version vient chaque problème : ceci se fie au rapport le plus récent de chaque groupe.',
+    crashNoneCurrent:'Rien de signalé par la %s ou une plus récente ces 14 derniers jours.',
+    crashPillCurrent:'Sur %s', crashPillOldOnly:'Anciennes versions seulement', crashPillFatal:'Appli fermée',
+    crashSeenOn:'Vu sur', crashMerged:'%s formulations du même problème, comptées ensemble.',
 
     releasesHead:'Versions',
     releasesSub:'Ce qui a été publié — publiez-en une nouvelle depuis la CLI, pas ici. Une version limitée peut être promue à tout le monde depuis cette page.',
@@ -1299,6 +1457,13 @@ let clients = [];
 let companiesTruncated = null;
 let crashes = [];
 let crashes7d = [];
+// One row per report for the same 14 days (loadCrashRows), for the one thing
+// the grouped summary cannot say: which BUILDS a problem came from. Null when
+// that read failed; the page then goes by each group's newest report.
+let crashRows = null;
+// "Only what still happens on the current build" -- a per-viewer
+// convenience, remembered in this browser only.
+let crashCurrentOnly = storeGet('localStorage', 'ff-admin-crash-current') === '1';
 let releases = [];
 let releaseError = '';
 let releaseAudience = [];
@@ -1321,6 +1486,9 @@ let sortKey = 'name', sortDir = 1;
 // trip, which is long enough to start typing an email into a form that is
 // about to be replaced.
 let inRecovery = /type=recovery/.test(location.hash);
+// Set by this page's own sign-out paths, so the SIGNED_OUT listener below
+// leaves the screen to them.
+let leavingOnPurpose = false;
 
 function showGate(which) {
   $('app').style.display = 'none';
@@ -1330,6 +1498,12 @@ function showGate(which) {
   $('searchWrap').style.display = 'none';
   ['signInPanel', 'recoveryPanel', 'mfaChallengePanel'].forEach(id =>
     $(id).style.display = (id === which) ? '' : 'none');
+  // The cursor where the next keystroke belongs, so nobody types a password
+  // into nothing.
+  const focusId = which === 'mfaChallengePanel' ? 'mfaChallengeCode'
+    : which === 'recoveryPanel' ? 'newPassword'
+    : ($('email').value ? 'password' : 'email');
+  try { $(focusId).focus(); } catch (e) { /* focus is a nicety */ }
 }
 if (inRecovery) showGate('recoveryPanel');
 // An expired or already-used reset link redirects here too, but as
@@ -1349,6 +1523,15 @@ db.auth.onAuthStateChange((event) => {
   if (event === 'PASSWORD_RECOVERY') {
     inRecovery = true;
     showGate('recoveryPanel');
+  }
+  // Signed out from somewhere else -- "Sign out of all devices" pressed on
+  // another computer, or the refresh token refused -- while the console sits
+  // open. The page used to go on showing every company with a session that
+  // no longer existed, until the next button press failed with a token
+  // error. Reloading lands on the sign-in form instead. The page's own
+  // sign-out buttons set leavingOnPurpose and handle the screen themselves.
+  if (event === 'SIGNED_OUT' && !leavingOnPurpose && $('app').style.display !== 'none') {
+    location.reload();
   }
 });
 
@@ -1381,18 +1564,40 @@ async function logSignInFailure(email) {
   } catch (e) { console.warn('sign-in failure log failed', e); }
 }
 
+let signingIn = false;
 async function signIn() {
-  $('gateMsg').textContent = tr('gateSigningIn');
+  if (signingIn) return; // Enter pressed twice is one sign-in, not two
   const email = $('email').value.trim();
-  const { error } = await db.auth.signInWithPassword({
-    email, password: $('password').value
-  });
+  const password = $('password').value;
+  if (!email || !password) { $('gateMsg').textContent = tr('gateEnterEmailPassword'); return; }
+  signingIn = true;
+  $('signIn').disabled = true;
+  $('gateMsg').textContent = tr('gateSigningIn');
+  // Decided before the session exists: the storage adapter at the top of the
+  // script writes the new session wherever this says.
+  rememberMe = $('rememberMe').checked;
+  let error;
+  try {
+    ({ error } = await db.auth.signInWithPassword({ email, password }));
+  } catch (e) {
+    error = e;
+  } finally {
+    signingIn = false;
+    $('signIn').disabled = false;
+  }
+  // The password goes either way -- it is never left sitting in the form --
+  // and the email stays, so a mistyped password costs one field, not two.
+  $('password').value = '';
   if (error) {
-    $('gateMsg').textContent = error.message;
+    const raw = String(error.message || error);
+    $('gateMsg').textContent = (error.code === 'invalid_credentials' || /invalid login credentials/i.test(raw))
+      ? tr('gateBadCredentials') : raw;
+    try { $('password').focus(); } catch (e) { /* focus is a nicety */ }
     logSignInFailure(email); // fire-and-forget; must not delay the error already on screen
     return;
   }
-  logAuthEvent('sign_in_success', true);
+  $('gateMsg').textContent = '';
+  logAuthEvent('sign_in_success', true, rememberMe ? 'remembered' : 'this tab only');
   await boot();
 }
 
@@ -1423,17 +1628,45 @@ async function submitNewPassword() {
   await boot();
 }
 
+/* A code is checked against every verified authenticator on the account,
+   newest first, not just whichever one the list happened to put first. With
+   two enrolled (an old phone and a new one, say) the old code only ever
+   tried the first, so a correct code from the other app was refused as
+   wrong, over and over, with nothing on screen to explain it. Each attempt
+   is still a real server-side verify of a real factor -- this widens which
+   of the account's own authenticators may answer, never what counts as an
+   answer. */
+let checkingCode = false;
 async function submitMfaChallenge() {
-  const code = $('mfaChallengeCode').value.trim();
+  if (checkingCode) return;
+  const code = $('mfaChallengeCode').value.replace(/\s+/g, '');
   if (!/^\d{6}$/.test(code)) { $('mfaChallengeMsg').textContent = tr('sixDigitCode'); return; }
+  checkingCode = true;
+  $('mfaChallengeSubmit').disabled = true;
   $('mfaChallengeMsg').textContent = tr('checkingEllipsis');
-  const { data: factors, error: fErr } = await db.auth.mfa.listFactors();
-  if (fErr) { $('mfaChallengeMsg').textContent = fErr.message; return; }
-  const factor = (factors?.totp || []).find(f => f.status === 'verified');
-  if (!factor) { $('mfaChallengeMsg').textContent = tr('mfaNoFactorFound'); return; }
-  const { error } = await db.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+  let error = null;
+  try {
+    const { data: factors, error: fErr } = await db.auth.mfa.listFactors();
+    if (fErr) { $('mfaChallengeMsg').textContent = fErr.message; return; }
+    // listFactors().totp already holds only verified factors; the filter
+    // says so rather than relying on it.
+    const verified = (factors?.totp || []).filter(f => f.status === 'verified')
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    if (!verified.length) { $('mfaChallengeMsg').textContent = tr('mfaNoFactorFound'); return; }
+    for (const factor of verified) {
+      ({ error } = await db.auth.mfa.challengeAndVerify({ factorId: factor.id, code }));
+      if (!error) break;
+    }
+  } finally {
+    checkingCode = false;
+    $('mfaChallengeSubmit').disabled = false;
+  }
   if (error) {
-    $('mfaChallengeMsg').textContent = error.message;
+    const raw = String(error.message || error);
+    $('mfaChallengeMsg').textContent =
+      (error.code === 'mfa_verification_failed' || /invalid totp/i.test(raw)) ? tr('mfaCodeRejected') : raw;
+    $('mfaChallengeCode').value = '';
+    try { $('mfaChallengeCode').focus(); } catch (e) { /* focus is a nicety */ }
     logAuthEvent('mfa_challenge_failure', false, pendingReauthReason || null);
     return;
   }
@@ -1494,6 +1727,32 @@ function secondFactorAgeS(aal, session) {
 }
 
 /**
+ * The assurance level, and fail closed when the library cannot say.
+ *
+ * secondFactorDue(null) answers "nothing to ask", which was right for an
+ * account with no authenticator and wrong for everything else: if
+ * getAuthenticatorAssuranceLevel() ever came back with an error instead of
+ * data, boot() read that as "no second factor needed" and opened the console
+ * without a code. When the library has no answer, the same three facts are
+ * read straight off the session it would have used -- the token's aal and amr
+ * claims and the user's verified factors, exactly what supabase-js decodes
+ * itself -- so a failed lookup can only ever ask for a code, never skip one.
+ */
+async function assuranceLevel(session) {
+  let res = null;
+  try { res = await db.auth.mfa.getAuthenticatorAssuranceLevel(); } catch (e) { res = null; }
+  if (res?.data && !res.error) return res.data;
+  const claims = jwtClaims(session?.access_token);
+  const enrolled = (session?.user?.factors || []).some(f => f.status === 'verified');
+  const currentLevel = claims.aal || null;
+  return {
+    currentLevel,
+    nextLevel: enrolled ? 'aal2' : currentLevel,
+    currentAuthenticationMethods: Array.isArray(claims.amr) ? claims.amr : [],
+  };
+}
+
+/**
  * 'missing' -- enrolled, and this session never gave a code.
  * 'stale'   -- enrolled, gave one, but more than MFA_MAX_AGE_S ago.
  * null      -- nothing to ask. An account with no verified factor has nothing
@@ -1523,7 +1782,7 @@ async function secondFactorFresh() {
   // No session to judge: the call that follows fails on its own and says so.
   // Reloading here would bounce anyone whose connection blinked.
   if (!session) return true;
-  const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  const aal = await assuranceLevel(session);
   if (secondFactorDue(aal, session)) { location.reload(); return false; }
   return true;
 }
@@ -1548,34 +1807,73 @@ async function boot() {
   // last code is more than 12 hours old. getAuthenticatorAssuranceLevel is
   // cheap and harmless to call on an account with no factor enrolled at all --
   // currentLevel and nextLevel simply match and this falls straight through.
-  const { data: aal } = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+  const aal = await assuranceLevel(session);
   const due = secondFactorDue(aal, session);
   if (due) {
     pendingReauthReason = due; // 'stale' (the P1-6 12-hour re-challenge) or 'missing'
     logAuthEvent('mfa_reauth_required', true, due);
     showGate('mfaChallengePanel');
     $('mfaChallengeMsg').textContent = due === 'stale' ? tr('mfaStaleNotice') : '';
+    describeChallenge(session);
     return;
   }
 
   await afterSignedIn(session);
 }
 
+/* Which account is asking, and what its authenticator entry is called.
+   The issuer baked into an authenticator entry is not stored anywhere the
+   page can read, but the factor's friendly name tells the two eras apart:
+   startMfaEnroll() has named every factor since it started passing
+   issuer 'FenceFlow', and nothing before it did -- those entries took the
+   project's Site URL host instead, which is how the owner's came to read
+   "localhost". Best effort: without it the panel still carries the general
+   sentence, which covers both. */
+async function describeChallenge(session) {
+  const email = session?.user?.email || '';
+  $('mfaWho').style.display = email ? '' : 'none';
+  $('mfaWho').textContent = email ? tr('mfaSignedInAs', email) : '';
+  $('mfaLabelHint').style.display = 'none';
+  try {
+    const { data } = await db.auth.mfa.listFactors();
+    const verified = (data?.totp || []).filter(f => f.status === 'verified');
+    if (!verified.length) return;
+    const named = verified.some(f => String(f.friendly_name || '').trim() !== '');
+    const unnamed = verified.some(f => String(f.friendly_name || '').trim() === '');
+    // Both eras enrolled at once: the general sentence already says it.
+    if (named && unnamed) return;
+    $('mfaLabelHint').textContent = unnamed ? tr('mfaLabelLocalhost') : tr('mfaLabelNamed', email);
+    $('mfaLabelHint').style.display = '';
+  } catch (e) { /* the general sentence stands */ }
+}
+
 async function afterSignedIn(session) {
   // The policy decides. An ordinary company owner signing in here sees their
   // own row and nothing else, which is exactly what should happen -- but it
   // would be confusing, so say plainly that this page is not for them.
-  const { data: me } = await db.from('profiles')
+  const { data: me, error: meErr } = await db.from('profiles')
     .select('is_platform_admin').eq('id', session.user.id).maybeSingle();
 
+  // A lookup that failed is not an answer. Treating it as "not staff" would
+  // sign the real admin out -- password and code again -- over a network
+  // blip; say what happened and leave the session alone instead.
+  if (meErr) {
+    showGate('signInPanel');
+    $('gateMsg').textContent = tr('staffCheckFailed', meErr.message || String(meErr));
+    return;
+  }
+
   if (!me?.is_platform_admin) {
-    // Shown the door, not thrown out of the building.
+    // Shown the door, and this page's own session goes with them.
     //
-    // This used to sign them out -- and it is the same session the dashboard
-    // uses, so a contractor who clicked the wrong link lost their sign-in
-    // everywhere and had to log back in with no idea why. Nothing here needs
-    // that: every admin function checks is_platform_admin on the server, and
-    // RLS refuses the data regardless of what this page believes.
+    // It used to be left signed in, because it was the same session the
+    // dashboard used: signing it out here signed a contractor out of their
+    // office too. This page has its own session now (ADMIN_AUTH_KEY), so
+    // ending it touches nothing in the office -- scope 'local' revokes this
+    // one session only -- and a non-admin session is no longer left sitting
+    // in this page's storage. Every admin function still checks
+    // is_platform_admin on the server, and RLS refuses the data regardless.
+    try { await db.auth.signOut({ scope: 'local' }); } catch (e) { /* storage is cleared either way */ }
     showGate('signInPanel');
     $('gateMsg').innerHTML = tr('notAdminNotice',
       '<a href="dashboard.html">' + tr('notAdminLinkText') + '</a>');
@@ -1629,6 +1927,7 @@ async function loadAll() {
   crashes = errs14.error ? [] : (errs14.data || []);
   const errs7 = await db.rpc('admin_error_summary', { days: 7 });
   crashes7d = errs7.error ? [] : (errs7.data || []);
+  crashRows = await loadCrashRows(14);
 
   // admin_releases() rather than the table. app_releases_read is the PHONE's
   // policy and has no platform-admin clause in it: for a 'limited' row it
@@ -2289,29 +2588,203 @@ function inviteSentNote(body, email) {
 
 /* ---------------------------------------------------------- crashes ---- */
 /**
+ * One problem, however many ways it was worded. The numbers, ids, tokens and
+ * query strings that differ between occurrences are taken out, so "offset
+ * 1636" and "offset 686" of one decoding bug, or the same failed read for two
+ * companies, are one row. The same rule as CrashReporter.signature in the
+ * app, which uses it to write each failure once per run.
+ */
+function crashSignature(where, message) {
+  return (where || '') + ' | ' + String(message || '')
+    .replace(/Bearer\s+[A-Za-z0-9._~+\/=-]+/gi, 'Bearer #')
+    .replace(/\?\S*/g, '?')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '#')
+    .replace(/@[0-9a-f]+/gi, '@#')
+    .replace(/\d+/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 300);
+}
+
+/**
+ * Every report of the last [days], a page at a time -- an unpaged read stops
+ * at a thousand rows without saying so. app_errors_read lets the platform
+ * admin read the table itself; admin_error_summary groups by the exact
+ * message and keeps only the newest build, so it cannot say whether a problem
+ * is still happening on the build phones get today. Null if the read fails.
+ */
+async function loadCrashRows(days) {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const res = await db.from('app_errors')
+      .select('id,at,version_code,version_name,where_at,message,fatal,android')
+      .gte('at', since)
+      .order('id', { ascending: true })
+      .range(from, from + 999);
+    if (res.error) return null;
+    const page = res.data || [];
+    out.push(...page);
+    if (page.length < 1000 || from >= 49000) break;
+  }
+  return out;
+}
+
+/**
+ * The build a phone gets today: the newest release already open to phones
+ * (one scheduled for later is not current yet). Null with none published.
+ */
+function currentBuild() {
+  const now = Date.now();
+  let best = null;
+  releases.forEach(r => {
+    if (r.available_from && Date.parse(r.available_from) > now) return;
+    const code = Number(r.version_code) || 0;
+    if (code && (!best || code > best.code)) best = { code, name: r.version_name || ('1.' + code) };
+  });
+  return best;
+}
+
+/**
+ * The summary's groups, merged by [crashSignature], each told which builds
+ * sent it. A report names the build that WROTE it (1.503 on), so a problem
+ * no report from [cur] or newer carries is one only older phones still have.
+ */
+function crashGroups(cur) {
+  const t = v => Date.parse(v) || 0;
+  const codeOf = name => { const m = /(\d+)\s*$/.exec(String(name || '')); return m ? Number(m[1]) : 0; };
+  const byKey = new Map();
+  crashes.forEach(c => {
+    const key = crashSignature(c.where_at, c.message);
+    let g = byKey.get(key);
+    if (!g) {
+      g = { key, members: [], message: c.message, where_at: c.where_at, occurrences: 0, devices: 0,
+            first_seen: c.first_seen, last_seen: c.last_seen, latest_version: c.latest_version,
+            sample_stack: c.sample_stack, any_unseen: false, fatal: false, onCurrent: false,
+            versionRange: '', seenOn: '' };
+      byKey.set(key, g);
+    }
+    g.members.push(c);
+    g.occurrences += Number(c.occurrences || 0);
+    g.devices = Math.max(g.devices, Number(c.devices || 0));
+    if (t(c.first_seen) < t(g.first_seen)) g.first_seen = c.first_seen;
+    if (t(c.last_seen) > t(g.last_seen)) {
+      g.last_seen = c.last_seen; g.message = c.message;
+      g.latest_version = c.latest_version; g.sample_stack = c.sample_stack;
+    }
+    g.any_unseen = g.any_unseen || !!c.any_unseen;
+  });
+  const rowsByKey = new Map();
+  (crashRows || []).forEach(r => {
+    const key = crashSignature(r.where_at, r.message);
+    if (!rowsByKey.has(key)) rowsByKey.set(key, []);
+    rowsByKey.get(key).push(r);
+  });
+  const groups = [...byKey.values()];
+  groups.forEach(g => {
+    const rows = rowsByKey.get(g.key) || [];
+    if (!rows.length) {
+      g.onCurrent = !!cur && codeOf(g.latest_version) >= cur.code;
+      return;
+    }
+    // Phones counted once across every wording, not once per wording.
+    g.devices = new Set(rows.map(r => r.android || '')).size;
+    g.fatal = rows.some(r => r.fatal);
+    const count = new Map(), name = new Map();
+    rows.forEach(r => {
+      const c = Number(r.version_code) || codeOf(r.version_name);
+      count.set(c, (count.get(c) || 0) + 1);
+      if (r.version_name) name.set(c, r.version_name);
+    });
+    const codes = [...count.keys()].filter(c => c > 0).sort((a, b) => b - a);
+    const label = c => name.get(c) || ('1.' + c);
+    g.versionRange = !codes.length ? '' : codes.length === 1 ? label(codes[0])
+      : `${label(codes[codes.length - 1])} – ${label(codes[0])}`;
+    g.seenOn = codes.map(c => `${label(c)} ×${count.get(c)}`).join(' · ');
+    g.onCurrent = !!cur && codes.some(c => c >= cur.code);
+  });
+  // Unhandled first, then newest -- the order the summary itself uses.
+  groups.sort((a, b) => (Number(b.any_unseen) - Number(a.any_unseen)) || (t(b.last_seen) - t(a.last_seen)));
+  return groups;
+}
+
+/**
+ * Marks every wording in a merged group handled. Each is its own (message,
+ * screen) pair to admin_mark_errors_seen; they go together behind one
+ * second-factor check and one reload, the way a single group always did.
+ * Only rows that exist are marked -- nothing is added or removed.
+ */
+async function markCrashGroupSeen(g, btn) {
+  const open = g.members.filter(m => m.any_unseen);
+  if (open.length <= 1) {
+    const m = open[0] || g.members[0];
+    return adminAction('admin_mark_errors_seen', { msg: m.message, wh: m.where_at }, null, btn);
+  }
+  if (!(await secondFactorFresh())) return false;
+  btn.disabled = true; btn.textContent = tr('workingEllipsis');
+  $('msg').textContent = tr('workingEllipsis');
+  for (const m of open) {
+    const { error } = await db.rpc('admin_mark_errors_seen', { msg: m.message, wh: m.where_at });
+    if (error) {
+      $('msg').textContent = error.message;
+      btn.disabled = false; btn.textContent = tr('crashMarkSeen');
+      await loadAll();
+      return false;
+    }
+  }
+  $('msg').textContent = '';
+  await loadAll();
+  return true;
+}
+
+/**
  * One row per distinct bug, not per crash. Twenty copies of one broken screen
  * is one thing to fix, and a flat list would bury every other bug under it.
+ *
+ * Each row also says whether the build phones get today still sends it. Most
+ * of the page on 2026-09-21 was problems a newer build had already fixed,
+ * still arriving from phones that had not updated, and nothing on the row
+ * told them apart from what was still happening.
  */
 function renderCrashes() {
-  if (!crashes.length) {
+  const cur = currentBuild();
+  const groups = crashGroups(cur);
+  // Needs something to compare with: with no release published the filter
+  // is hidden rather than offered and silently matching nothing.
+  $('crashControls').style.display = groups.length && cur ? '' : 'none';
+  if (cur) {
+    $('crashCurrentLabel').textContent = tr('crashCurrentOnly', cur.name);
+    $('crashCurrentOnly').checked = crashCurrentOnly;
+    $('crashSummary').textContent =
+      tr('crashSummary', groups.filter(g => g.onCurrent).length, groups.length, cur.name) +
+      (crashRows ? '' : ' ' + tr('crashSummaryNoRows'));
+  }
+  const shown = cur && crashCurrentOnly ? groups.filter(g => g.onCurrent) : groups;
+  if (!shown.length) {
     $('errRows').innerHTML = '';
-    $('errNote').textContent = tr('crashNoneLast14');
+    $('errNote').textContent = groups.length && cur ? tr('crashNoneCurrent', cur.name) : tr('crashNoneLast14');
     return;
   }
   $('errNote').textContent = '';
 
-  $('errRows').innerHTML = crashes.map((c, i) => {
+  $('errRows').innerHTML = shown.map((c, i) => {
     const open = c.any_unseen;
     const message = c.message || tr('crashNoMessage');
+    const versions = c.versionRange || c.latest_version || '—';
+    const buildPill = !cur ? ''
+      : c.onCurrent ? `<br><span class="pill bad">${esc(tr('crashPillCurrent', cur.name))}</span>`
+      : `<br><span class="pill muted">${esc(tr('crashPillOldOnly'))}</span>`;
     return `<div class="crash-row${open ? '' : ' handled'}">
       <div class="crash-msg">
+        ${c.fatal ? `<span class="pill bad">${esc(tr('crashPillFatal'))}</span>` : ''}
         <b title="${esc(message)}">${esc(message)}</b>
+        ${c.members.length > 1 ? `<span class="merged">${esc(tr('crashMerged', c.members.length))}</span>` : ''}
         <button class="linklike" data-stack="${i}" type="button">${esc(tr('crashViewStack'))}</button>
       </div>
       <div><span class="lbl">${esc(tr('crashLblScreen'))}</span><span class="truncate" title="${esc(c.where_at || '—')}">${esc(c.where_at || '—')}</span></div>
       <div><span class="lbl">${esc(tr('crashLblCount'))}</span><b>${c.occurrences}</b></div>
       <div><span class="lbl">${esc(tr('crashLblPhones'))}</span>${c.devices}</div>
-      <div><span class="lbl">${esc(tr('colVersion'))}</span><span class="truncate" title="${esc(c.latest_version || '—')}">${esc(c.latest_version || '—')}</span></div>
+      <div class="crash-ver"><span class="lbl">${esc(tr('colVersion'))}</span><span class="truncate" title="${esc(c.seenOn || versions)}">${esc(versions)}</span>${buildPill}</div>
       <div><span class="lbl">${esc(tr('crashLblFirstSeen'))}</span>${day(c.first_seen)}</div>
       <div><span class="lbl">${esc(tr('colLastSeen'))}</span>${day(c.last_seen)}</div>
       <div>${open
@@ -2322,17 +2795,17 @@ function renderCrashes() {
 
   document.querySelectorAll('[data-stack]').forEach(a =>
     a.addEventListener('click', () => {
-      const c = crashes[a.dataset.stack];
+      const c = shown[a.dataset.stack];
       $('stackTitle').textContent = c.message || tr('crashNoMessage');
-      $('stackBody').textContent = c.sample_stack || tr('crashNoStackRecorded');
+      // Which builds sent it, above the newest stack: the difference between
+      // a bug that is fixed and one that is not.
+      $('stackBody').textContent = (c.seenOn ? `${tr('crashSeenOn')}: ${c.seenOn}\n\n` : '') +
+        (c.sample_stack || tr('crashNoStackRecorded'));
       $('stackDialog').showModal();
     }));
 
   document.querySelectorAll('[data-seen]').forEach(b =>
-    b.addEventListener('click', () => {
-      const c = crashes[b.dataset.seen];
-      adminAction('admin_mark_errors_seen', { msg: c.message, wh: c.where_at }, null, b);
-    }));
+    b.addEventListener('click', () => markCrashGroupSeen(shown[b.dataset.seen], b)));
 }
 
 /* --------------------------------------------------------- releases ---- */
@@ -2777,13 +3250,27 @@ async function startMfaEnroll() {
   $('mfaEnrollMsg').textContent = tr('mfaEnrollPreparing');
   // A second attempt at enrolling before finishing the first leaves an
   // unverified factor behind, and Supabase refuses a new TOTP enrollment
-  // while one already exists. Clearing any stale, never-verified attempt
-  // first means "Turn on" always works, not just the first time it is tried.
+  // under the same friendly name while it exists. Clearing any stale,
+  // never-verified attempt first means "Turn on" always works, not just the
+  // first time it is tried.
+  //
+  // From `all`, not `totp`: supabase-js fills `totp` with VERIFIED factors
+  // only (auth-js _listFactors), so looking there for an unverified one could
+  // never find it and this cleanup never ran. Harmless while enroll sent no
+  // name; with friendlyName set below, a Cancel-then-retry would have been
+  // refused as a duplicate name.
   const { data: existing } = await db.auth.mfa.listFactors();
-  const stale = (existing?.totp || []).find(f => f.status === 'unverified');
-  if (stale) await db.auth.mfa.unenroll({ factorId: stale.id });
+  const stale = (existing?.all || []).filter(f => f.factor_type === 'totp' && f.status === 'unverified');
+  for (const f of stale) await db.auth.mfa.unenroll({ factorId: f.id });
 
-  const { data, error } = await db.auth.mfa.enroll({ factorType: 'totp' });
+  // Without an issuer, Supabase labels the authenticator entry with its Site
+  // URL host -- which is how the owner's phone came to say "localhost".
+  const { data: { session: enrollSession } } = await db.auth.getSession();
+  const { data, error } = await db.auth.mfa.enroll({
+    factorType: 'totp',
+    issuer: 'FenceFlow',
+    friendlyName: enrollSession?.user?.email || 'FenceFlow staff',
+  });
   if (error) { $('mfaEnrollMsg').textContent = error.message; return; }
   pendingFactorId = data.id;
   $('mfaQr').src = data.totp.qr_code;
@@ -2835,6 +3322,7 @@ async function turnOffMfa() {
    session on the server, not just in this browser; the others are left
    alone. Signing out everywhere is its own button, on purpose. */
 async function signOutHere() {
+  leavingOnPurpose = true;
   // Logged BEFORE signOut(), not after -- record_auth_event needs auth.uid(),
   // which this call is about to take away.
   await logAuthEvent('sign_out', true, 'local');
@@ -2854,6 +3342,7 @@ async function signOutEverywhere() {
     danger: true,
   });
   if (!ok) return;
+  leavingOnPurpose = true;
   $('sessionsMsg').textContent = tr('workingEllipsis');
   // Same ordering reason as signOutHere(): log while auth.uid() still exists.
   await logAuthEvent('sign_out', true, 'global');
@@ -2903,6 +3392,7 @@ $('search').addEventListener('input', renderCompaniesTable);
 $('langPicker').addEventListener('change', e => setLang(e.target.value));
 
 $('signIn').addEventListener('click', signIn);
+$('email').addEventListener('keydown', e => { if (e.key === 'Enter') $('password').focus(); });
 $('password').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
 $('forgotLink').addEventListener('click', e => { e.preventDefault(); requestPasswordReset(); });
 $('setPassword').addEventListener('click', submitNewPassword);
@@ -2922,6 +3412,11 @@ $('signOut').addEventListener('click', signOutHere);
 $('mfaChallengeSignOut').addEventListener('click', e => { e.preventDefault(); signOutHere(); });
 $('signOutEverywhere').addEventListener('click', signOutEverywhere);
 $('stackClose').addEventListener('click', () => $('stackDialog').close());
+$('crashCurrentOnly').addEventListener('change', e => {
+  crashCurrentOnly = e.target.checked;
+  storeSet('localStorage', 'ff-admin-crash-current', crashCurrentOnly ? '1' : '0');
+  renderCrashes();
+});
 
 $('e_cancel').addEventListener('click', () => $('editDialog').close());
 $('e_save').addEventListener('click', saveEdit);

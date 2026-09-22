@@ -1,0 +1,17 @@
+{
+  "name": "postal-mime",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./postal-mime.js",
+  "types": "./postal-mime.d.ts",
+  "license": "MIT-0",
+  "description": "Vendored: src/*.js, postal-mime.d.ts and LICENSE.txt (as LICENSE) from the npm tarball below, flattened out of src/ with every relative import unchanged. Every file is byte-identical to the tarball except text-format.js (see localPatches). type=module lets the Node tests import it the same way the Deno functions do. Upgrade by replacing every file from a new tarball, re-applying localPatches unless upstream has fixed the problem, and re-running tests/mail-mime.test.mjs and tests/mail-meta.test.mjs.",
+  "localPatches": [
+    "text-format.js: fenceflowDefuseHtml() added and called first in htmlToText(). Upstream's regex chain is quadratic or worse on unclosed tags, comments and script elements (24 KB of '<' took 1.6 s; 30 KB of '<a href=x ' never finished), and PostalMime.parse() runs it on mail with a text/plain part beside a text/html part. The pre-pass is linear and leaves every construct closed. Guarded by the timing test in tests/mail-meta.test.mjs."
+  ],
+  "vendoredFrom": "https://registry.npmjs.org/postal-mime/-/postal-mime-3.0.0.tgz",
+  "vendoredIntegrity": "sha512-Z4a9ar2Bv3YpK3IXag+Yda30k7bMZfpRuUGyqtHnZ2pjHG8Bl62EhZIk4n1dzv00gfzP9g+94e9kd8+XmjVWLA==",
+  "vendoredOn": "2026-09-21",
+  "upstream": "https://github.com/postalsys/postal-mime"
+}

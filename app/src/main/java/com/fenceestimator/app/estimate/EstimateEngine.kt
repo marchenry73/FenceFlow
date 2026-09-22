@@ -842,8 +842,20 @@ object EstimateEngine {
      * Returns structured warnings (a string resource plus its positional
      * arguments) so the screen can render them in the device language; money
      * is pre-formatted here so the figures read exactly as they always did.
+     *
+     * @param changeOrders the job's change orders, so what is still owed is
+     *   measured against the price the customer accepted plus extra work
+     *   signed since ([JobMoney.billableTotal]) -- the figure the job screen,
+     *   the quote page and the payment link bill -- rather than the live
+     *   recompute, which moves after acceptance.
      */
-    fun estimateWarnings(job: Job, runs: List<FenceRun>, lineItems: List<EstimateLineItem>, totals: Totals): List<EstimateWarning> {
+    fun estimateWarnings(
+        job: Job,
+        runs: List<FenceRun>,
+        lineItems: List<EstimateLineItem>,
+        totals: Totals,
+        changeOrders: List<ChangeOrder> = emptyList()
+    ): List<EstimateWarning> {
         val warnings = mutableListOf<EstimateWarning>()
         fun money(x: Double): String = "%.2f".format(java.util.Locale.US, x)
 
@@ -879,7 +891,8 @@ object EstimateEngine {
         // worse than no warning: it teaches people to scroll past this whole
         // section, including the times it is right.
         val collected = JobMoney.netPaid(job)
-        val owed = JobMoney.stillOwed(job, totals.grandTotal)
+        val billable = JobMoney.billableTotal(job, totals.grandTotal, changeOrders)
+        val owed = JobMoney.stillOwed(job, billable)
 
         if (totals.materialsSubtotal > 0.0 && collected < totals.materialsSubtotal) {
             val shortfall = totals.materialsSubtotal - collected
@@ -901,7 +914,7 @@ object EstimateEngine {
         if (collected > 0.005 && owed > 0.005) {
             warnings += EstimateWarning(
                 R.string.warn_still_to_collect,
-                listOf(money(owed), money(totals.grandTotal))
+                listOf(money(owed), money(billable))
             )
         }
 

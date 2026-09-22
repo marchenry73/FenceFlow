@@ -56,7 +56,7 @@ const ok = (label, cond, detail = "") => {
 // fails on purpose, telling you to read the transcription again and then
 // move the pin. That is an annoyance exactly once per real change, and the
 // alternative is a guard that quietly stops guarding.
-const JOB_MONEY_FINGERPRINT = "ccc814dcbbf6d1a4";
+const JOB_MONEY_FINGERPRINT = "d362fcb9148c3a22";
 const jobMoneyNow = createHash("sha256")
   .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8").split(String.fromCharCode(13)).join(""))
   .digest("hex").slice(0, 16);
@@ -73,6 +73,24 @@ const kotlinJobMoney = {
   netPaid: (j) => Math.max(0, j.amount_paid - j.refunded_amount),
   balance: (j, contractTotal) => contractTotal - kotlinJobMoney.netPaid(j),
   stillOwed: (j, contractTotal) => Math.max(0, kotlinJobMoney.balance(j, contractTotal)),
+  // The accepted price (2026-09-21): what "the contract total" every figure
+  // above is handed means once the customer has accepted.
+  isAccepted: (j) => j.signed_at != null || j.quote_approved_at != null,
+  acceptedAt: (j) => Math.max(...[j.signed_at, j.quote_approved_at].filter((x) => x != null)),
+  // Orders signed after acceptance that the acceptance did not already cover.
+  extraWorkSinceAcceptance: (j, orders) => {
+    if (!kotlinJobMoney.isAccepted(j)) return 0;
+    const since = kotlinJobMoney.acceptedAt(j);
+    return orders.filter((o) => !o.in_accepted_total && o.signed_at != null && o.signed_at > since)
+      .reduce((s, o) => s + o.additional_cost, 0);
+  },
+  anchoredTotal: (j, orders) => {
+    if (!kotlinJobMoney.isAccepted(j)) return null;
+    if (j.reapproval_required_at != null) return null;
+    if (j.accepted_total == null || j.accepted_total <= 0.005) return null;
+    return j.accepted_total + kotlinJobMoney.extraWorkSinceAcceptance(j, orders);
+  },
+  billableTotal: (j, liveGrandTotal, orders) => kotlinJobMoney.anchoredTotal(j, orders) ?? liveGrandTotal,
 };
 
 function loadOfficeMoney(src) {
@@ -183,6 +201,73 @@ console.log("\n4. Canary: the historical 'invented deposit, ignores payments' bu
   ok("PLANTED FAILURE: ignoring payments already made would ask the customer for the " +
      "full $1,000 again instead of the true $600 remaining (proves this check can fail)",
     broken !== real.due, `broken=${broken} real=${real.due}`);
+}
+
+// ---------------------------------------------------------------------------
+// The accepted price. The app bills an accepted job against billableTotal
+// (accepted_total plus extra work signed since). The office used to read only
+// contract_total, and agreed with the app only because a current phone pushes
+// that anchored figure AS contract_total -- a phone on a build from before the
+// accepted price pushed its live recompute instead, and the office followed
+// it (this section recorded that as a KNOWN GAP). The office now reads
+// accepted_total itself (billableTotalOf, which contractTotalOf asks first),
+// so the two agree whatever contract_total holds.
+console.log("\n5. The accepted price: office and app agree on what an accepted job still owes:");
+{
+  // contractTotalOf closes over the page's `items` and `orders`; they are
+  // handed in here as the function's own parameters.
+  const officeFor = new Function(
+    "items", "orders",
+    ["netPaid", "balanceOf", "stillOwed", "stampMs", "anchoredTotalOf", "billableTotalOf",
+      "anchorOrdersOf", "contractTotalOf"].map((n) => grabFn(dashboardSrc, n)).join("\n\n") +
+      "\nreturn {stillOwed, contractTotalOf, billableTotalOf};",
+  );
+  // Job 4598's shape: signed at $9,710, a $455 order signed since, a $900
+  // order that was unsigned at the signature (so inside the $9,710) and
+  // signed after, $2,000 paid, and a live recompute that drifted to $13,410.
+  const SIGNED = 1000, LATER = 2000;
+  const job4598 = {
+    sync_id: "j4598", amount_paid: 2000, refunded_amount: 0, signed_at: SIGNED, quote_approved_at: null,
+    reapproval_required_at: null, accepted_total: 9710,
+  };
+  const orders = [
+    { job_sync_id: "j4598", additional_cost: 455, signed_at: LATER, in_accepted_total: false },
+    { job_sync_id: "j4598", additional_cost: 900, signed_at: LATER, in_accepted_total: true },
+  ];
+  const office2 = officeFor([], orders);
+  const appBillable = kotlinJobMoney.billableTotal(job4598, 13410, orders);
+  ok("the app bills the accepted price plus the order signed since, and not the covered one",
+    appBillable === 10165, `got ${appBillable}`);
+  // Whatever is in contract_total: the anchored figure a current phone
+  // pushes, the live recompute an old build pushes, one that drifted BELOW
+  // the price (Woody: signed at $3,620, showing $200), or nothing at all.
+  for (const [label, ct] of [
+    ["the anchored figure a current phone pushes", kotlinJobMoney.anchoredTotal(job4598, orders)],
+    ["an old build's drifted recompute", 13410],
+    ["a figure that drifted below the price", 200],
+    ["nothing", null],
+  ]) {
+    const j = { ...job4598, contract_total: ct };
+    const officeOwed = office2.stillOwed(j, office2.contractTotalOf(j));
+    const appOwed = kotlinJobMoney.stillOwed(j, kotlinJobMoney.billableTotal(j, ct ?? 0, orders));
+    ok(`contract_total = ${label}: the office owes what the app owes ($${officeOwed} vs $${appOwed})`,
+      officeOwed === appOwed && appOwed === 8165);
+  }
+  // Planted failure: the rule before the covered-order flag billed the $900
+  // twice -- show that the office's own figure would move if it did.
+  const naive = 9710 + 455 + 900;
+  ok("PLANTED FAILURE: billing the covered order again gives a different figure (proves the case can fail)",
+    naive !== office2.billableTotalOf(job4598, orders) && naive !== appBillable, `naive=${naive}`);
+  // Planted failure: the office as it was, contract_total only, on the old
+  // build's drifted figure -- the KNOWN GAP this section used to record.
+  const drifted = { ...job4598, contract_total: 13410 };
+  ok("PLANTED FAILURE: the office's old rule (contract_total only) owes a different figure on the drifted job",
+    office2.stillOwed(drifted, Number(drifted.contract_total)) !== kotlinJobMoney.stillOwed(drifted, appBillable));
+  // A drawing change that withdrew the approval puts both back on the live
+  // figure: that is what the customer is being asked to approve again.
+  const reapproval = { ...drifted, reapproval_required_at: 3000 };
+  ok("a pending re-approval puts office and app back on the live figure",
+    office2.contractTotalOf(reapproval) === 13410 && kotlinJobMoney.billableTotal(reapproval, 13410, orders) === 13410);
 }
 
 console.log(`\n${pass} of ${pass + fail} checks passed`);

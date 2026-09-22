@@ -83,6 +83,21 @@ data class SessionState(
     /** Assigning crew and moving work around the calendar. */
     val canScheduleAndAssign: Boolean get() = can(Permission.SCHEDULE_AND_ASSIGN)
 
+    /**
+     * Sees every job rather than only the ones they are on: the same
+     * capability test as the server's sees_all_jobs() (SEE_MONEY, EDIT_JOBS
+     * or SCHEDULE_AND_ASSIGN), never a role name, so a per-person override
+     * moves someone either way -- a foreman with -SCHEDULE_AND_ASSIGN is
+     * scoped, a crew member with +EDIT_JOBS sees everything.
+     *
+     * A hint for what to offer, not the boundary: the server decides what
+     * arrives, and [JobAccess.scope] carries its actual answer -- including
+     * that a database without the crew scope shows everyone everything.
+     * Signed out it is true (working alone sees everything); signed in but
+     * unread ([accessKnown] false) it is false, like every other capability.
+     */
+    val seesAllJobs: Boolean get() = canSeeMoney || canEditJobs || canScheduleAndAssign
+
     /** Asking a customer for money. */
     val canRequestPayment: Boolean get() = can(Permission.REQUEST_PAYMENT)
 
@@ -200,6 +215,8 @@ class SessionManager(private val scope: CoroutineScope) {
                 // remembered company and role outlive the account that earned
                 // them and the next person to sign in here inherits them.
                 appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
+                // ...and which jobs it was allowed to see, for the same reason.
+                JobAccess.forget()
                 _state.value = SessionState(resolved = true)
                 return@launch
             }

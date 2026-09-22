@@ -153,6 +153,13 @@
     <string name="sync_plain_unknown">La synchronisation n\'a pas pu se terminer. Votre travail est enregistré sur ce téléphone et sera réessayé automatiquement. Si le message persiste, avisez March.</string>
     <string name="sync_plain_rejected">Synchronisation impossible : %1$s</string>
     <string name="svc_signed_in_elsewhere">Ce compte s\'est connecté sur un autre téléphone, alors celui-ci a été déconnecté. Votre travail est en sécurité. Si ce n\'était pas vous, changez votre mot de passe.</string>
+    <string name="svc_elsewhere_title">Connecté sur un autre téléphone</string>
+    <string name="svc_elsewhere_body">Ce compte s\'est connecté sur un autre téléphone. Un compte ne fonctionne que sur un téléphone à la fois, donc FenceFlow s\'est arrêté sur celui-ci.</string>
+    <string name="svc_elsewhere_nothing_lost">Rien n\'a été supprimé sur ce téléphone. Touchez Utiliser ce téléphone pour continuer ici ; l\'autre téléphone s\'arrêtera jusqu\'à ce qu\'il se reconnecte.</string>
+    <string name="svc_elsewhere_seat_note">Si deux personnes partagent ce compte, chacune a besoin du sien : demandez-le au bureau. Si ce n\'était pas vous, changez votre mot de passe.</string>
+    <string name="svc_use_this_phone">Utiliser ce téléphone</string>
+    <string name="svc_use_this_phone_working">Passage à ce téléphone…</string>
+    <string name="svc_use_this_phone_failed">Impossible de joindre FenceFlow pour changer de téléphone. Vérifiez la connexion et réessayez.</string>
     <string name="sync_failed">Impossible de joindre le cloud</string>
     <string name="sync_local_only">Enregistré sur ce téléphone uniquement</string>
     <string name="sync_explain">Vos chantiers sont enregistrés automatiquement : à chaque modification, à l\'ouverture de l\'app et régulièrement en arrière-plan. Tout fonctionne hors ligne ; les changements sont envoyés dès que vous avez du réseau.</string>
@@ -241,6 +248,7 @@
     <string name="draw_closed_perimeter">Périmètre fermé (sans extrémités ouvertes)</string>
     <string name="draw_undo">Annuler</string>
     <string name="draw_undo_nothing_to_undo">Rien à annuler sur cette ligne pour le moment</string>
+    <string name="draw_undo_drawing_changed">Ce dessin a été modifié depuis un autre appareil, il n\'y a donc rien à annuler ici.</string>
     <string name="seg_len_title">Définir cette longueur</string>
     <string name="snap_toggle">Aimantation</string>
     <string name="snap_help">Angles, équerres et pieds entiers</string>
@@ -493,6 +501,8 @@
     <string name="acct_access_give_carefully">À accorder avec prudence</string>
     <string name="jd_new_job">Nouveau chantier</string>
     <string name="jd_saved_automatically">Enregistré automatiquement pendant la saisie.</string>
+    <string name="jd_customer_read_only">Seul le bureau peut modifier les coordonnées du client.</string>
+    <string name="jd_not_given">Non renseigné</string>
     <string name="jd_save_and_close">Enregistrer et fermer</string>
     <string name="jd_open_crew_view">Ouvrir la vue équipe du jour</string>
     <string name="jd_inventory_checklist">Liste des matériaux et outils du jour</string>
@@ -577,6 +587,9 @@
     <string name="jd_paid_use_record">Utilisez Enregistrer un paiement ci-dessous</string>
     <string name="jd_refunded_amount">Remboursé : %1$s $</string>
     <string name="jd_set_deposit_covers">Fixer l\'acompte à %1$s $ (couvre les matériaux)</string>
+    <string name="jd_set_deposit_capped">Fixer l\'acompte à %1$s $ (tout ce qui reste dû)</string>
+    <string name="jd_accepted_price">Prix accepté</string>
+    <string name="jd_accepted_vs_estimate">Le devis s\'élève maintenant à %1$s $. Le client est facturé au prix qu\'il a accepté ; tout changement passe par un avenant signé ou une nouvelle approbation.</string>
     <string name="jd_materials_partly_paid">Les matériaux s\'élèvent à %1$s $ et %2$s $ ont été payés, il manque donc %3$s $ pour les couvrir. Arrondi aux 10 $ supérieurs.</string>
     <string name="jd_materials_come_to">Les matériaux de ce devis s\'élèvent à %1$s $. Arrondi aux 10 $ supérieurs.</string>
     <string name="jd_contract_total">Total du contrat (d\'après le devis)</string>
@@ -1646,6 +1659,8 @@
     <string name="ntf_new_job_body">%1$s a été ajouté par votre équipe.</string>
     <string name="ntf_job_complete_title">Chantier marqué comme terminé</string>
     <string name="ntf_job_complete_body">%1$s a été terminé par l\'équipe.</string>
+    <string name="ntf_quote_accepted_title">Devis accepté</string>
+    <string name="ntf_quote_accepted_body">%1$s a accepté le devis.</string>
     <string name="ntf_assigned_title">Un chantier vous a été attribué</string>
     <string name="ntf_assigned_body">Vous êtes sur %1$s.</string>
     <string name="eng2_reason_price_moved">le prix est passé de %1$s $ à %2$s $</string>
@@ -1692,6 +1707,14 @@
     <string name="evm_saved_some_catalog">Enregistré. Certaines lignes utilisent encore l\'estimation du catalogue.</string>
     <string name="evm_replaced_lines">Remplacé par %1$d lignes.</string>
     <string name="evm_replaced_lines_check">Remplacé par %1$d lignes. À vérifier : %2$s</string>
+    <string name="evm_replaced_lines_kept">Remplacé par %1$d lignes. %2$d lignes modifiées à la main ont été conservées.</string>
+    <string name="evm_replaced_lines_kept_check">Remplacé par %1$d lignes. %2$d lignes modifiées à la main ont été conservées. À vérifier : %3$s</string>
+    <string name="est_line_edited">Modifié à la main. Garde ce nombre quand le dessin change.</string>
+    <string name="est_use_suggested">Utiliser la suggestion</string>
+    <string name="est_delete_needs_permission">Supprimer une ligne que vous avez modifiée ou saisie demande l\'autorisation de supprimer.</string>
+    <string name="sync_crew_unsent_summary">Modifié sur un téléphone d\'équipe mais non enregistré : %1$s</string>
+    <string name="sync_delete_refused_title">Un élément supprimé est revenu</string>
+    <string name="sync_delete_refused_body">Le supprimer demande l\'autorisation de supprimer, il a donc été rétabli. Demandez au propriétaire de le supprimer.</string>
 
     <!-- Crew fence plan. The crew screen carries the site rules, so it is
          the last place that should have been English only. -->
@@ -1699,6 +1722,7 @@
     <string name="crew_plan_debris_rule">Les feuilles et les débris libres sont à nous. Tout ce qui demande un outil — arbustes, jardinières, cabanons, branches, vieux poteaux — appartient au client, ou passe en avenant. Ne l\'enlevez pas sans demander.</string>
     <string name="crew_plan_legend_build">Ligne de clôture et poteaux</string>
     <string name="crew_plan_legend_teardown">Clôture à déposer</string>
+    <string name="crew_plan_legend_gate">Portail</string>
     <string name="crew_plan_run_untitled">Tronçon de clôture</string>
     <string name="crew_plan_not_measured">Ce tronçon n\'a pas encore de mesures — voyez avec le bureau avant de commencer.</string>
     <string name="crew_plan_spec_type">Type</string>
@@ -1718,6 +1742,8 @@
     <string name="crew_plan_something_wrong">Quelque chose ne va pas ?</string>
     <string name="crew_plan_office_has_it">Enregistré sur ce téléphone. Ça arrive au bureau dès que vous avez du réseau. Continuez le reste du travail en attendant.</string>
     <string name="crew_plan_ask_office">Demandez au bureau avant de construire autrement. Ils le verront tout de suite.</string>
+    <string name="crew_plan_not_sent">Demande non envoyée</string>
+    <string name="crew_plan_job_gone">Ce chantier n’est plus sur ce téléphone : la demande n’avait rien à quoi se rattacher et n’a pas été enregistrée. Le bureau l’a peut-être supprimé ou vous en a retiré. Demandez-leur directement.</string>
 
     <!-- Removing a line from the on-site materials checklist. It says what it
          does NOT do, because a delete button beside a camera button is easy
@@ -1756,4 +1782,103 @@
     <string name="reapproval_warn_editing">Modifier le plan annulera l\'approbation du client, qui devra approuver à nouveau.</string>
     <string name="reapproval_warn_editing_dismiss">Continuer la modification</string>
     <string name="reapproval_do_not_build">Ne construisez pas encore : en attente de l\'approbation du client.</string>
+
+    <!-- Personal Settings: the screen for everyone without "Change catalog
+         and settings" (crew by default). Device-only choices; see
+         PersonalSettingsScreen.kt. Typographic apostrophes, not escaped
+         straight ones: see the note on gate_offline_too_long in values/. -->
+    <string name="pset_intro">Ces paramètres ne concernent que ce téléphone, et chacun est enregistré dès que vous le modifiez. Les paramètres de l’entreprise, comme ses coordonnées, le catalogue et les modèles d’e-mail, sont gérés par le propriétaire ou un responsable.</string>
+    <string name="pset_language_note">Seul ce téléphone change. Les autres membres de l’équipe gardent leur propre langue.</string>
+    <string name="pset_group_account">Votre compte</string>
+    <string name="pset_account_title">Compte</string>
+    <string name="pset_account_explain">Qui est connecté sur ce téléphone, votre niveau d’accès, la synchronisation avec le cloud et la déconnexion.</string>
+    <string name="pset_open_account">Ouvrir le compte</string>
+
+    <!-- Crew see the jobs they are on, and ask for the rest
+         (supabase_crew_job_scope.sql). See ui/jobs/JobScopeUi.kt.
+         Typographic apostrophes and quotes: see the note on
+         gate_offline_too_long in values/. -->
+    <string name="jobs_empty_office_adds">Les chantiers apparaissent ici dès que le bureau les ajoute.</string>
+    <string name="jobs_access_requests_waiting">Demandes d’accès en attente : %1$d</string>
+    <string name="jobs_access_requests_waiting_body">Des membres de l’équipe demandent à voir des chantiers dont ils ne font pas partie. Touchez pour répondre.</string>
+    <string name="jobs_scope_not_linked">Votre compte n’est pas encore lié à un membre de l’équipe — demandez au bureau.</string>
+    <string name="jobs_scope_not_linked_body">D’ici là, aucun chantier ne peut arriver sur ce téléphone. La synchronisation fonctionne et rien n’est perdu sur ce téléphone.</string>
+    <string name="jobs_scope_none_assigned">Aucun chantier ne vous est encore attribué</string>
+    <string name="jobs_scope_none_assigned_body">Les chantiers que le bureau vous confie apparaîtront ici d’eux-mêmes. Vous pouvez aussi en demander un ci-dessous.</string>
+    <string name="jobs_scope_on_the_way">Vos chantiers arrivent</string>
+    <string name="jobs_scope_on_the_way_body">Le bureau vous a confié du travail que ce téléphone n’a pas encore reçu. Il arrive à la prochaine synchronisation ; tirez vers le bas pour le récupérer maintenant.</string>
+    <string name="jobs_other_jobs_request">Autres chantiers — demander l’accès</string>
+    <string name="jobs_other_jobs_request_body">Voir le reste du travail de l’entreprise et demander à y accéder.</string>
+    <string name="jobs_kept_title">Conservés sur ce téléphone</string>
+    <string name="jobs_kept_body">Ne vous sont plus attribués. Ce qui n’a pas encore été envoyé reste ici ; demandez l’accès pour l’envoyer. Un pointage en cours peut toujours être clôturé.</string>
+    <string name="jobs_kept_unsent">Modifications pas encore envoyées</string>
+    <string name="access_needs_connection">Connexion nécessaire.</string>
+    <string name="access_refused_ask_not_allowed">Ce compte ne peut pas demander de chantiers. Voyez avec le bureau.</string>
+    <string name="access_refused_answer_not_allowed">Non autorisé. Répondre aux demandes nécessite « Planifier le travail et affecter l’équipe », et personne ne répond à sa propre demande.</string>
+    <string name="access_refused_crew_not_allowed">Non autorisé. Changer qui travaille sur un chantier nécessite « Planifier le travail et affecter l’équipe ».</string>
+    <string name="access_refused_ask_not_found">Ce chantier ne peut plus être demandé.</string>
+    <string name="access_refused_answer_not_found">Cette demande n’existe plus.</string>
+    <string name="access_refused_crew_not_found">Ce chantier n’est pas encore arrivé au bureau. Réessayez une fois qu’il est synchronisé.</string>
+    <string name="access_refused_nothing_to_ask">Rien à demander : vous voyez déjà ce chantier. Tirez vers le bas la liste des chantiers pour le récupérer.</string>
+    <string name="access_refused_limit">Vous avez demandé beaucoup de chantiers d’un coup. Attendez que le bureau en traite quelques-uns, puis réessayez.</string>
+    <string name="access_refused_signed_out">Votre connexion a expiré. Ouvrez Compte et reconnectez-vous.</string>
+    <string name="access_refused_not_available">La demande d’autres chantiers n’est pas encore activée pour votre entreprise.</string>
+    <string name="access_refused_failed">Ça n’a pas abouti. Réessayez dans un instant.</string>
+    <string name="access_request_sent">Demande envoyée. Le bureau la verra.</string>
+    <string name="access_request_withdrawn">Demande retirée.</string>
+    <string name="access_request_already_answered">Le bureau avait déjà répondu à cette demande.</string>
+    <string name="access_request_title">Autres chantiers</string>
+    <string name="access_refresh">Actualiser</string>
+    <string name="access_request_intro">Chantiers gagnés dont vous ne faites pas partie. Demandez-en un et le bureau décide ; s’il accepte, il arrive tout seul sur votre téléphone.</string>
+    <string name="access_request_offline">La liste des autres chantiers est tenue par le bureau. Connectez-vous pour la voir et demander.</string>
+    <string name="access_try_again">Réessayer</string>
+    <string name="access_request_none">Aucun autre chantier à demander pour l’instant.</string>
+    <string name="access_chip_waiting">Demandé</string>
+    <string name="access_chip_declined">Refusé</string>
+    <string name="access_scheduled_on">Prévu : %1$s</string>
+    <string name="access_no_date">Pas encore de date</string>
+    <string name="access_office_note">Bureau : %1$s</string>
+    <string name="access_ask_again">Redemander</string>
+    <string name="access_request_button">Demander l’accès</string>
+    <string name="access_withdraw">Retirer</string>
+    <string name="access_ask_title">Demander %1$s ?</string>
+    <string name="access_ask_body">Le bureau voit qui demande et pourquoi. La raison est facultative.</string>
+    <string name="access_reason_label">Raison (facultatif)</string>
+    <string name="access_reason_count">%1$d / %2$d</string>
+    <string name="access_send_request">Envoyer la demande</string>
+    <string name="access_already_answered_other">Quelqu’un avait déjà répondu à cette demande.</string>
+    <string name="access_approved">Accepté. Le chantier arrive sur son téléphone à la prochaine synchronisation.</string>
+    <string name="access_declined">Refusé.</string>
+    <string name="access_answer_title">Demandes d’accès</string>
+    <string name="access_answer_intro">Des membres de l’équipe demandent à voir un chantier dont ils ne font pas partie. Accepter permet à cette personne de voir ce seul chantier ; vous pourrez la retirer depuis l’écran du chantier.</string>
+    <string name="access_answer_offline">Les demandes se traitent sur le serveur. Connectez-vous pour les voir et répondre.</string>
+    <string name="access_answer_none">Personne n’attend de réponse.</string>
+    <string name="access_someone">Un membre de l’équipe</string>
+    <string name="access_asked_by">%1$s demande l’accès</string>
+    <string name="access_job_not_here">Un chantier pas encore sur ce téléphone</string>
+    <string name="access_their_reason">Raison : %1$s</string>
+    <string name="access_approve">Accepter</string>
+    <string name="access_decline">Refuser</string>
+    <string name="access_decline_title">Refuser la demande de %1$s ?</string>
+    <string name="access_decline_note_label">Note pour cette personne (facultatif)</string>
+    <string name="job_crew_added">Ajouté. Cette personne verra le chantier à sa prochaine synchronisation.</string>
+    <string name="job_crew_removed">Retiré de ce chantier.</string>
+    <string name="job_crew_already_off">Cette personne n’était déjà plus sur ce chantier.</string>
+    <string name="job_crew_offline">Connexion nécessaire pour changer qui travaille sur ce chantier.</string>
+    <string name="job_crew_also_on">Aussi sur ce chantier</string>
+    <string name="job_crew_nobody_else">Personne d’autre pour l’instant.</string>
+    <string name="job_crew_let_in">accès sur demande</string>
+    <string name="job_crew_no_login_short">aucun compte de l’app lié</string>
+    <string name="job_crew_remove">Retirer %1$s de ce chantier</string>
+    <string name="job_crew_add">Ajouter quelqu’un</string>
+    <string name="job_crew_asked">Ont demandé à voir ce chantier</string>
+    <string name="job_crew_no_login">%1$s n’a aucun compte de l’app lié : ce chantier n’arrivera pas sur son téléphone. Liez-en un depuis l’onglet Équipe du bureau.</string>
+    <string name="crew_kept_title">Ce chantier ne vous est plus attribué</string>
+    <string name="crew_kept_body">Le bureau vous a retiré de ce chantier. Il reste sur ce téléphone avec tout ce qui n’a pas encore été envoyé, et un pointage en cours peut toujours être clôturé. Demandez l’accès pour y travailler de nouveau.</string>
+    <string name="crew_kept_no_clock_in">Pointage impossible : vous n’êtes plus sur ce chantier.</string>
+    <string name="crew_stage_not_yours">Vous n’êtes plus sur ce chantier, donc son étape ne peut pas être changée depuis ce téléphone.</string>
+    <string name="startup_settling_title">FenceFlow termine une mise à jour</string>
+    <string name="startup_settling_body">Fermez FenceFlow et rouvrez-le dans un instant. Il n’a pas pu démarrer pendant que la mise à jour était encore en cours d’installation.</string>
+    <string name="startup_settling_nothing_lost">Rien n’a été modifié ni perdu sur ce téléphone.</string>
+    <string name="startup_settling_close">Fermer FenceFlow</string>
 </resources>

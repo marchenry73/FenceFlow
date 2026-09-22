@@ -153,6 +153,13 @@
     <string name="sync_plain_unknown">No se pudo terminar de sincronizar. Tu trabajo está guardado en este teléfono y se volverá a intentar solo. Si sigue pasando, avísale a March.</string>
     <string name="sync_plain_rejected">No se pudo sincronizar: %1$s</string>
     <string name="svc_signed_in_elsewhere">Esta cuenta inició sesión en otro teléfono, así que se cerró la sesión en este. Tu trabajo está a salvo. Si no fuiste tú, cambia tu contraseña.</string>
+    <string name="svc_elsewhere_title">Sesión iniciada en otro teléfono</string>
+    <string name="svc_elsewhere_body">Esta cuenta inició sesión en otro teléfono. Una cuenta funciona en un solo teléfono a la vez, así que FenceFlow se detuvo en este.</string>
+    <string name="svc_elsewhere_nothing_lost">No se ha borrado nada de este teléfono. Toca Usar este teléfono para seguir aquí; el otro teléfono se detendrá hasta que vuelva a iniciar sesión.</string>
+    <string name="svc_elsewhere_seat_note">Si dos personas comparten esta cuenta, cada una necesita la suya; pídesela a la oficina. Si no fuiste tú, cambia tu contraseña.</string>
+    <string name="svc_use_this_phone">Usar este teléfono</string>
+    <string name="svc_use_this_phone_working">Cambiando a este teléfono…</string>
+    <string name="svc_use_this_phone_failed">No se pudo conectar con FenceFlow para cambiar de teléfono. Revisa la conexión e inténtalo de nuevo.</string>
     <string name="sync_failed">No se pudo conectar a la nube</string>
     <string name="sync_local_only">Guardando solo en este teléfono</string>
     <string name="sync_explain">Tus trabajos se guardan automáticamente: al hacer un cambio, al abrir la app y cada cierto tiempo en segundo plano. Todo funciona sin conexión; los cambios se suben cuando haya señal.</string>
@@ -241,6 +248,7 @@
     <string name="draw_closed_perimeter">Perímetro cerrado (sin extremos abiertos)</string>
     <string name="draw_undo">Deshacer</string>
     <string name="draw_undo_nothing_to_undo">Nada que deshacer en esta línea todavía</string>
+    <string name="draw_undo_drawing_changed">Este dibujo cambió desde otro dispositivo, así que aquí no hay nada que deshacer.</string>
     <string name="seg_len_title">Fijar esta longitud</string>
     <string name="snap_toggle">Ajuste</string>
     <string name="snap_help">Esquinas, ángulos rectos y pies enteros</string>
@@ -493,6 +501,8 @@
     <string name="acct_access_give_carefully">Otorga estos con cuidado</string>
     <string name="jd_new_job">Trabajo nuevo</string>
     <string name="jd_saved_automatically">Se guarda automáticamente mientras escribes.</string>
+    <string name="jd_customer_read_only">Solo la oficina puede cambiar los datos del cliente.</string>
+    <string name="jd_not_given">Sin indicar</string>
     <string name="jd_save_and_close">Guardar y cerrar</string>
     <string name="jd_open_crew_view">Abrir vista de cuadrilla del día</string>
     <string name="jd_inventory_checklist">Lista de materiales y herramientas del día</string>
@@ -577,6 +587,9 @@
     <string name="jd_paid_use_record">Usa Registrar un pago, abajo</string>
     <string name="jd_refunded_amount">Reembolsado: $%1$s</string>
     <string name="jd_set_deposit_covers">Poner depósito de $%1$s (cubre materiales)</string>
+    <string name="jd_set_deposit_capped">Poner depósito de $%1$s (todo lo que aún se debe)</string>
+    <string name="jd_accepted_price">Precio aceptado</string>
+    <string name="jd_accepted_vs_estimate">El presupuesto ahora suma $%1$s. Al cliente se le cobra el precio que aceptó; cualquier cambio pasa por una orden de cambio firmada o una nueva aprobación.</string>
     <string name="jd_materials_partly_paid">Los materiales suman $%1$s y se han pagado $%2$s, así que faltan $%3$s para cubrirlos. Redondeado a los siguientes $10.</string>
     <string name="jd_materials_come_to">Los materiales de este presupuesto suman $%1$s. Redondeado a los siguientes $10.</string>
     <string name="jd_contract_total">Total del contrato (según el presupuesto)</string>
@@ -1646,6 +1659,8 @@
     <string name="ntf_new_job_body">Tu equipo agregó %1$s.</string>
     <string name="ntf_job_complete_title">Trabajo marcado como completado</string>
     <string name="ntf_job_complete_body">La cuadrilla terminó %1$s.</string>
+    <string name="ntf_quote_accepted_title">Presupuesto aceptado</string>
+    <string name="ntf_quote_accepted_body">%1$s aceptó el presupuesto.</string>
     <string name="ntf_assigned_title">Te asignaron un trabajo</string>
     <string name="ntf_assigned_body">Estás en %1$s.</string>
     <string name="eng2_reason_price_moved">el precio pasó de $%1$s a $%2$s</string>
@@ -1692,6 +1707,14 @@
     <string name="evm_saved_some_catalog">Guardado. Algunas líneas siguen usando el estimado del catálogo.</string>
     <string name="evm_replaced_lines">Reemplazado con %1$d líneas.</string>
     <string name="evm_replaced_lines_check">Reemplazado con %1$d líneas. Revisa: %2$s</string>
+    <string name="evm_replaced_lines_kept">Reemplazado con %1$d líneas. Se conservaron %2$d que cambiaste a mano.</string>
+    <string name="evm_replaced_lines_kept_check">Reemplazado con %1$d líneas. Se conservaron %2$d que cambiaste a mano. Revisa: %3$s</string>
+    <string name="est_line_edited">Cambiado a mano. Conserva este número cuando cambia el dibujo.</string>
+    <string name="est_use_suggested">Usar lo sugerido</string>
+    <string name="est_delete_needs_permission">Para eliminar una línea que cambiaste o escribiste necesitas el permiso de eliminar.</string>
+    <string name="sync_crew_unsent_summary">Cambiado en un teléfono del equipo pero no guardado: %1$s</string>
+    <string name="sync_delete_refused_title">Algo que eliminaste volvió</string>
+    <string name="sync_delete_refused_body">Para eliminarlo se necesita el permiso de eliminar, así que se restauró. Pídele al dueño que lo elimine.</string>
 
     <!-- Crew fence plan. The crew screen carries the site rules, so it is
          the last place that should have been English only. -->
@@ -1699,6 +1722,7 @@
     <string name="crew_plan_debris_rule">Las hojas y los escombros sueltos nos toca limpiarlos. Todo lo que necesite herramienta — arbustos, maceteros, cobertizos, ramas, postes viejos — es del cliente, o va en una orden de cambio. No lo quites sin preguntar.</string>
     <string name="crew_plan_legend_build">Línea de cerca y postes</string>
     <string name="crew_plan_legend_teardown">Cerca que se retira</string>
+    <string name="crew_plan_legend_gate">Portón</string>
     <string name="crew_plan_run_untitled">Tramo de cerca</string>
     <string name="crew_plan_not_measured">Este tramo aún no tiene medidas — consulta con la oficina antes de empezar.</string>
     <string name="crew_plan_spec_type">Tipo</string>
@@ -1718,6 +1742,8 @@
     <string name="crew_plan_something_wrong">¿Algo no cuadra?</string>
     <string name="crew_plan_office_has_it">Guardado en este teléfono. Llega a la oficina en cuanto tengas señal. Sigue con el resto del trabajo mientras esperas.</string>
     <string name="crew_plan_ask_office">Pregunta a la oficina antes de construirlo distinto. Lo verán de inmediato.</string>
+    <string name="crew_plan_not_sent">Solicitud no enviada</string>
+    <string name="crew_plan_job_gone">Este trabajo ya no está en este teléfono, así que la solicitud no tenía a qué ir unida y no se guardó. Puede que la oficina lo haya quitado o te haya sacado de él. Pregúntales directamente.</string>
 
     <!-- Removing a line from the on-site materials checklist. It says what it
          does NOT do, because a delete button beside a camera button is easy
@@ -1756,4 +1782,103 @@
     <string name="reapproval_warn_editing">Cambiar el plano cancelará la aprobación del cliente, y tendrá que aprobarlo de nuevo.</string>
     <string name="reapproval_warn_editing_dismiss">Seguir editando</string>
     <string name="reapproval_do_not_build">No construya todavía: esperando que el cliente apruebe el cambio.</string>
+
+    <!-- Personal Settings: the screen for everyone without "Change catalog
+         and settings" (crew by default). Device-only choices; see
+         PersonalSettingsScreen.kt. Typographic apostrophes, not escaped
+         straight ones: see the note on gate_offline_too_long in values/. -->
+    <string name="pset_intro">Estos ajustes son solo para este teléfono, y cada uno se guarda en cuanto lo cambias. De los ajustes de la empresa, como los datos del negocio, el catálogo y las plantillas de correo, se encarga el propietario o un gerente.</string>
+    <string name="pset_language_note">Solo cambia este teléfono. Los demás miembros del equipo conservan su propio idioma.</string>
+    <string name="pset_group_account">Tu cuenta</string>
+    <string name="pset_account_title">Cuenta</string>
+    <string name="pset_account_explain">Quién ha iniciado sesión en este teléfono, tu nivel de acceso, la sincronización con la nube y el cierre de sesión.</string>
+    <string name="pset_open_account">Abrir cuenta</string>
+
+    <!-- Crew see the jobs they are on, and ask for the rest
+         (supabase_crew_job_scope.sql). See ui/jobs/JobScopeUi.kt.
+         Typographic apostrophes and quotes: see the note on
+         gate_offline_too_long in values/. -->
+    <string name="jobs_empty_office_adds">Los trabajos aparecen aquí cuando la oficina los agrega.</string>
+    <string name="jobs_access_requests_waiting">Solicitudes de acceso pendientes: %1$d</string>
+    <string name="jobs_access_requests_waiting_body">Miembros de la cuadrilla pidieron ver trabajos en los que no están. Toca para responder.</string>
+    <string name="jobs_scope_not_linked">Tu usuario aún no está vinculado a un miembro de la cuadrilla — pídeselo a la oficina.</string>
+    <string name="jobs_scope_not_linked_body">Hasta entonces no puede llegar ningún trabajo a este teléfono. La sincronización funciona bien y no se pierde nada de este teléfono.</string>
+    <string name="jobs_scope_none_assigned">Aún no tienes trabajos asignados</string>
+    <string name="jobs_scope_none_assigned_body">Los trabajos que te asigne la oficina aparecerán aquí solos. También puedes pedir uno abajo.</string>
+    <string name="jobs_scope_on_the_way">Tus trabajos están en camino</string>
+    <string name="jobs_scope_on_the_way_body">La oficina te asignó trabajo que este teléfono aún no ha recibido. Llega con la próxima sincronización; desliza hacia abajo para traerlo ahora.</string>
+    <string name="jobs_other_jobs_request">Otros trabajos — pedir acceso</string>
+    <string name="jobs_other_jobs_request_body">Mira el resto del trabajo de la empresa y pide que te den acceso.</string>
+    <string name="jobs_kept_title">Guardados en este teléfono</string>
+    <string name="jobs_kept_body">Ya no estás asignado. Lo que aún no se ha enviado se queda aquí; pide acceso para enviarlo. Un turno en curso todavía se puede cerrar.</string>
+    <string name="jobs_kept_unsent">Tiene cambios sin enviar</string>
+    <string name="access_needs_connection">Necesita conexión.</string>
+    <string name="access_refused_ask_not_allowed">Este usuario no puede pedir trabajos. Consulta con la oficina.</string>
+    <string name="access_refused_answer_not_allowed">No permitido. Responder solicitudes requiere “Programar trabajo y asignar cuadrilla”, y nadie responde su propia solicitud.</string>
+    <string name="access_refused_crew_not_allowed">No permitido. Cambiar quién está en un trabajo requiere “Programar trabajo y asignar cuadrilla”.</string>
+    <string name="access_refused_ask_not_found">Ese trabajo ya no se puede pedir.</string>
+    <string name="access_refused_answer_not_found">Esa solicitud ya no existe.</string>
+    <string name="access_refused_crew_not_found">Este trabajo aún no ha llegado a la oficina. Inténtalo de nuevo cuando se haya sincronizado.</string>
+    <string name="access_refused_nothing_to_ask">No hay nada que pedir: ya puedes ver ese trabajo. Desliza hacia abajo en la lista de trabajos para traerlo.</string>
+    <string name="access_refused_limit">Has pedido muchos trabajos a la vez. Espera a que la oficina responda algunos y vuelve a intentarlo.</string>
+    <string name="access_refused_signed_out">Tu sesión ha caducado. Abre Cuenta e inicia sesión de nuevo.</string>
+    <string name="access_refused_not_available">Pedir otros trabajos aún no está activado para tu empresa.</string>
+    <string name="access_refused_failed">No se pudo completar. Inténtalo de nuevo en un momento.</string>
+    <string name="access_request_sent">Pedido. La oficina verá tu solicitud.</string>
+    <string name="access_request_withdrawn">Solicitud retirada.</string>
+    <string name="access_request_already_answered">La oficina ya había respondido esa solicitud.</string>
+    <string name="access_request_title">Otros trabajos</string>
+    <string name="access_refresh">Actualizar</string>
+    <string name="access_request_intro">Trabajos ganados en los que no estás. Pide uno y la oficina decide; si dice que sí, llega a tu teléfono solo.</string>
+    <string name="access_request_offline">La lista de otros trabajos la guarda la oficina. Conéctate para verla y pedir.</string>
+    <string name="access_try_again">Reintentar</string>
+    <string name="access_request_none">No hay otros trabajos que pedir ahora mismo.</string>
+    <string name="access_chip_waiting">Pedido</string>
+    <string name="access_chip_declined">Rechazado</string>
+    <string name="access_scheduled_on">Programado: %1$s</string>
+    <string name="access_no_date">Sin fecha aún</string>
+    <string name="access_office_note">Oficina: %1$s</string>
+    <string name="access_ask_again">Pedir otra vez</string>
+    <string name="access_request_button">Pedir acceso</string>
+    <string name="access_withdraw">Retirar</string>
+    <string name="access_ask_title">¿Pedir %1$s?</string>
+    <string name="access_ask_body">La oficina ve quién pidió y por qué. El motivo es opcional.</string>
+    <string name="access_reason_label">Motivo (opcional)</string>
+    <string name="access_reason_count">%1$d / %2$d</string>
+    <string name="access_send_request">Enviar solicitud</string>
+    <string name="access_already_answered_other">Alguien ya había respondido esa solicitud.</string>
+    <string name="access_approved">Aprobado. El trabajo llega a su teléfono en la próxima sincronización.</string>
+    <string name="access_declined">Rechazado.</string>
+    <string name="access_answer_title">Solicitudes de acceso</string>
+    <string name="access_answer_intro">Miembros de la cuadrilla que piden ver un trabajo en el que no están. Aprobar deja que esa persona vea ese único trabajo; puedes quitarla después desde la pantalla del trabajo.</string>
+    <string name="access_answer_offline">Las solicitudes se responden en el servidor. Conéctate para verlas y responder.</string>
+    <string name="access_answer_none">Nadie espera respuesta.</string>
+    <string name="access_someone">Un miembro de la cuadrilla</string>
+    <string name="access_asked_by">%1$s pidió acceso</string>
+    <string name="access_job_not_here">Un trabajo que aún no está en este teléfono</string>
+    <string name="access_their_reason">Motivo: %1$s</string>
+    <string name="access_approve">Aprobar</string>
+    <string name="access_decline">Rechazar</string>
+    <string name="access_decline_title">¿Rechazar la solicitud de %1$s?</string>
+    <string name="access_decline_note_label">Nota para esa persona (opcional)</string>
+    <string name="job_crew_added">Agregado. Verá este trabajo en su próxima sincronización.</string>
+    <string name="job_crew_removed">Quitado de este trabajo.</string>
+    <string name="job_crew_already_off">Ya no estaba en este trabajo.</string>
+    <string name="job_crew_offline">Necesita conexión para cambiar quién está en este trabajo.</string>
+    <string name="job_crew_also_on">También en este trabajo</string>
+    <string name="job_crew_nobody_else">Nadie más todavía.</string>
+    <string name="job_crew_let_in">con acceso por solicitud</string>
+    <string name="job_crew_no_login_short">sin usuario de la app vinculado</string>
+    <string name="job_crew_remove">Quitar a %1$s de este trabajo</string>
+    <string name="job_crew_add">Agregar a la cuadrilla</string>
+    <string name="job_crew_asked">Pidieron ver este trabajo</string>
+    <string name="job_crew_no_login">%1$s no tiene un usuario de la app vinculado, así que este trabajo no llegará a su teléfono. Vincúlalo desde la pestaña Cuadrilla de la oficina.</string>
+    <string name="crew_kept_title">Ya no estás asignado a este trabajo</string>
+    <string name="crew_kept_body">La oficina te quitó de este trabajo. Se queda en este teléfono con todo lo que aún no se ha enviado, y un turno en curso todavía se puede cerrar. Pide acceso para volver a trabajar en él.</string>
+    <string name="crew_kept_no_clock_in">No se puede marcar la entrada: ya no estás en este trabajo.</string>
+    <string name="crew_stage_not_yours">Ya no estás en este trabajo, así que su etapa no se puede mover desde este teléfono.</string>
+    <string name="startup_settling_title">FenceFlow está terminando una actualización</string>
+    <string name="startup_settling_body">Cierra FenceFlow y vuelve a abrirlo en un momento. No pudo iniciarse mientras la actualización todavía se estaba instalando.</string>
+    <string name="startup_settling_nothing_lost">No se cambió ni se perdió nada en este teléfono.</string>
+    <string name="startup_settling_close">Cerrar FenceFlow</string>
 </resources>

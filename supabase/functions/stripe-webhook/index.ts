@@ -8,6 +8,7 @@
 // The signature check below is what authenticates the caller instead.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { recordRefund, minorToMajor } from "../_shared/record-payment.ts";
+import { moneyDevices } from "../_shared/push-recipients.ts";
 
 /**
  * A money write that is allowed to fail loudly.
@@ -254,11 +255,17 @@ async function applyPaymentToJob(admin: any, payment: any) {
 }
 
 /**
- * Tells the company's phones that money is being taken back.
+ * Tells the phones of the people who may see money that money is being taken
+ * back.
  *
  * Reuses the payment notifier's channel rather than inventing a quieter one. A
  * chargeback is more urgent than an arrival, and a company that turned
  * notifications on has already said how it wants to hear about money.
+ *
+ * Every push in this file carries an amount, so every one goes through
+ * moneyDevices: SEE_MONEY holders only (../_shared/push-recipients.ts). Until
+ * 2026-09-22 all three read every device in the company, crew phones
+ * included, and put the figure in front of people the app never shows it to.
  *
  * Failures are swallowed for the same reason they are in notifyPaid: the
  * webhook must not fail for want of a push. If it did, Stripe would retry the
@@ -277,9 +284,8 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
-  const { data: devices } = await admin.from("device_tokens")
-    .select("token").eq("company_id", companyId);
-  if (!devices?.length) return;
+  const devices = await moneyDevices(admin, companyId);
+  if (!devices.length) return;
 
   const sa = JSON.parse(raw);
   const token = await fcmAccessToken(sa);
@@ -299,7 +305,8 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
 }
 
 /**
- * Tells the company's phones a customer's card did not go through.
+ * Tells the phones of the people who may see money that a customer's card
+ * did not go through (moneyDevices, as above).
  *
  * Reuses the same channel as an arrival or a dispute rather than a quieter
  * one, for the reason above the case that calls this: silence is what a
@@ -312,9 +319,8 @@ async function notifyPaymentFailed(admin: any, companyId: string, amount: number
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
-  const { data: devices } = await admin.from("device_tokens")
-    .select("token").eq("company_id", companyId);
-  if (!devices?.length) return;
+  const devices = await moneyDevices(admin, companyId);
+  if (!devices.length) return;
 
   const sa = JSON.parse(raw);
   const token = await fcmAccessToken(sa);
@@ -333,14 +339,14 @@ async function notifyPaymentFailed(admin: any, companyId: string, amount: number
   }
 }
 
-/** Tells the company's phones that money arrived, and how much. */
+/** Tells the phones of the people who may see money that money arrived, and
+ *  how much (moneyDevices, as above). */
 async function notifyPaid(admin: any, job: any, justPaid: number, totalPaid: number) {
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
 
-  const { data: devices } = await admin.from("device_tokens")
-    .select("token").eq("company_id", job.company_id);
-  if (!devices?.length) return;
+  const devices = await moneyDevices(admin, job.company_id);
+  if (!devices.length) return;
 
   const sa = JSON.parse(raw);
   const token = await fcmAccessToken(sa);

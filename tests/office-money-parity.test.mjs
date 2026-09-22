@@ -15,6 +15,9 @@
 //     balance, not disappear into "$0 owed".
 //   - contractTotalOf prefers jobs.contract_total; falls back to
 //     materials + change orders only when contract_total is absent.
+//   - ...and once the customer has accepted, it is the accepted price
+//     (billableTotalOf), whatever contract_total has drifted to. The rule
+//     itself is tested in tests/office-accepted-price.test.mjs.
 //
 //   node tests/office-money-parity.test.mjs
 
@@ -35,8 +38,10 @@ const grab = (name) => {
 // contractTotalOf closes over the page-level `items` and `orders` arrays
 // rather than taking them as parameters, so the harness supplies them as
 // function-local variables the extracted body can see, then hands back a
-// wrapper that lets the test set them per-case.
-const code = ['netPaid', 'balanceOf', 'stillOwed', 'contractTotalOf'].map(grab).join('\n\n');
+// wrapper that lets the test set them per-case. The accepted-price helpers it
+// now asks first are lifted with it.
+const code = ['netPaid', 'balanceOf', 'stillOwed', 'stampMs', 'anchoredTotalOf', 'billableTotalOf',
+  'anchorOrdersOf', 'contractTotalOf'].map(grab).join('\n\n');
 const factory = new Function(
   'items', 'orders',
   code + '\nreturn {netPaid, balanceOf, stillOwed, contractTotalOf};'
@@ -107,6 +112,23 @@ const eq = (label, got, want) => {
 
   eq('fallback with nothing on the job at all is zero, not NaN or undefined',
     M2.contractTotalOf({ sync_id: 'nope', contract_total: null }), 0);
+
+  // Accepted at $3,620, and contract_total has since drifted to $200 (Woody's
+  // shape): the accepted price wins, and the page's own change orders -- one
+  // covered by the acceptance, one signed after it -- are read from `orders`.
+  const woody = { sync_id: 'j3', contract_total: 200, accepted_total: 3620,
+    signed_at: '2026-09-01T12:00:00Z', quote_approved_at: null, reapproval_required_at: null };
+  const M3 = factory([], [
+    { job_sync_id: 'j3', additional_cost: 900, signed_at: '2026-09-02T12:00:00Z', in_accepted_total: true },
+    { job_sync_id: 'j3', additional_cost: 455, signed_at: '2026-09-03T12:00:00Z', in_accepted_total: false },
+    { job_sync_id: 'other', additional_cost: 5000, signed_at: '2026-09-03T12:00:00Z', in_accepted_total: false },
+  ]);
+  eq('an accepted job totals the accepted price plus the order signed since, not the drifted contract_total',
+    M3.contractTotalOf(woody), 3620 + 455);
+  eq('PLANTED FAILURE: the drifted contract_total is a different figure (proves the case can fail)',
+    M3.contractTotalOf(woody) !== Number(woody.contract_total), true);
+  eq('a re-approval pending puts it back on the live figure',
+    M3.contractTotalOf({ ...woody, reapproval_required_at: '2026-09-04T12:00:00Z' }), 200);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

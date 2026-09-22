@@ -18,9 +18,9 @@ import kotlinx.coroutines.withContext
         Manufacturer::class, PricingTier::class, JobPhoto::class, InventoryChecklistItem::class,
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
-        PaymentRecord::class, BuildTemplate::class, JobPayShare::class
+        PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class
     ],
-    version = 43,
+    version = 44,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -46,6 +46,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun paymentRecordDao(): PaymentRecordDao
     abstract fun buildTemplateDao(): BuildTemplateDao
     abstract fun jobPayShareDao(): JobPayShareDao
+    abstract fun pendingResurrectionDao(): PendingResurrectionDao
 
     /** Flushes the write-ahead log into the main .db file so a raw file copy is complete and consistent. */
     suspend fun checkpoint() = withContext(Dispatchers.IO) {
@@ -732,13 +733,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** See [SchemaV44] for what each statement is for. */
+        private val MIGRATION_43_44 = object : Migration(43, 44) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV44.MIGRATION_43_44_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -759,4 +767,56 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
     }
+}
+
+/**
+ * The 43 -> 44 upgrade, as data, so a JVM test (SchemaV44Test) can hold it to
+ * the entities without a device. Kept outside [AppDatabase] so reading it
+ * loads nothing of Room. Every statement is additive -- no row is deleted, and
+ * the one UPDATE only marks rows, it changes no value anybody sees. Room runs
+ * a migration inside the upgrade transaction, so a phone killed half way
+ * through comes back at 43 and runs the whole list again.
+ */
+internal object SchemaV44 {
+    val MIGRATION_43_44_STATEMENTS: List<String> = listOf(
+        // Job.acceptedTotal: the price the customer accepted, pulled from
+        // jobs.accepted_total or frozen by a drawn signature. NULL for every
+        // existing row on purpose -- null means "nothing anchors this price",
+        // which is exactly how every job behaved before, so no accepted job
+        // starts billing a different figure because the app updated. A
+        // backfill from signed_contract_total is the owner's decision (a
+        // server-side update the phones then pull), not a migration's.
+        "ALTER TABLE `jobs` ADD COLUMN `acceptedTotal` REAL",
+        // Job.crewBase: what the row serialized to when this phone last took
+        // the cloud's copy. Null for every existing job, which the crew push
+        // reads as "cannot tell what changed here" and so sends what it always
+        // sent -- the first push after the upgrade loses nothing.
+        "ALTER TABLE `jobs` ADD COLUMN `crewBase` TEXT",
+        // Job.accessEndedAt: when this phone stopped receiving the job
+        // because its person was taken off it. Null for every existing job --
+        // each one is on this phone because the cloud handed it over, so
+        // every one starts visible, and the first crew-scoped sync hides only
+        // the ones that no longer arrive. Hidden, never deleted: see the field.
+        "ALTER TABLE `jobs` ADD COLUMN `accessEndedAt` INTEGER",
+        // EstimateLineItem.pendingPush: a line changed here that the cloud has
+        // not taken yet. Only these go up now (they all went up on every pass,
+        // which is how two phones overwrote each other's quantities for ever).
+        "ALTER TABLE `estimate_line_items` ADD COLUMN `pendingPush` INTEGER NOT NULL DEFAULT 0",
+        // ...and every line already on the phone counts as waiting, once. An
+        // edit typed offline before this update has no other record that it
+        // never went up; pushing a line the cloud already has is harmless, and
+        // is exactly what every pass did until now.
+        "UPDATE `estimate_line_items` SET `pendingPush` = 1",
+        // PendingResurrection: takeoff lines regenerated under a sync id the
+        // cloud may hold tombstoned, which the next sync must revive rather
+        // than reap. Was a list in memory; lost with the process.
+        "CREATE TABLE IF NOT EXISTS `pending_resurrections` (" +
+            "`syncId` TEXT PRIMARY KEY NOT NULL, " +
+            "`queuedAt` INTEGER NOT NULL )",
+        // ChangeOrder.inAcceptedTotal: the order was part of a price the
+        // customer accepted, so it is never added on top of that price again.
+        // False for every existing order: nothing on this phone recorded which
+        // orders an acceptance covered, and the server marks the ones it can.
+        "ALTER TABLE `change_orders` ADD COLUMN `inAcceptedTotal` INTEGER NOT NULL DEFAULT 0"
+    )
 }

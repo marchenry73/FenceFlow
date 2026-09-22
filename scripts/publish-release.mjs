@@ -131,11 +131,15 @@ if (!notes) {
     // sitting on top of it, which is where a wrong number reaches a customer.
     ["posts, concrete, waste and tax", [join(REPO_ROOT, "tests", "downstream-posts-concrete-waste-tax.test.mjs")], "tsx"],
     ["deposit and balance", [join(REPO_ROOT, "tests", "downstream-deposit-balance.test.mjs")], "tsx"],
+    // The office's copy of the accepted price, checked against the server's
+    // own billableTotal() and depositFigures(): the price every owed figure,
+    // report and invoice export on the office site bills against.
+    ["accepted price at the office", [join(REPO_ROOT, "tests", "office-accepted-price.test.mjs")], "tsx"],
     ["pay and overtime", [join(REPO_ROOT, "tests", "downstream-pay-overtime.test.mjs")], "tsx"],
     ["job costing", [join(REPO_ROOT, "tests", "downstream-job-costing.test.mjs")]],
   ];
   for (const [name, argv, runner] of gates) {
-    // Three of these import TypeScript straight from the edge functions, which
+    // Four of these import TypeScript straight from the edge functions, which
     // is the whole point -- they test the real shared pricing code rather than
     // a copy of it -- so they need a loader node does not have on its own.
     const gate = runner === "tsx"

@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
-import { depositFigures } from "../supabase/functions/_shared/quote-deposit.ts";
+import * as quoteDeposit from "../supabase/functions/_shared/quote-deposit.ts";
 
 const FN_PATH = new URL("../supabase/functions/create-payment-link/index.ts", import.meta.url);
 
@@ -35,11 +35,22 @@ const TOKEN = "b0000000-0000-4000-8000-00000000000b";
 function load({ env = {}, db, fetchImpl, plant = {} }) {
   const src = readFileSync(FN_PATH, "utf8");
   let js = stripTypeScriptTypes(src);
-  const imports = js.match(/^import .*$/gm) ?? [];
-  // Exactly the two this harness supplies. A new import means the harness no
+  // createClient from supabase-js, and names from the REAL shared deposit
+  // module -- nothing else. An import from anywhere else means the harness no
   // longer describes the file, and a quiet pass would be a lie.
-  assert.deepEqual(imports.map((l) => l.match(/import \{ (\w+) \}/)?.[1]), ["createClient", "depositFigures"]);
-  js = js.replace(/^import .*$/gm, "").replace(/^export /gm, "");
+  const importRe = /^import\s*\{([\s\S]*?)\}\s*from\s*"([^"]+)";?[ \t]*$/gm;
+  const shared = {};
+  for (const [, list, from] of js.matchAll(importRe)) {
+    const names = list.split(",").map((n) => n.trim()).filter(Boolean);
+    if (/supabase-js/.test(from)) assert.deepEqual(names, ["createClient"]);
+    else if (from === "../_shared/quote-deposit.ts") {
+      for (const n of names) { assert.ok(n in quoteDeposit, `no ${n} in the shared module`); shared[n] = quoteDeposit[n]; }
+    } else assert.fail(`an import the harness does not supply: ${from}`);
+  }
+  assert.ok(shared.depositFigures, "the function no longer imports depositFigures");
+  js = js.replace(importRe, "").replace(/^export /gm, "");
+  assert.doesNotMatch(js, /^import /m);
+  const sharedNames = Object.keys(shared);
   const planted = Object.entries(plant).map(([name, body]) => {
     assert.match(js, new RegExp(`^(async )?function ${name}\\(`, "m"), `nothing called ${name} to plant over`);
     return `${name} = ${body};`;
@@ -49,10 +60,10 @@ function load({ env = {}, db, fetchImpl, plant = {} }) {
     env: { get: (k) => env[k] },
     serve: (h) => { handler = h; },
   };
-  const api = new Function("Deno", "createClient", "depositFigures", "fetch",
+  const api = new Function("Deno", "createClient", "fetch", ...sharedNames,
     js + "\n" + planted +
     "\nreturn { planOpenLinks, supersedeOpenLinks, stillTakesMoney, sameModeAsKey, pickReusableLink };",
-  )(Deno, () => db, depositFigures, fetchImpl);
+  )(Deno, () => db, fetchImpl, ...sharedNames.map((n) => shared[n]));
   assert.equal(typeof handler, "function", "Deno.serve was never called");
   return { handler, ...api };
 }

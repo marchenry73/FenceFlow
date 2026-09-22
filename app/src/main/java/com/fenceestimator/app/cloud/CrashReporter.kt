@@ -24,7 +24,13 @@ internal data class CloudError(
     val fatal: Boolean = true,
     @SerialName("where_at") val whereAt: String = "",
     val message: String = "",
-    val stack: String = ""
+    val stack: String = "",
+    /**
+     * Field 9 of the pending record: when it happened on the phone. Never
+     * sent as a column -- app_errors has none, and an unknown column fails
+     * the whole insert -- only folded into [stack] on upload.
+     */
+    @kotlinx.serialization.Transient val recordedAt: Long = 0L
 )
 
 /**
@@ -54,6 +60,9 @@ object CrashReporter {
 
     /** Cap the file so a crash loop cannot fill a phone's storage. */
     private const val MAX_PENDING = 20
+
+    /** Places at the end of the file only a fatal crash may take. See [appendTo]. */
+    private const val FATAL_RESERVE = 5
 
     /** Field divider inside one record. Chosen because no stack trace contains it. */
     private val FIELD: Char = Char(1)
@@ -115,8 +124,66 @@ object CrashReporter {
      * failing, a PDF that will not render. Those never surface otherwise.
      */
     fun report(context: Context, where: String, error: Throwable) {
+        if (!isWorthReporting(error)) return
+        if (!firstThisRun(where, error)) return
         runCatching { writePending(context.applicationContext, error, fatal = false, where = where) }
     }
+
+    /**
+     * Whether a survivable failure says anything about the app.
+     *
+     * Two kinds never do. A cancellation is a coroutine being told to stop --
+     * the person left the screen -- and "The coroutine scope left the
+     * composition" reached the admin page as a quote-link failure (1.279)
+     * for exactly that. And a lost connection is the phone, not the code:
+     * see [SyncFailure.isTransientNetwork]. Everything else is reported.
+     */
+    internal fun isWorthReporting(error: Throwable): Boolean =
+        error !is kotlinx.coroutines.CancellationException && !SyncFailure.isTransientNetwork(error)
+
+    /** Signatures of the non-fatal reports already written by this process. */
+    private val reportedThisRun: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /**
+     * Once per process for the same failure in the same place.
+     *
+     * Sync reports once per pass, and a pass runs every minute while the app
+     * is open, so one fault that nobody had fixed yet filed 157 identical
+     * "push time_entries: 2 of 7 rows rejected" rows -- and, worse, filled
+     * the pending file to its cap, where anything after them (a real crash
+     * included) was dropped unwritten. One per run still says how many runs
+     * it hit, which is the number worth knowing.
+     */
+    internal fun firstThisRun(where: String, error: Throwable): Boolean =
+        reportedThisRun.add(signature(where, error.message ?: error::class.java.simpleName))
+
+    /**
+     * A failure's identity with the parts that vary between occurrences
+     * taken out: numbers (a JSON offset, a row count, a port), hex ids (the
+     * "@2383c8e" of a coroutine handler), uuids and query strings. Without
+     * this, "offset 1636" and "offset 686" of one decoding bug read as two.
+     */
+    internal fun signature(where: String, message: String): String =
+        where + FIELD + message
+            .replace(Regex("""\?\S*"""), "?")
+            .replace(Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"""), "#")
+            .replace(Regex("""@[0-9a-fA-F]+"""), "@#")
+            .replace(Regex("""\d+"""), "#")
+            .take(300)
+
+    /**
+     * What a stack or message must never carry up: the session's access
+     * token. postgrest-kt 3.0.2 puts the request headers in every
+     * RestException's message -- Authorization: Bearer and all -- so each
+     * refused row sent a live token (an hour's worth of this person's
+     * access) to app_errors, readable on the admin page. Redacted before the
+     * record is even written to disk, and again on the way up for records an
+     * older build wrote ([forUpload]). The publishable apikey beside it is
+     * public by design and left alone.
+     */
+    internal fun redact(text: String): String =
+        text.replace(Regex("""(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"""), "$1<redacted>")
+            .replace(Regex("""eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+"""), "<redacted-jwt>")
 
     private fun writePending(
         context: Context,
@@ -147,24 +214,44 @@ object CrashReporter {
         // 1.502's first launch -- same stack, same R8 line, one timestamp --
         // and they sent a whole investigation after a bug 1.502 did not have.
         versionCode: Int = 0,
-        versionName: String = ""
+        versionName: String = "",
+        // Field 9: when it happened, by this phone's clock. app_errors.at is
+        // stamped when the row ARRIVES, a launch or more later, so seven
+        // startup crashes from one crew phone all read 19:32:13 -- the moment
+        // of the upload -- and looked like one burst. Shown at the top of the
+        // stack on upload (see [stackWithTime]); the row's own `at` is left as
+        // the server's clock, which a phone cannot set wrong.
+        recordedAt: Long = System.currentTimeMillis()
     ) {
-        if (file.exists() && file.readText().split(RECORD_SEPARATOR).size > MAX_PENDING) return
+        // A fatal crash may use the last few places; a non-fatal one may not.
+        // The file used to be first come, first kept, so a run of sync notes
+        // filled it and the crash that mattered was the one thrown away.
+        val cap = if (fatal) MAX_PENDING else MAX_PENDING - FATAL_RESERVE
+        if (file.exists() && file.readText().split(RECORD_SEPARATOR).size > cap) return
 
-        val stack = StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()
+        val stack = redact(StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString())
         val record = buildString {
             append(if (fatal) "FATAL" else "NONFATAL").append(FIELD)
             append(where.replace(FIELD, ' ')).append(FIELD)
-            append((error.message ?: error::class.java.simpleName).take(400).replace(FIELD, ' ')).append(FIELD)
+            append(redact(error.message ?: error::class.java.simpleName).take(400).replace(FIELD, ' ')).append(FIELD)
             append(stack.take(8000)).append(FIELD)
             // Fields 5 and 6: who it happened to, as of this moment.
             append(currentEmail.replace(FIELD, ' ')).append(FIELD)
             append(currentCompanyId.replace(FIELD, ' ')).append(FIELD)
             append(versionCode.toString()).append(FIELD)
-            append(versionName.replace(FIELD, ' '))
+            append(versionName.replace(FIELD, ' ')).append(FIELD)
+            append(recordedAt.toString())
         }
         file.appendText(record + RECORD_SEPARATOR)
     }
+
+    /**
+     * The stack as uploaded: when it happened on the phone, then the trace.
+     * A record from before field 9 existed goes up exactly as it was.
+     */
+    internal fun stackWithTime(stack: String, recordedAt: Long?): String =
+        if (recordedAt == null || recordedAt <= 0L) stack
+        else "Happened at ${java.time.Instant.ofEpochMilli(recordedAt)} (phone clock); uploaded later.\n$stack"
 
     /**
      * Sends anything waiting, then forgets it.
@@ -188,17 +275,7 @@ object CrashReporter {
 
             val device = "Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}"
             val records = parse(file.readText()).map {
-                it.copy(
-                    // The record's own stamp wins; the upload-time session is
-                    // only a fallback for records written before stamping.
-                    companyId = it.companyId ?: companyId,
-                    email = it.email.ifBlank { email.orEmpty() },
-                    // The record's own build wins; the uploading build is only
-                    // a fallback for records written before it was stamped.
-                    versionCode = it.versionCode.takeIf { code -> code != 0 } ?: BuildConfig.VERSION_CODE,
-                    versionName = it.versionName.ifBlank { BuildConfig.VERSION_NAME },
-                    android = device
-                )
+                forUpload(it, companyId, email, BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME, device)
             }
             if (records.isEmpty()) { file.delete(); return@withContext }
 
@@ -207,6 +284,38 @@ object CrashReporter {
             // to a dropped connection, which is exactly when crashes cluster.
             file.delete()
         }
+
+    /**
+     * One pending record as it goes up. Split out of [upload] so a test can
+     * hold it to what it sends.
+     *
+     * Redacted again here, not only when written: [appendTo] has redacted
+     * since this build, but the file on a phone was written by whatever build
+     * it ran before, and 29 of the 80 app_errors rows from 2026-09-18 to
+     * 09-21 carried a live bearer token. Uploaded untouched, every queued one
+     * would reach app_errors on this build's first launch -- within the
+     * token's hour, as often as not.
+     */
+    internal fun forUpload(
+        record: CloudError,
+        companyId: String?,
+        email: String?,
+        versionCode: Int,
+        versionName: String,
+        device: String
+    ): CloudError = record.copy(
+        // The record's own stamp wins; the upload-time session is
+        // only a fallback for records written before stamping.
+        companyId = record.companyId ?: companyId,
+        email = record.email.ifBlank { email.orEmpty() },
+        // The record's own build wins; the uploading build is only
+        // a fallback for records written before it was stamped.
+        versionCode = record.versionCode.takeIf { code -> code != 0 } ?: versionCode,
+        versionName = record.versionName.ifBlank { versionName },
+        android = device,
+        message = redact(record.message),
+        stack = stackWithTime(redact(record.stack), record.recordedAt)
+    )
 
     /**
      * Reads records back. Anything malformed is dropped rather than thrown on:
@@ -227,7 +336,8 @@ object CrashReporter {
                     email = parts.getOrNull(4).orEmpty(),
                     companyId = parts.getOrNull(5)?.takeIf { it.isNotBlank() },
                     versionCode = parts.getOrNull(6)?.toIntOrNull() ?: 0,
-                    versionName = parts.getOrNull(7).orEmpty()
+                    versionName = parts.getOrNull(7).orEmpty(),
+                    recordedAt = parts.getOrNull(8)?.trim()?.toLongOrNull() ?: 0L
                 )
             }
 }

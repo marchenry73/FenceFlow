@@ -180,6 +180,46 @@ object ServiceGate {
         runCatching { context.serviceStore.data.first()[DISPLACED] }.getOrNull() ?: false
 
     /**
+     * "Use this phone" on the signed-in-elsewhere screen: takes the login back
+     * for this handset, the same claim a fresh sign-in makes here (newest
+     * wins), so it gives nobody a seat they did not already have -- the other
+     * phone is the one that stops, until it signs in or claims again.
+     *
+     * Separate from [claimThisDevice] because that one swallows a failure and
+     * clears the displaced mark regardless, which is right after a sign-in
+     * (the next check re-asks) and wrong behind a button: a claim that never
+     * reached the server would clear the mark, the re-check would put the
+     * screen straight back, and the tap would look like it did nothing. This
+     * says whether it worked, and only then changes what the phone remembers.
+     *
+     * @return true only when the server accepted the claim.
+     */
+    suspend fun reclaim(context: Context): Boolean = withContext(Dispatchers.IO) {
+        if (!SupabaseModule.hasLiveSession()) {
+            SupabaseModule.tryRefreshSession()
+            if (!SupabaseModule.hasLiveSession()) return@withContext false
+        }
+        val userId = SupabaseModule.currentUserId() ?: return@withContext false
+        val id = deviceId(context)
+        val claimed = runCatching {
+            SupabaseModule.client.postgrest.rpc(
+                "claim_device",
+                kotlinx.serialization.json.buildJsonObject {
+                    put("device_id", kotlinx.serialization.json.JsonPrimitive(id))
+                }
+            )
+        }.isSuccess
+        if (!claimed) return@withContext false
+        runCatching {
+            context.serviceStore.edit {
+                it[DISPLACED] = false
+                it[CLAIMED_FOR] = userId
+            }
+        }
+        true
+    }
+
+    /**
      * Does this phone hold the login? Claiming it if this is a fresh sign-in here.
      *
      * The ordering matters and I had it backwards. Checking first and claiming

@@ -12,6 +12,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { recordClearedPayment, recordRefund, minorToMajor } from "../_shared/record-payment.ts";
+import { moneyDevices } from "../_shared/push-recipients.ts";
 
 /**
  * Is this really from Square?
@@ -122,12 +123,17 @@ async function fcmAccessToken(sa: any): Promise<string> {
 }
 
 /**
- * Tells the company's phones that money is being taken back.
+ * Tells the phones of the people who may see money that money is being taken
+ * back.
  *
  * Reuses the payment notifier's channel rather than inventing a quieter one,
  * matching the Stripe side of this: a chargeback is more urgent than an
  * arrival, and a company that turned notifications on has already said how
  * it wants to hear about money.
+ *
+ * Both pushes in this file carry an amount, so both go through moneyDevices:
+ * SEE_MONEY holders only (../_shared/push-recipients.ts). Until 2026-09-22
+ * both read every device in the company, crew phones included.
  *
  * Failures are swallowed on purpose -- the webhook must not fail for want of
  * a push. If it did, Square would retry the whole event and the dispute rows
@@ -146,9 +152,8 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
-  const { data: devices } = await admin.from("device_tokens")
-    .select("token").eq("company_id", companyId);
-  if (!devices?.length) return;
+  const devices = await moneyDevices(admin, companyId);
+  if (!devices.length) return;
 
   const sa = JSON.parse(raw);
   const token = await fcmAccessToken(sa);
@@ -168,7 +173,8 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
 }
 
 /**
- * Tells the company's phones a customer's card did not go through.
+ * Tells the phones of the people who may see money that a customer's card
+ * did not go through (moneyDevices, as above).
  *
  * Same channel, same reasoning as the Stripe side: a failed deposit used to
  * leave no trace at all, indistinguishable from nobody having asked for
@@ -180,9 +186,8 @@ async function notifyPaymentFailed(admin: any, companyId: string, amount: number
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
-  const { data: devices } = await admin.from("device_tokens")
-    .select("token").eq("company_id", companyId);
-  if (!devices?.length) return;
+  const devices = await moneyDevices(admin, companyId);
+  if (!devices.length) return;
 
   const sa = JSON.parse(raw);
   const token = await fcmAccessToken(sa);

@@ -78,13 +78,17 @@ $function$;
 
 -- Self-check: the trigger must still be attached, and it must still be the
 -- BEFORE UPDATE one. A function nobody calls protects nothing.
+--
+-- Found by the function it runs, not by its name: supabase_r6_crew_writes.sql
+-- renames it to "00_protect_customer_identity" so it fires before the edit
+-- clock, and a check by the old name would fail every re-run after that.
 do $check$
 begin
     if not exists (
         select 1 from pg_trigger t
          where t.tgrelid = 'public.jobs'::regclass
            and not t.tgisinternal
-           and t.tgname = 'protect_customer_identity') then
+           and t.tgfoid = 'public.protect_customer_identity()'::regprocedure) then
         raise exception 'protect_customer_identity trigger is not attached to public.jobs';
     end if;
     if position('new.email' in pg_get_functiondef(

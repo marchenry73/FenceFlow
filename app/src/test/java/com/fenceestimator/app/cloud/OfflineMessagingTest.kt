@@ -19,18 +19,12 @@ import java.net.UnknownHostException
  */
 class OfflineMessagingTest {
 
-    /** Mirrors AutoSync.looksLikeNoSignal, which is private. */
-    private fun looksLikeNoSignal(error: Throwable): Boolean {
-        val text = generateSequence(error) { it.cause }
-            .mapNotNull { "${it::class.simpleName} ${it.message}" }
-            .joinToString(" ")
-            .lowercase()
-        return listOf(
-            "unable to resolve host", "failed to connect", "timeout", "timed out",
-            "no address associated", "network is unreachable", "unknownhost",
-            "connectexception", "sockettimeout", "connect timeout", "software caused connection abort"
-        ).any { it in text }
-    }
+    /**
+     * What AutoSync.looksLikeNoSignal asks. This used to be a copy of its
+     * private phrase list, which went on passing after AutoSync moved to
+     * [SyncFailure]; asking the same classifier keeps the test honest.
+     */
+    private fun looksLikeNoSignal(error: Throwable): Boolean = SyncFailure.isTransientNetwork(error)
 
     @Test
     fun `no DNS while offline reads as no signal`() {

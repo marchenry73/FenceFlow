@@ -211,8 +211,9 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
 }
 
 // Case 2: 120 ft closed wood loop with 4 corners, 8 ft bays, one 4 ft LINE gate,
-//   10% waste, a hand-edited rail price, a supplier-quoted post price, a
-//   change order, teardown along the new fence, markup then discount.
+//   10% waste, a rail line edited by hand (1 at $7.00), a supplier-quoted
+//   post price, a change order, teardown along the new fence, markup then
+//   discount.
 //   net = 116; bays = ceil(14.5) = 15; closed so standard = 15 - 1 gate = 14;
 //   line = 14 - 4 corners = 10; gate posts 2; total 16; terminal 6.
 //   pickets ceil(116*12/5.5 = 253.09) = 254 -> waste ceil(279.4) = 280;
@@ -240,35 +241,41 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
     ["LATCH", 1, null, null], ["HANDLE", 1, null, null], ["BRACE", 1, null, null], ["STIFFENER", 1, null, null],
     ["END_POST", 2, null, null], ["CONCRETE_BAG", 19, null, null],
   ]);
+  // The edited rail line stands in for the built one (the only WOOD_RAIL
+  // the run builds), so the built 50 is not written and the typed 1 at
+  // $7.00 is listed last, exactly as it was. The quote on the replaced
+  // generated post still carries onto the rebuilt LINE_POST.
   check("case2 items", itemsOf(out), [
-    [0, "WOOD_PICKET", 280, 3.25, null, true], [1, "WOOD_RAIL", 50, 7.00, null, false], [2, "LINE_POST", 10, 9.50, 8.00, true],
+    [0, "WOOD_PICKET", 280, 3.25, null, true], [2, "LINE_POST", 10, 9.50, 8.00, true],
     [3, "CORNER_POST", 4, 9.50, null, true], [4, "POST_CAP", 16, 2.25, null, true], [5, "GATE_FRAME_KIT", 1, 65, null, true],
     [6, "HINGE_SET", 1, 14, null, true], [7, "LATCH", 1, 9, null, true], [8, "END_POST", 2, 9.50, null, true],
-    [9, "CONCRETE_BAG", 19, 4.75, null, true],
+    [9, "CONCRETE_BAG", 19, 4.75, null, true], [0, "WOOD_RAIL", 1, 7.00, null, false],
   ]);
+  check("case2 the edited rail line is the one written by hand", [out.items[9].sync_id, out.items[9].description], ["old-rail", "Rail"]);
   check("case2 unmatched", out.unmatched_roles, [
     { run_sync_id: "run-2", role: "HANDLE" }, { run_sync_id: "run-2", role: "BRACE" }, { run_sync_id: "run-2", role: "STIFFENER" },
   ]);
-  // The written rows come to 1611.25. The "other-run" row names a run this
-  // job does not carry, so it is job-level: a regenerate never touches it,
-  // and it stays on the job and in the totals at 1 x its $1.00 supplier
-  // price (replaceGeneratedForRun only clears the run's own roled rows).
-  // The two rows that DO belong to run-2 were roled, so they were deleted
-  // and came back as the freshly built lines above, carrying their prices.
-  check("case2 materials", out.totals.materials_subtotal, 1612.25);
+  // The built rows come to 910 + 80 + 38 + 36 + 65 + 14 + 9 + 19 + 90.25
+  // = 1261.25, and the kept rail line 1 x 7.00. The "other-run" row names a
+  // run this job does not carry, so it is job-level: a regenerate never
+  // touches it, and it stays on the job and in the totals at 1 x its $1.00
+  // supplier price. 1261.25 + 7 + 1 = 1269.25.
+  check("case2 materials", out.totals.materials_subtotal, 1269.25);
+  // sort_order, then sync id: a uuid sorts before "old-rail" and "other-run".
+  const idOf = (role: string) => out.items.find((i) => i.role === role && i.auto_generated)!.sync_id;
   check("case2 totals order", out.totals_items, [
-    ...out.items.filter((i) => i.sort_order === 0).map((i) => i.sync_id), ...out.items.filter((i) => i.sort_order === 1).map((i) => i.sync_id),
-    ...out.items.filter((i) => i.sort_order === 2).map((i) => i.sync_id), "other-run",
-    ...out.items.filter((i) => i.sort_order > 2).map((i) => i.sync_id),
+    idOf("WOOD_PICKET"), "old-rail", idOf("LINE_POST"), "other-run", idOf("CORNER_POST"), idOf("POST_CAP"),
+    idOf("GATE_FRAME_KIT"), idOf("HINGE_SET"), idOf("LATCH"), idOf("END_POST"), idOf("CONCRETE_BAG"),
   ]);
   check("case2 change order", [out.totals.change_order_cost, out.totals.change_order_feet], [200, 10]);
   check("case2 billable", out.billable_linear_feet, 130);
   check("case2 gate", [out.totals.gate_feet, out.totals.gate_charge], [4, 100]);
   check("case2 labor", out.totals.labor_cost, 630);
   check("case2 teardown", [out.totals.teardown_cost, out.totals.trash_haul_fee], [410, 50]);
-  check("case2 pre-markup", out.totals.pre_markup_total, 2952.25);
-  // 2952.25 * 1.10 = 3247.475, less 5% = 3085.10125, up to the next ten.
-  check("case2 grand total", out.totals.grand_total, 3090);
+  // 1269.25 materials + 630 labour + 410 teardown + 200 change order + 100 gate.
+  check("case2 pre-markup", out.totals.pre_markup_total, 2609.25);
+  // 2609.25 * 1.10 = 2870.175, less 5% = 2726.16625, up to the next ten.
+  check("case2 grand total", out.totals.grand_total, 2730);
 }
 
 // Case 3: a drawn L at 20 px/ft (two 1000 px legs = 100 ft, one 90 degree corner)

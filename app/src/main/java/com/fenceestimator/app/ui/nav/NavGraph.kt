@@ -19,6 +19,12 @@ object Routes {
     const val PIPELINE = "pipeline"
     const val HELP = "help"
     const val FEEDBACK = "feedback"
+
+    /** A scoped crew member asking to see a job they are not on. */
+    const val REQUEST_ACCESS = "request_access"
+
+    /** The crew's waiting access requests, for whoever answers them. */
+    const val ACCESS_REQUESTS = "access_requests"
     const val JOB_DETAIL = "job/{jobId}"
     const val SURVEY = "job/{jobId}/survey"
     const val ESTIMATE = "job/{jobId}/estimate"

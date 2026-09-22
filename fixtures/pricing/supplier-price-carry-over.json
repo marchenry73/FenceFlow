@@ -2,10 +2,10 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-05T12:20:05.317629100Z"
+    "generated_at": "2026-09-22T17:17:57.735Z"
   },
   "case": "supplier-price-carry-over",
-  "note": "Supplier prices ride over by role whatever the auto flag; the totals use them; a supplier price plus an edited catalog price carries both.",
+  "note": "The quote on a generated LINE_POST carries by role onto the rebuilt line and the totals use it; the edited PANEL and END_POST stand in for their built lines and keep their own quote and typed price.",
   "input": {
     "engine_version": "2026.09.1",
     "pixels_per_foot": 20.0,
@@ -532,20 +532,6 @@
     ],
     "items": [
       {
-        "sync_id": "0f800c3b-41d4-38d0-99c6-cfae651c59ed",
-        "fence_run_sync_id": "00000035-0000-4000-8000-000000000001",
-        "sort_order": 0,
-        "description": "Panel T&G Vinyl Privacy 6'H x 6'W - White",
-        "quantity": 17.0,
-        "unit": "EA",
-        "unit_price": 52.35,
-        "supplier_unit_price": 50.0,
-        "taxable": false,
-        "role": "PANEL",
-        "auto_generated": true,
-        "category": null
-      },
-      {
         "sync_id": "880e9106-35c1-321c-826f-b32f3e0d6be5",
         "fence_run_sync_id": "00000035-0000-4000-8000-000000000001",
         "sort_order": 1,
@@ -557,20 +543,6 @@
         "taxable": true,
         "role": "LINE_POST",
         "auto_generated": true,
-        "category": null
-      },
-      {
-        "sync_id": "95406080-c621-353c-9fec-6237199674f8",
-        "fence_run_sync_id": "00000035-0000-4000-8000-000000000001",
-        "sort_order": 2,
-        "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 2.0,
-        "unit": "EA",
-        "unit_price": 20.0,
-        "supplier_unit_price": 18.0,
-        "taxable": true,
-        "role": "END_POST",
-        "auto_generated": false,
         "category": null
       },
       {
@@ -600,15 +572,43 @@
         "role": "CONCRETE_BAG",
         "auto_generated": true,
         "category": null
+      },
+      {
+        "sync_id": "00000035-0000-4000-8000-000000000066",
+        "fence_run_sync_id": "00000035-0000-4000-8000-000000000001",
+        "sort_order": 0,
+        "description": "Panel T&G Vinyl Privacy 6'H x 6'W - White",
+        "quantity": 17.0,
+        "unit": "EA",
+        "unit_price": 52.35,
+        "supplier_unit_price": 50.0,
+        "taxable": false,
+        "role": "PANEL",
+        "auto_generated": false,
+        "category": null
+      },
+      {
+        "sync_id": "00000035-0000-4000-8000-000000000067",
+        "fence_run_sync_id": "00000035-0000-4000-8000-000000000001",
+        "sort_order": 3,
+        "description": "5\"x5\" Co-Ex End Post, White",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 20.0,
+        "supplier_unit_price": 18.0,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": false,
+        "category": null
       }
     ],
     "unmatched_roles": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [
-      "0f800c3b-41d4-38d0-99c6-cfae651c59ed",
+      "00000035-0000-4000-8000-000000000066",
       "880e9106-35c1-321c-826f-b32f3e0d6be5",
-      "95406080-c621-353c-9fec-6237199674f8",
+      "00000035-0000-4000-8000-000000000067",
       "0732c0d0-45f2-302d-a08f-18d428b872bb",
       "287e1b7c-8957-3485-ba75-355a7b31f7f9"
     ],

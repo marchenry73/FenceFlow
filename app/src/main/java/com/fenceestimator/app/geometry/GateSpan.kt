@@ -23,7 +23,12 @@ data class GateSpan(
     val end: FencePoint,
     /** The point on the line the gate was matched to. */
     val centre: FencePoint,
-    /** Which segment of the run it landed on, for anything that needs to know. */
+    /**
+     * Which segment of the run it landed on, for anything that needs to know.
+     * [GateGeometry.NO_SEGMENT] (-1) for a gate standing on its own with no
+     * fence line under it ([GateGeometry.standaloneSpan]) -- never a valid
+     * index, so anything matching spans to segments simply never matches it.
+     */
     val segmentIndex: Int
 )
 
@@ -90,6 +95,93 @@ object GateGeometry {
             centre = bestPoint,
             segmentIndex = bestIndex
         )
+    }
+
+    /** [GateSpan.segmentIndex] for a gate that sits on no segment at all. */
+    const val NO_SEGMENT = -1
+
+    /**
+     * The opening a gate makes when there is no fence line for it to sit in:
+     * a standalone gate sale, on a run with no corners.
+     *
+     * [spanFor] has nothing to snap to there and returns null, and the plan
+     * drew gates only from [spanFor] -- so a gate sold on its own was priced,
+     * listed and charged for, and never appeared on the drawing. With no fence
+     * to point along, it is laid level, its full width centred on exactly the
+     * point it was placed at, the way a gate is drawn on a blank site plan.
+     *
+     * The span belongs to no segment ([NO_SEGMENT]), so no fence is cut around
+     * it.
+     *
+     * @return null when there is no scale to measure with, or no width to
+     *   draw -- the same refusals [spanFor] makes.
+     */
+    fun standaloneSpan(gate: GateMarker, pixelsPerFoot: Float): GateSpan? {
+        if (pixelsPerFoot <= 0f || gate.widthFt <= 0f) return null
+        val halfWidth = (gate.widthFt * pixelsPerFoot) / 2f
+        return GateSpan(
+            start = FencePoint(gate.x - halfWidth, gate.y),
+            end = FencePoint(gate.x + halfWidth, gate.y),
+            centre = FencePoint(gate.x, gate.y),
+            segmentIndex = NO_SEGMENT
+        )
+    }
+
+    /**
+     * Every gate on one run, paired with the opening it makes -- worked out
+     * once and used both for the gaps cut in that run's fence and for the
+     * gates drawn into them.
+     *
+     * The plan used to do this for the selected run only. Every other run was
+     * drawn as a bare faded line and a run with no line at all was skipped,
+     * so on a job with a back fence and a side fence, or a standalone gate on
+     * a run of its own, most of the gates being charged for were not on the
+     * drawing. One function for every run means they are all placed by the
+     * same rule.
+     *
+     * A gate with no line under it -- a gate-only run, or a run whose corners
+     * sit on top of each other -- is laid level where it was placed
+     * ([standaloneSpan]) rather than dropped.
+     *
+     * @param pixelsPerFoot null or not positive when the drawing has no scale
+     *   yet. Nothing can be drawn at its true width then, so the list is empty.
+     */
+    fun spansFor(
+        gates: List<GateMarker>,
+        points: List<FencePoint>,
+        closedLoop: Boolean,
+        pixelsPerFoot: Float?
+    ): List<Pair<GateMarker, GateSpan>> {
+        if (pixelsPerFoot == null || pixelsPerFoot <= 0f) return emptyList()
+        return gates.mapNotNull { gate ->
+            (spanFor(gate, points, closedLoop, pixelsPerFoot) ?: standaloneSpan(gate, pixelsPerFoot))
+                ?.let { span -> gate to span }
+        }
+    }
+
+    /**
+     * The stretches of fence still standing on a whole run once its gates have
+     * cut their openings: [segmentGaps] for every side, the closing side of a
+     * closed loop included.
+     *
+     * Shared by the selected run and every other run on the plan, so an
+     * opening reads as a way through on all of them rather than only on the
+     * one being edited. A standalone span belongs to no side ([NO_SEGMENT]),
+     * so it cuts nothing.
+     */
+    fun fencePieces(
+        points: List<FencePoint>,
+        closedLoop: Boolean,
+        spans: List<GateSpan>
+    ): List<Pair<FencePoint, FencePoint>> {
+        val segmentCount = if (closedLoop) points.size else points.size - 1
+        val pieces = mutableListOf<Pair<FencePoint, FencePoint>>()
+        for (i in 0 until max(0, segmentCount)) {
+            val a = points[i]
+            val b = points[(i + 1) % points.size]
+            pieces += segmentGaps(a, b, spans.filter { it.segmentIndex == i })
+        }
+        return pieces
     }
 
     /** The point on segment a-b closest to (px, py). */

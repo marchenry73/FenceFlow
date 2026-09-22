@@ -48,8 +48,11 @@ if (ref === PROD_REF) {
   process.exit(1);
 }
 
+// Blank lines and `#` comment lines are the file's own notes, not migrations.
+// Read as file names, every comment line was "applied" -- and failed -- on
+// each rebuild, burying the one real failure in a page of noise.
 const order = readFileSync(join(REPO_ROOT, "supabase/dev/apply-order.txt"), "utf8")
-  .trim().split(/\r?\n/).filter(Boolean);
+  .split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
 
 /** Runs one .sql file against the target project. Returns null, or the error. */
 function apply(file) {

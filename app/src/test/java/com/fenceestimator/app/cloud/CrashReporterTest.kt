@@ -1,6 +1,10 @@
 package com.fenceestimator.app.cloud
 
+import io.github.jan.supabase.exceptions.HttpRequestException
+import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.url
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -131,5 +135,150 @@ class CrashReporterTest {
         assertEquals(1, parsed.size)
         assertEquals(0, parsed[0].versionCode)
         assertEquals("", parsed[0].versionName)
+    }
+
+    /**
+     * Neither kind says anything about the app. A lost connection is the
+     * phone (most of the admin page on 2026-09-21); a cancellation is the
+     * person leaving the screen ("The coroutine scope left the composition",
+     * reported as a quote-link failure on 1.279).
+     */
+    @Test
+    fun `a lost connection or a cancellation is never written`() {
+        val deadSpot = HttpRequestException(
+            "", HttpRequestBuilder().apply { url("https://example.supabase.co/rest/v1/fence_runs?select=*") }
+        )
+        assertFalse(CrashReporter.isWorthReporting(deadSpot))
+        assertFalse(CrashReporter.isWorthReporting(java.net.UnknownHostException("Unable to resolve host")))
+        assertFalse(CrashReporter.isWorthReporting(kotlinx.coroutines.CancellationException("The coroutine scope left the composition")))
+
+        assertTrue(CrashReporter.isWorthReporting(IllegalStateException("FOREIGN KEY constraint failed (code 787)")))
+        RealRestErrors().use { rest ->
+            assertTrue(CrashReporter.isWorthReporting(rest.of(400, "violates not-null constraint")))
+        }
+    }
+
+    /**
+     * One pass a minute filed 157 identical "push time_entries: 2 of 7 rows
+     * rejected" rows, and filled the pending file so a real crash behind them
+     * was dropped. The same failure in the same place is written once per run.
+     */
+    @Test
+    fun `the same failure in the same place is written once per run`() {
+        val where = "test-" + java.util.UUID.randomUUID()
+        assertTrue(CrashReporter.firstThisRun(where, RuntimeException("push time_entries: 2 of 7 rows rejected")))
+        assertFalse(CrashReporter.firstThisRun(where, RuntimeException("push time_entries: 3 of 9 rows rejected")))
+        // Somewhere else, or something else, is its own report.
+        assertTrue(CrashReporter.firstThisRun("$where-b", RuntimeException("push time_entries: 2 of 7 rows rejected")))
+        assertTrue(CrashReporter.firstThisRun(where, RuntimeException("push job_steps: 1 of 4 rows rejected")))
+    }
+
+    @Test
+    fun `occurrences of one bug share a signature`() {
+        assertEquals(
+            CrashReporter.signature("sync", "Unexpected JSON token at offset 1636: at path \$[1].correction_reason"),
+            CrashReporter.signature("sync", "Unexpected JSON token at offset 686: at path \$[4].correction_reason")
+        )
+        assertEquals(
+            CrashReporter.signature("sync", "HTTP request to https://x.supabase.co/rest/v1/fence_runs?company_id=eq.aba5b097-afc4-48dd-9851-b50200d5e8f4 (GET) failed"),
+            CrashReporter.signature("sync", "HTTP request to https://x.supabase.co/rest/v1/fence_runs?company_id=eq.11111111-2222-3333-4444-555555555555 (GET) failed")
+        )
+        assertFalse(
+            CrashReporter.signature("sync", "push time_entries: 2 of 7 rows rejected") ==
+                CrashReporter.signature("sync", "push job_steps: 2 of 7 rows rejected")
+        )
+    }
+
+    /**
+     * postgrest-kt 3.0.2 puts the request headers in every RestException's
+     * message, Authorization: Bearer included, so each refused row sent a
+     * live access token to app_errors. It never reaches the file.
+     */
+    @Test
+    fun `the access token never reaches the file`() {
+        val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjcmV3LTEyMyIsInJvbGUiOiJhdXRoZW50aWNhdGVkIn0.c2lnbmF0dXJlLXZhbHVl"
+        val f = file()
+        CrashReporter.appendTo(
+            f,
+            RuntimeException(
+                "new row violates row-level security policy\nHeaders: [Authorization=[Bearer $token], apikey=[sb_publishable_2Wmw]]"
+            ),
+            false, "sync"
+        )
+        val text = f.readText()
+        assertFalse("the token was written", text.contains(token))
+        val parsed = CrashReporter.parse(text).single()
+        assertTrue(parsed.message.contains("Bearer <redacted>"))
+        assertTrue("the public key is left alone", parsed.message.contains("sb_publishable_2Wmw"))
+        assertFalse(parsed.stack.contains(token))
+    }
+
+    /**
+     * The file on a phone was written by the build it ran before this one,
+     * which did not redact: 29 of the 80 app_errors rows from 2026-09-18 to
+     * 09-21 carried a live bearer token. Those records are cleaned on the way
+     * up, so the fixed build's first launch does not send them as they are.
+     */
+    @Test
+    fun `a record an older build wrote goes up without its token`() {
+        val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjcmV3LTEyMyIsInJvbGUiOiJhdXRoZW50aWNhdGVkIn0.c2lnbmF0dXJlLXZhbHVl"
+        val said = "new row violates row-level security policy for table \"payment_records\"\n" +
+            "URL: https://x.supabase.co/rest/v1/payment_records\nHeaders: [Authorization=[Bearer $token], apikey=[sb_publishable_2Wmw]]"
+        // Byte for byte what 1.502 appended: eight fields, no redaction, no time.
+        val sep = Char(1)
+        val written = listOf(
+            "NONFATAL", "sync", said, "io.github.jan.supabase.exceptions.UnknownRestException: $said\n\tat x.y(Z.kt:1)",
+            "crew@example.com", "co-1", "502", "1.502"
+        ).joinToString(sep.toString()) + "\n---8<---\n"
+        val parsed = CrashReporter.parse(written).single()
+        assertTrue("sanity: the old record does hold the token", parsed.message.contains(token) && parsed.stack.contains(token))
+
+        val sent = CrashReporter.forUpload(parsed, "co-now", "now@example.com", 520, "1.520", "Android 15, Relndoo P30")
+        assertFalse("the token went up in the message", sent.message.contains(token))
+        assertFalse("the token went up in the stack", sent.stack.contains(token))
+        assertTrue(sent.message.contains("Bearer <redacted>"))
+        assertTrue("the rest of what the server said is kept", sent.message.contains("row-level security policy"))
+        // The rest of the record is the record's own, as before.
+        assertEquals(502, sent.versionCode)
+        assertEquals("1.502", sent.versionName)
+        assertEquals("crew@example.com", sent.email)
+        assertEquals("co-1", sent.companyId)
+        assertEquals("Android 15, Relndoo P30", sent.android)
+    }
+
+    /**
+     * app_errors.at is when the row ARRIVED: seven 1.512 startup crashes all
+     * read 19:32:13, the moment of the upload, and looked like one burst.
+     * When it happened is kept with the record and put on top of the stack.
+     */
+    @Test
+    fun `when it happened travels with the record and tops the uploaded stack`() {
+        val at = java.time.Instant.parse("2026-09-21T19:05:41Z").toEpochMilli()
+        val f = file()
+        CrashReporter.appendTo(f, RuntimeException("boom"), true, "", versionCode = 512, versionName = "1.512", recordedAt = at)
+        val parsed = CrashReporter.parse(f.readText()).single()
+        assertEquals(at, parsed.recordedAt)
+        val uploaded = CrashReporter.stackWithTime(parsed.stack, parsed.recordedAt)
+        assertTrue(uploaded, uploaded.startsWith("Happened at 2026-09-21T19:05:41Z"))
+        assertTrue(uploaded.endsWith(parsed.stack))
+        // A record from before the field existed goes up as it was.
+        assertEquals(parsed.stack, CrashReporter.stackWithTime(parsed.stack, 0L))
+        // And it is never sent as a column: app_errors has none, and an
+        // unknown column fails the whole insert.
+        val json = kotlinx.serialization.json.Json.encodeToString(CloudError.serializer(), parsed)
+        assertFalse(json, json.contains("recorded"))
+    }
+
+    /** A run of sync notes must not fill the file so the crash that matters is thrown away. */
+    @Test
+    fun `sync notes cannot crowd out a fatal crash`() {
+        val f = file()
+        repeat(40) { CrashReporter.appendTo(f, RuntimeException("note $it"), false, "sync") }
+        val notes = CrashReporter.parse(f.readText()).size
+        assertTrue("notes took every place ($notes)", notes < 20)
+        CrashReporter.appendTo(f, RuntimeException("Unable to create application"), true, "")
+        val all = CrashReporter.parse(f.readText())
+        assertEquals(notes + 1, all.size)
+        assertTrue(all.last().fatal)
     }
 }

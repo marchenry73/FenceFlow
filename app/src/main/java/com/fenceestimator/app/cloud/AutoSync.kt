@@ -146,14 +146,15 @@ class AutoSync(
     private var hasCompletedFirstSync = false
 
     /**
-     * Jobs this phone has already told the user about.
+     * What this phone has already told the user about: job and kind, as
+     * "jobId:KIND" (see [changesToAnnounce]).
      *
-     * Unbounded on purpose -- it holds longs for one session, and the failure
-     * it prevents (the same job announced on every sync pass) is worse than the
-     * memory. Cleared with the process, which is also when "new to you" stops
-     * meaning anything.
+     * Unbounded on purpose -- it holds short keys for one session, and the
+     * failure it prevents (the same job announced on every sync pass) is worse
+     * than the memory. Cleared with the process, which is also when "new to
+     * you" stops meaning anything.
      */
-    private val alreadyAnnounced = java.util.Collections.synchronizedSet(mutableSetOf<Long>())
+    private val alreadyAnnounced = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     fun start() {
         if (!SupabaseModule.isConfigured) return
@@ -318,17 +319,11 @@ class AutoSync(
         }
     }
 
-    private fun looksLikeNoSignal(error: Throwable): Boolean {
-        val text = generateSequence(error) { it.cause }
-            .mapNotNull { "${it::class.simpleName} ${it.message}" }
-            .joinToString(" ")
-            .lowercase()
-        return listOf(
-            "unable to resolve host", "failed to connect", "timeout", "timed out",
-            "no address associated", "network is unreachable", "unknownhost",
-            "connectexception", "sockettimeout", "connect timeout", "software caused connection abort"
-        ).any { it in text }
-    }
+    // One classifier for the whole app (see SyncFailure). This used to be its
+    // own phrase list, which had nothing to match in the commonest dead spot
+    // of all -- an empty "failed with message: " -- so every pass a crew
+    // phone ran with no signal was filed as a crash.
+    private fun looksLikeNoSignal(error: Throwable): Boolean = SyncFailure.isTransientNetwork(error)
 
     private suspend fun runSync() {
         val companyId = session.state.value.companyId
@@ -367,6 +362,22 @@ class AutoSync(
             _state.value = _state.value.copy(
                 phase = SyncPhase.IDLE,
                 lastError = context.getString(R.string.sync_account_not_active)
+            )
+            return
+        }
+
+        // Nor does a phone another handset has taken the login from. The
+        // signed-in-elsewhere screen became a UI state of its own (it had
+        // been disguised as allowed = false, which this check caught), so a
+        // phone showing "Signed in on another phone" went on pushing in the
+        // background -- a stale handset, possibly on a build a year old,
+        // writing over the phone that holds the login now. ServiceGate
+        // persists the answer (stillMine), and reclaim ("Use this phone")
+        // clears it, so sync picks up again the moment the login comes back.
+        if (ServiceGate.wasDisplaced(context)) {
+            _state.value = _state.value.copy(
+                phase = SyncPhase.IDLE,
+                lastError = context.getString(R.string.svc_elsewhere_body)
             )
             return
         }
@@ -411,6 +422,16 @@ class AutoSync(
             // again inside pullEmployees: the same reasoning as the comment
             // above, for the employees table instead of the jobs one.
             val employeePayScope = askEmployeePayScope()
+            // Which jobs this person may see (supabase_crew_job_scope.sql),
+            // asked once here for the same reason and handed to JobSync,
+            // which hides the jobs a crew member was taken off and brings
+            // back the ones they were let into. Also refreshes
+            // JobAccess.scope, which the job list reads for "your login is
+            // not linked" and the request screens. A database without the
+            // change answers NotDeployed and everything behaves as before; a
+            // failed question answers Unknown and nothing is hidden or shown
+            // on it.
+            val jobScope = JobAccess.askJobScope()
             val uid = SupabaseModule.currentUserId()
             val lastScope = uid?.let { id -> runCatching { MoneyScopeMemory.last(context, id) }.getOrNull() }
 
@@ -432,9 +453,37 @@ class AutoSync(
             }
             if (uid != null) runCatching { MoneyScopeMemory.remember(context, uid, scope) }
 
+            // A phone that may not push line items owes the cloud none of
+            // them: its copies came through the money-free door, priced at
+            // zero. Unmarked on every such pass, and before the pull on the
+            // pass that promotes it -- the pull never writes over a line still
+            // marked to go up, so a marked zero-priced copy would survive the
+            // promotion and be pushed over the office's prices on the pass
+            // after. The upgrade that added the mark set it on every line,
+            // crew phones included (SchemaV44).
+            if (scope == MoneyScope.DENIED || promoted) {
+                runCatching { repository.clearLineItemPushFlags() }
+            }
+
             // Jobs first: fence runs and time entries reference their job by
             // syncId, so pulling children before their parent would orphan them.
-            val result = JobSync.sync(repository, companyId, scope)
+            val sessionNow = session.state.value
+            val result = JobSync.sync(
+                repository, companyId, scope,
+                // Worded in the phone's language: a crew edit the server will
+                // not take becomes a request to the office (see
+                // JobSync.unsentCrewEdits), and the office reads it as written.
+                unsentNote = UnsentCrewEditNote(
+                    summary = { labels -> context.getString(R.string.sync_crew_unsent_summary, labels.joinToString(", ")) },
+                    label = { column -> crewColumnLabel(column) },
+                    by = sessionNow.email ?: "",
+                    role = sessionNow.role.label
+                ),
+                // A promotion needs nothing extra here: an ALLOWED phone
+                // reads the real jobs table and JobSync brings every held job
+                // back on that answer alone (planJobHolds).
+                jobScope = jobScope
+            )
 
             // Everything else. Failures here are swallowed on purpose -- a
             // problem syncing the crew list should not report the whole sync as
@@ -500,12 +549,16 @@ class AutoSync(
             // over: it said something was broken when nothing was, and it
             // buried a real failure among noise the person could do nothing
             // about.
-            val entityError = listOfNotNull(
+            val failures = listOfNotNull(
                 reaped.exceptionOrNull(),
                 ledgerResult.exceptionOrNull(),
                 pushResult.exceptionOrNull(),
                 pullResult.exceptionOrNull(),
-            ).firstOrNull { !isNotOursToSync(it) }
+            )
+            // A real fault wins over a dead spot even when the dead spot failed
+            // first; either beats nothing. See SyncFailure.toReport.
+            val realError = SyncFailure.toReport(failures)
+            val entityError = realError ?: failures.firstOrNull { !isNotOursToSync(it) }
 
             if (entityError != null) {
                 // A network failure is not the same as a real error. The crew
@@ -515,12 +568,16 @@ class AutoSync(
                 // Real failures are also worth hearing about at this end. A
                 // sync that keeps failing for one company is invisible
                 // otherwise -- their work simply stops arriving, and the first
-                // anyone knows is a phone call about missing jobs.
-                if (!looksLikeNoSignal(entityError)) {
-                    CrashReporter.report(context, "sync", entityError)
+                // anyone knows is a phone call about missing jobs. A lost
+                // connection is never one of them: nothing is written for it
+                // at all, not even once a pass, because the banner below
+                // already says "no signal" and the admin page filled up with
+                // nothing else (2026-09-21).
+                if (realError != null) {
+                    CrashReporter.report(context, "sync", realError)
                 }
                 _state.value = SyncState(
-                    phase = if (looksLikeNoSignal(entityError)) SyncPhase.WAITING_FOR_SIGNAL
+                    phase = if (realError == null) SyncPhase.WAITING_FOR_SIGNAL
                     else SyncPhase.FAILED,
                     lastSyncedAt = _state.value.lastSyncedAt,
                     // Never the database's own words.
@@ -541,6 +598,7 @@ class AutoSync(
             _state.value = result.fold(
                 onSuccess = { syncResult ->
                     notifyIncoming(syncResult)
+                    notifyDeleteRefused(syncResult)
                     // Something the server would not take is still something
                     // waiting. pushAll signals that with a negative count.
                     // Saying "everything is backed up" when a table was
@@ -592,19 +650,14 @@ class AutoSync(
             hasCompletedFirstSync = true
             return
         }
-        val worthTelling = result.incoming
-            // UPDATED is ordinary editing and PAYMENT_RECEIVED already has its
-            // own push from the backend naming the amount -- announcing it
-            // again here was the second of two notifications for one event.
-            .filter { it.kind != ChangeKind.UPDATED && it.kind != ChangeKind.PAYMENT_RECEIVED }
-            // One per job. A job that appears in several changes in the same
-            // pass is still one thing that happened.
-            .distinctBy { it.jobId }
-            // And one per job EVER. Several triggers fire together at launch,
-            // and each pass that pulled the same job announced it again -- the
-            // notifications arrived back to back and looked like the app was
-            // malfunctioning rather than reporting anything.
-            .filter { alreadyAnnounced.add(it.jobId) }
+        // Not what the server already pushed (a payment, an accepted quote),
+        // one per job per pass, and each job's news once per run -- see
+        // changesToAnnounce. The push token is the test for "the server's
+        // push reaches this phone": without one, the pull is all it hears.
+        val hasPushToken = runCatching {
+            !com.fenceestimator.app.notify.PushTokenStore.cached(context).isNullOrBlank()
+        }.getOrDefault(false)
+        val worthTelling = changesToAnnounce(result.incoming, alreadyAnnounced, hasPushToken)
 
         if (worthTelling.isEmpty()) return
 
@@ -628,6 +681,11 @@ class AutoSync(
                 ChangeKind.MARKED_COMPLETE ->
                     context.getString(R.string.ntf_job_complete_title) to
                         context.getString(R.string.ntf_job_complete_body, customer)
+                // Never the completion sentence: an accepted quote is a fence
+                // nobody has built yet (see statusChangeKind).
+                ChangeKind.QUOTE_ACCEPTED ->
+                    context.getString(R.string.ntf_quote_accepted_title) to
+                        context.getString(R.string.ntf_quote_accepted_body, customer)
                 ChangeKind.ASSIGNED_TO_ME ->
                     context.getString(R.string.ntf_assigned_title) to
                         context.getString(R.string.ntf_assigned_body, customer)
@@ -646,7 +704,45 @@ class AutoSync(
         }
     }
 
+    /**
+     * Tells the person that something they deleted was put back, because the
+     * server will not let this account delete it (JobSync drops such a delete
+     * from the queue instead of retrying it for ever -- see its deletion
+     * loop). Once per record per app run; one notification however many.
+     */
+    private fun notifyDeleteRefused(result: SyncResult) {
+        if (result.deleteRefused <= 0) return
+        Notifications.show(
+            context = context,
+            id = DELETE_REFUSED_NOTIFICATION_ID,
+            title = context.getString(R.string.sync_delete_refused_title),
+            body = context.getString(R.string.sync_delete_refused_body),
+            channelId = Notifications.CHANNEL_JOBS
+        )
+    }
+
+    /**
+     * A job column as the office reads it, for a note about a crew edit the
+     * server would not take. The labels the job screen already shows, so the
+     * note names a field the way the screen does.
+     */
+    private fun crewColumnLabel(column: String): String = when (column) {
+        "customer_name" -> context.getString(R.string.field_customer_name)
+        "address" -> context.getString(R.string.field_address)
+        "phone" -> context.getString(R.string.field_phone)
+        "email" -> context.getString(R.string.field_email)
+        "notes" -> context.getString(R.string.field_notes)
+        "referral_source" -> context.getString(R.string.field_referral)
+        "hoa_name" -> context.getString(R.string.jd_hoa_name)
+        "hoa_email" -> context.getString(R.string.jd_hoa_email)
+        "hoa_approval_status" -> context.getString(R.string.jd_hoa_status)
+        "permit_number" -> context.getString(R.string.jd_permit_number)
+        "permit_status" -> context.getString(R.string.jd_permit_status)
+        else -> column.replace('_', ' ')
+    }
+
     private companion object {
+        const val DELETE_REFUSED_NOTIFICATION_ID = 9_001
         const val DEBOUNCE_MS = 1_500L
         const val REMOTE_ECHO_WINDOW_MS = 4_000L
 

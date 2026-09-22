@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.jobs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.data.Employee
 import com.fenceestimator.app.data.Expense
@@ -16,15 +17,26 @@ import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class JobDetailViewModel(private val repository: Repository, private val jobId: Long) : ViewModel() {
+class JobDetailViewModel(
+    private val repository: Repository,
+    private val jobId: Long,
+    /**
+     * The company's rates, for the computed install hours
+     * ([followComputedDuration]). Empty by default, which simply means the
+     * hours are never followed -- never guessed from default rates.
+     */
+    private val profileFlow: Flow<BusinessProfile> = emptyFlow()
+) : ViewModel() {
     val job: StateFlow<Job?> = repository.observeJob(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -68,8 +80,20 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 
     /**
+     * The figure this job is billed against: the price the customer accepted
+     * (plus extra work signed since) once they have, the live estimate until
+     * then -- see [JobMoney.billableTotal]. Every "still owed", payment request,
+     * deposit check and status decision on this screen goes through it, so
+     * none of them can disagree with the quote page or the invoice.
+     */
+    fun billableTotal(current: Job): Double =
+        JobMoney.billableTotal(current, contractTotal.value.grandTotal, changeOrders.value)
+
+    /**
      * What still needs collecting to cover materials, rounded up to the next
-     * $10 so it reads like a real figure rather than a calculation.
+     * $10 so it reads like a real figure rather than a calculation -- and never
+     * more than is still owed on [billableTotal]. See
+     * [JobMoney.suggestedMaterialsDeposit].
      *
      * Net of what the customer has already paid. Without that subtraction,
      * adding materials to a job that was already part paid produced a
@@ -77,15 +101,21 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
      * who had handed over $1,000 was asked for the full $2,450 rather than the
      * $1,450 outstanding. Returns zero once payments already cover materials,
      * which is also what stops the suggestion appearing at all.
+     *
+     * Offered, never applied by itself. The screen used to write this into the
+     * deposit on its own the first time the materials figure was non-zero
+     * (autoFillDepositFromMaterials): whatever the takeoff showed at that
+     * moment -- mid-regenerate, or with lines a sync was about to revert --
+     * became the customer's deposit for good, from the raw materials sum with
+     * no tax, labour or markup, and tied to no price anyone had agreed.
+     * John Beaunissant's deposit moved from $9,910 to $5,730 ten seconds after
+     * he signed. There is no company deposit rule to compute one from instead
+     * (dashboard: deposit_percent was removed as decoration, pending the
+     * owner's decision), so the deposit is whatever a person types or taps.
      */
     fun suggestedDeposit(): Double {
-        val cost = materialCost.value
-        if (cost <= 0.0) return 0.0
-        val current = job.value
-        val alreadyPaid = current?.let { com.fenceestimator.app.estimate.JobMoney.netPaid(it) } ?: 0.0
-        val outstanding = cost - alreadyPaid
-        if (outstanding <= 0.0) return 0.0
-        return kotlin.math.ceil(outstanding / 10.0) * 10.0
+        val current = job.value ?: return 0.0
+        return JobMoney.suggestedMaterialsDeposit(current, materialCost.value, billableTotal(current))
     }
 
     fun applySuggestedDeposit() {
@@ -95,21 +125,65 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     }
 
     /**
-     * Sets the deposit to cover materials as soon as the takeoff produces a
-     * figure, unless someone has already set one themselves.
-     *
-     * Fronting the customer's material out of your own pocket is the default
-     * failure here, and it happens by omission -- nobody decides to do it, they
-     * just never set a deposit. Only fills a blank; never overwrites a number
-     * you chose, and never moves once payment has started.
+     * What this phone saw the computed install hours come to when it last
+     * looked, for [followComputedDuration]. Held by the ViewModel, so it
+     * survives a trip to the drawing screen and back -- which is exactly the
+     * change it exists to notice.
      */
-    fun autoFillDepositFromMaterials() {
-        val current = job.value ?: return
-        if (current.depositAmount > 0.0) return
-        if (current.amountPaid > 0.0) return
-        val amount = suggestedDeposit()
-        if (amount <= 0.0) return
-        update { it.copy(depositAmount = amount) }
+    private var durationBaseline: Double? = null
+
+    /**
+     * The computed install hours, from this ViewModel's own reads of the job,
+     * its runs, its site markers and the company's rates. A cold flow, so each
+     * collection starts from what is on disk, and `combine` holds its first
+     * value back until all four have loaded -- the screen's own figure starts
+     * from empty lists and a default profile, and a baseline taken from that
+     * would read the load itself as a change.
+     */
+    private val computedHours = combine(
+        repository.observeJob(jobId),
+        repository.observeFenceRuns(jobId),
+        repository.observeSiteMarkers(jobId),
+        profileFlow
+    ) { currentJob, runs, markers, profile ->
+        currentJob?.let {
+            com.fenceestimator.app.estimate.DurationEstimator.estimate(
+                it, runs,
+                it.calibrationPixelsPerFoot ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID,
+                durationRatesOf(profile),
+                markers
+            ).totalHours
+        }
+    }
+
+    /**
+     * Keeps the stored duration in step with the footage while this job is
+     * open -- but only for a change that happened while it was, and only on a
+     * phone allowed to reschedule. Runs until the calling effect leaves.
+     *
+     * It used to save the computed hours whenever they differed from the
+     * stored ones, the moment the screen opened, on every phone. A computed
+     * figure differing from the stored one is not an edit: the office may have
+     * typed its own, the rates may differ from phone to phone, the drawing may
+     * not have synced yet. On a crew handset that save was a job-row write
+     * that pushed the crew's whole copy of the job; job 4598150b went from the
+     * office's 4 hours to 93.33 that way. See [durationFollowStep] (the
+     * pure rule) for exactly when it writes.
+     */
+    suspend fun followComputedDuration(mayWrite: Boolean) {
+        computedHours.collect { hours ->
+            if (hours == null) return@collect
+            val current = repository.getJob(jobId) ?: return@collect
+            val step = durationFollowStep(
+                baseline = durationBaseline,
+                computed = hours,
+                stored = current.estimatedDurationHours,
+                manuallySet = current.durationManuallySet,
+                mayWrite = mayWrite
+            )
+            durationBaseline = step.baseline
+            step.write?.let { repository.updateJob(current.copy(estimatedDurationHours = it)) }
+        }
     }
 
     val manufacturers: StateFlow<List<Manufacturer>> = repository.observeManufacturers()
@@ -258,7 +332,10 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
      */
     fun reconcilePaymentStatus(known: Job? = null) {
         val current = known ?: job.value ?: return
-        val total = contractTotal.value.grandTotal
+        // What the job is billed against, not the live estimate: once the
+        // customer has accepted a price, a recompute that drifted above it
+        // must not hold a job that has been paid in full at "deposit paid".
+        val total = billableTotal(current)
         if (total <= 0.0) return
         // Net of refunds. Giving money back has to be able to move a job out of
         // "paid in full", or a refunded job reads as settled forever.
@@ -494,4 +571,53 @@ class JobDetailViewModel(private val repository: Repository, private val jobId: 
     private companion object {
         val EMPTY_TOTALS = EstimateEngine.Totals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
+}
+
+/**
+ * The company's duration rates, in one place: the job screen's hours estimate
+ * and [JobDetailViewModel.followComputedDuration] both read them from here, so
+ * the figure shown and the figure saved cannot come from two different
+ * mappings.
+ */
+internal fun durationRatesOf(profile: BusinessProfile) =
+    com.fenceestimator.app.estimate.DurationEstimator.Rates(
+        feetPerDay = profile.feetPerDay,
+        workdayHours = profile.workdayHours,
+        breakHoursPerDay = profile.breakHoursPerDay,
+        hoursPerGate = profile.hoursPerGate,
+        hoursPerTree = profile.hoursPerTree,
+        hoursPerObstacle = profile.hoursPerObstacle,
+        hoursPerCorner = profile.hoursPerCorner,
+        setupHours = profile.setupHours,
+        teardownHoursPerFoot = profile.teardownHoursPerFoot
+    )
+
+/** One step of [JobDetailViewModel.followComputedDuration], decided by [durationFollowStep]: the baseline to keep, and the hours to save, if any. */
+internal data class DurationFollowStep(val baseline: Double, val write: Double?)
+
+/**
+ * Whether the computed install hours should be saved over the stored ones.
+ *
+ * Only when the computed figure has MOVED since this phone first saw it
+ * ([baseline]) -- a drawing edited, a run added -- and only on a phone that may
+ * reschedule ([mayWrite]), and never over hours somebody typed
+ * ([manuallySet]). The first figure seen is only ever recorded: a computed
+ * value that differs from the stored one when a job is opened is not anything
+ * the person holding the phone did. The old rule saved on that difference
+ * alone, on open, on every phone -- a crew handset wrote 93.33 hours over the
+ * office's 4 on job 4598150b just by opening it.
+ */
+internal fun durationFollowStep(
+    baseline: Double?,
+    computed: Double,
+    stored: Double,
+    manuallySet: Boolean,
+    mayWrite: Boolean
+): DurationFollowStep {
+    if (baseline == null) return DurationFollowStep(computed, null)
+    if (kotlin.math.abs(computed - baseline) <= 0.005) return DurationFollowStep(baseline, null)
+    val write = computed.takeIf {
+        mayWrite && !manuallySet && it > 0.0 && kotlin.math.abs(it - stored) > 0.005
+    }
+    return DurationFollowStep(computed, write)
 }

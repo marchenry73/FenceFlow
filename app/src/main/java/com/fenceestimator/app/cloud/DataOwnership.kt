@@ -6,11 +6,13 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.data.UnsyncedSummary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 private val Context.ownershipStore by preferencesDataStore(name = "data_ownership")
 
@@ -58,7 +60,9 @@ class DataOwnership(
      * store is worse again: it holds the business name, licence number,
      * pricing, and the Square access token, which is a live payment credential.
      */
-    private suspend fun wipeEverything() {
+    // Off the main thread explicitly: the Account screen reaches this from
+    // viewModelScope, and deleting a phone's worth of photos there would freeze it.
+    private suspend fun wipeEverything() = withContext(Dispatchers.IO) {
         repository.clearAllLocalData()
         settingsStore?.clearAll()
 

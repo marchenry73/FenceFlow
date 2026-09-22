@@ -11,15 +11,17 @@
  * This file mirrors app/src/test/.../parity/PricingAdapters.kt
  * (PricingRunner.price), which is the one place every rule AROUND the engine
  * is written down: which scale the takeoff measures by, which runs get line
- * items, how prices carry over, which existing rows survive a regenerate,
- * and the order the totals sum in. The engine itself is the other files.
+ * items, what a regenerate does to the lines already on a run (the phone's
+ * TakeoffLineMerge, which PricingRunner calls and line-items.ts mergeTakeoff
+ * ports), which rows no regenerate touches, and the order the totals sum
+ * in. The engine itself is the other files.
  *
  * Nothing here performs I/O. Every stage is a pure function so the Kotlin
  * fixtures can be replayed against it and the first divergent stage named.
  */
 import { compareString, f32, sortedWith } from "./f32.ts";
 import { trim } from "./kotlin-text.ts";
-import { buildLineItems, carryOverPrices } from "./line-items.ts";
+import { buildLineItems, claimedByEdits, mergeTakeoff, withQuotedPrices } from "./line-items.ts";
 import { suggestQuantities } from "./takeoff.ts";
 import type { EstimateSuggestions, TakeoffGroup } from "./takeoff.ts";
 import { computeTotals, linearFeet, teardownLinearFeet } from "./totals.ts";
@@ -27,7 +29,8 @@ import { ALUMINUM_STYLES, FENCE_TYPES, MATERIAL_ROLES, WOOD_STYLES, enumValueOf 
 import type { ChangeOrder, EstimateLineItem, FenceRun, Job, MaterialItem, MaterialRole } from "./types.ts";
 
 export {
-  buildLineItems, carryOverPrices, computeTotals, linearFeet, suggestQuantities, teardownLinearFeet,
+  buildLineItems, claimedByEdits, computeTotals, linearFeet, mergeTakeoff, suggestQuantities, teardownLinearFeet,
+  withQuotedPrices,
 };
 
 /**
@@ -145,7 +148,7 @@ export interface PricingInput {
   /** The phone narrows on manufacturer ids; a sync id absent from this list resolves to "no manufacturer". */
   manufacturers: ManufacturerRow[];
   change_orders: ChangeOrderRow[];
-  /** estimate_line_items rows already on the job: carry-over and survivors. */
+  /** estimate_line_items rows already on the job: what each run's regenerate merges with, and the rows it never touches. */
   existing_items: LineItemRow[];
 }
 
@@ -265,10 +268,17 @@ export interface PricingOutput {
   billable_linear_feet: number;
   /** Every run in runs[] order, teardown runs included. */
   runs: RunOutput[];
-  /** The rows the engine would write, for every non-teardown run, in run order, after carry-over. */
+  /**
+   * Every run's takeoff lines after the regenerate, in run order: for each
+   * run the freshly built lines (supplier quotes carried), then the lines
+   * somebody edited by hand, exactly as they are. An edited line is never
+   * written by a commit (load.ts buildCommitPlan); it is here so the office
+   * sees the estimate the totals were summed from. A teardown run has only
+   * the latter.
+   */
   items: ItemOutput[];
   unmatched_roles: RunRole[];
-  /** Sync ids of written rows whose catalog price is <= 0 (before carry-over). */
+  /** Sync ids of freshly built rows (never an edited one) whose catalog price is <= 0. */
   zero_priced: string[];
   zero_priced_names: RunName[];
   /** Line-item sync ids in the order computeTotals summed them. */
@@ -448,6 +458,14 @@ function compareInt(a: number, b: number): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/**
+ * The order the phone reads an estimate in: ORDER BY sortOrder ASC, syncId
+ * ASC (EstimateLineItemDao.observeForJob and getGeneratedForRun).
+ */
+function byEstimateOrder(a: EstimateLineItem, b: EstimateLineItem): number {
+  return compareInt(a.sortOrder, b.sortOrder) || compareString(a.syncId, b.syncId);
+}
+
 // ---------------------------------------------------------------------------
 // The job, priced the way the phone prices it: every run's takeoff, the
 // lines for the runs that get any, then the totals over what is left on the
@@ -476,7 +494,7 @@ export function priceJob(input: PricingInput): PricingOutput {
   const pixelsPerFoot = floatExact(input.pixels_per_foot, "pixels_per_foot");
 
   const runOutputs: RunOutput[] = [];
-  const writtenItems: EstimateLineItem[] = [];
+  const takeoffItems: EstimateLineItem[] = [];
   const unmatched: RunRole[] = [];
   const zeroPricedIds: string[] = [];
   const zeroPricedNames: RunName[] = [];
@@ -485,35 +503,42 @@ export function priceJob(input: PricingInput): PricingOutput {
     const suggestions = suggestQuantities(run, pixelsPerFoot, job.wastePercent);
     runOutputs.push(runOutput(run, suggestions));
 
-    // A teardown run is the old fence: no bill of materials, and any it had
-    // accumulated is cleared (TakeoffRefresher.refreshRun).
-    if (run.isTeardown) continue;
+    // This run's lines in the order the phone reads them for a regenerate
+    // (getGeneratedForRun: sort_order, then sync_id). The order decides which
+    // of two quotes on one role carries and the order kept lines are listed
+    // in, and rows read from the database come in no order at all.
+    const existingForRun = sortedWith(existing.filter((e) => e.fenceRunSyncId === run.syncId), byEstimateOrder);
+
+    // A teardown run is the old fence: no bill of materials, so its
+    // generated lines go. A line somebody typed a number into is theirs and
+    // stays (TakeoffRefresher.refreshRun merges a teardown run with nothing).
+    if (run.isTeardown) {
+      for (const item of mergeTakeoff(existingForRun, []).keptEdited) takeoffItems.push(item);
+      continue;
+    }
 
     const built = buildLineItems(run, suggestions, catalog, job.preferredManufacturerSyncId);
     for (const role of built.unmatchedRoles) unmatched.push({ run_sync_id: run.syncId, role });
     for (const name of built.zeroPricedNames) zeroPricedNames.push({ run_sync_id: run.syncId, name });
-    for (const item of built.items) if (item.unitPrice <= 0.0) zeroPricedIds.push(item.syncId);
 
-    // Carry-over, exactly as TakeoffRefresher.refreshRun does it, matched on
-    // the role of the rows THIS RUN already has.
-    const existingForRun = existing.filter((e) => e.fenceRunSyncId === run.syncId);
-    for (const item of carryOverPrices(built.items, existingForRun)) writtenItems.push(item);
+    // Edited lines stay and stand in for the built line they correct, the
+    // generated ones give way to the rebuild, supplier quotes carry
+    // (line-items.ts mergeTakeoff, the phone's TakeoffLineMerge.plan).
+    const merge = mergeTakeoff(existingForRun, built.items);
+    for (const item of merge.insert) if (item.unitPrice <= 0.0) zeroPricedIds.push(item.syncId);
+    for (const item of merge.insert) takeoffItems.push(item);
+    for (const item of merge.keptEdited) takeoffItems.push(item);
   }
 
-  // What is left on the job after the regenerate, and therefore what the
-  // totals see. replaceGeneratedForRun deletes every roled row of the run --
-  // edited ones included, since editing clears the auto flag -- and
-  // hand-typed extras (role NONE) are left alone. Rows with no run are never
-  // touched.
+  // What is on the job after the regenerate, and therefore what the totals
+  // see: every run's takeoff lines above, plus the rows no regenerate
+  // touches -- hand-typed extras (role NONE) and rows with no run.
   const survivors = existing.filter((e) => e.role === "NONE" || e.fenceRunSyncId === null);
 
   // The phone sums whatever observeLineItems hands it, and that is
   // ORDER BY sortOrder ASC, syncId ASC. Floating-point sums depend on order,
   // so the office has to add the same rows in the same order.
-  const itemsForTotals = sortedWith(
-    writtenItems.concat(survivors),
-    (a, b) => compareInt(a.sortOrder, b.sortOrder) || compareString(a.syncId, b.syncId),
-  );
+  const itemsForTotals = sortedWith(takeoffItems.concat(survivors), byEstimateOrder);
 
   const totalFeet = linearFeet(job, runs);
   const totals = computeTotals(job, itemsForTotals, totalFeet, changeOrders, runs);
@@ -524,7 +549,7 @@ export function priceJob(input: PricingInput): PricingOutput {
     teardown_linear_feet: teardownLinearFeet(job, runs),
     billable_linear_feet: totals.billableLinearFeet,
     runs: runOutputs,
-    items: writtenItems.map((item) => ({
+    items: takeoffItems.map((item) => ({
       sync_id: item.syncId,
       fence_run_sync_id: item.fenceRunSyncId as string,
       sort_order: item.sortOrder,

@@ -4,8 +4,37 @@
 customers on a company's behalf, but only for companies that have opted in
 (`follow_up_settings.enabled = true`, off by default). Nothing schedules it
 today. `.github/workflows/follow-ups.yml` calls it once an hour, but the
-workflow does nothing useful -- and refuses to run at all -- until the owner
-does the two one-time steps below.
+workflow does nothing until the owner does the one-time steps below.
+
+## "Follow-up email scheduler: run failed" emails from GitHub
+
+Until 21 September 2026 the hourly run treated a missing
+`FOLLOWUPS_TRIGGER_SECRET` as a failure, so GitHub emailed a "run failed"
+notice every hour for a scheduler nobody had switched on yet. Nothing was
+ever sent to a customer by those runs; they stopped before calling anything.
+
+Now a scheduled run without the secret **skips**: it exits green with a
+notice ("FOLLOWUPS_TRIGGER_SECRET is not set ... nothing was sent") on the
+run page and in its summary, and GitHub sends no email. Two cases still fail
+on purpose, because in both something is really wrong:
+
+- **Run workflow pressed by hand without the secret.** You asked for a send
+  and none can happen; a green tick would say it did.
+- **The secret is set and the call does not succeed**: the value does not
+  match the function's `NOTIFY_TRIGGER_SECRET` (HTTP 401), the function
+  errors, or the mail provider refuses the sends (the function answers with
+  an `error` and the run fails).
+
+A blip between GitHub and Supabase is retried twice, 15 seconds apart, before
+it counts as a failure. Retrying is safe: each email is claimed in
+`follow_up_log` before it is sent, so a retry skips anything already sent.
+
+A big backlog is not a failure either. Sends are spaced about half a second
+apart (Resend allows two a second), and Supabase cuts off any function that
+has not answered within 150 seconds. So one run sends for at most about 100
+seconds, then answers green with an `unfinished` note, which the run page
+shows as a notice. Nothing unsent was claimed, so the rest is still due and
+goes out on the next hourly run.
 
 This is deliberately an owner action, not something Claude or this workflow
 can do: it requires generating a real secret and pasting it into two systems
@@ -82,7 +111,9 @@ compared in constant time.
 After both secrets are set, either wait for the next hourly run or trigger it
 by hand from the Actions tab (**Actions -> Follow-up email scheduler -> Run
 workflow**). A green run means the function responded `200` with no `error`
-field in its body. Check `follow_up_log` in the database for new rows, or the
+field in its body -- check that the run page does **not** carry the "not
+set" notice, which is what a green run looks like while the scheduler is
+still off. Check `follow_up_log` in the database for new rows, or the
 company's Resend dashboard, to see whether anything was actually sent --
 remember sending stays zero for every company until that company also flips
 its own `follow_up_settings.enabled` to `true`.

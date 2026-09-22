@@ -1,10 +1,12 @@
 package com.fenceestimator.app.data
 
 import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 /**
  * What is on this phone that the cloud has never seen, in numbers a person
@@ -117,11 +119,57 @@ class Repository(private val db: AppDatabase) {
     private val buildTemplateDao = db.buildTemplateDao()
     private val jobPayShareDao = db.jobPayShareDao()
 
+    /** The job list. Leaves out jobs kept after their person was taken off them -- see [observeHeldJobs]. */
     fun observeJobs(): Flow<List<Job>> = jobDao.observeAll()
     fun observeJob(id: Long): Flow<Job?> = jobDao.observeById(id)
     suspend fun getJob(id: Long): Job? = jobDao.getById(id)
     suspend fun getJobsScheduledBetween(startMillis: Long, endMillis: Long): List<Job> = jobDao.getScheduledBetween(startMillis, endMillis)
+    /** Every job on the phone, held ones included -- what sync and the sign-out guard must see. */
     suspend fun getAllJobs(): List<Job> = jobDao.getAll()
+
+    /**
+     * Jobs this phone keeps after its person was taken off them
+     * ([Job.accessEndedAt]), most recently lost first. Not work any more, so
+     * not in [observeJobs] -- but never deleted: a shift running on one can
+     * still be clocked out (it opens by id), its shifts still upload, and
+     * anything not sent yet goes up the moment access comes back.
+     */
+    fun observeHeldJobs(): Flow<List<Job>> = jobDao.observeHeld()
+
+    /** Every job this phone may still see -- for readers that act on work: alerts, summaries. */
+    suspend fun getVisibleJobs(): List<Job> = jobDao.getVisible()
+
+    /**
+     * Hides and brings back jobs as JobSync's crew-scoped pull decided
+     * (planJobHolds), in one transaction so the list never shows half a
+     * decision. Bookkeeping: no job's updatedAt moves, so nothing here reads
+     * as an edit owed to the cloud. Chunked below SQLite's bound-variable
+     * limit, which a phone holding a company's whole history could reach.
+     *
+     * @return how many rows actually changed; zero when the plan was already
+     *   in force, so a pass that decides the same thing again writes nothing
+     *   and wakes nothing (observeAnyChange watches this table).
+     */
+    suspend fun applyJobHolds(
+        hide: Collection<String>,
+        unhide: Collection<String>,
+        unhideAll: Boolean,
+        at: Long
+    ): Int = db.withTransaction {
+        var changed = 0
+        if (unhideAll) {
+            changed += jobDao.clearAllAccessEnded()
+        } else {
+            unhide.distinct().chunked(HOLD_CHUNK).forEach { changed += jobDao.clearAccessEnded(it) }
+        }
+        hide.distinct().chunked(HOLD_CHUNK).forEach { changed += jobDao.markAccessEnded(it, at) }
+        changed
+    }
+
+    private companion object {
+        /** Sync ids bound per statement -- well under SQLite's 999 variable limit. */
+        const val HOLD_CHUNK = 500
+    }
     suspend fun createJob(job: Job): Long = jobDao.insert(job)
     suspend fun updateJob(job: Job) = jobDao.update(job.copy(updatedAt = System.currentTimeMillis()))
 
@@ -187,7 +235,20 @@ class Repository(private val db: AppDatabase) {
      * downloads it again. Deliberately does NOT write tombstones: this is "these
      * records are not mine to see", not "delete these records".
      */
-    suspend fun clearAllLocalData() = db.clearAllTables()
+    // Room refuses clearAllTables() on the main thread, and sign-out calls this
+    // from viewModelScope (Main) -- which is why Sign out failed for everyone.
+    // clearAllTables() takes pending_resurrections with everything else, so
+    // no revival outlives the lines it names.
+    suspend fun clearAllLocalData() = withContext(Dispatchers.IO) {
+        db.clearAllTables()
+    }
+
+    /**
+     * Takeoff lines just written under a sync id the cloud may hold
+     * tombstoned, which the next sync must revive rather than reap. See
+     * [LineItemResurrections] for the bug; kept in its own table.
+     */
+    val lineItemResurrections = LineItemResurrections(db.pendingResurrectionDao())
 
     /** Queues a cloud row for deletion on the next sync. */
     suspend fun queueDeletion(syncId: String, tableName: String) =
@@ -321,6 +382,53 @@ class Repository(private val db: AppDatabase) {
 
     suspend fun pendingDeletions(): List<PendingDeletion> = pendingDeletionDao.getAll()
     suspend fun clearPendingDeletion(syncId: String) = pendingDeletionDao.clear(syncId)
+
+    /**
+     * The deletes the sync should send and honour, after cancelling every
+     * queued line-item delete whose line is alive here again
+     * ([PendingDeletionDao.clearStaleLineItemDeletes] for why those exist and
+     * what landing one does). Both sync readers go through this -- the
+     * tombstone push in JobSync and the pull's "don't put back what I
+     * deleted" filter -- so a stale entry can neither delete a live line in
+     * the cloud nor stop this phone taking the office's changes to it.
+     */
+    suspend fun pendingDeletionsForSync(): List<PendingDeletion> {
+        pendingDeletionDao.clearStaleLineItemDeletes()
+        return pendingDeletionDao.getAll()
+    }
+
+    /**
+     * Writes what a push handed back onto the job, deciding against the row
+     * as it is at that moment, inside one transaction: [decide] gets the
+     * current row and returns the row to write, or null to leave it. Exists
+     * for JobSync's adoption of a pushed row, which must never land on top of
+     * an edit typed while the push was in flight -- a read-then-update
+     * outside a transaction is exactly that race.
+     *
+     * @return whatever [decide] returned, after it was written.
+     */
+    suspend fun updateJobAtomically(jobId: Long, decide: (Job) -> Job?): Job? =
+        db.withTransaction {
+            val current = jobDao.getById(jobId) ?: return@withTransaction null
+            val next = decide(current) ?: return@withTransaction null
+            jobDao.update(next)
+            next
+        }
+
+    /**
+     * The customer signed: [signed] (carrying the signature, its terms and the
+     * accepted price) is saved as a user edit, and every change order on the
+     * job is marked as inside that price, in one transaction. Apart, a phone
+     * killed between the two kept the price and lost the record of which
+     * orders it covered -- and an order that was unsigned at the signature
+     * would then be billed again the day it was signed.
+     */
+    suspend fun recordSignedAcceptance(signed: Job) {
+        db.withTransaction {
+            jobDao.update(signed.copy(updatedAt = System.currentTimeMillis()))
+            changeOrderDao.markAllInAcceptedTotal(signed.id)
+        }
+    }
 
     /**
      * Scrubs every money-shaped field this phone is holding, the moment a
@@ -508,23 +616,78 @@ class Repository(private val db: AppDatabase) {
     suspend fun getAllLineItemsByJob(): Map<Long, List<EstimateLineItem>> =
         lineItemDao.getAll().groupBy { it.jobId }
     /**
-     * Swaps this run's takeoff for a freshly generated one.
+     * Swaps this run's takeoff for a freshly generated one, by the rules in
+     * [TakeoffLineMerge]: lines somebody edited stay exactly as they are,
+     * the auto-generated ones give way to [built], and a rebuild that lands
+     * on what is already there writes nothing.
+     *
+     * @param built what EstimateEngine.buildLineItems produced for the run,
+     *   as it came out -- the merge does the carry-over itself.
+     * @return the plan that was applied, so a caller can tell whether
+     *   anything moved and how many edited lines were kept.
      *
      * Anything dropped is tombstoned so the cloud copy goes too. Without that,
      * a delete was local-only: the old rows stayed in the cloud, and the very
      * next sync pulled them back down beside the new ones. That is why pressing
      * Suggest Quantities twice still ended up with everything listed twice even
      * after the local duplicate was fixed.
+     *
+     * And anything alive afterwards cancels a delete still queued for it.
+     * Line sync ids are deterministic, so a role that left and came back is
+     * the same id; its old tombstone used to go out anyway and take the live
+     * line with it. The ids coming back are also noted in
+     * [lineItemResurrections] in case that tombstone has already landed in the
+     * cloud.
+     *
+     * One Room transaction, so two quick taps on Suggest, or Suggest racing
+     * the automatic refresh, each see the other's finished result -- and the
+     * reaper's filter-and-delete ([reapLineItems]) runs in one too, so it
+     * lands wholly before or wholly after this: never between noting a line
+     * and writing it. If the write fails, the notes roll back with it.
      */
-    suspend fun replaceAutoGeneratedLineItemsForRun(runId: Long, items: List<EstimateLineItem>) {
-        val goingAway = lineItemDao.getGeneratedForRun(runId).map { it.syncId }.toSet()
-        val staying = items.map { it.syncId }.toSet()
-        (goingAway - staying).forEach { syncId ->
-            pendingDeletionDao.insert(
-                PendingDeletion(syncId = syncId, tableName = "estimate_line_items")
+    suspend fun replaceAutoGeneratedLineItemsForRun(runId: Long, built: List<EstimateLineItem>): TakeoffLineMerge.Plan =
+        db.withTransaction {
+            val merged = TakeoffLineMerge.plan(lineItemDao.getGeneratedForRun(runId), built)
+            if (!merged.unchanged) {
+                lineItemResurrections.noteWritten(merged.revive)
+                merged.tombstone.forEach { syncId ->
+                    pendingDeletionDao.insert(
+                        PendingDeletion(syncId = syncId, tableName = "estimate_line_items", deletedBy = deletingUser)
+                    )
+                }
+                // Leaving for good: nothing left here to revive.
+                lineItemResurrections.forget(merged.tombstone)
+                lineItemDao.replaceAutoGeneratedForRun(runId, merged.insert)
+            }
+            // Even when nothing is rewritten: a queued delete for a line
+            // that is alive here is exactly the stale tombstone above.
+            // Chunked because SQLite caps bind variables per statement.
+            merged.liveAfter.toList().chunked(400).forEach { chunk ->
+                pendingDeletionDao.clearFor("estimate_line_items", chunk)
+            }
+            merged
+        }
+
+    /**
+     * Deletes the takeoff lines another device tombstoned -- all of
+     * [tombstoned] except the ones a regenerate here has just written again
+     * and not yet revived ([LineItemResurrections]).
+     *
+     * One transaction for the read and the delete. The reaper used to read
+     * the waiting ids, then delete, as two steps: a regenerate could note and
+     * insert a returning line in between, and the delete -- queued behind it
+     * on the writer -- then removed the line just written. It stayed in the
+     * revival list for good without ever going up (the row no longer
+     * existed), and the price dropped.
+     */
+    suspend fun reapLineItems(tombstoned: List<String>): Int {
+        if (tombstoned.isEmpty()) return 0
+        return db.withTransaction {
+            deleteLocalRowsBySyncId(
+                "estimate_line_items",
+                LineItemResurrections.reapable(tombstoned, lineItemResurrections.pending())
             )
         }
-        lineItemDao.replaceGeneratedForRun(runId, items)
     }
     /**
      * Removes takeoff lines that lost their fence run, and tombstones them so
@@ -545,14 +708,66 @@ class Repository(private val db: AppDatabase) {
             )
         }
         lineItemDao.deleteOrphanedGenerated()
+        // Tombstoned on purpose: a revival still waiting would undo it.
+        lineItemResurrections.forget(orphans.map { it.syncId })
         return orphans.size
     }
 
-    /** Insert or update, by id. See [saveChangeOrder] for what a bare insert costs. */
-    suspend fun saveLineItem(item: EstimateLineItem): Long =
-        if (item.id == 0L) lineItemDao.insert(item) else { lineItemDao.update(item); item.id }
-    suspend fun updateLineItem(item: EstimateLineItem) = lineItemDao.update(item)
-    suspend fun deleteLineItem(item: EstimateLineItem) = deleteSynced(item.syncId, "estimate_line_items") { lineItemDao.delete(item) }
+    /**
+     * Insert or update, by id. See [saveChangeOrder] for what a bare insert
+     * costs. A change made on this phone, so it is marked to go up
+     * ([EstimateLineItem.pendingPush]); a pull writes through
+     * [saveLineItemFromCloud] instead.
+     */
+    suspend fun saveLineItem(item: EstimateLineItem): Long {
+        val marked = item.copy(pendingPush = true)
+        return if (marked.id == 0L) lineItemDao.insert(marked) else { lineItemDao.update(marked); marked.id }
+    }
+    suspend fun updateLineItem(item: EstimateLineItem) = lineItemDao.update(item.copy(pendingPush = true))
+
+    /**
+     * A line as the cloud holds it. Not marked to push -- sending the cloud
+     * its own copy back is how two phones kept overwriting each other.
+     */
+    suspend fun saveLineItemFromCloud(item: EstimateLineItem): Long {
+        val clean = item.copy(pendingPush = false)
+        return if (clean.id == 0L) lineItemDao.insert(clean) else { lineItemDao.update(clean); clean.id }
+    }
+
+    /**
+     * Unmarks every line (see [EstimateLineItemDao.clearAllPendingPush]).
+     * AutoSync calls it on every pass that is not allowed to push line items
+     * at all (a crew phone), and before the pull on the pass that promotes
+     * one, so the pull replaces the zero-priced copies before anything could
+     * send them.
+     */
+    suspend fun clearLineItemPushFlags(): Int = lineItemDao.clearAllPendingPush()
+
+    /**
+     * The cloud took these lines: clear their [EstimateLineItem.pendingPush],
+     * but only where the row still holds exactly what was sent. A quantity
+     * typed while the upsert was in flight has not gone up, and must stay
+     * marked, or the next pass would leave it behind and the pull would put
+     * the cloud's older value over it.
+     *
+     * @param sent the rows as they were read for the push (pendingPush true).
+     */
+    suspend fun markLineItemsPushed(sent: List<EstimateLineItem>) {
+        if (sent.isEmpty()) return
+        db.withTransaction {
+            sent.forEach { was ->
+                val now = lineItemDao.getBySyncId(was.syncId) ?: return@forEach
+                if (lineItemStillAsSent(was, now)) lineItemDao.update(now.copy(pendingPush = false))
+            }
+        }
+    }
+
+    suspend fun deleteLineItem(item: EstimateLineItem) {
+        // Deleted on purpose: a revival still waiting for this line would
+        // push it back up with deleted_at cleared, undoing the delete.
+        lineItemResurrections.forget(listOf(item.syncId))
+        deleteSynced(item.syncId, "estimate_line_items") { lineItemDao.delete(item) }
+    }
 
     fun observeManufacturers(): Flow<List<Manufacturer>> = manufacturerDao.observeAll()
     suspend fun getAllManufacturers(): List<Manufacturer> = manufacturerDao.getAll()
@@ -733,6 +948,10 @@ class Repository(private val db: AppDatabase) {
 
     fun observeTimeEntries(jobId: Long): Flow<List<TimeEntry>> = timeEntryDao.observeForJob(jobId)
     fun observeRunningTimers(): Flow<List<TimeEntry>> = timeEntryDao.observeRunning()
+
+    /** [employeeId]'s shifts the office sent back or corrected, on any job -- see TimeEntryDao.observeReviewedForEmployee. */
+    fun observeReviewedShifts(employeeId: Long): Flow<List<TimeEntry>> =
+        timeEntryDao.observeReviewedForEmployee(employeeId)
     suspend fun getTimeEntries(jobId: Long): List<TimeEntry> = timeEntryDao.getForJob(jobId)
     suspend fun getAllTimeEntries(): List<TimeEntry> = timeEntryDao.getAll()
     suspend fun deleteTimeEntry(entry: TimeEntry) = deleteSynced(entry.syncId, "time_entries") { timeEntryDao.delete(entry) }

@@ -25,9 +25,22 @@
 #     setup steps an owner (not this workflow) must do by hand.
 #
 # The run step checks the HTTP status itself and fails the job on anything
-# but 200 -- curl's own exit code does not reflect a 4xx/5xx response, so
-# `--fail` (turns a non-2xx into a real shell failure) plus reading the
-# trailing status code both have to be here, not just one of them.
+# but 200. curl's own exit code does not reflect a 4xx/5xx response, and
+# `--fail` is deliberately NOT used: it exits before the response body is
+# written, and the body is the only place the function says why it refused.
+# So the status is read from `-w '%{http_code}'`, and curl's exit code only
+# covers the call not completing at all (DNS, TLS, timeout) -- which `set -e`
+# turns into a failed run.
+#
+# NOT CONFIGURED IS NOT A FAILURE. Until FOLLOWUPS_TRIGGER_SECRET exists as a
+# repository secret, an hourly run has nothing to do: it says so as a notice,
+# writes the same sentence to the run summary, and exits 0. It used to exit 1,
+# which made GitHub email the owner a "run failed" message every hour for a
+# scheduler he had simply not switched on yet. A manual "Run workflow" press
+# without the secret still fails -- somebody asked for a send and none can
+# happen, and a green tick there would say otherwise. Once the secret is set,
+# every real failure (refused secret, function error, mail provider refusing)
+# still fails the run exactly as before.
 name: Follow-up email scheduler
 
 on:
@@ -43,15 +56,35 @@ jobs:
         env:
           TRIGGER_SECRET: ${{ secrets.FOLLOWUPS_TRIGGER_SECRET }}
           SUPABASE_ANON_KEY: 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
 
           if [ -z "${TRIGGER_SECRET:-}" ]; then
-            echo "::error::FOLLOWUPS_TRIGGER_SECRET is not set as a GitHub repository secret. Doing nothing -- see docs/FOLLOW_UPS_SCHEDULER.md." >&2
-            exit 1
+            why="FOLLOWUPS_TRIGGER_SECRET is not set (GitHub -> Settings -> Secrets and variables -> Actions). The follow-up scheduler is switched off, so nothing was sent to anyone. See docs/FOLLOW_UPS_SCHEDULER.md to switch it on."
+            echo "### Follow-up email scheduler: not configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "$why" >> "$GITHUB_STEP_SUMMARY"
+            if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+              # Pressed by hand: a green tick would claim a send that cannot happen.
+              echo "::error::${why}"
+              exit 1
+            fi
+            echo "::notice::${why}"
+            exit 0
           fi
 
-          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+          # --retry covers a blip between GitHub and Supabase (timeouts, 5xx,
+          # 429). Repeating a call is safe: every send is claimed in
+          # follow_up_log before it goes out, so a retried run skips anything
+          # the first attempt already sent.
+          # --max-time is NOT what bounds a slow run. Supabase itself answers
+          # 504 for a function silent past 150 s, so the function keeps to a
+          # 100 s budget and returns 200 with an "unfinished" note when a
+          # backlog does not fit (the rest goes out next hour). 170 s sits just
+          # above that gateway limit: curl only gives up on a call the network
+          # has lost, never on an answer Supabase is still going to deliver.
+          http_status=$(curl -sS --retry 2 --retry-delay 15 --max-time 170 \
+            -o response.json -w '%{http_code}' \
             -X POST 'https://newcrgafcptspmapacrx.supabase.co/functions/v1/send-follow-ups' \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
@@ -60,6 +93,9 @@ jobs:
 
           echo "HTTP status: ${http_status}"
           cat response.json
+          # The body has no trailing newline, and a ::error:: line only counts
+          # as an annotation at the start of a line.
+          echo
 
           if [ "${http_status}" != "200" ]; then
             echo "::error::send-follow-ups returned HTTP ${http_status}, treating as failure." >&2
@@ -72,4 +108,10 @@ jobs:
           if grep -q '"error"' response.json; then
             echo "::error::send-follow-ups responded 200 but its body reports an error (see above)." >&2
             exit 1
+          fi
+
+          # A backlog bigger than one run's time budget: not a failure, the
+          # remainder is still due and the next hourly run sends it.
+          if grep -q '"unfinished"' response.json; then
+            echo "::notice::send-follow-ups ran out of time before every due follow-up was sent; the rest go out on the next hourly run."
           fi

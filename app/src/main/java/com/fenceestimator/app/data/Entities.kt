@@ -134,6 +134,23 @@ data class PendingDeletion(
 )
 
 /**
+ * A takeoff line this phone has just written under a sync id the cloud may
+ * hold tombstoned, which the next sync must bring back to life there rather
+ * than reap here. See [LineItemResurrections] for the bug.
+ *
+ * A table, not a list in memory, because the gap it covers is exactly when
+ * the process is most likely to die: a Suggest pressed at a job site with no
+ * signal, then the phone swiped away or left overnight. With the list gone,
+ * the reaper on reconnect saw the ids tombstoned, deleted the regenerated
+ * lines -- and any quantity typed on them since -- and nothing said so.
+ */
+@Entity(tableName = "pending_resurrections")
+data class PendingResurrection(
+    @PrimaryKey val syncId: String,
+    val queuedAt: Long = System.currentTimeMillis()
+)
+
+/**
  * A customer/property. Holds the shared survey image + calibration (one
  * scale for the whole property) plus job-level pricing. The actual fence
  * line(s) live in [FenceRun] rows so one job can mix fence types.
@@ -287,6 +304,46 @@ data class Job(
      */
     val lastSyncedAt: Long? = null,
     /**
+     * This row as it serialized the last time this phone took the cloud's copy
+     * of it -- a pull that merged the cloud row on, or the row a push handed
+     * back (JobSync.jobSyncSnapshot, JSON, money keys left out). Null until
+     * the first such moment on a build that records it.
+     *
+     * What it is for: telling which columns THIS phone changed since then. A
+     * crew phone sends crew_save_job only those (JobSync.crewChangedKeys).
+     * Sending every allowlisted column instead meant a crew phone holding an
+     * older copy -- it pushes before it pulls -- put its stale calibration,
+     * grid size, teardown feet and locate ticket back over what the office
+     * had just set, and the first three move the footage price-job bills.
+     * It also names the columns a crew phone changed that the server will not
+     * take from crew, so they go to the office as a note instead of vanishing.
+     *
+     * Bookkeeping, never sent: not on CloudJob, and writing it never touches
+     * [updatedAt].
+     */
+    val crewBase: String? = null,
+    /**
+     * When this phone stopped receiving the job because its person is no
+     * longer on it -- a crew member taken off, or an access that ended
+     * (supabase_crew_job_scope.sql). Null for every job this phone may see.
+     *
+     * A job that stops arriving is HIDDEN, never deleted. Deleting it here
+     * would take its shifts with it (TimeEntry cascades on the job row) and
+     * any walkthrough tick or marker that has not gone up yet, and nothing
+     * on a job's children says which of them the cloud already has. So the
+     * row stays, with everything hanging off it: out of the job list and the
+     * schedule (JobDao.observeAll, getScheduledBetween), listed as kept on
+     * this phone (JobDao.observeHeld), still openable by id so a running
+     * shift can be clocked out, and its shifts still upload. The moment the
+     * job arrives again -- access granted, put back on the crew -- it comes
+     * back, and anything held back goes up with it.
+     *
+     * Set and cleared only by JobSync (planJobHolds), from what the crew door
+     * actually returned. Local bookkeeping: not on CloudJob, never sent, and
+     * writing it never touches [updatedAt].
+     */
+    val accessEndedAt: Long? = null,
+    /**
      * Your own payment link (Square, Stripe, PayPal, Venmo -- whatever you already use).
      * Pasted in per job or defaulted from Settings, then sent to the customer. The app
      * never touches the money itself, so there's no processor account or fee here.
@@ -350,6 +407,35 @@ data class Job(
      */
     val signedContractTotal: Double = 0.0,
     val signedLinearFeet: Float = 0f,
+    /**
+     * The price the customer accepted, frozen at the moment they accepted it.
+     * Two writers, one per way of accepting:
+     *  - a drawn signature ([signedAt]): EstimateViewModel.captureSignature
+     *    freezes it here, and the server's `stamp_accepted_total` trigger
+     *    copies signed_contract_total into jobs.accepted_total when the
+     *    signature reaches it;
+     *  - an online approval ([quoteApprovedAt]): quote-view writes the total
+     *    the quote page showed, in the same UPDATE as quote_approved_at.
+     * The trigger never stamps an approval -- an approval through a quote-view
+     * older than that change leaves it null, on purpose (see
+     * supabase_r6_price_stability.sql PART 4 for why a fallback from
+     * contract_total would have anchored job 4598 at the wrong figure).
+     * Null means nothing anchors the price yet, so the live estimate stands.
+     *
+     * Why it exists: after acceptance the phone kept pushing its fresh recompute
+     * as contract_total, so the figure the quote page, the payment link and
+     * the deposit cap all read moved on its own. Woody was signed at $3,620 and
+     * showed $200; job 4598 was signed at $9,710 and showed $13,410. Once set,
+     * the only price a phone may assert is this plus signed extra work since
+     * (see JobMoney.anchoredTotal); anything else goes through re-approval.
+     *
+     * Pull-only on the wire, like the re-approval columns: Job.toCloud never
+     * sends it (it is in MONEY_KEYS, and the server is its only writer). Null
+     * by default and with no backfill here, so a job accepted before this
+     * existed keeps behaving exactly as it did -- rewriting a customer-facing
+     * figure on those is the owner's call, not an upgrade's.
+     */
+    val acceptedTotal: Double? = null,
     /**
      * The customer signing off the finished work at the closing walkthrough.
      *
@@ -751,7 +837,22 @@ data class EstimateLineItem(
      * prices arrive the job re-prices off them without anyone retyping a
      * catalog.
      */
-    val supplierUnitPrice: Double? = null
+    val supplierUnitPrice: Double? = null,
+    /**
+     * True when this phone changed the line and the cloud has not taken the
+     * change yet. Set by every local write (Repository.saveLineItem,
+     * updateLineItem, a takeoff regenerate); left false by a pull; cleared
+     * once an upsert has carried exactly these values up.
+     *
+     * Line items carry no clock of their own, so the push used to send every
+     * line of every job on every pass and the pull then wrote the cloud's copy
+     * back unconditionally: two phones allowed to see prices re-asserted their
+     * own copies at each other for ever, the price moving with every sync
+     * (the owner's phone and a crew login flipped Woody's concrete 3 <-> 85
+     * twenty-odd times in four days). Only a line somebody changed goes up
+     * now, and the pull never writes over one still waiting to.
+     */
+    val pendingPush: Boolean = false
 ) {
     /** What this line actually costs: the supplier quote if it exists, the catalog guess if not. */
     val effectiveUnitPrice: Double get() = supplierUnitPrice ?: unitPrice
@@ -856,7 +957,23 @@ data class ChangeOrder(
     /** The signature in cloud storage. Without it a signed order loses its proof on a new phone. */
     val signatureStoragePath: String? = null,
     val signedAt: Long? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /**
+     * True once this order was part of a price the customer accepted: it
+     * existed when they signed on this phone (EstimateViewModel.captureSignature
+     * marks every order then) or when the quote page approval landed (the
+     * server marks every order it holds then, change_orders.in_accepted_total).
+     * Latches: once true it never goes back, on either side.
+     *
+     * Why: the engine counts every change order in the grand total, signed or
+     * not, so the accepted figure already contains an order that was unsigned
+     * at acceptance. JobMoney.extraWorkSinceAcceptance adds orders signed AFTER
+     * acceptance on top of that figure -- so an order added while the quote was
+     * out and signed the day after the contract was billed twice ($9,710
+     * accepted with a $900 order inside it became $10,610). An order carrying
+     * this flag is never added again.
+     */
+    val inAcceptedTotal: Boolean = false
 ) {
     val isSigned: Boolean get() = signatureImagePath != null
 }

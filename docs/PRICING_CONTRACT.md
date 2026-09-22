@@ -44,7 +44,7 @@ If a Kotlin value has no column here, ADD it to this file in the same commit
   "change_orders": [ /* non-deleted; fields the engine reads */
     { "sync_id": "…", "additional_feet": 0, "additional_cost": 0, "material_cost": 0 }
   ],
-  "existing_items": [ /* estimate_line_items rows already on the job, for hand-edited price carry-over */
+  "existing_items": [ /* estimate_line_items rows already on the job: what each run's regenerate merges with */
     { "sync_id": "…", "fence_run_sync_id": "…", "role": "LINE_POST", "description": "…",
       "quantity": 12, "unit": "EA", "unit_price": 12.5, "supplier_unit_price": null,
       "taxable": true, "auto_generated": true, "sort_order": 3 }
@@ -89,15 +89,23 @@ part of the contract (sums iterate in order).
   `UNIVERSAL`; an `existing_items[].role` that is null or unknown is `NONE`.
   A run's `fence_type` is strict (an unknown one is an error, not a guess).
 - **`existing_items`** are every non-deleted `estimate_line_items` row of the
-  job. Carry-over is per run: only rows whose `fence_run_sync_id` is that run
-  feed `TakeoffRefresher`'s `editedPrices` (rows with `auto_generated=false`
-  and a role other than NONE, keyed by role, last row wins) and
-  `quotedPrices` (rows with a `supplier_unit_price` and a role other than
-  NONE). A row whose `fence_run_sync_id` names no run in `runs[]` is treated
-  as job-level.
+  job. Each run's regenerate merges with the rows whose `fence_run_sync_id`
+  is that run, read in the phone's DAO order (`sort_order`, then `sync_id`),
+  by the phone's own rule (`TakeoffLineMerge.plan`; the port is
+  `line-items.ts` `mergeTakeoff`). A row with `auto_generated=false` and a
+  role other than NONE is an edited line: it is kept exactly as it is, and
+  it stands in for the built line with its sync id, else the only built line
+  of its role still unclaimed, else the one with its product name -- that
+  built line is not written. Rows with `auto_generated=true` give way to the
+  rebuild. `supplier_unit_price` carries by role onto the rebuilt lines
+  (roles other than NONE, last row per role wins). A typed `unit_price` is
+  NOT carried onto other lines (until 2026-09-22 it was, by role, and the
+  edited line itself was replaced). A row whose `fence_run_sync_id` names no
+  run in `runs[]` is treated as job-level.
 - **`is_teardown` runs** get their geometry and takeoff computed (the engine
-  is pure) but NO line items -- TakeoffRefresher clears a teardown run's
-  bill of materials. Their footage feeds `teardown_linear_feet` only.
+  is pure) but no new line items: the regenerate merges them with nothing
+  built, so their generated lines go and an edited line on one stays.
+  Their footage feeds `teardown_linear_feet` only.
 
 ## PricingOutput
 
@@ -118,7 +126,7 @@ part of the contract (sums iterate in order).
       "takeoff": [ { "label": "Fence length", "quantity": 150, "unit": "ft", "group": "SITE" } ]
     }
   ],
-  "items": [ /* the estimate_line_items rows the engine would write, in sort order */
+  "items": [ /* every run's takeoff lines after the regenerate: the built ones, then the edited ones */
     { "sync_id": "…", "fence_run_sync_id": "…", "sort_order": 0, "description": "…",
       "quantity": 24, "unit": "EA", "unit_price": 52.35, "supplier_unit_price": null,
       "taxable": true, "role": "PANEL", "auto_generated": true, "category": null }
@@ -164,22 +172,27 @@ part of the contract (sums iterate in order).
   `suppressed_roles`, zero quantities included (only `buildLineItems` drops
   them). **`takeoff`** is `suggestions.takeoff` verbatim (`group` is the
   `TakeoffGroup` name) -- this is what the office prints.
-- **`items`** are the rows for every non-teardown run, in run order, AFTER
-  the carry-over: `supplier_unit_price` from `quotedPrices[role]`; then, if
-  `editedPrices[role]` exists and differs from the row's `unit_price`, that
-  price with `auto_generated=false`. `sort_order` restarts at 0 per run.
-  `category` is always null (EstimateLineItem has no category; the office
-  looks it up from the catalog by description if it wants one).
-- **`zero_priced`** are the sync ids of written rows whose catalog
-  `unit_price <= 0` (before carry-over); **`zero_priced_names`** is the
+- **`items`** are every run's takeoff lines after the regenerate, in run
+  order: for each run the freshly built lines (supplier quote carried,
+  `auto_generated=true`), then its edited lines exactly as they were
+  (`auto_generated=false`), in (`sort_order`, `sync_id`) order. A teardown
+  run has only the latter. A built line's `sort_order` restarts at 0 per
+  run; an edited line keeps its own. `commit` writes only built lines, and
+  only those that changed; a run whose rebuild matches what is there is not
+  written at all, and an edited line is never written or tombstoned
+  (`load.ts` `buildCommitPlan`). `category` is always null
+  (EstimateLineItem has no category; the office looks it up from the catalog
+  by description if it wants one).
+- **`zero_priced`** are the sync ids of freshly built rows (never an edited
+  one) whose catalog `unit_price <= 0`; **`zero_priced_names`** is the
   engine's own `zeroPricedNames` per run.
-- **`totals_items`** is the order `computeTotals` summed in: the written
-  rows plus the SURVIVING existing rows, sorted by (`sort_order`, `sync_id`)
-  -- the phone's DAO order (`ORDER BY sortOrder ASC, syncId ASC`).
+- **`totals_items`** is the order `computeTotals` summed in: `items` plus
+  the rows no regenerate touches, sorted by (`sort_order`, `sync_id`) --
+  the phone's DAO order (`ORDER BY sortOrder ASC, syncId ASC`).
   Floating-point sums depend on order, so the port must add the same rows in
-  the same order. A row survives a regenerate iff its role is `NONE` or it
-  has no `fence_run_sync_id` (`replaceGeneratedForRun` deletes every roled
-  row of the run, edited ones included).
+  the same order. A regenerate never touches a row whose role is `NONE` or
+  that has no `fence_run_sync_id`; an edited roled row on a run is kept and
+  is in `items`.
 - **`totals`** is `EstimateEngine.Totals` field for field, plus
   `pre_markup_total` = materials_subtotal + tax + labor_cost + teardown_cost
   + change_order_cost + gate_charge in that order (the engine's `preMarkup`;

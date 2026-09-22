@@ -27,8 +27,9 @@ const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency:
 const d = s => s ? new Date(s) : null;
 const netPaid = j => Math.max(0, (j.amount_paid || 0) - (j.refunded_amount || 0));
 
+// depositAskedOf() comes with it: the deposit cap is the page's one copy.
 const lib = new Function('money', 'd', 'netPaid',
-  grab('jobReadiness') + '\nreturn { jobReadiness };')(money, d, netPaid);
+  grab('depositAskedOf') + '\n' + grab('jobReadiness') + '\nreturn { jobReadiness };')(money, d, netPaid);
 const { jobReadiness } = lib;
 
 const run = (jobSyncId, overrides = {}) => ({ job_sync_id: jobSyncId, deleted_at: null, ...overrides });
@@ -88,6 +89,27 @@ test('deposit: asked and not (fully) paid blocks; asking nothing never blocks', 
 
   const noDepositAsked = jobReadiness({ ...readyJob(), deposit_amount: 0, amount_paid: 0 }, [run('j1')]);
   assert.equal(noDepositAsked.ready, true);
+});
+
+test('deposit: measured against the job\'s price -- a deposit stored above it cannot hold a fully paid job back', () => {
+  // An old build wrote the materials figure ($5,730) as the deposit on a job
+  // accepted at $3,620, and the customer has paid the whole $3,620. The quote
+  // page and the card machine cap the deposit at the price (depositFigures),
+  // so there is nothing left to collect on it.
+  const job = { ...readyJob(), deposit_amount: 5730, amount_paid: 3620 };
+  const capped = jobReadiness(job, [run('j1')], 3620);
+  assert.equal(capped.items.find(i => i.label === 'Deposit collected').ok, true);
+  assert.equal(capped.ready, true);
+  // Still short of the capped figure -> still blocked.
+  const short = jobReadiness({ ...job, amount_paid: 3000 }, [run('j1')], 3620);
+  assert.equal(short.items.find(i => i.label === 'Deposit collected').ok, false);
+  // PLANTED FAILURE: the uncapped rule (no price passed -- what every caller
+  // did before) calls the same fully paid job blocked.
+  const uncapped = jobReadiness(job, [run('j1')]);
+  assert.equal(uncapped.items.find(i => i.label === 'Deposit collected').ok, false);
+  // An unpriced job (price zero) is not a cap of zero.
+  assert.equal(jobReadiness({ ...readyJob(), amount_paid: 0 }, [run('j1')], 0)
+    .items.find(i => i.label === 'Deposit collected').ok, false);
 });
 
 test('HOA/permit PENDING blocks; NOT_REQUIRED and APPROVED both pass', () => {

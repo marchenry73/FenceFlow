@@ -21,9 +21,14 @@ const grab = (name) => {
   throw new Error('unbalanced: ' + name);
 };
 
+// approvalRatePct counts quotes that reached the customer, which is
+// quoteDeliveredAt() -- and that reads dates through bizMs(). Lifted with it.
+// salesValueTotal asks billableTotalOf() for a won job's price, so the
+// accepted-price helpers come too.
 const names = ['medianDays', 'medianHours', 'approvalRatePct', 'productionStats',
   'crewProductivityPerHour', 'labourEstVsActualTotals', 'materialEstVsActualTotals',
-  'salesValueTotal', 'estVsActualProfitTotals'];
+  'salesValueTotal', 'estVsActualProfitTotals', 'bizMs', 'quoteDeliveredAt',
+  'stampMs', 'anchoredTotalOf', 'billableTotalOf'];
 const lib = new Function(names.map(grab).join('\n') + '\nreturn {' + names.join(',') + '};')();
 const { medianDays, medianHours, approvalRatePct, productionStats, crewProductivityPerHour,
   labourEstVsActualTotals, materialEstVsActualTotals, salesValueTotal,
@@ -77,6 +82,22 @@ test('PLANTED FAILURE: counting every job (not just sent ones) as the denominato
   // disagree so this canary would fail if approvalRatePct regressed to that.
   const buggy = jobs.filter(j => j.quote_approved_at).length / jobs.length * 100;
   assert.notEqual(approvalRatePct(jobs), buggy);
+});
+
+test('PLANTED FAILURE: approvals of never-sent quotes must not inflate the rate (the live 100%)', () => {
+  // The owner's real shape: the one quote the office stamped as sent was not
+  // approved, and the one quote the customer approved online was shared from
+  // the phone, so it has no sent date. Both reached the customer.
+  const jobs = [
+    { quote_sent_at: '2026-09-01T10:00:00Z', quote_approved_at: null },
+    { quote_sent_at: null, quote_viewed_at: '2026-09-02T10:00:00Z', quote_approved_at: '2026-09-03T10:00:00Z' },
+  ];
+  assert.equal(approvalRatePct(jobs), 50);
+  // The old formula -- every approval over the office-stamped sent dates --
+  // read 100% on exactly these rows. Prove it would.
+  const old = jobs.filter(j => j.quote_approved_at).length / jobs.filter(j => j.quote_sent_at).length * 100;
+  assert.equal(old, 100);
+  assert.notEqual(approvalRatePct(jobs), old);
 });
 
 // ---- productionStats ------------------------------------------------------
@@ -150,6 +171,18 @@ test('PLANTED FAILURE: ignoring the contract_total fallback would undercount sal
   const naive = jobs.reduce((s, j) => s + Number(j.contract_total || 0), 0); // 0, wrong
   assert.equal(salesValueTotal(jobs, items, []), 200);
   assert.notEqual(salesValueTotal(jobs, items, []), naive);
+});
+
+test('salesValueTotal: an accepted job counts at the price the customer accepted, not a drifted contract_total', () => {
+  const jobs = [{ sync_id: 'w', contract_total: 13410, accepted_total: 9710,
+    signed_at: '2026-09-01T12:00:00Z', quote_approved_at: null, reapproval_required_at: null }];
+  const orders = [
+    { job_sync_id: 'w', additional_cost: 900, signed_at: '2026-09-02T12:00:00Z', in_accepted_total: true },   // inside the $9,710
+    { job_sync_id: 'w', additional_cost: 455, signed_at: '2026-09-02T12:00:00Z', in_accepted_total: false },  // signed for since
+  ];
+  assert.equal(salesValueTotal(jobs, [], orders), 9710 + 455);
+  // PLANTED FAILURE: the order already inside the accepted price, billed again.
+  assert.notEqual(salesValueTotal(jobs, [], orders), 9710 + 455 + 900);
 });
 
 // ---- estVsActualProfitTotals ------------------------------------------------

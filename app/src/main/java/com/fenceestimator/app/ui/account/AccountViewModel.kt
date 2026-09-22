@@ -16,6 +16,7 @@ import com.fenceestimator.app.ui.components.UiMessage
 import com.fenceestimator.app.ui.components.UiMessageException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class AccountUiState(
@@ -40,7 +41,27 @@ data class AccountUiState(
      * The screen watches this to re-show the dialog with what's waiting
      * rather than leaving the refusal in a Snackbar that scrolls away.
      */
-    val signOutBlockedByUnsyncedWork: Boolean = false
+    val signOutBlockedByUnsyncedWork: Boolean = false,
+    /**
+     * Why the last sign-in or sign-up from the form did not get in, shown
+     * under the password box. A snackbar was the only place it went, and it
+     * had scrolled away by the time anybody looked up from retyping.
+     */
+    val signInError: UiMessage? = null,
+    /**
+     * The server said the email and password do not match. The screen empties
+     * the password box (only that one -- the address stays) and puts the
+     * cursor in it, then clears this with [AccountViewModel.consumePasswordRejected].
+     */
+    val passwordRejected: Boolean = false,
+    /** The address that last got in on this phone, to start the form with. */
+    val lastSignInEmail: String? = null,
+    /**
+     * A sign-in from the form just got in. The screen takes it from here to the
+     * home screen once the app-wide session agrees, unless the account still
+     * has a step to finish -- see AccountScreen.
+     */
+    val justSignedIn: Boolean = false
 ) {
     /** Not signed in means local-only mode, which keeps full access on your own device. */
     val role: UserRole get() = profile?.userRole ?: UserRole.OWNER
@@ -51,13 +72,22 @@ data class AccountUiState(
 
 class AccountViewModel(
     private val repository: Repository? = null,
-    private val dataOwnership: com.fenceestimator.app.cloud.DataOwnership? = null
+    private val dataOwnership: com.fenceestimator.app.cloud.DataOwnership? = null,
+    private val settingsStore: com.fenceestimator.app.data.SettingsStore? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountUiState())
     val state: StateFlow<AccountUiState> = _state
 
     init {
         refresh()
+        settingsStore?.let { store ->
+            viewModelScope.launch {
+                val remembered = runCatching { store.lastSignInEmail.first() }.getOrNull()
+                if (!remembered.isNullOrBlank()) {
+                    _state.value = _state.value.copy(lastSignInEmail = remembered)
+                }
+            }
+        }
     }
 
     fun refresh() {
@@ -80,7 +110,7 @@ class AccountViewModel(
         }
     }
 
-    fun signIn(email: String, password: String) = run(UiMessage(R.string.vm_signed_in)) {
+    fun signIn(email: String, password: String) = run(UiMessage(R.string.vm_signed_in), fromSignInForm = true) {
         try {
             SupabaseModule.signIn(email.trim(), password)
         } catch (e: Exception) {
@@ -90,8 +120,14 @@ class AccountViewModel(
             val text = "${e::class.simpleName} ${e.message}".lowercase()
             throw when {
                 "invalid login credentials" in text || "invalid_grant" in text ||
-                "invalid_credentials" in text ->
+                "invalid_credentials" in text -> {
+                    // Only this one empties the password. No signal or an
+                    // unconfirmed email says nothing about what was typed,
+                    // and making somebody retype a correct password because
+                    // their truck is in a dead spot helps nobody.
+                    _state.value = _state.value.copy(passwordRejected = true)
                     UiMessageException(UiMessage(R.string.vm_wrong_email_or_password))
+                }
                 "email not confirmed" in text || "email_not_confirmed" in text ->
                     UiMessageException(UiMessage(R.string.vm_confirm_email_first))
                 com.fenceestimator.app.cloud.looksLikeNoNetwork(e) ->
@@ -101,8 +137,23 @@ class AccountViewModel(
         }
     }
 
-    fun signUp(email: String, password: String) = run(UiMessage(R.string.vm_account_created)) {
+    fun signUp(email: String, password: String) = run(UiMessage(R.string.vm_account_created), fromSignInForm = true) {
         SupabaseModule.signUp(email.trim(), password)
+    }
+
+    /** Typing again means the last failure has been read. */
+    fun clearSignInError() {
+        if (_state.value.signInError != null) _state.value = _state.value.copy(signInError = null)
+    }
+
+    /** Clears the flag once the screen has emptied the password box. */
+    fun consumePasswordRejected() {
+        _state.value = _state.value.copy(passwordRejected = false)
+    }
+
+    /** Clears the flag once the screen has acted on a fresh sign-in. */
+    fun consumeJustSignedIn() {
+        _state.value = _state.value.copy(justSignedIn = false)
     }
 
     fun createCompany(companyName: String, ownerName: String) = run(UiMessage(R.string.vm_business_created)) {
@@ -198,28 +249,51 @@ class AccountViewModel(
         _state.value = _state.value.copy(message = null)
     }
 
-    private fun run(successMessage: UiMessage, block: suspend () -> Unit) {
+    /**
+     * @param fromSignInForm the sign-in / sign-up form: a failure is shown under
+     *   its password box instead of in a snackbar, and a success records the
+     *   address for next time and raises [AccountUiState.justSignedIn].
+     */
+    private fun run(successMessage: UiMessage, fromSignInForm: Boolean = false, block: suspend () -> Unit) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(busy = true, message = null)
+            _state.value = _state.value.copy(
+                busy = true,
+                message = null,
+                signInError = if (fromSignInForm) null else _state.value.signInError
+            )
             val result = runCatching { block() }
             val email = runCatching { SupabaseModule.currentUserEmail() }.getOrNull()
             val profileResult = if (email != null) runCatching { SupabaseModule.fetchProfile() } else null
+            val failure = result.exceptionOrNull()?.let { error ->
+                val text = error.message
+                when {
+                    error is UiMessageException -> error.ui
+                    text != null -> UiMessage(R.string.vm_failed_with, listOf(text))
+                    else -> UiMessage(R.string.vm_something_went_wrong)
+                }
+            }
+            // Set only when the form has just got somebody in.
+            val signedInHere = email?.takeIf { fromSignInForm && failure == null }
+            if (signedInHere != null) {
+                // The address the server actually signed in, not the one as
+                // typed -- and never the password, which has no key to go in.
+                settingsStore?.let { store -> runCatching { store.saveLastSignInEmail(signedInHere) } }
+            }
             _state.value = _state.value.copy(
                 busy = false,
                 signedInEmail = email,
                 profile = profileResult?.getOrNull(),
                 profileFetchFailed = profileResult?.isFailure ?: false,
-                message = result.fold(
-                    onSuccess = { successMessage },
-                    onFailure = { error ->
-                        val text = error.message
-                        when {
-                            error is UiMessageException -> error.ui
-                            text != null -> UiMessage(R.string.vm_failed_with, listOf(text))
-                            else -> UiMessage(R.string.vm_something_went_wrong)
-                        }
-                    }
-                )
+                message = when {
+                    failure == null -> successMessage
+                    fromSignInForm -> null
+                    else -> failure
+                },
+                signInError = if (fromSignInForm) failure else _state.value.signInError,
+                // Kept in step here too, so signing out later from this same
+                // screen starts the form with the address that just worked.
+                lastSignInEmail = signedInHere ?: _state.value.lastSignInEmail,
+                justSignedIn = _state.value.justSignedIn || signedInHere != null
             )
         }
     }

@@ -49,6 +49,8 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.SiteMarker
+import com.fenceestimator.app.estimate.DrawingScale
+import com.fenceestimator.app.estimate.PlanExtent
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
@@ -77,7 +79,14 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: SurveyViewModel = viewModel(
         key = "crew_plan_$jobId",
-        factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId, app) }
+        // Read-only, so never re-pricing. This screen builds the drawing's
+        // view model only to read the drawing, and its init used to start the
+        // takeoff refresh on the crew's phone -- whose catalog has every price
+        // scrubbed, so it picked different products and pushed its own
+        // quantities over the office's on every sync.
+        factory = GenericViewModelFactory {
+            SurveyViewModel(app.repository, jobId, app, repriceOnDrawingChange = false)
+        }
     )
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
@@ -132,7 +141,12 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
             // costs the difference.
             item { RequestChangeCard(jobId = jobId) }
 
-            val drawn = runs.filter { FenceCodec.decodePoints(it.pointsEncoded).size >= 2 }
+            // A run is on the plan when it has a fence line OR a gate. Only
+            // lines counted once, so a gate sold on its own -- a run with no
+            // corners -- was never drawn, and a job whose only run was that
+            // gate showed no plan at all while its card said there was a gate
+            // to hang.
+            val drawn = runs.filter { PlanExtent.hasSomethingToDraw(it) }
             if (drawn.isNotEmpty()) {
                 item { PlanCanvas(currentJob, drawn, markers) }
                 item { Legend(drawn, markers) }
@@ -181,7 +195,23 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
                 // version of it.
                 .background(androidx.compose.ui.graphics.Color.White)
         ) {
-            val allPoints = runs.flatMap { FenceCodec.decodePoints(it.pointsEncoded) }
+            // The drawing's scale, the one the drawing screen measures at
+            // (DrawingScale.of) -- what turns a gate's width in feet into a
+            // width on the plan.
+            val drawingScale = DrawingScale.of(job)
+            // A gate with no fence line under it, laid level at its real width
+            // where it was placed, exactly as the drawing screen lays it. Per
+            // run, so each is drawn in its run's turn below.
+            val standaloneByRun = runs.map { PlanExtent.standaloneGateSpans(listOf(it), drawingScale) }
+            // Fitted to the fence lines, as it always was, and to both posts
+            // of every gate standing on its own. With no scale (a photo nobody
+            // has calibrated) such a gate has no width to draw, so its marker
+            // alone is fitted and drawn.
+            val allPoints = runs.flatMap { run ->
+                val points = FenceCodec.decodePoints(run.pointsEncoded)
+                if (points.size >= 2) points
+                else FenceCodec.decodeGates(run.gatesEncoded).map { FencePoint(it.x, it.y) }
+            } + standaloneByRun.flatten().flatMap { (_, span) -> listOf(span.start, span.end) }
             if (allPoints.isEmpty()) return@Box
 
             val minX = allPoints.minOf { it.x }
@@ -217,8 +247,12 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
                 // Spacing comes from the job so both views agree on what a
                 // square means.
                 val feetPerSquare = job.gridFeetPerSquare.coerceAtLeast(0.5f)
-                val pxPerFoot = job.calibrationPixelsPerFoot
-                    ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
+                // The scale the drawing screen draws at (SurveyViewModel.drawingScale),
+                // so a square here is the square the office drew on. The raw
+                // calibration fell back to a flat 20 units per foot, which on
+                // an uncalibrated grid of any other size drew the squares at
+                // the wrong spacing.
+                val pxPerFoot = SurveyViewModel.drawingScale(job) ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
                 val squarePx = feetPerSquare * pxPerFoot * scale
                 if (squarePx > 6f) {
                     var gx = offsetX
@@ -233,26 +267,39 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
                     }
                 }
 
-                runs.forEach { run ->
+                runs.forEachIndexed { runIndex, run ->
                     val points = FenceCodec.decodePoints(run.pointsEncoded)
-                    if (points.size < 2) return@forEach
 
-                    // Teardown reads differently from a run being built, the
-                    // same as it does on the drawing screen -- the crew needs
-                    // to tell "pull this out" from "build this" from the plan
-                    // itself, not by asking.
-                    val lineColor = if (run.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine
-                    val count = if (run.closedLoop) points.size else points.size - 1
-                    for (i in 0 until count) {
-                        drawLine(
-                            color = lineColor,
-                            start = place(points[i]),
-                            end = place(points[(i + 1) % points.size]),
-                            strokeWidth = 6f
-                        )
+                    if (points.size >= 2) {
+                        // Teardown reads differently from a run being built, the
+                        // same as it does on the drawing screen -- the crew needs
+                        // to tell "pull this out" from "build this" from the plan
+                        // itself, not by asking.
+                        val lineColor = if (run.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine
+                        val count = if (run.closedLoop) points.size else points.size - 1
+                        for (i in 0 until count) {
+                            drawLine(
+                                color = lineColor,
+                                start = place(points[i]),
+                                end = place(points[(i + 1) % points.size]),
+                                strokeWidth = 6f
+                            )
+                        }
+                        // Every vertex is a post the crew has to set, so mark them.
+                        points.forEach { drawCircle(lineColor, radius = 9f, center = place(it)) }
                     }
-                    // Every vertex is a post the crew has to set, so mark them.
-                    points.forEach { drawCircle(lineColor, radius = 9f, center = place(it)) }
+
+                    // A gate standing on its own: the opening at its real
+                    // width and the two posts it hangs between, which are what
+                    // the crew sets in concrete. Under the gate's own marker,
+                    // drawn next, so it reads as the same gate as every other.
+                    standaloneByRun[runIndex].forEach { (_, span) ->
+                        val from = place(span.start)
+                        val to = place(span.end)
+                        drawLine(PlanColors.gate, from, to, strokeWidth = 6f)
+                        drawCircle(PlanColors.gate, radius = 9f, center = from)
+                        drawCircle(PlanColors.gate, radius = 9f, center = to)
+                    }
 
                     FenceCodec.decodeGates(run.gatesEncoded).forEach { gate ->
                         val at = place(FencePoint(gate.x, gate.y))
@@ -283,15 +330,21 @@ private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>
  */
 @Composable
 private fun Legend(runs: List<FenceRun>, markers: List<SiteMarker>) {
-    val hasBuildLine = remember(runs) { runs.any { !it.isTeardown } }
-    val hasTeardownLine = remember(runs) { runs.any { it.isTeardown } }
+    // Only runs with a line put a line on the plan; a gate-only run is here
+    // for its gate, which the gate dot already explains. On such a job that
+    // dot IS the plan's explanation, so its label is translated like every
+    // other one here -- it was the last English word left on a Spanish or
+    // French crew phone's plan.
+    val lined = remember(runs) { runs.filter { FenceCodec.decodePoints(it.pointsEncoded).size >= 2 } }
+    val hasBuildLine = remember(lined) { lined.any { !it.isTeardown } }
+    val hasTeardownLine = remember(lined) { lined.any { it.isTeardown } }
     val presentMarkerKinds = remember(markers) { markers.map { it.kind }.distinct() }
 
     Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
             if (hasBuildLine) LegendDot(PlanColors.fenceLine, stringResource(R.string.crew_plan_legend_build))
             if (hasTeardownLine) LegendDot(PlanColors.teardownLine, stringResource(R.string.crew_plan_legend_teardown))
-            LegendDot(PlanColors.gate, "Gate")
+            LegendDot(PlanColors.gate, stringResource(R.string.crew_plan_legend_gate))
         }
         // Two per row rather than one long row, so this stays legible on a
         // 360dp phone even on a job with several kinds of marker on it.
@@ -326,7 +379,8 @@ private fun RunCard(job: Job, run: FenceRun) {
 
     // Honour typed-in footage. Reading "no fence line drawn" on a run that was
     // quoted by typing its length tells the crew the job isn't ready when it is.
-    val pxPerFt = job.calibrationPixelsPerFoot ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
+    // Same scale as the drawing screen's dimensions (see PlanCanvas above).
+    val pxPerFt = SurveyViewModel.drawingScale(job) ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
     val geometry = if (points.size >= 2) FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop) else null
     val feet = if (usingManual) manual!!.toDouble() else geometry?.totalLinearFeet?.toDouble() ?: 0.0
     val corners = if (usingManual) run.manualCornerCount else geometry?.cornerCount ?: 0
@@ -427,6 +481,9 @@ private fun RequestChangeCard(jobId: Long) {
     val session by app.session.state.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var sent by remember { mutableStateOf(false) }
+    // The request had no job left to go with (see the send below), so it was
+    // not saved -- and the card must not say it was.
+    var jobGone by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     Card(
@@ -436,21 +493,29 @@ private fun RequestChangeCard(jobId: Long) {
         Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text(
                 stringResource(
-                    if (sent) R.string.crew_plan_change_requested
-                    else R.string.crew_plan_something_wrong
+                    when {
+                        jobGone -> R.string.crew_plan_not_sent
+                        sent -> R.string.crew_plan_change_requested
+                        else -> R.string.crew_plan_something_wrong
+                    }
                 ),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Text(
                 stringResource(
-                    if (sent) R.string.crew_plan_office_has_it
-                    else R.string.crew_plan_ask_office
+                    when {
+                        jobGone -> R.string.crew_plan_job_gone
+                        sent -> R.string.crew_plan_office_has_it
+                        else -> R.string.crew_plan_ask_office
+                    }
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
-            if (!sent) {
+            // Asking again would only fail the same way: the job is not coming
+            // back to this screen.
+            if (!sent && !jobGone) {
                 OutlinedButton(
                     onClick = { showDialog = true },
                     modifier = Modifier.fillMaxWidth()
@@ -488,18 +553,36 @@ private fun RequestChangeCard(jobId: Long) {
                 Button(
                     enabled = what.isNotBlank(),
                     onClick = {
+                        // Read now: the dialog, and the state behind these
+                        // boxes, is gone by the time the save runs.
+                        val summary = what.trim()
+                        val detail = why.trim()
+                        showDialog = false
                         scope.launch {
-                            app.repository.requestPlanChange(
-                                jobId = jobId,
-                                summary = what.trim(),
-                                detail = why.trim(),
-                                by = session.email.orEmpty(),
-                                role = session.role.label
-                            )
+                            // A job the sync removed while this screen was
+                            // open has no row for the request to hang off:
+                            // the insert hit the foreign key and took the
+                            // app down. Skipped instead -- see OrphanRows.
+                            // "Sent" only once it is saved: this used to be
+                            // set whatever happened, so a request thrown away
+                            // here read "Change requested ... the office has
+                            // it" to the person who asked.
+                            val saved = com.fenceestimator.app.cloud.skipIfOrphaned {
+                                app.repository.requestPlanChange(
+                                    jobId = jobId,
+                                    summary = summary,
+                                    detail = detail,
+                                    by = session.email.orEmpty(),
+                                    role = session.role.label
+                                )
+                            }
+                            if (saved == null) {
+                                jobGone = true
+                                return@launch
+                            }
+                            sent = true
                             app.autoSync.requestSync()
                         }
-                        sent = true
-                        showDialog = false
                     }
                 ) { Text(stringResource(R.string.crew_send_request)) }
             },
