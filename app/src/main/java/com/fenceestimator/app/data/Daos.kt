@@ -594,16 +594,61 @@ interface ChangeOrderDao {
     @Delete
     suspend fun delete(order: ChangeOrder)
 
-    /** See [JobDao.scrubMoney] -- same reasoning. ChangeOrder carries no edit clock to protect. */
-    @Query("UPDATE change_orders SET additionalCost = 0.0, materialCost = 0.0")
+    /**
+     * See [JobDao.scrubMoney] -- same reasoning. ChangeOrder carries no edit
+     * clock to protect. Also unmarks every order, exactly as
+     * [EstimateLineItemDao.scrubMoney] does: a zero-priced copy must never be
+     * the one waiting to go up.
+     */
+    @Query("UPDATE change_orders SET additionalCost = 0.0, materialCost = 0.0, pendingPush = 0")
     suspend fun scrubMoney(): Int
 
     /**
      * Every order on the job is now inside a price the customer accepted
      * (see [ChangeOrder.inAcceptedTotal]). Only ever sets the flag.
+     *
+     * Marked for push: the flag is the server's guard against billing the same
+     * extra work twice, and an acceptance that never reaches the cloud is an
+     * acceptance the quote page and the payment link do not know about.
      */
-    @Query("UPDATE change_orders SET inAcceptedTotal = 1 WHERE jobId = :jobId AND inAcceptedTotal = 0")
+    @Query("UPDATE change_orders SET inAcceptedTotal = 1, pendingPush = 1 WHERE jobId = :jobId AND inAcceptedTotal = 0")
     suspend fun markAllInAcceptedTotal(jobId: Long): Int
+
+    /** The orders waiting to go up ([ChangeOrder.pendingPush]). */
+    @Query("SELECT * FROM change_orders WHERE pendingPush = 1")
+    suspend fun pendingPush(): List<ChangeOrder>
+
+    /**
+     * The cloud has taken these. Named by sync id rather than "everything
+     * marked", so an edit made while the push was in flight stays marked and
+     * goes up on the next pass instead of being silently dropped.
+     */
+    @Query("UPDATE change_orders SET pendingPush = 0 WHERE syncId IN (:syncIds) AND pendingPush = 1")
+    suspend fun clearPendingPush(syncIds: List<String>): Int
+
+    /**
+     * The server has taken the cleared signature ([ChangeOrder.signatureClearedAt]).
+     * Separate from [clearPendingPush] because the clear goes up in its own
+     * request: if that one fails while the ordinary batch succeeds, the order
+     * must stay claiming the clear so the next pass sends it again.
+     *
+     * Only where the signature is still cleared here. A customer who re-signed
+     * between the push and this call has a NEW signature waiting to go up, and
+     * forgetting the clear would leave the server holding the old one.
+     */
+    @Query(
+        "UPDATE change_orders SET signatureClearedAt = NULL " +
+            "WHERE syncId IN (:syncIds) AND signedAt IS NULL AND signatureStoragePath IS NULL"
+    )
+    suspend fun clearSignatureClearedMark(syncIds: List<String>): Int
+
+    /**
+     * Nothing on this phone is owed an upload any more. See
+     * [EstimateLineItemDao.clearAllPendingPush] -- same reasoning, for a phone
+     * whose orders came through the money-free door.
+     */
+    @Query("UPDATE change_orders SET pendingPush = 0 WHERE pendingPush = 1")
+    suspend fun clearAllPendingPush(): Int
 }
 
 @Dao

@@ -973,7 +973,49 @@ data class ChangeOrder(
      * accepted with a $900 order inside it became $10,610). An order carrying
      * this flag is never added again.
      */
-    val inAcceptedTotal: Boolean = false
+    val inAcceptedTotal: Boolean = false,
+    /**
+     * This phone changed the order and the cloud has not taken the change yet.
+     * The same mark [EstimateLineItem.pendingPush] carries, for the same
+     * reason and with the same two rules: only a marked order goes up, and the
+     * pull writes the cloud's copy over an order that is NOT marked.
+     *
+     * Without it every order went up on every pass and the pull applied
+     * whatever the cloud held, so two writers each re-sent their own copy for
+     * ever -- the 198 quantity flip-flops in the audit log are what that looks
+     * like on line items. No change order has ever been edited on this
+     * company's data (0 rows in audit_log, checked 2026-09-22), so it never
+     * bit here; the order sheet is the money evidence for extra work and it
+     * should not be waiting to.
+     *
+     * It is also what makes "editing the terms clears the signature" hold.
+     * Clearing is a write of NULL, and a push leaves a null field out of the
+     * body entirely (explicitNulls = false), so the server kept the old
+     * signed_at and the next pull put it straight back on the edited terms --
+     * a signature for $1,200 shown against $3,400. See
+     * [signatureClearedAt], which is the half that says so out loud.
+     */
+    val pendingPush: Boolean = false,
+    /**
+     * When THIS phone cleared the customer's signature off this order, because
+     * its terms were edited (JobDetailViewModel.updateChangeOrder). Null means
+     * "this phone is not claiming anything about the signature".
+     *
+     * Its own field rather than an inference, because the inference is wrong.
+     * Clearing has to be sent as an explicit null -- a push leaves a null field
+     * out of the body (explicitNulls = false) and the server keeps what it has
+     * -- and "send explicit nulls for any marked order that reads unsigned
+     * here" would erase a real signature: [pendingPush] is also set by
+     * ChangeOrderDao.markAllInAcceptedTotal at an acceptance, which marks every
+     * order on the job including one a crew phone signed and this phone has not
+     * pulled yet. That is the same erasure that
+     * [changeOrdersInSameColumnBatches] was written to stop, and it must not
+     * come back through this door.
+     *
+     * Set only where the signature is actually cleared; cleared only once the
+     * server has taken the nulls.
+     */
+    val signatureClearedAt: Long? = null
 ) {
     val isSigned: Boolean get() = signatureImagePath != null
 }

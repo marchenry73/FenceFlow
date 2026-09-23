@@ -38,6 +38,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import java.time.Instant
 
 /**
@@ -355,6 +356,19 @@ internal fun lineItemsToApply(rows: List<CloudLineItem>, queuedDeletes: Set<Stri
 internal fun pullMayWriteLine(local: EstimateLineItem?): Boolean = local?.pendingPush != true
 
 /**
+ * The same rule for a change order ([ChangeOrder.pendingPush]), and for the
+ * same reason -- an order carries no clock either.
+ *
+ * It is also what makes a cleared signature stay cleared. Editing the terms
+ * clears the customer's signature (JobDetailViewModel.updateChangeOrder),
+ * which is a write of NULL, and the push cannot say NULL until the order goes
+ * up as a clear; until then the cloud still holds the signature. Without this
+ * the pull put it straight back onto the edited terms, every pass, so the
+ * protection the edit is there to provide never held on a synced phone.
+ */
+internal fun pullMayWriteOrder(local: ChangeOrder?): Boolean = local?.pendingPush != true
+
+/**
  * Whether this pass may push [job]'s punch list, change orders, expenses,
  * steps, markers and field changes.
  *
@@ -586,6 +600,58 @@ internal fun pulledSignatureStoragePath(local: ChangeOrder?, cloud: CloudChangeO
 internal fun changeOrdersInSameColumnBatches(rows: List<CloudChangeOrder>): List<List<CloudChangeOrder>> =
     rows.groupBy { Triple(it.signedAt != null, it.signatureStoragePath != null, it.inAcceptedTotal != null) }
         .values.toList()
+
+/**
+ * [rows] in batches whose rows all name the same columns -- the same trap as
+ * [changeOrdersInSameColumnBatches], on the other table it can bite.
+ *
+ * job_steps went up as ONE batch, and two of its columns are left out of a row
+ * that has nothing to say about them (explicitNulls = false):
+ *
+ *  - `step_key` says WHICH shipped step this is, so a fresh install shows it
+ *    translated. A keyless row -- hand-typed by a crew member, or seeded before
+ *    the column existed -- means "nothing to say", and the pull is careful never
+ *    to blank a key with one ([CloudJobStep.stepKey]). The push was not: one
+ *    keyless step in the batch wrote NULL over the key of every keyed step
+ *    beside it, and those steps then read in whatever language they were seeded
+ *    in on every phone, for good.
+ *  - `completed_at` is the tick. Whether a push mentioned it depended on
+ *    whether some OTHER step in the same batch happened to be ticked, which is
+ *    not a rule at all. Grouped, an all-unticked batch never names the column,
+ *    so a phone can no longer clear a tick it simply has not pulled yet --
+ *    which is what the merge on the way down already says should happen
+ *    (whichever side ticked more recently wins, and a cloud tick this phone
+ *    lacks wins).
+ */
+internal fun jobStepsInSameColumnBatches(rows: List<CloudJobStep>): List<List<CloudJobStep>> =
+    rows.groupBy { (it.completedAt != null) to (it.stepKey != null) }.values.toList()
+
+/**
+ * The rows that tell the server a customer's signature is GONE from an order,
+ * because the terms were edited here ([ChangeOrder.signatureClearedAt]).
+ *
+ * Hand-built JSON, not [CloudChangeOrder], for one reason: this is the only
+ * push in the app that has to say NULL out loud. The shared Json drops a null
+ * property (explicitNulls = false), so a serialized order can ask the server to
+ * KEEP a signature or to SET one, and never to remove it -- which is why an
+ * edited order's cleared signature came back on the next pull.
+ *
+ * Every row names exactly the same five columns, so it is already one batch
+ * (see [changeOrdersInSameColumnBatches]). Nothing else is touched: the terms
+ * themselves go up in the ordinary batches, and in_accepted_total is left out
+ * because it latches server-side and a null would be read as "not marked".
+ */
+internal fun changeOrderSignatureClearRows(orders: List<ChangeOrder>, companyId: String, jobSyncIdOf: (ChangeOrder) -> String?): List<JsonObject> =
+    orders.mapNotNull { order ->
+        val js = jobSyncIdOf(order) ?: return@mapNotNull null
+        buildJsonObject {
+            put("company_id", companyId)
+            put("sync_id", order.syncId)
+            put("job_sync_id", js)
+            put("signed_at", JsonNull)
+            put("signature_storage_path", JsonNull)
+        }
+    }
 
 /** Which door a phone's change orders go up through. See [changeOrderDoor]. */
 internal enum class ChangeOrderDoor {
@@ -1006,13 +1072,22 @@ data class CloudTimeEntryWorkerPatch(
  * catalog builds a different takeoff (see [pushAll]) -- and the pull never
  * writes back a line this phone has a delete queued for ([lineItemsToApply]).
  *
- * **change_orders** -- last-edit-wins is not expressed as a push-side gate
- * beyond the job clock; the push sends the current local row, and the
- * merge-on-pull applies whatever the cloud holds. A phone that may see money
- * upserts the table; a crew phone goes through crew_push_change_orders
- * ([changeOrderDoor]), which freezes the terms once the office has priced
- * them, a customer has accepted them or signed them, and takes a signature
- * once -- so a crew phone's stale copy cannot undo the office's edit.
+ * **change_orders** -- by its own mark ([ChangeOrder.pendingPush]), the same
+ * rule as line items: an order goes up only when this phone changed it and the
+ * cloud has not taken the change yet, and the pull writes the cloud's copy over
+ * every order that is not so marked ([pullMayWriteOrder]). It used to send the
+ * current local row on every pass and apply whatever the cloud held on the way
+ * back, so two writers each re-sent their own copy for ever; that is what the
+ * 198 quantity flip-flops in the audit log look like on line items, and change
+ * orders are the money evidence for extra work. It is also what makes "editing
+ * the terms clears the signature" hold across sync: the clear has to be sent as
+ * an explicit null ([changeOrderSignatureClearRows],
+ * [ChangeOrder.signatureClearedAt]) and the pull must not undo it in the
+ * meantime. A phone that may see money upserts the table; a crew phone goes
+ * through crew_push_change_orders ([changeOrderDoor]), which freezes the terms
+ * once the office has priced them, a customer has accepted them or signed them,
+ * and takes a signature once -- so a crew phone's stale copy cannot undo the
+ * office's edit.
  *
  * **employees**, **manufacturers** -- unconditional upsert on every push
  * ([pushEmployees], [pushManufacturers]); the phone is the source of truth and
@@ -1188,9 +1263,21 @@ object EntitySync {
                             // unsigned copy never writes NULL over a signature.
                             // Both halves are attempted whatever the other did;
                             // the first failure is what the step reports.
+                            //
+                            // A batch that goes up clears its orders'
+                            // pendingPush; one that throws leaves every order in
+                            // it marked, so a partial failure retries the lot
+                            // next pass rather than dropping the rows that did
+                            // land (re-upserting a row the cloud already has is
+                            // the same row again).
+                            suspend fun takenByCloud(batch: List<CloudChangeOrder>): Int {
+                                val n = upsert("change_orders", batch)
+                                repository.clearChangeOrderPendingPush(batch.map { it.syncId })
+                                return n
+                            }
                             val (plain, marked) = splitChangeOrdersByAcceptance(rows.orders)
                             val plainResult = runCatching {
-                                changeOrdersInSameColumnBatches(plain).sumOf { upsert("change_orders", it) }
+                                changeOrdersInSameColumnBatches(plain).sumOf { takenByCloud(it) }
                             }
                             // A database the column has not reached yet
                             // refuses the marked batch outright; those orders
@@ -1198,22 +1285,42 @@ object EntitySync {
                             // sync on every pass until the migration lands.
                             // The phone keeps its mark and sends it again.
                             val markedResult = runCatching {
-                                changeOrdersInSameColumnBatches(marked).sumOf { upsert("change_orders", it) }
+                                changeOrdersInSameColumnBatches(marked).sumOf { takenByCloud(it) }
                             }.recoverCatching { e ->
                                 if (!failureMentions(e, "in_accepted_total")) throw e
                                 changeOrdersInSameColumnBatches(marked.map { it.copy(inAcceptedTotal = null) })
-                                    .sumOf { upsert("change_orders", it) }
+                                    .sumOf { takenByCloud(it) }
+                            }
+                            // "The customer's signature is gone from this
+                            // order" -- the one push that has to say NULL out
+                            // loud, so it is sent as its own request of
+                            // hand-built rows (changeOrderSignatureClearRows).
+                            // Last, so the edited terms are already up there
+                            // when the signature for the old ones comes off.
+                            // Only the orders that CLAIM the clear, never every
+                            // order that merely reads unsigned here.
+                            val clearing = rows.orderSources.filter { it.signatureClearedAt != null }
+                            val clearResult = runCatching {
+                                val clearRows = changeOrderSignatureClearRows(
+                                    clearing, companyId
+                                ) { rows.orderJobSyncId[it.syncId] }
+                                if (clearRows.isEmpty()) 0 else {
+                                    val n = upsert("change_orders", clearRows)
+                                    repository.clearChangeOrderSignatureClearedMark(clearing.map { it.syncId })
+                                    n
+                                }
                             }
                             plainResult.exceptionOrNull()?.let { throw it }
                             markedResult.exceptionOrNull()?.let { throw it }
+                            clearResult.exceptionOrNull()?.let { throw it }
                             plainResult.getOrDefault(0) + markedResult.getOrDefault(0)
                         }
                         // The crew's own door, as crew_save_job is for jobs.
                         // An order the server skipped stays on this phone and
-                        // goes again next pass (every pass sends every order
-                        // on a job it may push), and is counted as held back
-                        // so the phone never says everything is backed up
-                        // over it. A refusal of the whole call (42501: signed
+                        // goes again next pass -- it keeps its pendingPush
+                        // mark, which comes off only when the door held
+                        // nothing back -- and is counted as held back so the
+                        // phone never says everything is backed up over it. A refusal of the whole call (42501: signed
                         // out, suspended, no field-work permission) throws on
                         // to step(), which counts it the same way; so does a
                         // server this function has not reached yet.
@@ -1230,13 +1337,25 @@ object EntitySync {
                                     "EntitySync",
                                     "push change orders: ${tally.heldBack} of ${rows.orders.size} not taken by crew_push_change_orders; kept on this phone for retry"
                                 )
+                            } else {
+                                // The door answers with counts, not with which
+                                // rows it took, so the marks come off only when
+                                // it held nothing back. Anything less and every
+                                // order stays marked and goes again -- the door
+                                // is idempotent by design (it freezes terms it
+                                // has already priced and takes a signature
+                                // once), so sending one twice costs a request.
+                                repository.clearChangeOrderPendingPush(rows.orders.map { it.syncId })
                             }
                             tally.written
                         }
                         ChangeOrderDoor.NONE -> 0
                     }
                 }
-                step("job steps")     { upsert("job_steps", rows.steps) }
+                // Batched by the columns each row names, or one keyless step
+                // blanked the translation key of every step beside it -- see
+                // jobStepsInSameColumnBatches.
+                step("job steps")     { jobStepsInSameColumnBatches(rows.steps).sumOf { upsert("job_steps", it) } }
                 step("site markers")  { upsert("site_markers", rows.markers) }
                 // Insert-only, for two reasons that point the same way.
                 //
@@ -1285,6 +1404,14 @@ object EntitySync {
         val expenses: List<CloudExpense> = emptyList(),
         val punch: List<CloudPunchItem> = emptyList(),
         val orders: List<CloudChangeOrder> = emptyList(),
+        /**
+         * The local rows [orders] were built from, in the same order, so the
+         * push can clear their [ChangeOrder.pendingPush] by sync id and can
+         * tell which ones are claiming a cleared signature.
+         */
+        val orderSources: List<ChangeOrder> = emptyList(),
+        /** The job each of [orderSources] belongs to, by sync id. */
+        val orderJobSyncId: Map<String, String> = emptyMap(),
         val steps: List<CloudJobStep> = emptyList(),
         val markers: List<CloudSiteMarker> = emptyList(),
         val changes: List<CloudFieldChange> = emptyList(),
@@ -1392,6 +1519,8 @@ object EntitySync {
         val expenses = mutableListOf<CloudExpense>()
         val punch = mutableListOf<CloudPunchItem>()
         val orders = mutableListOf<CloudChangeOrder>()
+        val orderSources = mutableListOf<ChangeOrder>()
+        val orderJobSyncId = mutableMapOf<String, String>()
         val steps = mutableListOf<CloudJobStep>()
         val markers = mutableListOf<CloudSiteMarker>()
         val changes = mutableListOf<CloudFieldChange>()
@@ -1404,7 +1533,13 @@ object EntitySync {
             repository.getPunchList(job.id).forEach {
                 punch += CloudPunchItem(companyId, it.syncId, js, it.description, it.resolved)
             }
-            repository.getChangeOrders(job.id).forEach {
+            // Only an order this phone changed and the cloud has not taken yet
+            // ([ChangeOrder.pendingPush]). Every order on every pushable job
+            // used to go up on every pass, so two writers each re-sent their
+            // own copy for ever -- the same loop line items were taken out of.
+            repository.getChangeOrders(job.id).filter { it.pendingPush }.forEach {
+                orderSources += it
+                orderJobSyncId[it.syncId] = js
                 orders += CloudChangeOrder(
                     companyId, it.syncId, js, it.description, it.additionalFeet, it.additionalCost,
                     it.materialCost,
@@ -1449,7 +1584,8 @@ object EntitySync {
 
         return JobChildRows(
             lineItems = lineItems, lineItemSources = sentLines, expenses = expenses, punch = punch,
-            orders = orders, steps = steps, markers = markers, changes = changes,
+            orders = orders, orderSources = orderSources, orderJobSyncId = orderJobSyncId,
+            steps = steps, markers = markers, changes = changes,
             cloudTouchedAt = cloudTouchedAt
         )
     }
@@ -1517,8 +1653,11 @@ object EntitySync {
      * never writes money and never deletes. Row by row it SKIPS what it will
      * not take -- counted, not raised, so one stale order cannot sink the
      * batch -- and those are held back here ([CrewChangeOrderPushResult.heldBack]).
-     * Nothing on this phone is marked as sent either way: change orders carry
-     * no such mark, and every pass sends every order on the jobs it may push.
+     * The answer carries counts, not which rows it took, so the caller clears
+     * [ChangeOrder.pendingPush] only when nothing was held back. Anything less
+     * and every order in the batch stays marked and goes again -- this door is
+     * idempotent by design, so sending one twice costs a request and nothing
+     * else.
      *
      * An answer that will not decode is treated as nothing taken: an answer
      * nobody can read is not news that the orders arrived.
@@ -2338,8 +2477,12 @@ object EntitySync {
             // pull. The file path on the phone that signed never travels.
             val signedAt = row.signedAt?.let { at -> CloudTime.parseMillis(at) }
             val existing = localOrdersBySyncId[row.syncId]
+            // Not over an order changed here and not yet taken by the cloud.
+            // See pullMayWriteOrder -- this is also what keeps a signature
+            // cleared by a terms edit from coming straight back.
+            if (existing != null && !pullMayWriteOrder(existing)) return@forEach
             if (existing == null) {
-                skipIfOrphaned { repository.saveChangeOrder(
+                skipIfOrphaned { repository.saveChangeOrderFromCloud(
                     ChangeOrder(
                         syncId = row.syncId, jobId = jobId,
                         description = row.description,
@@ -2376,7 +2519,7 @@ object EntitySync {
                     inAcceptedTotal = existing.inAcceptedTotal || row.inAcceptedTotal == true
                 )
                 if (merged != existing) {
-                    skipIfOrphaned { repository.updateChangeOrder(merged) } ?: return@forEach
+                    skipIfOrphaned { repository.updateChangeOrderFromCloud(merged) } ?: return@forEach
                     added++
                 }
             }

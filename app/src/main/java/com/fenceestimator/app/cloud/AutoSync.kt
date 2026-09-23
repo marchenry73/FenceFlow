@@ -465,6 +465,27 @@ class AutoSync(
                 runCatching { repository.clearLineItemPushFlags() }
             }
 
+            // Change orders, on the promotion pass ONLY -- not on every DENIED
+            // pass, because a crew phone's orders are real work and do go up,
+            // through crew_push_change_orders.
+            //
+            // What a crew phone holds is money-scrubbed: change_orders_crew
+            // carries neither cost column, so every order it pulled reads $0.
+            // Still marked at the moment the owner door opens, those zeros
+            // would go through it and write $0 over the office's prices --
+            // the same trap as line items, on the table that decides what a
+            // customer is billed for extra work. Unmarked here, the pull that
+            // follows restores the real figures first.
+            //
+            // The cost: an order created on THIS phone that the crew door never
+            // took (offline, or refused because the office already holds a newer
+            // copy) loses its place in the queue. It is still on the phone, and
+            // the next edit to it queues it again -- where pushing $0 over a
+            // signed price is silent and unrecoverable.
+            if (promoted) {
+                runCatching { repository.clearAllChangeOrderPendingPush() }
+            }
+
             // Jobs first: fence runs and time entries reference their job by
             // syncId, so pulling children before their parent would orphan them.
             val sessionNow = session.state.value

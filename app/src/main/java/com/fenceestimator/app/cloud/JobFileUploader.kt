@@ -128,7 +128,9 @@ class JobFileUploader(
                 order.signatureStoragePath?.let { remote ->
                     if (order.signatureImagePath == null || !java.io.File(order.signatureImagePath).exists()) {
                         FileSync.ensureLocal(context, remote, "signatures")?.let { local ->
-                            repository.updateChangeOrder(order.copy(signatureImagePath = local))
+                            // A downloaded file, not an edit: the push queue is
+                            // left as it is (Repository.updateChangeOrderLocalFile).
+                            repository.updateChangeOrderLocalFile(order.copy(signatureImagePath = local))
                         }
                     }
                 }

@@ -1164,13 +1164,56 @@ class Repository(private val db: AppDatabase) {
      * too high, with nothing to show anything had gone wrong.
      */
     suspend fun saveChangeOrder(order: ChangeOrder): Long =
+        saveChangeOrderRow(order.copy(pendingPush = true))
+
+    /**
+     * An edit made HERE, so it is owed an upload ([ChangeOrder.pendingPush]).
+     * Everything on this phone that changes an order goes through here or
+     * [saveChangeOrder] -- including JobFileUploader storing the path of a
+     * signature it has just uploaded, which is the whole point of uploading it.
+     */
+    suspend fun updateChangeOrder(order: ChangeOrder) =
+        changeOrderDao.update(order.copy(pendingPush = true))
+
+    /**
+     * The cloud's copy, taken as it arrived: NOT owed an upload. A pull that
+     * marked what it wrote would send it straight back on the next pass, and
+     * two phones would trade the same order for ever -- which is exactly the
+     * loop [ChangeOrder.pendingPush] exists to break.
+     */
+    suspend fun saveChangeOrderFromCloud(order: ChangeOrder): Long =
+        saveChangeOrderRow(order.copy(pendingPush = false))
+
+    /** See [saveChangeOrderFromCloud]. */
+    suspend fun updateChangeOrderFromCloud(order: ChangeOrder) =
+        changeOrderDao.update(order.copy(pendingPush = false))
+
+    /**
+     * A file this phone has just DOWNLOADED, recorded on the order
+     * (JobFileUploader.downloadMissing). The local file path never travels, so
+     * this is neither a local edit nor the cloud's copy: the push queue is left
+     * exactly as it was. Marking it would send the order back up for nothing;
+     * unmarking it would drop a real edit still waiting to go.
+     */
+    suspend fun updateChangeOrderLocalFile(order: ChangeOrder) = changeOrderDao.update(order)
+
+    private suspend fun saveChangeOrderRow(order: ChangeOrder): Long =
         if (order.id == 0L) {
             changeOrderDao.insert(order)
         } else {
             changeOrderDao.update(order)
             order.id
         }
-    suspend fun updateChangeOrder(order: ChangeOrder) = changeOrderDao.update(order)
+
+    /** The orders waiting to go up, and the ways that queue is cleared. */
+    suspend fun changeOrdersPendingPush(): List<ChangeOrder> = changeOrderDao.pendingPush()
+    suspend fun clearChangeOrderPendingPush(syncIds: List<String>): Int =
+        if (syncIds.isEmpty()) 0 else changeOrderDao.clearPendingPush(syncIds)
+    suspend fun clearAllChangeOrderPendingPush(): Int = changeOrderDao.clearAllPendingPush()
+
+    /** See [ChangeOrderDao.clearSignatureClearedMark]. */
+    suspend fun clearChangeOrderSignatureClearedMark(syncIds: List<String>): Int =
+        if (syncIds.isEmpty()) 0 else changeOrderDao.clearSignatureClearedMark(syncIds)
     suspend fun deleteChangeOrder(order: ChangeOrder) = deleteSynced(order.syncId, "change_orders") { changeOrderDao.delete(order) }
 
     fun observeJobSteps(jobId: Long): Flow<List<JobStep>> = jobStepDao.observeForJob(jobId)

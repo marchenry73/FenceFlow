@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
         PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class
     ],
-    version = 44,
+    version = 45,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -740,13 +740,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** See [SchemaV45] for what each statement is for. */
+        private val MIGRATION_44_45 = object : Migration(44, 45) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV45.MIGRATION_44_45_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -818,5 +825,35 @@ internal object SchemaV44 {
         // False for every existing order: nothing on this phone recorded which
         // orders an acceptance covered, and the server marks the ones it can.
         "ALTER TABLE `change_orders` ADD COLUMN `inAcceptedTotal` INTEGER NOT NULL DEFAULT 0"
+    )
+}
+
+/**
+ * The one unshipped migration, 44 -> 45. Version 44 shipped in app 1.514 and is
+ * frozen: a column added to an entity from here on belongs in THIS list, not in
+ * [SchemaV44]. Room refuses to open a database whose tables do not match its
+ * entities, so a field added without its statement here is a crash on the first
+ * launch after the update -- [SchemaV45Test] holds the two to each other
+ * without needing a device.
+ */
+internal object SchemaV45 {
+    val MIGRATION_44_45_STATEMENTS: List<String> = listOf(
+        // ChangeOrder.pendingPush: this phone changed the order and the cloud
+        // has not taken it yet. Only these go up now (every order went up on
+        // every pass, which is how two phones would have overwritten each
+        // other's prices for ever, and why a cleared signature came back).
+        "ALTER TABLE `change_orders` ADD COLUMN `pendingPush` INTEGER NOT NULL DEFAULT 0",
+        // ...and every order already on the phone counts as waiting, once --
+        // the same reasoning as estimate_line_items in SchemaV44. An edit made
+        // offline before this update has no other record that it never went
+        // up, and re-pushing an order the cloud already has is exactly what
+        // every pass did until now, so it costs nothing.
+        "UPDATE `change_orders` SET `pendingPush` = 1",
+        // ChangeOrder.signatureClearedAt: when this phone cleared the
+        // customer's signature because the terms were edited. Nullable, and
+        // NULL for every existing order -- no phone has ever recorded this, and
+        // null is "claiming nothing", which is how every order behaved before.
+        // Room expects a nullable Long as a nullable INTEGER with no default.
+        "ALTER TABLE `change_orders` ADD COLUMN `signatureClearedAt` INTEGER"
     )
 }

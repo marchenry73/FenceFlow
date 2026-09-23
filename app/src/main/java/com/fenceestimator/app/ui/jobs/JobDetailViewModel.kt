@@ -527,6 +527,17 @@ class JobDetailViewModel(
      * Editing keeps the signature only when nothing about the money or the
      * scope moved. A customer signed for what it said at the time; letting an
      * edited amount keep the old signature would make that record worthless.
+     *
+     * The UPLOADED copy of that signature goes with it
+     * ([ChangeOrder.signatureStoragePath]), and leaving it behind was worse
+     * than useless. JobFileUploader only uploads a signature when the order
+     * has no storage path yet, so a stale path meant the NEW signature was
+     * never uploaded at all -- and then the push sent the OLD image as the
+     * proof for the new terms ([changeOrderSignaturePathToSend] asks only
+     * whether the order is signed, and after re-signing it is). Every other
+     * phone and the office would have downloaded a signature for $1,200 and
+     * shown it against $3,400. Cleared here, the uploader takes the new image
+     * on the next pass and the push has nothing to send until it does.
      */
     fun updateChangeOrder(
         order: ChangeOrder,
@@ -546,7 +557,16 @@ class JobDetailViewModel(
                     additionalCost = additionalCost,
                     materialCost = materialCost,
                     signatureImagePath = if (termsChanged) null else order.signatureImagePath,
-                    signedAt = if (termsChanged) null else order.signedAt
+                    signatureStoragePath = if (termsChanged) null else order.signatureStoragePath,
+                    signedAt = if (termsChanged) null else order.signedAt,
+                    // Says out loud that this phone cleared it, so the push
+                    // sends the clear instead of leaving the field out and the
+                    // pull putting the old signature back. Only when there was
+                    // one to clear.
+                    signatureClearedAt =
+                        if (termsChanged && (order.signedAt != null || order.signatureStoragePath != null))
+                            System.currentTimeMillis()
+                        else order.signatureClearedAt
                 )
             )
         }
