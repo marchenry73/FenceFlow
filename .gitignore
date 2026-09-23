@@ -45,3 +45,19 @@ o*.txt
 
 # agent worktrees (tooling scratch, never source)
 .claude/worktrees/
+
+# Session scratch that collected in the repo root: one-off SQL handed to
+# `db query`, its output, and build/test logs. Named by pattern rather than a
+# blanket *.log so nothing real can hide behind this.
+#
+# Why bother: the rule before every commit here is to read `git status
+# --porcelain` and account for EVERY file, because `git add -A` twice swept an
+# agent's half-finished work into a commit and once pushed it live. Fifteen lines
+# of scratch noise is what makes that rule easy to skip.
+_tmp_q*.sql
+_tmp_q*.out
+_verify_q*.sql
+live*.sql.err
+live*.sql.out.json
+reapply.log
+t[0-9].log
