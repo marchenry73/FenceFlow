@@ -600,7 +600,10 @@ interface ChangeOrderDao {
      * [EstimateLineItemDao.scrubMoney] does: a zero-priced copy must never be
      * the one waiting to go up.
      */
-    @Query("UPDATE change_orders SET additionalCost = 0.0, materialCost = 0.0, pendingPush = 0")
+    @Query(
+        "UPDATE change_orders SET additionalCost = 0.0, materialCost = 0.0, " +
+            "pendingPush = 0, signatureClearedAt = NULL"
+    )
     suspend fun scrubMoney(): Int
 
     /**
@@ -619,9 +622,22 @@ interface ChangeOrderDao {
     suspend fun pendingPush(): List<ChangeOrder>
 
     /**
-     * The cloud has taken these. Named by sync id rather than "everything
-     * marked", so an edit made while the push was in flight stays marked and
-     * goes up on the next pass instead of being silently dropped.
+     * One order, by sync id, so [Repository.markChangeOrdersPushed] can compare
+     * what the row holds NOW against what actually went up.
+     */
+    @Query("SELECT * FROM change_orders WHERE syncId = :syncId")
+    suspend fun getBySyncId(syncId: String): ChangeOrder?
+
+    /**
+     * The cloud has taken these.
+     *
+     * Naming sync ids is NOT enough on its own and this doc used to claim it
+     * was: a sync id does not distinguish one version of a row from another, so
+     * an amount typed while the upsert was in flight had its mark cleared
+     * although the older amount was what went up -- and the next pull then wrote
+     * the cloud's older copy over it, with nothing to show the edit had ever
+     * existed. [Repository.markChangeOrdersPushed] does the comparison and is
+     * what the push calls; this query is its last step.
      */
     @Query("UPDATE change_orders SET pendingPush = 0 WHERE syncId IN (:syncIds) AND pendingPush = 1")
     suspend fun clearPendingPush(syncIds: List<String>): Int
@@ -641,6 +657,19 @@ interface ChangeOrderDao {
             "WHERE syncId IN (:syncIds) AND signedAt IS NULL AND signatureStoragePath IS NULL"
     )
     suspend fun clearSignatureClearedMark(syncIds: List<String>): Int
+
+    /**
+     * The other half of the same mark: an order that has been SIGNED AGAIN since
+     * the terms edit is no longer claiming anything about a cleared signature,
+     * and its claim has to go even though [clearSignatureClearedMark] will never
+     * match it. Left set, the push kept nulling the new signature on the server
+     * and the pull could never touch the order again.
+     */
+    @Query(
+        "UPDATE change_orders SET signatureClearedAt = NULL " +
+            "WHERE syncId IN (:syncIds) AND (signedAt IS NOT NULL OR signatureStoragePath IS NOT NULL)"
+    )
+    suspend fun forgetSignatureClearedMark(syncIds: List<String>): Int
 
     /**
      * Nothing on this phone is owed an upload any more. See

@@ -92,9 +92,19 @@ class CrewChangeOrderPushTest {
         val body = source.substringAfter("private suspend fun pushChangeOrdersThroughCrewDoor(")
             .substringBefore("Uploads catalog items")
         assertTrue(body.contains("\"crew_push_change_orders\""))
-        assertTrue(body.contains("put(\"rows_in\", crewChangeOrderRows(chunk))"))
-        // An answer nobody can read is held back, not taken.
-        assertTrue(body.contains("heldBack += chunk.size"))
+        assertTrue(body.contains("put(\"rows_in\", crewChangeOrderRows(rows))"))
+        // An answer nobody can read is held back, never taken: both places that
+        // record an id sit behind an answer that exists AND held nothing back.
+        assertTrue(body.contains("if (result != null && result.heldBack(chunk.size) == 0)"))
+        assertTrue(body.contains("if (single != null && single.heldBack(1) == 0)"))
+        assertTrue(body.contains("heldBack += 1"))
+        // A chunk that held anything back is re-asked one order at a time. It has
+        // to be: the door answers with counts, not with which rows it took, so
+        // clearing all-or-nothing let ONE order it will never take keep every
+        // other order on the phone marked for ever -- and a marked order is
+        // frozen out of the pull, so none of them could be corrected again.
+        assertTrue(body.contains("chunk.forEach { one ->"))
+        assertTrue(body.contains("ask(listOf(one))"))
     }
 
     // ---- what the crew sends ----

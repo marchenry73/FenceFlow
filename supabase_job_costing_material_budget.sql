@@ -1,3 +1,16 @@
+-- !! SUPERSEDED -- DO NOT RUN THIS FILE AGAINST PRODUCTION !!
+-- This file CREATEs job_costing() and/or ar_aging(), and the live bodies have
+-- moved on since. Running it would quietly undo, at least: the plan gate and
+-- money_scope_company_id() (supabase_r6_money_rpc_plan_gate.sql), the
+-- quoted_material column (supabase_job_costing_material_budget.sql), and the
+-- accepted price (supabase_r7_reports_accepted_price.sql). None of those
+-- failures raises an error -- the reports just start answering with the wrong
+-- figure to the wrong people.
+-- A plain CREATE also RESETS the function's ACL to the default, which is how
+-- anon and PUBLIC got EXECUTE on job_costing() back once already.
+-- The current body is supabase_r7_reports_accepted_price.sql. Take any new edit
+-- from pg_get_functiondef() on the live database, never from here.
+--
 -- Adds the one figure job_costing() computed one line away from and never
 -- returned: what materials were QUOTED at, next to what they actually COST.
 --

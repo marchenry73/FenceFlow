@@ -1214,6 +1214,29 @@ class Repository(private val db: AppDatabase) {
     /** See [ChangeOrderDao.clearSignatureClearedMark]. */
     suspend fun clearChangeOrderSignatureClearedMark(syncIds: List<String>): Int =
         if (syncIds.isEmpty()) 0 else changeOrderDao.clearSignatureClearedMark(syncIds)
+
+    /** See [ChangeOrderDao.forgetSignatureClearedMark]. */
+    suspend fun forgetChangeOrderSignatureClear(syncIds: List<String>): Int =
+        if (syncIds.isEmpty()) 0 else changeOrderDao.forgetSignatureClearedMark(syncIds)
+
+    /**
+     * The cloud took these orders: clear their [ChangeOrder.pendingPush], but
+     * only where the row still holds exactly what was sent. The same guard as
+     * [markLineItemsPushed], for the same reason -- an amount typed while the
+     * upsert was in flight has not gone up, and must stay marked, or the next
+     * pass leaves it behind and the pull puts the cloud's older value over it.
+     *
+     * @param sent the rows as they were read for the push (pendingPush true).
+     */
+    suspend fun markChangeOrdersPushed(sent: List<ChangeOrder>) {
+        if (sent.isEmpty()) return
+        db.withTransaction {
+            sent.forEach { was ->
+                val now = changeOrderDao.getBySyncId(was.syncId) ?: return@forEach
+                if (changeOrderStillAsSent(was, now)) changeOrderDao.update(now.copy(pendingPush = false))
+            }
+        }
+    }
     suspend fun deleteChangeOrder(order: ChangeOrder) = deleteSynced(order.syncId, "change_orders") { changeOrderDao.delete(order) }
 
     fun observeJobSteps(jobId: Long): Flow<List<JobStep>> = jobStepDao.observeForJob(jobId)
@@ -1305,3 +1328,23 @@ class Repository(private val db: AppDatabase) {
     suspend fun deletePunchListItem(item: PunchListItem) = deleteSynced(item.syncId, "punch_list_items") { punchListDao.delete(item) }
 }
 
+/**
+ * Whether a change order still holds what the push sent: only the columns that
+ * actually travel ([com.fenceestimator.app.cloud.CloudChangeOrder]).
+ * [ChangeOrder.signatureClearedAt] is deliberately not one of them -- it never
+ * travels, and it has its own two guarded clears, so treating a change to it as
+ * "not what was sent" would stop a row ever being unmarked.
+ *
+ * File scope, not a member, for the same reason [lineItemStillAsSent] is: this
+ * is the rule, and a test has to be able to state it without building a
+ * Repository and a database.
+ */
+internal fun changeOrderStillAsSent(sent: ChangeOrder, now: ChangeOrder): Boolean =
+    sent.syncId == now.syncId &&
+        sent.description == now.description &&
+        sent.additionalFeet == now.additionalFeet &&
+        sent.additionalCost == now.additionalCost &&
+        sent.materialCost == now.materialCost &&
+        sent.signedAt == now.signedAt &&
+        sent.signatureStoragePath == now.signatureStoragePath &&
+        sent.inAcceptedTotal == now.inAcceptedTotal
