@@ -1897,8 +1897,35 @@ function switchView(name) {
 }
 
 /* ---------------------------------------------------------------- data ---- */
+/* The company this admin account's own login belongs to.
+   Null until loadAll() has read it, and null is "not known", never "none".
+
+   Why the page needs it: every row here identifies a company by its NAME and
+   companies.email, which are settings the owner types. For this account that
+   reads "Fence solutions / support@fenceflowapp.com" -- a FenceFlow address --
+   so the admin's own company sits in the customer list looking like a FenceFlow
+   support account, and the admin's actual login appears nowhere on the page. On
+   2026-09-23 that is exactly what happened: it was suspended from this list by
+   the person inside it, which took their own office offline (twenty-one
+   *_not_suspended policies refuse every row), and afterwards they could not find
+   themselves in the list to undo it.
+
+   The server refuses it now too (admin_suspend, supabase_r7_admin_cannot_suspend_itself.sql).
+   This half is so the row can be recognised BEFORE the click. */
+let myCompanyId = null;
+
 async function loadAll() {
   $('msg').textContent = tr('companiesLoading');
+  // Own company first, so the rows below can be marked on their first paint
+  // rather than after a second render. A failure is not fatal: myCompanyId
+  // stays null, no row claims to be yours, and the server guard still holds.
+  try {
+    const uid = (await db.auth.getSession())?.data?.session?.user?.id;
+    if (uid) {
+      const mine = await db.from('profiles').select('company_id').eq('id', uid).maybeSingle();
+      if (!mine.error) myCompanyId = mine.data?.company_id || null;
+    }
+  } catch (e) { myCompanyId = null; }
   // admin_companies() rather than the platform_clients view: it carries the
   // computed 'allowed' the app itself gates on, plus days left on trial, so
   // this page and the phone can never disagree about who has access.
@@ -2234,7 +2261,27 @@ function versionCell(c) {
     title="${esc(tr('versionTitle'))}">v${spread}</span>`;
 }
 
+/* Is this row the company the signed-in admin's own login belongs to?
+   False while myCompanyId is unknown -- the page never CLAIMS a row is yours on
+   a guess, and the server refuses the write regardless. */
+function isMine(c) {
+  return myCompanyId != null && c && c.id === myCompanyId;
+}
+
 function accessButton(c) {
+  // Never offer to suspend the company you are standing in. It takes your own
+  // office offline -- every job, estimate, shift and payment, for you, your
+  // managers and your crew -- and on 2026-09-23 it was done by accident from
+  // this list, because a company is shown here by its name and companies.email
+  // and neither looked like this admin's own address. The server refuses it now
+  // as well (admin_suspend); this is so the button is not there to press.
+  //
+  // Reinstate stays available on it: if it is somehow suspended, this is the
+  // page that has to be able to undo that.
+  if (isMine(c) && !c.suspended) {
+    return `<span title="Suspending your own company would lock you and your crew out of everything."
+                  style="color:var(--muted);font-size:12px">Your company</span>`;
+  }
   // Reinstate lifts the suspension and nothing else.
   //
   // It used to share the [data-grant] handler with "Make customer", so the
@@ -2296,8 +2343,12 @@ function renderCompaniesTable() {
   // for the same reason a company's own name does.
   $('rows').innerHTML = filtered.map(c => `
     <tr>
-      <td><b>${esc(c.name || tr('rowUnnamedCompany'))}</b><br>
-          <span style="color:var(--muted);font-size:12px">${esc(c.email || '')}</span></td>
+      <td><b>${esc(c.name || tr('rowUnnamedCompany'))}</b>${isMine(c) ? `
+          <span style="display:inline-block;margin-left:6px;padding:2px 6px;border-radius:4px;
+                       font-size:11px;font-weight:700;letter-spacing:.4px;
+                       background:#4c1d24;color:#ffb3c4;border:1px solid #ffb3c4">YOUR COMPANY</span>` : ''}<br>
+          <span style="color:var(--muted);font-size:12px">${esc(c.email || '')}</span>${isMine(c) ? `
+          <br><span style="color:#ffb3c4;font-size:12px">This is the company your own login is in.</span>` : ''}</td>
       <td>${statusPill(c)}</td>
       <td>${onboardingTrack(c)}</td>
       <td>${esc(c.subscription_plan || '—')}</td>
