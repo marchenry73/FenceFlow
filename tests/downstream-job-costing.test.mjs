@@ -128,11 +128,30 @@ with reported as (
 recomputed as (
   select
     j.sync_id as job_sync_id,
-    coalesce(j.contract_total,
-             coalesce((select sum(i.quantity*i.unit_price) from estimate_line_items i
-                       where i.company_id = j.company_id and i.deleted_at is null and i.job_sync_id = j.sync_id), 0)
-             + coalesce((select sum(c.additional_cost) from change_orders c
-                       where c.company_id = j.company_id and c.deleted_at is null and c.job_sync_id = j.sync_id), 0)
+    coalesce(
+      -- The price the customer ACCEPTED comes first
+      -- (supabase_r7_reports_accepted_price.sql). Written out here from the base
+      -- columns rather than by calling public.job_anchored_total(): the point of
+      -- this file is to have something that can DISAGREE with the function, and
+      -- calling it would only repeat it.
+      case
+        when j.accepted_total is not null
+         and j.reapproval_required_at is null
+         and j.accepted_total > 0.005
+         and (j.signed_at is not null or j.quote_approved_at is not null)
+        then greatest(0, j.accepted_total + coalesce((
+               select sum(c.additional_cost) from change_orders c
+                where c.company_id = j.company_id and c.job_sync_id = j.sync_id
+                  and c.deleted_at is null and not c.in_accepted_total
+                  and c.signed_at is not null
+                  and c.signed_at > greatest(coalesce(j.signed_at, '-infinity'::timestamptz),
+                                             coalesce(j.quote_approved_at, '-infinity'::timestamptz))), 0)::numeric)
+      end,
+      j.contract_total,
+      coalesce((select sum(i.quantity*i.unit_price) from estimate_line_items i
+                where i.company_id = j.company_id and i.deleted_at is null and i.job_sync_id = j.sync_id), 0)
+      + coalesce((select sum(c.additional_cost) from change_orders c
+                where c.company_id = j.company_id and c.deleted_at is null and c.job_sync_id = j.sync_id), 0)
     ) as quoted,
     coalesce((select sum(p.amount) from payment_records p
               where p.company_id = j.company_id and p.deleted_at is null and p.job_sync_id = j.sync_id), 0) as collected,
@@ -263,102 +282,15 @@ ${asClaimNoMoney()}
 set local role authenticated;
 insert into probe select 'NO_MONEY-WITH-PLANTED-BUG', (select count(*) from job_costing());
 reset role;
--- undo the plant: restore the real, guarded job_costing() (supabase_job_costing_v2.sql
--- + supabase_money_report_guard.sql, applied in that order) so anything run
--- after this line sees the actual live function, not the stub above.
-drop function public.job_costing(timestamptz, timestamptz);
-CREATE FUNCTION public.job_costing(from_date timestamp with time zone DEFAULT NULL::timestamp with time zone, to_date timestamp with time zone DEFAULT NULL::timestamp with time zone)
- RETURNS TABLE(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric, material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric, projected_profit numeric, margin_percent numeric, cash_position numeric, costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric)
- LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
-AS $function$
-    with scope as (
-        select j.sync_id, j.customer_name, j.status::text, j.contract_total
-        from jobs j
-        where j.company_id = money_scope_company_id()
-          and j.deleted_at is null
-          and (from_date is null or j.created_at >= from_date)
-          and (to_date   is null or j.created_at <= to_date)
-    ),
-    money as (
-        select p.job_sync_id, sum(p.amount) as collected
-        from payment_records p
-        where p.company_id = money_scope_company_id() and p.deleted_at is null
-        group by p.job_sync_id
-    ),
-    materials as (
-        select i.job_sync_id,
-               sum(i.quantity * coalesce(i.supplier_unit_price, i.unit_price)) as cost,
-               sum(i.quantity * i.unit_price) as sell,
-               bool_and(i.supplier_unit_price is null) as all_fallback
-        from estimate_line_items i
-        where i.company_id = money_scope_company_id() and i.deleted_at is null
-        group by i.job_sync_id
-    ),
-    labour as (
-        select t.job_sync_id,
-               sum(case when t.approved_at is not null
-                        then extract(epoch from (t.ended_at - t.started_at)) / 3600.0 * t.hourly_rate
-                        else 0 end) as cost,
-               sum(case when t.approved_at is not null
-                        then extract(epoch from (t.ended_at - t.started_at)) / 3600.0
-                        else 0 end) as hours,
-               sum(case when t.approved_at is null and t.ended_at is not null
-                        then extract(epoch from (t.ended_at - t.started_at)) / 3600.0
-                        else 0 end) as pending_hours
-        from time_entries t
-        where t.company_id = money_scope_company_id() and t.deleted_at is null
-          and t.ended_at is not null
-        group by t.job_sync_id
-    ),
-    extras as (
-        select c.job_sync_id, sum(c.additional_cost) as total
-        from change_orders c
-        where c.company_id = money_scope_company_id() and c.deleted_at is null
-        group by c.job_sync_id
-    ),
-    other as (
-        select e.job_sync_id, sum(e.amount) as cost
-        from expenses e
-        where e.company_id = money_scope_company_id() and e.deleted_at is null
-        group by e.job_sync_id
-    ),
-    figured as (
-        select s.sync_id, s.customer_name, s.status,
-               coalesce(s.contract_total,
-                        coalesce(m.sell, 0) + coalesce(x.total, 0)) as quoted,
-               coalesce(mo.collected, 0) as collected,
-               coalesce(m.cost, 0)  as material_cost,
-               coalesce(l.cost, 0)  as labour_cost,
-               coalesce(o.cost, 0)  as other_cost,
-               coalesce(m.all_fallback, false) as all_fallback,
-               coalesce(l.hours, 0) as hours,
-               coalesce(l.pending_hours, 0) as pending
-        from scope s
-        left join money     mo on mo.job_sync_id = s.sync_id
-        left join materials m  on m.job_sync_id  = s.sync_id
-        left join labour    l  on l.job_sync_id  = s.sync_id
-        left join extras    x  on x.job_sync_id  = s.sync_id
-        left join other     o  on o.job_sync_id  = s.sync_id
-    )
-    select f.sync_id, f.customer_name, f.status,
-           round(f.quoted::numeric, 2),
-           round(f.collected::numeric, 2),
-           round(f.material_cost::numeric, 2),
-           round(f.labour_cost::numeric, 2),
-           round(f.other_cost::numeric, 2),
-           round((f.material_cost + f.labour_cost + f.other_cost)::numeric, 2),
-           round((f.quoted - f.material_cost - f.labour_cost - f.other_cost)::numeric, 2),
-           case when f.quoted > 0
-                then round(((f.quoted - f.material_cost - f.labour_cost - f.other_cost)
-                            / f.quoted * 100)::numeric, 1) end,
-           round((f.collected - f.material_cost - f.labour_cost - f.other_cost)::numeric, 2),
-           f.all_fallback,
-           round(f.hours::numeric, 2),
-           round(f.pending::numeric, 2)
-    from figured f
-    order by f.quoted desc;
-$function$
-;
+-- The plant is undone by the rollback at the bottom of this transaction, and
+-- by nothing else. There used to be a hand-copied CREATE of the real function
+-- here, to "restore" it -- ninety lines that nothing after this point ever
+-- called, and that went stale the moment the live body moved: by 2026-09-22 it
+-- was missing quoted_material, money_scope_company_id(), the plan gate and the
+-- accepted price. A copy like that is not a restore, it is a downgrade waiting
+-- for the one run where the rollback does not happen. Take any new edit from
+-- pg_get_functiondef() on the live database (see
+-- supabase_r7_reports_accepted_price.sql).
 
 select * from probe order by who;
 rollback;
