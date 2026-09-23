@@ -3515,6 +3515,9 @@ const TL = {
     settingsLoadFailed:'Couldn\'t load your business settings just now — the boxes below are blank because the load failed, not because nothing is set. Switch tabs and back, or refresh, to try again.',
     setupReminderTag:'reminder, not required', setupSetItBtn:'Set it', setupDismissBtn:'Dismiss',
     setupDismissTitle:'Hide this reminder for you until it\'s done — nobody else\'s checklist changes',
+    setupDismissAllBtn:'Dismiss all', setupShowHiddenBtn:'Show them',
+    setupDismissAllTitle:'Hide every reminder below, for you. They come back with Show them.',
+    setupHiddenOnly:'%s still unset, hidden by you.',
     setupWelcomeLabel:'Finish the welcome steps',
     setupWelcomeDetail:'Your business details, the FenceFlow agreement and your plan were never finished on the welcome page. Your jobs are all here in the meantime — finish them when you have a minute.',
     setupWelcomeBtn:'Open them',
@@ -5031,6 +5034,9 @@ const TL = {
     settingsLoadFailed:'No se pudieron cargar los ajustes de la empresa en este momento — los campos de abajo están en blanco porque falló la carga, no porque no haya nada configurado. Cambie de pestaña y vuelva, o actualice la página, para intentarlo de nuevo.',
     setupReminderTag:'recordatorio, no obligatorio', setupSetItBtn:'Configurar', setupDismissBtn:'Ocultar',
     setupDismissTitle:'Oculta este recordatorio solo para usted hasta que esté hecho — la lista de nadie más cambia',
+    setupDismissAllBtn:'Ocultar todo', setupShowHiddenBtn:'Mostrarlos',
+    setupDismissAllTitle:'Oculta todos los recordatorios de abajo, solo para usted. Vuelven con Mostrarlos.',
+    setupHiddenOnly:'%s sin configurar, ocultos por usted.',
     setupWelcomeLabel:'Termine los pasos de bienvenida',
     setupWelcomeDetail:'Los datos de su empresa, el acuerdo de FenceFlow y su plan nunca se terminaron en la página de bienvenida. Mientras tanto, todos sus trabajos están aquí — termínelos cuando tenga un momento.',
     setupWelcomeBtn:'Abrirlos',
@@ -6517,6 +6523,9 @@ const TL = {
     settingsLoadFailed:'Impossible de charger les paramètres de l’entreprise pour l’instant — les champs ci-dessous sont vides parce que le chargement a échoué, pas parce que rien n’est configuré. Changez d’onglet et revenez, ou actualisez la page, pour réessayer.',
     setupReminderTag:'rappel, non obligatoire', setupSetItBtn:'Configurer', setupDismissBtn:'Masquer',
     setupDismissTitle:'Masque ce rappel seulement pour vous jusqu’à ce que ce soit fait — la liste de personne d’autre ne change',
+    setupDismissAllBtn:'Tout masquer', setupShowHiddenBtn:'Les afficher',
+    setupDismissAllTitle:'Masque tous les rappels ci-dessous, pour vous. Ils reviennent avec Les afficher.',
+    setupHiddenOnly:'%s non configuré(s), masqué(s) par vous.',
     setupWelcomeLabel:'Terminer les étapes d’accueil',
     setupWelcomeDetail:'Les coordonnées de votre entreprise, l’entente FenceFlow et votre forfait n’ont jamais été terminés sur la page d’accueil. En attendant, tous vos chantiers sont ici — terminez-les quand vous aurez un moment.',
     setupWelcomeBtn:'Les ouvrir',
@@ -7983,9 +7992,22 @@ async function loadNotifPrefs(){
 // who has never muted an alert (or vice versa) does not clobber that
 // column back to empty. Never called for an essential step; renderSetup
 // does not offer the button for one.
+/** One step, or several in a single write. See [setSetupStepsDismissed]. */
 async function setSetupStepDismissed(step, dismissed){
+  return setSetupStepsDismissed([step], dismissed);
+}
+
+/**
+ * Hides or restores setup reminders for THIS user.
+ *
+ * Takes a list and writes once. "Dismiss all" and "Show them" move several
+ * steps at a time, and doing that as N separate upserts would be N round trips
+ * racing each other on the same column -- the last one home would win and the
+ * rest would be lost, which is its own version of "it dismissed everything".
+ */
+async function setSetupStepsDismissed(steps, dismissed){
   const next = new Set(dismissedSetupSteps);
-  if (dismissed) next.add(step); else next.delete(step);
+  (steps || []).forEach(s => { if (dismissed) next.add(s); else next.delete(s); });
   dismissedSetupSteps = next;
   renderSetup();
   try {
@@ -9225,7 +9247,34 @@ function renderSetup(){
   const welcomeRow = onboardingUnfinished && profile?.role === 'OWNER'
     && !dismissedSetupSteps.has('welcome_details');
 
+  // Reminders this user has hidden that are STILL not done. Dismissing used to
+  // be a one-way door: the panel simply vanished, and a hidden step only ever
+  // came back by being finished -- so an accidental Dismiss left the company
+  // with setup outstanding and nothing on screen saying so, and no way back.
+  // (On 2026-09-23 that is exactly what happened: card_payments and
+  // manufacturers were both hidden, they were the only two, and the whole card
+  // disappeared.) Now the card stays as one quiet line that can be undone.
+  const hidden = missing.filter(s => !s.essential && dismissedSetupSteps.has(s.step));
+  const hiddenWelcome = onboardingUnfinished && profile?.role === 'OWNER'
+    && dismissedSetupSteps.has('welcome_details');
+  const hiddenKeys = hidden.map(s => s.step).concat(hiddenWelcome ? ['welcome_details'] : []);
+
   if (!welcomeRow && (!steps.length || (!blocking.length && !reminders.length))) {
+    if (hiddenKeys.length) {
+      setupBlocks = false;
+      panel.style.display = 'block';
+      $('setupList').innerHTML = `
+        <div class="setup-row" style="align-items:center">
+          <span class="setup-mark setup-todo" style="opacity:.55">!</span>
+          <span style="color:var(--muted)">${esc(tr('setupHiddenOnly', hiddenKeys.length))}</span>
+          <span class="setup-go">
+            <button class="btn btn-sm btn-grey" data-setup-show="1">${esc(tr('setupShowHiddenBtn'))}</button>
+          </span>
+        </div>`;
+      document.querySelectorAll('[data-setup-show]').forEach(b =>
+        b.addEventListener('click', () => setSetupStepsDismissed(hiddenKeys, false)));
+      return;
+    }
     panel.style.display = 'none'; setupBlocks = false; return;
   }
   setupBlocks = blocking.length > 0;
@@ -9262,6 +9311,24 @@ function renderSetup(){
             title="${esc(tr('setupDismissTitle'))}">${esc(tr('setupDismissBtn'))}</button>
       </span>
     </div>` : '');
+
+  // "Dismiss all", offered only when there is more than one thing to dismiss
+  // and only over the reminders -- an essential step has no Dismiss of its own
+  // and must not gain one through the back door. One write, and the line that
+  // replaces the card afterwards can undo it.
+  const dismissable = reminders.map(st => st.step).concat(welcomeRow ? ['welcome_details'] : []);
+  if (dismissable.length > 1) {
+    $('setupList').insertAdjacentHTML('beforeend', `
+      <div class="setup-row" style="justify-content:flex-end;border-top:1px dashed var(--line)">
+        <span></span><span></span>
+        <span class="setup-go">
+          <button class="btn btn-sm btn-grey" data-setup-dismiss-all="1"
+            title="${esc(tr('setupDismissAllTitle'))}">${esc(tr('setupDismissAllBtn'))}</button>
+        </span>
+      </div>`);
+    document.querySelectorAll('[data-setup-dismiss-all]').forEach(b =>
+      b.addEventListener('click', () => setSetupStepsDismissed(dismissable, true)));
+  }
 
   document.querySelectorAll('[data-setup-go]').forEach(b =>
     b.addEventListener('click', () => switchTab(b.dataset.setupGo)));
