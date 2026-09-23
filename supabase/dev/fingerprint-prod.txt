@@ -979,6 +979,7 @@ FUNC admin_mark_errors_seen(msg text, wh text) returns=void secdef=t volatility=
 FUNC admin_mark_invited(target uuid, to_email text) returns=void secdef=t volatility=v body_md5=f373f1fb6f764bb4fbfa86140c3f12d3
 FUNC admin_promote_release(target_id uuid) returns=void secdef=t volatility=v body_md5=6c8ba4a232347928911939ea7917886d
 FUNC admin_releases() returns=SETOF app_releases secdef=t volatility=s body_md5=f92575bf8be8eef46e9964e29bd5c03d
+FUNC admin_second_factor_ok() returns=boolean secdef=t volatility=s body_md5=38c172ec5972c195ba3a422a8c3ab636
 FUNC admin_sign_in_attempt_groups(p_days integer, p_limit integer) returns=TABLE(attempt_key text, attempts bigint, sources bigint, first_at timestamp with time zone, last_at timestamp with time zone, is_mine boolean, total_groups bigint) secdef=f volatility=s body_md5=280709ce0f02a0328baa6563616eba64
 FUNC admin_start_trial(target uuid, days integer) returns=void secdef=t volatility=v body_md5=cee0252014602e569ef29e35abd40a85
 FUNC admin_suspend(target uuid, note text, hold boolean) returns=void secdef=t volatility=v body_md5=dc09a89744b257a0ed098cfb94384e03
@@ -1035,7 +1036,7 @@ FUNC hold_money_columns() returns=trigger secdef=t volatility=v body_md5=cfe724a
 FUNC hold_quote_gate_columns() returns=trigger secdef=t volatility=v body_md5=f49690e7bc1debe636c9d1ca8deb49de
 FUNC hold_reapproval_columns() returns=trigger secdef=f volatility=v body_md5=1882331aef7853da6c5032b7c980322d
 FUNC is_my_shift(es text) returns=boolean secdef=t volatility=s body_md5=2eb21815c38a599c1d5cb7395c8f7341
-FUNC is_platform_admin() returns=boolean secdef=t volatility=s body_md5=4018787e2df56489c5276e402039cf6f
+FUNC is_platform_admin() returns=boolean secdef=t volatility=s body_md5=fc73c4e2b5ff7a603c3ec98fa03f1101
 FUNC is_service_role() returns=boolean secdef=t volatility=s body_md5=1a5a026abe58cb34a16523b06390d4a7
 FUNC job_anchored_total(j jobs) returns=numeric secdef=f volatility=s body_md5=0cadcc0c1038365cc6e048835306056e
 FUNC job_contract_columns() returns=text[] secdef=f volatility=i body_md5=80c626b73c08a07299fa50eb55f4b7f0
@@ -1088,7 +1089,7 @@ FUNC note_mail_event(p_company uuid, p_actor uuid, p_kind text, p_window interva
 FUNC payment_records_recompute() returns=trigger secdef=t volatility=v body_md5=7e1e48e4f8fdac0dc5851622f23c4294
 FUNC per_foot_crew_count(p_job_sync_id uuid) returns=integer secdef=t volatility=s body_md5=0f185066b72aa78d9163c224e5cf7721
 FUNC preserve_original_shift() returns=trigger secdef=t volatility=v body_md5=dc41f010e9b963b18f50ccd0fefc192e
-FUNC protect_billing_columns() returns=trigger secdef=t volatility=v body_md5=4aca9239b0e6f3ab84d65d4547d4999d
+FUNC protect_billing_columns() returns=trigger secdef=t volatility=v body_md5=9c1fc2ffc95c1e9e3483ebdbd8f51a72
 FUNC protect_customer_identity() returns=trigger secdef=t volatility=v body_md5=5249866d6b654490f5459104d5383f0d
 FUNC protect_platform_admin_flag() returns=trigger secdef=t volatility=v body_md5=85b2ee3bf7b864cde03790d0737ee687
 FUNC protect_welcome_sent_at() returns=trigger secdef=t volatility=v body_md5=7978af6df3086f43044a4ada65d9f814
