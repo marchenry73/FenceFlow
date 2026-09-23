@@ -10452,12 +10452,20 @@ function contractTotalOf(j){
   return mat + co;
 }
 
-/* ar_aging() and job_costing() are the server's, and both still measure a job
-   against contract_total -- teaching them the accepted price is a migration,
-   not something this page can do. Until then their rows are re-based here for
-   any job this page holds whose price is anchored, so "Who owes you", the
-   Outstanding export and the profit columns say what the job sheet says. A row
-   for a job with no anchored price passes through untouched, as the same
+/* ar_aging() and job_costing() now measure a job against the price it was
+   accepted at, the same rule as here -- supabase_r7_reports_accepted_price.sql
+   gave them public.job_anchored_total(). Before that they read contract_total,
+   the moving recompute, and these three functions re-based their rows in the
+   browser so that "Who owes you", the Outstanding export and the profit columns
+   said what the job sheet said.
+
+   That re-basing is KEPT, and is now a no-op against a current server:
+   anchorCostingRow returns the row untouched once it already agrees to within
+   half a cent, anchorArRows recomputes owed from the same anchored figure, and
+   anchorAgingBuckets adds a difference that is zero. It stays because it costs
+   nothing and it is what makes this page right against an older server -- a
+   rolled-back function, another project, a tab left open through a deploy. A
+   row for a job with no anchored price passes through untouched, as the same
    object. */
 
 /** One job_costing()-shaped row (business_report()'s jobs are the same

@@ -1,3 +1,15 @@
+-- !! SUPERSEDED -- DO NOT RUN THIS FILE AGAINST PRODUCTION !!
+-- The live body of this function has moved on several times since. Running
+-- this file would silently undo, at least: the plan gate and
+-- money_scope_company_id() (supabase_r6_money_rpc_plan_gate.sql), the
+-- quoted_material column (supabase_job_costing_material_budget.sql), and the
+-- accepted price (supabase_r7_reports_accepted_price.sql). None of those
+-- failures would raise an error -- the reports would just quietly start
+-- answering with the wrong figure to the wrong people.
+-- The current body is supabase_r7_reports_accepted_price.sql. Take any new
+-- edit from pg_get_functiondef() on the live database, never from here.
+-- Kept only for the history of why the function looks the way it does.
+--
 -- Read the app's contract total instead of inventing one.
 --
 -- See supabase_contract_total_patch.sql. The materials sum stays only as a

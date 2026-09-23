@@ -801,6 +801,7 @@ CONSTR build_templates.build_templates_not_universal CHECK ((fence_type <> 'UNIV
 CONSTR build_templates.build_templates_panel_spacing CHECK (((fence_type <> ALL (ARRAY['VINYL'::text, 'ALUMINUM'::text, 'ORNAMENTAL_IRON'::text])) OR (post_spacing_ft = panel_width_ft)))
 CONSTR build_templates.build_templates_pkey PRIMARY KEY (id)
 CONSTR change_orders.change_orders_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR change_orders.change_orders_feet_finite_nonnegative CHECK (((additional_feet >= (0)::double precision) AND (additional_feet < 'Infinity'::double precision)))
 CONSTR change_orders.change_orders_pkey PRIMARY KEY (id)
 CONSTR companies.companies_pkey PRIMARY KEY (id)
 CONSTR company_settings.company_settings_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
@@ -985,7 +986,7 @@ FUNC admin_unsuspend(target uuid) returns=void secdef=t volatility=v body_md5=4a
 FUNC advanced_reports_company_id() returns=uuid secdef=t volatility=s body_md5=b88c763a27755503788f5cb31cffb71b
 FUNC allow_rejoin(member_id uuid) returns=void secdef=t volatility=v body_md5=72fb5512fa95b552f1fdeca867d127bd
 FUNC approve_time_entry(shift_sync_id text, approve boolean, note text) returns=jsonb secdef=t volatility=v body_md5=b80a8a3d0e36fae056e7abfccc440388
-FUNC ar_aging() returns=TABLE(job_sync_id text, customer_name text, phone text, email text, status text, contract_total numeric, paid numeric, owed numeric, since timestamp with time zone, days_out integer, bucket text) secdef=t volatility=s body_md5=121e9667a3951b0fb899b94f950efaa9
+FUNC ar_aging() returns=TABLE(job_sync_id text, customer_name text, phone text, email text, status text, contract_total numeric, paid numeric, owed numeric, since timestamp with time zone, days_out integer, bucket text) secdef=t volatility=s body_md5=0608fe2d1bf26f62b01050bf0cd3dd81
 FUNC attention_sweep_candidates() returns=TABLE(company_id uuid, job_sync_id uuid, detector text, severity text, message text, fp text) secdef=t volatility=s body_md5=3b4995030995cb18dfd8cecfb858dfb3
 FUNC audit_changes() returns=trigger secdef=t volatility=v body_md5=c4f40a44e26c9a58bde82748a99f5795
 FUNC auth_events_before_insert() returns=trigger secdef=f volatility=v body_md5=b95342a61afa220fff258c37533da238
@@ -1010,6 +1011,7 @@ FUNC complete_company_details(biz_name text, biz_phone text, biz_email text, lic
 FUNC correct_time_entry(shift_sync_id text, new_started_at timestamp with time zone, new_ended_at timestamp with time zone, reason text) returns=jsonb secdef=t volatility=v body_md5=709d9e8c7edbf70eefe97b83e0f2143e
 FUNC create_company_with_owner(company_name text, owner_name text) returns=uuid secdef=t volatility=v body_md5=1e379670f2510857e679d030271a60f8
 FUNC create_run_from_template(p_job_sync_id uuid, p_template_sync_id uuid, p_overrides jsonb) returns=uuid secdef=t volatility=v body_md5=2d6aa0ff42dc29e5404c1244b38450bd
+FUNC crew_push_change_orders(rows_in jsonb) returns=jsonb secdef=t volatility=v body_md5=c02fda9c36b36b3d9989e50c34bf48c7
 FUNC crew_push_line_items(rows jsonb) returns=integer secdef=t volatility=v body_md5=a4b78a7cf6773f49cfd36f1756775a5d
 FUNC crew_roster() returns=TABLE(id uuid, sync_id text, name text, role text, is_active boolean) secdef=t volatility=s body_md5=bd86eb72874ec935014630d829626c10
 FUNC crew_save_job(row_in jsonb) returns=boolean secdef=t volatility=v body_md5=7d7fc7647286803a6de344675d743963
@@ -1035,8 +1037,9 @@ FUNC hold_reapproval_columns() returns=trigger secdef=f volatility=v body_md5=18
 FUNC is_my_shift(es text) returns=boolean secdef=t volatility=s body_md5=2eb21815c38a599c1d5cb7395c8f7341
 FUNC is_platform_admin() returns=boolean secdef=t volatility=s body_md5=4018787e2df56489c5276e402039cf6f
 FUNC is_service_role() returns=boolean secdef=t volatility=s body_md5=1a5a026abe58cb34a16523b06390d4a7
+FUNC job_anchored_total(j jobs) returns=numeric secdef=f volatility=s body_md5=0cadcc0c1038365cc6e048835306056e
 FUNC job_contract_columns() returns=text[] secdef=f volatility=i body_md5=80c626b73c08a07299fa50eb55f4b7f0
-FUNC job_costing(from_date timestamp with time zone, to_date timestamp with time zone) returns=TABLE(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric, material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric, projected_profit numeric, margin_percent numeric, cash_position numeric, costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric, quoted_material numeric) secdef=t volatility=s body_md5=507cde9b1e15aa38192087c3703fe3e2
+FUNC job_costing(from_date timestamp with time zone, to_date timestamp with time zone) returns=TABLE(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric, material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric, projected_profit numeric, margin_percent numeric, cash_position numeric, costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric, quoted_material numeric) secdef=t volatility=s body_md5=e905d67b0a3d2e86484ed4b083ee51e7
 FUNC job_money_columns() returns=text[] secdef=f volatility=i body_md5=64072f0644f50fec5ec75bf8eaff46ff
 FUNC join_company(target_company_id uuid, member_name text, requested_role_in text) returns=void secdef=t volatility=v body_md5=7283468b880d459cb46fe1036405eee3
 FUNC latch_change_order_acceptance() returns=trigger secdef=f volatility=v body_md5=4b7a551666c729b9d90b5b610fcdba8d
@@ -1125,7 +1128,7 @@ FUNC stamp_line_item_price() returns=trigger secdef=t volatility=v body_md5=5821
 FUNC stamp_materials_dates() returns=trigger secdef=f volatility=v body_md5=acac25a41702450131826b840b0414a6
 FUNC stamp_time_entry_rate() returns=trigger secdef=t volatility=v body_md5=c09e4f09de340afb7d8c2f2ff9d29e9f
 FUNC time_entry_needs_a_person() returns=trigger secdef=t volatility=v body_md5=014383147733df7526d1675f3a53eb3d
-FUNC touch_updated_at() returns=trigger secdef=f volatility=v body_md5=e12af0b2afbb31e09a3f45eb17916d90
+FUNC touch_updated_at() returns=trigger secdef=f volatility=v body_md5=bee508c7592614b79e7114e11998c8c2
 FUNC welcome_email_trigger_ok(p_secret text) returns=boolean secdef=t volatility=s body_md5=ee3320a19f203787699ca551c700cd06
 GRANT admin_release_audience anon DELETE
 GRANT admin_release_audience anon INSERT
