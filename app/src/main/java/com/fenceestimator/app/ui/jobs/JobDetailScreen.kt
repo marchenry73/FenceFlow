@@ -1078,6 +1078,10 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
             stableKey = job.id, label = stringResource(R.string.jd_min_job_charge), initialValue = job.minimumJobCharge.toFloat(),
             modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(minimumJobCharge = it.toDouble()) } }
+        DraftNumberField(
+            stableKey = job.id, label = stringResource(R.string.jd_min_labor_charge), initialValue = job.minimumLaborCharge.toFloat(),
+            modifier = Modifier.weight(1f)
+        ) { viewModel.update { j -> j.copy(minimumLaborCharge = it.toDouble()) } }
     }
     if (job.pricingTierName.isNotBlank()) {
         Text(

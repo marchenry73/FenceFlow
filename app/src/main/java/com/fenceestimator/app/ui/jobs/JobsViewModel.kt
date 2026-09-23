@@ -218,6 +218,7 @@ class JobsViewModel(
                 markupPercent = defaults.defaultMarkupPercent,
                 laborRatePerFt = defaults.defaultLaborRatePerFt,
                 minimumJobCharge = defaults.defaultMinimumJobCharge,
+                minimumLaborCharge = defaults.defaultMinimumLaborCharge,
                 preferredManufacturerId = defaults.preferredManufacturerId.takeIf { it != 0L }
             )
             // Start on the standard residential tier rather than "Custom" -- that's

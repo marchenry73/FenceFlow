@@ -380,6 +380,7 @@
     <string name="set_concrete_bags">Concrete bags/post</string>
     <string name="set_default_labor_rate">Default labor rate ($/ft)</string>
     <string name="set_min_job_charge">Minimum job charge ($)</string>
+    <string name="set_min_labor_charge">Minimum labour charge ($)</string>
     <string name="set_crew_speed">How Fast Your Crew Works</string>
     <string name="set_crew_speed_explain">These drive the estimated hours on every job, and whether it warns you that a date can\'t be finished. Every crew is different — a schedule built on someone else\'s numbers is a schedule that slips.</string>
     <string name="set_feet_per_day">Feet per day</string>
@@ -553,6 +554,7 @@
     <string name="jd_apply_tier">Apply pricing tier</string>
     <string name="jd_discount_pct">Discount (%)</string>
     <string name="jd_min_job_charge">Minimum job charge ($)</string>
+    <string name="jd_min_labor_charge">Minimum labor charge ($)</string>
     <string name="jd_tier_summary">%1$s: labor $%2$s/ft · markup %3$s%%</string>
     <string name="jd_tier_summary_discount">discount %1$s%%</string>
     <string name="jd_include_teardown">Include teardown of existing fence</string>
@@ -878,6 +880,7 @@
     <string name="est2_approved_extra_work">Approved extra work</string>
     <string name="est2_plus_feet">(+%1$s ft)</string>
     <string name="est2_minimum_charge_applied">Minimum job charge of %1$s applied</string>
+    <string name="est2_minimum_labor_charge_applied">Minimum labor charge of %1$s applied</string>
     <string name="est2_send_document">Send %1$s</string>
     <string name="est2_changed_after_signed_title">This estimate changed after it was signed</string>
     <string name="est2_changed_after_signed_body">Since it was signed, %1$s. Nothing can be sent out until %2$s signs the new figures.</string>

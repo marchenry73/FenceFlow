@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
         PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class
     ],
-    version = 45,
+    version = 46,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -747,13 +747,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** See [SchemaV46] for what each statement is for. */
+        private val MIGRATION_45_46 = object : Migration(45, 46) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV46.MIGRATION_45_46_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -855,5 +862,23 @@ internal object SchemaV45 {
         // null is "claiming nothing", which is how every order behaved before.
         // Room expects a nullable Long as a nullable INTEGER with no default.
         "ALTER TABLE `change_orders` ADD COLUMN `signatureClearedAt` INTEGER"
+    )
+}
+
+/**
+ * The one unshipped migration, 45 -> 46. Version 45 shipped in app 1.519 and is
+ * frozen: a column added to an entity from here on belongs in THIS list, not in
+ * [SchemaV45]. Room refuses to open a database whose tables do not match its
+ * entities, so a field added without its statement here is a crash on the first
+ * launch after the update -- [SchemaV46Test] holds the two to each other
+ * without needing a device.
+ */
+internal object SchemaV46 {
+    val MIGRATION_45_46_STATEMENTS: List<String> = listOf(
+        // Job.minimumLaborCharge: floor under the labour figure alone, applied
+        // before markup/tax/discount. 0 for every existing job -- with 0 the
+        // arithmetic is byte-for-byte what it was before this column existed,
+        // so no company on this database is repriced by the update.
+        "ALTER TABLE `jobs` ADD COLUMN `minimumLaborCharge` REAL NOT NULL DEFAULT 0"
     )
 }

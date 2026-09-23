@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-22T17:17:57.735Z"
+    "generated_at": "2026-09-23T20:04:16.537981900Z"
   },
   "case": "hand-edited-lines-kept",
   "note": "Lines edited by hand stand in for the built line of their role and keep their own quantity and price (LINE_POST at a typed $14, POST_CAP at the catalog's own price); an edited GATE_PANEL on a run that builds no gate is kept, never dropped; the generated CONCRETE_BAG row gives way to the rebuild.",
@@ -17,6 +17,7 @@
       "labor_rate_per_ft": 8.0,
       "labor_flat_fee": 0.0,
       "minimum_job_charge": 0.0,
+      "minimum_labor_charge": 0.0,
       "waste_percent": 0.0,
       "gate_rate_per_ft": 20.0,
       "trash_haul_fee": 0.0,

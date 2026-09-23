@@ -56,6 +56,7 @@ data class CloudSettings(
     @SerialName("markup") val markup: Double? = null,
     @SerialName("labor_rate") val laborRate: Double? = null,
     @SerialName("min_job_charge") val minJobCharge: Double? = null,
+    @SerialName("min_labor_charge") val minLaborCharge: Double? = null,
     // Measurements, which reach a price through the material counts: posts per
     // run, bags per post, panels per run. A wrong 6 is a wrong quote.
     @SerialName("post_spacing") val postSpacing: Float? = null,
@@ -205,6 +206,7 @@ private fun BusinessProfile.toCloud() = CloudSettings(
     panelWidth = defaultPanelWidthFt,
     panelHeight = defaultPanelHeightFt,
     minJobCharge = defaultMinimumJobCharge,
+    minLaborCharge = defaultMinimumLaborCharge,
     toolsList = defaultToolsListCsv,
     orderTemplate = orderEmailTemplate,
     hoaTemplate = hoaEmailTemplate,
@@ -246,6 +248,7 @@ internal fun BusinessProfile.mergedWith(cloud: CloudSettings) = copy(
     defaultPanelWidthFt = cloud.panelWidth ?: defaultPanelWidthFt,
     defaultPanelHeightFt = cloud.panelHeight ?: defaultPanelHeightFt,
     defaultMinimumJobCharge = cloud.minJobCharge ?: defaultMinimumJobCharge,
+    defaultMinimumLaborCharge = cloud.minLaborCharge ?: defaultMinimumLaborCharge,
     defaultToolsListCsv = cloud.toolsList?.ifBlank { defaultToolsListCsv } ?: defaultToolsListCsv,
     orderEmailTemplate = cloud.orderTemplate?.ifBlank { orderEmailTemplate } ?: orderEmailTemplate,
     hoaEmailTemplate = cloud.hoaTemplate?.ifBlank { hoaEmailTemplate } ?: hoaEmailTemplate,

@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-05T12:20:05.317629100Z"
+    "generated_at": "2026-09-23T20:04:16.537981900Z"
   },
   "case": "round-up-ten",
   "note": "Cents in every component: the grand total rounds UP to the next $10, never down.",
@@ -17,6 +17,7 @@
       "labor_rate_per_ft": 8.25,
       "labor_flat_fee": 0.0,
       "minimum_job_charge": 0.0,
+      "minimum_labor_charge": 0.0,
       "waste_percent": 0.0,
       "gate_rate_per_ft": 20.0,
       "trash_haul_fee": 0.0,

@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-22T17:17:57.735Z"
+    "generated_at": "2026-09-23T20:04:16.537981900Z"
   },
   "case": "quote-carry-in-estimate-order",
   "note": "Two gate panel quotes on one run, handed over out of order. The carry reads the run's lines the way the phone's DAO does (sort_order, then sync_id), so the $250 quote on the later line is the one both widths carry, whatever order the rows arrive in -- and a database read has no order of its own.",
@@ -17,6 +17,7 @@
       "labor_rate_per_ft": 8.0,
       "labor_flat_fee": 0.0,
       "minimum_job_charge": 0.0,
+      "minimum_labor_charge": 0.0,
       "waste_percent": 0.0,
       "gate_rate_per_ft": 20.0,
       "trash_haul_fee": 0.0,

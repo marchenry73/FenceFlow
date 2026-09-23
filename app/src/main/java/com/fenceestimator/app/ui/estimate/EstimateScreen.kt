@@ -612,6 +612,13 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            if (job != null && totals.laborCost <= job!!.minimumLaborCharge && job!!.minimumLaborCharge > 0.0) {
+                Text(
+                    stringResource(R.string.est2_minimum_labor_charge_applied, Money.format(job!!.minimumLaborCharge)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

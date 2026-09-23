@@ -69,6 +69,7 @@ function jobRow(overrides: Partial<DbJobRow> = {}): DbJobRow {
     labor_rate_per_ft: 8,
     labor_flat_fee: 0,
     minimum_job_charge: 200,
+    minimum_labor_charge: 0,
     waste_percent: 0,
     gate_rate_per_ft: 20,
     trash_haul_fee: 0,
@@ -185,6 +186,7 @@ check("jobRowToInput: calibration fround'd", jobRowToInput(jobRow({ calibration_
 check("jobRowToInput: nullable money stays null, not defaulted here",
   jobRowToInput(jobRow({ minimum_job_charge: null, gate_rate_per_ft: null, trash_haul_fee: null })),
   { ...jobRowToInput(jobRow()), minimum_job_charge: null, gate_rate_per_ft: null, trash_haul_fee: null });
+check("jobRowToInput: minimum_labor_charge passthrough", jobRowToInput(jobRow({ minimum_labor_charge: 200 })).minimum_labor_charge, 200);
 check("jobRowToInput: preferred manufacturer null default", jobRowToInput(jobRow()).preferred_manufacturer_sync_id, null);
 check("jobRowToInput: preferred manufacturer passthrough", jobRowToInput(jobRow({ preferred_manufacturer_sync_id: "mfr-1" })).preferred_manufacturer_sync_id, "mfr-1");
 

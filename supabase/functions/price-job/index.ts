@@ -56,8 +56,18 @@ const json = (body: unknown, status = 200) =>
 
 // Column lists, one place each, so the shape price-job asks Postgres for and
 // the shape load.ts's Db*Row types expect can never quietly drift apart.
+// minimum_labor_charge is in this list because a column MISSING from it is the
+// quietest bug this file can have: the row comes back without the key, the
+// unchecked `as DbJobRow` cast below keeps `deno check` green, num() turns
+// undefined into 0.0, and the server prices the job with the floor switched off
+// while the phone prices it with the floor on. The owner's own example would
+// have quoted $380 on the phone and $220 here -- and this is the figure that
+// stamps contract_total, so whichever wrote last would win on the contract.
+// check-parity.mjs cannot catch it: it runs the two ENGINES over a shared
+// fixture and never exercises this select.
 const JOB_COLUMNS = "sync_id, updated_at, calibration_pixels_per_foot, tax_rate_percent, " +
   "markup_percent, discount_percent, labor_rate_per_ft, labor_flat_fee, minimum_job_charge, " +
+  "minimum_labor_charge, " +
   "waste_percent, gate_rate_per_ft, trash_haul_fee, teardown_enabled, teardown_flat_fee, " +
   "teardown_rate_per_ft, teardown_feet, preferred_manufacturer_sync_id";
 const RUN_COLUMNS = "sync_id, label, fence_type, color_or_finish, points_encoded, gates_encoded, " +

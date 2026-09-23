@@ -368,6 +368,9 @@ fun SettingsScreen(
                     DraftNumberField(stableKey = "minjob", label = stringResource(R.string.set_min_job_charge), initialValue = local.defaultMinimumJobCharge.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         local = local.copy(defaultMinimumJobCharge = it.toDouble())
                     }
+                    DraftNumberField(stableKey = "minlabor", label = stringResource(R.string.set_min_labor_charge), initialValue = local.defaultMinimumLaborCharge.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                        local = local.copy(defaultMinimumLaborCharge = it.toDouble())
+                    }
                 }
             }
             item {

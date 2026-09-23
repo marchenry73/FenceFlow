@@ -87,6 +87,16 @@ data class BusinessProfile(
     val defaultPanelWidthFt: Float = 6f,
     val defaultPanelHeightFt: Float = 6f,
     val defaultMinimumJobCharge: Double = 200.0,
+    /**
+     * Least this company charges for LABOUR on a job, before markup and tax and
+     * with materials charged on top. 0 is off, which is what every company that
+     * has never set it reads as -- and off has to mean untouched arithmetic.
+     *
+     * Defaults to 0 rather than 200 like the job floor above it: a default that
+     * put a floor under every job on every phone that updates is a price change
+     * nobody asked for.
+     */
+    val defaultMinimumLaborCharge: Double = 0.0,
     val defaultToolsListCsv: String = "Post hole digger,4' level,Drill/driver,Circular saw,Tape measure,Post level,Wheelbarrow,Safety glasses,Gloves,String line",
 
     // ---- How fast this company actually works ----
@@ -341,6 +351,7 @@ class SettingsStore(private val context: Context) {
         val PANEL_WIDTH = floatPreferencesKey("panel_width")
         val PANEL_HEIGHT = floatPreferencesKey("panel_height")
         val MIN_JOB_CHARGE = doublePreferencesKey("min_job_charge")
+        val MIN_LABOR_CHARGE = doublePreferencesKey("min_labor_charge")
         val TOOLS_LIST = stringPreferencesKey("tools_list")
         val PREFERRED_MANUFACTURER = longPreferencesKey("preferred_manufacturer")
         val ORDER_TEMPLATE = stringPreferencesKey("order_template")
@@ -396,6 +407,7 @@ class SettingsStore(private val context: Context) {
             defaultPanelWidthFt = prefs[Keys.PANEL_WIDTH] ?: 6f,
             defaultPanelHeightFt = prefs[Keys.PANEL_HEIGHT] ?: 6f,
             defaultMinimumJobCharge = prefs[Keys.MIN_JOB_CHARGE] ?: 200.0,
+            defaultMinimumLaborCharge = prefs[Keys.MIN_LABOR_CHARGE] ?: 0.0,
             defaultToolsListCsv = prefs[Keys.TOOLS_LIST]
                 ?: "Post hole digger,4' level,Drill/driver,Circular saw,Tape measure,Post level,Wheelbarrow,Safety glasses,Gloves,String line",
             preferredManufacturerId = prefs[Keys.PREFERRED_MANUFACTURER] ?: 0L,
@@ -471,6 +483,7 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.PANEL_WIDTH] = profile.defaultPanelWidthFt
             prefs[Keys.PANEL_HEIGHT] = profile.defaultPanelHeightFt
             prefs[Keys.MIN_JOB_CHARGE] = profile.defaultMinimumJobCharge
+            prefs[Keys.MIN_LABOR_CHARGE] = profile.defaultMinimumLaborCharge
             prefs[Keys.TOOLS_LIST] = profile.defaultToolsListCsv
             prefs[Keys.PREFERRED_MANUFACTURER] = profile.preferredManufacturerId
             prefs[Keys.ORDER_TEMPLATE] = profile.orderEmailTemplate

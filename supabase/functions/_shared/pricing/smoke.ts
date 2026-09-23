@@ -147,7 +147,7 @@ function job(overrides: Partial<JobRow> = {}): JobRow {
   return {
     calibration_pixels_per_foot: null,
     tax_rate_percent: 7, markup_percent: 0, discount_percent: 0,
-    labor_rate_per_ft: 8, labor_flat_fee: 0, minimum_job_charge: 0,
+    labor_rate_per_ft: 8, labor_flat_fee: 0, minimum_job_charge: 0, minimum_labor_charge: 0,
     waste_percent: 0, gate_rate_per_ft: 20, trash_haul_fee: 0,
     teardown_enabled: false, teardown_flat_fee: 0, teardown_rate_per_ft: 0, teardown_feet: 0,
     preferred_manufacturer_sync_id: null,
@@ -346,6 +346,44 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   check("case4 suppressed roles absent", [roles.includes("POST_CAP"), roles.includes("CONCRETE_BAG")], [false, false]);
   check("case4 takeoff asked for 13 x 8 ft", entriesOf(out)[0], ["PANEL", 13, 8, 100]);
   check("case4 priced 17 x 6 ft Tan", [out.items[0].description, out.items[0].quantity], ["Panel 6 Tan", 17]);
+}
+
+// Case 5: minimum_labor_charge floors labour before markup/tax/discount, and
+//   materials must not help reach it. The run's own roles are suppressed so
+//   its 4 ft contributes only labour feet; $180 of materials rides in as a
+//   job-level extra so the floor cannot be satisfied by them. Owner-approved
+//   worked example: $180 materials + 4 ft fence (labour 8*4 = $32, floored to
+//   the $200 minimum) = $380.
+{
+  const existing: LineItemRow[] = [
+    { sync_id: "materials-180", fence_run_sync_id: null, role: "NONE", description: "Materials", quantity: 1, unit: "EA", unit_price: 180, supplier_unit_price: null, taxable: false, auto_generated: false, sort_order: 0 },
+  ];
+  const out = priceJob(input(
+    job({ minimum_labor_charge: 200 }),
+    [run("run-5", { manual_linear_feet: 4, suppressed_roles: "PANEL,LINE_POST,END_POST,CORNER_POST,POST_CAP,CONCRETE_BAG" })],
+    existing,
+  ));
+  check("case5 no material lines built for the run", out.items.length, 0);
+  check("case5 raw labour would have been 32", 8 * 4, 32);
+  check("case5 labour floored to the minimum", out.totals.labor_cost, 200);
+  check("case5 materials untouched by the floor", out.totals.materials_subtotal, 180);
+  check("case5 worked example: $380", out.totals.grand_total, 380);
+}
+
+// Case 5b: 0 means off -- the same job with no minimum_labor_charge set bills
+//   the raw labour figure, byte-for-byte what the arithmetic was before the
+//   setting existed.
+{
+  const existing: LineItemRow[] = [
+    { sync_id: "materials-180", fence_run_sync_id: null, role: "NONE", description: "Materials", quantity: 1, unit: "EA", unit_price: 180, supplier_unit_price: null, taxable: false, auto_generated: false, sort_order: 0 },
+  ];
+  const out = priceJob(input(
+    job(),
+    [run("run-5b", { manual_linear_feet: 4, suppressed_roles: "PANEL,LINE_POST,END_POST,CORNER_POST,POST_CAP,CONCRETE_BAG" })],
+    existing,
+  ));
+  check("case5b 0 means off: raw labour bills", out.totals.labor_cost, 32);
+  check("case5b grand total unaffected by any floor", out.totals.grand_total, 220);
 }
 
 console.log(`smoke: ${checks - failures} of ${checks} checks passed (engine ${PRICING_ENGINE_VERSION})`);

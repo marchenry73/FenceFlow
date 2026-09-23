@@ -507,6 +507,24 @@ object ParityCases {
             note = "A labour flat fee and a \$35/ft gate rate; the gate's feet leave the labour footage."
             job = job.copy(laborFlatFee = 250.0, laborRatePerFt = 9.5, gateRatePerFt = 35.0)
             run(FenceType.VINYL, feet = 100.0, gates = gates(gate(500, 0, 5.0)))
+        },
+        case(65, "minimum-labour-charge") {
+            note = "A 4 ft job with a \$200 LABOUR floor: labour is lifted from \$32 to \$200, materials are " +
+                "charged on top and never count toward reaching it, and the markup earns on the floored labour."
+            job = job.copy(minimumLaborCharge = 200.0, markupPercent = 15.0)
+            run(FenceType.VINYL, feet = 4.0)
+        },
+        case(66, "minimum-labour-charge-off-keeps-a-credit") {
+            note = "The labour floor at 0 is OFF, and off has to mean untouched: a negative labour flat fee is how " +
+                "money is knocked off a quote, and a bare max(x, 0) would swallow it and put the quote UP."
+            job = job.copy(minimumLaborCharge = 0.0, laborFlatFee = -150.0)
+            run(FenceType.VINYL, feet = 100.0)
+        },
+        case(67, "minimum-labour-charge-under-the-job-floor") {
+            note = "Both floors at once, which is how the owner runs it: labour lifts to \$200, and the whole-job " +
+                "minimum still applies underneath on top of that."
+            job = job.copy(minimumLaborCharge = 200.0, minimumJobCharge = 500.0)
+            run(FenceType.VINYL, feet = 4.0)
         }
     )
 
@@ -731,6 +749,7 @@ object ParityCases {
         laborRatePerFt = 8.0,
         laborFlatFee = 0.0,
         minimumJobCharge = 0.0,
+        minimumLaborCharge = 0.0,
         wastePercent = 0.0,
         gateRatePerFt = 20.0,
         trashHaulFee = 0.0,

@@ -108,6 +108,7 @@ export function jobRowToInput(row: DbJobRow): JobRow {
     labor_rate_per_ft: row.labor_rate_per_ft,
     labor_flat_fee: row.labor_flat_fee,
     minimum_job_charge: row.minimum_job_charge,
+    minimum_labor_charge: row.minimum_labor_charge,
     waste_percent: row.waste_percent,
     gate_rate_per_ft: row.gate_rate_per_ft,
     trash_haul_fee: row.trash_haul_fee,

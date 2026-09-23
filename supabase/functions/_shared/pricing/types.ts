@@ -127,6 +127,8 @@ export interface Job {
   laborFlatFee: number;
   discountPercent: number;
   minimumJobCharge: number;
+  /** Floors labourCost before markup/tax/discount. 0 = off -- see totals.ts. */
+  minimumLaborCharge: number;
   wastePercent: number;
   gateRatePerFt: number;
   trashHaulFee: number;

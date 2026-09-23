@@ -20,6 +20,7 @@ If a Kotlin value has no column here, ADD it to this file in the same commit
     "calibration_pixels_per_foot": null, // number | null, as stored
     "tax_rate_percent": 7, "markup_percent": 0, "discount_percent": 0,
     "labor_rate_per_ft": 8, "labor_flat_fee": 0, "minimum_job_charge": 200,
+    "minimum_labor_charge": 0,
     "waste_percent": 0, "gate_rate_per_ft": 20, "trash_haul_fee": 0,
     "teardown_enabled": false, "teardown_flat_fee": 0, "teardown_rate_per_ft": 0, "teardown_feet": 0,
     "preferred_manufacturer_sync_id": null

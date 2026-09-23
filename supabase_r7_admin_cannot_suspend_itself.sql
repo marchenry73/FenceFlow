@@ -133,7 +133,7 @@ begin
         when 'jobs' then array[
             'status','payment_status','deposit_amount','amount_paid','refunded_amount',
             'labor_rate_per_ft','labor_flat_fee','markup_percent','discount_percent',
-            'minimum_job_charge','tax_rate_percent'
+            'minimum_job_charge','minimum_labor_charge','tax_rate_percent'
         ]
         when 'payment_records' then array['amount','method','received_at','note']
         when 'time_entries' then array['approved_at','rejected_at','hourly_rate','started_at','ended_at']
@@ -265,5 +265,25 @@ select 'the six tables already audited still are',
           from pg_trigger t where t.tgfoid = 'public.audit_changes()'::regprocedure
             and not t.tgisinternal)
 union all
-select 'CANARY: companies had NO audit history before this, so an empty log is expected',
-       (select count(*) = 0 from audit_log where table_name = 'companies');
+-- The canary has to still be true the SECOND time this file is run. The first
+-- version asserted "companies has no audit history", which was true for about an
+-- hour and then went red the moment the trigger recorded a real reinstate --
+-- reporting a working audit trail as a failure. A check made of a fact that the
+-- change itself falsifies can only ever cry wolf.
+--
+-- What IS durable: the watch list is a filter, not "everything". If it silently
+-- became every column, the log would drown in name and email edits and the
+-- suspensions would be unfindable -- while every check above still read true.
+-- Scoped to the companies ARRAY, not to the whole body. Grepping prosrc for
+-- 'name' finds it in the label expression (new_json ->> 'name'), which is not a
+-- watched column at all -- so the first version of this canary read false
+-- against a perfectly correct function. Third time today a text check has read
+-- the wrong part of what it was pointed at; a check made of source text has to
+-- name the region it means.
+select 'CANARY: the companies watch list filters -- it does not log every column',
+       (select position('''name''' in watched) = 0
+           and position('''email''' in watched) = 0
+           and position('''suspended''' in watched) > 0
+          from (select coalesce(substring(prosrc from 'when ''companies'' then array\[([^\]]*)\]'), '') as watched
+                  from pg_proc
+                 where pronamespace = 'public'::regnamespace and proname = 'audit_changes') a);

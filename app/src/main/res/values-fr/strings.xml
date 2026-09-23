@@ -362,6 +362,7 @@
     <string name="set_concrete_bags">Sacs de béton/poteau</string>
     <string name="set_default_labor_rate">Taux de main-d\'oeuvre par défaut ($/pi)</string>
     <string name="set_min_job_charge">Montant minimum par chantier ($)</string>
+    <string name="set_min_labor_charge">Main-d\'œuvre minimum ($)</string>
     <string name="set_crew_speed">Rythme de travail de votre équipe</string>
     <string name="set_crew_speed_explain">Ces valeurs déterminent les heures estimées de chaque chantier et les alertes lorsqu\'une date ne peut pas être tenue. Chaque équipe est différente : un planning bâti sur les chiffres d\'un autre est un planning qui dérape.</string>
     <string name="set_feet_per_day">Pieds par jour</string>
@@ -535,6 +536,7 @@
     <string name="jd_apply_tier">Appliquer une grille tarifaire</string>
     <string name="jd_discount_pct">Remise (%)</string>
     <string name="jd_min_job_charge">Montant minimum par chantier ($)</string>
+    <string name="jd_min_labor_charge">Montant minimum de main-d\'œuvre ($)</string>
     <string name="jd_tier_summary">%1$s : main-d\'œuvre %2$s $/pi · marge %3$s %%</string>
     <string name="jd_tier_summary_discount">remise %1$s %%</string>
     <string name="jd_include_teardown">Inclure la démolition de la clôture existante</string>
@@ -859,6 +861,7 @@
     <string name="est2_approved_extra_work">Travaux supplémentaires approuvés</string>
     <string name="est2_plus_feet">(+%1$s pi)</string>
     <string name="est2_minimum_charge_applied">Montant minimum de chantier de %1$s appliqué</string>
+    <string name="est2_minimum_labor_charge_applied">Montant minimum de main-d\'œuvre de %1$s appliqué</string>
     <string name="est2_send_document">Envoyer %1$s</string>
     <string name="est2_changed_after_signed_title">Ce devis a changé après sa signature</string>
     <string name="est2_changed_after_signed_body">Depuis la signature, %1$s. Rien ne peut être envoyé tant que %2$s n\'a pas signé les nouveaux montants.</string>

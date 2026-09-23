@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-05T12:20:05.317629100Z"
+    "generated_at": "2026-09-23T20:04:16.537981900Z"
   },
   "case": "corner-15-1-degrees",
   "note": "A 15.1-degree bend (atan(540/2000)) is a CORNER: one corner post comes out of the line posts.",
@@ -17,6 +17,7 @@
       "labor_rate_per_ft": 8.0,
       "labor_flat_fee": 0.0,
       "minimum_job_charge": 0.0,
+      "minimum_labor_charge": 0.0,
       "waste_percent": 0.0,
       "gate_rate_per_ft": 20.0,
       "trash_haul_fee": 0.0,

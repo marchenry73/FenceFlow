@@ -93,7 +93,7 @@ interface JobDao {
     @Query(
         "UPDATE jobs SET " +
             "taxRatePercent = 7.0, markupPercent = 0.0, discountPercent = 0.0, " +
-            "laborRatePerFt = 0.0, laborFlatFee = 0.0, minimumJobCharge = 0.0, " +
+            "laborRatePerFt = 0.0, laborFlatFee = 0.0, minimumJobCharge = 0.0, minimumLaborCharge = 0.0, " +
             "teardownFlatFee = 0.0, teardownRatePerFt = 0.0, gateRatePerFt = 20.0, trashHaulFee = 0.0, " +
             "depositAmount = 0.0, amountPaid = 0.0, refundedAmount = 0.0, refundedAt = NULL, refundReason = '', " +
             "paymentStatus = 'UNPAID', isInvoiced = 0, paymentsFromProcessor = 0, " +

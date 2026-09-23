@@ -114,7 +114,19 @@ export function computeTotals(
   // footage here -- otherwise a 4 ft gate was billed twice: once as
   // fence labour, once as a gate.
   const laborFeet = coerceAtLeast(billableFeet - gateFeet, 0.0);
-  const laborCost = job.laborFlatFee + job.laborRatePerFt * laborFeet;
+  // The floor sits on labour alone, not on the grand total below: the owner
+  // charges a minimum for turning up to a job, and materials must not count
+  // toward reaching it. 0 is off, so every company without this setting still
+  // computes the same laborCost it always did.
+  //
+  // Guarded on > 0 rather than relying on max(x, 0) being a no-op, because it is
+  // not one: laborFeet is clamped at zero but laborFlatFee is NOT, and a
+  // negative flat fee is how an estimator knocks money off a quote. max(-150, 0)
+  // is 0, so an untouched company's credit would silently vanish and its quote
+  // would go UP by the size of it. Kotlin is guarded the same way; a difference
+  // of a cent between the two is a phone and a server quoting one job twice.
+  const rawLabor = job.laborFlatFee + job.laborRatePerFt * laborFeet;
+  const laborCost = job.minimumLaborCharge > 0 ? Math.max(rawLabor, job.minimumLaborCharge) : rawLabor;
   const trashHaul = job.teardownEnabled ? job.trashHaulFee : 0.0;
   // The typed teardown length when there is one, because the old fence
   // does not always match the new one. Zero means what every job meant

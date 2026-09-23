@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-22T17:17:57.735Z"
+    "generated_at": "2026-09-23T20:04:16.537981900Z"
   },
   "case": "edited-gate-unidentified-kept-beside",
   "note": "An edited GATE_PANEL whose id the build does not produce and whose name matches neither built panel: nothing identifies it, so nothing is claimed. Both built panels are written and the edited line stays beside them -- an extra line beats a gate missing from the order.",
@@ -17,6 +17,7 @@
       "labor_rate_per_ft": 8.0,
       "labor_flat_fee": 0.0,
       "minimum_job_charge": 0.0,
+      "minimum_labor_charge": 0.0,
       "waste_percent": 0.0,
       "gate_rate_per_ft": 20.0,
       "trash_haul_fee": 0.0,

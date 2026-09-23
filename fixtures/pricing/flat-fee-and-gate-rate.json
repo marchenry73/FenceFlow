@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.1",
-    "generated_at": "2026-09-05T12:20:05.317629100Z"
+    "generated_at": "2026-09-23T20:04:16.537981900Z"
   },
   "case": "flat-fee-and-gate-rate",
   "note": "A labour flat fee and a $35/ft gate rate; the gate's feet leave the labour footage.",
@@ -17,6 +17,7 @@
       "labor_rate_per_ft": 9.5,
       "labor_flat_fee": 250.0,
       "minimum_job_charge": 0.0,
+      "minimum_labor_charge": 0.0,
       "waste_percent": 0.0,
       "gate_rate_per_ft": 35.0,
       "trash_haul_fee": 0.0,

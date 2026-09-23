@@ -73,6 +73,7 @@ object PricingRunner {
             laborRatePerFt = input.job.laborRatePerFt,
             laborFlatFee = input.job.laborFlatFee,
             minimumJobCharge = input.job.minimumJobCharge,
+            minimumLaborCharge = input.job.minimumLaborCharge,
             wastePercent = input.job.wastePercent,
             gateRatePerFt = input.job.gateRatePerFt,
             trashHaulFee = input.job.trashHaulFee,

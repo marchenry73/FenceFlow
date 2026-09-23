@@ -1900,6 +1900,7 @@
           <div><label data-t="settingsLabelPanelW">Panel width (ft)</label><input id="s_pw" type="number" step="0.1"></div>
           <div><label data-t="settingsLabelPanelH">Panel height (ft)</label><input id="s_ph" type="number" step="0.1"></div>
           <div><label data-t="settingsLabelMinCharge">Minimum job charge ($)</label><input id="s_min" type="number" step="1"></div>
+          <div><label data-t="settingsLabelMinLaborCharge">Minimum labor charge ($)</label><input id="s_min_labor" type="number" step="1"></div>
         </div>
         <label data-t="settingsLabelOrderTpl">Order email template</label><textarea id="s_order"></textarea>
         <label data-t="settingsLabelHoaTpl">HOA email template</label><textarea id="s_hoa"></textarea>
@@ -2144,6 +2145,7 @@
         <div><label data-t="jobLabelLaborRate">Labor $/ft</label><input id="j_labor_rate_per_ft" type="number" step="0.1"></div>
         <div><label data-t="jobLabelLaborFlat">Labor flat fee ($)</label><input id="j_labor_flat_fee" type="number" step="1"></div>
         <div><label data-t="jobLabelMinCharge">Minimum charge ($)</label><input id="j_minimum_job_charge" type="number" step="1"></div>
+        <div><label data-t="jobLabelMinLaborCharge">Minimum labor charge ($)</label><input id="j_minimum_labor_charge" type="number" step="1"></div>
       </div>
     </div>
 
@@ -3315,6 +3317,7 @@ const TL = {
     jobSecPricing:'Pricing', jobLabelTaxRate:'Tax rate (%)', jobLabelMarkup:'Markup (%)',
     jobLabelDiscount:'Discount (%)', jobLabelLaborRate:'Labor $/ft',
     jobLabelLaborFlat:'Labor flat fee ($)', jobLabelMinCharge:'Minimum charge ($)',
+    jobLabelMinLaborCharge:'Minimum labor charge ($)',
     jobSecSchedule:'Schedule & Status', jobLabelStatus:'Status',
     jobOptDraft:'Draft', jobOptSent:'Sent', jobOptAccepted:'Accepted',
     jobOptCompleted:'Completed', jobOptDeclined:'Declined',
@@ -3504,6 +3507,7 @@ const TL = {
     settingsLabelLabor:'Labor rate ($/ft)', settingsLabelSpacing:'Post spacing (ft)',
     settingsLabelBags:'Concrete bags/post', settingsLabelPanelW:'Panel width (ft)',
     settingsLabelPanelH:'Panel height (ft)', settingsLabelMinCharge:'Minimum job charge ($)',
+    settingsLabelMinLaborCharge:'Minimum labor charge ($)',
     settingsLabelOrderTpl:'Order email template', settingsLabelHoaTpl:'HOA email template',
     settingsLabelReviewTpl:'Review request message', settingsSaveBtn:'Save Settings',
     settingsHelpIntro:'These are the starting values for every new job.',
@@ -3952,6 +3956,7 @@ const TL = {
     repAuditFieldRefunded:'Refunded', repAuditFieldLaborRate:'Labour rate per foot',
     repAuditFieldLaborFlat:'Labour flat fee', repAuditFieldMarkup:'Markup %',
     repAuditFieldDiscount:'Discount %', repAuditFieldMinCharge:'Minimum charge',
+    repAuditFieldMinLaborCharge:'Minimum labor charge',
     repAuditFieldTaxRate:'Tax rate %', repAuditFieldAmount:'Amount',
     repAuditFieldMethod:'Method', repAuditFieldReceived:'Received',
     repAuditFieldNote:'Note', repAuditFieldApproved:'Approved',
@@ -4834,6 +4839,7 @@ const TL = {
     jobSecPricing:'Precios', jobLabelTaxRate:'Impuesto (%)', jobLabelMarkup:'Margen (%)',
     jobLabelDiscount:'Descuento (%)', jobLabelLaborRate:'Mano de obra $/pie',
     jobLabelLaborFlat:'Tarifa fija de mano de obra ($)', jobLabelMinCharge:'Cargo mínimo ($)',
+    jobLabelMinLaborCharge:'Cargo mínimo de mano de obra ($)',
     jobSecSchedule:'Programación y estado', jobLabelStatus:'Estado',
     jobOptDraft:'Borrador', jobOptSent:'Enviado', jobOptAccepted:'Aceptado',
     jobOptCompleted:'Terminado', jobOptDeclined:'Rechazado',
@@ -5023,6 +5029,7 @@ const TL = {
     settingsLabelLabor:'Tarifa de mano de obra ($/pie)', settingsLabelSpacing:'Espaciado de postes (pies)',
     settingsLabelBags:'Bolsas de concreto por poste', settingsLabelPanelW:'Ancho del panel (pies)',
     settingsLabelPanelH:'Alto del panel (pies)', settingsLabelMinCharge:'Cargo mínimo por trabajo ($)',
+    settingsLabelMinLaborCharge:'Cargo mínimo de mano de obra ($)',
     settingsLabelOrderTpl:'Plantilla de correo de pedido', settingsLabelHoaTpl:'Plantilla de correo para la HOA',
     settingsLabelReviewTpl:'Mensaje para pedir reseñas', settingsSaveBtn:'Guardar ajustes',
     settingsHelpIntro:'Estos son los valores iniciales de cada trabajo nuevo.',
@@ -5465,6 +5472,7 @@ const TL = {
     repAuditFieldRefunded:'Reembolsado', repAuditFieldLaborRate:'Tarifa de mano de obra por pie',
     repAuditFieldLaborFlat:'Tarifa fija de mano de obra', repAuditFieldMarkup:'% de margen',
     repAuditFieldDiscount:'% de descuento', repAuditFieldMinCharge:'Cargo mínimo',
+    repAuditFieldMinLaborCharge:'Cargo mínimo de mano de obra',
     repAuditFieldTaxRate:'% de impuesto', repAuditFieldAmount:'Monto',
     repAuditFieldMethod:'Método', repAuditFieldReceived:'Recibido',
     repAuditFieldNote:'Nota', repAuditFieldApproved:'Aprobado',
@@ -6323,6 +6331,7 @@ const TL = {
     jobSecPricing:'Tarification', jobLabelTaxRate:'Taxe (%)', jobLabelMarkup:'Marge (%)',
     jobLabelDiscount:'Rabais (%)', jobLabelLaborRate:'Main-d’œuvre $/pi',
     jobLabelLaborFlat:'Forfait main-d’œuvre ($)', jobLabelMinCharge:'Charge minimale ($)',
+    jobLabelMinLaborCharge:'Charge minimale de main-d’œuvre ($)',
     jobSecSchedule:'Calendrier et statut', jobLabelStatus:'Statut',
     jobOptDraft:'Brouillon', jobOptSent:'Envoyé', jobOptAccepted:'Accepté',
     jobOptCompleted:'Terminé', jobOptDeclined:'Refusé',
@@ -6512,6 +6521,7 @@ const TL = {
     settingsLabelLabor:'Taux de main-d’œuvre ($/pi)', settingsLabelSpacing:'Espacement des poteaux (pi)',
     settingsLabelBags:'Sacs de béton par poteau', settingsLabelPanelW:'Largeur du panneau (pi)',
     settingsLabelPanelH:'Hauteur du panneau (pi)', settingsLabelMinCharge:'Charge minimale par chantier ($)',
+    settingsLabelMinLaborCharge:'Charge minimale de main-d’œuvre ($)',
     settingsLabelOrderTpl:'Modèle de courriel de commande', settingsLabelHoaTpl:'Modèle de courriel pour la copropriété',
     settingsLabelReviewTpl:'Message de demande d’avis', settingsSaveBtn:'Enregistrer les paramètres',
     settingsHelpIntro:'Ce sont les valeurs de départ pour chaque nouveau chantier.',
@@ -6954,6 +6964,7 @@ const TL = {
     repAuditFieldRefunded:'Remboursé', repAuditFieldLaborRate:'Taux de main-d\'œuvre par pied',
     repAuditFieldLaborFlat:'Forfait de main-d\'œuvre', repAuditFieldMarkup:'% de marge',
     repAuditFieldDiscount:'% de remise', repAuditFieldMinCharge:'Frais minimum',
+    repAuditFieldMinLaborCharge:'Frais minimum de main-d’œuvre',
     repAuditFieldTaxRate:'% de taxe', repAuditFieldAmount:'Montant',
     repAuditFieldMethod:'Méthode', repAuditFieldReceived:'Reçu',
     repAuditFieldNote:'Note', repAuditFieldApproved:'Approuvé',
@@ -9608,7 +9619,7 @@ const JOB_COLUMNS = [
   'discount_percent','labor_rate_per_ft','labor_flat_fee',
   'gate_rate_per_ft','teardown_enabled','teardown_feet',
   'teardown_rate_per_ft','teardown_flat_fee','trash_haul_fee',
-  'waste_percent','minimum_job_charge','contract_total','signed_contract_total',
+  'waste_percent','minimum_job_charge','minimum_labor_charge','contract_total','signed_contract_total',
   'deposit_amount','amount_paid','refunded_amount','dispute_amount',
   'dispute_opened_at','dispute_closed_at','dispute_reason',
   'payment_status','quote_token','quote_sent_at','quote_viewed_at',
@@ -14288,6 +14299,7 @@ const AUDIT_FIELD_KEYS = {
   refunded_amount: 'repAuditFieldRefunded', labor_rate_per_ft: 'repAuditFieldLaborRate',
   labor_flat_fee: 'repAuditFieldLaborFlat', markup_percent: 'repAuditFieldMarkup',
   discount_percent: 'repAuditFieldDiscount', minimum_job_charge: 'repAuditFieldMinCharge',
+  minimum_labor_charge: 'repAuditFieldMinLaborCharge',
   tax_rate_percent: 'repAuditFieldTaxRate', amount: 'repAuditFieldAmount', method: 'repAuditFieldMethod',
   received_at: 'repAuditFieldReceived', note: 'repAuditFieldNote', approved_at: 'repAuditFieldApproved',
   rejected_at: 'repAuditFieldRejected', hourly_rate: 'repAuditFieldHourlyRate',
@@ -17507,7 +17519,8 @@ function vinylDefaultTemplatePayload(existing, fallback, raw){
 /* ---------- job detail ---------- */
 const J_TEXT=['customer_name','phone','address','email','referral_source','notes','hoa_name','hoa_email','permit_number','materials_note'];
 const J_NUM=['tax_rate_percent','markup_percent','discount_percent','minimum_job_charge',
-             'labor_rate_per_ft','labor_flat_fee','estimated_duration_hours','deposit_amount'];
+             'labor_rate_per_ft','labor_flat_fee','minimum_labor_charge',
+             'estimated_duration_hours','deposit_amount'];
 const J_SEL=['status','payment_status','hoa_approval_status','permit_status','materials_status'];
 
 function quoteLinkFor(j){
@@ -19657,7 +19670,7 @@ async function saveJob(){
   // it does, and only falls back to the old wait-for-a-phone wording if that
   // call refuses or fails -- never silently, always saying why.
   const PRICING=['tax_rate_percent','markup_percent','discount_percent',
-                 'labor_rate_per_ft','labor_flat_fee','minimum_job_charge'];
+                 'labor_rate_per_ft','labor_flat_fee','minimum_job_charge','minimum_labor_charge'];
   const repriced = PRICING.some(k => k in patch &&
     Math.abs(num(patch[k]) - num(openJob[k] ?? 0)) > 0.0001);
   // .select() so the save is judged on what it CHANGED, the rule saveFixTime
@@ -20056,6 +20069,7 @@ async function wizSaveWho(){
       company_id: profile.company_id, status: 'DRAFT', wizard_step: 2,
       tax_rate_percent: num($('s_tax').value)||7, markup_percent: num($('s_markup').value)||15,
       labor_rate_per_ft: num($('s_labor').value)||8, minimum_job_charge: num($('s_min').value)||200,
+      minimum_labor_charge: num($('s_min_labor').value)||0,
       gate_rate_per_ft: num(gateRate)||20, waste_percent: num(waste)||0,
       calibration_pixels_per_foot: 20,
     });
@@ -20579,6 +20593,7 @@ function wizStepPricingHtml(){
         <div><label>Labor $/ft</label><input id="wz_labor_ft" type="number" step="0.1" value="${j.labor_rate_per_ft??0}"></div>
         <div><label>Labor flat fee ($)</label><input id="wz_labor_flat" type="number" step="1" value="${j.labor_flat_fee??0}"></div>
         <div><label>Minimum charge ($)</label><input id="wz_min_charge" type="number" step="1" value="${j.minimum_job_charge??0}"></div>
+        <div><label>Minimum labor charge ($)</label><input id="wz_min_labor_charge" type="number" step="1" value="${j.minimum_labor_charge??0}"></div>
         <div><label>Waste (%)</label><input id="wz_waste" type="number" step="0.5" value="${j.waste_percent??0}"></div>
         <div><label>Gate $/ft</label><input id="wz_gate_rate" type="number" step="0.5" value="${j.gate_rate_per_ft??0}"></div>
       </div>
@@ -20601,6 +20616,7 @@ async function wizSavePricing(){
     tax_rate_percent:num($('wz_tax').value), markup_percent:num($('wz_markup').value),
     discount_percent:num($('wz_discount').value), labor_rate_per_ft:num($('wz_labor_ft').value),
     labor_flat_fee:num($('wz_labor_flat').value), minimum_job_charge:num($('wz_min_charge').value),
+    minimum_labor_charge:num($('wz_min_labor_charge').value),
     waste_percent:num($('wz_waste').value), gate_rate_per_ft:num($('wz_gate_rate').value),
     teardown_enabled: $('wz_teardown_on').checked, teardown_feet:num($('wz_teardown_feet').value),
     teardown_flat_fee:num($('wz_teardown_flat').value), teardown_rate_per_ft:num($('wz_teardown_ft').value),
@@ -21719,6 +21735,7 @@ async function runImport(){
     company_id:profile.company_id,
     tax_rate_percent:num($('s_tax').value)||7, markup_percent:num($('s_markup').value)||15,
     labor_rate_per_ft:num($('s_labor').value)||8, minimum_job_charge:num($('s_min').value)||200,
+    minimum_labor_charge:num($('s_min_labor').value)||0,
     referral_source:'Imported'
   };
   // Ids are minted here rather than left to the database, so the opening
@@ -22080,8 +22097,9 @@ async function deleteEmp(){
 const SET={s_businessName:'business_name',s_ownerName:'owner_name',s_phone:'phone',s_email:'email',
   s_license:'license_number',s_tax:'tax_rate',s_markup:'markup',s_labor:'labor_rate',
   s_spacing:'post_spacing',s_bags:'concrete_bags',s_pw:'panel_width',s_ph:'panel_height',
-  s_min:'min_job_charge',s_order:'order_template',s_hoa:'hoa_template',s_review:'review_template'};
-const SET_NUM=['s_tax','s_markup','s_labor','s_spacing','s_bags','s_pw','s_ph','s_min'];
+  s_min:'min_job_charge',s_min_labor:'min_labor_charge',
+  s_order:'order_template',s_hoa:'hoa_template',s_review:'review_template'};
+const SET_NUM=['s_tax','s_markup','s_labor','s_spacing','s_bags','s_pw','s_ph','s_min','s_min_labor'];
 
 async function loadSettings(){
   // "the office does not have the business name, it's not synching" -- the

@@ -362,6 +362,7 @@
     <string name="set_concrete_bags">Bolsas de concreto/poste</string>
     <string name="set_default_labor_rate">Tarifa de mano de obra por defecto ($/pie)</string>
     <string name="set_min_job_charge">Cargo mínimo por trabajo ($)</string>
+    <string name="set_min_labor_charge">Cargo mínimo de mano de obra ($)</string>
     <string name="set_crew_speed">Qué tan rápido trabaja tu cuadrilla</string>
     <string name="set_crew_speed_explain">Esto determina las horas estimadas de cada trabajo y si la app te avisa cuando una fecha no se puede cumplir. Cada cuadrilla es distinta: un calendario hecho con los números de otro es un calendario que se atrasa.</string>
     <string name="set_feet_per_day">Pies por día</string>
@@ -535,6 +536,7 @@
     <string name="jd_apply_tier">Aplicar nivel de precios</string>
     <string name="jd_discount_pct">Descuento (%)</string>
     <string name="jd_min_job_charge">Cargo mínimo por trabajo ($)</string>
+    <string name="jd_min_labor_charge">Cargo mínimo de mano de obra ($)</string>
     <string name="jd_tier_summary">%1$s: mano de obra $%2$s/pie · margen %3$s%%</string>
     <string name="jd_tier_summary_discount">descuento %1$s%%</string>
     <string name="jd_include_teardown">Incluir retiro de la cerca vieja</string>
@@ -859,6 +861,7 @@
     <string name="est2_approved_extra_work">Trabajo extra aprobado</string>
     <string name="est2_plus_feet">(+%1$s pies)</string>
     <string name="est2_minimum_charge_applied">Se aplicó el cargo mínimo por trabajo de %1$s</string>
+    <string name="est2_minimum_labor_charge_applied">Se aplicó el cargo mínimo de mano de obra de %1$s</string>
     <string name="est2_send_document">Enviar %1$s</string>
     <string name="est2_changed_after_signed_title">Este presupuesto cambió después de firmarse</string>
     <string name="est2_changed_after_signed_body">Desde que se firmó, %1$s. No se puede enviar nada hasta que %2$s firme las nuevas cifras.</string>

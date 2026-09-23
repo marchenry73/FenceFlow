@@ -794,7 +794,20 @@ object EstimateEngine {
         // footage here -- otherwise a 4 ft gate was billed twice: once as
         // fence labour, once as a gate.
         val laborFeet = (billableFeet - gateFeet).coerceAtLeast(0.0)
-        val laborCost = job.laborFlatFee + (job.laborRatePerFt * laborFeet)
+        // Floor on labour alone, applied before markup/tax/discount like the
+        // whole-job floor below -- so markup earns on the floored labour exactly
+        // as it would on real labour. 0 is off.
+        //
+        // Guarded on > 0 rather than relying on maxOf(x, 0.0) being a no-op,
+        // because it is not one: laborFeet is clamped at zero but laborFlatFee
+        // is NOT, and a negative flat fee is how an estimator knocks money off a
+        // quote. maxOf(-150.0, 0.0) is 0.0, so an untouched company's credit
+        // would silently vanish and its quote would go UP by the size of it.
+        // totals.ts is guarded the same way; a difference of a cent between the
+        // two is a phone and a server quoting one job twice.
+        val rawLabor = job.laborFlatFee + (job.laborRatePerFt * laborFeet)
+        val laborCost =
+            if (job.minimumLaborCharge > 0.0) maxOf(rawLabor, job.minimumLaborCharge) else rawLabor
         val trashHaul = if (job.teardownEnabled) job.trashHaulFee else 0.0
         // The typed teardown length when there is one, because the old fence
         // does not always match the new one. Zero means what every job meant

@@ -55,6 +55,18 @@ data class PricingJob(
     @SerialName("labor_rate_per_ft") val laborRatePerFt: Double,
     @SerialName("labor_flat_fee") val laborFlatFee: Double,
     @SerialName("minimum_job_charge") val minimumJobCharge: Double,
+    /**
+     * Defaulted, unlike every field above it, so the 83 fixtures written before
+     * this column existed still decode. ParityJson sets ignoreUnknownKeys =
+     * false and a field with no default is REQUIRED, so without this every
+     * recorded case fails to parse the moment the contract grows -- which is
+     * not a price difference, it is the harness refusing to read its own
+     * history.
+     *
+     * 0.0 is the honest value for those files: the floor did not exist when
+     * they were recorded, and 0 is off.
+     */
+    @SerialName("minimum_labor_charge") val minimumLaborCharge: Double = 0.0,
     @SerialName("waste_percent") val wastePercent: Double,
     @SerialName("gate_rate_per_ft") val gateRatePerFt: Double,
     @SerialName("trash_haul_fee") val trashHaulFee: Double,

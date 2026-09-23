@@ -53,6 +53,12 @@ export interface JobRow {
   labor_rate_per_ft: number;
   labor_flat_fee: number;
   minimum_job_charge: number | null;
+  // NOT nullable, unlike its three neighbours: the Postgres column is NOT NULL
+  // DEFAULT 0 and CloudJob sends a non-null Double. Declared `number`, a row
+  // shape that forgets the column is a type error here instead of a silent 0 --
+  // which is exactly how price-job came to quote this job $160 lower than the
+  // phone.
+  minimum_labor_charge: number;
   waste_percent: number;
   gate_rate_per_ft: number | null;
   trash_haul_fee: number | null;
@@ -333,6 +339,7 @@ export function jobFromRow(row: JobRow, manufacturerSyncIds: ReadonlySet<string>
     discountPercent: num(row.discount_percent, 0.0),
     // JobSync's fresh-pull defaults for the three nullable money columns.
     minimumJobCharge: num(row.minimum_job_charge, 0.0),
+    minimumLaborCharge: num(row.minimum_labor_charge, 0.0),
     wastePercent: num(row.waste_percent, 0.0),
     gateRatePerFt: num(row.gate_rate_per_ft, 20.0),
     trashHaulFee: num(row.trash_haul_fee, 0.0),

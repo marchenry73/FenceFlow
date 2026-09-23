@@ -54,6 +54,7 @@ data class CloudJob(
     // genuinely zero". The app always sends a real number, so null can only
     // mean no version of the app has ever written the column.
     @SerialName("minimum_job_charge") val minimumJobCharge: Double? = null,
+    @SerialName("minimum_labor_charge") val minimumLaborCharge: Double = 0.0,
     @SerialName("blocked_reason") val blockedReason: String = "",
     @SerialName("overrun_reason") val overrunReason: String = "",
     @SerialName("grid_extent_ft") val gridExtentFt: Float = 400f,
@@ -1611,6 +1612,7 @@ private fun Job.toCloud(
     laborRatePerFt = laborRatePerFt,
     laborFlatFee = laborFlatFee,
     minimumJobCharge = minimumJobCharge,
+    minimumLaborCharge = minimumLaborCharge,
     wastePercent = wastePercent,
     blockedReason = blockedReason,
     overrunReason = overrunReason,
@@ -1726,6 +1728,7 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     laborRatePerFt = if (keepMoney) local.laborRatePerFt else laborRatePerFt,
     laborFlatFee = if (keepMoney) local.laborFlatFee else laborFlatFee,
     minimumJobCharge = if (keepMoney) local.minimumJobCharge else (minimumJobCharge ?: local.minimumJobCharge),
+    minimumLaborCharge = if (keepMoney) local.minimumLaborCharge else minimumLaborCharge,
     wastePercent = wastePercent,
     blockedReason = blockedReason,
     overrunReason = overrunReason,
@@ -1890,6 +1893,7 @@ internal fun CloudJob.toLocalJob(): Job = Job(
     laborRatePerFt = laborRatePerFt,
     laborFlatFee = laborFlatFee,
     minimumJobCharge = minimumJobCharge ?: 0.0,
+    minimumLaborCharge = minimumLaborCharge,
     wastePercent = wastePercent,
     blockedReason = blockedReason,
     overrunReason = overrunReason,

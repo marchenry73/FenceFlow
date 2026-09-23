@@ -219,6 +219,14 @@ data class Job(
     val discountPercent: Double = 0.0,
     val minimumJobCharge: Double = 0.0,
     /**
+     * Floor under the labour figure alone, applied before markup/tax/discount
+     * so markup earns on the floored labour exactly as it would on real labour.
+     * 0 is off -- with 0 the arithmetic is byte-for-byte what it was before this
+     * field existed, which is what keeps every other company on this database
+     * priced exactly as they are now.
+     */
+    val minimumLaborCharge: Double = 0.0,
+    /**
      * Extra cut-and-waste allowance on materials you buy by length or count --
      * panels, pickets, rails, fabric, concrete. Never applied to posts, caps, or
      * hardware, because you can't buy 10% of a hinge.
