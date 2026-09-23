@@ -73,8 +73,14 @@ class ChangeOrderPushQueueTest {
     fun `an order still claiming a clear is protected after its push mark comes off`() {
         val halfSent = order(pendingPush = false, clearedAt = 1790000000000)
         assertFalse(pullMayWriteOrder(halfSent))
-        // Planted failure: the old rule would have allowed this.
-        assertFalse(halfSent.pendingPush)
+        // Planted failure, stated as the rule it replaced rather than as a
+        // restatement of the fixture: reading only pendingPush -- which is what
+        // this function did for one build -- gives the OPPOSITE answer for this
+        // exact order, and would have let the cloud's still-signed copy land on
+        // it one pass after the ordinary batch cleared the mark.
+        val ruleBeforeTheFix = { o: ChangeOrder? -> o?.pendingPush != true }
+        assertTrue("the rule as it was would have allowed this", ruleBeforeTheFix(halfSent))
+        assertFalse("the rule as it is refuses it", pullMayWriteOrder(halfSent))
     }
 
     // ---- saying NULL out loud ----

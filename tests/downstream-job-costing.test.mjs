@@ -183,36 +183,48 @@ rollback;
   ok("job_costing() returned at least one row for the real company (query actually ran)",
     rows.length > 0, `got ${rows.length} rows`);
 
-  let mismatches = [];
-  for (const r of rows) {
-    const fields = ["quoted", "collected", "material", "labour", "other"];
-    for (const f of fields) {
-      const rep = Number(r["rep_" + f]);
-      const calc = Number(r["calc_" + f]);
-      if (Math.abs(rep - calc) > 0.01) mismatches.push(`${r.job_sync_id}.${f}: reported=${rep} recomputed=${calc}`);
+  // One function, so the canary below can run exactly this comparison over a row
+  // it has deliberately broken.
+  const compare = (list) => {
+    const out = [];
+    for (const r of list) {
+      for (const f of ["quoted", "collected", "material", "labour", "other"]) {
+        const rep = Number(r["rep_" + f]);
+        const calc = Number(r["calc_" + f]);
+        if (Math.abs(rep - calc) > 0.01) out.push(`${r.job_sync_id}.${f}: reported=${rep} recomputed=${calc}`);
+      }
+      if (r.margin_percent !== null) {
+        const rep = Number(r.margin_percent);
+        const calc = Number(r.calc_margin_percent);
+        if (Math.abs(rep - calc) > 0.1) out.push(`${r.job_sync_id}.margin_percent: reported=${rep} recomputed=${calc}`);
+      }
     }
-    if (r.margin_percent !== null) {
-      const rep = Number(r.margin_percent);
-      const calc = Number(r.calc_margin_percent);
-      if (Math.abs(rep - calc) > 0.1) mismatches.push(`${r.job_sync_id}.margin_percent: reported=${rep} recomputed=${calc}`);
-    }
-  }
+    return out;
+  };
+  const mismatches = compare(rows);
   ok("every job_costing() figure matches an independent recomputation from the base tables " +
      "(quoted, collected, material/labour/other cost, margin_percent)",
     mismatches.length === 0, mismatches.join("; "));
 
-  // CANARY: an impossible tolerance on the SAME comparison must flag every
-  // row with a nonzero quoted total -- proving the comparison actually
-  // drives the result rather than the query returning "no mismatches"
-  // because it silently compared nothing (e.g. a join that never matches).
-  let canaryHits = 0;
-  for (const r of rows) {
-    if (Number(r.rep_quoted) > 0 && Math.abs(Number(r.rep_quoted) - Number(r.calc_quoted)) > -1) canaryHits++;
-  }
-  ok("CANARY: an impossible tolerance (-1) flags every job with a nonzero quoted total, " +
-     "proving the join/comparison is load-bearing and not vacuously matching",
-    canaryHits > 0 && canaryHits === rows.filter(r => Number(r.rep_quoted) > 0).length,
-    `flagged ${canaryHits} of ${rows.filter(r => Number(r.rep_quoted) > 0).length} eligible rows`);
+  // CANARY: move one reported figure by a dollar and run the SAME comparison over
+  // it. It must be caught, and named.
+  //
+  // What used to sit here was an "impossible tolerance" of -1 -- and
+  // Math.abs(x) > -1 is true for every number, so the canary counted the rows
+  // with a nonzero quoted total and then asserted that count equalled itself. It
+  // proved the row set was non-empty and nothing whatever about the comparison:
+  // the check it was guarding could have been comparing a column against itself
+  // and this would still have reported success.
+  const victim = rows.find(r => Number(r.rep_quoted) > 0);
+  const corrupted = victim
+    ? compare([{ ...victim, rep_quoted: (Number(victim.rep_quoted) + 1).toFixed(2) }])
+    : [];
+  ok("CANARY: a reported figure moved by $1 is caught by the same comparison, " +
+     "proving the check can fail and is not comparing a column against itself",
+    victim !== undefined && corrupted.some(m => m.includes(".quoted:")),
+    victim === undefined
+      ? "no row with a nonzero quoted total to corrupt -- the check above proved nothing"
+      : `flagged: ${corrupted.join("; ") || "(nothing -- the comparison is broken)"}`);
 
   // =========================================================================
   console.log("\n2. margin_percent's own arithmetic, proven on synthetic numbers (no live row needed):");
