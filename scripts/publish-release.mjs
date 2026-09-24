@@ -41,7 +41,7 @@
  * own login rather than a key stored anywhere.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { writeFileSync, rmSync, existsSync, readdirSync, copyFileSync } from "node:fs";
+import { writeFileSync, rmSync, existsSync, readdirSync, copyFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -258,7 +258,20 @@ function keepASpareCopy(remote) {
   // ever without a word.
   const folder = "G:/My Drive/Professional Documents/Projects/APK Builds";
   try {
-    if (!existsSync(folder)) return;
+    // Say so. This used to be a bare `return`, and on 24 September the folder
+    // read as absent for the length of one publish -- Drive's mount comes and
+    // goes -- so 1.528 shipped with 1.527 still sitting in the folder and not a
+    // word about it anywhere in the output. The reminder printed at the end
+    // ("Make sure the APK in that folder is this build") is the only thing that
+    // stood between that and a stale sideload, and a reminder is not a check.
+    if (!existsSync(folder)) {
+      console.log("  (no spare copy: " + folder + " is not there right now --");
+      console.log("   copy app/build/outputs/apk/release/app-release.apk over");
+      console.log("   fenceflow.apk by hand, or that folder keeps the old build)");
+      return;
+    }
+    // And verify the bytes landed, rather than trusting copyFileSync's silence:
+    // the same mount that can vanish can also accept a write and lose it.
     // One file per app, overwritten every time.
     //
     // The shared folder reached 497 MB of superseded binaries and was eating
@@ -274,7 +287,12 @@ function keepASpareCopy(remote) {
     // the distribution path, so the single-file rule costs nothing here.
     const target = join(folder, "fenceflow.apk");
     copyFileSync(apk, target);
-    console.log(`  spare copy      ${target}`);
+    const want = statSync(apk).size, got = statSync(target).size;
+    if (want !== got) {
+      console.log(`  (spare copy is WRONG: ${got} bytes, expected ${want} -- copy it by hand)`);
+      return;
+    }
+    console.log(`  spare copy      ${target} (${got} bytes)`);
   } catch (e) {
     console.log("  (no spare copy: " + String(e.message).slice(0, 80) + ")");
   }
