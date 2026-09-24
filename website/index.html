@@ -595,8 +595,16 @@
       </div>
 
     </div>
-    <p class="fineprint" data-t="fineprint">14 days free, no card to start. Cancel any time — and if you do,
-      your data stays yours and stays put.</p>
+    <!-- This used to read "14 days free, no card to start", and that was not true.
+         Signing up takes no card, but the 14 days begin when you pick a plan, and
+         picking a plan is a Stripe Checkout in subscription mode -- which collects
+         a card before the trial starts. create-checkout-session/index.ts even says
+         so in its own comment: "Card up front, first charge when the trial ends --
+         what the pricing page promises." The page promised the opposite. It is the
+         first thing a contractor reads, and being caught out by it at the card
+         screen costs more than the sign-up it was written to win. -->
+    <p class="fineprint" data-t="fineprint">14 days free. A card is taken when you pick a plan; the first
+      charge is when the trial ends. Cancel any time — and if you do, your data stays yours and stays put.</p>
   </div>
 </section>
 
@@ -710,7 +718,7 @@ const L = {
     liPro6: 'Monday morning business digest', liPro7: 'Cloud photo & document backup',
     liPro8: 'Priority support',
     btnStartFreeTrial: 'Start free trial',
-    fineprint: '14 days free, no card to start. Cancel any time — and if you do, your data stays yours and stays put.',
+    fineprint: '14 days free. A card is taken when you pick a plan; the first charge is when the trial ends. Cancel any time — and if you do, your data stays yours and stays put.',
     footDesc: 'Estimating, crew and payments for fence contractors. Built by one, on his own jobs, in Florida.',
     perMonth: '/month',
     footStaff: 'FenceFlow staff sign-in',
@@ -790,7 +798,7 @@ const L = {
     liPro6: 'Resumen del negocio los lunes por la mañana', liPro7: 'Respaldo en la nube de fotos y documentos',
     liPro8: 'Soporte prioritario',
     btnStartFreeTrial: 'Comenzar prueba gratis',
-    fineprint: '14 días gratis, sin tarjeta para empezar. Cancele cuando quiera — y si lo hace, sus datos siguen siendo suyos y quedan donde están.',
+    fineprint: '14 días gratis. Se pide una tarjeta al elegir un plan; el primer cobro es cuando termina la prueba. Cancele cuando quiera — y si lo hace, sus datos siguen siendo suyos y quedan donde están.',
     footDesc: 'Cotización, cuadrilla y pagos para instaladores de cercas. Creado por uno solo, en sus propios trabajos, en Florida.',
     perMonth: '/mes',
     footStaff: 'Acceso para el personal de FenceFlow',
@@ -870,7 +878,7 @@ const L = {
     liPro6: 'Point hebdomadaire de l’activité le lundi', liPro7: 'Sauvegarde des photos et documents dans le cloud',
     liPro8: 'Support prioritaire',
     btnStartFreeTrial: 'Commencer l’essai gratuit',
-    fineprint: '14 jours gratuits, sans carte pour commencer. Résiliez à tout moment — et si vous le faites, vos données restent à vous et restent en place.',
+    fineprint: '14 jours gratuits. Une carte est demandée au moment de choisir un forfait ; le premier prélèvement a lieu à la fin des 14 jours. Résiliez à tout moment — et si vous le faites, vos données restent à vous et restent en place.',
     footDesc: 'Chiffrage, équipe et paiements pour poseurs de clôtures. Créé par une seule personne, sur ses propres chantiers, en Floride.',
     perMonth: '/mois',
     footStaff: 'Connexion du personnel FenceFlow',
