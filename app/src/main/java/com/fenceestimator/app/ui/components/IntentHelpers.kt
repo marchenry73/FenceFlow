@@ -46,6 +46,85 @@ object IntentHelpers {
     }
 
     /**
+     * [shareText], and it reports back when the person actually picked
+     * somewhere to send it.
+     *
+     * startActivity on a chooser tells you only that the sheet opened. Anything
+     * that records "sent" off that records a send for a sheet somebody backed
+     * straight out of. Android's own answer is the three-argument
+     * Intent.createChooser: hand it an IntentSender and the system fires it,
+     * once, when a component is chosen -- with EXTRA_CHOSEN_COMPONENT naming
+     * which one. That is as close to "they shared it" as Android gets; it still
+     * cannot know whether they then pressed send inside WhatsApp, and a caller
+     * must not claim more than that.
+     *
+     * [onChosen] runs on the main thread. The receiver is registered on the
+     * application context, unregisters itself on the first callback, and gives
+     * up after [WAIT_FOR_CHOICE_MS] so a sheet nobody touched does not leave a
+     * receiver behind for the life of the process.
+     *
+     * @return whether the sheet opened at all, the same as [shareText].
+     */
+    fun shareTextAwaitingChoice(
+        context: Context,
+        subject: String,
+        body: String,
+        chooserTitle: String,
+        onChosen: () -> Unit
+    ): Boolean {
+        val app = context.applicationContext
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            if (subject.isNotBlank()) putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+        // Unique per share, so two shares in a row cannot hear each other's
+        // callback -- and NOT exported: nothing outside this app has any
+        // business telling it a quote was sent.
+        val action = app.packageName + ".SHARE_CHOSEN." + java.util.UUID.randomUUID()
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        var receiver: android.content.BroadcastReceiver? = null
+        val giveUp = Runnable { receiver?.let { runCatching { app.unregisterReceiver(it) } }; receiver = null }
+        receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) {
+                handler.removeCallbacks(giveUp)
+                runCatching { app.unregisterReceiver(this) }
+                receiver = null
+                onChosen()
+            }
+        }
+        val filter = android.content.IntentFilter(action)
+        androidx.core.content.ContextCompat.registerReceiver(
+            app, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        // FLAG_MUTABLE from API 31 only, where the system needs to add
+        // EXTRA_CHOSEN_COMPONENT to the intent it sends back. Below 31 the flag
+        // does not exist and the intent was always mutable.
+        val flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+            (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                android.app.PendingIntent.FLAG_MUTABLE else 0)
+        val pending = android.app.PendingIntent.getBroadcast(
+            app, 0, Intent(action).setPackage(app.packageName), flags
+        )
+        val opened = runCatching {
+            context.startActivity(Intent.createChooser(intent, chooserTitle, pending.intentSender))
+        }.isSuccess
+        if (!opened) {
+            giveUp.run()
+        } else {
+            handler.postDelayed(giveUp, WAIT_FOR_CHOICE_MS)
+        }
+        return opened
+    }
+
+    /**
+     * How long to keep listening for the chooser's answer. Long enough for
+     * somebody to read the sheet, think, and pick; short enough that a sheet
+     * dismissed and forgotten does not keep a receiver alive all day.
+     */
+    private const val WAIT_FOR_CHOICE_MS = 5L * 60L * 1000L
+
+    /**
      * Opens the dialler with a number ready, without placing the call.
      *
      * ACTION_DIAL rather than ACTION_CALL on purpose: dialling needs no

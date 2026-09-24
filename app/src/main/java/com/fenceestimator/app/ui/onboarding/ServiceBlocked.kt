@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,7 +26,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fenceestimator.app.R
+import com.fenceestimator.app.cloud.ClaimOutcome
+import com.fenceestimator.app.cloud.ServiceGate
 import com.fenceestimator.app.cloud.ServiceStatus
+import kotlinx.coroutines.launch
 
 /**
  * Shown when a company's access has genuinely ended.
@@ -128,7 +134,8 @@ fun ServiceBlockedScreen(
                 reclaiming = reclaiming,
                 reclaimFailed = reclaimFailed,
                 signingOut = signingOut,
-                onUseThisPhone = onUseThisPhone
+                onUseThisPhone = onUseThisPhone,
+                onRetry = onRetry
             )
         } else {
         Text(
@@ -269,14 +276,47 @@ fun ServiceBlockedScreen(
  * one phone at a time, and offers the one thing that fixes it from here: take
  * the login back (ServiceGate.reclaim -- the same claim a fresh sign-in makes,
  * so no seat is gained), or sign out below.
+ *
+ * A company can turn on requiring a device key for a second phone
+ * (supabase_r8_device_keys.sql, require_device_key) -- an OWNER is never
+ * asked, but anyone else taking the login from an existing holder is, unless
+ * they have a code the office read out. [ServiceGate.lastClaimOutcome] is
+ * how this screen learns that happened: [ServiceGate.reclaim] now reports it
+ * there instead of throwing the server's answer away, and this reveals a key
+ * field only once that answer says one is actually wanted -- never as a
+ * standing option, or someone with a plain connectivity problem would be
+ * sent hunting for a code that was never the issue. Submitting a key calls
+ * [ServiceGate.reclaim] directly (the same function "Use this phone" calls
+ * through [onUseThisPhone]) because that is the one place that can carry the
+ * typed value to claim_device's second argument and read back which of the
+ * two refusals it was.
  */
 @Composable
 private fun SignedInElsewhere(
     reclaiming: Boolean,
     reclaimFailed: Boolean,
     signingOut: Boolean,
-    onUseThisPhone: () -> Unit
+    onUseThisPhone: () -> Unit,
+    onRetry: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val lastOutcome by ServiceGate.lastClaimOutcome.collectAsState()
+    // Sticky, not just "the latest answer was one of the two hints" -- so a
+    // plain connectivity hiccup on the SUBMIT tap itself (attemptClaim reads
+    // that as Failed, same as any other network failure) does not yank the
+    // field away mid-retry and throw out the code someone just typed. Once
+    // the server has asked for a key this screen instance keeps asking,
+    // until a claim actually succeeds and the whole block above takes this
+    // screen off entirely.
+    var keyEverWanted by remember { mutableStateOf(false) }
+    LaunchedEffect(lastOutcome) {
+        if (lastOutcome == ClaimOutcome.KeyRequired || lastOutcome == ClaimOutcome.KeyInvalid) {
+            keyEverWanted = true
+        }
+    }
+    val keyWanted = keyEverWanted
+
     Text(
         stringResource(R.string.svc_elsewhere_title),
         style = MaterialTheme.typography.headlineSmall,
@@ -298,14 +338,18 @@ private fun SignedInElsewhere(
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     // What the tap actually did, for the same reason Check again says so: a
-    // button that changes nothing on screen reads as a broken button.
+    // button that changes nothing on screen reads as a broken button. A
+    // refusal that named a device key gets its own wording below instead of
+    // this generic one -- reusing "couldn't reach FenceFlow" for a refusal
+    // the server explained would send someone off checking their signal for
+    // a problem that was never about their signal.
     if (reclaiming) {
         Text(
             stringResource(R.string.svc_use_this_phone_working),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    } else if (reclaimFailed) {
+    } else if (reclaimFailed && !keyWanted) {
         Text(
             stringResource(R.string.svc_use_this_phone_failed),
             style = MaterialTheme.typography.bodySmall,
@@ -322,6 +366,81 @@ private fun SignedInElsewhere(
                 if (reclaiming) R.string.svc_use_this_phone_working else R.string.svc_use_this_phone
             )
         )
+    }
+
+    if (keyWanted) {
+        var keyCode by remember { mutableStateOf("") }
+        var submitting by remember { mutableStateOf(false) }
+        // The generic failure line above is suppressed while a key is wanted,
+        // and reclaimFailed is the PARENT's state, which this screen's own
+        // direct reclaim never sets. So a submit that simply did not land --
+        // typed in a dead spot -- changed nothing on screen at all: the button
+        // flickered and came back, and the obvious reading is that the code is
+        // wrong. It is the same failure this file already warns about twenty
+        // lines up.
+        var submitFailed by remember { mutableStateOf(false) }
+        Text(
+            stringResource(
+                if (lastOutcome == ClaimOutcome.KeyInvalid) R.string.svc_device_key_invalid
+                else R.string.svc_device_key_required
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedTextField(
+            value = keyCode,
+            onValueChange = { keyCode = it },
+            label = { Text(stringResource(R.string.svc_device_key_label)) },
+            singleLine = true,
+            enabled = !submitting && !reclaiming && !signingOut,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(
+            onClick = {
+                submitting = true
+                submitFailed = false
+                scope.launch {
+                    // applicationContext, not the Activity context read above,
+                    // because this write outlives the composition: the claim can
+                    // still be in flight when the screen goes away, and a
+                    // coroutine holding an Activity is a coroutine holding a
+                    // window. The DataStore itself is indifferent -- the
+                    // preferencesDataStore delegate resolves through
+                    // applicationContext whichever Context it is handed.
+                    //
+                    // The same call "Use this phone" makes, this time carrying
+                    // what was typed -- claim_device's own second argument.
+                    val claimed = ServiceGate.reclaim(context.applicationContext, keyCode)
+                    submitting = false
+                    // A rejected KEY re-renders the wording above by itself, off
+                    // lastOutcome. This covers the other way it can fail: the
+                    // call never reached the server.
+                    submitFailed = !claimed &&
+                        ServiceGate.lastClaimOutcome.value is ClaimOutcome.Failed
+                    // A successful claim already updated DISPLACED locally;
+                    // asking the parent to recheck is what actually takes this
+                    // screen off -- ServiceGate.stillMine reads the same
+                    // active_device_id this claim just set, on the next check
+                    // that recheck causes, rather than this screen assuming.
+                    if (claimed) onRetry()
+                }
+            },
+            enabled = !submitting && !reclaiming && !signingOut && keyCode.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                stringResource(
+                    if (submitting) R.string.svc_device_key_submitting else R.string.svc_device_key_submit
+                )
+            )
+        }
+        if (submitFailed) {
+            Text(
+                stringResource(R.string.svc_use_this_phone_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
     }
 }
 

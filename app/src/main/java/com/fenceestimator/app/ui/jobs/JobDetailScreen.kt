@@ -143,6 +143,7 @@ import com.fenceestimator.app.ui.runs.FenceRunListViewModel
 import com.fenceestimator.app.ui.theme.Space
 import kotlinx.coroutines.launch
 import com.fenceestimator.app.cloud.CrashReporter
+import com.fenceestimator.app.cloud.CloudTime
 import com.fenceestimator.app.cloud.SupabaseModule
 import io.github.jan.supabase.postgrest.postgrest
 import java.text.SimpleDateFormat
@@ -397,13 +398,57 @@ fun JobDetailScreen(
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
                             } else {
-                                IntentHelpers.shareText(
+                                // Not "the sheet opened" -- "they picked
+                                // somewhere to send it".
+                                //
+                                // Recording a send off startActivity alone
+                                // records one for a sheet backed straight out
+                                // of, and that is not a cosmetic wrong: once a
+                                // job carries quote_sent_at, JobSync stops
+                                // pushing a fresh contract_total for it, so one
+                                // stray tap would quietly end this phone's
+                                // ability to re-price that job. The three-argument
+                                // createChooser reports the chosen component,
+                                // once; see IntentHelpers.shareTextAwaitingChoice.
+                                //
+                                // It still cannot know they pressed send inside
+                                // whatever they picked. Nothing here claims that.
+                                val opened = IntentHelpers.shareTextAwaitingChoice(
                                     context = context,
                                     subject = chooser,
                                     body = bodyTemplate.format(
                                         j.customerName.ifBlank { "there" }, url),
                                     chooserTitle = chooser
-                                )
+                                ) {
+                                    scope.launch {
+
+                                        val sentAt = markQuoteSent(context, j.syncId, j.quoteSentAt)
+                                        if (sentAt != null) {
+                                            // Through the same update() the rest of
+                                            // this screen already saves through, so
+                                            // this stamp bumps the local edit clock
+                                            // the way any other field here does --
+                                            // a write that moved jobs.updated_at on
+                                            // the server without also moving it here
+                                            // would leave this phone's copy looking
+                                            // older than the cloud's, and the next
+                                            // pull free to overwrite an edit made in
+                                            // between.
+                                            viewModel.update { current ->
+                                                current.copy(
+                                                    quoteSentAt = current.quoteSentAt ?: sentAt,
+                                                    status = JobStatus.SENT
+                                                )
+                                            }
+                                        }
+                                
+                                    }
+                                }
+                                if (!opened) {
+                                    android.widget.Toast.makeText(
+                                        context, shareFailed, android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             }
                         }
                     },
@@ -3316,4 +3361,44 @@ private suspend fun quoteLinkFor(
 @kotlinx.serialization.Serializable
 private data class QuoteTokenRow(
     @kotlinx.serialization.SerialName("quote_token") val quoteToken: String? = null,
+)
+
+/**
+ * Stamps quote_sent_at and status the way the office already does --
+ * wizMarkSent() in website/dashboard.html sends exactly these two columns,
+ * keeping whatever send time is already on the job rather than pushing it
+ * forward on a resend. A direct write, not the ordinary row push: JobSync.kt's
+ * Job.toCloud() leaves quote_sent_at out on purpose, because until now nothing
+ * on the phone ever set it, and this is one button, not a reason to give every
+ * ordinary edit a new column to carry.
+ *
+ * Returns the millis actually recorded (what was already on the job, or the
+ * moment this call ran), so the caller can put the identical value on the
+ * local row instead of taking a second, slightly different clock reading --
+ * or null when the write did not go through, so nothing local gets stamped
+ * for a send the cloud never saw.
+ */
+private suspend fun markQuoteSent(
+    context: android.content.Context,
+    syncId: String,
+    keepExisting: Long?
+): Long? {
+    val sentAt = keepExisting ?: System.currentTimeMillis()
+    val wrote = runCatching {
+        SupabaseModule.client.postgrest.from("jobs").update(
+            QuoteSentPatch(quoteSentAt = CloudTime.format(sentAt))
+        ) {
+            filter { eq("sync_id", syncId) }
+        }
+    }.onFailure { e ->
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        CrashReporter.report(context, "quote-sent-stamp", e)
+    }.isSuccess
+    return if (wrote) sentAt else null
+}
+
+@kotlinx.serialization.Serializable
+private data class QuoteSentPatch(
+    @kotlinx.serialization.SerialName("quote_sent_at") val quoteSentAt: String,
+    @kotlinx.serialization.SerialName("status") val status: String = "SENT",
 )

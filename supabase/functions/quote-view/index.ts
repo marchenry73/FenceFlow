@@ -422,6 +422,32 @@ Deno.serve(async (req) => {
   }
 
   // ---------------------------------------------------------------- view ---
+  // WHICH fence line changed, for the re-approval notice.
+  //
+  // jobs.reapproval_reason is already on the row and was tried first. It is a
+  // full English sentence written by the trigger, and the page's own notice
+  // already says the same two things in the reader's language -- the drawing
+  // changed, approve again -- so printing it gave a Spanish reader the request
+  // twice with half of it in English. The run's label is the one part they did
+  // not already have, and a name the owner typed reads the same in every
+  // language, so that is what goes on the wire.
+  //
+  // Newest unresolved withdrawal, matching what the notice is about. Empty
+  // string when there is none, or when the run had no label -- the page falls
+  // back to its plain wording rather than printing an empty gap.
+  let reapprovalRunLabel = "";
+  if (job.reapproval_required_at) {
+    const { data: withdrawal } = await admin
+      .from("quote_reapprovals")
+      .select("run_label")
+      .eq("job_id", job.id)
+      .is("resolved_at", null)
+      .order("at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    reapprovalRunLabel = String(withdrawal?.run_label ?? "").trim();
+  }
+
   const [{ data: company }, figures, { data: runs }, { data: conn }] =
     await Promise.all([
       admin.from("companies").select("name, phone, email").eq("id", job.company_id).single(),
@@ -484,7 +510,9 @@ Deno.serve(async (req) => {
     // above the approve button; the approve step itself is unchanged -- same
     // phone gate, same typed name, same link.
     reapprovalRequiredAt: job.reapproval_required_at,
-    reapprovalReason: job.reapproval_reason ?? "",
+    // The label only, never jobs.reapproval_reason: see the comment where this
+    // is read. Sending the sentence too would just invite the page to print it.
+    reapprovalRunLabel,
     // Whether the approve step needs to ask for the last four digits of the
     // job's phone number. A boolean saying a phone is on file is not the
     // phone number -- this is the one fact about it the page is allowed to

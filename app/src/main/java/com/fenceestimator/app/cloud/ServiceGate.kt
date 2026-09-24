@@ -8,9 +8,13 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
@@ -103,6 +107,31 @@ data class Entitlements(
     }
 }
 
+/**
+ * What claim_device did with a claim -- the phone's reading of the two
+ * `raise exception` lines in PART 3 of supabase_r8_device_keys.sql, plus
+ * everything that is neither of them.
+ *
+ * Both of those raises set `hint` and no `details`. postgrest-kt 3.0.2 builds
+ * its RestException from the response's message and details-or-hint only --
+ * the SQLSTATE does not survive the trip (see the dated note on
+ * isPermanentRejection in TimeEntrySyncRejection.kt, which found the same
+ * thing for a different RPC). With `details` absent, the hint Postgres set
+ * lands in RestException.description, not in .error -- which is the message
+ * sentence, not the machine-readable word -- and nowhere does the SQLSTATE
+ * itself appear. [ServiceGate] reads the hint from `.description`.
+ */
+sealed class ClaimOutcome {
+    /** The server accepted the claim. This device now holds the login. */
+    object Claimed : ClaimOutcome()
+    /** hint = 'device_key_required' -- another phone holds it and this one sent no key. */
+    object KeyRequired : ClaimOutcome()
+    /** hint = 'device_key_invalid' -- a key was sent and the server would not take it. */
+    object KeyInvalid : ClaimOutcome()
+    /** No session, offline, a timeout, or a refusal that was neither hint above. */
+    object Failed : ClaimOutcome()
+}
+
 object ServiceGate {
 
     private val ALLOWED = booleanPreferencesKey("allowed")
@@ -129,6 +158,17 @@ object ServiceGate {
     /** Which account this install last took the login for. */
     private val CLAIMED_FOR = stringPreferencesKey("claimed_for")
 
+    /**
+     * What the last claim_device call answered, for whichever screen is
+     * showing "signed in on another phone" -- so it can ask for a device key
+     * only once the server has actually said it wants one, and say which of
+     * the two ways that request can fail. In memory only: a key requirement
+     * is asked about fresh on every attempt, never remembered from an
+     * earlier sign-in or a different account on this phone.
+     */
+    private val _lastClaimOutcome = MutableStateFlow<ClaimOutcome?>(null)
+    val lastClaimOutcome: StateFlow<ClaimOutcome?> = _lastClaimOutcome.asStateFlow()
+
     suspend fun deviceId(context: Context): String {
         val existing = runCatching {
             context.serviceStore.data.first()[DEVICE_ID]
@@ -139,19 +179,59 @@ object ServiceGate {
         return made
     }
 
-    /** Called once the person is signed in: this phone takes the login. */
-    suspend fun claimThisDevice(context: Context) {
-        if (!SupabaseModule.hasLiveSession()) return
+    /**
+     * Runs claim_device and says what happened, rather than throwing the
+     * answer away -- the one place [claimThisDevice] and [reclaim] both call,
+     * so a refusal is read the same way whichever one asked, and a caller
+     * that passes no key gets exactly today's one-argument call.
+     */
+    private suspend fun attemptClaim(context: Context, keyCode: String?): ClaimOutcome {
+        if (!SupabaseModule.hasLiveSession()) return ClaimOutcome.Failed
         val id = deviceId(context)
-        runCatching {
+        val result = runCatching {
             SupabaseModule.client.postgrest.rpc(
                 "claim_device",
                 kotlinx.serialization.json.buildJsonObject {
                     put("device_id", kotlinx.serialization.json.JsonPrimitive(id))
+                    keyCode?.filterNot { it.isWhitespace() }?.takeIf { it.isNotEmpty() }?.let {
+                        put("key_code", kotlinx.serialization.json.JsonPrimitive(it))
+                    }
                 }
             )
         }
-        runCatching { context.serviceStore.edit { it[DISPLACED] = false } }
+        if (result.isSuccess) return ClaimOutcome.Claimed
+        val hint = generateSequence(result.exceptionOrNull()) { it.cause }
+            .filterIsInstance<RestException>()
+            .firstOrNull()
+            ?.description
+        return when (hint) {
+            "device_key_required" -> ClaimOutcome.KeyRequired
+            "device_key_invalid" -> ClaimOutcome.KeyInvalid
+            else -> ClaimOutcome.Failed
+        }
+    }
+
+    /** Called once the person is signed in: this phone takes the login. */
+    suspend fun claimThisDevice(context: Context, keyCode: String? = null): ClaimOutcome {
+        val outcome = attemptClaim(context, keyCode)
+        _lastClaimOutcome.value = outcome
+        // A REFUSAL keeps DISPLACED; anything else clears it.
+        //
+        // This used to clear it right after the runCatching no matter what came
+        // back, so offline, a thrown exception and a deliberate refusal all
+        // looked identical -- and a refused claim, which is the entire point of
+        // device_key_required, said this phone was fine.
+        //
+        // Failed still clears it, deliberately, and that is not the same
+        // oversight. DISPLACED halts AutoSync outright, so leaving it set after
+        // a claim that merely did not land -- a dropped socket, a 5xx -- stops
+        // every sync pass on a phone whose screen looks completely normal, with
+        // nothing on it saying why. A refusal is different: there the block
+        // screen is shown, so the flag matches what the person is being told.
+        if (outcome is ClaimOutcome.Claimed || outcome is ClaimOutcome.Failed) {
+            runCatching { context.serviceStore.edit { it[DISPLACED] = false } }
+        }
+        return outcome
     }
 
     /**
@@ -185,31 +265,37 @@ object ServiceGate {
      * wins), so it gives nobody a seat they did not already have -- the other
      * phone is the one that stops, until it signs in or claims again.
      *
-     * Separate from [claimThisDevice] because that one swallows a failure and
-     * clears the displaced mark regardless, which is right after a sign-in
-     * (the next check re-asks) and wrong behind a button: a claim that never
-     * reached the server would clear the mark, the re-check would put the
-     * screen straight back, and the tap would look like it did nothing. This
-     * says whether it worked, and only then changes what the phone remembers.
+     * Kept apart from [claimThisDevice] because this one runs from a button
+     * tap and only changes what the phone remembers -- DISPLACED, CLAIMED_FOR
+     * -- once it knows the claim actually reached the server and was
+     * accepted; [claimThisDevice] runs at sign-in, where the next check
+     * re-asks regardless. Both now go through [attemptClaim] and both record
+     * what happened in [lastClaimOutcome], so a caller here that wants more
+     * than "did it work" -- specifically, whether a device key is needed or
+     * was wrong -- reads that rather than getting only this Boolean.
      *
+     * @param keyCode what the office read out, when [lastClaimOutcome] was
+     *   [ClaimOutcome.KeyRequired] or [ClaimOutcome.KeyInvalid] on an earlier
+     *   attempt. Sent as claim_device's second argument; left out (or blank)
+     *   makes exactly the one-argument call this always made before keys
+     *   existed.
      * @return true only when the server accepted the claim.
      */
-    suspend fun reclaim(context: Context): Boolean = withContext(Dispatchers.IO) {
+    suspend fun reclaim(context: Context, keyCode: String? = null): Boolean = withContext(Dispatchers.IO) {
         if (!SupabaseModule.hasLiveSession()) {
             SupabaseModule.tryRefreshSession()
-            if (!SupabaseModule.hasLiveSession()) return@withContext false
+            if (!SupabaseModule.hasLiveSession()) {
+                _lastClaimOutcome.value = ClaimOutcome.Failed
+                return@withContext false
+            }
         }
-        val userId = SupabaseModule.currentUserId() ?: return@withContext false
-        val id = deviceId(context)
-        val claimed = runCatching {
-            SupabaseModule.client.postgrest.rpc(
-                "claim_device",
-                kotlinx.serialization.json.buildJsonObject {
-                    put("device_id", kotlinx.serialization.json.JsonPrimitive(id))
-                }
-            )
-        }.isSuccess
-        if (!claimed) return@withContext false
+        val userId = SupabaseModule.currentUserId() ?: run {
+            _lastClaimOutcome.value = ClaimOutcome.Failed
+            return@withContext false
+        }
+        val outcome = attemptClaim(context, keyCode)
+        _lastClaimOutcome.value = outcome
+        if (outcome !is ClaimOutcome.Claimed) return@withContext false
         runCatching {
             context.serviceStore.edit {
                 it[DISPLACED] = false
@@ -241,9 +327,21 @@ object ServiceGate {
 
         if (claimedFor != userId) {
             // First check since signing in on this phone, for this account.
-            claimThisDevice(context)
+            //
+            // The outcome is READ, not discarded. It used to return true here
+            // whatever came back, so a claim the server REFUSED for want of a
+            // device key still opened the app fully unblocked -- AutoSync and
+            // all -- and the block screen carrying the key field appeared only
+            // on the next resume, when stillMine finally contradicted it. The
+            // one case the whole feature exists for was the case that got a
+            // free foreground cycle.
+            val outcome = claimThisDevice(context)
             runCatching { context.serviceStore.edit { it[CLAIMED_FOR] = userId } }
-            return true
+            // A refusal blocks. Anything ELSE -- including a failure -- still
+            // returns true, deliberately: a crew member in a dead spot must
+            // not be thrown out of the app because a call did not land. Only
+            // a definite no from the server is a no.
+            return outcome !is ClaimOutcome.KeyRequired && outcome !is ClaimOutcome.KeyInvalid
         }
         return stillMine(context)
     }
@@ -401,5 +499,6 @@ object ServiceGate {
     /** Forgotten on sign-out, so the next account is judged on its own terms. */
     suspend fun clear(context: Context) {
         runCatching { context.serviceStore.edit { it.clear() } }
+        _lastClaimOutcome.value = null
     }
 }

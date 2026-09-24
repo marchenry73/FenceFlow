@@ -77,6 +77,9 @@
   .totals{margin-top:18px;display:flex;flex-direction:column;gap:9px;align-items:stretch;
           font-variant-numeric:tabular-nums}
   .totals div{display:flex;justify-content:space-between;gap:22px;font-size:16px;
+    /* The paid-so-far note under the deposit: quieter, smaller, and allowed to
+       wrap, because it is a sentence rather than a figure in a column. */
+    .totals div.depnote{display:block;font-size:13px;color:var(--muted);margin-top:-4px}
               color:var(--muted)}
   .totals .grand{font:700 40px/1.05 var(--display);color:var(--text);
                  border-top:2px solid var(--line);padding-top:14px;margin-top:4px;
@@ -173,6 +176,8 @@ const L = {
     scopeSoon: 'Full details of the work to follow.',
     total: 'Total',
     depositToBegin: 'Deposit to begin',
+    depositPaidSoFar: '%s of it is already paid — %s left before we start.',
+    depositPaidInFull: 'Paid in full — thank you. %s received.',
     balanceDue: 'Balance due at completion',
     totalLength: '%s ft total',
     nextStepsPending: 'Next: once your deposit is received, the contractor will be in touch to schedule the work.',
@@ -211,6 +216,7 @@ const L = {
     phoneLast4Wrong: 'Those digits don’t match what we have on file. Check the number and try again — this isn’t a system error.',
     phoneLast4Locked: 'Too many attempts. Please wait a few minutes and try again.',
     reapprovalNotice: 'We updated your drawing on %s. Please review it and approve again.',
+    reapprovalNoticeRun: 'We updated your drawing on %s — the %s line changed. Please review it and approve again.',
   },
   es: {
     loading: 'Abriendo su presupuesto…',
@@ -228,6 +234,8 @@ const L = {
     scopeSoon: 'El detalle completo del trabajo se enviará a continuación.',
     total: 'Total',
     depositToBegin: 'Depósito para empezar',
+    depositPaidSoFar: 'Ya se pagó %s — faltan %s antes de empezar.',
+    depositPaidInFull: 'Pagado por completo — gracias. Recibimos %s.',
     balanceDue: 'Saldo pendiente al terminar',
     totalLength: '%s pies en total',
     nextStepsPending: 'Siguiente paso: en cuanto se reciba su depósito, el contratista se pondrá en contacto para programar el trabajo.',
@@ -266,6 +274,7 @@ const L = {
     phoneLast4Wrong: 'Esos dígitos no coinciden con lo que tenemos registrado. Revise el número e inténtelo de nuevo — esto no es un error del sistema.',
     phoneLast4Locked: 'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.',
     reapprovalNotice: 'Actualizamos su plano el %s. Revíselo y apruébelo de nuevo.',
+    reapprovalNoticeRun: 'Actualizamos su plano el %s — cambió el tramo %s. Revíselo y apruébelo de nuevo.',
   },
   fr: {
     loading: 'Ouverture de votre devis…',
@@ -283,6 +292,8 @@ const L = {
     scopeSoon: 'Le détail complet des travaux suivra.',
     total: 'Total',
     depositToBegin: 'Acompte pour démarrer',
+    depositPaidSoFar: '%s déjà versé — il reste %s avant de commencer.',
+    depositPaidInFull: 'Intégralement versé — merci. %s reçu.',
     balanceDue: 'Solde dû à la fin des travaux',
     totalLength: '%s pi au total',
     nextStepsPending: 'Prochaine étape : dès réception de votre acompte, l’entreprise vous contactera pour planifier les travaux.',
@@ -321,6 +332,7 @@ const L = {
     phoneLast4Wrong: 'Ces chiffres ne correspondent pas à ce que nous avons enregistré. Vérifiez le numéro et réessayez — ce n’est pas une erreur du système.',
     phoneLast4Locked: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
     reapprovalNotice: 'Nous avons mis à jour votre plan le %s. Veuillez le vérifier et l\'approuver à nouveau.',
+    reapprovalNoticeRun: 'Nous avons mis à jour votre plan le %s — le tronçon %s a changé. Veuillez le vérifier et l\'approuver à nouveau.',
   },
 };
 
@@ -591,7 +603,29 @@ function render(){
   const rows=[];
   rows.push('<div class="grand"><span>'+tr('total')+'</span><span>'+money(q.total)+'</span></div>');
   if(q.deposit>0.005){
+    // Total and Balance never move for this: the figure asked for stays
+    // q.deposit, and Balance stays Total minus what was asked, not what is
+    // still owed. Only the deposit row's own value text grows a second
+    // clause when part of it already came in, from the same depositDue
+    // dueNow() reads -- so a homeowner who paid part of the deposit does
+    // not read a figure that looks like nothing happened yet.
+    const depositDue=(q.depositDue!=null)?q.depositDue:q.deposit;
+    const depositPaid=Math.max(0, (Number(q.deposit)||0)-(Number(depositDue)||0));
     rows.push('<div><span>'+tr('depositToBegin')+'</span><span>'+money(q.deposit)+'</span></div>');
+    // What has already come in goes on its own line, not into the deposit
+    // row's value. .totals rows are a two-column flex with a 22px gap, and
+    // "$1,000.00 - $250.00 paid, $750.00 due" is about 34 characters against
+    // roughly 310px of usable width on a 375px phone -- it wrapped, and
+    // squeezed the label into a column beside it.
+    //
+    // Deliberately NOT a totals row: Total, deposit and balance are a set of
+    // three that sum, and a fourth number among them would stop that reading
+    // true. This is a note about one of them.
+    if(depositPaid>0.005){
+      rows.push('<div class="depnote"><span>'+(depositDue>0.005
+        ? tr('depositPaidSoFar', money(depositPaid), money(depositDue))
+        : tr('depositPaidInFull', money(depositPaid)))+'</span></div>');
+    }
     const balance=Math.max(0, (Number(q.total)||0)-(Number(q.deposit)||0));
     rows.push('<div><span>'+tr('balanceDue')+'</span><span>'+money(balance)+'</span></div>');
   }
@@ -616,8 +650,21 @@ function render(){
     // the office never got their first approval.
     if(q.reapprovalRequiredAt){
       $('reapprovalNotice').style.display='block';
-      $('reapprovalNotice').textContent=tr('reapprovalNotice',
-        new Date(q.reapprovalRequiredAt).toLocaleDateString(LANG));
+      // WHICH fence line changed, composed here, per language.
+      //
+      // The obvious move is to print jobs.reapproval_reason, which the trigger
+      // fills in. It was tried and taken back out: that sentence is written in
+      // English in the database, and it already says the same two things this
+      // localised one does (the drawing changed, approve again) -- so a Spanish
+      // reader got the request twice, the date twice, and half of it in a
+      // language they did not pick. The only part of it they did not already
+      // have is the run's own name, which is a name the owner typed and reads
+      // the same in every language. quote-view sends it as reapprovalRunLabel.
+      const reapprovalDate=new Date(q.reapprovalRequiredAt).toLocaleDateString(LANG);
+      const changedRun=(q.reapprovalRunLabel||'').trim();
+      $('reapprovalNotice').textContent=changedRun
+        ? tr('reapprovalNoticeRun', reapprovalDate, changedRun)
+        : tr('reapprovalNotice', reapprovalDate);
     }
     // The last-4 field only appears when the server says a phone is on file
     // to check against -- never a guess made on the page.

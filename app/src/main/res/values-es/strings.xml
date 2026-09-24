@@ -159,6 +159,11 @@
     <string name="svc_use_this_phone">Usar este teléfono</string>
     <string name="svc_use_this_phone_working">Cambiando a este teléfono…</string>
     <string name="svc_use_this_phone_failed">No se pudo conectar con FenceFlow para cambiar de teléfono. Revisa la conexión e inténtalo de nuevo.</string>
+    <string name="svc_device_key_required">Este teléfono necesita una clave de dispositivo para iniciar sesión aquí. Pide el código a tu oficina e ingrésalo abajo.</string>
+    <string name="svc_device_key_invalid">Esa clave no funcionó: puede ser incorrecta, ya usada o haber expirado. Pide una nueva a tu oficina.</string>
+    <string name="svc_device_key_label">Clave del dispositivo</string>
+    <string name="svc_device_key_submit">Enviar clave</string>
+    <string name="svc_device_key_submitting">Comprobando clave…</string>
     <string name="sync_failed">No se pudo conectar a la nube</string>
     <string name="sync_local_only">Guardando solo en este teléfono</string>
     <string name="sync_explain">Tus trabajos se guardan automáticamente: al hacer un cambio, al abrir la app y cada cierto tiempo en segundo plano. Todo funciona sin conexión; los cambios se suben cuando haya señal.</string>

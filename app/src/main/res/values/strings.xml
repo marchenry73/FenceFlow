@@ -174,6 +174,11 @@
     <string name="svc_use_this_phone">Use this phone</string>
     <string name="svc_use_this_phone_working">Switching to this phone…</string>
     <string name="svc_use_this_phone_failed">Couldn\'t reach FenceFlow to switch phones. Check the connection and try again.</string>
+    <string name="svc_device_key_required">This phone needs a device key to sign in here. Ask your office for the code and enter it below.</string>
+    <string name="svc_device_key_invalid">That key didn\'t work -- it may be wrong, already used, or expired. Ask your office for a new one.</string>
+    <string name="svc_device_key_label">Device key</string>
+    <string name="svc_device_key_submit">Submit key</string>
+    <string name="svc_device_key_submitting">Checking key…</string>
     <string name="sync_failed">Couldn\'t reach the cloud</string>
     <string name="sync_local_only">Saving on this phone only</string>
     <string name="sync_explain">Your jobs save automatically — when you make a change, when you open the app, and every so often in the background. Everything works offline; changes upload once you have signal.</string>

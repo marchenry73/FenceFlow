@@ -1304,6 +1304,34 @@
           <div id="removedRows"></div>
         </div>
       </div>
+
+      <!-- Device keys let a second phone claim a login when a company turns on
+           require_device_key (supabase_r8_device_keys.sql, not yet applied).
+           mint_device_key/revoke_device_key/list_device_keys all refuse anyone
+           who is not OWNER or MANAGER inside the function body, so canEdit()
+           below only mirrors that same check for the whole panel -- never a
+           looser or a stricter rule of its own. There is deliberately no
+           switch here for require_device_key itself: turning it on locks out
+           any crew phone that cannot yet send a key back, so it stays a
+           by-hand SQL step taken once every phone is updated, never a button
+           someone could tap by accident. -->
+      <div class="panel" id="deviceKeysPanel" style="margin-top:12px;display:none">
+        <h2 style="margin:0 0 6px" data-t="dkHead">Device keys</h2>
+        <p class="sub" style="margin-top:0" data-t="dkBody">A one-time code that lets one more phone sign in when this company requires it. Read it out once — whoever uses it first spends it.</p>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+          <div><label style="display:block;font-size:12px;color:var(--muted)" data-t="dkLabelLabel">Label</label>
+            <input id="dkLabelInput" type="text" style="width:200px" data-t="dkLabelPh"></div>
+          <div><label style="display:block;font-size:12px;color:var(--muted)" data-t="dkLabelDays">Days good for</label>
+            <input id="dkDaysInput" type="number" min="1" max="30" step="1" value="7" style="width:80px"></div>
+          <button class="btn btn-sm" type="button" id="dkMintBtn" data-t="dkMintBtn">Mint a key</button>
+        </div>
+        <div id="dkNewCode" style="display:none;margin-bottom:14px"></div>
+        <div class="scroll"><table>
+          <thead><tr><th data-t="dkColLabel">Label</th><th data-t="dkColCode">Code</th><th data-t="dkColStatus">Status</th><th data-t="dkColExpires">Expires</th><th></th></tr></thead>
+          <tbody id="dkRows"></tbody></table></div>
+        <div class="empty" id="dkEmpty" style="display:none" data-t="dkEmptyMsg">No device keys yet.</div>
+        <div class="msg" id="dkMsg"></div>
+      </div>
     </div>
 
     <!-- Correcting a clock. The original is kept by the database, not by
@@ -3730,6 +3758,20 @@ const TL = {
     seatRemoveBody:'They lose access on their phone straight away. Everything they recorded — jobs, hours, notes — stays exactly where it is, and their seat is freed. The code they joined with stops working for them, and you can let them back in later if you change your mind.',
     seatRemovedOk:'%s removed. That seat is free.',
     seatThisPerson:'this person', seatThey:'they',
+    dkHead:'Device keys',
+    dkBody:'A one-time code that lets one more phone sign in when this company requires it. Read it out once — whoever uses it first spends it.',
+    dkLabelLabel:'Label', dkLabelPh:'e.g. spare phone', dkLabelDays:'Days good for',
+    dkMintBtn:'Mint a key',
+    dkColLabel:'Label', dkColCode:'Code', dkColStatus:'Status', dkColExpires:'Expires',
+    dkEmptyMsg:'No device keys yet.', dkUnlabeled:'No label',
+    dkStateReady:'Ready', dkStateUsed:'Used', dkStateExpired:'Expired', dkStateRevoked:'Revoked',
+    dkUsedByPrefix:'used by %s',
+    dkRevokeBtn:'Revoke', dkRevokeQ:'Revoke key %s?',
+    dkRevokeBody:'Nobody will be able to sign in with this code afterward. It has not been used yet, so nobody currently signed in is affected.',
+    dkRevokeGoneMsg:'That key was already used or revoked — there is nothing left to undo.',
+    dkRevokedOk:'Key revoked. It can no longer be used to sign in.',
+    dkMintedOk:'Key minted. Read it out below.',
+    dkNewCodeLabel:'New device key — read this out now', dkDismissBtn:'Done',
     crewUnnamed:'Unnamed', crewOffCrew:'Off the crew', crewPayNotVisible:'Not visible',
     crewPayNotVisibleTitle:'Pay is not visible to your account',
     crewResendInviteBtn:'Resend invite',
@@ -5259,6 +5301,20 @@ const TL = {
     seatRemoveBody:'Pierde acceso en su teléfono de inmediato. Todo lo que registró — trabajos, horas, notas — se queda exactamente donde está, y su acceso queda libre. El código con el que se unió deja de funcionar para él, y puede dejarlo entrar de nuevo más tarde si cambia de opinión.',
     seatRemovedOk:'%s quitado. Ese acceso está libre.',
     seatThisPerson:'esta persona', seatThey:'él/ella',
+    dkHead:'Claves de dispositivo',
+    dkBody:'Un código de un solo uso que permite que un teléfono más inicie sesión cuando la empresa lo requiere. Léalo en voz alta una vez — quien lo use primero lo gasta.',
+    dkLabelLabel:'Etiqueta', dkLabelPh:'p. ej. teléfono de repuesto', dkLabelDays:'Días de validez',
+    dkMintBtn:'Generar clave',
+    dkColLabel:'Etiqueta', dkColCode:'Código', dkColStatus:'Estado', dkColExpires:'Vence',
+    dkEmptyMsg:'Todavía no hay claves de dispositivo.', dkUnlabeled:'Sin etiqueta',
+    dkStateReady:'Lista', dkStateUsed:'Usada', dkStateExpired:'Vencida', dkStateRevoked:'Revocada',
+    dkUsedByPrefix:'usada por %s',
+    dkRevokeBtn:'Revocar', dkRevokeQ:'¿Revocar la clave %s?',
+    dkRevokeBody:'Nadie podrá iniciar sesión con este código después. Todavía no se ha usado, así que no afecta a nadie que ya haya iniciado sesión.',
+    dkRevokeGoneMsg:'Esa clave ya se usó o se revocó — no queda nada que deshacer.',
+    dkRevokedOk:'Clave revocada. Ya no se puede usar para iniciar sesión.',
+    dkMintedOk:'Clave generada. Léala en voz alta a continuación.',
+    dkNewCodeLabel:'Nueva clave de dispositivo — léala ahora', dkDismissBtn:'Listo',
     crewUnnamed:'Sin nombre', crewOffCrew:'Fuera de la cuadrilla', crewPayNotVisible:'No visible',
     crewPayNotVisibleTitle:'El pago no es visible para su cuenta',
     crewResendInviteBtn:'Reenviar invitación',
@@ -6758,6 +6814,20 @@ const TL = {
     seatRemoveBody:'Il perd l\'accès sur son téléphone immédiatement. Tout ce qu\'il a enregistré — chantiers, heures, notes — reste exactement où c\'est, et sa place est libérée. Le code avec lequel il s\'est joint cesse de fonctionner pour lui, et vous pouvez le laisser revenir plus tard si vous changez d\'avis.',
     seatRemovedOk:'%s retiré. Cette place est libre.',
     seatThisPerson:'cette personne', seatThey:'il/elle',
+    dkHead:'Clés d\'appareil',
+    dkBody:'Un code à usage unique qui permet à un téléphone de plus de se connecter quand l\'entreprise l\'exige. Lisez-le à voix haute une seule fois — la première personne qui l\'utilise le consomme.',
+    dkLabelLabel:'Étiquette', dkLabelPh:'p. ex. téléphone de secours', dkLabelDays:'Valable (jours)',
+    dkMintBtn:'Générer une clé',
+    dkColLabel:'Étiquette', dkColCode:'Code', dkColStatus:'Statut', dkColExpires:'Expire',
+    dkEmptyMsg:'Pas encore de clé d\'appareil.', dkUnlabeled:'Sans étiquette',
+    dkStateReady:'Prête', dkStateUsed:'Utilisée', dkStateExpired:'Expirée', dkStateRevoked:'Révoquée',
+    dkUsedByPrefix:'utilisée par %s',
+    dkRevokeBtn:'Révoquer', dkRevokeQ:'Révoquer la clé %s ?',
+    dkRevokeBody:'Plus personne ne pourra se connecter avec ce code ensuite. Il n\'a pas encore été utilisé, donc personne déjà connecté n\'est concerné.',
+    dkRevokeGoneMsg:'Cette clé a déjà été utilisée ou révoquée — il n\'y a plus rien à annuler.',
+    dkRevokedOk:'Clé révoquée. Elle ne peut plus être utilisée pour se connecter.',
+    dkMintedOk:'Clé générée. Lisez-la à voix haute ci-dessous.',
+    dkNewCodeLabel:'Nouvelle clé d\'appareil — lisez-la maintenant', dkDismissBtn:'Terminé',
     crewUnnamed:'Sans nom', crewOffCrew:'Hors de l\'équipe', crewPayNotVisible:'Non visible',
     crewPayNotVisibleTitle:'La paie n\'est pas visible pour votre compte',
     crewResendInviteBtn:'Renvoyer l\'invitation',
@@ -10393,6 +10463,7 @@ async function loadBilling(){
 
   await loadJobPayments();
   await loadSeats();
+  await loadDeviceKeys();
 }
 
 /* Who holds a login, and the one control that gives a seat back.
@@ -10507,6 +10578,120 @@ async function loadSeats(){
       msg('seatMsg', tr('seatRemovedOk', who), 'ok');
       await loadSeats();
     }));
+}
+
+/* Device keys: mint_device_key/revoke_device_key/list_device_keys all refuse
+   anyone who is not OWNER or MANAGER in the function body
+   (supabase_r8_device_keys.sql). canEdit() mirrors that exact check for the
+   whole panel, same shape as loadSeats() above it -- a CREW or FOREMAN
+   account never sees a mint button whose only possible answer is "Only an
+   owner or a manager can give out a device key." */
+async function loadDeviceKeys(){
+  const panel = $('deviceKeysPanel');
+  if (!panel) return;
+  panel.style.display = 'none';
+  if (!canEdit()) return;
+
+  // Asked BEFORE the panel is shown, and the panel stays hidden if the
+  // functions are not on this database.
+  //
+  // It used to unhide first and then report the error into the panel, which
+  // means the day this page is published ahead of its migration every owner
+  // and manager gets a brand-new section that can only ever say "could not
+  // find the function". A feature that exists solely to show an error is
+  // worse than one that is not there yet -- so a missing function is treated
+  // as "not available here", and anything else is a real error worth showing.
+  const { data, error } = await db.rpc('list_device_keys');
+  if (error) {
+    const why = String(error.message || '') + ' ' + String(error.code || '');
+    if (/could not find the function|in the schema cache|PGRST20[0-9]/i.test(why)) return;
+    panel.style.display = '';
+    return msg('dkMsg', error.message, 'err');
+  }
+  panel.style.display = '';
+  renderDeviceKeyRows(data || []);
+}
+
+const DK_STATE_CLASS = { ready:'ok', used:'na', expired:'warn', revoked:'no' };
+function dkStateLabel(state){
+  return { ready:tr('dkStateReady'), used:tr('dkStateUsed'),
+    expired:tr('dkStateExpired'), revoked:tr('dkStateRevoked') }[state] || state;
+}
+
+function renderDeviceKeyRows(rows){
+  $('dkEmpty').style.display = rows.length ? 'none' : '';
+  $('dkRows').innerHTML = rows.map(r => {
+    // A revoke can only still act on a key nothing has claimed yet -- same
+    // used_at/revoked_at check revoke_device_key makes server-side, so a
+    // button that would only ever come back false is never offered.
+    const canRevoke = !r.used_at && !r.revoked_at;
+    const usedNote = r.state === 'used' && r.used_by_email
+      ? ` <span style="color:var(--muted);font-size:12px">${esc(tr('dkUsedByPrefix', r.used_by_email))}</span>` : '';
+    return `<tr>
+      <td>${esc(r.label) || esc(tr('dkUnlabeled'))}</td>
+      <td style="font-family:monospace;letter-spacing:1px">${esc(r.code)}</td>
+      <td><span class="pill ${DK_STATE_CLASS[r.state] || 'na'}">${esc(dkStateLabel(r.state))}</span>${usedNote}</td>
+      <td>${day(r.expires_at)}</td>
+      <td style="text-align:right">${canRevoke
+        ? `<button class="btn btn-sm btn-grey" type="button" data-dk-revoke="${esc(r.code)}">${esc(tr('dkRevokeBtn'))}</button>`
+        : ''}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('#dkRows button[data-dk-revoke]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const code = b.dataset.dkRevoke;
+      const okRevoke = await ask({
+        title: tr('dkRevokeQ', code),
+        body: tr('dkRevokeBody'),
+        confirmLabel: tr('dkRevokeBtn'), danger: true
+      });
+      if (!okRevoke) return;
+      b.disabled = true;
+      const { data: revoked, error } = await db.rpc('revoke_device_key', { p_code: code });
+      if (error) { b.disabled = false; return msg('dkMsg', error.message, 'err'); }
+      if (!revoked) { msg('dkMsg', tr('dkRevokeGoneMsg'), 'err'); return loadDeviceKeys(); }
+      msg('dkMsg', tr('dkRevokedOk'), 'ok');
+      await loadDeviceKeys();
+    }));
+}
+
+async function mintDeviceKey(){
+  const label = $('dkLabelInput').value.trim();
+  const daysRaw = parseInt($('dkDaysInput').value, 10);
+  const days = Number.isFinite(daysRaw) ? daysRaw : 7;
+  $('dkMintBtn').disabled = true;
+  const { data: code, error } = await db.rpc('mint_device_key', { p_label: label, p_days: days });
+  $('dkMintBtn').disabled = false;
+  if (error) return msg('dkMsg', error.message, 'err');
+  $('dkLabelInput').value = '';
+  showMintedCode(code);
+  msg('dkMsg', tr('dkMintedOk'), 'ok');
+  await loadDeviceKeys();
+}
+
+/* Read out over a phone from a van, so it gets one oversized, spaced-out line
+   of its own rather than living only in the table below -- and it stays up
+   until dismissed by hand, not on a timer, because reading a code aloud takes
+   longer than any message this page auto-clears.
+
+   mint_device_key() leaves O, 0, I, 1 and L out of what it generates, so the
+   space every four characters is only a place for a reader to pause. It did
+   NOT, until this round: it stripped those characters and then uppercased,
+   which put O and I straight back from base64's lowercase o and i, in about
+   one code in three. The phone strips every space before it compares, so a
+   code typed exactly as it reads here still matches. */
+function showMintedCode(code){
+  const box = $('dkNewCode');
+  const grouped = esc(String(code)).replace(/(.{4})(?=.)/g, '$1 ');
+  box.innerHTML = `<div style="border:1px solid var(--line);border-radius:8px;padding:12px 14px;
+      display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div><div class="sub" style="margin:0 0 4px">${esc(tr('dkNewCodeLabel'))}</div>
+      <div style="font-family:monospace;font-size:28px;font-weight:700;letter-spacing:3px">${grouped}</div></div>
+    <button class="btn btn-sm btn-grey" type="button" id="dkNewCodeDismiss">${esc(tr('dkDismissBtn'))}</button>
+  </div>`;
+  box.style.display = '';
+  $('dkNewCodeDismiss').addEventListener('click', () => { box.style.display = 'none'; box.innerHTML = ''; });
 }
 
 async function startCheckout(plan){
@@ -23957,6 +24142,7 @@ $('impFile').addEventListener('change',async e=>{
   previewImport();
 });
 $('newEmp').addEventListener('click',()=>showEmp(null));
+$('dkMintBtn').addEventListener('click', mintDeviceKey);
 $('saveEmp').addEventListener('click',saveEmp);
 $('e_pay_type').addEventListener('change',syncEmpPayNote);
 $('deleteEmp').addEventListener('click',deleteEmp);

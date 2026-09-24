@@ -192,6 +192,17 @@ COLUMN customers.notes text notnull default=''::text
 COLUMN customers.phone text notnull default=''::text
 COLUMN customers.sync_id uuid null default=gen_random_uuid()
 COLUMN customers.updated_at timestamp with time zone notnull default=now()
+COLUMN device_keys.code text notnull default=-
+COLUMN device_keys.company_id uuid notnull default=-
+COLUMN device_keys.created_at timestamp with time zone notnull default=now()
+COLUMN device_keys.created_by uuid null default=-
+COLUMN device_keys.expires_at timestamp with time zone notnull default=(now() + '7 days'::interval)
+COLUMN device_keys.id uuid notnull default=gen_random_uuid()
+COLUMN device_keys.label text notnull default=''::text
+COLUMN device_keys.revoked_at timestamp with time zone null default=-
+COLUMN device_keys.used_at timestamp with time zone null default=-
+COLUMN device_keys.used_by uuid null default=-
+COLUMN device_keys.used_device_id text null default=-
 COLUMN device_tokens.company_id uuid null default=-
 COLUMN device_tokens.platform text notnull default='android'::text
 COLUMN device_tokens.token text notnull default=-
@@ -417,6 +428,7 @@ COLUMN jobs.materials_ordered_at timestamp with time zone null default=-
 COLUMN jobs.materials_received_at timestamp with time zone null default=-
 COLUMN jobs.materials_status text notnull default='NOT_ORDERED'::text
 COLUMN jobs.minimum_job_charge double precision null default=0
+COLUMN jobs.minimum_labor_charge double precision notnull default=0
 COLUMN jobs.notes text notnull default=''::text
 COLUMN jobs.opted_out_at timestamp with time zone null default=-
 COLUMN jobs.overrun_reason text notnull default=''::text
@@ -711,6 +723,8 @@ COLUMN quote_reapprovals.reason text notnull default=''::text
 COLUMN quote_reapprovals.resolved_at timestamp with time zone null default=-
 COLUMN quote_reapprovals.resolved_name text notnull default=''::text
 COLUMN quote_reapprovals.run_label text notnull default=''::text
+COLUMN quote_reapprovals.run_snapshot_after text notnull default=''::text
+COLUMN quote_reapprovals.run_snapshot_before text notnull default=''::text
 COLUMN quote_reapprovals.run_sync_id uuid null default=-
 COLUMN quote_reapprovals.takeoff_after text notnull default=''::text
 COLUMN quote_reapprovals.takeoff_before text notnull default=''::text
@@ -811,6 +825,8 @@ CONSTR company_setup_codes.company_setup_codes_pkey PRIMARY KEY (code)
 CONSTR company_setup_codes.company_setup_codes_used_by_fkey FOREIGN KEY (used_by) REFERENCES profiles(id)
 CONSTR customers.customers_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR customers.customers_pkey PRIMARY KEY (id)
+CONSTR device_keys.device_keys_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+CONSTR device_keys.device_keys_pkey PRIMARY KEY (id)
 CONSTR device_tokens.device_tokens_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 CONSTR device_tokens.device_tokens_pkey PRIMARY KEY (token)
 CONSTR device_tokens.device_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -982,14 +998,14 @@ FUNC admin_releases() returns=SETOF app_releases secdef=t volatility=s body_md5=
 FUNC admin_second_factor_ok() returns=boolean secdef=t volatility=s body_md5=38c172ec5972c195ba3a422a8c3ab636
 FUNC admin_sign_in_attempt_groups(p_days integer, p_limit integer) returns=TABLE(attempt_key text, attempts bigint, sources bigint, first_at timestamp with time zone, last_at timestamp with time zone, is_mine boolean, total_groups bigint) secdef=f volatility=s body_md5=280709ce0f02a0328baa6563616eba64
 FUNC admin_start_trial(target uuid, days integer) returns=void secdef=t volatility=v body_md5=cee0252014602e569ef29e35abd40a85
-FUNC admin_suspend(target uuid, note text, hold boolean) returns=void secdef=t volatility=v body_md5=dc09a89744b257a0ed098cfb94384e03
+FUNC admin_suspend(target uuid, note text, hold boolean) returns=void secdef=t volatility=v body_md5=41bee38e9b1c1ead0539e7ce375d7981
 FUNC admin_unsuspend(target uuid) returns=void secdef=t volatility=v body_md5=4a578cc4269e13c24d11b074de44b4e7
 FUNC advanced_reports_company_id() returns=uuid secdef=t volatility=s body_md5=b88c763a27755503788f5cb31cffb71b
 FUNC allow_rejoin(member_id uuid) returns=void secdef=t volatility=v body_md5=72fb5512fa95b552f1fdeca867d127bd
 FUNC approve_time_entry(shift_sync_id text, approve boolean, note text) returns=jsonb secdef=t volatility=v body_md5=b80a8a3d0e36fae056e7abfccc440388
 FUNC ar_aging() returns=TABLE(job_sync_id text, customer_name text, phone text, email text, status text, contract_total numeric, paid numeric, owed numeric, since timestamp with time zone, days_out integer, bucket text) secdef=t volatility=s body_md5=0608fe2d1bf26f62b01050bf0cd3dd81
 FUNC attention_sweep_candidates() returns=TABLE(company_id uuid, job_sync_id uuid, detector text, severity text, message text, fp text) secdef=t volatility=s body_md5=3b4995030995cb18dfd8cecfb858dfb3
-FUNC audit_changes() returns=trigger secdef=t volatility=v body_md5=c4f40a44e26c9a58bde82748a99f5795
+FUNC audit_changes() returns=trigger secdef=t volatility=v body_md5=b39d8478f92c0c43ac1082201d46f500
 FUNC auth_events_before_insert() returns=trigger secdef=f volatility=v body_md5=b95342a61afa220fff258c37533da238
 FUNC auth_events_clean_text(p text, p_max integer) returns=text secdef=f volatility=i body_md5=3abfef061ceeb138151ccfccc0860dda
 FUNC auth_events_hmac(p_kind text, p_value text) returns=text secdef=f volatility=s body_md5=724ca1132948c809e9d7814b94c0a505
@@ -1001,7 +1017,7 @@ FUNC can_see_pay() returns=boolean secdef=t volatility=s body_md5=8789f750ccf03b
 FUNC can_use_company_mail() returns=boolean secdef=t volatility=s body_md5=b74b000e84b265768968d74a1b527548
 FUNC choose_payment_processor(which text) returns=void secdef=t volatility=v body_md5=d9cff6b108982923b36f9c8206554c99
 FUNC claim_company_setup(setup_code text, owner_name text) returns=uuid secdef=t volatility=v body_md5=b6431f00113fc611dc98123685360da1
-FUNC claim_device(device_id text) returns=void secdef=t volatility=v body_md5=530f1b2d70086fbdac95d57e527ebf21
+FUNC claim_device(device_id text, key_code text) returns=void secdef=t volatility=v body_md5=68456cdc26ebaf302c3d82b2a80b0573
 FUNC claim_invited_company(member_name text) returns=uuid secdef=t volatility=v body_md5=4e0d3f0a664b6de1b30fa945a5e78611
 FUNC clear_attention_finding(p_finding_id uuid) returns=void secdef=t volatility=v body_md5=a272b9598f7cb928a2f851ad0410df7f
 FUNC clear_automation_flag(p_flag_id uuid) returns=void secdef=t volatility=v body_md5=5e805a899b4c0a1eed71cd61cf1e650d
@@ -1020,6 +1036,7 @@ FUNC crew_settings() returns=jsonb secdef=t volatility=s body_md5=a593bca36ce79e
 FUNC crew_writable_job_columns() returns=text[] secdef=f volatility=i body_md5=cbc741bac5d62a6f8c07279a3b42f975
 FUNC current_company_id() returns=uuid secdef=t volatility=s body_md5=0e378283e9992afd40879b1db4bab17d
 FUNC current_user_role() returns=user_role secdef=t volatility=s body_md5=2ffccc970bea2f258c42d6ade37a818d
+FUNC deposit_follows_price() returns=trigger secdef=f volatility=v body_md5=93565b44be801ffa8fd06f91370ffa0e
 FUNC device_still_mine(device_id text) returns=boolean secdef=t volatility=s body_md5=f0d6c85403db6440ed840afed8d27b90
 FUNC dispute_my_shift(shift_sync_id text, note text) returns=boolean secdef=t volatility=v body_md5=f6b95678871f7f4132564d281894d93b
 FUNC enforce_delete_permission() returns=trigger secdef=t volatility=v body_md5=d82b9bb7eb3f6da9f88ddee83e9ec107
@@ -1041,9 +1058,10 @@ FUNC is_service_role() returns=boolean secdef=t volatility=s body_md5=1a5a026abe
 FUNC job_anchored_total(j jobs) returns=numeric secdef=f volatility=s body_md5=0cadcc0c1038365cc6e048835306056e
 FUNC job_contract_columns() returns=text[] secdef=f volatility=i body_md5=80c626b73c08a07299fa50eb55f4b7f0
 FUNC job_costing(from_date timestamp with time zone, to_date timestamp with time zone) returns=TABLE(job_sync_id text, customer_name text, status text, quoted numeric, collected numeric, material_cost numeric, labour_cost numeric, other_cost numeric, total_cost numeric, projected_profit numeric, margin_percent numeric, cash_position numeric, costs_are_sell_prices boolean, hours_worked numeric, unapproved_hours numeric, quoted_material numeric) secdef=t volatility=s body_md5=e905d67b0a3d2e86484ed4b083ee51e7
-FUNC job_money_columns() returns=text[] secdef=f volatility=i body_md5=64072f0644f50fec5ec75bf8eaff46ff
+FUNC job_money_columns() returns=text[] secdef=f volatility=i body_md5=46c2abef4987cbbe9bb8ae96d51ba9eb
 FUNC join_company(target_company_id uuid, member_name text, requested_role_in text) returns=void secdef=t volatility=v body_md5=7283468b880d459cb46fe1036405eee3
 FUNC latch_change_order_acceptance() returns=trigger secdef=f volatility=v body_md5=4b7a551666c729b9d90b5b610fcdba8d
+FUNC list_device_keys() returns=TABLE(code text, label text, created_at timestamp with time zone, expires_at timestamp with time zone, used_at timestamp with time zone, used_by_email text, revoked_at timestamp with time zone, state text) secdef=t volatility=s body_md5=2dbf4bad0dff1092b1c219fcdc9afd5b
 FUNC locate_state(j jobs) returns=text secdef=f volatility=i body_md5=b252b47ccf76cc81fbbea32d66681f78
 FUNC mail_account_secrets_forget_vault() returns=trigger secdef=t volatility=v body_md5=bc90fc8c11884de14c45f2e59a79ba85
 FUNC mail_accounts_guard() returns=trigger secdef=t volatility=v body_md5=8827d78032bd7a7fd31ba7f3103ee65a
@@ -1072,6 +1090,7 @@ FUNC mail_unlink_thread(p_thread uuid, p_job_sync_id uuid) returns=boolean secde
 FUNC mail_unread_count() returns=integer secdef=f volatility=s body_md5=4f12ec97a4d3e75f57dfe2b86065c50f
 FUNC mark_alert_seen(alert_key text, fingerprint text) returns=void secdef=t volatility=v body_md5=a9320a240dae16aeea0a1ba6fea4049d
 FUNC mark_change_orders_accepted() returns=trigger secdef=t volatility=v body_md5=b1338d1b2dd988258aa366b01806028d
+FUNC mint_device_key(p_label text, p_days integer) returns=text secdef=t volatility=v body_md5=dd7acb75a44ad5fe2ec7f44e36f32d50
 FUNC money_caller_trusted() returns=boolean secdef=t volatility=s body_md5=5cb08b8169076034d34c806e8aa1e29c
 FUNC money_scope_company_id() returns=uuid secdef=t volatility=s body_md5=ba5dc640668705c3d1891a6c565c65ba
 FUNC my_auth_attempt_key() returns=text secdef=t volatility=s body_md5=9ec81a9a6bf4a60ac4641b742ec5a943
@@ -1097,11 +1116,14 @@ FUNC queue_welcome_email() returns=trigger secdef=t volatility=v body_md5=49cfbf
 FUNC quote_phone_clear(jid uuid) returns=void secdef=t volatility=v body_md5=31da07ecc57b807cd86d1bae189e7882
 FUNC quote_phone_try(jid uuid) returns=text secdef=t volatility=v body_md5=d5acf96356ae7267de6df4994aa49ae0
 FUNC reapp_is_empty(fingerprint text) returns=boolean secdef=f volatility=i body_md5=b455787c108f2fb76d417aec19847d2b
-FUNC reapp_on_run_change() returns=trigger secdef=t volatility=v body_md5=c4e389a7d3445bc0ef93642e103a8bb0
+FUNC reapp_on_run_change() returns=trigger secdef=t volatility=v body_md5=d806e370dfc67627d8de01fa12c5f771
 FUNC reapp_resolve_on_approval() returns=trigger secdef=t volatility=v body_md5=6cad098a247a0cf336d95282bad90ded
+FUNC reapp_restore_approval(jid uuid, run_sync uuid, q quote_reapprovals) returns=boolean secdef=t volatility=v body_md5=32f6d795ee0ed9b5a06be3d6f7ab7aba
+FUNC reapp_restores_approved_state(jid uuid, run_sync uuid, after_fp text) returns=quote_reapprovals secdef=t volatility=s body_md5=2110d05f81b2d82e98c2eabd6f7730a7
 FUNC reapp_row_takeoff(r fence_runs, ppf double precision) returns=text secdef=f volatility=i body_md5=364a4c6f72b62d3759f4d53095d22c99
+FUNC reapp_run_snapshot(r fence_runs) returns=text secdef=f volatility=i body_md5=cfb018d82e0a45f5daf8b291eb05fec2
 FUNC reapp_run_takeoff(points_encoded text, gates_encoded text, closed_loop boolean, manual_ft double precision, manual_corners integer, is_teardown boolean, ppf double precision) returns=text secdef=f volatility=i body_md5=91278a1875d243ac5b507a81f3f890cd
-FUNC reapp_withdraw_approval(jid uuid, run_sync uuid, run_label text, kind text, before_fp text, after_fp text) returns=void secdef=t volatility=v body_md5=4090199dd5a25be52629437f139e4460
+FUNC reapp_withdraw_approval(jid uuid, run_sync uuid, run_label text, kind text, before_fp text, after_fp text, before_snap text, after_snap text) returns=void secdef=t volatility=v body_md5=665e10b039b0fd05da5f851a8e042f94
 FUNC recalculate_my_job_totals() returns=integer secdef=t volatility=v body_md5=1a388ac1edb171d6ef6acf72bcb1338e
 FUNC recompute_job_totals(co uuid, job_sid uuid) returns=void secdef=t volatility=v body_md5=bae9c833ae488be6c95af0911786011a
 FUNC record_app_version(code integer, name text) returns=void secdef=t volatility=v body_md5=d1eafdeb5a697090adc3b28865ac3dd2
@@ -1113,6 +1135,7 @@ FUNC release_seat(member_id uuid) returns=void secdef=t volatility=v body_md5=8c
 FUNC release_visible_to_caller(rid uuid) returns=boolean secdef=t volatility=s body_md5=2f633801db5cd50ab534fb9ef9113ec9
 FUNC removed_people() returns=TABLE(id uuid, full_name text, removed_at timestamp with time zone) secdef=t volatility=v body_md5=9ae414daeb0a07e400ea907bbfd48ffe
 FUNC retire_build_template(p_sync_id uuid) returns=boolean secdef=t volatility=v body_md5=bab03ef64a08c844aa895b65fee1ca44
+FUNC revoke_device_key(p_code text) returns=boolean secdef=t volatility=v body_md5=8399a3383359b5c0da3fbaf58fd52777
 FUNC run_automation_rule(p_rule_key text, p_job_sid text) returns=text secdef=t volatility=v body_md5=a4c8e08dd07cad68cef498c0887dfeb7
 FUNC save_build_template(p jsonb) returns=uuid secdef=t volatility=v body_md5=53fe5cedcc62799ca48daf2b0690cec5
 FUNC save_company_settings(new_settings jsonb) returns=void secdef=t volatility=v body_md5=2c203d583e2c7ddab22fada4132ceec8
@@ -1505,6 +1528,27 @@ GRANT customers service_role SELECT
 GRANT customers service_role TRIGGER
 GRANT customers service_role TRUNCATE
 GRANT customers service_role UPDATE
+GRANT device_keys anon DELETE
+GRANT device_keys anon INSERT
+GRANT device_keys anon REFERENCES
+GRANT device_keys anon SELECT
+GRANT device_keys anon TRIGGER
+GRANT device_keys anon TRUNCATE
+GRANT device_keys anon UPDATE
+GRANT device_keys authenticated DELETE
+GRANT device_keys authenticated INSERT
+GRANT device_keys authenticated REFERENCES
+GRANT device_keys authenticated SELECT
+GRANT device_keys authenticated TRIGGER
+GRANT device_keys authenticated TRUNCATE
+GRANT device_keys authenticated UPDATE
+GRANT device_keys service_role DELETE
+GRANT device_keys service_role INSERT
+GRANT device_keys service_role REFERENCES
+GRANT device_keys service_role SELECT
+GRANT device_keys service_role TRIGGER
+GRANT device_keys service_role TRUNCATE
+GRANT device_keys service_role UPDATE
 GRANT device_tokens anon DELETE
 GRANT device_tokens anon INSERT
 GRANT device_tokens anon REFERENCES
@@ -2204,6 +2248,9 @@ INDEX company_setup_codes_pkey CREATE UNIQUE INDEX company_setup_codes_pkey ON p
 INDEX customers_company_sync_idx CREATE UNIQUE INDEX customers_company_sync_idx ON public.customers USING btree (company_id, sync_id)
 INDEX customers_deleted_idx CREATE INDEX customers_deleted_idx ON public.customers USING btree (company_id, deleted_at)
 INDEX customers_pkey CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)
+INDEX device_keys_company_code_idx CREATE UNIQUE INDEX device_keys_company_code_idx ON public.device_keys USING btree (company_id, upper(code))
+INDEX device_keys_company_idx CREATE INDEX device_keys_company_idx ON public.device_keys USING btree (company_id)
+INDEX device_keys_pkey CREATE UNIQUE INDEX device_keys_pkey ON public.device_keys USING btree (id)
 INDEX device_tokens_company_idx CREATE INDEX device_tokens_company_idx ON public.device_tokens USING btree (company_id)
 INDEX device_tokens_pkey CREATE UNIQUE INDEX device_tokens_pkey ON public.device_tokens USING btree (token)
 INDEX employees_company_sync_idx CREATE UNIQUE INDEX employees_company_sync_idx ON public.employees USING btree (company_id, sync_id)
@@ -2363,6 +2410,7 @@ POLICY company_setup_codes.setup_codes_admin_read cmd=SELECT roles=public using=
 POLICY customers.customers_insert cmd=INSERT roles=public using=- check=(company_id = current_company_id())
 POLICY customers.customers_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY customers.customers_update cmd=UPDATE roles=public using=(company_id = current_company_id()) check=-
+POLICY device_keys.device_keys_read cmd=SELECT roles=public using=(company_id = current_company_id()) check=-
 POLICY device_tokens.device_tokens_own_delete cmd=DELETE roles=public using=(user_id = auth.uid()) check=-
 POLICY device_tokens.device_tokens_own_insert cmd=INSERT roles=public using=- check=((user_id = auth.uid()) AND (company_id = current_company_id()))
 POLICY device_tokens.device_tokens_own_select cmd=SELECT roles=public using=(user_id = auth.uid()) check=-
@@ -2495,6 +2543,7 @@ TABLE companies rls=t
 TABLE company_settings rls=t
 TABLE company_setup_codes rls=t
 TABLE customers rls=t
+TABLE device_keys rls=t
 TABLE device_tokens rls=t
 TABLE employees rls=t
 TABLE estimate_line_items rls=t
@@ -2552,6 +2601,7 @@ TRIGGER CREATE TRIGGER auth_events_clean_text BEFORE INSERT ON public.auth_event
 TRIGGER CREATE TRIGGER build_templates_touch BEFORE UPDATE ON public.build_templates FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
 TRIGGER CREATE TRIGGER change_orders_audit AFTER INSERT OR DELETE OR UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION audit_changes()
 TRIGGER CREATE TRIGGER change_orders_touch BEFORE UPDATE ON public.change_orders FOR EACH ROW EXECUTE FUNCTION touch_updated_at()
+TRIGGER CREATE TRIGGER companies_audit AFTER INSERT OR DELETE OR UPDATE ON public.companies FOR EACH ROW EXECUTE FUNCTION audit_changes()
 TRIGGER CREATE TRIGGER companies_protect_welcome_sent_at BEFORE UPDATE ON public.companies FOR EACH ROW WHEN ((new.welcome_sent_at IS DISTINCT FROM old.welcome_sent_at)) EXECUTE FUNCTION protect_welcome_sent_at()
 TRIGGER CREATE TRIGGER companies_queue_welcome_email AFTER UPDATE ON public.companies FOR EACH ROW WHEN (((new.welcome_sent_at IS NULL) AND (new.details_completed_at IS NOT NULL))) EXECUTE FUNCTION queue_welcome_email()
 TRIGGER CREATE TRIGGER employees_audit AFTER INSERT OR DELETE OR UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION audit_changes()
@@ -2607,6 +2657,7 @@ TRIGGER CREATE TRIGGER time_entries_touch BEFORE UPDATE ON public.time_entries F
 TRIGGER CREATE TRIGGER time_entry_approval_needs_permission BEFORE INSERT OR UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION guard_time_entry_approval()
 TRIGGER CREATE TRIGGER time_entry_needs_a_person BEFORE INSERT OR UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION time_entry_needs_a_person()
 TRIGGER CREATE TRIGGER time_entry_write_needs_permission BEFORE UPDATE ON public.time_entries FOR EACH ROW EXECUTE FUNCTION guard_time_entry_write_permission()
+TRIGGER CREATE TRIGGER zz_deposit_follows_price BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION deposit_follows_price()
 VIEW admin_release_audience definition_md5=709704c70855a72d2e95f7db00fde2b3
 VIEW change_orders_crew definition_md5=62102a3654c492a35fdd1b64aef6232e
 VIEW estimate_line_items_crew definition_md5=a043fbd6100fef686438c2dbb82252d4

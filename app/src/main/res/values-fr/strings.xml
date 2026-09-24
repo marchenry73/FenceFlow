@@ -159,6 +159,11 @@
     <string name="svc_use_this_phone">Utiliser ce téléphone</string>
     <string name="svc_use_this_phone_working">Passage à ce téléphone…</string>
     <string name="svc_use_this_phone_failed">Impossible de joindre FenceFlow pour changer de téléphone. Vérifiez la connexion et réessayez.</string>
+    <string name="svc_device_key_required">Cet appareil a besoin d\'une clé pour se connecter ici. Demandez le code à votre bureau et saisissez-le ci-dessous.</string>
+    <string name="svc_device_key_invalid">Cette clé n\'a pas fonctionné : elle est peut-être incorrecte, déjà utilisée ou expirée. Demandez-en une nouvelle à votre bureau.</string>
+    <string name="svc_device_key_label">Clé de l\'appareil</string>
+    <string name="svc_device_key_submit">Envoyer la clé</string>
+    <string name="svc_device_key_submitting">Vérification de la clé…</string>
     <string name="sync_failed">Impossible de joindre le cloud</string>
     <string name="sync_local_only">Enregistré sur ce téléphone uniquement</string>
     <string name="sync_explain">Vos chantiers sont enregistrés automatiquement : à chaque modification, à l\'ouverture de l\'app et régulièrement en arrière-plan. Tout fonctionne hors ligne ; les changements sont envoyés dès que vous avez du réseau.</string>
