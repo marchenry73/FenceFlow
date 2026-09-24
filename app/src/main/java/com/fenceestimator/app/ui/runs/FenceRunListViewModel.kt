@@ -31,18 +31,26 @@ class FenceRunListViewModel(private val repository: Repository, private val jobI
         fenceType: FenceType,
         defaults: BusinessProfile,
         template: BuildTemplate? = null,
+        isTeardown: Boolean = false,
         onCreated: (Long) -> Unit
     ) {
         viewModelScope.launch {
             val nextOrder = (runs.value.maxOfOrNull { it.sortOrder } ?: -1) + 1
+            // Applied on both branches on purpose. A run started from a build
+            // template still has to be markable as the old fence coming out --
+            // patching only the plain constructor below meant a teardown run
+            // built from a template silently lost the flag and was billed as
+            // new fence to build.
             val run = if (template != null) {
                 FenceRun.fromTemplate(template, jobId = jobId, label = label, sortOrder = nextOrder)
+                    .copy(isTeardown = isTeardown)
             } else {
                 FenceRun(
                     jobId = jobId,
                     label = label,
                     fenceType = fenceType,
                     sortOrder = nextOrder,
+                    isTeardown = isTeardown,
                     panelWidthFt = defaults.defaultPanelWidthFt,
                     panelHeightFt = defaults.defaultPanelHeightFt,
                     postSpacingFt = defaultSpacingFor(fenceType, defaults.defaultPanelWidthFt, defaults.defaultPostSpacingFt),

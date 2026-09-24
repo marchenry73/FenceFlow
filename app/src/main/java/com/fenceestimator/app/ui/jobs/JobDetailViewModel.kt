@@ -473,18 +473,39 @@ class JobDetailViewModel(
     }
 
     /**
-     * Stamps what the customer actually agreed to, at the moment they agree.
+     * Stores the signature together with what it is a signature FOR, exactly
+     * as EstimateViewModel.captureSignature does for the estimate screen's own
+     * "sign" button -- this is the job screen's door to the same act, for a
+     * re-sign asked for after the original was stale.
      *
-     * Without this a signature is just "someone signed something": redraw the
-     * layout afterwards and the old signature silently stands as agreement to a
-     * job that no longer exists.
+     * Goes through repository.recordSignedAcceptance rather than update{}: that
+     * repository method wraps the job write AND
+     * changeOrderDao.markAllInAcceptedTotal(job.id) in one transaction, and
+     * skipping the second half double-bills every change order on the job --
+     * grandTotal already counts them whether signed or not, so one still
+     * unsigned right now would be added again the day it is signed.
+     *
+     * acceptedTotal is frozen here too, in the same write: this is the moment
+     * the customer agreed to the price, and from here on it is the figure the
+     * phone bills against (see JobMoney.anchoredTotal). Only frozen when the
+     * agreed total is actually above zero -- a zero here means totals have not
+     * loaded yet, and freezing that would anchor the job at $0 instead of
+     * leaving the previous acceptedTotal standing. Skipping this reproduces a
+     * real regression where a signature covered $9,710 and the quote page kept
+     * recomputing to $13,410.
      */
-    fun recordSignedTerms() {
-        val totals = contractTotal.value
-        update {
-            it.copy(
-                signedContractTotal = totals.grandTotal,
-                signedLinearFeet = totals.billableLinearFeet
+    fun captureSignature(path: String) {
+        val current = job.value ?: return
+        val agreed = contractTotal.value
+        viewModelScope.launch {
+            repository.recordSignedAcceptance(
+                current.copy(
+                    signatureImagePath = path,
+                    signedAt = System.currentTimeMillis(),
+                    signedContractTotal = agreed.grandTotal,
+                    signedLinearFeet = agreed.billableLinearFeet,
+                    acceptedTotal = agreed.grandTotal.takeIf { it > 0.005 } ?: current.acceptedTotal
+                )
             )
         }
     }

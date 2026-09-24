@@ -912,6 +912,23 @@ object EstimateEngine {
             }
         }
 
+        // An old fence drawn but not charged for.
+        //
+        // isTeardown on a run only takes that footage OUT of the new fence
+        // (linearFeet excludes it) and feeds teardownLinearFeet. What turns the
+        // charge on is Job.teardownEnabled, and that switch lives on the job
+        // screen -- so a teardown drawn carefully on the survey screen bills
+        // exactly nothing, and every figure on the estimate looks ordinary.
+        // Removing a fence is a day of work, so this is the difference between
+        // a quote and a quote that loses money.
+        //
+        // Said here, not only beside the switch, because the estimate is where
+        // the price is judged and sent. The job screen carries the same warning
+        // next to the switch that fixes it.
+        if (!job.teardownEnabled && runs.any { it.isTeardown }) {
+            warnings += EstimateWarning(R.string.warn_teardown_drawn_not_billed, emptyList())
+        }
+
         // Money already collected counts.
         //
         // This used to compare the deposit against materials and nothing else,

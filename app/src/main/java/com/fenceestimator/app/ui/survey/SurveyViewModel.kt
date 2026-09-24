@@ -778,15 +778,22 @@ class SurveyViewModel(
      * inside the drawing itself -- an untitled run with the crew's saved
      * defaults, renamed and typed later wherever a run's own details are
      * edited.
+     *
+     * [isTeardown] is what lets the old fence be drawn at all: the Add button
+     * on the drawing screen offers a choice of this or a plain new run, so the
+     * old fence coming out gets its own run -- colored differently on the
+     * canvas (see FenceRun.isTeardown) and excluded from the new fence's
+     * footage -- right where the rest of the layout is drawn, instead of
+     * needing a typed-in length on a different screen.
      */
-    fun addRun(defaults: BusinessProfile? = null) {
+    fun addRun(defaults: BusinessProfile? = null, isTeardown: Boolean = false) {
         viewModelScope.launch {
-            drawingWrites.withLock { createBlankRun(defaults) }
+            drawingWrites.withLock { createBlankRun(defaults, isTeardown) }
         }
     }
 
-    private suspend fun createBlankRun(defaults: BusinessProfile?): FenceRun? {
-        val base = FenceRun(jobId = jobId)
+    private suspend fun createBlankRun(defaults: BusinessProfile?, isTeardown: Boolean = false): FenceRun? {
+        val base = FenceRun(jobId = jobId, isTeardown = isTeardown)
         val created = if (defaults == null) base else base.copy(
             panelWidthFt = defaults.defaultPanelWidthFt,
             panelHeightFt = defaults.defaultPanelHeightFt,

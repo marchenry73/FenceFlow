@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.crew
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -405,8 +406,75 @@ fun CrewJobScreen(
             item {
                 val entries by viewModel.timeEntries.collectAsState()
                 val crew by viewModel.employees.collectAsState()
+                // observeTimeEntries(jobId) is job-scoped with no employee
+                // predicate (see Repository/Daos.kt and CrewPay.forJob's own
+                // note on the same query) -- it hands back every shift ever
+                // clocked on this job, whoever worked it. A plain crew phone
+                // never notices because RLS only ever synced its own rows
+                // down, but a foreman or owner phone legitimately holds every
+                // colleague's shift, and the render loop below prints no
+                // name. Filtering to the viewer's own employee id here, the
+                // same way CrewAttentionViewModel resolves it for
+                // CrewAttention.build() (self only, never the job's
+                // assignment), is what keeps a colleague's unapproved hours
+                // from reading as the viewer's own.
+                val session by app.session.state.collectAsState()
+                // The SAME four arguments CrewJobViewModel.clockIn passes,
+                // job assignment included. Resolved with assignedEmployeeId
+                // = null instead, this filter answered a different question
+                // from the one that decided whose shift was written: on a
+                // shared phone whose login has no crew record -- an owner or
+                // foreman clocking the crew in, which clockIn still supports
+                // through exactly that fallback -- nothing resolved, the list
+                // came back empty, and the card showed no hours at all for a
+                // shift clocked minutes earlier. The status chips this whole
+                // change exists for were unreachable on those phones, and
+                // nothing said so.
+                val clockedFor = com.fenceestimator.app.cloud.ClockInIdentity.resolve(
+                    employees = crew,
+                    assignedEmployeeId = currentJob.assignedEmployeeId,
+                    signedInProfileId = com.fenceestimator.app.cloud.SupabaseModule.currentUserId(),
+                    signedInEmail = session.email
+                ) as? com.fenceestimator.app.cloud.ClockInIdentity.Result.Resolved
+                // Filtered to that person's shifts. When nobody resolves at
+                // all, the whole job-scoped list is shown WITH a note saying
+                // why -- an empty history reads as "you logged nothing", which
+                // is a wrong answer that looks like an ordinary one.
+                val myEntries = clockedFor
+                    ?.let { r -> entries.filter { it.employeeId == r.employeeId } }
+                    ?: entries
+                // Never "your hours" over somebody else's: named when these
+                // are the job's assignee rather than the person holding the
+                // phone, and called out when they could not be attributed.
+                val historyNote = when {
+                    clockedFor == null ->
+                        stringResource(R.string.misc_crew_shift_history_unattributed)
+                    clockedFor.viaJobAssignment -> stringResource(
+                        R.string.misc_crew_shift_history_for,
+                        crew.firstOrNull { it.id == clockedFor.employeeId }?.name.orEmpty()
+                    )
+                    else -> null
+                }
                 TimeClockCard(
+                    // Still the FULL job-scoped list here, not myEntries.
+                    // clockOut/startBreak/endBreak (Repository) all key off
+                    // "the running shift for this job" with no employee
+                    // predicate either -- one shared clock slot per job, by
+                    // the app's own design, which is what lets an owner or
+                    // foreman with no crew record of their own clock a crew
+                    // member in from a shared phone (see ClockInIdentity's
+                    // job-assignment fallback, and CrewJobViewModel.clockIn).
+                    // Filtering this to myEntries would make that Clock In
+                    // button a silent no-op the moment someone else's shift
+                    // was already running -- a control that looks live and
+                    // does nothing is worse than not having it.
                     entries = entries,
+                    // The finished-shift history and its total, though, are
+                    // exactly the rows the filter above exists for: not a
+                    // live shared clock, but a personal record of hours and
+                    // their approval state.
+                    myEntries = myEntries,
+                    historyNote = historyNote,
                     // A running shift on a kept job still ends here; a new
                     // one does not start on a job this person is off.
                     allowClockIn = !kept,
@@ -419,6 +487,10 @@ fun CrewJobScreen(
                 // The signed-in person's own record first: on a shared job the
                 // assignee is only one of the people who built it. Falls back
                 // to the assignee, as before, when this login has no record.
+                // Deliberately still the whole, unfiltered `entries` below --
+                // CrewPay.forJob needs every crew member's hours to split a
+                // PER_FOOT job's footage, and does its own employeeId
+                // filtering for the hourly figure it shows.
                 val myProfileId = com.fenceestimator.app.cloud.SupabaseModule.currentUserId()
                 val assigned = crew.firstOrNull { !myProfileId.isNullOrBlank() && it.profileId == myProfileId }
                     ?: crew.firstOrNull { it.id == currentJob.assignedEmployeeId }
@@ -613,7 +685,19 @@ fun CrewJobScreen(
 
 @Composable
 private fun TimeClockCard(
+    /** Every shift on this job, whoever worked it -- only for the running/break state. See the call site's note. */
     entries: List<com.fenceestimator.app.data.TimeEntry>,
+    /**
+     * The shifts the finished-shift history and its total are built from: the
+     * viewer's own, or -- on a shared phone with no crew record for this login
+     * -- the assignee's, or every shift on the job. [historyNote] says which.
+     */
+    myEntries: List<com.fenceestimator.app.data.TimeEntry>,
+    /**
+     * One line above the history saying whose hours these are, when they are
+     * not plainly the viewer's own. Null when they are.
+     */
+    historyNote: String? = null,
     /** False on a kept job: a running shift can still end, a new one cannot start. */
     allowClockIn: Boolean = true,
     onClockIn: () -> Unit,
@@ -623,7 +707,7 @@ private fun TimeClockCard(
 ) {
     val running = entries.firstOrNull { it.isRunning }
     val timeFormat = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.US) }
-    val totalHours = entries.filter { !it.isRunning }.sumOf { it.hours }
+    val totalHours = myEntries.filter { !it.isRunning }.sumOf { it.hours }
 
     // Re-reads the clock every second so a running shift (or a running break)
     // visibly ticks up rather than looking frozen.
@@ -706,6 +790,15 @@ private fun TimeClockCard(
                 )
             }
 
+            // Before the total, not after: whose hours these are changes what
+            // the number means, and a caption underneath is read second.
+            historyNote?.let { note ->
+                Text(
+                    note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             if (totalHours > 0.0) {
                 Text(
                     stringResource(R.string.misc_crew_logged_hours, "%.2f".format(totalHours)),
@@ -713,16 +806,75 @@ private fun TimeClockCard(
                     fontWeight = FontWeight.Medium
                 )
             }
-            entries.filter { !it.isRunning }.take(5).forEach { entry ->
-                Text(
-                    stringResource(
-                        R.string.misc_crew_time_range,
-                        timeFormat.format(java.util.Date(entry.startedAt)),
-                        entry.endedAt?.let { timeFormat.format(java.util.Date(it)) } ?: ""
-                    ) + "  " + stringResource(R.string.misc_crew_hours_paren, "%.2f".format(entry.hours)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            myEntries.filter { !it.isRunning }.take(5).forEach { entry ->
+                Column(modifier = Modifier.padding(bottom = Space.xs)) {
+                    Text(
+                        stringResource(
+                            R.string.misc_crew_time_range,
+                            timeFormat.format(java.util.Date(entry.startedAt)),
+                            entry.endedAt?.let { timeFormat.format(java.util.Date(it)) } ?: ""
+                        ) + "  " + stringResource(R.string.misc_crew_hours_paren, "%.2f".format(entry.hours)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // A finished shift used to say nothing about whether it had
+                    // actually been signed off -- hours sent back and hours
+                    // still waiting looked exactly like hours already approved.
+                    // No dollar figure anywhere in this row, on purpose: a crew
+                    // phone has no hourlyRate column at all (see CrewPay's own
+                    // note on that), so a cost here would render as $0.00 and
+                    // read as "you earned nothing" for hours that are simply
+                    // unreviewed.
+                    when {
+                        entry.isRejected -> {
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 2.dp)
+                                    .clip(RoundedCornerShape(Radius.sm))
+                                    .background(MaterialTheme.colorScheme.errorContainer)
+                                    .padding(horizontal = Space.sm, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    stringResource(R.string.misc_crew_shift_sent_back),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                            if (entry.reviewNote.isNotBlank()) {
+                                Text(
+                                    entry.reviewNote,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        entry.isApproved -> {
+                            Text(
+                                stringResource(R.string.misc_crew_shift_approved),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        entry.isAwaitingApproval -> {
+                            Text(
+                                stringResource(R.string.misc_crew_shift_awaiting_approval),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    // Independent of the state above: a correction usually
+                    // lands on a shift the same action also approved, so this
+                    // is not just another branch of the same when.
+                    if (entry.correctedAt != null && entry.correctionReason.isNotBlank()) {
+                        Text(
+                            stringResource(R.string.misc_crew_shift_corrected_note, entry.correctionReason),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }

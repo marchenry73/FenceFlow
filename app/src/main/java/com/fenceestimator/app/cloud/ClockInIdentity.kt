@@ -21,7 +21,21 @@ object ClockInIdentity {
 
     sealed class Result {
         /** A real person to bill the shift to, and today's rate as a local placeholder. */
-        data class Resolved(val employeeId: Long, val hourlyRate: Double) : Result()
+        data class Resolved(
+            val employeeId: Long,
+            val hourlyRate: Double,
+            /**
+             * True when this is the JOB'S assignee rather than the signed-in
+             * person -- an owner or foreman with no crew record of their own,
+             * running the app for the crew on a shared phone.
+             *
+             * A clock-in does not care which it was; a screen that lists those
+             * shifts back does. Saying "your hours" over somebody else's shifts
+             * is how a crew member reads a colleague's unapproved work as their
+             * own, so the caller needs to be able to tell the two apart.
+             */
+            val viaJobAssignment: Boolean = false
+        ) : Result()
 
         /**
          * Neither the signed-in person nor the job's assignment resolved to an
@@ -55,7 +69,7 @@ object ClockInIdentity {
 
         val employee = self ?: assigned
         return if (employee != null) {
-            Result.Resolved(employee.id, employee.hourlyRate)
+            Result.Resolved(employee.id, employee.hourlyRate, viaJobAssignment = self == null)
         } else {
             Result.NoIdentity
         }

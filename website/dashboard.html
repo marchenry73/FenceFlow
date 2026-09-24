@@ -2128,7 +2128,7 @@
         signature, and the survey the fence was drawn on — straight from the phones.</p>
       <div id="jobPhotos" class="empty" data-t="jobPhotosLoading">Loading…</div>
     </div>
-    <div class="panel" id="panelEstimate"><h2 data-t="jobSecEstimate">Estimate</h2><div id="jobItems"></div>
+    <div class="panel" id="panelEstimate"><h2 data-t="jobSecEstimate">Estimate &amp; Pricing</h2><div id="jobItems"></div>
       <div id="jobEstDepositBalance"></div>
       <!-- The office never carries the pricing formula -- it asks price-job,
            the same TypeScript port of EstimateEngine.kt the phone runs, and
@@ -2151,9 +2151,10 @@
         <div class="msg" id="officePricingMsg"></div>
         <div id="officePricingResult"></div>
       </div>
-    </div>
-
-    <div class="panel"><h2 data-t="jobSecPricing">Pricing</h2>
+      <!-- This used to be a second panel of its own. Splitting the rates
+           that drive a price from the price itself let the two drift out of
+           sync in a glance -- one panel now, so the readout sits right above
+           the inputs that produce it. -->
       <div class="readout" id="j_total_readout" style="margin-bottom:10px"></div>
       <p class="sub" id="j_priced_by_readout" style="margin-top:0"></p>
       <div class="row3">
@@ -3332,7 +3333,7 @@ const TL = {
     jobSecPhotos:'Photos & Documents',
     jobPhotosBody:'What the crew photographed on site, the signed signature, and the survey the fence was drawn on — straight from the phones.',
     jobPhotosLoading:'Loading…',
-    jobSecEstimate:'Estimate', jobRepriceBtn:'Re-price at the office',
+    jobSecEstimate:'Estimate & Pricing', jobRepriceBtn:'Re-price at the office',
     jobEstBreakdownBtn:'Show full breakdown',
     jobSecPricing:'Pricing', jobLabelTaxRate:'Tax rate (%)', jobLabelMarkup:'Markup (%)',
     jobLabelDiscount:'Discount (%)', jobLabelLaborRate:'Labor $/ft',
@@ -3410,7 +3411,11 @@ const TL = {
     opNoItems:'No line items.', opNoMatch:'No catalog match for %s on %s.', opZeroPriced:'%s on %s is priced at $0.',
     opColLineTotal:'Line total', opTax:'Tax', opLabour:'Labour', opGateCharge:'Gate charge',
     opTeardownCost:'Teardown', opTrashHaul:'Trash haul', opChangeOrders:'Change orders', opMarkup:'Markup',
-    opDiscount:'Discount', opGrandTotal:'Grand total',
+    opSubtotal:'Subtotal', opDiscount:'Discount', opGrandTotal:'Grand total',
+    opStaysWithYou:'Stays with you',
+    opStaysWithYouNote:'Crew wages and profit come out of what stays with you.',
+    opDepositAsked:'Deposit asked',
+    opRoundedUpNote:'The total is rounded up from %s to the next $10 (and never below the minimum job charge). A quote of $15,991.06 kept coming in short once material prices moved a cent.',
     opPricingWorking:'Pricing… the first call of the day can take a couple of seconds.',
     opKeepBtn:'Keep this price', opSavingWorking:'Saving the office price…', opReloadBtn:'Reload this job',
     opPricedMsg:'Priced at the office — %s.',
@@ -3554,7 +3559,7 @@ const TL = {
     setupStepLabourRateLabel:'What you charge for labour',
     setupStepLabourRateDetail:'Your rate per foot of fence. Every quote is built on it, so a job priced without one is priced at nothing.',
     setupStepMarkupLabel:'Your markup',
-    setupStepMarkupDetail:'The margin added to materials and labour. Zero is a real answer if that is how you price — it just has to be a decision rather than a blank.',
+    setupStepMarkupDetail:'The markup added to materials and labour. Zero is a real answer if that is how you price — it just has to be a decision rather than a blank.',
     setupStepTiersLabel:'Your pricing tiers',
     setupStepTiersDetail:'Different rates for different kinds of work — a repair, a full install, a commercial job. Not required, but it is how you stop quoting everything the same way.',
     setupStepBuildLabel:'Your standard build',
@@ -4857,9 +4862,9 @@ const TL = {
     jobSecPhotos:'Fotos y documentos',
     jobPhotosBody:'Lo que la cuadrilla fotografió en el sitio, la firma del cliente y el plano sobre el que se dibujó la cerca — directo de los teléfonos.',
     jobPhotosLoading:'Cargando…',
-    jobSecEstimate:'Presupuesto', jobRepriceBtn:'Recalcular precio en la oficina',
+    jobSecEstimate:'Presupuesto y precios', jobRepriceBtn:'Recalcular precio en la oficina',
     jobEstBreakdownBtn:'Ver el desglose completo',
-    jobSecPricing:'Precios', jobLabelTaxRate:'Impuesto (%)', jobLabelMarkup:'Margen (%)',
+    jobSecPricing:'Precios', jobLabelTaxRate:'Impuesto (%)', jobLabelMarkup:'Recargo (%)',
     jobLabelDiscount:'Descuento (%)', jobLabelLaborRate:'Mano de obra $/pie',
     jobLabelLaborFlat:'Tarifa fija de mano de obra ($)', jobLabelMinCharge:'Cargo mínimo ($)',
     jobLabelMinLaborCharge:'Cargo mínimo de mano de obra ($)',
@@ -4934,8 +4939,12 @@ const TL = {
     opRunNet:'%s ft netos', opRunPosts:'%s postes', opEditedWord:'editado', opSupplierWord:'precio de proveedor',
     opNoItems:'Sin partidas.', opNoMatch:'No hay coincidencia en el catálogo para %s en %s.', opZeroPriced:'%s en %s tiene precio de $0.',
     opColLineTotal:'Total de la línea', opTax:'Impuesto', opLabour:'Mano de obra', opGateCharge:'Cargo por puertas',
-    opTeardownCost:'Desmontaje', opTrashHaul:'Retiro de escombros', opChangeOrders:'Órdenes de cambio', opMarkup:'Margen',
-    opDiscount:'Descuento', opGrandTotal:'Total general',
+    opTeardownCost:'Desmontaje', opTrashHaul:'Retiro de escombros', opChangeOrders:'Órdenes de cambio', opMarkup:'Recargo',
+    opSubtotal:'Subtotal', opDiscount:'Descuento', opGrandTotal:'Total general',
+    opStaysWithYou:'Le queda a usted',
+    opStaysWithYouNote:'Los salarios de la cuadrilla y la ganancia salen de lo que le queda.',
+    opDepositAsked:'Depósito solicitado',
+    opRoundedUpNote:'El total se redondea hacia arriba desde %s a la siguiente decena de dólares (y nunca baja del cargo mínimo). Un presupuesto de $15,991.06 quedaba corto cada vez que el precio de los materiales se movía un centavo.',
     opPricingWorking:'Calculando el precio… la primera consulta del día puede tardar unos segundos.',
     opKeepBtn:'Conservar este precio', opSavingWorking:'Guardando el precio de la oficina…', opReloadBtn:'Recargar este trabajo',
     opPricedMsg:'Precio calculado en la oficina: %s.',
@@ -5048,7 +5057,7 @@ const TL = {
     settingsLabelBizName:'Nombre de la empresa', settingsLabelOwnerName:'Nombre del dueño',
     settingsLabelPhone:'Teléfono', settingsLabelEmail:'Correo electrónico',
     settingsLabelLicense:'Número de licencia',
-    settingsLabelTax:'Impuesto (%)', settingsLabelMarkup:'Margen (%)',
+    settingsLabelTax:'Impuesto (%)', settingsLabelMarkup:'Recargo (%)',
     settingsLabelLabor:'Tarifa de mano de obra ($/pie)', settingsLabelSpacing:'Espaciado de postes (pies)',
     settingsLabelBags:'Bolsas de concreto por poste', settingsLabelPanelW:'Ancho del panel (pies)',
     settingsLabelPanelH:'Alto del panel (pies)', settingsLabelMinCharge:'Cargo mínimo por trabajo ($)',
@@ -5078,8 +5087,8 @@ const TL = {
     setupStepCatalogDetail:'Lo que realmente paga por paneles, postes, rieles y concreto. Una cotización sin precios de catálogo no se puede confiar — agregue artículos en la app del celular, en Catálogo, y aparecen aquí en un minuto.',
     setupStepLabourRateLabel:'Lo que cobra por mano de obra',
     setupStepLabourRateDetail:'Su tarifa por pie de cerca. Toda cotización se construye sobre esto, así que un trabajo cotizado sin esto se cotiza en cero.',
-    setupStepMarkupLabel:'Su margen',
-    setupStepMarkupDetail:'El margen que se agrega a materiales y mano de obra. Cero es una respuesta válida si así cotiza — solo tiene que ser una decisión y no un campo en blanco.',
+    setupStepMarkupLabel:'Su recargo',
+    setupStepMarkupDetail:'El recargo que se agrega a materiales y mano de obra. Cero es una respuesta válida si así cotiza — solo tiene que ser una decisión y no un campo en blanco.',
     setupStepTiersLabel:'Sus niveles de precio',
     setupStepTiersDetail:'Tarifas distintas para distintos tipos de trabajo — una reparación, una instalación completa, un trabajo comercial. No es obligatorio, pero evita cotizar todo igual.',
     setupStepBuildLabel:'Su construcción estándar',
@@ -5097,10 +5106,10 @@ const TL = {
     setupStepReadyLabel:'Listo para su primer trabajo',
     setupStepReadyDetail:'Todos los pasos esenciales de arriba están hechos. Puede cotizar un trabajo real con confianza en el número.',
     settingsTiersHead:'Niveles de precios',
-    settingsTiersBody:'La tarifa de mano de obra, el margen y el descuento detrás de cada presupuesto — una tarifa de reparación, una de instalación completa, una comercial, los niveles que tengan sentido para cómo usted cobra.',
+    settingsTiersBody:'La tarifa de mano de obra, el recargo y el descuento detrás de cada presupuesto — una tarifa de reparación, una de instalación completa, una comercial, los niveles que tengan sentido para cómo usted cobra.',
     settingsTierAddBtn:'Agregar un nivel', settingsTierAddStarterBtn:'Agregar niveles iniciales',
     settingsTierColName:'Nombre', settingsTierColLabor:'Mano de obra $/pie',
-    settingsTierColMarkup:'Margen %', settingsTierColDiscount:'Descuento %',
+    settingsTierColMarkup:'Recargo %', settingsTierColDiscount:'Descuento %',
     settingsTierEmpty:'Todavía no hay niveles de precios — agregue uno arriba, o presione "Agregar niveles iniciales" para empezar con cinco.',
     tierNeedsRatesPill:'faltan sus tarifas',
     tierNeedsRatesTitle:'Este nivel todavía no tiene tarifa de mano de obra ni tarifa fija, así que no puede cotizar un trabajo. Edítelo y ponga sus propios números.',
@@ -5108,7 +5117,7 @@ const TL = {
     tierDialogTitleDefault:'Nivel de precio', tierDialogTitleEdit:'Editar nivel de precio',
     tierDialogTitleNew:'Nuevo nivel de precio', tplCloseBtn:'Cerrar',
     tierFieldName:'Nombre', tierFieldLaborRate:'Mano de obra $/pie', tierFieldLaborFlat:'Tarifa fija de mano de obra ($)',
-    tierFieldMarkup:'Margen (%)', tierFieldDiscount:'Descuento (%)', tierFieldSort:'Orden',
+    tierFieldMarkup:'Recargo (%)', tierFieldDiscount:'Descuento (%)', tierFieldSort:'Orden',
     tierNamePh:'Bueno, Mejor, Óptimo…', tierSaveBtn:'Guardar',
     tierNameRequiredMsg:'Póngale un nombre a este nivel.',
     tierRetireConfirmTitle:'¿Retirar "%s"?', tierDefaultName:'este nivel',
@@ -5494,7 +5503,7 @@ const TL = {
     repAuditFieldStatus:'Estado del trabajo', repAuditFieldPaymentStatus:'Estado del pago',
     repAuditFieldDeposit:'Depósito', repAuditFieldAmountPaid:'Monto pagado',
     repAuditFieldRefunded:'Reembolsado', repAuditFieldLaborRate:'Tarifa de mano de obra por pie',
-    repAuditFieldLaborFlat:'Tarifa fija de mano de obra', repAuditFieldMarkup:'% de margen',
+    repAuditFieldLaborFlat:'Tarifa fija de mano de obra', repAuditFieldMarkup:'% de recargo',
     repAuditFieldDiscount:'% de descuento', repAuditFieldMinCharge:'Cargo mínimo',
     repAuditFieldMinLaborCharge:'Cargo mínimo de mano de obra',
     repAuditFieldTaxRate:'% de impuesto', repAuditFieldAmount:'Monto',
@@ -6352,9 +6361,9 @@ const TL = {
     jobSecPhotos:'Photos et documents',
     jobPhotosBody:'Ce que l’équipe a photographié sur place, la signature du client et le plan sur lequel la clôture a été tracée — directement des téléphones.',
     jobPhotosLoading:'Chargement…',
-    jobSecEstimate:'Devis', jobRepriceBtn:'Recalculer le prix au bureau',
+    jobSecEstimate:'Devis et tarification', jobRepriceBtn:'Recalculer le prix au bureau',
     jobEstBreakdownBtn:'Afficher le détail complet',
-    jobSecPricing:'Tarification', jobLabelTaxRate:'Taxe (%)', jobLabelMarkup:'Marge (%)',
+    jobSecPricing:'Tarification', jobLabelTaxRate:'Taxe (%)', jobLabelMarkup:'Majoration (%)',
     jobLabelDiscount:'Rabais (%)', jobLabelLaborRate:'Main-d’œuvre $/pi',
     jobLabelLaborFlat:'Forfait main-d’œuvre ($)', jobLabelMinCharge:'Charge minimale ($)',
     jobLabelMinLaborCharge:'Charge minimale de main-d’œuvre ($)',
@@ -6430,7 +6439,11 @@ const TL = {
     opNoItems:'Aucune ligne.', opNoMatch:'Aucune correspondance au catalogue pour %s sur %s.', opZeroPriced:'%s sur %s est à 0 $.',
     opColLineTotal:'Total de la ligne', opTax:'Taxe', opLabour:'Main-d’œuvre', opGateCharge:'Frais de portail',
     opTeardownCost:'Démontage', opTrashHaul:'Évacuation des déchets', opChangeOrders:'Avenants', opMarkup:'Majoration',
-    opDiscount:'Remise', opGrandTotal:'Total général',
+    opSubtotal:'Sous-total', opDiscount:'Remise', opGrandTotal:'Total général',
+    opStaysWithYou:'Il vous reste',
+    opStaysWithYouNote:'Les salaires de l’équipe et le bénéfice sortent de ce qu’il vous reste.',
+    opDepositAsked:'Acompte demandé',
+    opRoundedUpNote:'Le total est arrondi vers le haut depuis %s à la dizaine de dollars supérieure (et jamais sous le montant minimum). Un devis de 15 991,06 $ se retrouvait court dès que le prix des matériaux bougeait d’un cent.',
     opPricingWorking:'Chiffrage… le premier appel de la journée peut prendre quelques secondes.',
     opKeepBtn:'Garder ce prix', opSavingWorking:'Enregistrement du prix du bureau…', opReloadBtn:'Recharger ce chantier',
     opPricedMsg:'Chiffré au bureau : %s.',
@@ -6543,7 +6556,7 @@ const TL = {
     settingsLabelBizName:'Nom de l’entreprise', settingsLabelOwnerName:'Nom du propriétaire',
     settingsLabelPhone:'Téléphone', settingsLabelEmail:'Courriel',
     settingsLabelLicense:'Numéro de licence',
-    settingsLabelTax:'Taxe (%)', settingsLabelMarkup:'Marge (%)',
+    settingsLabelTax:'Taxe (%)', settingsLabelMarkup:'Majoration (%)',
     settingsLabelLabor:'Taux de main-d’œuvre ($/pi)', settingsLabelSpacing:'Espacement des poteaux (pi)',
     settingsLabelBags:'Sacs de béton par poteau', settingsLabelPanelW:'Largeur du panneau (pi)',
     settingsLabelPanelH:'Hauteur du panneau (pi)', settingsLabelMinCharge:'Charge minimale par chantier ($)',
@@ -6573,8 +6586,8 @@ const TL = {
     setupStepCatalogDetail:'Ce que vous payez réellement pour les panneaux, poteaux, lisses et béton. Un devis sans prix de catalogue n’est pas fiable — ajoutez des articles dans l’appli du téléphone, sous Catalogue, et ils apparaissent ici en une minute.',
     setupStepLabourRateLabel:'Ce que vous facturez pour la main-d’œuvre',
     setupStepLabourRateDetail:'Votre tarif par pied de clôture. Chaque devis est bâti dessus, donc un chantier chiffré sans cela est chiffré à rien.',
-    setupStepMarkupLabel:'Votre marge',
-    setupStepMarkupDetail:'La marge ajoutée aux matériaux et à la main-d’œuvre. Zéro est une réponse valable si c’est ainsi que vous chiffrez — il faut juste que ce soit une décision, pas une case vide.',
+    setupStepMarkupLabel:'Votre majoration',
+    setupStepMarkupDetail:'La majoration ajoutée aux matériaux et à la main-d’œuvre. Zéro est une réponse valable si c’est ainsi que vous chiffrez — il faut juste que ce soit une décision, pas une case vide.',
     setupStepTiersLabel:'Vos niveaux de prix',
     setupStepTiersDetail:'Des tarifs différents selon le type de travail — réparation, installation complète, chantier commercial. Pas obligatoire, mais c’est ce qui évite de tout chiffrer pareil.',
     setupStepBuildLabel:'Votre construction standard',
@@ -6592,10 +6605,10 @@ const TL = {
     setupStepReadyLabel:'Prêt pour votre premier chantier',
     setupStepReadyDetail:'Chaque étape essentielle ci-dessus est terminée. Vous pouvez chiffrer un vrai chantier en ayant confiance dans le chiffre.',
     settingsTiersHead:'Paliers tarifaires',
-    settingsTiersBody:'Le taux de main-d’œuvre, la marge et le rabais derrière chaque devis — un taux de réparation, un taux d’installation complète, un taux commercial, les paliers qui ont du sens pour votre façon de facturer.',
+    settingsTiersBody:'Le taux de main-d’œuvre, la majoration et le rabais derrière chaque devis — un taux de réparation, un taux d’installation complète, un taux commercial, les paliers qui ont du sens pour votre façon de facturer.',
     settingsTierAddBtn:'Ajouter un palier', settingsTierAddStarterBtn:'Ajouter des paliers de départ',
     settingsTierColName:'Nom', settingsTierColLabor:'Main-d’œuvre $/pi',
-    settingsTierColMarkup:'Marge %', settingsTierColDiscount:'Rabais %',
+    settingsTierColMarkup:'Majoration %', settingsTierColDiscount:'Rabais %',
     settingsTierEmpty:'Aucun palier tarifaire pour l’instant — ajoutez-en un ci-dessus, ou appuyez sur « Ajouter des paliers de départ » pour partir avec cinq.',
     tierNeedsRatesPill:'tarifs à définir',
     tierNeedsRatesTitle:'Ce palier n’a encore ni taux de main-d’œuvre ni forfait, donc il ne peut pas chiffrer un chantier. Modifiez-le et entrez vos propres chiffres.',
@@ -6603,7 +6616,7 @@ const TL = {
     tierDialogTitleDefault:'Palier tarifaire', tierDialogTitleEdit:'Modifier le palier tarifaire',
     tierDialogTitleNew:'Nouveau palier tarifaire', tplCloseBtn:'Fermer',
     tierFieldName:'Nom', tierFieldLaborRate:'Main-d’œuvre $/pi', tierFieldLaborFlat:'Forfait main-d’œuvre ($)',
-    tierFieldMarkup:'Marge (%)', tierFieldDiscount:'Rabais (%)', tierFieldSort:'Ordre',
+    tierFieldMarkup:'Majoration (%)', tierFieldDiscount:'Rabais (%)', tierFieldSort:'Ordre',
     tierNamePh:'Bon, Meilleur, Optimal…', tierSaveBtn:'Enregistrer',
     tierNameRequiredMsg:'Donnez un nom à ce palier.',
     tierRetireConfirmTitle:'Retirer « %s » ?', tierDefaultName:'ce palier',
@@ -6989,7 +7002,7 @@ const TL = {
     repAuditFieldStatus:'État du chantier', repAuditFieldPaymentStatus:'État du paiement',
     repAuditFieldDeposit:'Acompte', repAuditFieldAmountPaid:'Montant payé',
     repAuditFieldRefunded:'Remboursé', repAuditFieldLaborRate:'Taux de main-d\'œuvre par pied',
-    repAuditFieldLaborFlat:'Forfait de main-d\'œuvre', repAuditFieldMarkup:'% de marge',
+    repAuditFieldLaborFlat:'Forfait de main-d\'œuvre', repAuditFieldMarkup:'% de majoration',
     repAuditFieldDiscount:'% de remise', repAuditFieldMinCharge:'Frais minimum',
     repAuditFieldMinLaborCharge:'Frais minimum de main-d’œuvre',
     repAuditFieldTaxRate:'% de taxe', repAuditFieldAmount:'Montant',
@@ -18972,7 +18985,7 @@ function repricedNote(j, grand, plainKey, anchoredKey){
     unit_price -- mirroring effectiveUnitPrice/lineTotal in
     supabase/functions/_shared/pricing/types.ts exactly. That match is what
     keeps this column reconciling with the totals shown just below it. */
-function renderOfficePricingResult(output){
+function renderOfficePricingResult(output, job){
   const runLabel = sid => { const r=runs.find(x=>x.sync_id===sid); return (r&&r.label) || tr('opUntitledRun'); };
   const items = output.items||[], runsOut = output.runs||[], totals = output.totals||{};
   const unmatched = output.unmatched_roles||[], zeroNamed = output.zero_priced_names||[];
@@ -19017,6 +19030,54 @@ function renderOfficePricingResult(output){
   const row = (label,val) => `<div style="display:flex;justify-content:space-between;padding:2px 0">
       <span>${label}</span><span>${money(val)}</span></div>`;
 
+  // The subtotal is the server's own pre_markup_total (totals.ts, preMarkup),
+  // not a sum taken again in the page. Adding these rows up here is exactly
+  // the second arithmetic path check-parity.mjs exists to catch, and it has
+  // to land after change orders and before markup -- the markup is a
+  // percentage of this figure, which already has tax folded in.
+  const subtotal = totals.pre_markup_total;
+
+  // "Stays with you": EstimateScreen.kt's TotalsCard, word for word (val
+  // priceExTax) -- tax taken out, then materials, so the phone and the
+  // office can never show two different numbers for the same job. It is
+  // not profit; crew wages still come out of it, which is why the note
+  // says so rather than the row calling it that.
+  const priceExTax = (totals.grand_total||0) - (totals.tax||0);
+  const stays = priceExTax - (totals.materials_subtotal||0);
+  const staysPct = priceExTax > 0.005 ? (stays / priceExTax * 100) : 0;
+  const staysBlock = priceExTax > 0.005 ? `
+      <div style="display:flex;justify-content:space-between;padding:2px 0">
+        <span>${esc(tr('opStaysWithYou'))} (${staysPct.toFixed(0)}%)</span><span>${money(stays)}</span></div>
+      <p class="sub" style="margin:2px 0 0">${esc(tr('opStaysWithYouNote'))}</p>` : '';
+
+  // The deposit is a job field (deposit_amount), not something price-job
+  // returns, and it is read the same capped way as every other deposit
+  // figure on this page -- depositAskedOf() -- so an old, too-high deposit
+  // can never show as owed against a lower re-priced total.
+  // Guarded on the PRICE as well, not just the deposit. depositAskedOf caps a
+  // deposit at the price only when the price is above zero -- an unpriced job is
+  // not free, so it returns the deposit uncapped -- and a dry run that comes
+  // back with nothing priced is exactly what this breakdown gets opened to
+  // diagnose. Without the second test it printed a deposit of $500 under a
+  // grand total of $0.00.
+  const depositAsked = (job && (totals.grand_total||0) > 0.005)
+    ? depositAskedOf(job, totals.grand_total) : 0;
+
+  // Why the bottom line is not subtotal + markup - discount.
+  //
+  // The grand total is rounded UP to the next ten and then floored at the
+  // minimum job charge. Both are deliberate, and both make the column stop
+  // adding up -- which is the complaint a subtotal row invites, because anyone
+  // who can now check the arithmetic will, and finding it out by a few dollars
+  // reads as broken pricing. So the difference is named rather than left to be
+  // discovered. The teardown row above is netted against the haul fee for the
+  // same reason: teardown_cost already contains it, so printing both in full
+  // made the visible column exceed the subtotal by exactly the haul fee.
+  const beforeRounding = (subtotal||0) + (totals.markup_amount||0) - (totals.discount_amount||0);
+  const roundingNote = Math.abs((totals.grand_total||0) - beforeRounding) > 0.005
+    ? `<p class="sub" style="margin:2px 0 0">${esc(tr('opRoundedUpNote', money(beforeRounding)))}</p>`
+    : '';
+
   return `
     <div style="margin-top:10px">${runLines}</div>
     <div class="scroll" style="margin-top:6px"><table>
@@ -19028,13 +19089,17 @@ function renderOfficePricingResult(output){
       ${row(esc(tr('opTax')), totals.tax)}
       ${row(esc(tr('opLabour')), totals.labor_cost)}
       ${row(esc(tr('opGateCharge')), totals.gate_charge)}
-      ${row(esc(tr('opTeardownCost')), totals.teardown_cost)}
+      ${row(esc(tr('opTeardownCost')), (totals.teardown_cost||0) - (totals.trash_haul_fee||0))}
       ${totals.trash_haul_fee ? row(esc(tr('opTrashHaul')), totals.trash_haul_fee) : ''}
       ${row(esc(tr('opChangeOrders')), totals.change_order_cost)}
+      ${row(esc(tr('opSubtotal')), subtotal)}
       ${row(esc(tr('opMarkup')), totals.markup_amount)}
       ${row(esc(tr('opDiscount')), -(totals.discount_amount||0))}
       <div style="display:flex;justify-content:space-between;padding:6px 0 0;font-weight:700;font-size:15px">
         <span>${esc(tr('opGrandTotal'))}</span><span>${money(totals.grand_total)}</span></div>
+      ${roundingNote}
+      ${staysBlock}
+      ${depositAsked > 0.005 ? row(esc(tr('opDepositAsked')), depositAsked) : ''}
     </div>`;
 }
 
@@ -19060,7 +19125,7 @@ async function repriceAtOffice(){
   }
   officePricing = { jobSyncId: openJob.sync_id, expectedUpdatedAt, output: body.output };
   $('officePricingMsg').className = 'msg';
-  $('officePricingResult').innerHTML = renderOfficePricingResult(body.output) + `
+  $('officePricingResult').innerHTML = renderOfficePricingResult(body.output, openJob) + `
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn btn-sm" id="keepOfficePrice" type="button">${esc(tr('opKeepBtn'))}</button>
       <button class="btn btn-sm btn-grey" id="cancelOfficePrice" type="button">${esc(tr('askCancelBtn'))}</button>
@@ -19091,7 +19156,7 @@ async function showEstimateBreakdown(){
     return;
   }
   $('jobEstBreakdownMsg').className = 'msg';
-  $('jobEstBreakdownResult').innerHTML = renderOfficePricingResult(body.output);
+  $('jobEstBreakdownResult').innerHTML = renderOfficePricingResult(body.output, openJob);
 }
 
 async function keepOfficePrice(){
@@ -20781,7 +20846,7 @@ function wizRenderEstimateResult(){
     </div>`;
   }).join('');
 
-  $('wizEstResult').innerHTML = renderOfficePricingResult(output) + addForms + `
+  $('wizEstResult').innerHTML = renderOfficePricingResult(output, wiz.job) + addForms + `
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn" type="button" id="wizLooksRight">Looks right</button>
       <button class="btn btn-sm btn-grey" type="button" id="wizReprice">Re-run pricing</button>

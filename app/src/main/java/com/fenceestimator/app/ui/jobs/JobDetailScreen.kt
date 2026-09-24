@@ -220,6 +220,15 @@ fun JobDetailScreen(
     val currentJob = job!!
 
     var showAddRunDialog by remember { mutableStateOf(false) }
+    // Two flags, not one, and neither is `signingOrder` (ChangeOrdersSection's
+    // own state for signing a single change order). A change-order signature
+    // and this main-job re-sign write to different places -- one change order,
+    // the other the whole job's acceptedTotal -- so conflating them signs the
+    // wrong document. `showSignatureConfirm` shows the total first and
+    // `showSignaturePad` only opens once it has been seen, because the pad
+    // itself shows no price and this button now goes straight to it.
+    var showSignatureConfirm by remember { mutableStateOf(false) }
+    var showSignaturePad by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -477,7 +486,7 @@ fun JobDetailScreen(
             if (session.canSeeMoney) {
                 item { SectionCard(title = stringResource(R.string.section_pricing), icon = Icons.Filled.AttachMoney) { PricingFields(currentJob, viewModel) } }
                 item { SectionCard(title = stringResource(R.string.jd_section_tier), icon = Icons.Filled.Sell) { TierFields(currentJob, pricingTiers, viewModel) } }
-                item { SectionCard(title = stringResource(R.string.jd_section_teardown), icon = Icons.Filled.Construction) { TeardownFields(currentJob, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.jd_section_teardown), icon = Icons.Filled.Construction) { TeardownFields(currentJob, runs, viewModel) } }
             }
             item(key = SECTION_SCHEDULE) {
                 SectionCard(title = stringResource(R.string.section_schedule_crew), icon = Icons.Filled.Event) {
@@ -549,7 +558,7 @@ fun JobDetailScreen(
                             job = currentJob,
                             contractTotal = jobTotals.grandTotal,
                             linearFeet = jobTotals.billableLinearFeet,
-                            onGetNewSignature = { onOpenEstimate(currentJob.id) }
+                            onGetNewSignature = { showSignatureConfirm = true }
                         )
                         PaymentFields(currentJob, profile, viewModel)
                     }
@@ -611,11 +620,57 @@ fun JobDetailScreen(
         val templates by runsViewModel.templates.collectAsState()
         AddRunDialog(
             templates = templates,
-            onConfirm = { label, type, template ->
-                runsViewModel.addRun(label, type, profile, template) { id -> onOpenRun(id) }
+            onConfirm = { label, type, template, isTeardown ->
+                runsViewModel.addRun(label, type, profile, template, isTeardown) { id -> onOpenRun(id) }
                 showAddRunDialog = false
             },
             onDismiss = { showAddRunDialog = false }
+        )
+    }
+
+    // A new stop, added here and nowhere else, so that going straight to the
+    // pad does not mean signing with no price in view.
+    //
+    // This button used to navigate to the estimate screen, where a second
+    // button had to be found and tapped before the pad opened. That was the
+    // whole complaint. But the estimate screen was never a deliberate
+    // confirmation either -- its own sign buttons open the pad in one tap
+    // (EstimateScreen, showSignaturePad) -- it simply happened to have the
+    // itemised total on screen behind them. Cutting the navigation cut that
+    // incidental price, so it is replaced here explicitly: one line, the
+    // grand total, and a Continue the customer has to press.
+    //
+    // One figure, not an itemisation: this is the number being signed for. It
+    // is jobTotals.grandTotal, the same value already passed to
+    // StaleSignatureBanner above, not a fresh computation. If the same stop is
+    // ever wanted on the estimate screen, it needs adding there too -- it does
+    // not have one.
+    //
+    // Both dialogs sit behind the same `if (session.canSeeMoney)` gate the
+    // payment section itself is declared under (SECTION_PAYMENT, above) --
+    // the button that sets showSignatureConfirm = true only exists inside
+    // that gated section, so a session that cannot see money never reaches
+    // either dialog.
+    if (showSignatureConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSignatureConfirm = false },
+            title = { Text(stringResource(R.string.jd_new_signature_confirm_title)) },
+            text = { Text(stringResource(R.string.jd_new_signature_confirm_body, Money.format(jobTotals.grandTotal))) },
+            confirmButton = {
+                Button(onClick = { showSignatureConfirm = false; showSignaturePad = true }) {
+                    Text(stringResource(R.string.jd_continue_to_signature))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showSignatureConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
+
+    if (showSignaturePad) {
+        com.fenceestimator.app.ui.components.SignaturePadDialog(
+            onSave = { path -> viewModel.captureSignature(path); showSignaturePad = false },
+            onDismiss = { showSignaturePad = false }
         )
     }
 
@@ -758,7 +813,7 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> U
 @Composable
 private fun AddRunDialog(
     templates: List<com.fenceestimator.app.data.BuildTemplate>,
-    onConfirm: (String, FenceType, com.fenceestimator.app.data.BuildTemplate?) -> Unit,
+    onConfirm: (String, FenceType, com.fenceestimator.app.data.BuildTemplate?, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -767,6 +822,11 @@ private fun AddRunDialog(
     var expanded by remember { mutableStateOf(false) }
     var selectedTemplate by remember { mutableStateOf<com.fenceestimator.app.data.BuildTemplate?>(null) }
     var templateExpanded by remember { mutableStateOf(false) }
+    // Same flag SurveyDrawScreen's own "Add run" now offers, so a teardown
+    // run started from this dialog behaves exactly like one drawn from the
+    // survey screen -- two doors to the same thing must agree, or whichever
+    // one somebody learns first makes the other look broken.
+    var isTeardown by remember { mutableStateOf(false) }
 
     // Narrowed to the chosen fence type, and cleared when the type changes --
     // a Wood template offered under Chain Link would silently overwrite the
@@ -836,6 +896,21 @@ private fun AddRunDialog(
                         }
                     }
                 }
+                androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                // Reuses the same copy RunEditScreen shows for this switch, so
+                // it reads the same wherever it is offered rather than
+                // inventing a second explanation of the same flag.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.est2_is_teardown))
+                        Text(
+                            stringResource(R.string.est2_is_teardown_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = isTeardown, onCheckedChange = { isTeardown = it })
+                }
             }
         },
         confirmButton = {
@@ -846,7 +921,7 @@ private fun AddRunDialog(
                 // the currently selected type, but the template is the more
                 // trustworthy source of the two once it exists.
                 val effectiveType = selectedTemplate?.fenceType ?: type
-                onConfirm(label.ifBlank { context.getString(effectiveType.labelRes()) }, effectiveType, selectedTemplate)
+                onConfirm(label.ifBlank { context.getString(effectiveType.labelRes()) }, effectiveType, selectedTemplate, isTeardown)
             }) { Text(stringResource(R.string.action_add)) }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
@@ -1102,7 +1177,28 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
 }
 
 @Composable
-private fun TeardownFields(job: Job, viewModel: JobDetailViewModel) {
+private fun TeardownFields(job: Job, runs: List<FenceRun>, viewModel: JobDetailViewModel) {
+    // A run drawn and flagged as the old fence coming out bills nothing on
+    // its own -- Include teardown below is a second, separate switch, and
+    // nothing else on the survey screen or this one points at it. Without
+    // this warning a perfectly drawn teardown run just sits there excluded
+    // from the new fence's footage, quietly billing zero for removing the
+    // old one, until whoever quoted the job happens to scroll down here and
+    // notice the switch is off.
+    if (runs.any { it.isTeardown } && !job.teardownEnabled) {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        ) {
+            Text(
+                stringResource(R.string.jd_teardown_run_not_billed),
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.jd_include_teardown), modifier = Modifier.weight(1f))
         Switch(checked = job.teardownEnabled, onCheckedChange = { viewModel.update { j -> j.copy(teardownEnabled = it) } })

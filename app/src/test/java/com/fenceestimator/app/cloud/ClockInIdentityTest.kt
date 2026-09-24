@@ -43,7 +43,9 @@ class ClockInIdentityTest {
             signedInProfileId = null,
             signedInEmail = "sam@example.com"
         )
-        assertEquals(ClockInIdentity.Result.Resolved(2, 24.0), result)
+        // Matched as SELF, by email -- so viaJobAssignment stays false, which is
+        // what stops a screen listing these hours back from disowning them.
+        assertEquals(ClockInIdentity.Result.Resolved(2, 24.0, viaJobAssignment = false), result)
     }
 
     @Test
@@ -70,7 +72,10 @@ class ClockInIdentityTest {
             signedInProfileId = "uid-owner-with-no-crew-record",
             signedInEmail = "owner@example.com"
         )
-        assertEquals(ClockInIdentity.Result.Resolved(2, 24.0), result)
+        // viaJobAssignment is the point of this case: CrewJobScreen reads it so
+        // that when it lists these hours back it names Sam rather than calling
+        // them the owner's own.
+        assertEquals(ClockInIdentity.Result.Resolved(2, 24.0, viaJobAssignment = true), result)
     }
 
     @Test

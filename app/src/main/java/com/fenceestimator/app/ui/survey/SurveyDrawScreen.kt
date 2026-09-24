@@ -433,11 +433,41 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     // same repository.createFenceRun path addGate already
                     // falls back to for a gate with no run yet, rather than
                     // a second way of making one.
-                    ToolIconButton(
-                        icon = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.draw_add_run),
-                        onClick = { viewModel.addRun(runDefaults) }
-                    )
+                    //
+                    // Two choices behind one button, not two buttons, because
+                    // a teardown run is rare next to an ordinary one and a
+                    // second always-visible icon would outweigh how often
+                    // anyone taps it. The icon and content description on the
+                    // trigger itself do not change, so the existing
+                    // draw_add_run string (and anyone who has learned this
+                    // button) still applies.
+                    Box {
+                        var addRunMenuExpanded by remember { mutableStateOf(false) }
+                        ToolIconButton(
+                            icon = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.draw_add_run),
+                            onClick = { addRunMenuExpanded = true }
+                        )
+                        DropdownMenu(
+                            expanded = addRunMenuExpanded,
+                            onDismissRequest = { addRunMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.draw_add_run_new)) },
+                                onClick = {
+                                    addRunMenuExpanded = false
+                                    viewModel.addRun(runDefaults, isTeardown = false)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.draw_add_run_teardown)) },
+                                onClick = {
+                                    addRunMenuExpanded = false
+                                    viewModel.addRun(runDefaults, isTeardown = true)
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -2048,12 +2078,23 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
     var expanded by remember { mutableStateOf(false) }
     val selected = runs.firstOrNull { it.id == selectedRunId }
     val untitled = stringResource(R.string.misc_survey_untitled)
+    // Once a teardown run is deselected, label and fence type alone don't say
+    // which run it was -- "Back Yard (Vinyl)" reads exactly like every other
+    // run. This badge is what tells them apart in the picker itself.
+    val teardownBadge = stringResource(R.string.draw_run_teardown_badge)
+    // @Composable because FenceType.label() is: it reads a string resource, so
+    // this cannot be a plain local function.
+    @Composable
+    fun runLabel(run: FenceRun): String {
+        val base = "${run.label.ifBlank { untitled }} (${run.fenceType.label()})"
+        return if (run.isTeardown) "$base · $teardownBadge" else base
+    }
     ExposedDropdownMenuBox(
         expanded = expanded, onExpandedChange = { expanded = it },
         modifier = modifier.padding(horizontal = Space.sm, vertical = Space.xs)
     ) {
         OutlinedTextField(
-            value = selected?.let { "${it.label.ifBlank { untitled }} (${it.fenceType.label()})" } ?: "",
+            value = selected?.let { runLabel(it) } ?: "",
             onValueChange = {}, readOnly = true,
             label = { Text(stringResource(R.string.draw_editing_run)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -2062,7 +2103,7 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             runs.forEach { run ->
                 DropdownMenuItem(
-                    text = { Text("${run.label.ifBlank { untitled }} (${run.fenceType.label()})") },
+                    text = { Text(runLabel(run)) },
                     onClick = { onSelect(run.id); expanded = false }
                 )
             }

@@ -356,10 +356,13 @@
     <string name="set_language_note">Por ahora el idioma cambia las etiquetas de los PDF exportados y las plantillas de correo/mensaje de abajo; todavía no traduce todas las pantallas de la app.</string>
     <string name="set_defaults_new_jobs">Valores por defecto para trabajos nuevos</string>
     <string name="set_tax_rate">Impuesto (%)</string>
-    <string name="set_markup_pct">Margen (%)</string>
+    <string name="set_markup_pct">Recargo (%)</string>
     <string name="set_panel_width">Ancho de panel (pies)</string>
     <string name="set_panel_height">Alto de panel (pies)</string>
     <string name="set_post_spacing">Separación de postes (pies)</string>
+    <string name="set_measure_other">Otro…</string>
+    <string name="set_measure_pick_size">Elegir un tamaño</string>
+    <string name="set_measure_feet">%1$s pies</string>
     <string name="set_concrete_bags">Bolsas de concreto/poste</string>
     <string name="set_default_labor_rate">Tarifa de mano de obra por defecto ($/pie)</string>
     <string name="set_min_job_charge">Cargo mínimo por trabajo ($)</string>
@@ -380,7 +383,7 @@
     <string name="set_pricing_tiers">Niveles de precio y descuentos</string>
     <string name="set_pricing_tiers_explain">Se usan en cada trabajo para fijar la tarifa de mano de obra, el margen y cualquier descuento (familia, iglesia, militares, comercial, etc.).</string>
     <string name="set_unnamed_tier">Nivel sin nombre</string>
-    <string name="set_tier_summary">Mano de obra $%1$s/pie · Margen %2$s%% · Descuento %3$s%%</string>
+    <string name="set_tier_summary">Mano de obra $%1$s/pie · Recargo %2$s%% · Descuento %3$s%%</string>
     <string name="set_add_pricing_tier">+ Agregar nivel de precio</string>
     <string name="set_pricing_tiers_empty">Todavía no hay niveles de precio. Agrega uno, o copia los niveles iniciales de FenceFlow como ejemplo de tarifa de mano de obra y margen para ajustar.</string>
     <string name="set_copy_starting_tiers">Copiar los niveles iniciales de FenceFlow</string>
@@ -427,7 +430,7 @@
     <string name="set_tier_name">Nombre (Residencial, Comercial, Familia...)</string>
     <string name="set_tier_labor_per_ft">Mano de obra $/pie</string>
     <string name="set_tier_labor_flat">Tarifa fija de mano de obra</string>
-    <string name="set_tier_markup">Margen %</string>
+    <string name="set_tier_markup">Recargo %</string>
     <string name="set_tier_discount">Descuento %</string>
     <string name="set_delete_tier_title">¿Eliminar este nivel de precios?</string>
     <string name="set_delete_tier_body">Elimina “%1$s”. Los trabajos ya cotizados con él conservan sus cifras, pero el nivel no va a Elementos eliminados, así que no hay forma de recuperarlo.</string>
@@ -534,7 +537,7 @@
     <string name="jd_run_label_hint">Nombre (p. ej. “Patio trasero”)</string>
     <string name="jd_fence_type">Tipo de cerca</string>
     <string name="jd_tax_rate">Impuesto (%)</string>
-    <string name="jd_markup_pct">Margen (%)</string>
+    <string name="jd_markup_pct">Recargo (%)</string>
     <string name="jd_labor_per_ft">Mano de obra $/pie</string>
     <string name="jd_labor_flat_fee">Tarifa fija de mano de obra ($)</string>
     <string name="jd_status">Estado</string>
@@ -863,7 +866,7 @@
     <string name="est2_gates_line">Portones (%1$s pies a %2$s/pie)</string>
     <string name="est2_teardown_existing">Retiro de la cerca vieja</string>
     <string name="est2_haul_away_fee">Acarreo / tarifa de basurero</string>
-    <string name="est2_markup_pct">Margen (%1$s%%)</string>
+    <string name="est2_markup_pct">Recargo (%1$s%%)</string>
     <string name="est2_discount_pct">Descuento (%1$s%%)</string>
     <string name="est2_discount_tier_pct">Descuento (%1$s) (%2$s%%)</string>
     <string name="est2_approved_extra_work">Trabajo extra aprobado</string>
@@ -1415,6 +1418,7 @@
 
     <!-- Translation pass: remaining screens -->
     <string name="warn_low_kept">Solo el %1$s%% de este precio se queda contigo después de los materiales (%2$s): de ahí tienen que salir los sueldos de la cuadrilla y tu ganancia.</string>
+    <string name="warn_teardown_drawn_not_billed">La cerca vieja está dibujada en este trabajo pero no se está cobrando el retiro. Activa “Incluir retiro de la cerca vieja” en la pantalla del trabajo, o esos pies se quitan gratis.</string>
     <string name="warn_fronting_material">Has cobrado $%1$s pero los materiales cuestan $%2$s: estás adelantando $%3$s del material del cliente.</string>
     <string name="warn_deposit_short">El anticipo ($%1$s) no cubre el costo estimado de los materiales ($%2$s). Estarías comprando su cerca con tu propio dinero.</string>
     <string name="warn_still_to_collect">Falta por cobrar: $%1$s de $%2$s.</string>
@@ -1894,4 +1898,19 @@
     <string name="startup_settling_body">Cierra FenceFlow y vuelve a abrirlo en un momento. No pudo iniciarse mientras la actualización todavía se estaba instalando.</string>
     <string name="startup_settling_nothing_lost">No se cambió ni se perdió nada en este teléfono.</string>
     <string name="startup_settling_close">Cerrar FenceFlow</string>
+
+    <!-- Wave 2: teardown runs, the signing shortcut, and crew shift status. -->
+    <string name="draw_add_run_new">Nuevo tramo de cerca</string>
+    <string name="draw_add_run_teardown">Cerca vieja (retiro)</string>
+    <string name="draw_run_teardown_badge">Retiro</string>
+    <string name="jd_teardown_run_not_billed">Hay un tramo de retiro dibujado en este trabajo, pero “Incluir retiro de la cerca vieja” está desactivado más abajo -- no se está cobrando nada por quitar la cerca vieja hasta que lo actives.</string>
+    <string name="jd_new_signature_confirm_title">Confirma el total antes de firmar</string>
+    <string name="jd_new_signature_confirm_body">El cliente está por firmar por %1$s. ¿Continuar al panel de firma?</string>
+    <string name="jd_continue_to_signature">Continuar</string>
+    <string name="misc_crew_shift_sent_back">Devuelto</string>
+    <string name="misc_crew_shift_approved">Aprobado</string>
+    <string name="misc_crew_shift_awaiting_approval">Esperando aprobación</string>
+    <string name="misc_crew_shift_corrected_note">Horas corregidas: %1$s</string>
+    <string name="misc_crew_shift_history_for">Horas de %1$s en este trabajo</string>
+    <string name="misc_crew_shift_history_unattributed">Todos los turnos registrados en este trabajo. Esta cuenta no tiene su propia ficha de cuadrilla, así que no se pueden distinguir.</string>
 </resources>

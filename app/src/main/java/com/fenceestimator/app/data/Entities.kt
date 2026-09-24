@@ -555,9 +555,21 @@ data class FenceRun(
     val gatesEncoded: String = "",
     val closedLoop: Boolean = false,
     /**
-     * Unused. Briefly marked a run as the old fence coming out; the teardown
-     * length is typed on the job instead (Job.teardownFeet). The column stays
-     * because a migration cannot be un-run, and it is simply never set.
+     * This run IS the old fence coming out, not the new one going in.
+     *
+     * Read in four places: EstimateEngine.linearFeet excludes a teardown run
+     * from the billable and labour footage (you don't pay to install a fence
+     * that is leaving), EstimateEngine.teardownLinearFeet sums it for the
+     * teardown charge instead, TakeoffRefresher clears any auto-generated
+     * material lines on it (nobody buys panels for a fence coming out), and
+     * SurveyDrawScreen draws it in PlanColors.teardownLine rather than
+     * PlanColors.fenceLine so it reads differently on the plan.
+     *
+     * [Job.teardownFeet] is the typed alternative and wins over this run's own
+     * drawn footage whenever it is greater than zero -- an owner who already
+     * knows the old fence is 80 ft can skip drawing it. Either way, none of
+     * this charges anything by itself: [Job.teardownEnabled] is the one
+     * switch that turns the teardown charge on at all.
      */
     val isTeardown: Boolean = false,
 

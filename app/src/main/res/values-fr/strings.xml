@@ -356,10 +356,13 @@
     <string name="set_language_note">Pour l\'instant, la langue change les libellés des PDF exportés et les modèles d\'e-mail/SMS ci-dessous ; elle ne traduit pas encore tous les écrans de l\'application.</string>
     <string name="set_defaults_new_jobs">Valeurs par défaut des nouveaux chantiers</string>
     <string name="set_tax_rate">Taux de taxe (%)</string>
-    <string name="set_markup_pct">Marge (%)</string>
+    <string name="set_markup_pct">Majoration (%)</string>
     <string name="set_panel_width">Largeur de panneau (pi)</string>
     <string name="set_panel_height">Hauteur de panneau (pi)</string>
     <string name="set_post_spacing">Espacement des poteaux (pi)</string>
+    <string name="set_measure_other">Autre…</string>
+    <string name="set_measure_pick_size">Choisir une taille</string>
+    <string name="set_measure_feet">%1$s pi</string>
     <string name="set_concrete_bags">Sacs de béton/poteau</string>
     <string name="set_default_labor_rate">Taux de main-d\'oeuvre par défaut ($/pi)</string>
     <string name="set_min_job_charge">Montant minimum par chantier ($)</string>
@@ -380,7 +383,7 @@
     <string name="set_pricing_tiers">Grilles tarifaires et remises</string>
     <string name="set_pricing_tiers_explain">Utilisées par chantier pour fixer le taux de main-d\'oeuvre, la marge et une éventuelle remise (famille, église, militaires, commercial, etc.).</string>
     <string name="set_unnamed_tier">Grille sans nom</string>
-    <string name="set_tier_summary">Main-d\'oeuvre %1$s $/pi · Marge %2$s%% · Remise %3$s%%</string>
+    <string name="set_tier_summary">Main-d\'oeuvre %1$s $/pi · Majoration %2$s%% · Remise %3$s%%</string>
     <string name="set_add_pricing_tier">+ Ajouter une grille tarifaire</string>
     <string name="set_pricing_tiers_empty">Aucune grille tarifaire pour l\'instant. Ajoutez-en une, ou copiez les grilles de départ de FenceFlow comme exemple de taux horaire et de marge à ajuster.</string>
     <string name="set_copy_starting_tiers">Copier les grilles de départ de FenceFlow</string>
@@ -427,7 +430,7 @@
     <string name="set_tier_name">Nom (Résidentiel, Commercial, Famille...)</string>
     <string name="set_tier_labor_per_ft">Main-d\'oeuvre $/pi</string>
     <string name="set_tier_labor_flat">Forfait main-d\'oeuvre</string>
-    <string name="set_tier_markup">Marge %</string>
+    <string name="set_tier_markup">Majoration %</string>
     <string name="set_tier_discount">Remise %</string>
     <string name="set_delete_tier_title">Supprimer ce niveau de tarif ?</string>
     <string name="set_delete_tier_body">Supprime « %1$s ». Les chantiers déjà chiffrés avec conservent leurs montants, mais le niveau lui-même ne va pas dans Éléments supprimés, donc il n’y a aucun moyen de le récupérer.</string>
@@ -534,7 +537,7 @@
     <string name="jd_run_label_hint">Libellé (ex. « Jardin arrière »)</string>
     <string name="jd_fence_type">Type de clôture</string>
     <string name="jd_tax_rate">Taux de taxe (%)</string>
-    <string name="jd_markup_pct">Marge (%)</string>
+    <string name="jd_markup_pct">Majoration (%)</string>
     <string name="jd_labor_per_ft">Main-d\'œuvre $/pi</string>
     <string name="jd_labor_flat_fee">Forfait main-d\'œuvre ($)</string>
     <string name="jd_status">Statut</string>
@@ -863,7 +866,7 @@
     <string name="est2_gates_line">Portails (%1$s pi à %2$s/pi)</string>
     <string name="est2_teardown_existing">Démolition de la clôture existante</string>
     <string name="est2_haul_away_fee">Évacuation / frais de décharge</string>
-    <string name="est2_markup_pct">Marge (%1$s %%)</string>
+    <string name="est2_markup_pct">Majoration (%1$s %%)</string>
     <string name="est2_discount_pct">Remise (%1$s %%)</string>
     <string name="est2_discount_tier_pct">Remise (%1$s) (%2$s %%)</string>
     <string name="est2_approved_extra_work">Travaux supplémentaires approuvés</string>
@@ -1415,6 +1418,7 @@
 
     <!-- Translation pass: remaining screens -->
     <string name="warn_low_kept">Seulement %1$s%% de ce prix vous reste après les matériaux (%2$s) : les salaires de l\'équipe et votre bénéfice doivent tous deux en sortir.</string>
+    <string name="warn_teardown_drawn_not_billed">L\'ancienne clôture est dessinée pour ce chantier mais aucune démolition n\'est facturée. Activez « Inclure la démolition de la clôture existante » sur l\'écran du chantier, sinon ces pieds partent gratuitement.</string>
     <string name="warn_fronting_material">Vous avez encaissé %1$s $ mais les matériaux coûtent %2$s $ : vous avancez %3$s $ de matériaux pour le client.</string>
     <string name="warn_deposit_short">L\'acompte (%1$s $) ne couvre pas le coût estimé des matériaux (%2$s $). Vous achèteriez leur clôture avec votre propre argent.</string>
     <string name="warn_still_to_collect">Reste à encaisser : %1$s $ sur %2$s $.</string>
@@ -1894,4 +1898,19 @@
     <string name="startup_settling_body">Fermez FenceFlow et rouvrez-le dans un instant. Il n’a pas pu démarrer pendant que la mise à jour était encore en cours d’installation.</string>
     <string name="startup_settling_nothing_lost">Rien n’a été modifié ni perdu sur ce téléphone.</string>
     <string name="startup_settling_close">Fermer FenceFlow</string>
+
+    <!-- Wave 2: teardown runs, the signing shortcut, and crew shift status. -->
+    <string name="draw_add_run_new">Nouveau tronçon de clôture</string>
+    <string name="draw_add_run_teardown">Ancienne clôture (démolition)</string>
+    <string name="draw_run_teardown_badge">Démolition</string>
+    <string name="jd_teardown_run_not_billed">Un tronçon de démolition est dessiné pour ce chantier, mais « Inclure la démolition de la clôture existante » est désactivé ci-dessous -- rien n\'est facturé pour le retrait de l\'ancienne clôture tant que vous ne l\'activez pas.</string>
+    <string name="jd_new_signature_confirm_title">Confirmez le total avant de signer</string>
+    <string name="jd_new_signature_confirm_body">Le client est sur le point de signer pour %1$s. Continuer vers le panneau de signature ?</string>
+    <string name="jd_continue_to_signature">Continuer</string>
+    <string name="misc_crew_shift_sent_back">Renvoyé</string>
+    <string name="misc_crew_shift_approved">Approuvé</string>
+    <string name="misc_crew_shift_awaiting_approval">En attente d’approbation</string>
+    <string name="misc_crew_shift_corrected_note">Heures corrigées : %1$s</string>
+    <string name="misc_crew_shift_history_for">Heures de %1$s sur ce chantier</string>
+    <string name="misc_crew_shift_history_unattributed">Tous les quarts pointés sur ce chantier. Ce compte n’a pas sa propre fiche d’équipe, donc on ne peut pas les distinguer.</string>
 </resources>

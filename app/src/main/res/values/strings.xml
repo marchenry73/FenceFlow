@@ -378,6 +378,9 @@
     <string name="set_panel_width">Panel width (ft)</string>
     <string name="set_panel_height">Panel height (ft)</string>
     <string name="set_post_spacing">Post spacing (ft)</string>
+    <string name="set_measure_other">Other…</string>
+    <string name="set_measure_pick_size">Pick a size</string>
+    <string name="set_measure_feet">%1$s ft</string>
     <string name="set_concrete_bags">Concrete bags/post</string>
     <string name="set_default_labor_rate">Default labor rate ($/ft)</string>
     <string name="set_min_job_charge">Minimum job charge ($)</string>
@@ -1451,6 +1454,7 @@
 
     <!-- Translation pass: remaining screens -->
     <string name="warn_low_kept">Only %1$s%% of this price stays with you after materials (%2$s) -- crew wages and your profit both have to come out of that.</string>
+    <string name="warn_teardown_drawn_not_billed">The old fence is drawn on this job but no teardown is being charged for. Turn on “Include teardown of existing fence” on the job screen, or that footage comes out for free.</string>
     <string name="warn_fronting_material">You have collected $%1$s but the materials cost $%2$s -- you are fronting $%3$s of the customer\'s material.</string>
     <string name="warn_deposit_short">Deposit ($%1$s) doesn\'t cover the estimated material cost ($%2$s). You would be buying their fence with your own money.</string>
     <string name="warn_still_to_collect">Still to collect: $%1$s of $%2$s.</string>
@@ -1940,4 +1944,19 @@
     <string name="startup_settling_body">Close FenceFlow and open it again in a moment. It could not start while the update was still being put in place.</string>
     <string name="startup_settling_nothing_lost">Nothing on this phone was changed or lost.</string>
     <string name="startup_settling_close">Close FenceFlow</string>
+
+    <!-- Wave 2: teardown runs, the signing shortcut, and crew shift status. -->
+    <string name="draw_add_run_new">New fence run</string>
+    <string name="draw_add_run_teardown">Old fence (teardown)</string>
+    <string name="draw_run_teardown_badge">Teardown</string>
+    <string name="jd_teardown_run_not_billed">A teardown run is drawn on this job, but “Include teardown of existing fence” below is off -- nothing is being billed for removing the old fence until you turn it on.</string>
+    <string name="jd_new_signature_confirm_title">Confirm the total before signing</string>
+    <string name="jd_new_signature_confirm_body">The customer is about to sign for %1$s. Continue to the signature pad?</string>
+    <string name="jd_continue_to_signature">Continue</string>
+    <string name="misc_crew_shift_sent_back">Sent back</string>
+    <string name="misc_crew_shift_approved">Approved</string>
+    <string name="misc_crew_shift_awaiting_approval">Waiting for approval</string>
+    <string name="misc_crew_shift_corrected_note">Hours corrected: %1$s</string>
+    <string name="misc_crew_shift_history_for">%1$s\'s hours on this job</string>
+    <string name="misc_crew_shift_history_unattributed">Every shift clocked on this job. This login has no crew record of its own, so they cannot be told apart.</string>
 </resources>

@@ -55,6 +55,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -347,17 +348,29 @@ fun SettingsScreen(
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "panelw", label = stringResource(R.string.set_panel_width), initialValue = local.defaultPanelWidthFt, modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultPanelWidthFt = it)
-                        }
-                        DraftNumberField(stableKey = "panelh", label = stringResource(R.string.set_panel_height), initialValue = local.defaultPanelHeightFt, modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultPanelHeightFt = it)
-                        }
+                        SettingsMeasureField(
+                            stableKey = "panelw",
+                            label = stringResource(R.string.set_panel_width),
+                            value = local.defaultPanelWidthFt,
+                            options = PANEL_WIDTH_OPTIONS_FT,
+                            modifier = Modifier.weight(1f)
+                        ) { local = local.copy(defaultPanelWidthFt = it) }
+                        SettingsMeasureField(
+                            stableKey = "panelh",
+                            label = stringResource(R.string.set_panel_height),
+                            value = local.defaultPanelHeightFt,
+                            options = PANEL_HEIGHT_OPTIONS_FT,
+                            modifier = Modifier.weight(1f)
+                        ) { local = local.copy(defaultPanelHeightFt = it) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DraftNumberField(stableKey = "spacing", label = stringResource(R.string.set_post_spacing), initialValue = local.defaultPostSpacingFt, modifier = Modifier.weight(1f)) {
-                            local = local.copy(defaultPostSpacingFt = it)
-                        }
+                        SettingsMeasureField(
+                            stableKey = "spacing",
+                            label = stringResource(R.string.set_post_spacing),
+                            value = local.defaultPostSpacingFt,
+                            options = POST_SPACING_OPTIONS_FT,
+                            modifier = Modifier.weight(1f)
+                        ) { local = local.copy(defaultPostSpacingFt = it) }
                         DraftNumberField(stableKey = "bags", label = stringResource(R.string.set_concrete_bags), initialValue = local.defaultConcreteBagsPerPost, modifier = Modifier.weight(1f)) {
                             local = local.copy(defaultConcreteBagsPerPost = it)
                         }
@@ -932,11 +945,114 @@ internal fun SectionCard(
     }
 }
 
+/**
+ * A measurement that is nearly always one of a handful of trade sizes, but
+ * must never be forced to be.
+ *
+ * Panel width, panel height and post spacing were plain number boxes, which
+ * meant typing 6 every time for the size every job uses. They are a list now.
+ * The list is NOT a closed set, for two reasons that are the whole design:
+ *
+ *  * a value already saved that is not on the list is added to it, at the top,
+ *    so opening Settings can never change a number that was there. A dropdown
+ *    whose selected item is not among its options snaps to one that is, which
+ *    would silently re-price every job built from these defaults.
+ *  * Other hands the same typed box back. A seven-and-a-half-foot panel is
+ *    unusual, not wrong, and an app that cannot express it is an app somebody
+ *    works around.
+ */
+@Composable
+private fun SettingsMeasureField(
+    stableKey: String,
+    label: String,
+    value: Float,
+    options: List<Float>,
+    modifier: Modifier = Modifier,
+    onValueChange: (Float) -> Unit
+) {
+    // The list this field actually offers: the standard sizes, plus whatever is
+    // already saved if that is not one of them.
+    val choices = remember(options, value) {
+        if (options.any { kotlin.math.abs(it - value) < 0.0001f }) options
+        else listOf(value) + options
+    }
+    // Always opens as the dropdown, never as a text box: an off-list value is
+    // handled by putting it IN the list above, not by presenting a keyboard to
+    // someone who only wanted to read what is set. Keyed on stableKey alone and
+    // not on value, so choosing a size does not bounce the field back out of the
+    // list it was just used to pick from.
+    var typing by remember(stableKey) { mutableStateOf(false) }
+    // Resolved out here, not inside display(): display is a plain lambda, and
+    // stringResource can only be called from a composable.
+    val otherLabel = stringResource(R.string.set_measure_other)
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    if (typing) {
+        Column(modifier) {
+            DraftNumberField(
+                stableKey = stableKey + "-typed",
+                label = label,
+                initialValue = value,
+                modifier = Modifier.fillMaxWidth()
+            ) { onValueChange(it) }
+            TextButton(onClick = { typing = false }) {
+                Text(stringResource(R.string.set_measure_pick_size))
+            }
+        }
+    } else {
+        // null is a sentinel, not a size: it means let me type one instead.
+        val items: List<Float?> = choices + listOf(null)
+        SettingsEnumDropdown(
+            label = label,
+            options = items,
+            selected = value as Float?,
+            display = { v ->
+                if (v == null) otherLabel
+                else context.getString(R.string.set_measure_feet, formatFeet(v))
+            },
+            modifier = modifier
+        ) { picked ->
+            if (picked == null) typing = true else onValueChange(picked)
+        }
+    }
+}
+
+/** 6, not 6.0; 7.5 stays 7.5. Same rule DraftNumberField shows a number by. */
+private fun formatFeet(v: Float): String =
+    if (v % 1f == 0f) v.toInt().toString() else v.toString()
+
+/**
+ * The sizes offered, chosen with March on 24 September from what the trade
+ * uses AND from every value already in his own jobs (width 6, height 4 and 6,
+ * spacing 6 and 8 -- all present below). A value missing from these lists is
+ * not lost: see SettingsMeasureField.
+ */
+private val PANEL_WIDTH_OPTIONS_FT = listOf(4f, 6f, 8f)
+private val PANEL_HEIGHT_OPTIONS_FT = listOf(3f, 4f, 5f, 6f, 8f)
+private val POST_SPACING_OPTIONS_FT = listOf(6f, 8f, 10f)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun <T> SettingsEnumDropdown(label: String, options: List<T>, selected: T, display: (T) -> String, onSelect: (T) -> Unit) {
+internal fun <T> SettingsEnumDropdown(
+    label: String,
+    options: List<T>,
+    selected: T,
+    display: (T) -> String,
+    /**
+     * Defaulted so the theme, language and auto-lock dropdowns that were here
+     * first need no change. It exists because the measurement fields below sit
+     * two to a Row under weight(1f), and a control that insists on the full
+     * width pushes its neighbour off the screen.
+     */
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    onSelect: (T) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier
+    ) {
         OutlinedTextField(
             value = display(selected), onValueChange = {}, readOnly = true,
             label = { Text(label) },
