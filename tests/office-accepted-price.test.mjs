@@ -235,28 +235,69 @@ test('a row the accepted price settles drops out, as the function\'s own where-c
   assert.deepEqual(rows, []);
 });
 
-test('a job the drifted contract_total wrongly settles is added back, dated and bucketed the way ar_aging() does it', () => {
-  // Woody: accepted at $3,620, contract_total drifted to $200, $200 paid -- so
-  // ar_aging() (owed = contract_total - paid) never lists it.
+/* This page does NOT add jobs ar_aging() did not return -- and that is the
+   change, not an omission.
+
+   It used to. Woody: accepted at $3,620, contract_total drifted to $200, $200
+   paid, so an ar_aging() that worked owed out from contract_total never listed
+   him and $3,420 genuinely owed vanished from the report. The page added him
+   back. Since supabase_r7_reports_accepted_price.sql, ar_aging() takes
+   job_anchored_total(j) for BOTH contract_total and owed and keeps every row
+   with owed > 0.005 -- so Woody is in the server's own answer and adding him
+   again is adding him twice.
+
+   Two things also made the add-back wrong in a way it could not be fixed,
+   which is why it is gone rather than guarded:
+     * it read the page's `jobs` array, which arrives in stages -- a bounded
+       slice on the first paint, topped up after -- so the owed total grew
+       while the page loaded. Reported as "Still owed kept changing from
+       $86,860 to $73,000". A figure that moves under you is worse than one
+       that is merely stale, because there is no moment you can trust it.
+     * it worked owed out from netPaid(j), the job row's cached paid figure,
+       while the server works it out from the payment_records ledger. So it
+       could add a job at a balance the ledger disagreed with.
+
+   Re-basing a row the server DID send stays (the test above): that uses the
+   server's own r.paid, so it cannot disagree with the ledger, and it is what
+   keeps this page right against a rolled-back function or a tab left open
+   through a deploy. Inventing a row is the part that could not be made
+   trustworthy. */
+test('a job ar_aging() did not return is NOT added -- the server anchors the price itself now', () => {
+  // The exact case the old add-back existed for.
   const woody = job({ sync_id: 'w', contract_total: 200, accepted_total: 3620, amount_paid: 200,
     customer_name: 'Woody', scheduled_date: '2026-10-01T12:00:00Z', final_sign_off_at: null,
     created_at: '2026-08-01T12:00:00Z' });
   const other = serverRow({ job_sync_id: 'j9', since: '2026-11-20T12:00:00Z', days_out: 25, bucket: 'current' });
   const rows = P.anchorArRows([other], [woody, job({ sync_id: 'j9', accepted_total: null })], [], NOW);
-  assert.equal(rows.length, 2);
-  const w = rows.find(r => r.job_sync_id === 'w');
-  assert.equal(w.contract_total, 3620);
-  assert.equal(w.owed, 3420);
-  assert.equal(w.days_out, 75);
-  assert.equal(w.bucket, '60');
-  assert.equal(rows[0].job_sync_id, 'w', 'oldest first, as the function returns them');
-  assert.equal(rows[1], other, 'an unanchored row passes through as the same object');
-  // PLANTED FAILURE: re-basing only the rows the server sent never finds Woody.
-  const onlyServerRows = [other].map(r => r);
-  assert.equal(onlyServerRows.some(r => r.job_sync_id === 'w'), false);
+  assert.equal(rows.length, 1, 'only the row ar_aging() actually returned');
+  assert.equal(rows[0], other, 'an unanchored row passes through as the same object');
+  assert.equal(rows.some(r => r.job_sync_id === 'w'), false, 'Woody is the server’s to report, not the page’s to invent');
+  // PLANTED FAILURE: the old behaviour, spelled out, so this check is not
+  // passing merely because anchorArRows returned nothing useful.
+  const asItUsedTo = [other].concat([{ job_sync_id: 'w', owed: 3420 }]);
+  assert.equal(asItUsedTo.length, 2);
+  assert.notEqual(rows.length, asItUsedTo.length);
 });
 
-test('only won jobs are added -- a draft or a declined job with an accepted figure is not money owed', () => {
+test('the server DOES return that job, so nothing is lost by not adding it', () => {
+  // ar_aging() as it now stands: contract_total and owed both come from
+  // job_anchored_total(j), and the where-clause is owed > 0.005. Modelled here
+  // rather than asserted against the database, because this file is the
+  // office's own arithmetic -- tests/downstream-*.test.mjs run the real
+  // function. If this model and the function ever part, THAT is the bug.
+  const anchored = 3620, paid = 200;
+  const owed = anchored - paid;
+  assert.ok(owed > 0.005, 'the anchored price leaves Woody owing, so ar_aging() lists him');
+  // And with the OLD rule he was invisible, which is what the page was patching.
+  const driftedContract = 200;
+  assert.ok(driftedContract - paid <= 0.005, 'the old rule settled him at zero');
+});
+
+// Nothing comes out that did not go in: given no server rows, a declined job
+// and a deleted one -- each carrying an accepted figure -- produce nothing. The
+// test's old name said "only won jobs are ADDED", from when the page added its
+// own; it adds none now, and this is what still has to hold.
+test('an empty ar_aging() answer stays empty, whatever accepted figures the page holds', () => {
   const declined = job({ sync_id: 'd', status: 'DECLINED', contract_total: 0 });
   const deleted = job({ sync_id: 'x', contract_total: 0, deleted_at: LATER });
   assert.deepEqual(P.anchorArRows([], [declined, deleted], [], NOW), []);

@@ -97,7 +97,6 @@
     <string name="estimate_suggest">Suggest Quantities</string>
     <string name="estimate_add_item">+ Add Item</string>
     <string name="estimate_other_items">Other Items</string>
-    <string name="estimate_materials_subtotal">Materials Subtotal</string>
     <string name="estimate_labor">Labor</string>
     <string name="estimate_total">TOTAL</string>
     <string name="est_headline_price">Customer pays</string>
@@ -292,6 +291,7 @@
     <string name="snap_map_vertical">Vertical on the plan</string>
     <string name="snap_map_diagonal">45° on the plan</string>
     <string name="snap_off_note">Snap off: points go exactly where you tap</string>
+    <string name="snap_intro_hint">Snap locks the side you\'re drawing to straight, 90°, or 45° off the side before it</string>
     <string name="draw_clear">Clear</string>
     <string name="draw_clear_title">Clear this drawing?</string>
     <string name="draw_clear_text">Every point and gate on this run comes off -- the takeoff, post count, material order and price all come from this drawing. This can’t be undone.</string>
@@ -304,6 +304,7 @@
     <string name="draw_already_marked">Already marked:</string>
     <string name="draw_add_marker">Add Marker</string>
     <string name="draw_editing_run">Editing run</string>
+    <string name="draw_add_run">Add a second, separate fence run</string>
     <string name="draw_known_distance">Known distance</string>
     <string name="draw_distance_question">What is the real-world distance between the two points you tapped, in feet?</string>
     <string name="draw_feet">Feet</string>
@@ -453,6 +454,11 @@
     <string name="acct_create_account">Create Account</string>
     <string name="acct_sign_in_explain">Signing in lets your crew share one set of jobs. Without an account the app keeps working offline on this phone only.</string>
     <string name="acct_password">Password</string>
+    <string name="acct_forgot_password">Forgot password?</string>
+    <string name="acct_forgot_password_enter_email_first">Type your email above first, then tap this.</string>
+    <string name="acct_forgot_password_sent">If that address has an account, check your email for a link to set a new password.</string>
+    <string name="survey_satellite_too_big_for_scale">Satellite traces at 400 ft across and this drawing already covers about %1$d ft. Satellite is off; the drawing is untouched.</string>
+    <string name="acct_forgot_password_failed">Couldn\'t send that. Check your connection and try again in a minute.</string>
     <string name="acct_already_have_account">I already have an account</string>
     <string name="acct_need_create_account">I need to create an account</string>
     <string name="acct_signed_in">Signed In</string>
@@ -870,6 +876,8 @@
     <string name="est2_qty_rails">rails</string>
     <string name="est2_qty_ft_of_fabric">ft of fabric</string>
     <string name="est2_line_item_detail">%1$s %2$s x %3$s</string>
+    <string name="est2_materials">Materials</string>
+    <string name="est2_subtotal">Subtotal</string>
     <string name="est2_tax_pct">Tax (%1$s%%)</string>
     <string name="est2_gates_line">Gates (%1$s ft @ %2$s/ft)</string>
     <string name="est2_teardown_existing">Teardown of existing fence</string>
@@ -881,6 +889,8 @@
     <string name="est2_plus_feet">(+%1$s ft)</string>
     <string name="est2_minimum_charge_applied">Minimum job charge of %1$s applied</string>
     <string name="est2_minimum_labor_charge_applied">Minimum labor charge of %1$s applied</string>
+    <string name="est2_deposit_asked">Deposit asked</string>
+    <string name="est2_balance_due">Balance</string>
     <string name="est2_send_document">Send %1$s</string>
     <string name="est2_changed_after_signed_title">This estimate changed after it was signed</string>
     <string name="est2_changed_after_signed_body">Since it was signed, %1$s. Nothing can be sent out until %2$s signs the new figures.</string>

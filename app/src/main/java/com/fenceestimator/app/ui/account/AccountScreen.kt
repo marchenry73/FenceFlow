@@ -31,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -45,11 +46,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncPhase
+import com.fenceestimator.app.ui.components.UiMessage
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.resolve
@@ -63,6 +67,15 @@ import com.fenceestimator.app.ui.theme.Space
  * always used to leave people.
  */
 private const val SESSION_CATCH_UP_MS = 20_000L
+
+/**
+ * Where the reset email's link opens. The phone has no page of its own to
+ * land on -- website/dashboard.html's own "Forgot your password?" handler is
+ * the only place that flow has ever worked, so this matches its redirectTo
+ * (location.origin + location.pathname on the live site) instead of pointing
+ * at something the app has never built.
+ */
+private const val PASSWORD_RESET_REDIRECT_URL = "https://fenceflowapp.com/dashboard.html"
 
 /**
  * @param onSignedIn a sign-in made on this screen got in and the account has
@@ -254,6 +267,14 @@ private fun SignedOutSection(state: AccountUiState, viewModel: AccountViewModel)
     val submit = { if (isSignUp) viewModel.signUp(email, password) else viewModel.signIn(email, password) }
     val errorText = state.signInError?.resolve()
 
+    // Kept local to this screen rather than in AccountViewModel -- nothing
+    // else needs to know a reset was requested, and there is no session state
+    // for it to affect either way.
+    var resetBusy by remember { mutableStateOf(false) }
+    var resetMessage by remember { mutableStateOf<UiMessage?>(null) }
+    var resetIsError by remember { mutableStateOf(false) }
+    val resetScope = rememberCoroutineScope()
+
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -304,6 +325,75 @@ private fun SignedOutSection(state: AccountUiState, viewModel: AccountViewModel)
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(if (isSignUp) R.string.acct_create_account else R.string.action_sign_in))
+            }
+            // Sign-up has no password to forget yet -- matches the office,
+            // which hides its own "Forgot your password?" link in that state.
+            if (!isSignUp) {
+                TextButton(
+                    onClick = {
+                        val target = email.trim()
+                        if (target.isEmpty()) {
+                            resetIsError = true
+                            resetMessage = UiMessage(R.string.acct_forgot_password_enter_email_first)
+                            return@TextButton
+                        }
+                        resetBusy = true
+                        resetMessage = null
+                        resetScope.launch {
+                            val result = runCatching {
+                                SupabaseModule.client.auth.resetPasswordForEmail(
+                                    target,
+                                    PASSWORD_RESET_REDIRECT_URL
+                                )
+                            }
+                            resetBusy = false
+                            result.fold(
+                                onSuccess = {
+                                    resetIsError = false
+                                    // Same wording whether or not this address has
+                                    // an account. The office does the same for the
+                                    // same reason: telling someone an email is NOT
+                                    // registered hands an attacker a list of who is.
+                                    resetMessage = UiMessage(R.string.acct_forgot_password_sent)
+                                },
+                                onFailure = { error ->
+                                    // One fixed sentence, never the server's own
+                                    // words. GoTrue answers a request for an address
+                                    // with no account by doing nothing and returning
+                                    // success -- so it is only a REAL address that
+                                    // can get as far as trying to send and come back
+                                    // with "Email rate limit exceeded". Printing the
+                                    // error verbatim turned "Couldn't send that" into
+                                    // an answer to "does this person have an account
+                                    // here" -- exactly what the success wording above
+                                    // is careful not to give away.
+                                    //
+                                    // The error still goes to the log, where the
+                                    // person who owns the phone can read it and a
+                                    // stranger at the sign-in screen cannot.
+                                    android.util.Log.w(
+                                        "AccountScreen",
+                                        "password reset request failed: " + error.message
+                                    )
+                                    resetIsError = true
+                                    resetMessage = UiMessage(R.string.acct_forgot_password_failed)
+                                }
+                            )
+                        }
+                    },
+                    enabled = !resetBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.acct_forgot_password))
+                }
+                resetMessage?.let {
+                    Text(
+                        it.resolve(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (resetIsError) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             TextButton(
                 onClick = {

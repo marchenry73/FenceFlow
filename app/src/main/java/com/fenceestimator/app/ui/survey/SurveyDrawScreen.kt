@@ -269,6 +269,20 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     // A cue about a point on another run, or from another tool, is a cue
     // about nothing on screen.
     LaunchedEffect(mode, selectedRunId) { lastSnap = null }
+    // The Snap chip used to say only "Snap" -- no label of what it does.
+    // Reported as "I don't even know what that does in detail". This
+    // explains it once, in place of the chip's usual (empty, at that point)
+    // cue line; a real snap event explains itself better than the hint can
+    // ("Square to the last side"), so the first one retires it for good.
+    // Read from the device's own settings, not remembered in the composable:
+    // rememberSaveable survives rotation only, so the beginner's line came
+    // back on every cold start for someone who had read it months ago. True
+    // until DataStore answers, so the hint never flashes on for a frame at a
+    // phone that has already seen it.
+    val snapIntroSeen by app.settingsStore.snapIntroSeen.collectAsState(initial = true)
+    LaunchedEffect(lastSnap) {
+        if (lastSnap != null && !snapIntroSeen) app.settingsStore.markSnapIntroSeen()
+    }
     var markerDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     val siteMarkers by viewModel.siteMarkers.collectAsState()
 
@@ -303,7 +317,21 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         if (!satelliteOn) return@LaunchedEffect
         satelliteError = null
         when (val result = viewModel.ensureSiteLocation()) {
-            is SurveyViewModel.SiteLocationResult.Ready -> viewModel.ensureSatelliteCalibration()
+            is SurveyViewModel.SiteLocationResult.Ready ->
+                // Turning satellite on pins the drawing to 400ft across. A
+                // drawing that already reaches further than that cannot come
+                // with it -- see ensureSatelliteCalibration -- so satellite
+                // goes back off and says why, rather than silently throwing
+                // the fence off the edge of the canvas.
+                when (val cal = viewModel.ensureSatelliteCalibration()) {
+                    is SurveyViewModel.SatelliteCalibration.Ready -> Unit
+                    is SurveyViewModel.SatelliteCalibration.TooBig -> {
+                        satelliteError = context.getString(
+                            R.string.survey_satellite_too_big_for_scale, cal.acrossFt
+                        )
+                        satelliteOn = false
+                    }
+                }
             is SurveyViewModel.SiteLocationResult.Failed -> {
                 satelliteError = result.message
                 satelliteOn = false
@@ -391,7 +419,26 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             // screen is on. (They were hidden with the estimate button once,
             // so a slip in full screen could only be put right by leaving it.)
             if (!fullScreenDrawing) {
-                RunSelector(runs = runs, selectedRunId = selectedRunId, onSelect = { viewModel.selectRun(it) })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RunSelector(
+                        runs = runs,
+                        selectedRunId = selectedRunId,
+                        onSelect = { viewModel.selectRun(it) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Two separate sides on one job, not connected -- the
+                    // data model already has this (a job has many FenceRun
+                    // rows and they are independent); what was missing was
+                    // any way to start a second one from here. Reuses the
+                    // same repository.createFenceRun path addGate already
+                    // falls back to for a gate with no run yet, rather than
+                    // a second way of making one.
+                    ToolIconButton(
+                        icon = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.draw_add_run),
+                        onClick = { viewModel.addRun(runDefaults) }
+                    )
+                }
             }
 
             val visibleModes = remember(usingGrid) {
@@ -1122,6 +1169,41 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             mode = mode,
                             onSelect = { viewModel.setMode(it) }
                         )
+                        // Undo/Redo, under the mode switcher.
+                        //
+                        // This band is the only place on the canvas nothing
+                        // else can reach: the bottom band belongs to
+                        // PropertyInfoPanel, which is an opaque Surface up to
+                        // 360dp wide and, expanded, tall -- that is what used
+                        // to paint over these two at BOTTOM-START, reported as
+                        // "the undo setting or forward one is hidden under the
+                        // draw the fence line". The right edge is the view
+                        // controls above and NudgePad below. So they sit here,
+                        // costing this column one 48dp row and nothing else,
+                        // and they cannot be covered in any orientation or at
+                        // any panel state rather than merely usually not.
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            ToolIconButton(
+                                icon = Icons.Filled.Undo,
+                                contentDescription = stringResource(R.string.draw_undo),
+                                // The snap cue describes the last point placed;
+                                // once that point is gone it describes nothing.
+                                // Undo takes back the last change of any kind
+                                // (a history, see UndoHistory), so it no longer
+                                // needs to know which tool is in hand.
+                                onClick = { lastSnap = null; viewModel.undoLast() }
+                            )
+                            // Dimmed when there is nothing to redo but still
+                            // pressable, so a press explains why (the same as
+                            // Undo) instead of doing nothing.
+                            ToolIconButton(
+                                icon = Icons.Filled.Redo,
+                                contentDescription = stringResource(R.string.draw_redo),
+                                dimmed = !canRedo,
+                                dimmedStateDescription = stringResource(R.string.draw_redo_nothing_to_redo),
+                                onClick = { lastSnap = null; viewModel.redo() }
+                            )
+                        }
                         // Angle lock, where it is used: a one-tap switch to
                         // draw freely, and what the last point was locked
                         // to. Both used to live only inside the property
@@ -1132,7 +1214,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             SnapStrip(
                                 snapOn = snapOn,
                                 onSnapChange = { snapOn = it; lastSnap = null },
-                                lastSnap = lastSnap
+                                lastSnap = lastSnap,
+                                showIntro = !snapIntroSeen
                             )
                         }
                         // Plain Box, not Surface, inside CanvasHint below --
@@ -1148,10 +1231,21 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         }
                     }
 
-                    // TOP-END: view controls, grouped -- full screen, layers,
-                    // then zoom. Grouped together because none of them touch
-                    // the drawing itself, only how much of it and what parts
-                    // of it you can see.
+                    // TOP-END: view controls only -- full screen, layers,
+                    // zoom in, zoom out, recentre. Five 48dp buttons with
+                    // 8dp gaps is 272dp of the right edge, which is the
+                    // reason Undo/Redo are NOT in here: seven of them came
+                    // to 392dp, and NudgePad (BOTTOM-END, about 192dp while
+                    // Adjust has a point selected) meets that on any phone
+                    // under about 590dp of canvas -- worse than the overlap
+                    // being fixed. In landscape, which nothing locks out,
+                    // the column did not fit the canvas at all and the last
+                    // buttons were simply off screen. Undo/Redo live in the
+                    // TOP-CENTER group instead; see the comment there.
+                    //
+                    // This column stays visible in full screen -- it ignores
+                    // fullScreenDrawing. Only the estimate button below hides
+                    // there; leaving the drawing is not a drawing control.
                     Column(
                         modifier = Modifier.align(Alignment.TopEnd).padding(Space.sm),
                         verticalArrangement = Arrangement.spacedBy(Space.sm)
@@ -1173,46 +1267,18 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         ZoomButton(Icons.Filled.MyLocation) { viewZoom = 1f; viewPan = Offset.Zero }
                     }
 
-                    // BOTTOM-START: the controls used on almost every stroke
-                    // (Undo, Redo) and the way on to the estimate, grouped
-                    // together and kept away from Clear on purpose -- Clear
-                    // now lives inside the property panel below, a deliberate
-                    // extra tap so a thumb reaching for Undo, Redo or the
-                    // estimate can never land on the destructive one by
-                    // accident.
-                    //
-                    // Undo and Redo stay in full screen: the same round
-                    // floating buttons as full screen and Layers at the top,
-                    // so they cost the drawing no more room than those do.
-                    // Only the estimate button goes -- leaving the drawing is
-                    // not a drawing control, and Exit full screen brings it
-                    // back.
+
+                    // BOTTOM-START: the way on to the estimate, kept away
+                    // from Clear on purpose -- Clear lives inside the
+                    // property panel below, a deliberate extra tap so a
+                    // thumb reaching for the estimate can never land on the
+                    // destructive one by accident. Undo/Redo moved out of
+                    // this row to the TOP-CENTER group; see there.
                     Row(
                         modifier = Modifier.align(Alignment.BottomStart).padding(Space.sm),
                         horizontalArrangement = Arrangement.spacedBy(Space.sm),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ToolIconButton(
-                            icon = Icons.Filled.Undo,
-                            contentDescription = stringResource(R.string.draw_undo),
-                            // The snap cue describes the last point placed;
-                            // once that point is gone it describes nothing.
-                            // Undo takes back the last change of any kind
-                            // (a history, see UndoHistory), so it no longer
-                            // needs to know which tool is in hand.
-                            onClick = { lastSnap = null; viewModel.undoLast() }
-                        )
-                        // Redo sits beside Undo, the pair every drawing
-                        // tool has. Dimmed when there is nothing to redo
-                        // but still pressable, so a press explains why
-                        // (the same as Undo) instead of doing nothing.
-                        ToolIconButton(
-                            icon = Icons.Filled.Redo,
-                            contentDescription = stringResource(R.string.draw_redo),
-                            dimmed = !canRedo,
-                            dimmedStateDescription = stringResource(R.string.draw_redo_nothing_to_redo),
-                            onClick = { lastSnap = null; viewModel.redo() }
-                        )
                         if (!fullScreenDrawing) {
                             Surface(
                                 tonalElevation = 3.dp,
@@ -1586,12 +1652,19 @@ private const val DIMMED_ICON_ALPHA = 0.38f
  *
  * The cue sits in a [CanvasHint], which lets taps fall through to the
  * drawing; only the chip itself takes touches.
+ *
+ * [showIntro] adds a fourth line, ahead of the other three, that says what
+ * the chip actually does -- "locks the side you're drawing to straight, 90
+ * degrees, or 45 degrees off the previous side," in the words the chip's
+ * owner used when he said he didn't know. Shown until the first real snap
+ * explains itself instead (see where the caller clears it).
  */
 @Composable
 private fun SnapStrip(
     snapOn: Boolean,
     onSnapChange: (Boolean) -> Unit,
     lastSnap: com.fenceestimator.app.geometry.SnapResult?,
+    showIntro: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(
@@ -1617,6 +1690,7 @@ private fun SnapStrip(
                 textColor = MaterialTheme.semantic.success
             )
             !snapOn -> CanvasHint(text = stringResource(R.string.snap_off_note))
+            showIntro -> CanvasHint(text = stringResource(R.string.snap_intro_hint))
         }
     }
 }
@@ -1970,13 +2044,13 @@ private fun LayersDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (Long) -> Unit) {
+private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (Long) -> Unit, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
     val selected = runs.firstOrNull { it.id == selectedRunId }
     val untitled = stringResource(R.string.misc_survey_untitled)
     ExposedDropdownMenuBox(
         expanded = expanded, onExpandedChange = { expanded = it },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.sm, vertical = Space.xs)
+        modifier = modifier.padding(horizontal = Space.sm, vertical = Space.xs)
     ) {
         OutlinedTextField(
             value = selected?.let { "${it.label.ifBlank { untitled }} (${it.fenceType.label()})" } ?: "",

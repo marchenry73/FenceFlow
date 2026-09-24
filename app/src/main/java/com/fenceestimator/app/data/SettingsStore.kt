@@ -271,6 +271,24 @@ class SettingsStore(private val context: Context) {
      */
     val lastSignInEmail: Flow<String> = context.dataStore.data.map { it[Keys.LAST_SIGN_IN_EMAIL].orEmpty() }
 
+    /**
+     * Whether the snapping hint on the drawing screen has done its job.
+     * Device-local and not stamped, like every other one-time hint: it says
+     * what this phone's owner has already read, which is nothing the company
+     * settings have an opinion about.
+     *
+     * Held here rather than in rememberSaveable so it survives the app being
+     * closed. Saved state only survives rotation, so someone who has used the
+     * app for months met the beginner's line again after every cold start,
+     * until their first snapped point cleared it for that session.
+     */
+    val snapIntroSeen: Flow<Boolean> = context.dataStore.data.map { it[Keys.SNAP_INTRO_SEEN] == true }
+
+    /** Same shape as [markTourSeen] -- one key, no full save, no stamp. */
+    suspend fun markSnapIntroSeen() {
+        context.dataStore.edit { it[Keys.SNAP_INTRO_SEEN] = true }
+    }
+
     /** Only ever called after a sign-in that actually got in. */
     suspend fun saveLastSignInEmail(email: String) {
         context.dataStore.edit { it[Keys.LAST_SIGN_IN_EMAIL] = email }
@@ -342,6 +360,7 @@ class SettingsStore(private val context: Context) {
         val HOME_CARDS = stringPreferencesKey("home_cards")
         val SEEN_TOUR = androidx.datastore.preferences.core.booleanPreferencesKey("seen_tour")
         val PRICES_REVIEWED = androidx.datastore.preferences.core.booleanPreferencesKey("prices_reviewed")
+        val SNAP_INTRO_SEEN = androidx.datastore.preferences.core.booleanPreferencesKey("snap_intro_seen")
         val UPDATED_AT = androidx.datastore.preferences.core.longPreferencesKey("settings_updated_at")
         val TAX_RATE = doublePreferencesKey("tax_rate")
         val MARKUP = doublePreferencesKey("markup")

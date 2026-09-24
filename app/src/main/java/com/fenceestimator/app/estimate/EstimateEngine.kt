@@ -741,7 +741,24 @@ object EstimateEngine {
          * a price and a length -- rather than re-derived from the geometry
          * somewhere else and drifting from what the estimate actually said.
          */
-        val billableLinearFeet: Float = 0f
+        val billableLinearFeet: Float = 0f,
+        /**
+         * The base the markup is taken on: materials + tax + labour + teardown +
+         * change orders + gates. Carried here so a screen can SHOW a subtotal
+         * instead of adding the parts up again -- the estimate screen did that
+         * once and left tax out, so 20% markup read as 21.4% of the subtotal
+         * beside it and looked like a bug in the markup.
+         *
+         * The server engine has carried this all along (totals.ts preMarkup);
+         * Kotlin simply never exposed it, which is why check-parity.mjs could
+         * not have caught the difference.
+         *
+         * LAST in the parameter list on purpose: every positional Totals(...)
+         * call in the app and the tests passes grandTotal eighth, and they are
+         * all Double, so a field inserted ahead of it would be accepted
+         * silently by any call that happened to pass enough arguments.
+         */
+        val preMarkup: Double = 0.0
     )
 
     /**
@@ -840,7 +857,7 @@ object EstimateEngine {
         return Totals(
             materialsSubtotal, taxableSubtotal, tax, laborCost, teardownCost,
             markupAmount, discountAmount, grandTotal, changeOrderCost, changeOrderFeet,
-            gateCharge, gateFeet, trashHaul, billableFeet.toFloat()
+            gateCharge, gateFeet, trashHaul, billableFeet.toFloat(), preMarkup
         )
     }
 

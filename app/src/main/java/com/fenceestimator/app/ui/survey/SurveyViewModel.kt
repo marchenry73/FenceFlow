@@ -755,7 +755,7 @@ class SurveyViewModel(
                 val run = if (targetId != null) {
                     repository.getFenceRun(targetId)?.takeIf { it.jobId == jobId } ?: return@withLock
                 } else {
-                    createGateOnlyRun(runDefaults) ?: return@withLock
+                    createBlankRun(runDefaults) ?: return@withLock
                 }
                 val gates = FenceCodec.decodeGates(run.gatesEncoded) + GateMarker(x, y, widthFt, mounting, swing)
                 // On a gate-only run just created above, the drawing before is
@@ -766,7 +766,26 @@ class SurveyViewModel(
         }
     }
 
-    private suspend fun createGateOnlyRun(defaults: BusinessProfile?): FenceRun? {
+    /**
+     * Starts a second, independent fence run on this job -- the same
+     * repository.createFenceRun a job already has many of ([FenceRun] rows
+     * are independent by design), reached through the same helper [addGate]
+     * uses to give a stray gate somewhere to live, rather than a second way
+     * of making one. Selects the new run so drawing lands on it immediately.
+     *
+     * Unlike FenceRunListViewModel.addRun (the job screen's "Add Fence Run",
+     * with its own label/type/template picker), this is a quick add from
+     * inside the drawing itself -- an untitled run with the crew's saved
+     * defaults, renamed and typed later wherever a run's own details are
+     * edited.
+     */
+    fun addRun(defaults: BusinessProfile? = null) {
+        viewModelScope.launch {
+            drawingWrites.withLock { createBlankRun(defaults) }
+        }
+    }
+
+    private suspend fun createBlankRun(defaults: BusinessProfile?): FenceRun? {
         val base = FenceRun(jobId = jobId)
         val created = if (defaults == null) base else base.copy(
             panelWidthFt = defaults.defaultPanelWidthFt,
@@ -960,8 +979,64 @@ class SurveyViewModel(
      * (`if (current.surveyImagePath != null) return`) is what makes this
      * satisfy the office's rule: satellite only ever sets calibration when
      * there is no survey photo to calibrate against instead.
+     *
+     * Refuses, rather than rescaling, when what is already drawn would not
+     * fit a 400ft canvas. [setGridExtent] keeps a drawing's real-world
+     * length by scaling its coordinates by the ratio of the two grids -- so
+     * coming down from the 1000ft and 2000ft grid sizes (added for acreage
+     * jobs) multiplies every point by 2.5 or 5, and a fence that genuinely
+     * measures more than 400ft across lands outside GRID_CANVAS_SIZE
+     * entirely: off the drawing, with no way back but redrawing it. A big
+     * job cannot be traced on satellite at the office's scale, and saying
+     * so is the only honest answer.
+     *
+     * The test is the drawing's own reach, not the grid size: a 60ft fence
+     * sitting on a 2000ft grid still fits at 400ft and is allowed through.
      */
-    fun ensureSatelliteCalibration() = setGridExtent(SATELLITE_CANVAS_EXTENT_FT)
+    suspend fun ensureSatelliteCalibration(): SatelliteCalibration {
+        val current = job.value ?: return SatelliteCalibration.Ready
+        if (current.surveyImagePath != null) return SatelliteCalibration.Ready
+        val before = drawingScale(current) ?: return SatelliteCalibration.Ready
+        val after = unitsPerFoot(SATELLITE_CANVAS_EXTENT_FT)
+        if (before > 0f && after > before) {
+            val reach = drawnCanvasReach(current.id)
+            if (reach > 0f && reach * (after / before) > GRID_CANVAS_SIZE) {
+                return SatelliteCalibration.TooBig(
+                    kotlin.math.ceil((reach / before).toDouble()).toInt()
+                )
+            }
+        }
+        setGridExtent(SATELLITE_CANVAS_EXTENT_FT)
+        return SatelliteCalibration.Ready
+    }
+
+    /** Whether the drawing can be put on the office's satellite scale. */
+    sealed interface SatelliteCalibration {
+        data object Ready : SatelliteCalibration
+        /** [acrossFt]: how far the drawing already reaches, in feet. */
+        data class TooBig(val acrossFt: Int) : SatelliteCalibration
+    }
+
+    /**
+     * How far anything drawn on this job reaches from the canvas origin, in
+     * canvas units -- points, gates and site markers, since [setGridExtent]
+     * rescales all three and all three can be pushed off the canvas.
+     */
+    private suspend fun drawnCanvasReach(jobId: Long): Float {
+        var reach = 0f
+        repository.getFenceRuns(jobId).forEach { run ->
+            FenceCodec.decodePoints(run.pointsEncoded).forEach {
+                reach = maxOf(reach, kotlin.math.abs(it.x), kotlin.math.abs(it.y))
+            }
+            FenceCodec.decodeGates(run.gatesEncoded).forEach {
+                reach = maxOf(reach, kotlin.math.abs(it.x), kotlin.math.abs(it.y))
+            }
+        }
+        repository.getSiteMarkers(jobId).forEach {
+            reach = maxOf(reach, kotlin.math.abs(it.x), kotlin.math.abs(it.y))
+        }
+        return reach
+    }
 
     /** Puts the no-photo grid back on its default scale after a hand calibration. */
     fun resetGridCalibration() {
@@ -1007,8 +1082,16 @@ class SurveyViewModel(
          * A gate and a paddock are not the same drawing problem. At 400ft one
          * foot is about two and a half pixels on a phone and a 20ft run cannot
          * be drawn accurately; at 25ft the same run fills the screen.
+         *
+         * 400ft used to be the top of this list, which meant a job bigger than
+         * that had nowhere to grow -- the fence kept running off the edge of
+         * the grid with no size left to pick. Not truly unbounded (that needs
+         * a typed-in extent, not a chip row) but 1000 and 2000 cover anything
+         * a paddock or acreage job is likely to need; [setGridExtent] and
+         * [DrawingScale.unitsPerFoot] both work off a plain ratio and have no
+         * ceiling of their own baked in.
          */
-        val GRID_SIZES_FT = listOf(25f, 50f, 100f, 200f, 400f)
+        val GRID_SIZES_FT = listOf(25f, 50f, 100f, 200f, 400f, 1000f, 2000f)
 
         /**
          * The grid extent whose calibration works out to exactly 20 px/ft

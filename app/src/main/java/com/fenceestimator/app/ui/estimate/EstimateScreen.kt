@@ -61,6 +61,7 @@ import com.fenceestimator.app.data.MaterialRole
 import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.EstimateWarning
+import com.fenceestimator.app.data.ChangeOrder
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.TakeoffLine
@@ -163,7 +164,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                 LineItemRow(item, onClick = { editingItem = item })
             }
 
-            item { TotalsCard(totals, currentJob) }
+            item { TotalsCard(totals, currentJob, changeOrders) }
             if (warnings.isNotEmpty()) {
                 item { WarningsCard(warnings) }
             }
@@ -516,7 +517,11 @@ private fun LineItemRow(item: EstimateLineItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
+private fun TotalsCard(
+    totals: EstimateEngine.Totals,
+    job: Job?,
+    changeOrders: List<ChangeOrder>
+) {
     val session by com.fenceestimator.app.ui.components.currentApp().session.state.collectAsState()
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Space.card)) {
@@ -573,8 +578,9 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
                 Spacer(Modifier.height(Space.sm))
             }
 
-            TotalRow(stringResource(R.string.estimate_materials_subtotal), Money.format(totals.materialsSubtotal))
-            TotalRow(stringResource(R.string.est2_tax_pct, "${job?.taxRatePercent ?: 0}"), Money.format(totals.tax))
+            // The parts, in the order the job is actually built up: what gets
+            // bought and done, before tax, markup or discount touch any of it.
+            TotalRow(stringResource(R.string.est2_materials), Money.format(totals.materialsSubtotal))
             if (totals.laborCost > 0.0) TotalRow(stringResource(R.string.estimate_labor), Money.format(totals.laborCost))
             if (totals.gateCharge > 0.0) {
                 TotalRow(
@@ -586,6 +592,27 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
                 TotalRow(stringResource(R.string.est2_teardown_existing), Money.format(totals.teardownCost - totals.trashHaulFee))
             }
             if (totals.trashHaulFee > 0.0) TotalRow(stringResource(R.string.est2_haul_away_fee), Money.format(totals.trashHaulFee))
+            if (totals.changeOrderCost > 0.0 || totals.changeOrderFeet > 0.0) {
+                TotalRow(
+                    stringResource(R.string.est2_approved_extra_work) +
+                        if (totals.changeOrderFeet > 0.0) " " + stringResource(R.string.est2_plus_feet, "%.0f".format(totals.changeOrderFeet)) else "",
+                    Money.format(totals.changeOrderCost)
+                )
+            }
+
+            // Tax belongs here, with the parts -- the markup is taken on a base
+            // that already includes it. Shown below the subtotal instead, the
+            // rows above the subtotal did not add up to it and a 20% markup
+            // read as 21.4% of the figure printed next to it.
+            TotalRow(stringResource(R.string.est2_tax_pct, "${job?.taxRatePercent ?: 0}"), Money.format(totals.tax))
+
+            // The subtotal is the engine's own markup base (Totals.preMarkup),
+            // not a second sum added up in the screen. Adding it up here is
+            // exactly how tax got left out of it, and a screen that does its
+            // own arithmetic on money is what check-parity.mjs exists to stop.
+            Divider(modifier = Modifier.padding(vertical = Space.sm))
+            TotalRow(stringResource(R.string.est2_subtotal), Money.format(totals.preMarkup))
+
             if (totals.markupAmount > 0.0) TotalRow(stringResource(R.string.est2_markup_pct, "${job?.markupPercent ?: 0}"), Money.format(totals.markupAmount))
             if (totals.discountAmount > 0.0) {
                 TotalRow(
@@ -595,15 +622,25 @@ private fun TotalsCard(totals: EstimateEngine.Totals, job: Job?) {
                     "-" + Money.format(totals.discountAmount)
                 )
             }
-            if (totals.changeOrderCost > 0.0 || totals.changeOrderFeet > 0.0) {
-                TotalRow(
-                    stringResource(R.string.est2_approved_extra_work) +
-                        if (totals.changeOrderFeet > 0.0) " " + stringResource(R.string.est2_plus_feet, "%.0f".format(totals.changeOrderFeet)) else "",
-                    Money.format(totals.changeOrderCost)
-                )
-            }
+
             Divider(modifier = Modifier.padding(vertical = Space.sm))
             TotalRow(stringResource(R.string.estimate_total), Money.format(totals.grandTotal), bold = true)
+
+            // The deposit is a plain job field, not a Totals figure, and the
+            // balance comes from JobMoney -- the one place that already knows
+            // what has been paid -- rather than grandTotal minus deposit here,
+            // which would forget any payment recorded after the deposit.
+            //
+            // It is billed against billableTotal, not grandTotal: once the
+            // customer has signed, what they owe is the price they accepted
+            // plus signed extra work. Against the live estimate, a material
+            // price moving after acceptance quietly changed the balance due
+            // on a job already under contract.
+            if (job != null && job.depositAmount > 0.0) {
+                val billable = JobMoney.billableTotal(job, totals.grandTotal, changeOrders)
+                TotalRow(stringResource(R.string.est2_deposit_asked), Money.format(job.depositAmount))
+                TotalRow(stringResource(R.string.est2_balance_due), Money.format(JobMoney.balance(job, billable)))
+            }
 
             if (job != null && totals.grandTotal <= job!!.minimumJobCharge && job!!.minimumJobCharge > 0.0) {
                 Text(

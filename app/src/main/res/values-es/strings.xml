@@ -89,7 +89,6 @@
     <string name="estimate_suggest">Sugerir cantidades</string>
     <string name="estimate_add_item">+ Añadir artículo</string>
     <string name="estimate_other_items">Otros artículos</string>
-    <string name="estimate_materials_subtotal">Subtotal de materiales</string>
     <string name="estimate_labor">Mano de obra</string>
     <string name="estimate_total">TOTAL</string>
     <string name="est_headline_price">El cliente paga</string>
@@ -275,6 +274,7 @@
     <string name="snap_map_vertical">Vertical en el plano</string>
     <string name="snap_map_diagonal">45° en el plano</string>
     <string name="snap_off_note">Ajuste desactivado: los puntos quedan justo donde toque</string>
+    <string name="snap_intro_hint">El ajuste fija el tramo que dibuja recto, a 90° o a 45° respecto al tramo anterior</string>
     <string name="draw_clear">Borrar todo</string>
     <string name="draw_clear_title">¿Borrar este dibujo?</string>
     <string name="draw_clear_text">Se quitan todos los puntos y portones de este tramo -- el metrado, el conteo de postes, el pedido de materiales y el precio salen de este dibujo. Esto no se puede deshacer.</string>
@@ -287,6 +287,7 @@
     <string name="draw_already_marked">Ya marcado:</string>
     <string name="draw_add_marker">Añadir marca</string>
     <string name="draw_editing_run">Tramo en edición</string>
+    <string name="draw_add_run">Añadir un segundo tramo de cerca, separado</string>
     <string name="draw_known_distance">Distancia conocida</string>
     <string name="draw_distance_question">¿Cuál es la distancia real entre los dos puntos que tocaste, en pies?</string>
     <string name="draw_feet">Pies</string>
@@ -435,6 +436,11 @@
     <string name="acct_create_account">Crear cuenta</string>
     <string name="acct_sign_in_explain">Iniciar sesión permite que tu cuadrilla comparta los mismos trabajos. Sin una cuenta, la app sigue funcionando sin conexión solo en este teléfono.</string>
     <string name="acct_password">Contraseña</string>
+    <string name="acct_forgot_password">¿Olvidaste tu contraseña?</string>
+    <string name="acct_forgot_password_enter_email_first">Escribe tu correo arriba primero y luego presiona esto.</string>
+    <string name="acct_forgot_password_sent">Si esa dirección tiene una cuenta, revisa tu correo para el enlace con el que puedes poner una contraseña nueva.</string>
+    <string name="survey_satellite_too_big_for_scale">El satélite traza a 400 ft de ancho y este dibujo ya cubre unos %1$d ft. El satélite está apagado; el dibujo quedó intacto.</string>
+    <string name="acct_forgot_password_failed">No se pudo enviar. Revisa tu conexión e inténtalo de nuevo en un minuto.</string>
     <string name="acct_already_have_account">Ya tengo una cuenta</string>
     <string name="acct_need_create_account">Necesito crear una cuenta</string>
     <string name="acct_signed_in">Sesión iniciada</string>
@@ -851,6 +857,8 @@
     <string name="est2_qty_rails">rieles</string>
     <string name="est2_qty_ft_of_fabric">pies de malla</string>
     <string name="est2_line_item_detail">%1$s %2$s x %3$s</string>
+    <string name="est2_materials">Materiales</string>
+    <string name="est2_subtotal">Subtotal</string>
     <string name="est2_tax_pct">Impuesto (%1$s%%)</string>
     <string name="est2_gates_line">Portones (%1$s pies a %2$s/pie)</string>
     <string name="est2_teardown_existing">Retiro de la cerca vieja</string>
@@ -862,6 +870,8 @@
     <string name="est2_plus_feet">(+%1$s pies)</string>
     <string name="est2_minimum_charge_applied">Se aplicó el cargo mínimo por trabajo de %1$s</string>
     <string name="est2_minimum_labor_charge_applied">Se aplicó el cargo mínimo de mano de obra de %1$s</string>
+    <string name="est2_deposit_asked">Depósito solicitado</string>
+    <string name="est2_balance_due">Saldo</string>
     <string name="est2_send_document">Enviar %1$s</string>
     <string name="est2_changed_after_signed_title">Este presupuesto cambió después de firmarse</string>
     <string name="est2_changed_after_signed_body">Desde que se firmó, %1$s. No se puede enviar nada hasta que %2$s firme las nuevas cifras.</string>

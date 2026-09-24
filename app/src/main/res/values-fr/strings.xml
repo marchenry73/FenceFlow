@@ -89,7 +89,6 @@
     <string name="estimate_suggest">Suggérer les quantités</string>
     <string name="estimate_add_item">+ Ajouter un article</string>
     <string name="estimate_other_items">Autres articles</string>
-    <string name="estimate_materials_subtotal">Sous-total matériaux</string>
     <string name="estimate_labor">Main-d\'œuvre</string>
     <string name="estimate_total">TOTAL</string>
     <string name="est_headline_price">Le client paie</string>
@@ -275,6 +274,7 @@
     <string name="snap_map_vertical">Vertical sur le plan</string>
     <string name="snap_map_diagonal">45° sur le plan</string>
     <string name="snap_off_note">Aimantation désactivée : les points restent exactement où vous touchez</string>
+    <string name="snap_intro_hint">L\'aimantation verrouille la section que vous dessinez droite, à 90° ou à 45° par rapport à la section précédente</string>
     <string name="draw_clear">Tout effacer</string>
     <string name="draw_clear_title">Effacer ce dessin ?</string>
     <string name="draw_clear_text">Tous les points et portails de cette section disparaissent -- le métré, le compte de poteaux, la commande de matériaux et le prix viennent tous de ce dessin. Impossible à annuler.</string>
@@ -287,6 +287,7 @@
     <string name="draw_already_marked">Déjà marqué :</string>
     <string name="draw_add_marker">Ajouter un repère</string>
     <string name="draw_editing_run">Section en cours</string>
+    <string name="draw_add_run">Ajouter une deuxième section de clôture, séparée</string>
     <string name="draw_known_distance">Distance connue</string>
     <string name="draw_distance_question">Quelle est la distance réelle entre les deux points touchés, en pieds ?</string>
     <string name="draw_feet">Pieds</string>
@@ -435,6 +436,11 @@
     <string name="acct_create_account">Créer un compte</string>
     <string name="acct_sign_in_explain">La connexion permet à votre équipe de partager les mêmes chantiers. Sans compte, l\'application continue de fonctionner hors ligne sur ce téléphone uniquement.</string>
     <string name="acct_password">Mot de passe</string>
+    <string name="acct_forgot_password">Mot de passe oublié?</string>
+    <string name="acct_forgot_password_enter_email_first">Entrez d\'abord votre courriel ci-dessus, puis touchez ceci.</string>
+    <string name="acct_forgot_password_sent">Si cette adresse a un compte, consultez votre courriel pour le lien qui vous permettra de définir un nouveau mot de passe.</string>
+    <string name="survey_satellite_too_big_for_scale">Le satellite trace sur 400 pi de large et ce dessin en couvre déjà environ %1$d pi. Le satellite est désactivé ; le dessin est intact.</string>
+    <string name="acct_forgot_password_failed">Échec de l\'envoi. Vérifiez votre connexion et réessayez dans une minute.</string>
     <string name="acct_already_have_account">J\'ai déjà un compte</string>
     <string name="acct_need_create_account">Je dois créer un compte</string>
     <string name="acct_signed_in">Connecté</string>
@@ -851,6 +857,8 @@
     <string name="est2_qty_rails">lisses</string>
     <string name="est2_qty_ft_of_fabric">pi de grillage</string>
     <string name="est2_line_item_detail">%1$s %2$s x %3$s</string>
+    <string name="est2_materials">Matériaux</string>
+    <string name="est2_subtotal">Sous-total</string>
     <string name="est2_tax_pct">Taxe (%1$s %%)</string>
     <string name="est2_gates_line">Portails (%1$s pi à %2$s/pi)</string>
     <string name="est2_teardown_existing">Démolition de la clôture existante</string>
@@ -862,6 +870,8 @@
     <string name="est2_plus_feet">(+%1$s pi)</string>
     <string name="est2_minimum_charge_applied">Montant minimum de chantier de %1$s appliqué</string>
     <string name="est2_minimum_labor_charge_applied">Montant minimum de main-d\'œuvre de %1$s appliqué</string>
+    <string name="est2_deposit_asked">Acompte demandé</string>
+    <string name="est2_balance_due">Solde</string>
     <string name="est2_send_document">Envoyer %1$s</string>
     <string name="est2_changed_after_signed_title">Ce devis a changé après sa signature</string>
     <string name="est2_changed_after_signed_body">Depuis la signature, %1$s. Rien ne peut être envoyé tant que %2$s n\'a pas signé les nouveaux montants.</string>

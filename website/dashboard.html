@@ -1856,15 +1856,6 @@
     </div>
 
     <div id="tab-settings" style="display:none">
-      <!-- Owner only. Test-fixture jobs (jobs.is_test_fixture) are hidden
-           from every office view unless the owner asks to see them. -->
-      <div class="panel" id="showTestPanel" style="display:none">
-        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
-          <input type="checkbox" id="showTestToggle">
-          <strong data-t="showTestData">Show test data</strong>
-        </label>
-        <p class="sub" style="margin:4px 0 0" data-t="showTestDataNote">Test jobs used by automated checks are hidden everywhere in the office. Only you can show them.</p>
-      </div>
       <div class="panel" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
           <h2 style="margin:0" data-t="setupAgainHead">Business setup</h2>
@@ -2014,6 +2005,20 @@
         <div class="empty" id="tierEmpty" style="display:none" data-t="settingsTierEmpty">No pricing tiers yet — add one above,
           or press "Add starter tiers" for five to start from.</div>
       </div>
+
+      <!-- Owner only, and last on the tab -- this hides test-fixture jobs
+           (jobs.is_test_fixture) from every office view except this one
+           switch. It used to be the very first thing on the page with no
+           heading at all, which is why the owner reported he could not find
+           it. -->
+      <div class="panel" id="showTestPanel" style="display:none">
+        <h2 data-t="showTestPanelHead">Test data</h2>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="showTestToggle">
+          <strong data-t="showTestData">Show test data</strong>
+        </label>
+        <p class="sub" style="margin:4px 0 0" data-t="showTestDataNote">Test jobs used by automated checks are hidden everywhere in the office. Only you can show them.</p>
+      </div>
     </div>
 
     <div id="tab-billing" style="display:none">
@@ -2124,10 +2129,23 @@
       <div id="jobPhotos" class="empty" data-t="jobPhotosLoading">Loading…</div>
     </div>
     <div class="panel" id="panelEstimate"><h2 data-t="jobSecEstimate">Estimate</h2><div id="jobItems"></div>
+      <div id="jobEstDepositBalance"></div>
       <!-- The office never carries the pricing formula -- it asks price-job,
            the same TypeScript port of EstimateEngine.kt the phone runs, and
-           renders exactly what comes back. A dry_run previews; nothing here
-           is written until "Keep this price" commits it. -->
+           renders exactly what comes back. This button is a read-only dry_run,
+           not a re-price -- the job sheet can be opened a dozen times in a row
+           scanning a schedule, and a pricing call on every one of those opens
+           is not free. -->
+      <div style="margin-top:12px">
+        <button class="btn btn-sm btn-grey" id="showEstBreakdown" type="button" data-t="jobEstBreakdownBtn">Show full breakdown</button>
+        <div class="msg" id="jobEstBreakdownMsg"></div>
+        <div id="jobEstBreakdownResult"></div>
+      </div>
+      <!-- Re-pricing is a separate, deliberate action from viewing the
+           breakdown above -- "Keep this price" writes contract_total, so it
+           stays behind its own button rather than folded into the read-only
+           view. A dry_run previews; nothing here is written until "Keep this
+           price" commits it. -->
       <div style="margin-top:12px">
         <button class="btn btn-sm btn-grey" id="repriceOffice" type="button" data-t="jobRepriceBtn">Re-price at the office</button>
         <div class="msg" id="officePricingMsg"></div>
@@ -2936,6 +2954,7 @@ const TL = {
     jobMailLeaveBtn:'Leave without saving',
     signOut:'Sign out', refresh:'Refresh',
     themeTitle:'Appearance', themeSystem:'System', themeLight:'Light', themeDark:'Dark',
+    showTestPanelHead:'Test data',
     showTestData:'Show test data', showTestDataNote:'Test jobs used by automated checks are hidden everywhere in the office. Only you can show them.',
     repFunnelAll:'All jobs', repFunnelQuoted:'Quoted', repFunnelWon:'Won', repFunnelPaid:'Paid in full',
     repFunnelAllHow:'Every job touched in this period, whatever became of it.',
@@ -3314,6 +3333,7 @@ const TL = {
     jobPhotosBody:'What the crew photographed on site, the signed signature, and the survey the fence was drawn on — straight from the phones.',
     jobPhotosLoading:'Loading…',
     jobSecEstimate:'Estimate', jobRepriceBtn:'Re-price at the office',
+    jobEstBreakdownBtn:'Show full breakdown',
     jobSecPricing:'Pricing', jobLabelTaxRate:'Tax rate (%)', jobLabelMarkup:'Markup (%)',
     jobLabelDiscount:'Discount (%)', jobLabelLaborRate:'Labor $/ft',
     jobLabelLaborFlat:'Labor flat fee ($)', jobLabelMinCharge:'Minimum charge ($)',
@@ -3622,6 +3642,7 @@ const TL = {
     authSettingUp:'Setting up…',
     authErrEnterEmailFirst:'Type your email above first, then press this.',
     authSendingReset:'Sending…',
+    authErrResetFailed:'Couldn’t send that. Check your connection and try again in a minute.',
     authInfoCheckEmailReset:'Check your email for a link to set a new password.',
     recoveryTitle:'Set a new password',
     recoverySub:'You opened a password-reset link. Pick a new password below — the FenceFlow app on your phone signs in with the same one.',
@@ -4458,6 +4479,7 @@ const TL = {
     jobMailLeaveBtn:'Salir sin guardar',
     signOut:'Cerrar sesión', refresh:'Actualizar',
     themeTitle:'Apariencia', themeSystem:'Del sistema', themeLight:'Claro', themeDark:'Oscuro',
+    showTestPanelHead:'Datos de prueba',
     showTestData:'Mostrar datos de prueba', showTestDataNote:'Los trabajos de prueba usados por las comprobaciones automáticas están ocultos en toda la oficina. Solo usted puede mostrarlos.',
     repFunnelAll:'Todos los trabajos', repFunnelQuoted:'Cotizados', repFunnelWon:'Ganados', repFunnelPaid:'Pagados por completo',
     repFunnelAllHow:'Todo trabajo tocado en este periodo, pase lo que pase después.',
@@ -4836,6 +4858,7 @@ const TL = {
     jobPhotosBody:'Lo que la cuadrilla fotografió en el sitio, la firma del cliente y el plano sobre el que se dibujó la cerca — directo de los teléfonos.',
     jobPhotosLoading:'Cargando…',
     jobSecEstimate:'Presupuesto', jobRepriceBtn:'Recalcular precio en la oficina',
+    jobEstBreakdownBtn:'Ver el desglose completo',
     jobSecPricing:'Precios', jobLabelTaxRate:'Impuesto (%)', jobLabelMarkup:'Margen (%)',
     jobLabelDiscount:'Descuento (%)', jobLabelLaborRate:'Mano de obra $/pie',
     jobLabelLaborFlat:'Tarifa fija de mano de obra ($)', jobLabelMinCharge:'Cargo mínimo ($)',
@@ -5144,6 +5167,7 @@ const TL = {
     authSettingUp:'Configurando…',
     authErrEnterEmailFirst:'Escribe tu correo arriba primero y luego presiona esto.',
     authSendingReset:'Enviando…',
+    authErrResetFailed:'No se pudo enviar. Revisa tu conexión e inténtalo de nuevo en un minuto.',
     authInfoCheckEmailReset:'Revisa tu correo para el enlace con el que puedes poner una contraseña nueva.',
     recoveryTitle:'Crear una contraseña nueva',
     recoverySub:'Abriste un enlace para restablecer la contraseña. Elige una contraseña nueva abajo: la app FenceFlow de tu teléfono entra con la misma.',
@@ -5950,6 +5974,7 @@ const TL = {
     jobMailLeaveBtn:'Quitter sans enregistrer',
     signOut:'Se déconnecter', refresh:'Actualiser',
     themeTitle:'Apparence', themeSystem:'Du système', themeLight:'Clair', themeDark:'Sombre',
+    showTestPanelHead:'Données de test',
     showTestData:'Afficher les données de test', showTestDataNote:'Les chantiers de test utilisés par les vérifications automatiques sont masqués partout au bureau. Vous seul pouvez les afficher.',
     repFunnelAll:'Tous les chantiers', repFunnelQuoted:'Devis faits', repFunnelWon:'Gagnés', repFunnelPaid:'Payés en entier',
     repFunnelAllHow:'Tout chantier touché durant cette période, quelle qu’en soit la suite.',
@@ -6328,6 +6353,7 @@ const TL = {
     jobPhotosBody:'Ce que l’équipe a photographié sur place, la signature du client et le plan sur lequel la clôture a été tracée — directement des téléphones.',
     jobPhotosLoading:'Chargement…',
     jobSecEstimate:'Devis', jobRepriceBtn:'Recalculer le prix au bureau',
+    jobEstBreakdownBtn:'Afficher le détail complet',
     jobSecPricing:'Tarification', jobLabelTaxRate:'Taxe (%)', jobLabelMarkup:'Marge (%)',
     jobLabelDiscount:'Rabais (%)', jobLabelLaborRate:'Main-d’œuvre $/pi',
     jobLabelLaborFlat:'Forfait main-d’œuvre ($)', jobLabelMinCharge:'Charge minimale ($)',
@@ -6636,6 +6662,7 @@ const TL = {
     authSettingUp:'Configuration en cours…',
     authErrEnterEmailFirst:'Entrez d’abord votre courriel ci-dessus, puis cliquez ici.',
     authSendingReset:'Envoi…',
+    authErrResetFailed:'Échec de l’envoi. Vérifiez votre connexion et réessayez dans une minute.',
     authInfoCheckEmailReset:'Consultez votre courriel pour le lien qui vous permettra de définir un nouveau mot de passe.',
     recoveryTitle:'Définir un nouveau mot de passe',
     recoverySub:'Vous avez ouvert un lien de réinitialisation. Choisissez un nouveau mot de passe ci-dessous : l’application FenceFlow sur votre téléphone se connecte avec le même.',
@@ -19045,6 +19072,28 @@ async function repriceAtOffice(){
   });
 }
 
+/** Read-only view of the same breakdown repriceAtOffice previews -- tax,
+    labour, markup, discount, grand total -- without any of the commit
+    machinery, so opening it can never write a price onto the job. Sits
+    behind its own button rather than firing on every job-sheet open: the
+    office can click through a schedule's worth of jobs in a row, and a
+    price-job call on each open is not free. */
+async function showEstimateBreakdown(){
+  if(!openJob) return;
+  const btn = $('showEstBreakdown');
+  btn.disabled = true;
+  $('jobEstBreakdownResult').innerHTML = '';
+  msg('jobEstBreakdownMsg', tr('opPricingWorking'), 'working');
+  const { status, body } = await callPriceJob(openJob.sync_id, 'dry_run');
+  btn.disabled = false;
+  if(status !== 200 || !body || !body.output){
+    msg('jobEstBreakdownMsg', officePricingErrorMessage(status, body), 'err');
+    return;
+  }
+  $('jobEstBreakdownMsg').className = 'msg';
+  $('jobEstBreakdownResult').innerHTML = renderOfficePricingResult(body.output);
+}
+
 async function keepOfficePrice(){
   if(!officePricing || !openJob) return;
   const pricedJob = openJob;
@@ -19511,6 +19560,18 @@ async function showJob(id){
   officePricing = null;
   $('officePricingResult').innerHTML = '';
   $('officePricingMsg').className = 'msg';
+  // Same reason as officePricingResult above -- a breakdown fetched for
+  // whichever job was open before must not linger under this one's heading.
+  $('jobEstBreakdownResult').innerHTML = '';
+  $('jobEstBreakdownMsg').className = 'msg';
+  // The breakdown is money -- tax, labour, markup -- but it is fetched by
+  // calling price-job, and price-job refuses anyone who is not OWNER or
+  // MANAGER before it looks at SEE_MONEY at all. Gated on canSeeMoney()
+  // alone, SALES and ACCOUNTANT saw a button whose only possible outcome
+  // was "Pricing is restricted to owners and managers." Both halves of the
+  // server's gate, in the server's order, so the button is shown exactly
+  // when the call behind it can succeed.
+  $('showEstBreakdown').style.display = (canEdit() && canSeeMoney()) ? '' : 'none';
   // Re-pricing touches money, so it is owner/manager only -- crew and other
   // roles never see the button at all, the same gate canEdit() already
   // applies to every other write on this sheet.
@@ -19624,6 +19685,22 @@ async function showJob(id){
       <td class="num">${money(i.unit_price)}</td><td class="num">${money((i.quantity||0)*(i.unit_price||0))}</td></tr>`).join('')}
     </tbody></table></div><div class="li-total"><span>${esc(tr('jobItemsMaterials'))}</span><span>${money(liTotal)}</span></div>`
     : `<div class="empty">${esc(tr('jobItemsEmpty'))}</div>`;
+
+  // Deposit and balance straight off the job row and the same balance math
+  // the job header already shows -- no pricing call needed for these two,
+  // unlike the full breakdown behind the button below.
+  if(li.length && canSeeMoney()){
+    const contract = billableTotalOf(openJob, anchorOrdersOf(openJob)) ?? 0;
+    // balanceOf(), not the subtraction spelled out again. It was written out
+    // here and the formula is one edit away from disagreeing with the job
+    // header's balance, which is the one thing this block is supposed to match.
+    const balance = balanceOf(openJob, contract);
+    $('jobEstDepositBalance').innerHTML =
+      `<div class="li-row"><span>${esc(tr('jobHdrStepDeposit'))}</span><span>${money(openJob.deposit_amount)}</span></div>`
+      + `<div class="li-row"><span>${esc(tr('jobHdrMoneyBalance'))}</span><span>${money(balance)}</span></div>`;
+  } else {
+    $('jobEstDepositBalance').innerHTML = '';
+  }
 
   const ex=expenses.filter(e=>e.job_sync_id===sid);
   $('jobExpenses').innerHTML = ex.length
@@ -23656,7 +23733,14 @@ $('forgotLink').addEventListener('click', async e => {
   const {error}=await db.auth.resetPasswordForEmail(email,{
     redirectTo: location.origin + location.pathname
   });
-  if(error) return msg('authMsg',error.message,'err');
+  // One fixed sentence, never GoTrue's own words. An address with no account
+  // gets success and no mail, so only a REAL address can get far enough to
+  // come back with 'Email rate limit exceeded' -- which made the failure text
+  // an answer to 'does this person have an account here', the exact question
+  // the success wording below is worded to refuse. The phone does the same;
+  // see AccountScreen's resetPasswordForEmail onFailure.
+  if(error){ console.warn('password reset request failed:', error.message);
+    return msg('authMsg',tr('authErrResetFailed'),'err'); }
   msg('authMsg',tr('authInfoCheckEmailReset'),'info');
 });
 
@@ -23693,6 +23777,7 @@ $('closeJob').addEventListener('click',()=>$('jobOverlay').classList.remove('on'
 $('closeEmp').addEventListener('click',()=>$('empOverlay').classList.remove('on'));
 $('saveJob').addEventListener('click',saveJob);
 $('repriceOffice').addEventListener('click',repriceAtOffice);
+$('showEstBreakdown').addEventListener('click',showEstimateBreakdown);
 $('deleteJob').addEventListener('click',deleteJob);
 $('q_copy').addEventListener('click', async ()=>{
   if(!openJob) return;
