@@ -1004,7 +1004,7 @@
         <div class="stats" id="chaseStats" style="margin-bottom:14px"></div>
         <div id="chaseList" class="section-loading" data-t="loadingSection">Loading…</div>
       </div>
-      <div class="panel"><h2 data-t="attentionHead">Needs attention</h2><div id="attention" class="section-loading" data-t="loadingSection">Loading…</div></div>
+      <div class="panel" id="attentionPanel"><h2 data-t="attentionHead">Needs attention</h2><div id="attention" class="section-loading" data-t="loadingSection">Loading…</div></div>
       <div class="panel"><h2 data-t="thisWeekHead">This week</h2>
         <p class="sub" data-t="thisWeekBody">The next seven days. Click a job to open it.</p>
         <div id="thisWeek" class="section-loading" data-t="loadingSection">Loading…</div>
@@ -10180,6 +10180,22 @@ async function loadAll(){
       arAging = aging.error ? [] : anchorArRows(arAgingServer, jobs, orders, Date.now());
     } else { arAging = []; arAgingServer = []; }
     await loadNotifPrefs();
+    // ...and draw AGAIN, now that this user's own preferences are actually in
+    // hand. Both renders above read three things loadNotifPrefs fills --
+    // dismissedSetupSteps, mutedAlerts and seenAlerts -- and all three start as
+    // empty collections, so the first paint of every page load says "nothing has
+    // ever been dismissed, nothing is muted, nothing has been seen." Nothing
+    // redrew afterwards, so it stayed that way for the whole session: the owner
+    // saw every setup reminder he had dismissed come back at every single login,
+    // and reported it as "it hides them, it does not dismiss them." The write was
+    // always fine; the screen was drawn before its own answer arrived.
+    //
+    // This is the SECOND time on this exact pair of lines -- the comment above
+    // renderSetup records the first, when it drew before the setup fetch. A
+    // render that reads a `let` filled by an await has to run after that await,
+    // or run twice.
+    renderSetup();
+    renderDash();
   } catch (e) {
     console.error('loadAll: aging/notif-prefs section failed:', e);
     arAging = arAging || [];
@@ -10585,19 +10601,25 @@ function anchorArRows(rows, jobsAll, ordersAll, nowMs){
     const owed = cents(anchored - Number(r.paid || 0));
     if (owed > 0.005) out.push(Object.assign({}, r, { contract_total: cents(anchored), owed }));
   });
-  (jobsAll || []).forEach(j => {
-    if (!j || j.deleted_at || listed.has(String(j.sync_id))) return;
-    if (j.status !== 'ACCEPTED' && j.status !== 'COMPLETED') return;
-    const anchored = anchorOf(j);
-    if (anchored == null) return;
-    const paid = netPaid(j), owed = cents(anchored - paid);
-    if (!(owed > 0.005)) return;
-    const since = j.final_sign_off_at || j.scheduled_date || j.created_at;
-    const days = Math.max(0, Math.floor((nowMs - stampMs(since)) / 864e5));
-    out.push({ job_sync_id: String(j.sync_id), customer_name: j.customer_name, phone: j.phone,
-      email: j.email, status: j.status, contract_total: cents(anchored), paid: cents(paid), owed,
-      since, days_out: days, bucket: days >= 90 ? '90' : days >= 60 ? '60' : days >= 30 ? '30' : 'current' });
-  });
+  // There used to be a second loop here that ADDED jobs ar_aging() had not
+  // returned -- any job this page held whose accepted price left it owing. It is
+  // gone, and its absence is the fix for "Still owed kept changing from $86,860
+  // to $73,000."
+  //
+  // Two things were wrong with it, and they only became wrong once the server
+  // learned the accepted price (supabase_r7_reports_accepted_price.sql):
+  //
+  //   * it read `jobsAll`, which loads in stages -- a bounded slice on the first
+  //     paint, topped up afterwards -- so the number it produced grew while the
+  //     page loaded. A total that moves under you is worse than one that is
+  //     merely wrong, because there is no moment at which you can trust it.
+  //   * it worked out `owed` from netPaid(j), the job row's cached figure, while
+  //     the server works it out from the payment_records ledger. So it could add
+  //     a job the server had deliberately left out, at a different balance.
+  //
+  // ar_aging() now applies the anchored price itself, so every job that is owed
+  // is already in `rows`. The re-base above stays: it is a no-op against a
+  // current server and it is what keeps this page right against an older one.
   return out.sort((a, b) => stampMs(a.since) - stampMs(b.since));
 }
 
@@ -11229,6 +11251,17 @@ function renderDash(){
       + (collapseInfo ? '' : quiet.map(rowHtml).join(''))
     : `<div class="empty">${esc(tr('alertAllClearMsg'))}</div>`)
     + (seenCount ? `<div class="empty" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">${esc(tr('alertSeenCountMsg', seenCount))}</div>` : '');
+
+  // Nothing waiting, nothing dismissed to mention: the whole panel goes, heading
+  // and all. "Only show when there is something to show" -- a headed box that
+  // says "All clear" is still a thing on screen asking to be read, and on a good
+  // day it is the biggest thing on the page. The daily briefing below already
+  // works this way ("Quiet by design"); this brings the alerts into line.
+  //
+  // The seen count still counts as something to show: it is the only way back to
+  // an alert that was dismissed today.
+  const attPanel = $('attentionPanel');
+  if (attPanel) attPanel.style.display = (visible.length || seenCount) ? '' : 'none';
   document.querySelectorAll('.att-row:not(.att-info-toggle)').forEach(el=>{
     el.querySelectorAll('.att-open').forEach(span=>span.addEventListener('click',()=>{
       if (el.dataset.attId) showJob(el.dataset.attId);
