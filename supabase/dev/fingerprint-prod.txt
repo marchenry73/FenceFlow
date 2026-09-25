@@ -713,6 +713,7 @@ COLUMN quote_reapprovals.company_id uuid notnull default=-
 COLUMN quote_reapprovals.id uuid notnull default=gen_random_uuid()
 COLUMN quote_reapprovals.job_id uuid notnull default=-
 COLUMN quote_reapprovals.job_sync_id uuid null default=-
+COLUMN quote_reapprovals.job_takeoff_before text notnull default=''::text
 COLUMN quote_reapprovals.prior_approved_at timestamp with time zone null default=-
 COLUMN quote_reapprovals.prior_approved_name text notnull default=''::text
 COLUMN quote_reapprovals.prior_contract_total numeric null default=-
@@ -1116,14 +1117,15 @@ FUNC queue_welcome_email() returns=trigger secdef=t volatility=v body_md5=49cfbf
 FUNC quote_phone_clear(jid uuid) returns=void secdef=t volatility=v body_md5=31da07ecc57b807cd86d1bae189e7882
 FUNC quote_phone_try(jid uuid) returns=text secdef=t volatility=v body_md5=d5acf96356ae7267de6df4994aa49ae0
 FUNC reapp_is_empty(fingerprint text) returns=boolean secdef=f volatility=i body_md5=b455787c108f2fb76d417aec19847d2b
-FUNC reapp_on_run_change() returns=trigger secdef=t volatility=v body_md5=d806e370dfc67627d8de01fa12c5f771
+FUNC reapp_job_takeoff(job_sync uuid, company uuid, ppf double precision, skip_run uuid, extra text) returns=text secdef=t volatility=s body_md5=73d7e9f88de1e93c3d293b4d26a823b6
+FUNC reapp_on_run_change() returns=trigger secdef=t volatility=v body_md5=b913580491ac651f7fa1f5e553319df3
 FUNC reapp_resolve_on_approval() returns=trigger secdef=t volatility=v body_md5=6cad098a247a0cf336d95282bad90ded
-FUNC reapp_restore_approval(jid uuid, run_sync uuid, q quote_reapprovals) returns=boolean secdef=t volatility=v body_md5=32f6d795ee0ed9b5a06be3d6f7ab7aba
+FUNC reapp_restore_approval(jid uuid, run_sync uuid, q quote_reapprovals) returns=boolean secdef=t volatility=v body_md5=f07347285695420e0a4e40d099ac2c6d
 FUNC reapp_restores_approved_state(jid uuid, run_sync uuid, after_fp text) returns=quote_reapprovals secdef=t volatility=s body_md5=2110d05f81b2d82e98c2eabd6f7730a7
 FUNC reapp_row_takeoff(r fence_runs, ppf double precision) returns=text secdef=f volatility=i body_md5=364a4c6f72b62d3759f4d53095d22c99
 FUNC reapp_run_snapshot(r fence_runs) returns=text secdef=f volatility=i body_md5=8ebfc6f6a5981e3204472915742f0383
 FUNC reapp_run_takeoff(points_encoded text, gates_encoded text, closed_loop boolean, manual_ft double precision, manual_corners integer, is_teardown boolean, ppf double precision) returns=text secdef=f volatility=i body_md5=91278a1875d243ac5b507a81f3f890cd
-FUNC reapp_withdraw_approval(jid uuid, run_sync uuid, run_label text, kind text, before_fp text, after_fp text, before_snap text, after_snap text) returns=void secdef=t volatility=v body_md5=665e10b039b0fd05da5f851a8e042f94
+FUNC reapp_withdraw_approval(jid uuid, run_sync uuid, run_label text, kind text, before_fp text, after_fp text, before_snap text, after_snap text, job_fp text) returns=void secdef=t volatility=v body_md5=c319833d1eeccf87e6262076fe20795a
 FUNC recalculate_my_job_totals() returns=integer secdef=t volatility=v body_md5=1a388ac1edb171d6ef6acf72bcb1338e
 FUNC recompute_job_totals(co uuid, job_sid uuid) returns=void secdef=t volatility=v body_md5=bae9c833ae488be6c95af0911786011a
 FUNC record_app_version(code integer, name text) returns=void secdef=t volatility=v body_md5=d1eafdeb5a697090adc3b28865ac3dd2
