@@ -1918,4 +1918,40 @@
     <string name="misc_crew_shift_corrected_note">Heures corrigées : %1$s</string>
     <string name="misc_crew_shift_history_for">Heures de %1$s sur ce chantier</string>
     <string name="misc_crew_shift_history_unattributed">Tous les quarts pointés sur ce chantier. Ce compte n’a pas sa propre fiche d’équipe, donc on ne peut pas les distinguer.</string>
+
+    <!-- Going back to an earlier drawing: the job screen's history of
+         withdrawn approvals, and putting one of them back. -->
+    <string name="jd_drawhist_title">Modifications du plan depuis l\'approbation</string>
+    <string name="jd_drawhist_loading">Lecture de l\'historique du plan…</string>
+    <string name="jd_drawhist_no_session">Pas de connexion au cloud pour le moment, donc l\'historique du plan ne peut pas être lu.</string>
+    <string name="jd_drawhist_failed">Impossible de lire l\'historique du plan.</string>
+    <string name="jd_drawhist_unnamed_run">Cette section de clôture</string>
+    <string name="jd_drawhist_unknown_date">une date non enregistrée</string>
+    <string name="jd_drawhist_changed_at">Plan modifié le %1$s</string>
+    <string name="jd_drawhist_had_approved">%1$s l\'avait approuvé le %2$s</string>
+    <string name="jd_drawhist_had_approved_unnamed">Approuvé le %1$s</string>
+    <string name="jd_drawhist_waiting">Doit encore être approuvé de nouveau</string>
+    <string name="jd_drawhist_resolved">Approuvé de nouveau le %1$s</string>
+    <string name="jd_drawhist_restore">Remettre ce plan</string>
+    <string name="jd_drawhist_put_back_waiting">Ce plan est de nouveau sur la section. Le retour de l\'approbation se décide dans le cloud, à la prochaine synchronisation.</string>
+    <string name="jd_drawhist_no_snapshot">Le plan d\'avant cette modification n\'a pas été conservé, il est donc impossible de le remettre.</string>
+    <string name="jd_drawhist_run_gone">Cette section de clôture n\'est plus sur ce chantier.</string>
+    <string name="jd_drawhist_confirm_title">Remettre le plan ?</string>
+    <string name="jd_drawhist_confirm_body">%1$s reviendra au plan qu\'elle avait avant cette modification : %2$d angles et %3$d portails.</string>
+    <string name="jd_drawhist_confirm_approval">Le client n\'est pas sollicité. Si le chantier correspond alors exactement à ce qu\'il a approuvé — même clôture et même prix —, l\'approbation revient d\'elle-même. Si autre chose a changé depuis, ce devis doit toujours être approuvé de nouveau.</string>
+    <string name="jd_drawhist_confirm_yes">Remettre</string>
+    <string name="jd_drawhist_done">Plan remis sur ce téléphone. Il sera envoyé à la prochaine synchronisation.</string>
+    <string name="jd_drawhist_already">La section a déjà ce plan, rien n\'a donc été modifié.</string>
+
+    <!-- Going back to an earlier drawing: the job screen's history of
+         withdrawn approvals, and putting one of them back. -->
+    <string name="jd_drawhist_office_only">Seul un compte autorisé à modifier ce chantier peut remettre un plan en place.</string>
+    <string name="jd_drawhist_not_waiting">Ce devis n\'attend pas de nouvelle approbation : remettre un plan plus ancien retirerait l\'approbation au lieu de la rendre.</string>
+    <string name="jd_drawhist_geometry_only">Seul le tracé a été conservé pour cette modification : le métrage saisi et l\'indicateur de démolition ne peuvent pas être rétablis.</string>
+    <string name="jd_drawhist_is_the_approved_one">C\'est le plan que le client a approuvé.</string>
+    <string name="jd_drawhist_in_between">Ceci revient à un plan intermédiaire que le client n\'a jamais approuvé : l\'approbation ne reviendra pas.</string>
+    <string name="jd_drawhist_confirm_typed_back">Le métrage saisi, le nombre d\'angles saisi et l\'indicateur de démolition reviennent aussi à leur état précédent.</string>
+    <string name="jd_drawhist_confirm_needs_online">Une connexion est nécessaire. L\'app vérifie d\'abord que le client n\'a pas déjà approuvé de nouveau, et ne remet pas le plan si elle ne peut pas le vérifier.</string>
+    <string name="jd_drawhist_resolved_meanwhile">Le client a déjà approuvé ce devis de nouveau : rien n\'a été modifié.</string>
+    <string name="jd_drawhist_cannot_check">Impossible de vérifier dans le cloud si le client a déjà approuvé de nouveau : le plan n\'a pas été modifié. Réessayez avec du réseau.</string>
 </resources>

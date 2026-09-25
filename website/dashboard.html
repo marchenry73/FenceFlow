@@ -2251,13 +2251,38 @@
       <p class="sub" id="q_provisional" style="display:none;margin-top:9px"></p>
     </div>
 
-    <!-- Read-only: quote_reapprovals rows for this job (withdrawn
-         approvals). No edit control anywhere here -- see
-         docs/REAPPROVAL_RULE.md "Do not offer any office-side approve
-         anyway button. There is no server route for it." -->
+    <!-- quote_reapprovals rows for this job: what the customer had approved,
+         and what changed under them. One action per row, and what it restores
+         is a DRAWING -- an ordinary UPDATE of the drawing columns on the fence
+         run, the same write a phone makes when somebody drags a corner. A
+         snapshot taken since the format was widened carries the typed footage,
+         the typed corner count and the teardown flag as well as the geometry; an
+         older one carries the geometry alone. It does not clear the re-approval
+         and it cannot.
+
+         The approval comes back only when the database itself proves three
+         things: the takeoff of THIS run after the write matches the takeoff
+         recorded against the oldest unresolved withdrawal for it, the job's
+         contract total is back within a cent of the total that row recorded, and
+         no other run on the job has a withdrawal still unresolved. Fail any of
+         the three and the withdrawal stands and the customer is asked again. So
+         docs/REAPPROVAL_RULE.md holds exactly as written -- there is still no
+         office-side approve-anyway button, and no route anywhere that clears a
+         re-approval without that proof.
+
+         Those three are the whole of it, and they are narrower than "the job is
+         the one the customer agreed to". The gaps are written out on the
+         button's own handler, because that is where the wording has to stay
+         inside what is actually proved.
+
+         prior_contract_total below is money, so it stays behind canSeeMoney()
+         like every other figure on this sheet. The rest of the panel is not
+         gated, because a foreman needing to know "do not build this yet" is
+         what the history is for. -->
     <div class="panel" id="reapprovalHistoryPanel" style="display:none">
       <h2 data-t="reapprovalHistoryTitle">Withdrawn approvals</h2>
       <div id="reapprovalHistoryRows"></div>
+      <div class="msg" id="reapprovalHistoryMsg"></div>
     </div>
 
     <div class="panel"><h2 data-t="jobSecFirstContact">First contact</h2>
@@ -3394,6 +3419,26 @@ const TL = {
     reapprovalPriorResolved:'Approved by %s on %s, withdrawn %s, re-approved %s',
     reapprovalPriorTotal:'Contract total then: %s',
     reapprovalPriorChange:'%s: %s → %s',
+    reapprovalRestoreBtn:'Put this drawing back',
+    reapprovalRestoreRunUnnamed:'This fence line',
+    reapprovalRestoreAskTitle:'Put the drawing back?',
+    reapprovalRestoreAskBody:'%s goes back to the drawing that was there before this change, on the phones as well. The customer’s approval comes back with it only if the price is back where it was too — FenceFlow checks that itself and asks them again if anything else has moved. That is not decided from here, so expect either outcome.',
+    reapprovalRestoreAskBtn:'Put it back',
+    reapprovalRestoreWorking:'Putting the drawing back…',
+    reapprovalRestoreFailed:'The drawing was not put back: %s',
+    reapprovalRestoreDoneApproved:'The drawing is back to how it was, and the customer’s approval stands again — nothing to send them.',
+    reapprovalRestoreDoneWaiting:'The drawing is back to how it was, but the approval did not come back: FenceFlow keeps an approval only when the whole job matches what the customer agreed to, the price included, and something on this one still differs. Send them the quote again so they can approve it as it stands.',
+    reapprovalRestoreResolvedMeanwhile:'Nothing was changed: the customer has approved this quote again since this page was loaded.',
+    reapprovalRestoreNoSnapshot:'This change is from before FenceFlow kept the drawing itself, so there is nothing to put back.',
+    reapprovalRestoreRunGone:'The fence line this change was about is no longer on the job, so there is nothing to put back.',
+    reapprovalRestoreUnreadable:'The drawing saved with this change cannot be read, so none of it will be written back.',
+    reapprovalRestoreNotPending:'This quote is not waiting to be approved again, so there is no approval to bring back. Putting an older drawing back on an approved job would take that approval away instead.',
+    reapprovalRestoreNoEdit:'Only an owner or a manager can put a drawing back from here.',
+    reapprovalRestoreOldest:'This is the one that can bring the approval back: it is the earliest change still outstanding on this fence line, so what it puts back is the drawing the customer approved. The price has to be back where it was too, and FenceFlow decides that itself.',
+    reapprovalRestoreIntermediate:'This one puts the drawing back to how it stood partway through the changes — something the customer never approved, so the approval will not come back. Still worth doing if that is the drawing you want.',
+    reapprovalRestoreGeometryOnly:'This change was recorded before FenceFlow kept the typed footage and the teardown setting with the drawing, so only the fence line itself goes back. The drawing will be right; the approval may still not come back.',
+    reapprovalRestoreNotLogged:'It could not be added to the job’s change history, so tell the crew yourself.',
+    reapprovalHistoryLoadFailed:'The withdrawn approvals could not be loaded: %s',
     jobSecFirstContact:'First contact',
     jobFirstContactBody:'Speed to lead is the number a contractor sales operation lives on. An enquiry answered within the hour converts several times better than the same one answered tomorrow.',
     jobMarkContactedBtn:'I have contacted them',
@@ -4937,6 +4982,26 @@ const TL = {
     reapprovalPriorResolved:'Aprobado por %s el %s, retirado el %s, aprobado de nuevo el %s',
     reapprovalPriorTotal:'Total del contrato entonces: %s',
     reapprovalPriorChange:'%s: %s → %s',
+    reapprovalRestoreBtn:'Restaurar este plano',
+    reapprovalRestoreRunUnnamed:'Esta línea de valla',
+    reapprovalRestoreAskTitle:'¿Restaurar el plano?',
+    reapprovalRestoreAskBody:'%s vuelve al plano que había antes de este cambio, también en los teléfonos. La aprobación del cliente vuelve con él solo si el precio también vuelve a ser el de antes — FenceFlow lo comprueba por su cuenta y le pide aprobar de nuevo si algo más ha cambiado. Eso no se decide desde aquí, así que cuente con cualquiera de los dos resultados.',
+    reapprovalRestoreAskBtn:'Restaurarlo',
+    reapprovalRestoreWorking:'Restaurando el plano…',
+    reapprovalRestoreFailed:'El plano no se restauró: %s',
+    reapprovalRestoreDoneApproved:'El plano ha vuelto a como estaba y la aprobación del cliente sigue en pie: no hay que enviarle nada.',
+    reapprovalRestoreDoneWaiting:'El plano ha vuelto a como estaba, pero la aprobación no volvió: FenceFlow mantiene una aprobación solo cuando todo el trabajo coincide con lo que el cliente aceptó, incluido el precio, y algo en este sigue siendo distinto. Envíele el presupuesto de nuevo para que lo apruebe tal como está.',
+    reapprovalRestoreResolvedMeanwhile:'No se cambió nada: el cliente ya aprobó este presupuesto de nuevo desde que se cargó esta página.',
+    reapprovalRestoreNoSnapshot:'Este cambio es anterior a que FenceFlow guardara el plano en sí, así que no hay nada que restaurar.',
+    reapprovalRestoreRunGone:'La línea de valla de este cambio ya no está en el trabajo, así que no hay nada que restaurar.',
+    reapprovalRestoreUnreadable:'El plano guardado con este cambio no se puede leer, así que no se escribirá nada de él.',
+    reapprovalRestoreNotPending:'Este presupuesto no está esperando una nueva aprobación, así que no hay ninguna aprobación que recuperar. Restaurar un plano anterior en un trabajo ya aprobado retiraría esa aprobación.',
+    reapprovalRestoreNoEdit:'Solo un propietario o un gerente puede restaurar un plano desde aquí.',
+    reapprovalRestoreOldest:'Este es el que puede recuperar la aprobación: es el cambio más antiguo que sigue pendiente en esta línea de valla, así que lo que restaura es el plano que el cliente aprobó. El precio también tiene que volver a ser el de antes, y eso lo decide FenceFlow.',
+    reapprovalRestoreIntermediate:'Este restaura el plano tal como estaba a mitad de los cambios — algo que el cliente nunca aprobó, así que la aprobación no volverá. Aun así vale la pena si ese es el plano que quiere.',
+    reapprovalRestoreGeometryOnly:'Este cambio se registró antes de que FenceFlow guardara la medición escrita y la opción de demolición junto con el plano, así que solo vuelve la línea de valla. El plano quedará bien; la aprobación puede seguir sin volver.',
+    reapprovalRestoreNotLogged:'No se pudo añadir al historial de cambios del trabajo, así que avise al equipo usted mismo.',
+    reapprovalHistoryLoadFailed:'No se pudieron cargar las aprobaciones retiradas: %s',
     jobSecFirstContact:'Primer contacto',
     jobFirstContactBody:'La velocidad de respuesta es el número del que vive una operación de ventas de cercas. Una consulta respondida dentro de la primera hora convierte varias veces mejor que esa misma respondida mañana.',
     jobMarkContactedBtn:'Ya los contacté',
@@ -6450,6 +6515,26 @@ const TL = {
     reapprovalPriorResolved:'Approuvé par %s le %s, retiré le %s, approuvé de nouveau le %s',
     reapprovalPriorTotal:'Total du contrat à l\'époque : %s',
     reapprovalPriorChange:'%s : %s → %s',
+    reapprovalRestoreBtn:'Rétablir ce plan',
+    reapprovalRestoreRunUnnamed:'Cette ligne de clôture',
+    reapprovalRestoreAskTitle:'Rétablir le plan ?',
+    reapprovalRestoreAskBody:'%s revient au plan qui existait avant ce changement, sur les téléphones aussi. L’approbation du client revient avec lui seulement si le prix est lui aussi revenu à ce qu’il était — FenceFlow le vérifie de lui-même et redemande au client si autre chose a bougé. Cela ne se décide pas d’ici, alors attendez-vous à l’un ou l’autre résultat.',
+    reapprovalRestoreAskBtn:'Rétablir',
+    reapprovalRestoreWorking:'Rétablissement du plan…',
+    reapprovalRestoreFailed:'Le plan n’a pas été rétabli : %s',
+    reapprovalRestoreDoneApproved:'Le plan est revenu à ce qu’il était et l’approbation du client tient toujours — rien à lui envoyer.',
+    reapprovalRestoreDoneWaiting:'Le plan est revenu à ce qu’il était, mais l’approbation n’est pas revenue : FenceFlow ne conserve une approbation que lorsque tout le chantier correspond à ce que le client a accepté, prix compris, et quelque chose ici diffère encore. Renvoyez-lui le devis pour qu’il l’approuve tel quel.',
+    reapprovalRestoreResolvedMeanwhile:'Rien n’a été changé : le client a déjà approuvé ce devis à nouveau depuis le chargement de cette page.',
+    reapprovalRestoreNoSnapshot:'Ce changement est antérieur à l’enregistrement du plan lui-même par FenceFlow : il n’y a donc rien à rétablir.',
+    reapprovalRestoreRunGone:'La ligne de clôture concernée par ce changement n’est plus sur le chantier : il n’y a rien à rétablir.',
+    reapprovalRestoreUnreadable:'Le plan enregistré avec ce changement est illisible : rien n’en sera réécrit.',
+    reapprovalRestoreNotPending:'Ce devis n’attend pas une nouvelle approbation : il n’y a donc aucune approbation à faire revenir. Rétablir un plan plus ancien sur un chantier approuvé retirerait cette approbation.',
+    reapprovalRestoreNoEdit:'Seul un propriétaire ou un gestionnaire peut rétablir un plan d’ici.',
+    reapprovalRestoreOldest:'C’est celui qui peut faire revenir l’approbation : c’est le changement le plus ancien encore en attente sur cette ligne de clôture, donc ce qu’il rétablit est le plan que le client a approuvé. Le prix doit lui aussi être revenu à ce qu’il était, et c’est FenceFlow qui en décide.',
+    reapprovalRestoreIntermediate:'Celui-ci rétablit le plan tel qu’il était au milieu des changements — ce que le client n’a jamais approuvé, donc l’approbation ne reviendra pas. Cela reste utile si c’est ce plan que vous voulez.',
+    reapprovalRestoreGeometryOnly:'Ce changement a été enregistré avant que FenceFlow ne conserve le métrage saisi et l’option de démolition avec le plan : seule la ligne de clôture est rétablie. Le plan sera juste ; l’approbation peut malgré tout ne pas revenir.',
+    reapprovalRestoreNotLogged:'Impossible de l’ajouter à l’historique des changements du chantier : prévenez l’équipe vous-même.',
+    reapprovalHistoryLoadFailed:'Impossible de charger les approbations retirées : %s',
     jobSecFirstContact:'Premier contact',
     jobFirstContactBody:'La rapidité de réponse est le chiffre qui fait vivre une équipe de vente en clôture. Une demande traitée dans l’heure se convertit bien mieux que la même demande traitée le lendemain.',
     jobMarkContactedBtn:'Je les ai contactés',
@@ -18439,28 +18524,215 @@ function renderQuoteBlock(){
   }
 }
 
-// Withdrawn-approval history, read-only. Fetched on demand per job (like
-// loadJobPhotos) rather than loaded in bulk with everything else in
-// loadAll() -- most jobs never have a row here, so paying for a company-wide
-// fetch of a table that is almost always empty on every page load buys
-// nothing. company_id scoping is RLS (quote_reapprovals_read), same as
-// every other table on this page.
+// The rows last drawn for the open job, so the restore button can find its own
+// row without a second round trip. The snapshot columns never change after the
+// trigger writes them; resolved_at can, which is why the handler re-reads that
+// one field from the server before it writes anything.
+let reapprovalRows = [];
+
+// Why a withdrawal cannot be put back, in the words the office reads. Each of
+// these is a state that really happens, not a defensive branch: rows written
+// before the snapshot columns existed carry an empty snapshot, a run can leave
+// the job after the change that withdrew the approval, a snapshot that does not
+// parse must never be written back as a partial drawing, and the job itself or
+// the person signed in can rule the whole panel out.
+//
+// This is the map the CLICK handler answers from, so it has to name a sentence
+// for every state the reader below can return. While it covered only the three
+// snapshot reasons, a click refused because the customer had approved again,
+// because the job was not waiting on a re-approval, or because the person is not
+// an owner or manager, fell through to "the drawing cannot be read" -- a
+// sentence about the snapshot for three states that have nothing to do with it.
+const REAPPROVAL_RESTORE_WHY_NOT = {
+  nosnapshot: 'reapprovalRestoreNoSnapshot',
+  rungone:    'reapprovalRestoreRunGone',
+  unreadable: 'reapprovalRestoreUnreadable',
+  resolved:   'reapprovalRestoreResolvedMeanwhile',
+  notpending: 'reapprovalRestoreNotPending',
+  noedit:     'reapprovalRestoreNoEdit',
+};
+
+// The subset printed underneath an individual row. 'resolved' is deliberately
+// absent: that row's own first line already says the customer approved again,
+// and a second sentence repeating it reads as a fault. 'notpending' and 'noedit'
+// are properties of the job and of whoever is signed in -- identical on every
+// row -- so the panel states them once above the list instead.
+const REAPPROVAL_ROW_WHY_NOT = {
+  nosnapshot: 'reapprovalRestoreNoSnapshot',
+  rungone:    'reapprovalRestoreRunGone',
+  unreadable: 'reapprovalRestoreUnreadable',
+};
+
+/* Can this withdrawal be put back, and if not, why not.
+
+   A snapshot is '|'-separated and comes in two lengths. The widened one is
+   points|gates|closedLoop|manualFeet|manualCorners|isTeardown; rows written
+   before it was widened hold points|gates|closedLoop alone. Anything that is
+   neither length is not a drawing this page understands, and writing part of one
+   would leave the run half restored with nothing on screen saying so -- so it is
+   refused rather than guessed at.
+
+   manualFeet is EMPTY when nobody typed a footage, and it goes back as null
+   rather than 0.
+
+   NOT because the takeoff would differ: reapp_run_takeoff branches on
+   `manual_ft is not null and manual_ft > 0`, so null and 0 both fall to the
+   geometry side and the fingerprint it returns is identical. An earlier version
+   of this comment claimed otherwise and was wrong. The reasons that hold are
+   plainer ones: a 0 written where null stood is a change, so it provokes a
+   needless write that moves the run's clock and can beat an office edit still
+   on its way up; the change it records announces typed footage of 0 ft on a run
+   nobody typed into; and the estimate screen seeds its typed-footage box from
+   this column, so null shows an empty box and 0 shows a literal 0.
+
+   A widened snapshot whose numbers do not parse is refused outright rather than
+   written in part, for the reason above the split: half a drawing with nothing
+   on screen saying so.
+
+   manual_corner_count is a different column: NOT NULL with a default of 0, so
+   the snapshot can never carry an empty one and null is a value it cannot hold.
+   An empty field is read as 0 -- the only thing it could have meant -- and a
+   fractional one is refused, both exactly as the phone's own reader does it, so
+   the same snapshot is restorable in the office and on the phone or in neither.
+   */
+function reapprovalRestoreState(row, job){
+  if (row.resolved_at) return { kind: 'resolved' };
+  if (!job || !job.reapproval_required_at) return { kind: 'notpending' };
+  if (!canEdit()) return { kind: 'noedit' };
+  const snap = String(row.run_snapshot_before || '');
+  if (!snap) return { kind: 'nosnapshot' };
+  const parts = snap.split('|');
+  if (parts.length !== 3 && parts.length !== 6) return { kind: 'unreadable' };
+  // Both flags are written as '1' or '0' by the snapshot, in both lengths, so
+  // anything else means this string did not come from there and must not be
+  // written back as though it had.
+  if (parts[2] !== '1' && parts[2] !== '0') return { kind: 'unreadable' };
+  const full = parts.length === 6;
+  let feet = null, corners = null, teardown = false;
+  if (full) {
+    // Read exactly as the phone reads it, field for field. The two halves parse
+    // the same string, and where they disagreed -- this one refused an empty
+    // corner count while the phone read it as 0, and this one rounded 4.5 while
+    // the phone refused it -- the same snapshot was restorable on one and not on
+    // the other. Neither case can arise from a snapshot the database wrote, but
+    // a contract two readers hold differently is a bug waiting for the day it
+    // can.
+    if (parts[3] !== '' && !Number.isFinite(Number(parts[3]))) return { kind: 'unreadable' };
+    // Integers only, and empty reads as 0: manual_corner_count is NOT NULL with
+    // a default of 0, so the snapshot cannot carry an empty or fractional one,
+    // and 0 is what an empty field could only have meant.
+    if (parts[4] !== '' && !/^-?[0-9]+$/.test(parts[4])) return { kind: 'unreadable' };
+    if (parts[5] !== '1' && parts[5] !== '0') return { kind: 'unreadable' };
+    feet = parts[3] === '' ? null : Number(parts[3]);
+    corners = parts[4] === '' ? 0 : Number(parts[4]);
+    teardown = parts[5] === '1';
+  }
+  const run = row.run_sync_id ? runs.find(r =>
+    String(r.sync_id) === String(row.run_sync_id)
+    && String(r.job_sync_id) === String(job.sync_id)) : null;
+  if (!run) return { kind: 'rungone' };
+  return { kind: 'ok', run, full,
+    points: parts[0], gates: parts[1], closed: parts[2] === '1',
+    feet, corners, teardown };
+}
+
+/* Which withdrawal on each fence line is the one that can bring the approval
+   back: the OLDEST unresolved row for that run. The database looks for the
+   earliest unresolved withdrawal whose recorded takeoff matches what is on the
+   run after the write, and the earliest one is the only row holding the takeoff
+   the customer actually approved -- every later row started from a drawing they
+   had never seen. Put a newer one back and the drawing is an in-between state
+   nobody approved, so the approval stays withdrawn.
+
+   Grouped by run_sync_id with null as a group of its own, matching the
+   database's own "is not distinct from" on that column.
+
+   A row with no recorded prior approval, or no recorded takeoff, is left out
+   even when it is the oldest: the database accepts neither, so marking it as the
+   one that works would be a promise nothing keeps. */
+function reapprovalOldestUnresolvedIds(rows){
+  const oldest = new Map();
+  (rows || []).forEach(r => {
+    if (r.resolved_at || !r.prior_approved_at) return;
+    if (!String(r.takeoff_before || '')) return;
+    const key = r.run_sync_id == null ? '' : String(r.run_sync_id);
+    const held = oldest.get(key);
+    if (!held || d(r.at) < d(held.at)) oldest.set(key, r);
+  });
+  const ids = new Set();
+  oldest.forEach(r => ids.add(String(r.id)));
+  return ids;
+}
+
+// Withdrawn-approval history. Fetched on demand per job (like loadJobPhotos)
+// rather than loaded in bulk with everything else in loadAll() -- most jobs
+// never have a row here, so paying for a company-wide fetch of a table that is
+// almost always empty on every page load buys nothing. company_id scoping is
+// RLS (quote_reapprovals_read), same as every other table on this page.
+//
+// The one thing a row can do is put its drawing back, through the ordinary
+// fence_runs write -- see the panel's own markup for why that is not an
+// approve-anyway button.
 async function loadReapprovalHistory(job){
   const panel = $('reapprovalHistoryPanel');
   const box = $('reapprovalHistoryRows');
   if (!panel || !box || !job) return;
+  // Whatever the last restore reported belongs to the job it was reported for.
+  // Cleared here, before the first await, so a caller that says how a write
+  // turned out straight after showJob() still has its message on screen.
+  const note = $('reapprovalHistoryMsg');
+  if (note) { note.textContent = ''; note.className = 'msg'; }
   const { data, error } = await db.from('quote_reapprovals')
-    .select('id,at,run_label,takeoff_before,takeoff_after,reason,'
+    .select('id,at,run_label,run_sync_id,takeoff_before,takeoff_after,reason,'
       + 'prior_approved_at,prior_approved_name,prior_contract_total,'
-      + 'resolved_at,resolved_name')
+      + 'run_snapshot_before,resolved_at,resolved_name')
     .eq('job_id', job.id).order('at', { ascending: false });
-  if (error || !data || !data.length) {
+  // THE QUERY FAILED. This used to leave through the same door as "this job has
+  // no withdrawn approvals", and the panel went away either way -- so a failure
+  // was shown as the good news that there is nothing here. Worse: the line that
+  // reports how a restore turned out lives inside this panel, so a restore that
+  // really landed could report nothing at all and the office pressed again. The
+  // panel stays up and says what happened.
+  if (error) {
+    reapprovalRows = [];
+    panel.style.display = 'block';
+    box.innerHTML = '';
+    // Never over the top of an outcome. A caller that has just said how a
+    // restore turned out writes to this line after the clear at the top of this
+    // function, and that sentence is the one nobody can afford to lose, so when
+    // the line is taken the failure goes underneath it instead.
+    if (note && !note.textContent)
+      msg('reapprovalHistoryMsg', tr('reapprovalHistoryLoadFailed', error.message), 'err');
+    else
+      box.innerHTML = '<div class="no-data">'
+        + esc(tr('reapprovalHistoryLoadFailed', error.message)) + '</div>';
+    return;
+  }
+  // GENUINELY NO ROWS. This job has never had an approval withdrawn, which is
+  // most jobs, so the panel goes away exactly as it always did. A null data with
+  // no error belongs here too: it is an answer of nothing, not a failure.
+  if (!data || !data.length) {
+    reapprovalRows = [];
     panel.style.display = 'none';
     box.innerHTML = '';
     return;
   }
+  reapprovalRows = data;
   panel.style.display = 'block';
-  box.innerHTML = data.map(row => {
+  // Two of the reasons a row cannot be put back belong to the job or to whoever
+  // is signed in rather than to any one row, so they are stated once here rather
+  // than repeated under every line.
+  // Only while something is actually outstanding: on a history whose rows are
+  // all settled, the reason each row has no button is that the customer approved
+  // again, and that is already the first line of every one of those rows.
+  const jobWide = !data.some(r => !r.resolved_at) ? ''
+    : !job.reapproval_required_at ? 'notpending' : !canEdit() ? 'noedit' : '';
+  const canReturn = reapprovalOldestUnresolvedIds(data);
+  box.innerHTML = (jobWide
+      ? '<p class="sub" style="margin-top:0">'
+        + esc(tr(REAPPROVAL_RESTORE_WHY_NOT[jobWide])) + '</p>'
+      : '')
+    + data.map(row => {
     const line = row.resolved_at
       ? tr('reapprovalPriorResolved', row.prior_approved_name || 'the customer',
           row.prior_approved_at ? d(row.prior_approved_at).toLocaleDateString() : '—',
@@ -18473,8 +18745,37 @@ async function loadReapprovalHistory(job){
       ? '<div class="sub">' + esc(tr('reapprovalPriorTotal', money(row.prior_contract_total))) + '</div>' : '';
     const change = (row.takeoff_before || row.takeoff_after)
       ? '<div class="sub">' + esc(tr('reapprovalPriorChange', row.run_label || '', row.takeoff_before || '—', row.takeoff_after || '—')) + '</div>' : '';
+    // A button only on a row where pressing it would really put the drawing
+    // back; the reasons it would not are printed as a sentence instead. A row
+    // from before the snapshot columns existed looks identical to one that can
+    // be restored, and a button that quietly does nothing on some of them is
+    // worse than no button at all.
+    const st = reapprovalRestoreState(row, job);
+    // Which row would actually bring the approval back, said on the row instead
+    // of left for the office to find out by pressing. Every restorable row keeps
+    // its button -- going back to an in-between drawing is a legitimate thing to
+    // want -- but only the earliest outstanding change on a fence line puts back
+    // the drawing the customer approved, so the rest say plainly that the
+    // approval will not follow them.
+    const ordering = st.kind !== 'ok' ? ''
+      : '<div class="sub">' + esc(tr(canReturn.has(String(row.id))
+          ? 'reapprovalRestoreOldest' : 'reapprovalRestoreIntermediate')) + '</div>';
+    // A row recorded before the snapshot was widened holds the geometry and
+    // nothing else, so the typed footage and the teardown setting stay as they
+    // are now. The drawing comes back right and the takeoff can still miss;
+    // being told that beforehand is the difference between an explained outcome
+    // and a page that appears to blame the price.
+    const partial = st.kind === 'ok' && !st.full
+      ? '<div class="sub">' + esc(tr('reapprovalRestoreGeometryOnly')) + '</div>' : '';
+    const action = st.kind === 'ok'
+      ? '<div style="margin-top:6px"><button type="button" class="btn btn-sm btn-grey" '
+        + 'data-reapprestore="' + esc(row.id) + '">' + esc(tr('reapprovalRestoreBtn'))
+        + '</button></div>'
+      : REAPPROVAL_ROW_WHY_NOT[st.kind]
+        ? '<div class="sub">' + esc(tr(REAPPROVAL_ROW_WHY_NOT[st.kind])) + '</div>'
+        : '';
     return '<div style="padding:7px 0;border-bottom:1px solid var(--line-soft,transparent)">'
-      + '<div>' + esc(line) + '</div>' + total + change + '</div>';
+      + '<div>' + esc(line) + '</div>' + total + change + ordering + partial + action + '</div>';
   }).join('');
 }
 
@@ -24044,6 +24345,166 @@ $('q_copy').addEventListener('click', async ()=>{
   }
 });
 $('q_open').addEventListener('click',()=>{ if(openJob) window.open(quoteLinkFor(openJob),'_blank'); });
+/* "Put this drawing back". There is no restore route and there must not be one:
+   this is an ordinary fence_runs UPDATE of the drawing columns, the same write a
+   phone makes when somebody moves a corner. Nothing here clears a re-approval,
+   stamps an approval or settles a withdrawal -- the drawing trigger on
+   fence_runs decides all of that, and only on its own proof.
+
+   That proof, stated no wider than it is: the takeoff of THIS run after the
+   write matches the takeoff recorded against the oldest unresolved withdrawal
+   for it, the job's contract total is back within a cent of the total that row
+   recorded, and no other run on the job has a withdrawal still unresolved.
+
+   What the proof does NOT cover -- so this button must never be described as
+   unable to put an approval back on a job that has moved on:
+
+     - contract_total is only as current as whatever wrote it last. The office's
+       own "Keep this price" has price-job write it, and the phone writes it on
+       sync, so the figure can be back at the recorded number while other things
+       about the job have changed.
+
+     - the "no other run unresolved" test reads withdrawal rows, and a run added
+       or soft-deleted while the job was ALREADY unapproved never produced one:
+       there is nothing to withdraw on an unapproved job, so the trigger returns
+       early and that run is invisible to the test. Withdraw on one fence line,
+       delete another from the office, sync nothing from a phone, put the first
+       one back: the approval returns with its original timestamp on a job that
+       has since lost a line the customer never saw.
+
+     - calibration_pixels_per_foot is on the JOB, not the run. A re-calibrated
+       grid moves every run's takeoff, and no run-level restore can bring the
+       approval back.
+
+   None of that is a reason to withhold the button. It is the reason every
+   sentence this page prints about the outcome says the database decides it, and
+   never that this page guarantees it.
+
+   updated_at is deliberately absent from the write: fence_runs_touch sets it on
+   any real change, and a value sent from here would only fight it. (There is no
+   edit_version column on this table; an earlier version of this comment said
+   there was, which would have sent the next reader looking for a trigger that
+   does not exist.) */
+$('reapprovalHistoryRows').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-reapprestore]');
+  if (!btn || !openJob) return;
+  const row = reapprovalRows.find(x => String(x.id) === String(btn.dataset.reapprestore));
+  if (!row) return;
+  const st = reapprovalRestoreState(row, openJob);
+  if (st.kind !== 'ok') {
+    // A state with no sentence of its own is named rather than dressed in
+    // somebody else's: the previous fallback explained every unnamed state as an
+    // unreadable drawing, which is how three states that have nothing to do with
+    // the snapshot came to be reported as one.
+    const why = REAPPROVAL_RESTORE_WHY_NOT[st.kind];
+    msg('reapprovalHistoryMsg',
+      why ? tr(why) : tr('reapprovalRestoreFailed', st.kind), 'err');
+    return;
+  }
+  const ok = await ask({
+    title: tr('reapprovalRestoreAskTitle'),
+    body: tr('reapprovalRestoreAskBody', st.run.label || tr('reapprovalRestoreRunUnnamed')),
+    confirmLabel: tr('reapprovalRestoreAskBtn'),
+  });
+  if (!ok) return;
+  btn.disabled = true;
+  msg('reapprovalHistoryMsg', tr('reapprovalRestoreWorking'), 'working');
+
+  // Fresh from the server, not this page's copy, for the same reason
+  // onCrewAccessAdd re-reads the crew list before it writes: if the customer
+  // approved again while this sheet sat open the withdrawal is settled, and
+  // writing the old drawing back would take that new approval away instead of
+  // putting the old one back.
+  const check = await db.from('quote_reapprovals')
+    .select('id,resolved_at').eq('id', row.id).maybeSingle();
+  if (check.error) {
+    btn.disabled = false;
+    msg('reapprovalHistoryMsg', tr('reapprovalRestoreFailed', check.error.message), 'err');
+    return;
+  }
+  if (!check.data || check.data.resolved_at) {
+    const stale = openJob.id;
+    await loadAll();
+    if ($('jobOverlay').classList.contains('on')) showJob(stale);
+    msg('reapprovalHistoryMsg', tr('reapprovalRestoreResolvedMeanwhile'), 'info');
+    return;
+  }
+
+  // Six columns from a widened snapshot, three from an older one. The typed
+  // footage goes back as null when nobody had typed one -- not because the
+  // takeoff would differ (it would not: null and 0 both fail its
+  // `manual_ft > 0` test and give the same fingerprint) but because writing a 0
+  // where null stood is a change this restore did not mean to make, and it
+  // shows up as one. See the reader's own comment. The typed corner count is
+  // never null -- its column does not allow one.
+  const patch = { points_encoded: st.points, gates_encoded: st.gates, closed_loop: st.closed };
+  if (st.full) {
+    patch.manual_linear_feet  = st.feet;
+    patch.manual_corner_count = st.corners;
+    patch.is_teardown         = st.teardown;
+  }
+  const wr = await db.from('fence_runs').update(patch).eq('id', st.run.id);
+  if (wr.error) {
+    btn.disabled = false;
+    msg('reapprovalHistoryMsg', tr('reapprovalRestoreFailed', wr.error.message), 'err');
+    return;
+  }
+
+  // Put the restore on the record. Every ordinary drawing edit leaves a
+  // field_changes row; a restore left one only when the approval came back,
+  // because the only writer is the database function that restores the approval.
+  // So a restore that failed the price proof moved the footage under the crew
+  // with nobody's name against it, and the crew read a job that had silently
+  // changed. Written here, straight after the write landed and before the
+  // outcome is known, so the record exists whichever way the database decides.
+  //
+  // Not a request: is_request rows are the crew asking the office for a decision
+  // and they sit in the attention list until they get one, and this is the
+  // office reporting something it has already done. The wording is English on
+  // purpose -- the database writes its own rows in this table in English, and a
+  // history whose language depends on which chair typed it reads as two systems
+  // rather than one.
+  const logged = await db.from('field_changes').insert({
+    company_id: profile.company_id,
+    sync_id: crypto.randomUUID(),
+    job_sync_id: openJob.sync_id,
+    is_request: false,
+    summary: 'Drawing put back from the office',
+    detail: 'The office put ' + (st.run.label || 'a fence line')
+      + ' back to the drawing that was there before the change of '
+      + String(row.at).slice(0, 10) + '.'
+      + (st.full ? ''
+        : ' That change was recorded before the drawing history kept the typed'
+          + ' footage and the teardown setting, so only the fence line itself'
+          + ' was put back.'),
+    changed_by: profile.full_name || 'The office',
+    changed_by_role: profile.role || '',
+  });
+  if (logged.error)
+    console.warn('restore: field_changes row not written', logged.error.message);
+
+  // Read the job and the history back rather than reporting what was hoped for.
+  // Whether the approval returned is the database's answer and nobody else's,
+  // and reapproval_required_at going null is where it says so. For a job that
+  // was re-priced since, the ordinary outcome is that the drawing goes back and
+  // the approval does not -- a success with a second half to explain, not a
+  // failure, so it must not be shown as one.
+  const reopen = openJob.id;
+  await loadAll();
+  if ($('jobOverlay').classList.contains('on')) showJob(reopen);
+  const after = jobs.find(x => String(x.id) === String(reopen));
+  const approvalBack = !!after && !after.reapproval_required_at;
+  const outcome = approvalBack
+    ? tr('reapprovalRestoreDoneApproved') : tr('reapprovalRestoreDoneWaiting');
+  // A record that was not written is the crew not being told, so it is said out
+  // loud rather than left in the console. It also drops the message out of 'ok':
+  // msg() strips an 'ok' message's styling after a couple of seconds -- it
+  // leaves the words, unstyled, so a warning that matters ends up reading as
+  // leftover text from the last thing that happened.
+  msg('reapprovalHistoryMsg',
+    logged.error ? outcome + ' ' + tr('reapprovalRestoreNotLogged') : outcome,
+    approvalBack && !logged.error ? 'ok' : 'info');
+});
 $('q_reapproval_resend').addEventListener('click', async ()=>{
   if(!openJob) return;
   try{ await navigator.clipboard.writeText(quoteLinkFor(openJob)); }

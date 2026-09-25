@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
@@ -194,6 +195,15 @@ fun JobDetailScreen(
     androidx.compose.runtime.LaunchedEffect(profile.ownerName, session.email) {
         viewModel.decidedByName = profile.ownerName.ifBlank { session.email.orEmpty() }
     }
+    // Who to name if a drawing gets put back. Set separately from
+    // decidedByName because it answers a different question -- who MADE the
+    // change, not who approved somebody else's -- and a restore moves footage
+    // the crew are working to, so the entry it writes in their feed has to say
+    // whose change it was.
+    androidx.compose.runtime.LaunchedEffect(profile.ownerName, session.email, session.role) {
+        viewModel.restoredByName = profile.ownerName.ifBlank { session.email.orEmpty() }
+        viewModel.restoredByRole = session.role.label
+    }
     // `job ?: return` used to render a bare back arrow whether this job was
     // still loading from the local database or had genuinely never made it
     // to this phone -- indistinguishable to whoever is looking at it. This
@@ -252,6 +262,26 @@ fun JobDetailScreen(
     fun scrollTo(key: String) {
         val index = sectionOrder.indexOf(key)
         if (index >= 0) scope.launch { listState.animateScrollToItem(index) }
+    }
+
+    // The withdrawal history behind the drawing-changes section further down.
+    // Read here rather than inside that section so the section can be left out
+    // of the list entirely when there is nothing in it: a LazyColumn item that
+    // renders nothing still takes the column's spacing, and most jobs never
+    // have an approval withdrawn at all.
+    var drawingHistory by remember(currentJob.syncId) {
+        mutableStateOf<DrawingHistory>(DrawingHistory.Loading)
+    }
+    // Read again when the job's own approval state moves. A withdrawal landing,
+    // or one the customer has since settled, moves exactly these two columns on
+    // the job row, and they arrive by ordinary sync -- so this is how the list
+    // catches up after a restore has reached the server, with nothing polling
+    // for it.
+    LaunchedEffect(
+        currentJob.syncId, session.signedIn,
+        currentJob.reapprovalRequiredAt, currentJob.reapprovalCount
+    ) {
+        drawingHistory = fetchDrawingHistory(context, session.signedIn, currentJob.syncId)
     }
 
     Scaffold(
@@ -609,6 +639,38 @@ fun JobDetailScreen(
                     }
                 }
                 item { SectionCard(title = stringResource(R.string.section_expenses), icon = Icons.Filled.ReceiptLong) { ExpensesSection(expenses, session.canDelete, viewModel) } }
+            }
+            // What an approved drawing cost this job, and the way back to the
+            // drawing the customer actually approved. Next to the field changes
+            // because it is the same kind of thing -- what moved on this job and
+            // who is waiting on it -- and past the last section anything scrolls
+            // to, so it needs no entry in sectionOrder above.
+            //
+            // Absent unless there is something to say. The one case it appears
+            // with nothing in it is the case where silence would be a lie: the
+            // job row on this phone says the approval HAS been withdrawn, and
+            // the history that says what changed could not be read.
+            val drawingRows = (drawingHistory as? DrawingHistory.Ready)?.rows.orEmpty()
+            // Whether this job is actually waiting on a re-approval. Hoisted
+            // because the card needs the same answer the banner above uses: a
+            // restore is only offered while the approval is already withdrawn.
+            // Written back onto a job whose approval is intact, an older
+            // drawing WITHDRAWS that approval instead of reinstating anything.
+            val jobNeedsReapproval =
+                com.fenceestimator.app.reapproval.needsReapproval(currentJob.reapprovalRequiredAt)
+            if (drawingRows.isNotEmpty() ||
+                (drawingHistory !is DrawingHistory.Ready && jobNeedsReapproval)
+            ) {
+                item {
+                    DrawingChangesSection(
+                        history = drawingHistory,
+                        rows = drawingRows,
+                        runs = runs,
+                        canEdit = session.canEditJobs,
+                        jobNeedsReapproval = jobNeedsReapproval,
+                        viewModel = viewModel
+                    )
+                }
             }
             item {
                 val changes by viewModel.fieldChanges.collectAsState()
@@ -3402,3 +3464,474 @@ private data class QuoteSentPatch(
     @kotlinx.serialization.SerialName("quote_sent_at") val quoteSentAt: String,
     @kotlinx.serialization.SerialName("status") val status: String = "SENT",
 )
+
+/**
+ * One withdrawal of a customer's approval, as the job screen needs to read it.
+ *
+ * NO MONEY IS ASKED FOR. Every row in this table also carries
+ * prior_contract_total -- the price the customer had agreed to -- and it is
+ * absent from the column list in [fetchDrawingHistory] on purpose, so it never
+ * reaches this phone and there is nothing on this card for a crew account to
+ * see. Nothing on the server helps with that: the table's one policy lets
+ * every member of the company read every column of every row, so leaving the
+ * money out of the request is the whole of the protection. Adding it back here
+ * would put a price in front of crew, whatever the screen then did with it.
+ *
+ * takeoff_before is a fingerprint of the fence -- lengths, counts, gate widths
+ * and mountings -- and carries no price, which is why it can be read while the
+ * contract total cannot.
+ */
+@kotlinx.serialization.Serializable
+private data class ReapprovalRow(
+    /**
+     * The row's own id, so a restore can re-read THIS withdrawal's resolved_at
+     * from the server at the moment it writes instead of trusting the copy this
+     * read took, and so the cards can name which row the server would act on.
+     */
+    val id: String = "",
+    val at: String? = null,
+    @kotlinx.serialization.SerialName("run_sync_id") val runSyncId: String? = null,
+    @kotlinx.serialization.SerialName("run_label") val runLabel: String = "",
+    @kotlinx.serialization.SerialName("prior_approved_at") val priorApprovedAt: String? = null,
+    @kotlinx.serialization.SerialName("prior_approved_name") val priorApprovedName: String = "",
+    @kotlinx.serialization.SerialName("resolved_at") val resolvedAt: String? = null,
+    @kotlinx.serialization.SerialName("run_snapshot_before") val runSnapshotBefore: String = "",
+    /**
+     * The takeoff the run had before this change. Read because the server will
+     * only bring an approval back from a withdrawal that recorded one, so
+     * without it this screen cannot tell which row would actually work -- a run
+     * added or undeleted after the approval has no before-takeoff and is
+     * skipped there.
+     */
+    @kotlinx.serialization.SerialName("takeoff_before") val takeoffBefore: String = "",
+)
+
+/**
+ * Four answers, because a section showing nothing can mean four different
+ * things, and only one of them is good news.
+ *
+ * The same distinction the quote link on this screen had to learn: a phone with
+ * no live token sends the publishable key instead, every row is filtered out by
+ * RLS, and the empty answer that comes back is indistinguishable from a job
+ * whose approval has never been withdrawn. Reporting "nothing has changed" for
+ * a question that could not be asked is the one failure this section cannot
+ * afford, because the row it would be hiding is the one that says the crew must
+ * not build yet.
+ */
+private sealed interface DrawingHistory {
+    /** The server answered. [rows] may legitimately be empty. */
+    data class Ready(val rows: List<ReapprovalRow>) : DrawingHistory
+    /** Still asking. */
+    object Loading : DrawingHistory
+    /** No token to ask with -- signed out, or mid token refresh. */
+    object NoSession : DrawingHistory
+    /** Asked and failed. Reported to the error log, not swallowed. */
+    object Failed : DrawingHistory
+}
+
+/**
+ * At most this many withdrawals, newest first.
+ *
+ * PostgREST answers at most a thousand rows and does not say that it stopped,
+ * so an unbounded read is a lie waiting to happen. A bound here is honest
+ * instead: a job with more than two dozen withdrawn approvals has a problem no
+ * list on a phone is going to solve, and the recent ones are the only ones
+ * anybody can still put back.
+ */
+private const val MAX_DRAWING_CHANGES = 25L
+
+/**
+ * Reads this job's withdrawal history straight from the cloud.
+ *
+ * Not synced, and deliberately so: quote_reapprovals is history this phone
+ * never writes -- the trigger writes it as the table owner, and insert, update
+ * and delete are revoked from every API role -- and one job collects a handful
+ * of rows. So this follows the same shape the quote link already uses on this
+ * screen: one ad-hoc authenticated read, off the main thread, with the failure
+ * reported rather than turned into an empty list.
+ */
+private suspend fun fetchDrawingHistory(
+    context: android.content.Context,
+    signedIn: Boolean,
+    jobSyncId: String
+): DrawingHistory {
+    // Asked before the request, not after it. supabase-kt sends the anon key
+    // when it holds no token, which is a request that succeeds and returns
+    // nothing -- see SupabaseModule.hasLiveSession for the window where the app
+    // still knows whose phone this is but cannot prove it.
+    if (!signedIn || !SupabaseModule.hasLiveSession()) return DrawingHistory.NoSession
+    // job_sync_id is a uuid column, so an empty filter value is a 400 rather
+    // than an empty result -- and a job with no sync id of its own has never
+    // been up there to have an approval withdrawn on it.
+    if (jobSyncId.isBlank()) return DrawingHistory.Ready(emptyList())
+    return runCatching {
+        SupabaseModule.client.postgrest.from("quote_reapprovals")
+            .select(
+                io.github.jan.supabase.postgrest.query.Columns.list(
+                    "id", "at", "run_sync_id", "run_label", "prior_approved_at",
+                    "prior_approved_name", "resolved_at", "run_snapshot_before",
+                    "takeoff_before"
+                )
+            ) {
+                filter { eq("job_sync_id", jobSyncId) }
+                order("at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                range(0L, MAX_DRAWING_CHANGES - 1L)
+            }
+            .decodeList<ReapprovalRow>()
+    }.fold(
+        onSuccess = { DrawingHistory.Ready(it) },
+        onFailure = { e ->
+            // Leaving the job screen mid-read cancels this, which is not a
+            // failure and must stay a cancellation -- runCatching has already
+            // caught it, so it is rethrown for the caller to stop on.
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            CrashReporter.report(context, "drawing-history", e)
+            DrawingHistory.Failed
+        }
+    )
+}
+
+/**
+ * Which withdrawals could actually bring the approval back. See
+ * [restoreThatWouldWork].
+ */
+private data class ApprovalRestorePoints(
+    /** The ids the server would take as a run's oldest unsettled withdrawal. */
+    val ids: Set<String>,
+    /**
+     * False when that cannot be known from the rows in hand: the read is
+     * capped, so an older withdrawal may sit off the end of the list and any
+     * claim about which row is the oldest would be a guess.
+     */
+    val known: Boolean
+)
+
+/**
+ * The one withdrawal per run that a restore could actually settle.
+ *
+ * The server takes the OLDEST unsettled withdrawal for the run and compares the
+ * drawing written back against the takeoff that row recorded. That takeoff is
+ * the one the customer approved, because every later withdrawal started from a
+ * drawing they had never seen. So restoring a newer row puts back an in-between
+ * drawing and cannot bring the approval back, however much it looks like it
+ * should.
+ *
+ * Matched to the server's own conditions -- unsettled, an approval recorded,
+ * and a before-takeoff recorded to compare against. A row with no
+ * before-takeoff is skipped there and has to be skipped here too, or this marks
+ * a row the server will never act on.
+ *
+ * Rows arrive newest first, so a run's oldest is the last of its rows. When the
+ * read hit its cap the oldest may not be in the list at all, and then nothing
+ * is marked: saying nothing is honest, while telling somebody that the row that
+ * WOULD have worked goes back to an in-between drawing is not.
+ */
+private fun restoreThatWouldWork(rows: List<ReapprovalRow>): ApprovalRestorePoints {
+    if (rows.size.toLong() >= MAX_DRAWING_CHANGES) {
+        return ApprovalRestorePoints(ids = emptySet(), known = false)
+    }
+    val ids = rows
+        .filter {
+            it.resolvedAt == null && it.priorApprovedAt != null &&
+                it.takeoffBefore.isNotEmpty() &&
+                !it.runSyncId.isNullOrBlank() && it.id.isNotBlank()
+        }
+        .groupBy { it.runSyncId }
+        .values
+        .mapNotNull { perRun -> perRun.lastOrNull()?.id }
+        .toSet()
+    return ApprovalRestorePoints(ids = ids, known = true)
+}
+
+/**
+ * The times this job's drawing changed after the customer had approved it, and
+ * the way back to the drawing they approved.
+ *
+ * [rows] are the withdrawals newest first; [history] is here as well as [rows]
+ * because an empty list is not one thing. A read that could not be made says so
+ * instead of reading as "nothing has ever changed on this job" -- which is the
+ * one wrong answer this section cannot give, because the row it would be hiding
+ * is the row that says the crew must not build yet.
+ *
+ * [canEdit] and [jobNeedsReapproval] come down from the screen rather than
+ * being worked out here, so the button on a card is gated on the same two
+ * answers the rest of the screen uses.
+ */
+@Composable
+private fun DrawingChangesSection(
+    history: DrawingHistory,
+    rows: List<ReapprovalRow>,
+    runs: List<FenceRun>,
+    canEdit: Boolean,
+    jobNeedsReapproval: Boolean,
+    viewModel: JobDetailViewModel
+) {
+    SectionCard(title = stringResource(R.string.jd_drawhist_title), icon = Icons.Filled.Undo) {
+        if (history !is DrawingHistory.Ready) {
+            Text(
+                when (history) {
+                    is DrawingHistory.NoSession -> stringResource(R.string.jd_drawhist_no_session)
+                    is DrawingHistory.Failed -> stringResource(R.string.jd_drawhist_failed)
+                    else -> stringResource(R.string.jd_drawhist_loading)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        val restorePoints = remember(rows) { restoreThatWouldWork(rows) }
+        rows.forEach { row ->
+            DrawingChangeCard(
+                row = row,
+                runs = runs,
+                canEdit = canEdit,
+                jobNeedsReapproval = jobNeedsReapproval,
+                returnsApproval =
+                    if (restorePoints.known) row.id in restorePoints.ids else null,
+                viewModel = viewModel
+            )
+        }
+    }
+}
+
+/**
+ * One withdrawal, and a way back when there provably is one.
+ *
+ * Restorable means all six of: the withdrawal is still unsettled, what the run
+ * looked like before the change was actually kept, the run is still on this
+ * job, the run does not already carry it, this account may edit the job, and
+ * the job is genuinely waiting on a re-approval. A row failing any of them is
+ * shown with the reason instead of a button that would do nothing or the wrong
+ * thing -- and because the run list comes from the database, the button
+ * disappears by itself the moment the restore is written, rather than sitting
+ * there inviting a second press.
+ *
+ * [canEdit] is a DISPLAY gate and nothing more. The fence_runs policy lets any
+ * member of the company update any run on it, so nothing on the server refuses
+ * this write; hiding the button is the whole of it. It is still worth hiding:
+ * reinstating a customer's approval, under its original approval timestamp, is
+ * not something to offer from a handset that may not edit the job, change its
+ * status or see its price.
+ *
+ * [jobNeedsReapproval] is the other half, and it is not politeness. The
+ * server's restore branch is only reached while the job's approval is already
+ * gone. On a job whose approval is intact, writing an older drawing back
+ * WITHDRAWS that approval instead -- so offering it there would destroy the
+ * thing the button appears to restore.
+ *
+ * What none of it says is that the approval WILL come back. Nothing on this
+ * phone decides that: the server compares the takeoff and the price against
+ * what the customer agreed to and answers on its own, and the app has no route
+ * that skips the comparison. The job's calibration is not in any run's snapshot
+ * either, so a job re-measured since approval cannot have its approval brought
+ * back by any restore here. Promising the approval would be promising something
+ * this code cannot deliver.
+ */
+@Composable
+private fun DrawingChangeCard(
+    row: ReapprovalRow,
+    runs: List<FenceRun>,
+    canEdit: Boolean,
+    jobNeedsReapproval: Boolean,
+    /**
+     * True on the one row the server would accept for this run, false on a row
+     * that only goes back to an in-between drawing, null when the history read
+     * was capped and which is which cannot be told from here.
+     */
+    returnsApproval: Boolean?,
+    viewModel: JobDetailViewModel
+) {
+    val context = LocalContext.current
+    val dateFmt = remember { SimpleDateFormat("MMM d, yyyy", Locale.US) }
+    var confirming by remember { mutableStateOf(false) }
+
+    val unknownDate = stringResource(R.string.jd_drawhist_unknown_date)
+    fun day(millis: Long?): String = millis?.let { dateFmt.format(Date(it)) } ?: unknownDate
+
+    val changedAt = CloudTime.parseMillis(row.at)
+    val approvedAt = CloudTime.parseMillis(row.priorApprovedAt)
+    val resolvedAt = CloudTime.parseMillis(row.resolvedAt)
+    val snapshot = remember(row.runSnapshotBefore) { parseRunSnapshot(row.runSnapshotBefore) }
+    val run = row.runSyncId?.let { id -> runs.firstOrNull { it.syncId == id } }
+
+    val unnamedRun = stringResource(R.string.jd_drawhist_unnamed_run)
+    val label = row.runLabel.ifBlank { run?.label.orEmpty() }.ifBlank { unnamedRun }
+
+    // Asked of the whole snapshot, not of the outline alone. A six-part record
+    // whose outline already matches but whose typed footage or teardown flag
+    // does not is NOT already back, and treating it as though it were is how
+    // the typed footage silently stays wrong.
+    val alreadyBack = snapshot != null && run != null && snapshot.appliedTo(run) == run
+    val restorable = resolvedAt == null && snapshot != null && run != null &&
+        !alreadyBack && canEdit && jobNeedsReapproval
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (resolvedAt == null) MaterialTheme.colorScheme.secondaryContainer
+            else MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, fontWeight = FontWeight.Medium)
+            Text(
+                stringResource(R.string.jd_drawhist_changed_at, day(changedAt)),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                if (row.priorApprovedName.isBlank())
+                    stringResource(R.string.jd_drawhist_had_approved_unnamed, day(approvedAt))
+                else
+                    stringResource(
+                        R.string.jd_drawhist_had_approved, row.priorApprovedName, day(approvedAt)
+                    ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                if (resolvedAt == null) stringResource(R.string.jd_drawhist_waiting)
+                else stringResource(R.string.jd_drawhist_resolved, day(resolvedAt)),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium
+            )
+            // Said on the row itself, whether or not there is a button, because
+            // it describes what was kept rather than what pressing would do. A
+            // record from before the snapshot was widened holds the outline
+            // only, and a restore from it leaves typed footage and the teardown
+            // flag alone -- so the approval can stay away for a reason that has
+            // nothing to do with the price.
+            if (snapshot != null && snapshot.typed == null) {
+                Text(
+                    stringResource(R.string.jd_drawhist_geometry_only),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            when {
+                restorable -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    // The button stays on an in-between row: putting that
+                    // drawing back is a real thing somebody may want. What it
+                    // will not do is bring the approval back, and that is worth
+                    // knowing before the press rather than after it.
+                    when (returnsApproval) {
+                        true -> Text(
+                            stringResource(R.string.jd_drawhist_is_the_approved_one),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                        false -> Text(
+                            stringResource(R.string.jd_drawhist_in_between),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        null -> Unit
+                    }
+                    OutlinedButton(
+                        onClick = { confirming = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Undo, contentDescription = null)
+                        Text("  " + stringResource(R.string.jd_drawhist_restore))
+                    }
+                }
+                resolvedAt != null -> Unit
+                snapshot == null -> Text(
+                    stringResource(R.string.jd_drawhist_no_snapshot),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                run == null -> Text(
+                    stringResource(R.string.jd_drawhist_run_gone),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                alreadyBack -> Text(
+                    stringResource(R.string.jd_drawhist_put_back_waiting),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                !canEdit -> Text(
+                    stringResource(R.string.jd_drawhist_office_only),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                else -> Text(
+                    stringResource(R.string.jd_drawhist_not_waiting),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    val runSyncId = row.runSyncId
+    if (confirming && snapshot != null && runSyncId != null) {
+        // Read through the app's own codec rather than counted off the encoded
+        // string, so what the dialog promises is what the run will actually
+        // carry -- including the old three-part gates FenceCodec still reads.
+        val corners = remember(snapshot) {
+            FenceCodec.decodePoints(snapshot.drawing.pointsEncoded).size
+        }
+        val gates = remember(snapshot) {
+            FenceCodec.decodeGates(snapshot.drawing.gatesEncoded).size
+        }
+        val doneMsg = stringResource(R.string.jd_drawhist_done)
+        val goneMsg = stringResource(R.string.jd_drawhist_run_gone)
+        val alreadyMsg = stringResource(R.string.jd_drawhist_already)
+        val resolvedMsg = stringResource(R.string.jd_drawhist_resolved_meanwhile)
+        val cannotCheckMsg = stringResource(R.string.jd_drawhist_cannot_check)
+        // Formatted here, where the date format for this screen lives, and
+        // handed over as text so the feed entry can name the change it undid.
+        val changedOn = day(changedAt)
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text(stringResource(R.string.jd_drawhist_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Text(stringResource(R.string.jd_drawhist_confirm_body, label, corners, gates))
+                    Text(
+                        if (snapshot.typed == null)
+                            stringResource(R.string.jd_drawhist_geometry_only)
+                        else
+                            stringResource(R.string.jd_drawhist_confirm_typed_back)
+                    )
+                    if (returnsApproval == false) {
+                        Text(stringResource(R.string.jd_drawhist_in_between))
+                    }
+                    Text(stringResource(R.string.jd_drawhist_confirm_approval))
+                    Text(
+                        stringResource(R.string.jd_drawhist_confirm_needs_online),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirming = false
+                        viewModel.restoreRunDrawing(
+                            row.id, runSyncId, snapshot, changedOn
+                        ) { outcome ->
+                            android.widget.Toast.makeText(
+                                context,
+                                when (outcome) {
+                                    DrawingRestoreOutcome.DONE -> doneMsg
+                                    DrawingRestoreOutcome.RUN_GONE -> goneMsg
+                                    DrawingRestoreOutcome.ALREADY_THERE -> alreadyMsg
+                                    DrawingRestoreOutcome.RESOLVED_MEANWHILE -> resolvedMsg
+                                    DrawingRestoreOutcome.CANNOT_CHECK -> cannotCheckMsg
+                                },
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                ) { Text(stringResource(R.string.jd_drawhist_confirm_yes)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirming = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+}

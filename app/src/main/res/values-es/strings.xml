@@ -1918,4 +1918,40 @@
     <string name="misc_crew_shift_corrected_note">Horas corregidas: %1$s</string>
     <string name="misc_crew_shift_history_for">Horas de %1$s en este trabajo</string>
     <string name="misc_crew_shift_history_unattributed">Todos los turnos registrados en este trabajo. Esta cuenta no tiene su propia ficha de cuadrilla, así que no se pueden distinguir.</string>
+
+    <!-- Going back to an earlier drawing: the job screen's history of
+         withdrawn approvals, and putting one of them back. -->
+    <string name="jd_drawhist_title">Cambios del plano desde la aprobación</string>
+    <string name="jd_drawhist_loading">Leyendo el historial del plano…</string>
+    <string name="jd_drawhist_no_session">Ahora mismo no hay conexión con la nube, así que no se puede leer el historial del plano.</string>
+    <string name="jd_drawhist_failed">No se pudo leer el historial del plano.</string>
+    <string name="jd_drawhist_unnamed_run">Este tramo de cerca</string>
+    <string name="jd_drawhist_unknown_date">una fecha sin registrar</string>
+    <string name="jd_drawhist_changed_at">El plano cambió el %1$s</string>
+    <string name="jd_drawhist_had_approved">%1$s lo había aprobado el %2$s</string>
+    <string name="jd_drawhist_had_approved_unnamed">Aprobado el %1$s</string>
+    <string name="jd_drawhist_waiting">Todavía necesita aprobarse de nuevo</string>
+    <string name="jd_drawhist_resolved">Aprobado de nuevo el %1$s</string>
+    <string name="jd_drawhist_restore">Restaurar este plano</string>
+    <string name="jd_drawhist_put_back_waiting">Este plano ya está de nuevo en el tramo. Si la aprobación vuelve se decide en la nube, en la próxima sincronización.</string>
+    <string name="jd_drawhist_no_snapshot">No se guardó el plano anterior a este cambio, así que no se puede restaurar.</string>
+    <string name="jd_drawhist_run_gone">Ese tramo de cerca ya no está en este trabajo.</string>
+    <string name="jd_drawhist_confirm_title">¿Restaurar el plano?</string>
+    <string name="jd_drawhist_confirm_body">%1$s volverá al plano que tenía antes de este cambio: %2$d esquinas y %3$d puertas.</string>
+    <string name="jd_drawhist_confirm_approval">No se le pregunta nada al cliente. Si el trabajo coincide entonces exactamente con lo que aprobó —la misma cerca y el mismo precio—, la aprobación vuelve por sí sola. Si algo más ha cambiado desde entonces, este presupuesto sigue necesitando aprobarse de nuevo.</string>
+    <string name="jd_drawhist_confirm_yes">Restaurar</string>
+    <string name="jd_drawhist_done">Plano restaurado en este teléfono. Se enviará en la próxima sincronización.</string>
+    <string name="jd_drawhist_already">El tramo ya tiene ese plano, así que no se cambió nada.</string>
+
+    <!-- Going back to an earlier drawing: the job screen's history of
+         withdrawn approvals, and putting one of them back. -->
+    <string name="jd_drawhist_office_only">Solo una cuenta que pueda editar este trabajo puede restaurar un plano.</string>
+    <string name="jd_drawhist_not_waiting">Este presupuesto no está esperando una nueva aprobación, así que restaurar un plano anterior quitaría la aprobación en lugar de devolverla.</string>
+    <string name="jd_drawhist_geometry_only">De este cambio solo se guardó el contorno, así que no se pueden restaurar los pies escritos a mano ni la marca de demolición.</string>
+    <string name="jd_drawhist_is_the_approved_one">Este es el plano que aprobó el cliente.</string>
+    <string name="jd_drawhist_in_between">Esto vuelve a un plano intermedio que el cliente nunca aprobó, así que no recuperará la aprobación.</string>
+    <string name="jd_drawhist_confirm_typed_back">Los pies escritos a mano, el número de esquinas escrito y la marca de demolición también vuelven a como estaban.</string>
+    <string name="jd_drawhist_confirm_needs_online">Esto necesita conexión. La app comprueba primero que el cliente no haya vuelto a aprobar, y no restaura el plano si no puede comprobarlo.</string>
+    <string name="jd_drawhist_resolved_meanwhile">El cliente ya ha vuelto a aprobar este presupuesto, así que no se cambió nada.</string>
+    <string name="jd_drawhist_cannot_check">No se pudo comprobar en la nube si el cliente ya ha vuelto a aprobar, así que el plano no se tocó. Inténtalo de nuevo con cobertura.</string>
 </resources>

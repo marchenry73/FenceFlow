@@ -1121,7 +1121,7 @@ FUNC reapp_resolve_on_approval() returns=trigger secdef=t volatility=v body_md5=
 FUNC reapp_restore_approval(jid uuid, run_sync uuid, q quote_reapprovals) returns=boolean secdef=t volatility=v body_md5=32f6d795ee0ed9b5a06be3d6f7ab7aba
 FUNC reapp_restores_approved_state(jid uuid, run_sync uuid, after_fp text) returns=quote_reapprovals secdef=t volatility=s body_md5=2110d05f81b2d82e98c2eabd6f7730a7
 FUNC reapp_row_takeoff(r fence_runs, ppf double precision) returns=text secdef=f volatility=i body_md5=364a4c6f72b62d3759f4d53095d22c99
-FUNC reapp_run_snapshot(r fence_runs) returns=text secdef=f volatility=i body_md5=cfb018d82e0a45f5daf8b291eb05fec2
+FUNC reapp_run_snapshot(r fence_runs) returns=text secdef=f volatility=i body_md5=8ebfc6f6a5981e3204472915742f0383
 FUNC reapp_run_takeoff(points_encoded text, gates_encoded text, closed_loop boolean, manual_ft double precision, manual_corners integer, is_teardown boolean, ppf double precision) returns=text secdef=f volatility=i body_md5=91278a1875d243ac5b507a81f3f890cd
 FUNC reapp_withdraw_approval(jid uuid, run_sync uuid, run_label text, kind text, before_fp text, after_fp text, before_snap text, after_snap text) returns=void secdef=t volatility=v body_md5=665e10b039b0fd05da5f851a8e042f94
 FUNC recalculate_my_job_totals() returns=integer secdef=t volatility=v body_md5=1a388ac1edb171d6ef6acf72bcb1338e

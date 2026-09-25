@@ -17,6 +17,11 @@ import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
+import com.fenceestimator.app.geometry.DrawingSnapshot
+import com.fenceestimator.app.cloud.SupabaseModule
+import com.fenceestimator.app.data.FenceRun
+import com.fenceestimator.app.data.FieldChange
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.sync.withLock
@@ -609,9 +614,433 @@ class JobDetailViewModel(
      */
     suspend fun countRecordedHours(): Double? = repository.recordedHoursForJob(jobId)
 
+    /**
+     * Who to name as the author of a drawing restore, and their role. Set by
+     * the screen from the session.
+     *
+     * Deliberately not [decidedByName], which is who ANSWERS a crew request to
+     * change the plan. The two happen to have the same answer today; they are
+     * still two questions, and one field serving both is how a later change to
+     * either one silently moves the other.
+     *
+     * Blank is possible and is not a failure: a phone with no company login has
+     * one person on it and nobody to report to. On a company login the session
+     * carries an email, which is the point -- a footage change appearing in the
+     * crew's feed with no author was the gap this fills.
+     */
+    var restoredByName: String = ""
+    var restoredByRole: String = ""
+
+    /**
+     * Puts an earlier drawing back onto one of this job's fence runs.
+     *
+     * An ordinary local edit and deliberately nothing more.
+     * [Repository.updateFenceRun] stamps the run's clock to now, exactly as the
+     * drawing screen's own edits do, and the push sends a run whose clock is
+     * ahead of the cloud's. That push is what fires the server trigger which
+     * decides -- on its own, from the geometry and the price -- whether the
+     * customer's approval comes back. There is no restore route to call and
+     * there must not be one: a direct write to the cloud from here would land
+     * the same row without moving this phone's clock, so the next pull would
+     * read this phone's copy as the older one and put the changed drawing
+     * straight back.
+     *
+     * THE WITHDRAWAL IS RE-READ FROM THE SERVER FIRST, and nothing is written
+     * unless that read arrives and says it is still unsettled. The flag the
+     * screen holds came from a read taken when the screen opened. Once the
+     * customer has approved again, the job is approved once more -- and this
+     * same write then reads as an ordinary edit to an approved job, which takes
+     * the approval they just gave AWAY instead of putting anything back. So an
+     * unreachable server ends the attempt
+     * ([DrawingRestoreOutcome.CANNOT_CHECK]) rather than queueing an edit that
+     * would land hours later against a job that had moved on, with nobody
+     * watching the screen that would have said so.
+     *
+     * The run is re-read from disk rather than taken from the list on screen,
+     * the same way the drawing screen re-reads a run before editing it. A row
+     * a composition has been holding for a minute is not what is in the
+     * database, and writing a whole run from a stale copy would take
+     * everything edited in between with it.
+     *
+     * A run that already carries everything the snapshot holds is not written
+     * at all. Every write moves the run's clock, and fence runs resolve a
+     * conflict by the later clock, so re-saving an unchanged run would make
+     * this phone's copy look newer than an office change that has not come
+     * down yet -- the same reason the drawing screen refuses an edit that
+     * changed nothing.
+     *
+     * Runs in the ViewModel's own scope, and answers through [onDone], so
+     * walking off the job screen mid-write cannot cancel it half done.
+     *
+     * WHAT IS STILL OPEN, and it is a window rather than a hole. The check is a
+     * live read; the write is a local one that reaches the cloud on the next
+     * push. So the gap is not "until this phone has signal" -- that case is
+     * closed, since no signal means no write at all -- it is the seconds or
+     * minutes between the check passing and the push landing. A customer who
+     * approves again inside that gap has the approval taken away by this push,
+     * with the phone already having said the drawing was put back. Closing it
+     * properly means re-checking as part of the push itself, which belongs in the
+     * sync layer rather than here, so it is written down instead of pretended
+     * away.
+     */
+    // internal, not public: its snapshot parameter is an internal type that
+    // exists only for this screen, and Kotlin refuses a public signature that
+    // names a less visible one. Every other internal type in this module is
+    // reached the same way. The only caller is the card on the job screen,
+    // in this module.
+    internal fun restoreRunDrawing(
+        /** The quote_reapprovals row this drawing came off, so it can be re-read. */
+        withdrawalId: String,
+        runSyncId: String,
+        snapshot: RunSnapshot,
+        /**
+         * The day of the change being undone, already formatted by the screen,
+         * so the feed entry can name which change was put back without this
+         * class having to know how the reader's locale writes a date.
+         */
+        changedOn: String,
+        onDone: (DrawingRestoreOutcome) -> Unit
+    ) {
+        viewModelScope.launch {
+            when (withdrawalStillOpen(withdrawalId)) {
+                WithdrawalState.UNREADABLE -> {
+                    onDone(DrawingRestoreOutcome.CANNOT_CHECK)
+                    return@launch
+                }
+                WithdrawalState.RESOLVED -> {
+                    onDone(DrawingRestoreOutcome.RESOLVED_MEANWHILE)
+                    return@launch
+                }
+                WithdrawalState.OPEN -> Unit
+            }
+            val run = repository.getFenceRuns(jobId).firstOrNull { it.syncId == runSyncId }
+            if (run == null) {
+                onDone(DrawingRestoreOutcome.RUN_GONE)
+                return@launch
+            }
+            val restored = snapshot.appliedTo(run)
+            if (restored == run) {
+                onDone(DrawingRestoreOutcome.ALREADY_THERE)
+                return@launch
+            }
+            repository.updateFenceRun(restored)
+            recordRestoreInFeed(run, restored, snapshot, changedOn)
+            onDone(DrawingRestoreOutcome.DONE)
+        }
+    }
+
+    /** What the server says about one withdrawal right now. See [withdrawalStillOpen]. */
+    private enum class WithdrawalState { OPEN, RESOLVED, UNREADABLE }
+
+    /**
+     * Asks the server whether one withdrawal is still waiting to be settled.
+     *
+     * The narrowest read that answers the question: the row's own id and its
+     * resolved_at, nothing else. prior_contract_total lives on this same table
+     * and is deliberately not asked for, so no price can reach a phone through
+     * this call any more than through the history read on the job screen.
+     *
+     * A row that has vanished counts as settled rather than readable. The only
+     * things that remove one are the job or the company going, and neither is a
+     * state to write a drawing into.
+     *
+     * The failure is not sent to the crash log: the ordinary cause is no
+     * signal, and a log full of that tells nobody anything. The caller says so
+     * on screen instead, which is where it is any use.
+     */
+    private suspend fun withdrawalStillOpen(withdrawalId: String): WithdrawalState {
+        if (withdrawalId.isBlank()) return WithdrawalState.UNREADABLE
+        // Asked before the request, not after it. supabase-kt sends the anon key
+        // when it holds no token, which is a request that succeeds and comes
+        // back empty -- and empty here would read as "settled".
+        if (!SupabaseModule.hasLiveSession()) return WithdrawalState.UNREADABLE
+        return runCatching {
+            SupabaseModule.client.postgrest.from("quote_reapprovals")
+                .select(
+                    io.github.jan.supabase.postgrest.query.Columns.list("id", "resolved_at")
+                ) {
+                    filter { eq("id", withdrawalId) }
+                }
+                .decodeList<WithdrawalStateRow>()
+                .firstOrNull()
+        }.fold(
+            onSuccess = { rowNow ->
+                when {
+                    rowNow == null -> WithdrawalState.RESOLVED
+                    rowNow.resolvedAt != null -> WithdrawalState.RESOLVED
+                    else -> WithdrawalState.OPEN
+                }
+            },
+            onFailure = { e ->
+                // Leaving the screen mid-read cancels this, which is not a
+                // failure and must stay a cancellation.
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                WithdrawalState.UNREADABLE
+            }
+        )
+    }
+
+    /**
+     * Puts the restore in the feed the office and the crew already read.
+     *
+     * Every ordinary drawing edit on the drawing screen -- Undo and Redo
+     * included -- records a field change when the footage moves, and that is
+     * how a crew already on site find out the fence line is not the one they
+     * measured against. A restore moves the same numbers and recorded nothing,
+     * so the footage changed underneath them with no author and no entry. This
+     * writes the same record, from here, because this is where the change is
+     * made.
+     *
+     * The footage comes from [EstimateEngine.linearFeet] rather than being
+     * measured again here, so the figure in the feed is the figure the estimate
+     * and the crew's plan already show. The run is measured as though it were
+     * being built: linearFeet leaves a teardown run out of the total, which is
+     * right for the money and wrong for this sentence, because a crew needs to
+     * know the old fence line moved as well. Whether the run is a teardown is
+     * said in words instead.
+     *
+     * A job with no calibration and no typed footage has no scale to measure
+     * at, and linearFeet answers nought rather than guessing -- so the figures
+     * are left out of the line entirely rather than reporting nought feet on
+     * both sides of an arrow.
+     *
+     * Nothing written here says the approval is back. The server decides that,
+     * and it decides after this row exists.
+     */
+    private suspend fun recordRestoreInFeed(
+        before: FenceRun,
+        after: FenceRun,
+        snapshot: RunSnapshot,
+        changedOn: String
+    ) {
+        val current = job.value ?: repository.getJob(jobId) ?: return
+        val label = before.label.ifBlank { "Fence run" }
+        val measurable = current.calibrationPixelsPerFoot != null ||
+            before.manualLinearFeet != null || after.manualLinearFeet != null
+        val movement = if (!measurable) "" else {
+            val wasFeet = EstimateEngine.linearFeet(current, listOf(before.copy(isTeardown = false)))
+            val nowFeet = EstimateEngine.linearFeet(current, listOf(after.copy(isTeardown = false)))
+            ": " + "%.0f".format(wasFeet) + " ft → " + "%.0f".format(nowFeet) + " ft"
+        }
+        val typedNow = after.manualLinearFeet
+        val detail = buildString {
+            append("The drawing was put back to the one this run had before the change on ")
+            append(changedOn)
+            append(". ")
+            if (snapshot.typed == null) {
+                append(
+                    "Only the outline was kept for that change, so any typed footage and " +
+                        "the teardown flag are untouched. "
+                )
+            } else {
+                if (before.manualLinearFeet != typedNow) {
+                    append(
+                        if (typedNow == null)
+                            "Typed footage was removed, so the length is measured off the drawing again. "
+                        else
+                            "Typed footage is back to " + "%.0f".format(typedNow) + " ft. "
+                    )
+                }
+                if (before.isTeardown != after.isTeardown) {
+                    append(
+                        if (after.isTeardown) "This run counts as the old fence coming out again. "
+                        else "This run counts as new fence going in again. "
+                    )
+                }
+            }
+            append(
+                "Whether the customer's approval comes back is decided in the cloud, " +
+                    "on the next sync."
+            )
+        }
+        // A job the sync removed while this screen was open took its runs with
+        // it, so the note has nothing to hang off -- and inserting it hits the
+        // foreign key and crashes. Skipped instead (see OrphanRows).
+        com.fenceestimator.app.cloud.skipIfOrphaned {
+            repository.recordFieldChange(
+                FieldChange(
+                    jobId = jobId,
+                    summary = label + ": drawing put back" + movement,
+                    detail = detail,
+                    changedBy = restoredByName,
+                    changedByRole = restoredByRole
+                )
+            )
+        }
+    }
+
     private companion object {
         val EMPTY_TOTALS = EstimateEngine.Totals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
+}
+
+/**
+ * One withdrawal's settled state, read back at the moment of writing.
+ *
+ * Two columns and no more. prior_contract_total is on this table too; asking
+ * for it would put a price on a phone that may not be allowed one, so this read
+ * names exactly what it needs.
+ */
+@kotlinx.serialization.Serializable
+private data class WithdrawalStateRow(
+    val id: String = "",
+    @kotlinx.serialization.SerialName("resolved_at") val resolvedAt: String? = null,
+)
+
+/** What came of [JobDetailViewModel.restoreRunDrawing]. */
+enum class DrawingRestoreOutcome {
+    /** The run carries the earlier drawing now, and the next sync sends it up. */
+    DONE,
+
+    /**
+     * That fence run is not on this job any more -- deleted here, or a delete
+     * that synced down while the history was on screen. Said out loud, because
+     * a button that reports success and changes nothing is worse than no
+     * button.
+     */
+    RUN_GONE,
+
+    /** The run already carried everything that snapshot holds, so nothing was written. */
+    ALREADY_THERE,
+
+    /**
+     * The customer has already approved this quote again, so this withdrawal is
+     * settled. Writing the old drawing now would not bring an approval back --
+     * it would withdraw the one they just gave, because an edit to an approved
+     * job is what withdraws an approval. Nothing was written.
+     */
+    RESOLVED_MEANWHILE,
+
+    /**
+     * The server could not be asked whether the withdrawal is still open --
+     * ordinarily no signal. Nothing was written and nothing was queued: an edit
+     * left in the outbox lands whenever the phone next reaches the network,
+     * against a job that may have been approved again by then, and with nobody
+     * looking at the screen that would have reported it.
+     */
+    CANNOT_CHECK,
+}
+
+/**
+ * What a withdrawn approval kept of the run, as something that can be written
+ * back.
+ *
+ * Answered around [DrawingSnapshot] because that type exists for exactly this:
+ * it holds the stored strings rather than decoded lists, so what goes back onto
+ * the run is byte for byte what came off it. That is the same guarantee Undo
+ * and Redo rely on, and it is also what lets the server's fingerprint match the
+ * approved takeoff again.
+ */
+internal data class RunSnapshot(
+    val drawing: DrawingSnapshot,
+    /**
+     * The typed takeoff, or null on a row written before the snapshot carried
+     * it.
+     *
+     * Null means NOT RECORDED, which is not the same as recorded as nothing. A
+     * restore from such a row has to leave the run's typed footage, typed
+     * corner count and teardown flag exactly as they are, because it has no
+     * idea what they were.
+     */
+    val typed: TypedTakeoff?
+) {
+    /**
+     * The three run columns the fingerprint reads besides the geometry.
+     *
+     * They are in the snapshot because the fingerprint is taken on them: a
+     * change that also touched the typed footage, the typed corner count or the
+     * teardown flag left a geometry-only record that could not reproduce it, so
+     * the drawing went back, the fingerprint still missed, and the price got
+     * blamed for it.
+     */
+    internal data class TypedTakeoff(
+        /**
+         * Null means the run had NO typed footage. Not zero feet: the two are
+         * different runs, and the app reads a typed figure only when there is
+         * one.
+         */
+        val manualLinearFeet: Float?,
+        val manualCornerCount: Int,
+        val isTeardown: Boolean
+    )
+
+    /** [run] with this snapshot written over it and nothing else touched. */
+    fun appliedTo(run: FenceRun): FenceRun {
+        val withDrawing = run.copy(
+            pointsEncoded = drawing.pointsEncoded,
+            gatesEncoded = drawing.gatesEncoded,
+            closedLoop = drawing.closedLoop
+        )
+        val t = typed ?: return withDrawing
+        return withDrawing.copy(
+            manualLinearFeet = t.manualLinearFeet,
+            manualCornerCount = t.manualCornerCount,
+            isTeardown = t.isTeardown
+        )
+    }
+}
+
+/**
+ * Reads one stored snapshot, or refuses it.
+ *
+ * The server joins the run's own strings with bars (reapp_run_snapshot) -- the
+ * app's encoding, not a second one. It writes SIX fields now: the two encoded
+ * strings, the closed-loop flag, the typed footage, the typed corner count and
+ * the teardown flag. Rows written before it was widened hold the first THREE
+ * and still have to be readable, so both lengths are accepted and nothing else
+ * is. Any other shape came from something that is not that function, and
+ * guessing which field is which would put a gate list into the point column;
+ * refused whole instead, and the screen offers no way back for a row it cannot
+ * read.
+ *
+ * Neither encoded string can contain a bar -- points are coordinate pairs
+ * joined by commas, gates likewise -- so splitting on it is exact.
+ *
+ * The typed footage and the typed corner count are EMPTY when the server's
+ * column was null, and empty is not zero. The app's own footage column is
+ * nullable and gets the null back, which matters because "no typed footage" and
+ * "typed footage of nothing" are different runs. Its corner-count column is
+ * not nullable: it is a plain integer whose no-figure-typed value is nought, so
+ * an empty corner count can only come back as nought. That is the one field
+ * this cannot reproduce exactly, and the corner count is read at all only
+ * alongside a typed footage figure, so it cannot turn a run with nothing typed
+ * into one with something typed.
+ *
+ * A three-part row restores the outline and nothing else -- it never recorded
+ * the rest. The row on screen says so, rather than implying a fuller restore
+ * than happened.
+ */
+internal fun parseRunSnapshot(raw: String): RunSnapshot? {
+    val parts = raw.split("|")
+    if (parts.size != 3 && parts.size != 6) return null
+    val closed = snapshotFlagOrNull(parts[2]) ?: return null
+    val drawing = DrawingSnapshot(
+        pointsEncoded = parts[0],
+        gatesEncoded = parts[1],
+        closedLoop = closed
+    )
+    if (parts.size == 3) return RunSnapshot(drawing = drawing, typed = null)
+    // A field that is present but will not parse is a snapshot this code does
+    // not understand. Half of one is worse than none, so the whole row is
+    // refused rather than restored with a number guessed for the rest.
+    val feet = if (parts[3].isEmpty()) null else (parts[3].toFloatOrNull() ?: return null)
+    val corners = if (parts[4].isEmpty()) 0 else (parts[4].toIntOrNull() ?: return null)
+    val teardown = snapshotFlagOrNull(parts[5]) ?: return null
+    return RunSnapshot(
+        drawing = drawing,
+        typed = RunSnapshot.TypedTakeoff(
+            manualLinearFeet = feet,
+            manualCornerCount = corners,
+            isTeardown = teardown
+        )
+    )
+}
+
+/** The server writes a snapshot's booleans as 1 or 0; anything else is not its writing. */
+private fun snapshotFlagOrNull(raw: String): Boolean? = when (raw) {
+    "1" -> true
+    "0" -> false
+    else -> null
 }
 
 /**

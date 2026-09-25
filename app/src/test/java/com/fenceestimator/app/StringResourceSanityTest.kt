@@ -1,5 +1,7 @@
 package com.fenceestimator.app
 
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -81,5 +83,67 @@ class StringResourceSanityTest {
                 missing.isEmpty() && extra.isEmpty()
             )
         }
+    }
+
+    /**
+     * The format arguments one string takes: each numbered placeholder exactly
+     * as written, plus any un-numbered one.
+     *
+     * A set rather than a list, because a translation is free to reorder the
+     * sentence or to use the same argument twice and neither breaks formatting.
+     * What breaks it is an argument that is missing, one that moved to a
+     * different number, or one whose conversion changed.
+     *
+     * Built from the same pattern the other checks here use, so the two cannot
+     * come to disagree about what counts as a placeholder.
+     */
+    private fun formatArgs(body: String): Set<String> {
+        val args = mutableSetOf<String>()
+        positional.findAll(body).forEach { args += it.value }
+        // Whatever is left once escaped percents and numbered placeholders are
+        // gone. An un-numbered %s consumes an argument too, and it consumes
+        // them in the order it meets them, so trading one form for the other
+        // reorders the sentence's values instead of crashing.
+        val rest = body.replace("%%", "").replace(positional, "")
+        Regex("%[sdf]").findAll(rest).forEach { args += it.value }
+        return args
+    }
+
+    @Test
+    fun `every language takes the same format arguments`() {
+        // A locale that drops a placeholder, renumbers one, or turns a %1$s
+        // into a %1$d throws at format time -- in that language only, on a
+        // customer's phone, at the moment the screen appears. Nothing in the
+        // build compares them: lint checks a string against the call that
+        // formats it, not the three translations against each other.
+        //
+        // A key that is missing from English is the key-parity check's business,
+        // not this one's, so it is passed over here rather than reported twice.
+        val files = resourceFiles()
+        val english = strings(files[0]).toMap()
+        val offenders = files.drop(1).flatMap { f ->
+            strings(f).mapNotNull { (name, body) ->
+                val want = formatArgs(english[name] ?: return@mapNotNull null)
+                val got = formatArgs(body)
+                if (want == got) null
+                else f.parentFile.name + "/" + name + ": en " + want.sorted() + " vs " + got.sorted()
+            }
+        }
+        assertTrue("format arguments differ between languages: " + offenders, offenders.isEmpty())
+    }
+
+    @Test
+    fun `the argument comparison can tell a faithful translation from a broken one`() {
+        // Positive control for the check above. A comparison blind to any of
+        // these would report all three files clean while a locale was one
+        // format call away from crashing -- which is how there came to be no
+        // such check for as long as there wasn't one.
+        val english = "%1\$s owes %2\$d"
+        assertEquals("word order is a translator's business", formatArgs(english), formatArgs("%2\$d owed by %1\$s"))
+        assertNotEquals("a dropped argument", formatArgs(english), formatArgs("%1\$s doit"))
+        assertNotEquals("a renumbered argument", formatArgs(english), formatArgs("%2\$s doit %1\$d"))
+        assertNotEquals("a retyped argument", formatArgs(english), formatArgs("%1\$s doit %2\$s"))
+        assertNotEquals("an un-numbered argument", formatArgs(english), formatArgs("%s doit %d"))
+        assertTrue("an escaped percent takes no argument", formatArgs("100%% sure").isEmpty())
     }
 }

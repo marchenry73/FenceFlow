@@ -1964,4 +1964,40 @@
     <string name="misc_crew_shift_corrected_note">Hours corrected: %1$s</string>
     <string name="misc_crew_shift_history_for">%1$s\'s hours on this job</string>
     <string name="misc_crew_shift_history_unattributed">Every shift clocked on this job. This login has no crew record of its own, so they cannot be told apart.</string>
+
+    <!-- Going back to an earlier drawing: the job screen's history of
+         withdrawn approvals, and putting one of them back. -->
+    <string name="jd_drawhist_title">Drawing changes since approval</string>
+    <string name="jd_drawhist_loading">Reading the drawing history…</string>
+    <string name="jd_drawhist_no_session">Not connected to the cloud right now, so the drawing history can\'t be read.</string>
+    <string name="jd_drawhist_failed">Couldn\'t read the drawing history.</string>
+    <string name="jd_drawhist_unnamed_run">This fence run</string>
+    <string name="jd_drawhist_unknown_date">an unrecorded date</string>
+    <string name="jd_drawhist_changed_at">Drawing changed %1$s</string>
+    <string name="jd_drawhist_had_approved">%1$s had approved it on %2$s</string>
+    <string name="jd_drawhist_had_approved_unnamed">Approved on %1$s</string>
+    <string name="jd_drawhist_waiting">Still needs approving again</string>
+    <string name="jd_drawhist_resolved">Approved again on %1$s</string>
+    <string name="jd_drawhist_restore">Put this drawing back</string>
+    <string name="jd_drawhist_put_back_waiting">This drawing is back on the run. Whether the approval returns is decided in the cloud, on the next sync.</string>
+    <string name="jd_drawhist_no_snapshot">The drawing from before this change wasn\'t kept, so it can\'t be put back.</string>
+    <string name="jd_drawhist_run_gone">That fence run is no longer on this job.</string>
+    <string name="jd_drawhist_confirm_title">Put the drawing back?</string>
+    <string name="jd_drawhist_confirm_body">%1$s goes back to the drawing it had before this change: %2$d corners and %3$d gates.</string>
+    <string name="jd_drawhist_confirm_approval">The customer is not asked anything. If the job then matches exactly what they approved — the same fence and the same price — the approval comes back on its own. If anything else has changed since, this quote still needs approving again.</string>
+    <string name="jd_drawhist_confirm_yes">Put it back</string>
+    <string name="jd_drawhist_done">Drawing put back on this phone. It goes up on the next sync.</string>
+    <string name="jd_drawhist_already">The run already has that drawing, so nothing was changed.</string>
+
+    <!-- Going back to an earlier drawing: the job screen's history of
+         withdrawn approvals, and putting one of them back. -->
+    <string name="jd_drawhist_office_only">Only an account that can edit this job can put a drawing back.</string>
+    <string name="jd_drawhist_not_waiting">This quote isn\'t waiting on a re-approval, so putting an older drawing back would take the approval away instead.</string>
+    <string name="jd_drawhist_geometry_only">Only the outline was kept for this change, so typed footage and the teardown flag can\'t be put back.</string>
+    <string name="jd_drawhist_is_the_approved_one">This is the drawing the customer approved.</string>
+    <string name="jd_drawhist_in_between">This goes back to an in-between drawing the customer never approved, so it won\'t bring the approval back.</string>
+    <string name="jd_drawhist_confirm_typed_back">Typed footage, the typed corner count and the teardown flag go back to what they were as well.</string>
+    <string name="jd_drawhist_confirm_needs_online">This needs a connection. The app checks first that the customer hasn\'t already approved again, and won\'t put the drawing back if it can\'t ask.</string>
+    <string name="jd_drawhist_resolved_meanwhile">The customer has already approved this quote again, so nothing was changed.</string>
+    <string name="jd_drawhist_cannot_check">Couldn\'t check with the cloud whether the customer has approved again, so the drawing was left alone. Try again on signal.</string>
 </resources>
