@@ -58,8 +58,8 @@ Route: try the demo, sign into a real account before it expires, and the demo
 jobs sync up as real ones.
 
 **No guest job has actually reached the live database.** I checked, rather than
-leaving the survey's implication standing: zero rows in  carry the
-name prefix, zero carry , and zero
+leaving the survey's implication standing: zero rows in `public.jobs` carry the
+name prefix, zero carry `referral_source = 'FENCEFLOW_GUEST_DEMO_v1'`, and zero
 soft-deleted rows carry either. So this is a live route that nobody has walked,
 not damage to repair. Fix the route; there is no cleanup to do.
 
