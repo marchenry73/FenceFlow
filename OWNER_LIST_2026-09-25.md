@@ -13,11 +13,27 @@ SQL applied since the list was written: `supabase_r9_taxable_panels.sql`,
 `supabase_r9_retax_fix_scope_and_wording.sql`. Written and waiting on March:
 `supabase_r8_drop_duplicate_touch_trigger.sql`.
 
-**The four tax-corrected jobs are waiting for their customers' approval**
-(James Bond +1,045.53, John Beaunissant +456.38, the unnamed draft +20.31,
-James +7.33). A FIFTH, Woody, was withdrawn in error and put back -- its lines
-were already taxable and its price never moved. Nothing is paid on any of them.
-March needs to know the customers will see a re-approval request.
+**THREE jobs are waiting for approval at the corrected price, verified on the
+live customer link.** James Bond 35,240 -> 36,290; John Beaunissant
+15,540 -> 16,000; the unnamed draft 870 -> 900. Each figure is the real server
+engine's output (tests/company-golden-path.pricing-runner.mts), and separately
+equals ceil10(old total + the SQL tax delta). accepted_total is untouched on
+all three, so the price they originally agreed survives as the anchor. The
+deposit followed automatically as he asked (John 5,730 -> 5,899.61, James Bond
+21,520 -> 22,161.20). quote-view now returns total 16000 / deposit 5899.61 for
+John, confirmed by fetching the customer endpoint.
+
+TWO were withdrawn in error and have been put back, both needing HIS decision,
+neither caused by the tax work:
+
+- **Woody** -- its only fence run has EMPTY geometry and null manual feet, so
+  the engine returns 350 against a stored 3,620. A large generated set (52 line
+  posts, 54 panels, a gate) was tombstoned on 24 August. Restore the drawing, or
+  accept the smaller price.
+- **James** -- stored total 200 is just the minimum-charge floor; it has a real
+  drawn polyline of ~270 ft never priced into line items, so the engine says
+  5,830. One press of the job sheet's price button fixes it. No price was sent,
+  because neither 210 nor 5,830 is defensible.
 
 **Work through it and keep this file current** — tick an item only when it is
 shipped and verified from the artifact, not when the code is written.
