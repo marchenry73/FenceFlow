@@ -504,6 +504,11 @@ Deno.serve(async (req) => {
     // deposit is what was agreed, the amount due is what is left.
     depositDue: money.due,
     depositPayable: money.payable,
+    // What is left on the whole job. The page used to subtract the deposit
+    // ASKED from the total and call that the balance, which is a different
+    // number from the one every other surface shows and contradicted the
+    // page's own "paid in full" line. One label, one meaning.
+    balanceDue: money.balance,
     approvedAt: job.quote_approved_at,
     // The drawing changed after this quote was approved, so the approval was
     // withdrawn and the customer has to say yes again. The page shows this

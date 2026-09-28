@@ -178,7 +178,8 @@ const L = {
     depositToBegin: 'Deposit to begin',
     depositPaidSoFar: '%s of it is already paid — %s left before we start.',
     depositPaidInFull: 'Paid in full — thank you. %s received.',
-    balanceDue: 'Balance due at completion',
+    balanceDue: 'Left to pay',
+    nothingLeftToPay: 'Nothing left to pay',
     totalLength: '%s ft total',
     nextStepsPending: 'Next: once your deposit is received, the contractor will be in touch to schedule the work.',
     nextStepsPaid: 'Your deposit has been received. Next, the contractor will be in touch to confirm a schedule.',
@@ -236,7 +237,8 @@ const L = {
     depositToBegin: 'Depósito para empezar',
     depositPaidSoFar: 'Ya se pagó %s — faltan %s antes de empezar.',
     depositPaidInFull: 'Pagado por completo — gracias. Recibimos %s.',
-    balanceDue: 'Saldo pendiente al terminar',
+    balanceDue: 'Queda por pagar',
+    nothingLeftToPay: 'Nada pendiente de pago',
     totalLength: '%s pies en total',
     nextStepsPending: 'Siguiente paso: en cuanto se reciba su depósito, el contratista se pondrá en contacto para programar el trabajo.',
     nextStepsPaid: 'Se recibió su depósito. Siguiente paso: el contratista se pondrá en contacto para confirmar una fecha.',
@@ -294,7 +296,8 @@ const L = {
     depositToBegin: 'Acompte pour démarrer',
     depositPaidSoFar: '%s déjà versé — il reste %s avant de commencer.',
     depositPaidInFull: 'Intégralement versé — merci. %s reçu.',
-    balanceDue: 'Solde dû à la fin des travaux',
+    balanceDue: 'Reste à payer',
+    nothingLeftToPay: 'Rien à payer',
     totalLength: '%s pi au total',
     nextStepsPending: 'Prochaine étape : dès réception de votre acompte, l’entreprise vous contactera pour planifier les travaux.',
     nextStepsPaid: 'Votre acompte a été reçu. Prochaine étape : l’entreprise vous contactera pour confirmer une date.',
@@ -596,10 +599,18 @@ function render(){
       }).join('')
     : '<p class="sub">'+tr('scopeSoon')+'</p>';
 
-  // The price, the deposit and the balance: three numbers, all of them the
-  // server's own, none computed here. Balance is Total minus the deposit the
-  // contractor asked for -- what is left to pay at completion -- not the
-  // still-owed deposit figure the pay button uses.
+  // Every figure here is the server's own; none is computed on this page.
+  //
+  // What is left to pay used to be worked out HERE, as the total minus the
+  // deposit asked for. That is a different number from the one JobMoney, the
+  // PDF, the office and the pay button all use -- total minus what has
+  // actually been paid -- and on a job paid in full it made this page
+  // contradict itself: "Paid in full -- thank you" directly above "Balance
+  // due $15,364.00". One label, one meaning, and the meaning is the
+  // customer's: what do I still owe.
+  //
+  // The three rows no longer sum, and an earlier comment here defended that
+  // they did. They summed only because the balance was the wrong figure.
   const rows=[];
   rows.push('<div class="grand"><span>'+tr('total')+'</span><span>'+money(q.total)+'</span></div>');
   if(q.deposit>0.005){
@@ -618,16 +629,29 @@ function render(){
     // roughly 310px of usable width on a 375px phone -- it wrapped, and
     // squeezed the label into a column beside it.
     //
-    // Deliberately NOT a totals row: Total, deposit and balance are a set of
-    // three that sum, and a fourth number among them would stop that reading
-    // true. This is a note about one of them.
+    // A quieter sub-line rather than a totals row, because it is a note about
+    // the deposit rather than another figure in the column.
     if(depositPaid>0.005){
       rows.push('<div class="depnote"><span>'+(depositDue>0.005
         ? tr('depositPaidSoFar', money(depositPaid), money(depositDue))
         : tr('depositPaidInFull', money(depositPaid)))+'</span></div>');
     }
-    const balance=Math.max(0, (Number(q.total)||0)-(Number(q.deposit)||0));
+  }
+  // OUTSIDE the deposit block on purpose. A job with no deposit asked for
+  // showed no balance at all -- the same defect with the opposite sign.
+  //
+  // Falls back to the old subtraction only for a page served by a quote-view
+  // deployed before balanceDue existed, so an old function keeps working
+  // rather than rendering a blank where a figure belongs.
+  const balance=(q.balanceDue!=null)
+    ? Math.max(0, Number(q.balanceDue)||0)
+    : Math.max(0, (Number(q.total)||0)-(Number(q.deposit)||0));
+  if(balance>0.005){
     rows.push('<div><span>'+tr('balanceDue')+'</span><span>'+money(balance)+'</span></div>');
+  } else {
+    // Never a Balance due of $0.00 next to a thank-you: a zero in a money
+    // column reads as a figure somebody forgot to fill in.
+    rows.push('<div><span>'+tr('nothingLeftToPay')+'</span><span>'+money(0)+'</span></div>');
   }
   $('totals').innerHTML=rows.join('');
 

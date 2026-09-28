@@ -92,6 +92,10 @@ export interface DepositFigures {
    * caps every link against this same figure.
    */
   total: number;
+  /** Net of refunds, floored at zero. */
+  netPaid: number;
+  /** What is left on the whole job: [total] less [netPaid], floored at zero. */
+  balance: number;
 }
 
 /** Processors refuse amounts under fifty cents; below that there is nothing to collect. */
@@ -150,10 +154,20 @@ export function depositFigures(input: DepositInput): DepositFigures {
   // a job priced at zero is one that has not been priced, not one that is free.
   const asked = total > 0 ? Math.min(requested, total) : requested;
 
-  const netPaid = num(input.amountPaid) - num(input.refundedAmount);
-  const due = Math.max(0, asked - Math.max(0, netPaid));
+  const netPaid = Math.max(0, num(input.amountPaid) - num(input.refundedAmount));
+  const due = Math.max(0, asked - netPaid);
+  // What is left on the WHOLE job, not just on the deposit.
+  //
+  // It is computed here rather than by whoever shows it because the customer's
+  // quote page was working it out for itself as total minus the deposit ASKED,
+  // while every other surface -- JobMoney, the PDF, the office, this function's
+  // own payable cap -- works it out as total minus what has actually been PAID.
+  // On a job paid in full that produced a page reading "Paid in full -- thank
+  // you" directly above "Balance due $15,364.00". Proved on the live link, not
+  // reasoned about.
+  const balance = Math.max(0, total - netPaid);
 
-  return { asked, due, payable: due >= MIN_CHARGEABLE, total };
+  return { asked, due, payable: due >= MIN_CHARGEABLE, total, netPaid, balance };
 }
 
 /**

@@ -94,3 +94,70 @@ test('a negative stored deposit is not a credit', () => {
   assert.equal(d.asked, 0);
   assert.equal(d.due, 0);
 });
+
+/* ---------- what is left on the whole job ---------------------------------
+   The customer's quote page used to work this out for itself, as the total
+   minus the deposit ASKED. Every other surface -- JobMoney, the PDF, the
+   office, this function's own payable cap -- uses the total minus what has
+   actually been PAID, and on a job paid in full the page ended up reading
+   "Paid in full -- thank you" directly above "Balance due $15,364.00".
+
+   The figures below are the live fixture that proved it, to the cent, so a
+   regression has to reproduce a real screen rather than an invented one. */
+test('balance is what is left on the WHOLE job, not the total less the deposit asked', () => {
+  // ZZ TEST Paid in full, finished: contract 19,204, deposit asked 3,840,
+  // paid 19,204, nothing refunded.
+  const d = depositFigures(job({
+    depositAmount: 3840, contractTotal: 19204, amountPaid: 19204, refundedAmount: 0,
+  }));
+  assert.equal(d.due, 0, 'nothing left on the deposit');
+  assert.equal(d.netPaid, 19204);
+  assert.equal(d.balance, 0, 'nothing left on the job either');
+  // PLANTED FAILURE: the arithmetic the page used to do. If this ever equals
+  // d.balance the distinction has collapsed and the bug is back.
+  const theOldWay = d.total - d.asked;
+  assert.equal(theOldWay, 15364);
+  assert.notEqual(theOldWay, d.balance);
+});
+
+test('a part-paid job owes the part that is left, not the whole balance after the deposit', () => {
+  const d = depositFigures(job({
+    depositAmount: 3840, contractTotal: 19204, amountPaid: 5000, refundedAmount: 0,
+  }));
+  assert.equal(d.due, 0, 'the deposit is covered');
+  assert.equal(d.balance, 14204, '19,204 less the 5,000 actually paid');
+  assert.notEqual(d.balance, d.total - d.asked);
+});
+
+test('a refund puts money back on the balance', () => {
+  const d = depositFigures(job({
+    depositAmount: 3840, contractTotal: 19204, amountPaid: 19204, refundedAmount: 4204,
+  }));
+  assert.equal(d.netPaid, 15000);
+  assert.equal(d.balance, 4204);
+});
+
+test('nothing paid means the whole job is still owed', () => {
+  const d = depositFigures(job({ depositAmount: 3840, contractTotal: 19204 }));
+  assert.equal(d.balance, 19204);
+  // And with no deposit asked at all the balance is still the job -- the page
+  // used to show no balance row whatsoever in this case.
+  const none = depositFigures(job({ depositAmount: 0, contractTotal: 19204 }));
+  assert.equal(none.asked, 0);
+  assert.equal(none.balance, 19204);
+});
+
+test('overpayment does not make the balance negative', () => {
+  const d = depositFigures(job({
+    depositAmount: 500, contractTotal: 1000, amountPaid: 1500,
+  }));
+  assert.equal(d.balance, 0);
+});
+
+test('an unpriced job owes nothing measurable, and says zero rather than a negative', () => {
+  // contract_total 0 means not priced yet. A deposit may still have been asked
+  // for, and the balance must not read as minus that.
+  const d = depositFigures(job({ depositAmount: 500, contractTotal: 0, amountPaid: 200 }));
+  assert.equal(d.asked, 500, 'unpriced is not free');
+  assert.equal(d.balance, 0);
+});
