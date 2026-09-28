@@ -8,8 +8,16 @@ In flight: B2, the guest demo (I1–I3), D3 + D2(b), D5-as-reframed, the
 contract-terms editor, B1. Not started: D1, C1, C2, C3, E2, F2, F4, G1, G2.
 
 SQL applied since the list was written: `supabase_r9_taxable_panels.sql`,
-`supabase_crew_view_dispute_columns.sql`. Written and waiting on March:
+`supabase_crew_view_dispute_columns.sql`, `supabase_admin_owner_login_email.sql`,
+`supabase_r9_retax_signed_jobs.sql` and its correction
+`supabase_r9_retax_fix_scope_and_wording.sql`. Written and waiting on March:
 `supabase_r8_drop_duplicate_touch_trigger.sql`.
+
+**The four tax-corrected jobs are waiting for their customers' approval**
+(James Bond +1,045.53, John Beaunissant +456.38, the unnamed draft +20.31,
+James +7.33). A FIFTH, Woody, was withdrawn in error and put back -- its lines
+were already taxable and its price never moved. Nothing is paid on any of them.
+March needs to know the customers will see a re-approval request.
 
 **Work through it and keep this file current** — tick an item only when it is
 shipped and verified from the artifact, not when the code is written.
