@@ -51,6 +51,13 @@
 --   of every change -- enough to know THAT the fence moved, not enough to put
 --   it back. run_snapshot_before/after carry the encoded geometry itself
 --   (points|gates|closedLoop, the same FenceCodec strings the app reads), so
+--   NOTE, added later: three fields was not enough. The takeoff fingerprint the
+--   approval is measured against also reads manual_linear_feet,
+--   manual_corner_count and is_teardown, so a change that touched any of those
+--   left a snapshot that could not reproduce it -- the drawing went back, the
+--   proof failed, and the price got blamed. Widened to six fields by
+--   supabase_r8_drawing_versions_full_snapshot.sql; a reader must accept three
+--   (a row written before that) as well as six.
 --   "go back" has something to go back TO.
 --
 --   RETENTION, said out loud because nothing here cleans up: this stores a
@@ -70,7 +77,7 @@ alter table public.quote_reapprovals
     add column if not exists run_snapshot_after  text not null default '';
 
 comment on column public.quote_reapprovals.run_snapshot_before is
-  'The run''s encoded geometry before this change: points|gates|closedLoop, the FenceCodec strings the app reads. Empty for an INSERT, and empty on rows written before this column existed.';
+  'The run''s encoded geometry before this change. Three fields as first written (points|gates|closedLoop) and six since supabase_r8_drawing_versions_full_snapshot.sql (plus manualFeet|manualCorners|isTeardown), so a reader must accept either. Empty for an INSERT, and empty on rows written before this column existed.';
 comment on column public.quote_reapprovals.run_snapshot_after is
   'The same, after the change. Empty for a DELETE.';
 

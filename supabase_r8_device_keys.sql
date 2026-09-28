@@ -2,7 +2,22 @@
 -- FenceFlow -- one device per crew login, and a key that lets another one in
 -- Run in: Supabase -> SQL Editor -> New query -> Run  (safe to re-run)
 --
--- NOT APPLIED YET ON PURPOSE. Read "THE ORDERING TRAP" before running it.
+-- APPLIED 24 September 2026, and every verification row in PART 6 read true.
+--
+-- It says APPLIED rather than nothing because it said "NOT APPLIED YET ON
+-- PURPOSE" for four days after it was applied, and a survey read that line and
+-- reported the whole feature as unbuilt. A stale banner is worse than no
+-- banner: it is read as current.
+--
+-- What is still off is the SWITCH, not the file. require_device_key defaults
+-- false and is false for every company (PART 6's canary asserts it), so no
+-- phone's behaviour has changed. Read "THE ORDERING TRAP" below before turning
+-- it on for anybody -- that part has lost none of its force.
+--
+-- One correction to PART 2 while this is open: the code generator originally
+-- stripped O/0/I/1/L and THEN uppercased, so base64's lowercase o and i came
+-- back as O and I in roughly one code in three. Fixed the same day, and proved
+-- against 4,000 generated codes.
 --
 -- KIND
 --   ADDITIVE           public.device_keys (a new table), mint_device_key(),
