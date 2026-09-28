@@ -1,8 +1,18 @@
 # March's list, 25 September 2026
 
-Written down so it survives a context reset. **Work through it and keep this file
-current** — tick an item only when it is shipped and verified from the artifact,
-not when the code is written.
+Written down so it survives a context reset.
+
+**Status, 28 September.** Shipped and verified: A1, A3, D2(a), D4 (first half),
+and 1.526–1.532 before that. Built and awaiting a build: B3, F1, E1, F3.
+In flight: B2, the guest demo (I1–I3), D3 + D2(b), D5-as-reframed, the
+contract-terms editor, B1. Not started: D1, C1, C2, C3, E2, F2, F4, G1, G2.
+
+SQL applied since the list was written: `supabase_r9_taxable_panels.sql`,
+`supabase_crew_view_dispute_columns.sql`. Written and waiting on March:
+`supabase_r8_drop_duplicate_touch_trigger.sql`.
+
+**Work through it and keep this file current** — tick an item only when it is
+shipped and verified from the artifact, not when the code is written.
 
 Rules that apply to every item on this list, from earlier in the session:
 
@@ -20,7 +30,7 @@ Rules that apply to every item on this list, from earlier in the session:
 
 ## A. Wrong numbers — highest priority, he gave figures
 
-- [ ] **A1. Tax is computed on the wrong base.** He set 7%. The app shows
+- [x] **A1. Tax is computed on the wrong base.** DONE 09-25, catalog + unagreed jobs. He set 7%. The app shows
       $401.10, which is 7% of 5,730. It should be 7% of the materials —
       9,475.34 — giving **$663.27**. `EstimateEngine.computeTotals` takes
       `taxableSubtotal = lineItems.filter { it.taxable }.sumOf { it.lineTotal }`,
@@ -29,10 +39,12 @@ Rules that apply to every item on this list, from earlier in the session:
       engines — Kotlin and `supabase/functions/_shared/pricing/` — or the parity
       gate refuses the release. 5,730 vs 9,475.34 is a 3,745.34 difference;
       identify exactly which lines are untaxed before changing anything.
-- [ ] **A2. The deposit suggestion asks the labour price, not the materials
+- [x] **A2. NOT REPRODUCED** — the one caller passes materials, and both odd stored deposits are explained (James Bond $21,520 is materials rounded up under the still-owed cap; John Beaunissant $5,730 is a stale value written by code that no longer exists). Needs a screen and a job from March before anyone touches JobMoney. The old wording follows.
+- [ ] ~~A2. The deposit suggestion asks the labour price, not the materials
       price.** `JobMoney.suggestedMaterialsDeposit(job, materialCost, billable)`
       — check what each caller passes for `materialCost`.
-- [ ] **A3. The balance is wrong.** Check it everywhere: the estimate screen, the
+- [x] **A3. DONE 28-09.** A job paid in full read “Balance due $15,364.00” under “Paid in full”, proved on the live link. One meaning now, the server's, plus six tests from that fixture's figures.
+- [x] ~~A3. The balance is wrong.~~ Check it everywhere: the estimate screen, the
       job sheet, the quote page, the PDF, the payment link.
 - [ ] **A4. Audit every money calculation in the app and the office** and prove
       it charges the right price. Downstream suites exist
@@ -48,7 +60,8 @@ Rules that apply to every item on this list, from earlier in the session:
       saying it has not reached the cloud. Real bug, reported twice. Reproduce
       before changing anything — see the "empty answer reads as good news"
       memory: an unauthenticated read returns `[]`, not an error.
-- [ ] **B3. The crew sent hours, the crew say it was wrong, and it never reached
+- [x] **B3. BUILT 28-09** (pending build + publish). The dispute reached the database all along; nothing in the app on either side read it. Owner now gets a disputed section above the approval queue; the crew member sees their own objection on the shift. `supabase_crew_view_dispute_columns.sql` applied 28-09.
+- [ ] ~~B3. The crew sent hours, the crew say it was wrong, and it never reached
       the owner's phone.** Investigate from the live data, not the code alone.
 
 ## C. Money the customer sees
@@ -66,23 +79,26 @@ Rules that apply to every item on this list, from earlier in the session:
 - [ ] **D1. Unlimited grid** — draw bigger, zoom out and keep finding grid. Make
       it look good. (Today `GRID_SIZES_FT` tops out at 2000 and satellite pins
       to 400.)
-- [ ] **D2. Erase a fence run** from the drawing, not just add one.
+- [x] **D2(a) DONE 28-09 and it was a rule breach, not a feature gap:** a CREW phone could delete a fence run — `RunEditScreen` never read the session at all. Now gated on `canDelete`, hidden not greyed, checked again on the dialog.
+- [ ] **D2(b). Erase a run from the DRAWING screen** — in progress.
 - [ ] **D3. Draw the old fence on the grid** so nothing goes in the marker area,
       and make sure it is charged for.
-- [ ] **D4. Show everything that is being charged**, so nothing is missed.
-- [ ] **D5. Remove the teardown section on the job page** now that it lives on
+- [x] **D4. STARTED 28-09.** The estimate now says what the tax was charged ON, whenever that differs from the materials — the line whose absence hid A1 for three passes. More charges to surface still.
+- [ ] **D5. DO NOT BUILD AS ASKED — verified.** Those five controls are the ONLY place the teardown charge can be switched on or priced, and the engine forces the cost to zero when the switch is off. Remove them and the charge becomes permanently uncollectable — recreating D3's complaint one screen over. Instead: keep every field and show what it is pricing (in progress). Original wording:
+- [ ] ~~D5. Remove the teardown section on the job page~~ now that it lives on
       the grid, and remove anything else duplicated between the two.
 
 ## E. Keys, plans and the admin portal
 
-- [ ] **E1. The per-device product key is not visible to customers** — they
+- [x] **E1. BUILT 28-09, and the feature was already live.** The table, all four functions and the office panel were applied on 24-09; a stale comment in the file said otherwise and fooled a survey. It is called a product key now, in his words, with a pointer to it from the dashboard. The switch that enforces it is still deliberately absent from the UI. Original wording:
+- [ ] ~~E1. The per-device product key is not visible to customers~~ — they
       cannot use it, in the app or on the website.
 - [ ] **E2. A TEST product key that unlocks the test data, and a REAL one** — a
       sandbox and the live app — both controlled from the admin portal.
 
 ## F. The office and the job page
 
-- [ ] **F1. More dropdowns on the job page.**
+- [x] **F1. BUILT 28-09.** Only one field on that sheet is genuinely a list — referral source — and it is a picker now in both the job sheet and the wizard, with every value already in the data carried so no job is rewritten. Everything else there is a name, an address, a note or a rate.
 - [ ] **F2. Merge "Drawing changes since approval" with "Changes from the
       field"** into one section that looks good and saves space.
 - [ ] **F3. His company in the admin portal must show marchenry73@gmail.com.**
