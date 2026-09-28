@@ -61,6 +61,9 @@ fun RunEditScreen(
     onDrawRun: (Long) -> Unit
 ) {
     val app = currentApp()
+    // This screen never read the session at all, which is how its delete button
+    // came to be the one delete in the app with no permission behind it.
+    val session by app.session.state.collectAsState()
     var pendingDelete by remember { mutableStateOf(false) }
     val viewModel: RunEditViewModel = viewModel(
         key = "run_edit_$runId",
@@ -205,7 +208,20 @@ fun RunEditScreen(
                     }
                 }
             }
-            item {
+            // Only someone who may delete records sees it at all.
+            //
+            // It was ungated, and reachable: crew accounts open the job screen,
+            // its fence-run list is not gated, and every row leads here. So a
+            // crew phone could delete the fence line, its gates and the takeoff
+            // priced from it -- the one delete in this app with nothing behind
+            // it, while the four beside it on the job screen all ask
+            // session.canDelete. Nothing on the server substitutes: the runs
+            // table lets any company member write.
+            //
+            // Hidden rather than disabled, the same way the job screen hides its
+            // own: a greyed-out delete invites a crew member to ask the office to
+            // enable something they should not be doing.
+            if (session.canDelete) item {
                 // Asked, not assumed.
                 //
                 // This button used to delete the run the instant it was
@@ -225,7 +241,11 @@ fun RunEditScreen(
             }
         }
     }
-    if (pendingDelete) {
+    // The gate is repeated on the dialog rather than trusted to the button that
+    // sets the flag. A permission read once at the top of a screen and acted on
+    // further down is a permission that survives the screen being recomposed
+    // with a different session -- a sign-out, a role change pushed down mid-use.
+    if (pendingDelete && session.canDelete) {
         val name = currentRun.label.takeIf { it.isNotBlank() }
             ?: stringResource(R.string.run_untitled)
         AlertDialog(

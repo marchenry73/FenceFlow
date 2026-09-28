@@ -605,6 +605,30 @@ private fun TotalsCard(
             // rows above the subtotal did not add up to it and a 20% markup
             // read as 21.4% of the figure printed next to it.
             TotalRow(stringResource(R.string.est2_tax_pct, "${job?.taxRatePercent ?: 0}"), Money.format(totals.tax))
+            // WHAT the tax was taken on, whenever that is not all the materials.
+            //
+            // Nothing on this screen said so, and it hid a real fault for weeks:
+            // four catalog items were flagged not-taxable -- the vinyl panels,
+            // which are the most expensive thing on a vinyl fence -- so 7% was
+            // being charged on 2,955.59 of a 9,475.34 takeoff and the only clue
+            // was that the figure felt small. A rate and a total tell you nothing
+            // about the base between them.
+            //
+            // Shown only when the two differ, so an ordinary job where everything
+            // is taxed gains no extra line. Read straight off the engine's own
+            // taxableSubtotal; nothing is recomputed here.
+            if (totals.taxRateIsSet(job) &&
+                kotlin.math.abs(totals.taxableSubtotal - totals.materialsSubtotal) > 0.005) {
+                Text(
+                    stringResource(
+                        R.string.est2_tax_base_note,
+                        Money.format(totals.taxableSubtotal),
+                        Money.format(totals.materialsSubtotal)
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.semantic.warning
+                )
+            }
 
             // The subtotal is the engine's own markup base (Totals.preMarkup),
             // not a second sum added up in the screen. Adding it up here is

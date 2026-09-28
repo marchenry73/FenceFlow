@@ -887,6 +887,7 @@
     <string name="est2_materials">Materials</string>
     <string name="est2_subtotal">Subtotal</string>
     <string name="est2_tax_pct">Tax (%1$s%%)</string>
+    <string name="est2_tax_base_note">Charged on %1$s of %2$s of materials — the rest is marked not taxable. Check the catalog if that looks wrong.</string>
     <string name="est2_gates_line">Gates (%1$s ft @ %2$s/ft)</string>
     <string name="est2_teardown_existing">Teardown of existing fence</string>
     <string name="est2_haul_away_fee">Haul away / dump fee</string>

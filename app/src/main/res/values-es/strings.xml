@@ -868,6 +868,7 @@
     <string name="est2_materials">Materiales</string>
     <string name="est2_subtotal">Subtotal</string>
     <string name="est2_tax_pct">Impuesto (%1$s%%)</string>
+    <string name="est2_tax_base_note">Cobrado sobre %1$s de %2$s de materiales: el resto está marcado como no gravable. Revisa el catálogo si eso no parece correcto.</string>
     <string name="est2_gates_line">Portones (%1$s pies a %2$s/pie)</string>
     <string name="est2_teardown_existing">Retiro de la cerca vieja</string>
     <string name="est2_haul_away_fee">Acarreo / tarifa de basurero</string>

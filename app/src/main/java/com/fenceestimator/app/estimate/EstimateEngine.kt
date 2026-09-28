@@ -759,7 +759,17 @@ object EstimateEngine {
          * silently by any call that happened to pass enough arguments.
          */
         val preMarkup: Double = 0.0
-    )
+    ) {
+        /**
+         * Whether a tax rate is actually set on this job.
+         *
+         * Asked so a screen can tell "no tax here" from "tax on the wrong
+         * base". At a rate of zero the taxable subtotal is meaningless and a
+         * note about it would be noise; at any other rate the base is worth
+         * showing when it is not all the materials.
+         */
+        fun taxRateIsSet(job: Job?): Boolean = (job?.taxRatePercent ?: 0.0) > 0.0
+    }
 
     /**
      * @param changeOrders extra work agreed after the original quote. Their feet

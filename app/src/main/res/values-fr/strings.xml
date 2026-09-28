@@ -868,6 +868,7 @@
     <string name="est2_materials">Matériaux</string>
     <string name="est2_subtotal">Sous-total</string>
     <string name="est2_tax_pct">Taxe (%1$s %%)</string>
+    <string name="est2_tax_base_note">Prélevée sur %1$s de %2$s de matériaux : le reste est marqué non taxable. Vérifiez le catalogue si cela paraît faux.</string>
     <string name="est2_gates_line">Portails (%1$s pi à %2$s/pi)</string>
     <string name="est2_teardown_existing">Démolition de la clôture existante</string>
     <string name="est2_haul_away_fee">Évacuation / frais de décharge</string>
