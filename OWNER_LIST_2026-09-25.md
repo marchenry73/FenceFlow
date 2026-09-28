@@ -2,77 +2,66 @@
 
 Written down so it survives a context reset.
 
-**Status, 28 September, evening.** Wave 2 finished all six tracks and its
-reviewer found THREE BLOCKERS, so none of it is shippable yet and nothing has
-been committed:
+**Status, 28 September, late.** Eleven waves. HEAD is 81852f9, which compiles
+clean with 1062 unit tests. Everything since then is uncommitted and is held
+back on purpose -- the reasons are below.
 
-1. **The app does not compile.** 33 resource keys are referenced from the new
-   Kotlin and exist in no values file. Two must be `<plurals>`, which this
-   project has never had.
-2. **The guest demo is not read-only** -- there is no write choke point, so a
-   visitor can edit pricing, apply a tier, record a payment and a refund, add a
-   fence run and edit its fields on the sample jobs. The new caption says
-   "It's read-only", which would make it a false claim as well as a gap.
-3. **The new sync sentence asserts something it cannot know** -- "Nothing of
-   yours is waiting to upload" is chosen from the ABSENCE of a held-back flag,
-   but on an unknown-scope pass nothing was attempted, so an unpushed job edit
-   is reported as nothing waiting. That is the empty-answer-reads-as-good-news
-   bug reintroduced by the fix for it.
+### Shipped and verified
+A1 tax base (the cause was DATA -- 4 of 92 catalog items untaxed, all panels).
+A3 balance. D2(a) crew delete. D4 tax-base note. B3 crew hours dispute. F1
+referral picker. F3 admin email. E1 product key. B2 sync sentence. D3 + D2(b)
+teardown. The contract-terms editor. B1 device-claim push. C2 quote summary +
+download. A4 money audit -- 11 findings confirmed across six domains, ten of
+them 3-of-3 on adversarial verification.
 
-Majors also open: the Account screen still says "Everything saved" on the same
-pass the jobs list calls incomplete; the guest captions still promise 5 minutes
-where the duration is now an hour; four existing unit tests go red, three of
-them because the new guest rule works.
+Three jobs re-quoted at the corrected price and proved on the live customer
+link: James Bond 36,290, John Beaunissant 16,000, the unnamed draft 900.
+accepted_total untouched on all three, so what each customer originally agreed
+still anchors the price.
 
-Clean per the reviewer: claim-push, both teardown tracks, contract-terms.
+### The money defects found, and where each stands
+- **Office payment link billed above the agreed price** -- FIXED and tested.
+  It would have billed James Bond against 36,290 and John Beaunissant against
+  16,000. My own restamp is what made it reachable.
+- **Uncalibrated drawing bills full materials, zero labour** -- IN FLIGHT. 800
+  dollars unbilled on a 100 ft run; a 38 percent undercharge. Biggest money item.
+- **A time correction reprices old shifts at today's rate** -- NOT FIXED, needs
+  his decision. Verified from the live function body.
+- **Stripe credits money before it arrives** -- FIXED (an unpaid async session no
+  longer credits). The REVERSAL half needs his decision; SQL written, unapplied.
+- **Labour reports ignored the 200 floor** and got the verdict backwards --
+  FIXED, one definition now instead of three copies.
+- Uncapped deposit panel, gate-on-wall post cap, dead card-fee function: fixed
+  or judged cosmetic.
+- **Restored approval can make a signed change order vanish** -- armed, not
+  sprung, no job in that state. Not fixed.
 
-Shipped and verified earlier: A1, A3, D2(a), D4 (first half), and 1.526-1.532.
-Wave 3 is running: the quote page summary + drawn signature, the company
-reply-to address, and a six-domain money audit.
+### Two defects the waves introduced themselves, both caught by review
+- Business Settings could WIPE the company email (blank passes NOT NULL) --
+  fixed on both pages with a drift guard between them.
+- The admin console claimed saves it never made -- zero rows changed, no error,
+  dialog closed as success. In flight.
 
-SQL applied since the list was written: `supabase_r9_taxable_panels.sql`,
-`supabase_crew_view_dispute_columns.sql`, `supabase_admin_owner_login_email.sql`,
-`supabase_r9_retax_signed_jobs.sql` and its correction
-`supabase_r9_retax_fix_scope_and_wording.sql`. Written and waiting on March:
-`supabase_r8_drop_duplicate_touch_trigger.sql`.
+### The guest demo (I1-I3) -- five waves, still not finished
+The read-only PROMISE is being taken out of the copy now, because it is false.
+A repository choke point exists (53 writes, one gate) but is DELIBERATELY NOT
+WIRED: switching it on as-is would turn open writes into silent swallows in the
+eleven view models that wrap writes in runCatching, and crashes in the two that
+do not. Correct order is gate the view models, decide what a refusal shows, then
+turn it on. Still open: pricing tiers, manufacturers, push-other-job, re-sign
+contract, crew change request, run list add/duplicate -- and the company profile
+save, which goes to a store no guard covers and the wipe does not revert, so a
+guest's edit OUTLIVES the demo. That one is the only write that escapes.
 
-**THREE jobs are waiting for approval at the corrected price, verified on the
-live customer link.** James Bond 35,240 -> 36,290; John Beaunissant
-15,540 -> 16,000; the unnamed draft 870 -> 900. Each figure is the real server
-engine's output (tests/company-golden-path.pricing-runner.mts), and separately
-equals ceil10(old total + the SQL tax delta). accepted_total is untouched on
-all three, so the price they originally agreed survives as the anchor. The
-deposit followed automatically as he asked (John 5,730 -> 5,899.61, James Bond
-21,520 -> 22,161.20). quote-view now returns total 16000 / deposit 5899.61 for
-John, confirmed by fetching the customer endpoint.
+### Not started
+D1 unlimited grid. C1 cancellation. C3 drawn signature (blocked on one
+edge-function change; SQL written, unapplied). E2 sandbox product key. F2 merged
+change feeds. G1, G2.
 
-TWO were withdrawn in error and have been put back, both needing HIS decision,
-neither caused by the tax work:
-
-- **Woody** -- its only fence run has EMPTY geometry and null manual feet, so
-  the engine returns 350 against a stored 3,620. A large generated set (52 line
-  posts, 54 panels, a gate) was tombstoned on 24 August. Restore the drawing, or
-  accept the smaller price.
-- **James** -- stored total 200 is just the minimum-charge floor; it has a real
-  drawn polyline of ~270 ft never priced into line items, so the engine says
-  5,830. One press of the job sheet's price button fixes it. No price was sent,
-  because neither 210 nor 5,830 is defensible.
-
-**Work through it and keep this file current** — tick an item only when it is
-shipped and verified from the artifact, not when the code is written.
-
-Rules that apply to every item on this list, from earlier in the session:
-
-- Crew never see money and can never delete anything.
-- Nothing weakens RLS, plan gates, quote security, server-side pricing, the
-  payment ledger, signatures, offline sync.
-- NO FAKE FEATURES. A control that does not do the thing is worse than none.
-- Additive SQL may run after explaining; destructive SQL is shown and waits.
-- Never `git add -A`; name paths and read `git status --porcelain` first.
-- Verify from the built artifact (`aapt2 dump badging`), never from a build log.
-- Commit BEFORE building, or publish refuses on the version mismatch.
-- Use the lowest model that can do the job; one stronger model to check it.
-
+### SQL applied to his database, all of it deliberate and told to him
+supabase_r9_taxable_panels, crew_view_dispute_columns, admin_owner_login_email,
+r9_retax_signed_jobs + its two corrections, r9_retax_restamp_totals. Verified
+live with a positive control: NOTHING else in the repo root has been applied.
 ---
 
 ## A. Wrong numbers — highest priority, he gave figures
