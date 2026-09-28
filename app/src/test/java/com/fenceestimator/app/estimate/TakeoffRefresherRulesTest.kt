@@ -47,7 +47,10 @@ class TakeoffRefresherRulesTest {
     @Test
     fun `a profile not read yet may not re-price, a phone used alone may`() {
         assertFalse(TakeoffRefresher.mayReprice(SessionState(signedIn = true, role = UserRole.OWNER, accessKnown = false)))
-        assertTrue(TakeoffRefresher.mayReprice(SessionState(signedIn = false)))
+        // "A phone used alone" is the pre-signup owner, not a guest demo and
+        // not the moment before the guest flag is read -- guestKnown says which
+        // of those signed-out cases this is.
+        assertTrue(TakeoffRefresher.mayReprice(SessionState(signedIn = false, guestKnown = true)))
     }
 
     // Planted failure: the watcher used to start from SurveyViewModel's init

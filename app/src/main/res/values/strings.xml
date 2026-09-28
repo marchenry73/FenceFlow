@@ -171,6 +171,7 @@
     <string name="svc_elsewhere_body">This account has been signed in on another phone. One login works on one phone at a time, so FenceFlow has stopped on this one.</string>
     <string name="svc_elsewhere_nothing_lost">Nothing on this phone has been deleted. Tap Use this phone to carry on here -- the other phone will stop until it signs in again.</string>
     <string name="svc_elsewhere_seat_note">If two people share this login, each of you needs your own -- ask the office. If it wasn\'t you, change your password.</string>
+    <string name="push_displaced_body">This account just signed in on another phone, so FenceFlow has stopped syncing here. Nothing on this phone has been deleted -- open FenceFlow to take the login back.</string>
     <string name="svc_use_this_phone">Use this phone</string>
     <string name="svc_use_this_phone_working">Switching to this phone…</string>
     <string name="svc_use_this_phone_failed">Couldn\'t reach FenceFlow to switch phones. Check the connection and try again.</string>
@@ -265,6 +266,7 @@
     <!-- Survey & draw -->
     <string name="draw_title">Survey &amp; Draw</string>
     <string name="draw_add_run_first">Add a fence run on the job screen first, then come back to draw it here.</string>
+    <string name="draw_no_runs_yet">Nothing drawn on this job yet. Start the new fence, or the old one coming out.</string>
     <string name="draw_grid_size_ft">%1$d ft</string>
     <string name="draw_closed_perimeter">Closed perimeter (no open ends)</string>
     <string name="draw_undo">Undo</string>
@@ -304,6 +306,11 @@
     <string name="draw_remove_gate_title">Remove this gate?</string>
     <string name="draw_remove">Remove</string>
     <string name="draw_keep">Keep</string>
+    <!-- Erasing a single fence run from the canvas -->
+    <string name="draw_erase_run">Erase the selected fence run</string>
+    <string name="draw_erase_run_title">Erase this fence run?</string>
+    <string name="draw_erase_run_body">%1$s comes off this drawing, with its fence line, its gates and the materials priced from it. Undo will not bring it back. It goes to the trash, so the office can still restore it.</string>
+    <string name="draw_erase">Erase</string>
     <string name="draw_mark_spot">Mark this spot</string>
     <string name="draw_note_optional">Note (optional)</string>
     <string name="draw_already_marked">Already marked:</string>
@@ -373,6 +380,18 @@
     <string name="set_business_name">Business name</string>
     <string name="set_owner_name">Owner name</string>
     <string name="set_license_number">License number</string>
+    <!-- Contract terms, edited here and printed on the contract PDF -->
+    <string name="set_contract_terms">Contract terms</string>
+    <string name="set_contract_terms_needs_review">Cancellation notice still not replaced</string>
+    <string name="set_contract_terms_explain">These are the terms printed on the contract your customer signs. Replace them with your own — the ones FenceFlow ships are a starting point, not legal advice, and nothing here checks whether your terms are lawful where you work.</string>
+    <string name="set_contract_terms_field">Terms printed on the contract</string>
+    <string name="set_contract_terms_review_body">The block marked for replacement is still in the text below — look for YOUR RIGHT TO CANCEL. Ask your attorney for the wording your state requires and paste it over that paragraph. FenceFlow does not know what your state requires and does not check.</string>
+    <string name="set_contract_terms_placeholders">Filled in when the contract is produced: {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Everything else prints exactly as you type it.</string>
+    <string name="set_contract_terms_this_phone">These terms are kept on this phone. A second phone on the same account keeps its own copy, so change them there too.</string>
+    <string name="set_contract_terms_blank">This box is empty, so the contract will print no terms at all.</string>
+    <string name="set_contract_terms_reset">Start again from the terms FenceFlow ships</string>
+    <string name="set_contract_terms_reset_confirm">This replaces everything in the box with the terms FenceFlow ships, in your language. Your own wording is not kept anywhere.</string>
+    <string name="set_contract_terms_reset_action">Replace</string>
     <string name="set_theme_system">System</string>
     <string name="set_theme_light">Light</string>
     <string name="set_theme_dark">Dark</string>
@@ -577,6 +596,19 @@
     <string name="jd_haul_fee">Haul away / dump fee ($)</string>
     <string name="jd_teardown_length">Teardown length (ft) -- 0 = same as the new fence</string>
     <string name="jd_teardown_note">Teardown is charged on the same footage as the new fence. If the old fence ran a different length, add a separate run for it and type its length in “Total feet” -- that keeps it off the new fence\'s takeoff.</string>
+    <!-- Which basis a teardown charge is priced on, and the override field -->
+    <string name="jd_teardown_basis_typed_over_drawn">Pricing %1$s ft: the length typed below. The drawing\'s %2$s (about %3$s ft) is not being used.</string>
+    <string name="jd_teardown_basis_typed">Pricing %1$s ft: the length typed below. Nothing on the drawing is marked as the old fence.</string>
+    <string name="jd_teardown_basis_drawn">From the drawing: %1$s, about %2$s ft. That is the length being charged.</string>
+    <string name="jd_teardown_basis_run_no_length">%1$s on the drawing, with no length on it yet -- so the teardown is charged along the new fence, about %2$s ft. Trace the old fence, or type its length below.</string>
+    <string name="jd_teardown_basis_new_fence">No old fence is marked on the drawing, so the teardown is charged along the new fence, about %1$s ft. Type a length below if the old fence ran differently.</string>
+    <string name="jd_teardown_basis_no_length_at_all">There is no length anywhere on this job yet, so the teardown is only charging the flat fee and the haul fee.</string>
+    <string name="jd_teardown_length_override">Override the old fence\'s length (ft) -- 0 = use the drawing</string>
+    <string name="jd_teardown_override_note">At 0 the teardown is priced on the old fence you drew, or along the new fence if you drew none. A number here overrides both -- for an old fence whose length you already know without tracing it. It never changes the new fence\'s takeoff.</string>
+    <plurals name="jd_teardown_runs">
+        <item quantity="one">%1$d teardown run</item>
+        <item quantity="other">%1$d teardown runs</item>
+    </plurals>
     <string name="jd_gates">Gates</string>
     <string name="jd_gate_rate">Gate rate ($ per foot of opening)</string>
     <string name="jd_gate_note">Charged on the gate opening only, not the whole fence. A 5 ft gate at $%1$s/ft is $%2$s. Gates are the slowest work on a job per foot, so pricing them at the fence rate loses money on every one.</string>
@@ -1379,6 +1411,9 @@
     <string name="misc_survey_whats_here">What\'s here? This shows on the plan so the crew knows what to work around.</string>
     <string name="misc_survey_remove_marker">Remove marker</string>
     <string name="misc_marker_old_fence">Old fence</string>
+    <string name="misc_marker_old_fence_note">Old fence (note)</string>
+    <string name="draw_marker_old_fence_chip">Old fence (note only, not charged)</string>
+    <string name="draw_marker_old_fence_not_charged">A marker charges nothing. To be paid for pulling the old fence out, draw it as an Old fence (teardown) run instead.</string>
     <string name="misc_marker_house">House</string>
     <string name="misc_marker_pool">Pool</string>
     <string name="misc_marker_driveway">Driveway</string>
@@ -1955,6 +1990,9 @@
     <string name="draw_add_run_new">New fence run</string>
     <string name="draw_add_run_teardown">Old fence (teardown)</string>
     <string name="draw_run_teardown_badge">Teardown</string>
+    <string name="draw_teardown_charge">Charge for the teardown</string>
+    <string name="draw_teardown_charge_on">Priced at the teardown rates on the job sheet, along the old fence drawn here unless a teardown length is typed there.</string>
+    <string name="draw_teardown_charge_off">An old fence is drawn but nothing is being charged to take it out.</string>
     <string name="jd_teardown_run_not_billed">A teardown run is drawn on this job, but “Include teardown of existing fence” below is off -- nothing is being billed for removing the old fence until you turn it on.</string>
     <string name="jd_new_signature_confirm_title">Confirm the total before signing</string>
     <string name="jd_new_signature_confirm_body">The customer is about to sign for %1$s. Continue to the signature pad?</string>
@@ -2001,4 +2039,13 @@
     <string name="jd_drawhist_confirm_needs_online">This needs a connection. The app checks first that the customer hasn\'t already approved again, and won\'t put the drawing back if it can\'t ask.</string>
     <string name="jd_drawhist_resolved_meanwhile">The customer has already approved this quote again, so nothing was changed.</string>
     <string name="jd_drawhist_cannot_check">Couldn\'t check with the cloud whether the customer has approved again, so the drawing was left alone. Try again on signal.</string>
+
+    <string name="time_disputed_heading">%1$d shift(s) the crew say are wrong</string>
+    <string name="time_dispute_badge">Crew disputed these hours</string>
+    <string name="time_dispute_their_note">They said: %1$s</string>
+    <string name="time_dispute_our_reason">Reason given for the change: %1$s</string>
+    <string name="time_dispute_times_changed">Clock said %1$s - %2$s, changed to %3$s - %4$s</string>
+    <string name="time_dispute_already_approved">Already approved, so these hours are being paid.</string>
+    <string name="time_dispute_still_waiting">Still waiting to be signed off.</string>
+    <string name="time_dispute_settle_note">A dispute changes no hours and no pay. It stands until the shift’s times are corrected again.</string>
 </resources>

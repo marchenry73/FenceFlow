@@ -1203,7 +1203,29 @@ data class TimeEntry(
      * while the first was in flight is not lost). Null on every other shift,
      * which is why the push no longer rewrites every shift on every sync.
      */
-    val workerChangedAt: Long? = null
+    val workerChangedAt: Long? = null,
+    /**
+     * The crew member's own answer to a correction of their hours.
+     *
+     * Written on the server by `acknowledge_my_shift` and `dispute_my_shift`
+     * (supabase_shift_dispute.sql), which both check that the caller IS the
+     * person the shift belongs to. Never written by this phone: they arrive on
+     * the pull and nothing pushes them back.
+     *
+     * [correctionSeenAt] is only that they looked at it. [correctionDisputedAt]
+     * and [disputeNote] are them saying the corrected hours are wrong -- which
+     * changes no time and no pay, by design, because rewriting the record on a
+     * disagreement is how it stops being a record. All three were reaching the
+     * database and being read by nothing here, so a crew member could object
+     * and be told by the owner that nothing had arrived.
+     *
+     * [disputeNote] is non-null for the same reason [correctionReason] is: the
+     * column is nullable and null on most rows, "" and null both mean nothing
+     * was said, and one shape for both keeps a `?: ""` out of every reader.
+     */
+    val correctionSeenAt: Long? = null,
+    val correctionDisputedAt: Long? = null,
+    val disputeNote: String = ""
 ) {
     val isRunning: Boolean get() = endedAt == null
 
@@ -1222,6 +1244,29 @@ data class TimeEntry(
 
     val isApproved: Boolean get() = approvedAt != null
     val isRejected: Boolean get() = rejectedAt != null && approvedAt == null
+
+    /**
+     * The crew member has objected to the hours as they stand NOW.
+     *
+     * An objection is measured against the correction it answers, which is the
+     * same test the server's own read-back applies (`my_shift_answer`, in
+     * supabase_shift_answer_readback.sql): one raised before the most recent
+     * correction was about times that have since changed, so it no longer
+     * stands. Without that comparison the two would disagree -- the phone
+     * would keep showing an objection the server already treats as answered --
+     * and correcting a shift a second time to settle a disagreement would
+     * leave the old objection open for ever with nothing able to clear it.
+     *
+     * A dispute with no correction recorded still counts. That is what the
+     * server does too, and a shift whose correction columns never arrived is
+     * not a reason to hide the person's words.
+     */
+    val hasOpenDispute: Boolean
+        get() {
+            val objectedAt = correctionDisputedAt ?: return false
+            val changedAt = correctedAt ?: return true
+            return objectedAt >= changedAt
+        }
 
     val hours: Double
         get() = ((endedAt ?: System.currentTimeMillis()) - startedAt)

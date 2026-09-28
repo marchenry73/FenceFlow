@@ -52,11 +52,30 @@ class CachedIdentityContractTest {
 
     @Test
     fun `signing out forgets the remembered profile`() {
+        // Anchored on how a signed-out session is actually detected (no email
+        // back from the auth check), not on the exact syntax used to publish
+        // the resulting state -- that syntax is free to change, as it already
+        // has once, without the invariant this test cares about changing at
+        // all. Every step below reports what it could not find instead of
+        // failing on an unrelated substring error, so a rename says which
+        // anchor moved rather than producing an opaque crash.
         val src = session()
-        val signedOut = src.indexOf("_state.value = SessionState(resolved = true)")
-        assertTrue("The signed-out branch has moved", signedOut > 0)
+        val branchStart = src.indexOf("if (email == null) {")
+        assertTrue(
+            "Could not find the branch that detects a signed-out session " +
+                "(the check that email came back null). If that detection moved " +
+                "or changed shape, point this test at whatever replaced it.",
+            branchStart >= 0
+        )
 
-        val window = src.substring(maxOf(0, signedOut - 500), signedOut)
+        val branchEnd = src.indexOf("return@launch", branchStart)
+        assertTrue(
+            "Found the signed-out branch but not the return that ends it, so " +
+                "this test cannot bound what it inspects.",
+            branchEnd > branchStart
+        )
+
+        val window = src.substring(branchStart, branchEnd)
         assertTrue(
             "Signing out must clear the cache, or the next account on this phone " +
                 "inherits the last one's company and role.",

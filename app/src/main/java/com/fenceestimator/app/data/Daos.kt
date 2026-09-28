@@ -494,6 +494,27 @@ interface TimeEntryDao {
     )
     fun observeAwaitingApproval(): Flow<List<TimeEntry>>
 
+    /**
+     * Shifts a crew member has objected to, whichever way they were decided.
+     *
+     * Deliberately NOT filtered to the approval queue. An objection can only
+     * be raised after the hours were corrected, and on this screen correcting
+     * is part of the same action as approving -- so by the time anyone
+     * disputes, the shift has already left [observeAwaitingApproval]. The one
+     * live example on 25 September was disputed thirty-seven seconds after it
+     * was approved. A flag on the pending queue would have shown none of the
+     * disputes that actually exist, which is the same "nothing to show reads
+     * as nothing wrong" shape this whole item is about.
+     *
+     * Newest objection first. Whether one still stands against the times as
+     * they are now is [TimeEntry.hasOpenDispute]'s question, not SQL's.
+     */
+    @Query(
+        "SELECT * FROM time_entries WHERE correctionDisputedAt IS NOT NULL " +
+            "ORDER BY correctionDisputedAt DESC"
+    )
+    fun observeDisputed(): Flow<List<TimeEntry>>
+
     @Query("SELECT * FROM time_entries WHERE jobId = :jobId AND endedAt IS NULL LIMIT 1")
     suspend fun runningForJob(jobId: Long): TimeEntry?
 

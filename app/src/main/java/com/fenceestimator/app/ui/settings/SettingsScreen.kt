@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Sell
@@ -197,6 +199,7 @@ fun SettingsScreen(
     var editingTier by remember { mutableStateOf<PricingTier?>(null) }
     var showNewTier by remember { mutableStateOf(false) }
     var showCopyStartingTiersConfirm by remember { mutableStateOf(false) }
+    var showResetContractTerms by remember { mutableStateOf(false) }
     var manufacturerMenuExpanded by remember { mutableStateOf(false) }
 
     // Saves itself shortly after you stop changing things.
@@ -249,6 +252,136 @@ fun SettingsScreen(
                     DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = stringResource(R.string.field_phone), keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth()) { local = local.copy(phone = it) }
                     DraftTextField(stableKey = "biz_email", initialValue = local.email, label = stringResource(R.string.field_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) { local = local.copy(email = it) }
                     DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth()) { local = local.copy(licenseNumber = it) }
+                }
+            }
+            item {
+                // The terms printed on the contract a customer signs. Until now
+                // there was nowhere in this app, or in the office, to change
+                // them.
+                //
+                // Send Contract already stops and asks when the terms still
+                // carry the block an owner is meant to replace with their
+                // state's right-to-cancel wording, and that warning tells the
+                // reader to come to Settings and paste their own words in --
+                // into a box that did not exist. So every company was warned on
+                // every contract send about something it could not act on,
+                // which is how people learn to tap past warnings, and the
+                // document reaching the customer kept default wording nobody
+                // had chosen.
+                //
+                // These are company-wide terms, not a crew field. The gate is
+                // the one every other company-wide setting on this screen
+                // relies on: reaching this screen at all takes the permission
+                // to change the catalog and settings, and anyone without it is
+                // handed the personal settings screen instead, which carries
+                // none of the company fields.
+                val termsNeedReview =
+                    com.fenceestimator.app.data.contractTermsNeedLegalReview(local.contractTerms)
+                // A company working in Spanish or French should start from the
+                // terms in its own language. The contract already prints the
+                // language default while the stored value is an untouched
+                // shipped default, so showing that here is showing what the
+                // customer would actually receive, rather than the English the
+                // value happens to be stored as. Shown, not written: seeding
+                // the edit buffer would make merely opening Settings count as a
+                // change and fire the debounced save.
+                val shownTerms =
+                    if (com.fenceestimator.app.data.isDefaultContractTerms(local.contractTerms))
+                        com.fenceestimator.app.data.defaultContractTermsFor(local.language)
+                    else local.contractTerms
+                SectionCard(
+                    stringResource(R.string.set_contract_terms),
+                    subtitle = if (termsNeedReview) stringResource(R.string.set_contract_terms_needs_review) else "",
+                    // Open on arrival while the block is still unreplaced.
+                    // Every other card here starts shut, and rightly so, but
+                    // the person who lands on this one was sent by a warning
+                    // about this exact text -- a closed card is one more thing
+                    // between them and the paragraph they came to replace.
+                    // Closes with the rest once it no longer applies.
+                    startExpanded = termsNeedReview,
+                    icon = Icons.Filled.Gavel
+                ) {
+                    if (termsNeedReview) {
+                        // Said at the top of the editor, because whoever gets
+                        // here was sent by the pre-send warning and needs to
+                        // know which paragraph to go looking for. All this can
+                        // honestly claim is that the replace-me marker is still
+                        // in the text: nothing in this app knows what any state
+                        // requires, and nothing here checks.
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Filled.WarningAmber,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        "  " + stringResource(R.string.contract_legal_gap_title),
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                                Text(
+                                    stringResource(R.string.set_contract_terms_review_body),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.set_contract_terms_explain),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    DraftTextField(
+                        stableKey = "contract_terms", initialValue = shownTerms,
+                        label = stringResource(R.string.set_contract_terms_field),
+                        minLines = 12, modifier = Modifier.fillMaxWidth()
+                    ) { local = local.copy(contractTerms = it) }
+                    // An empty box does not fall back to the shipped terms --
+                    // the contract skips the whole terms section instead. Worth
+                    // saying out loud, because a box cleared to start over and
+                    // a box cleared by accident look identical.
+                    if (local.contractTerms.isBlank()) {
+                        Text(
+                            stringResource(R.string.set_contract_terms_blank),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.set_contract_terms_placeholders),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Said plainly because most of this screen follows the
+                    // company account and this does not: the company slice that
+                    // gets pushed carries the email templates and the pricing
+                    // numbers but has no contract-terms field in it, so the
+                    // words typed here stay on this handset. Implying otherwise
+                    // would cost somebody a contract sent from the second phone
+                    // with the shipped wording still in it.
+                    Text(
+                        stringResource(R.string.set_contract_terms_this_phone),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (!com.fenceestimator.app.data.isDefaultContractTerms(local.contractTerms)) {
+                        OutlinedButton(
+                            onClick = { showResetContractTerms = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.set_contract_terms_reset)) }
+                    }
                 }
             }
             item {
@@ -851,6 +984,29 @@ fun SettingsScreen(
             },
             dismissButton = {
                 OutlinedButton(onClick = { showCopyStartingTiersConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+    if (showResetContractTerms) {
+        // Confirmed, because this editor saves itself about a second after you
+        // stop typing and there is no undo on this screen: replacing the box
+        // outright takes a company's own terms with it.
+        AlertDialog(
+            onDismissRequest = { showResetContractTerms = false },
+            title = { Text(stringResource(R.string.set_contract_terms_reset)) },
+            text = { Text(stringResource(R.string.set_contract_terms_reset_confirm)) },
+            confirmButton = {
+                Button(onClick = {
+                    showResetContractTerms = false
+                    local = local.copy(
+                        contractTerms = com.fenceestimator.app.data.defaultContractTermsFor(local.language)
+                    )
+                }) { Text(stringResource(R.string.set_contract_terms_reset_action)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showResetContractTerms = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             }

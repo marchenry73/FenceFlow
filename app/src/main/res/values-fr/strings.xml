@@ -156,6 +156,7 @@
     <string name="svc_elsewhere_body">Ce compte s\'est connecté sur un autre téléphone. Un compte ne fonctionne que sur un téléphone à la fois, donc FenceFlow s\'est arrêté sur celui-ci.</string>
     <string name="svc_elsewhere_nothing_lost">Rien n\'a été supprimé sur ce téléphone. Touchez Utiliser ce téléphone pour continuer ici ; l\'autre téléphone s\'arrêtera jusqu\'à ce qu\'il se reconnecte.</string>
     <string name="svc_elsewhere_seat_note">Si deux personnes partagent ce compte, chacune a besoin du sien : demandez-le au bureau. Si ce n\'était pas vous, changez votre mot de passe.</string>
+    <string name="push_displaced_body">Ce compte vient de se connecter sur un autre téléphone, donc FenceFlow a arrêté de synchroniser ici. Rien n\'a été supprimé sur ce téléphone ; ouvrez FenceFlow pour récupérer la session.</string>
     <string name="svc_use_this_phone">Utiliser ce téléphone</string>
     <string name="svc_use_this_phone_working">Passage à ce téléphone…</string>
     <string name="svc_use_this_phone_failed">Impossible de joindre FenceFlow pour changer de téléphone. Vérifiez la connexion et réessayez.</string>
@@ -248,6 +249,7 @@
     <!-- Survey & draw -->
     <string name="draw_title">Relevé et dessin</string>
     <string name="draw_add_run_first">Ajoutez d\'abord une section de clôture sur l\'écran du chantier, puis revenez la dessiner ici.</string>
+    <string name="draw_no_runs_yet">Rien n\'est encore dessiné sur ce chantier. Commencez la nouvelle clôture, ou l\'ancienne à enlever.</string>
     <string name="draw_grid_size_ft">%1$d pi</string>
     <string name="draw_closed_perimeter">Périmètre fermé (sans extrémités ouvertes)</string>
     <string name="draw_undo">Annuler</string>
@@ -287,6 +289,10 @@
     <string name="draw_remove_gate_title">Retirer ce portail ?</string>
     <string name="draw_remove">Retirer</string>
     <string name="draw_keep">Garder</string>
+    <string name="draw_erase_run">Effacer le tronçon de clôture sélectionné</string>
+    <string name="draw_erase_run_title">Effacer ce tronçon de clôture ?</string>
+    <string name="draw_erase_run_body">%1$s est retiré de ce plan, avec sa ligne de clôture, ses portails et les matériaux chiffrés à partir de lui. Annuler ne le rétablira pas. Il va à la corbeille, le bureau peut donc encore le restaurer.</string>
+    <string name="draw_erase">Effacer</string>
     <string name="draw_mark_spot">Marquer cet endroit</string>
     <string name="draw_note_optional">Note (facultatif)</string>
     <string name="draw_already_marked">Déjà marqué :</string>
@@ -355,6 +361,17 @@
     <string name="set_business_name">Nom de l\'entreprise</string>
     <string name="set_owner_name">Nom du propriétaire</string>
     <string name="set_license_number">Numéro de licence</string>
+    <string name="set_contract_terms">Conditions du contrat</string>
+    <string name="set_contract_terms_needs_review">L\'avis d\'annulation n\'est pas encore remplacé</string>
+    <string name="set_contract_terms_explain">Ce sont les conditions imprimées sur le contrat que votre client signe. Remplacez-les par les vôtres : celles fournies avec FenceFlow sont un point de départ, pas un conseil juridique, et rien ici ne vérifie si vos conditions sont valables là où vous travaillez.</string>
+    <string name="set_contract_terms_field">Conditions imprimées sur le contrat</string>
+    <string name="set_contract_terms_review_body">Le bloc à remplacer est toujours dans le texte ci-dessous : cherchez VOTRE DROIT D\'ANNULATION. Demandez à votre avocat la formulation exigée par votre État et collez-la à la place de ce paragraphe. FenceFlow ne sait pas ce qu\'exige votre État et ne le vérifie pas.</string>
+    <string name="set_contract_terms_placeholders">Remplis à la production du contrat : {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Tout le reste est imprimé tel que vous le tapez.</string>
+    <string name="set_contract_terms_this_phone">Ces conditions sont conservées sur ce téléphone. Un second téléphone du même compte garde sa propre copie : modifiez-les aussi là-bas.</string>
+    <string name="set_contract_terms_blank">Cette case est vide : le contrat n\'imprimera aucune condition.</string>
+    <string name="set_contract_terms_reset">Repartir des conditions fournies avec FenceFlow</string>
+    <string name="set_contract_terms_reset_confirm">Ceci remplace tout le contenu de la case par les conditions fournies avec FenceFlow, dans votre langue. Votre propre formulation n\'est conservée nulle part.</string>
+    <string name="set_contract_terms_reset_action">Remplacer</string>
     <string name="set_theme_system">Système</string>
     <string name="set_theme_light">Clair</string>
     <string name="set_theme_dark">Sombre</string>
@@ -559,6 +576,18 @@
     <string name="jd_haul_fee">Évacuation / décharge ($)</string>
     <string name="jd_teardown_length">Longueur à démolir (pi) -- 0 = identique à la nouvelle clôture</string>
     <string name="jd_teardown_note">La démolition est facturée sur le même métrage que la nouvelle clôture. Si l\'ancienne clôture avait une autre longueur, ajoutez une section séparée et saisissez sa longueur dans « Pieds au total » -- elle restera ainsi hors du métré de la nouvelle clôture.</string>
+    <string name="jd_teardown_basis_typed_over_drawn">Facturé sur %1$s pi : la longueur saisie ci-dessous. %2$s du plan (environ %3$s pi) n\'est pas utilisé.</string>
+    <string name="jd_teardown_basis_typed">Facturé sur %1$s pi : la longueur saisie ci-dessous. Rien sur le plan n\'est marqué comme l\'ancienne clôture.</string>
+    <string name="jd_teardown_basis_drawn">D\'après le plan : %1$s, environ %2$s pi. C\'est la longueur facturée.</string>
+    <string name="jd_teardown_basis_run_no_length">%1$s sur le plan, encore sans longueur -- la démolition est donc facturée sur la nouvelle clôture, environ %2$s pi. Tracez l\'ancienne clôture ou saisissez sa longueur ci-dessous.</string>
+    <string name="jd_teardown_basis_new_fence">Aucune ancienne clôture n\'est marquée sur le plan, donc la démolition est facturée sur la nouvelle clôture, environ %1$s pi. Saisissez une longueur ci-dessous si l\'ancienne clôture avait une autre longueur.</string>
+    <string name="jd_teardown_basis_no_length_at_all">Aucune longueur n\'existe encore sur ce chantier, donc la démolition ne facture que le forfait et le transport.</string>
+    <string name="jd_teardown_length_override">Remplacer la longueur de l\'ancienne clôture (pi) -- 0 = utiliser le plan</string>
+    <string name="jd_teardown_override_note">À 0, la démolition est calculée sur l\'ancienne clôture que vous avez dessinée, ou sur la nouvelle clôture si vous n\'en avez dessiné aucune. Un nombre ici remplace les deux -- pour une ancienne clôture dont vous connaissez déjà la longueur sans la tracer. Cela ne change jamais le métré de la nouvelle clôture.</string>
+    <plurals name="jd_teardown_runs">
+        <item quantity="one">%1$d section de démolition</item>
+        <item quantity="other">%1$d sections de démolition</item>
+    </plurals>
     <string name="jd_gates">Portails</string>
     <string name="jd_gate_rate">Tarif portail ($ par pied d\'ouverture)</string>
     <string name="jd_gate_note">Facturé sur l\'ouverture du portail seulement, pas sur toute la clôture. Un portail de 5 pi à %1$s $/pi revient à %2$s $. Les portails sont le travail le plus lent au pied, donc les facturer au tarif de la clôture fait perdre de l\'argent sur chacun.</string>
@@ -1343,6 +1372,9 @@
     <string name="misc_survey_whats_here">Qu\'y a-t-il ici ? Cela apparaît sur le plan pour que l\'équipe sache quoi contourner.</string>
     <string name="misc_survey_remove_marker">Supprimer le repère</string>
     <string name="misc_marker_old_fence">Ancienne clôture</string>
+    <string name="misc_marker_old_fence_note">Ancienne clôture (note)</string>
+    <string name="draw_marker_old_fence_chip">Ancienne clôture (note seule, non facturée)</string>
+    <string name="draw_marker_old_fence_not_charged">Un repère ne facture rien. Pour être payé pour enlever l\'ancienne clôture, dessinez-la plutôt comme un tronçon Ancienne clôture (démolition).</string>
     <string name="misc_marker_house">Maison</string>
     <string name="misc_marker_pool">Piscine</string>
     <string name="misc_marker_driveway">Allée</string>
@@ -1909,6 +1941,9 @@
     <string name="draw_add_run_new">Nouveau tronçon de clôture</string>
     <string name="draw_add_run_teardown">Ancienne clôture (démolition)</string>
     <string name="draw_run_teardown_badge">Démolition</string>
+    <string name="draw_teardown_charge">Facturer la démolition</string>
+    <string name="draw_teardown_charge_on">Chiffré aux tarifs de démolition de la fiche de chantier, le long de l\'ancienne clôture dessinée ici, sauf si une longueur de démolition y est saisie.</string>
+    <string name="draw_teardown_charge_off">Une ancienne clôture est dessinée mais rien n\'est facturé pour l\'enlever.</string>
     <string name="jd_teardown_run_not_billed">Un tronçon de démolition est dessiné pour ce chantier, mais « Inclure la démolition de la clôture existante » est désactivé ci-dessous -- rien n\'est facturé pour le retrait de l\'ancienne clôture tant que vous ne l\'activez pas.</string>
     <string name="jd_new_signature_confirm_title">Confirmez le total avant de signer</string>
     <string name="jd_new_signature_confirm_body">Le client est sur le point de signer pour %1$s. Continuer vers le panneau de signature ?</string>
@@ -1955,4 +1990,13 @@
     <string name="jd_drawhist_confirm_needs_online">Une connexion est nécessaire. L\'app vérifie d\'abord que le client n\'a pas déjà approuvé de nouveau, et ne remet pas le plan si elle ne peut pas le vérifier.</string>
     <string name="jd_drawhist_resolved_meanwhile">Le client a déjà approuvé ce devis de nouveau : rien n\'a été modifié.</string>
     <string name="jd_drawhist_cannot_check">Impossible de vérifier dans le cloud si le client a déjà approuvé de nouveau : le plan n\'a pas été modifié. Réessayez avec du réseau.</string>
+
+    <string name="time_disputed_heading">%1$d quart(s) que l’équipe dit erronés</string>
+    <string name="time_dispute_badge">L’équipe a contesté ces heures</string>
+    <string name="time_dispute_their_note">Ils ont dit : %1$s</string>
+    <string name="time_dispute_our_reason">Motif donné pour la modification : %1$s</string>
+    <string name="time_dispute_times_changed">L’horloge indiquait %1$s - %2$s, modifié en %3$s - %4$s</string>
+    <string name="time_dispute_already_approved">Déjà approuvé, donc ces heures sont payées.</string>
+    <string name="time_dispute_still_waiting">Toujours en attente d’approbation.</string>
+    <string name="time_dispute_settle_note">Un litige ne change ni les heures ni la paie. Il reste ouvert jusqu’à ce que les heures du quart soient corrigées à nouveau.</string>
 </resources>

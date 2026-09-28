@@ -47,7 +47,10 @@ class OverrunAlertAudienceTest {
     @Test
     fun `signed in but not read yet is nothing, working alone is everything`() {
         assertFalse(overrunAlertsFor(SessionState(signedIn = true, role = UserRole.OWNER, accessKnown = false, resolved = true)))
-        assertTrue(overrunAlertsFor(SessionState(signedIn = false, role = UserRole.CREW, resolved = true)))
+        // "Working alone" is the pre-signup owner on their own phone, not a
+        // guest demo and not the instant before the guest flag has been read --
+        // guestKnown is what tells those signed-out cases apart.
+        assertTrue(overrunAlertsFor(SessionState(signedIn = false, role = UserRole.CREW, resolved = true, guestKnown = true)))
     }
 
     @Test

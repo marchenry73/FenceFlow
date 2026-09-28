@@ -153,6 +153,48 @@ class SurveyViewModel(
         return TakeoffRefresher.mayReprice(session)
     }
 
+    /**
+     * Whether the person on this phone may delete records, read from the session
+     * the app already keeps.
+     *
+     * The same capability the run editor's Delete and the job screen's four
+     * deletes ask for, so "crew never delete anything" is one rule rather than a
+     * rule per screen. Asked here as well as on the screen because this screen
+     * stays open across a role change: the office can move somebody while the
+     * drawing is in front of them.
+     *
+     * Unknown counts as no. A view model built outside the app has no session to
+     * ask, and guessing generously is how a crew phone briefly became an owner.
+     */
+    private fun viewerMayDelete(): Boolean {
+        val session = (appContext.applicationContext as? com.fenceestimator.app.FenceEstimatorApp)
+            ?.session?.state?.value
+            ?: return false
+        return session.canDelete
+    }
+
+    /**
+     * Whether the person on this phone is allowed to see money at all.
+     *
+     * Asked before the teardown charge is switched, and it has to be asked
+     * here and not only where the switch is drawn. The drawing screen is open
+     * to crew all day and stays open across a role change, so a control drawn
+     * while money was visible can still be tapped a moment after it stopped
+     * being. Nothing further down catches that: the database holds the
+     * teardown amounts against a caller who cannot see money -- the flat fee,
+     * the per-foot rate and the haul fee are all refused -- but it does not
+     * hold this flag, which was read off the live guard rather than taken from
+     * a migration file in the repo. So this check is the only one there is.
+     *
+     * Unknown counts as no, the same as the two guards above it.
+     */
+    private fun viewerMaySeeMoney(): Boolean {
+        val session = (appContext.applicationContext as? com.fenceestimator.app.FenceEstimatorApp)
+            ?.session?.state?.value
+            ?: return false
+        return session.canSeeMoney
+    }
+
     init {
         // The crew plan reads the drawing and must never re-price it; see
         // [repriceOnDrawingChange].
@@ -803,6 +845,91 @@ class SurveyViewModel(
         val id = repository.createFenceRun(created)
         _selectedRunId.value = id
         return repository.getFenceRun(id)
+    }
+
+    /**
+     * Turns the teardown charge on or off for this job.
+     *
+     * The same job field the job screen's teardown section writes, through the
+     * same repository call, so the drawing screen and the job screen are two
+     * views of one switch and can never disagree about whether the old fence is
+     * being charged for. Nothing else is touched: the flat fee, the per-foot
+     * rate, the haul fee and the typed teardown length are still only set where
+     * they always were, and this decides only whether any of them are charged.
+     *
+     * Read fresh out of the database rather than from the screen's copy. The
+     * whole job row is written back, and the copy a screen is holding can be a
+     * moment old -- long enough for this write to put a stale customer name or a
+     * stale rate back over something typed on the job screen or landed by a sync.
+     *
+     * A switch flicked to where it already sits writes nothing. Every write
+     * stamps the job's clock and jobs sync last-edit-wins on it, so re-saving an
+     * unchanged row would make this phone look newer than an office change that
+     * has not come down yet -- the same reason an edit that changes no geometry
+     * stops before touching the database.
+     *
+     * Asks [viewerMaySeeMoney] before writing anything rather than trusting
+     * the screen that hides the switch, for the reason set out there. Do not
+     * read that as a mirror of a server guarantee: the database refuses the
+     * teardown amounts to a caller who cannot see money but leaves this flag
+     * writable, so the app-side check is the whole of it.
+     */
+    fun setTeardownCharge(enabled: Boolean) {
+        if (!viewerMaySeeMoney()) return
+        viewModelScope.launch {
+            val current = repository.getJob(jobId) ?: return@launch
+            if (current.teardownEnabled == enabled) return@launch
+            repository.updateJob(current.copy(teardownEnabled = enabled))
+        }
+    }
+
+    /**
+     * Takes the selected fence run off this drawing: its line, its gates and the
+     * material lines that were priced from it.
+     *
+     * Goes through the repository call the run editor's Delete already uses, on
+     * purpose. That one path removes the row here AND queues the deletion for the
+     * cloud, where the sync stamps the row rather than removing it -- which is
+     * what puts the run in the trash instead of destroying it, and what stops
+     * another phone reading its absence as work that was never uploaded and
+     * pushing it straight back. A quick local-only delete written here instead
+     * would be exactly that bug.
+     *
+     * What happens to Undo: this run's undo and redo steps go with it. Every one
+     * of them describes a drawing that no longer exists, and an Undo that put
+     * back a run the rest of the app has already stamped as deleted would be
+     * worse than no Undo at all -- a fence on the canvas that the estimate, the
+     * office and every other phone agree is gone.
+     *
+     * Only this run's history, though. [clearDrawingHistory] empties every run's
+     * and exists for a change to the whole drawing, such as a new scale; erasing
+     * one run is not that, and reaching for it would throw away the undo steps
+     * belonging to the runs that are staying.
+     *
+     * Asks [viewerMayDelete] before writing anything rather than trusting the
+     * caller, and re-reads the row under the drawing lock so an erase cannot
+     * land between another edit's read and its write.
+     */
+    fun eraseSelectedRun() {
+        if (!viewerMayDelete()) return
+        val runId = _selectedRunId.value ?: return
+        viewModelScope.launch {
+            drawingWrites.withLock {
+                // Confirms the run still belongs to this job before removing it,
+                // the same check every other edit here makes: a stale selection
+                // must never reach across to another job's drawing.
+                val run = repository.getFenceRun(runId)?.takeIf { it.jobId == jobId }
+                    ?: return@withLock
+                repository.deleteFenceRun(run)
+                _undo.update { it.forget(run.id) }
+                _redo.update { it.afterEdit(run.id) }
+                // Moves the selection now rather than waiting for the runs flow
+                // to emit. In between, the screen holds a selected id with no row
+                // behind it and draws nothing at all -- a blank canvas that reads
+                // as the whole job having been wiped.
+                _selectedRunId.value = repository.getFenceRuns(jobId).firstOrNull()?.id
+            }
+        }
     }
 
     /**

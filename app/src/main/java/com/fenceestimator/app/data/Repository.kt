@@ -1091,6 +1091,9 @@ class Repository(private val db: AppDatabase) {
     /** Shifts waiting on a manager or the owner. */
     fun observeTimeAwaitingApproval(): Flow<List<TimeEntry>> = timeEntryDao.observeAwaitingApproval()
 
+    /** Shifts the crew have said are wrong -- see TimeEntryDao.observeDisputed. */
+    fun observeDisputedTimeEntries(): Flow<List<TimeEntry>> = timeEntryDao.observeDisputed()
+
     /**
      * Signs off a shift so its hours count.
      *

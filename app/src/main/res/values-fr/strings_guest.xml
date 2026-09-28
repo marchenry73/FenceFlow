@@ -4,9 +4,14 @@
     <string name="welcome_subtitle">Connectez-vous à votre entreprise, ou jetez d’abord un œil avec une entreprise d’exemple déjà configurée.</string>
     <string name="welcome_sign_in">Se connecter ou créer un compte</string>
     <string name="welcome_try_guest">Essayer sans compte</string>
-    <string name="welcome_try_guest_caption">Vous verrez une entreprise d’exemple avec des chantiers d’exemple déjà en place. Tout est réinitialisé dans 5 minutes.</string>
+    <plurals name="guest_duration_hours">
+        <item quantity="one">1 heure</item>
+        <item quantity="other">%1$d heures</item>
+    </plurals>
+    <string name="welcome_try_guest_caption">Vous verrez une entreprise d\'exemple avec des chantiers d\'exemple déjà en place. C\'est en lecture seule, et tout est réinitialisé après %1$s.</string>
 
     <string name="guest_banner_time_left">Démo invité — réinitialisation dans %1$s</string>
-    <string name="guest_banner_explain">Ce sont des données d’exemple. Une fois le temps écoulé, elles sont effacées et vous revenez à l’écran d’accueil.</string>
+    <string name="guest_banner_explain">Données d\'exemple que vous pouvez consulter mais pas modifier. Une fois le temps écoulé, elles sont effacées et vous revenez à l\'écran d\'accueil.</string>
     <string name="guest_setting_up">Préparation de votre entreprise d’exemple…</string>
+    <string name="onb_access_changed_guest_body">Ceci est une démo en lecture seule, donc cette partie de l\'application est désactivée. Connectez-vous avec votre entreprise pour l\'utiliser.</string>
 </resources>

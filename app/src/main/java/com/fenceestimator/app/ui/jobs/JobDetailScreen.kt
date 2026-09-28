@@ -120,6 +120,7 @@ import com.fenceestimator.app.ui.components.StageAction
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.PermitStatus
 import com.fenceestimator.app.data.PunchListItem
+import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
@@ -549,19 +550,34 @@ fun JobDetailScreen(
                         FenceRunRow(
                             run = run,
                             onClick = { onOpenRun(run.id) },
+                            // An action, not a value: duplicating writes a whole
+                            // new run with nothing behind it today. Hidden for
+                            // the guest demo specifically, not for canEditJobs --
+                            // a real crew phone reaches this row too, and adding
+                            // and duplicating runs is deliberately open to them
+                            // the same way drawing one is.
+                            showDuplicate = !session.isGuestDemo,
                             onDuplicate = { runsViewModel.duplicateRun(run) { id -> onOpenRun(id) } }
                         )
                     }
-                    OutlinedButton(onClick = { showAddRunDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Filled.Add, contentDescription = null)
-                        Text("  " + stringResource(R.string.jd_add_fence_run))
+                    if (!session.isGuestDemo) {
+                        OutlinedButton(onClick = { showAddRunDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Filled.Add, contentDescription = null)
+                            Text("  " + stringResource(R.string.jd_add_fence_run))
+                        }
                     }
                 }
             }
             if (session.canSeeMoney) {
-                item { SectionCard(title = stringResource(R.string.section_pricing), icon = Icons.Filled.AttachMoney) { PricingFields(currentJob, viewModel) } }
-                item { SectionCard(title = stringResource(R.string.jd_section_tier), icon = Icons.Filled.Sell) { TierFields(currentJob, pricingTiers, viewModel) } }
-                item { SectionCard(title = stringResource(R.string.jd_section_teardown), icon = Icons.Filled.Construction) { TeardownFields(currentJob, runs, viewModel) } }
+                // canSeeMoney alone used to be the whole gate here, so the guest
+                // demo -- which deliberately gets SEE_MONEY -- could rewrite
+                // every one of these figures. EDIT_JOBS is the same line
+                // CustomerFields and HoaFields already draw, and it costs crew
+                // nothing: crew lacks SEE_MONEY too, so they never reached this
+                // section before and still don't.
+                item { SectionCard(title = stringResource(R.string.section_pricing), icon = Icons.Filled.AttachMoney) { PricingFields(currentJob, session.canEditJobs, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.jd_section_tier), icon = Icons.Filled.Sell) { TierFields(currentJob, pricingTiers, session.canEditJobs, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.jd_section_teardown), icon = Icons.Filled.Construction) { TeardownFields(currentJob, runs, session.canEditJobs, viewModel) } }
             }
             item(key = SECTION_SCHEDULE) {
                 SectionCard(title = stringResource(R.string.section_schedule_crew), icon = Icons.Filled.Event) {
@@ -606,7 +622,7 @@ fun JobDetailScreen(
             if (session.canSeeMoney) {
                 item {
                     SectionCard(title = stringResource(R.string.section_order_materials), icon = Icons.Filled.LocalShipping) {
-                        OrderFields(currentJob, manufacturers, profile, runs, viewModel)
+                        OrderFields(currentJob, manufacturers, profile, runs, session.canEditJobs, viewModel)
                     }
                 }
             }
@@ -894,7 +910,7 @@ private fun ConfirmDeleteJobDialog(
 }
 
 @Composable
-private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> Unit) {
+private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, showDuplicate: Boolean, onDuplicate: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -909,8 +925,10 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, onDuplicate: () -> U
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = onDuplicate) {
-                Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.jd_duplicate_run))
+            if (showDuplicate) {
+                IconButton(onClick = onDuplicate) {
+                    Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.jd_duplicate_run))
+                }
             }
         }
     }
@@ -1172,29 +1190,38 @@ private fun CustomerFields(job: Job, editable: Boolean, showContact: Boolean, vi
     ) { viewModel.update { j -> j.copy(referralSource = it) } }
 }
 
+/**
+ * Tax, markup and labor rate.
+ *
+ * Read-only without EDIT_JOBS, for the same reason as [CustomerFields]: this
+ * section is gated on canSeeMoney alone, and the guest demo deliberately
+ * carries SEE_MONEY without EDIT_JOBS -- so a visitor could rewrite every
+ * figure here with nothing else in the app noticing. The numbers stay on
+ * screen either way; only the boxes stop taking a keystroke.
+ */
 @Composable
-private fun PricingFields(job: Job, viewModel: JobDetailViewModel) {
+private fun PricingFields(job: Job, editable: Boolean, viewModel: JobDetailViewModel) {
     // Markup and labor are rewritten when a pricing tier is applied, so these
     // must re-seed on a tier change or they'd display stale numbers.
     val tierKey = "${job.id}-${job.pricingTierName}"
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
             stableKey = job.id, label = stringResource(R.string.jd_tax_rate), initialValue = job.taxRatePercent.toFloat(),
-            modifier = Modifier.weight(1f)
+            enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(taxRatePercent = it.toDouble()) } }
         DraftNumberField(
             stableKey = tierKey, label = stringResource(R.string.jd_markup_pct), initialValue = job.markupPercent.toFloat(),
-            modifier = Modifier.weight(1f)
+            enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(markupPercent = it.toDouble()) } }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
             stableKey = tierKey, label = stringResource(R.string.jd_labor_per_ft), initialValue = job.laborRatePerFt.toFloat(),
-            modifier = Modifier.weight(1f)
+            enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(laborRatePerFt = it.toDouble()) } }
         DraftNumberField(
             stableKey = tierKey, label = stringResource(R.string.jd_labor_flat_fee), initialValue = job.laborFlatFee.toFloat(),
-            modifier = Modifier.weight(1f)
+            enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(laborFlatFee = it.toDouble()) } }
     }
 }
@@ -1230,20 +1257,37 @@ private fun StatusSelector(job: Job, fullControl: Boolean, viewModel: JobDetailV
     }
 }
 
+/**
+ * Read-only without EDIT_JOBS, same reason as [PricingFields] -- this section
+ * lives behind canSeeMoney alone, which the guest demo has without EDIT_JOBS.
+ *
+ * Applying a tier is an action, not a value -- it rewrites the rate fields
+ * below on the spot -- so without [editable] the dropdown comes off entirely
+ * rather than sitting there disabled, the same as the job screen already
+ * hides its delete button. The tier actually in force still shows, as plain
+ * text, so nothing about the job's current pricing is hidden.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailViewModel) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = job.pricingTierName.ifBlank { stringResource(R.string.jd_tier_custom) }, onValueChange = {}, readOnly = true,
-            label = { Text(stringResource(R.string.jd_apply_tier)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor()
+private fun TierFields(job: Job, tiers: List<PricingTier>, editable: Boolean, viewModel: JobDetailViewModel) {
+    if (!editable) {
+        ReadOnlyField(
+            stringResource(R.string.jd_apply_tier),
+            job.pricingTierName.ifBlank { stringResource(R.string.jd_tier_custom) }
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            tiers.forEach { tier ->
-                DropdownMenuItem(text = { Text(tier.name) }, onClick = { viewModel.applyTier(tier); expanded = false })
+    } else {
+        var expanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+            OutlinedTextField(
+                value = job.pricingTierName.ifBlank { stringResource(R.string.jd_tier_custom) }, onValueChange = {}, readOnly = true,
+                label = { Text(stringResource(R.string.jd_apply_tier)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                tiers.forEach { tier ->
+                    DropdownMenuItem(text = { Text(tier.name) }, onClick = { viewModel.applyTier(tier); expanded = false })
+                }
             }
         }
     }
@@ -1254,15 +1298,15 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
             stableKey = tierKey, label = stringResource(R.string.jd_discount_pct), initialValue = job.discountPercent.toFloat(),
-            modifier = Modifier.weight(1f)
+            enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(discountPercent = it.toDouble()) } }
         DraftNumberField(
             stableKey = job.id, label = stringResource(R.string.jd_min_job_charge), initialValue = job.minimumJobCharge.toFloat(),
-            modifier = Modifier.weight(1f)
+            enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(minimumJobCharge = it.toDouble()) } }
         DraftNumberField(
             stableKey = job.id, label = stringResource(R.string.jd_min_labor_charge), initialValue = job.minimumLaborCharge.toFloat(),
-            modifier = Modifier.weight(1f)
+            enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(minimumLaborCharge = it.toDouble()) } }
     }
     if (job.pricingTierName.isNotBlank()) {
@@ -1283,8 +1327,14 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, viewModel: JobDetailV
     }
 }
 
+/** Read-only without EDIT_JOBS, same reason as [PricingFields]. */
 @Composable
-private fun TeardownFields(job: Job, runs: List<FenceRun>, viewModel: JobDetailViewModel) {
+private fun TeardownFields(job: Job, runs: List<FenceRun>, editable: Boolean, viewModel: JobDetailViewModel) {
+    // The live totals, for the one figure this section could never show: the
+    // footage the teardown charge is actually being applied to. Taken from
+    // the same computation the estimate is summed from, so a number named
+    // here cannot drift away from the number being charged.
+    val totals by viewModel.contractTotal.collectAsState()
     // A run drawn and flagged as the old fence coming out bills nothing on
     // its own -- Include teardown below is a second, separate switch, and
     // nothing else on the survey screen or this one points at it. Without
@@ -1308,33 +1358,97 @@ private fun TeardownFields(job: Job, runs: List<FenceRun>, viewModel: JobDetailV
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.jd_include_teardown), modifier = Modifier.weight(1f))
-        Switch(checked = job.teardownEnabled, onCheckedChange = { viewModel.update { j -> j.copy(teardownEnabled = it) } })
+        Switch(
+            checked = job.teardownEnabled,
+            enabled = editable,
+            onCheckedChange = { viewModel.update { j -> j.copy(teardownEnabled = it) } }
+        )
     }
     if (job.teardownEnabled) {
+        // Which footage the charge below is being applied to, named in the
+        // same order of preference the charge itself uses. Nothing here ever
+        // said where the number came from, so an owner who had already drawn
+        // the old fence arrived at an empty length box and typed the figure a
+        // second time -- which is how one section came to read as two places
+        // to answer the same question. A charge that shows its own basis
+        // stops looking like a duplicate of the drawing.
+        //
+        // The drawn figure is the engine's own teardown footage rather than a
+        // length worked out again here, so the figure named cannot disagree
+        // with the figure charged.
+        val drawnTeardownFt = EstimateEngine.teardownLinearFeet(job, runs)
+        val teardownRunCount = runs.count { it.isTeardown }
+        val teardownRunsPhrase = androidx.compose.ui.res.pluralStringResource(
+            R.plurals.jd_teardown_runs, teardownRunCount, teardownRunCount
+        )
+        val newFenceFt = "%.0f".format(totals.billableLinearFeet)
+        val basis = when {
+            job.teardownFeet > 0.0 && drawnTeardownFt > 0f -> stringResource(
+                R.string.jd_teardown_basis_typed_over_drawn,
+                "%.0f".format(job.teardownFeet), teardownRunsPhrase, "%.0f".format(drawnTeardownFt)
+            )
+            job.teardownFeet > 0.0 ->
+                stringResource(R.string.jd_teardown_basis_typed, "%.0f".format(job.teardownFeet))
+            drawnTeardownFt > 0f -> stringResource(
+                R.string.jd_teardown_basis_drawn, teardownRunsPhrase, "%.0f".format(drawnTeardownFt)
+            )
+            // Nothing typed and nothing drawn: the charge falls back to the
+            // new fence's own footage, which is what every job meant before
+            // the typed field existed. With no footage anywhere on the job it
+            // is the flat fee and the haul fee alone -- worth saying, because
+            // a rate per foot standing against nothing reads as a bug.
+            totals.billableLinearFeet <= 0f ->
+                stringResource(R.string.jd_teardown_basis_no_length_at_all)
+            // A teardown run that exists but carries no length yet resolves to
+            // zero and lands here, exactly as if it had never been drawn. Left
+            // unsaid, that zero reads as a real measurement of the old fence.
+            teardownRunCount > 0 -> stringResource(
+                R.string.jd_teardown_basis_run_no_length, teardownRunsPhrase, newFenceFt
+            )
+            else -> stringResource(R.string.jd_teardown_basis_new_fence, newFenceFt)
+        }
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Text(
+                basis,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             DraftNumberField(
                 stableKey = job.id, label = stringResource(R.string.jd_teardown_flat_fee), initialValue = job.teardownFlatFee.toFloat(),
-                modifier = Modifier.weight(1f)
+                enabled = editable, modifier = Modifier.weight(1f)
             ) { viewModel.update { j -> j.copy(teardownFlatFee = it.toDouble()) } }
             DraftNumberField(
                 stableKey = job.id, label = stringResource(R.string.jd_teardown_per_ft), initialValue = job.teardownRatePerFt.toFloat(),
-                modifier = Modifier.weight(1f)
+                enabled = editable, modifier = Modifier.weight(1f)
             ) { viewModel.update { j -> j.copy(teardownRatePerFt = it.toDouble()) } }
         }
         DraftNumberField(
             stableKey = job.id, label = stringResource(R.string.jd_haul_fee), initialValue = job.trashHaulFee.toFloat(),
-            modifier = Modifier.fillMaxWidth()
+            enabled = editable, modifier = Modifier.fillMaxWidth()
         ) { viewModel.update { j -> j.copy(trashHaulFee = it.toDouble()) } }
         // The old fence is not always the new fence. Typed rather than drawn:
         // the owner knows it is 80 ft without tracing it, and a separate
         // drawing layer was more ceremony than the answer deserves.
+        //
+        // Labelled as an override rather than as a length, because the length
+        // is already answered above whenever the old fence was drawn, and an
+        // empty box under an answered question reads as a second question.
+        // Any figure greater than zero here is taken in preference to the
+        // drawn footage, so "override" is what this field does, not a hint.
         DraftNumberField(
-            stableKey = job.id, label = stringResource(R.string.jd_teardown_length),
+            stableKey = job.id, label = stringResource(R.string.jd_teardown_length_override),
             initialValue = job.teardownFeet.toFloat(),
-            modifier = Modifier.fillMaxWidth()
+            enabled = editable, modifier = Modifier.fillMaxWidth()
         ) { viewModel.update { j -> j.copy(teardownFeet = it.toDouble()) } }
         Text(
-            stringResource(R.string.jd_teardown_note),
+            stringResource(R.string.jd_teardown_override_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1345,7 +1459,7 @@ private fun TeardownFields(job: Job, runs: List<FenceRun>, viewModel: JobDetailV
     DraftNumberField(
         stableKey = job.id, label = stringResource(R.string.jd_gate_rate),
         initialValue = job.gateRatePerFt.toFloat(),
-        modifier = Modifier.fillMaxWidth()
+        enabled = editable, modifier = Modifier.fillMaxWidth()
     ) { viewModel.update { j -> j.copy(gateRatePerFt = it.toDouble()) } }
     Text(
         stringResource(
@@ -1604,6 +1718,7 @@ private fun CrewFields(
     noLoginNote()
 }
 
+/** Read-only without EDIT_JOBS, same reason as [PricingFields]. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OrderFields(
@@ -1611,6 +1726,7 @@ private fun OrderFields(
     manufacturers: List<Manufacturer>,
     profile: BusinessProfile,
     runs: List<FenceRun>,
+    editable: Boolean,
     viewModel: JobDetailViewModel
 ) {
     val context = LocalContext.current
@@ -1618,16 +1734,20 @@ private fun OrderFields(
     val selected = manufacturers.firstOrNull { it.id == job.preferredManufacturerId }
         ?: manufacturers.firstOrNull { it.id == profile.preferredManufacturerId }
 
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = selected?.name ?: stringResource(R.string.jd_no_manufacturer), onValueChange = {}, readOnly = true,
-            label = { Text(stringResource(R.string.jd_order_from)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor()
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            manufacturers.forEach { m ->
-                DropdownMenuItem(text = { Text(m.name) }, onClick = { viewModel.update { j -> j.copy(preferredManufacturerId = m.id) }; expanded = false })
+    if (!editable) {
+        ReadOnlyField(stringResource(R.string.jd_order_from), selected?.name ?: stringResource(R.string.jd_no_manufacturer))
+    } else {
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+            OutlinedTextField(
+                value = selected?.name ?: stringResource(R.string.jd_no_manufacturer), onValueChange = {}, readOnly = true,
+                label = { Text(stringResource(R.string.jd_order_from)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                manufacturers.forEach { m ->
+                    DropdownMenuItem(text = { Text(m.name) }, onClick = { viewModel.update { j -> j.copy(preferredManufacturerId = m.id) }; expanded = false })
+                }
             }
         }
     }
@@ -1911,6 +2031,12 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // it cannot be trusted without being nursed. The screen that shows money is
     // the one screen that should never be showing yesterday's answer.
     val paymentApp = currentApp()
+    // Neither RecordPaymentControl nor RefundControl asked about a permission
+    // at all before this -- they sat here unconditionally, so the guest demo's
+    // SEE_MONEY was enough to record a cash payment or a refund against the
+    // sample company. Re-read locally rather than threaded in, the same way
+    // HoaFields and CrewFields already do further up this file.
+    val session by paymentApp.session.state.collectAsState()
     LaunchedEffect(job.id) { paymentApp.autoSync.requestSync() }
 
     // While a payment link is out and unpaid, check often.
@@ -2038,8 +2164,13 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             }
         }
 
-        RecordPaymentControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
-        RefundControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
+        // Actions, not values -- there is nothing to grey out, so they come off
+        // entirely for whoever lacks the matching permission, the same
+        // convention the delete button already uses. REQUEST_PAYMENT is the
+        // closest existing permission to "record what came in"; RECORD_REFUNDS
+        // is an exact match.
+        if (session.canRequestPayment) RecordPaymentControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
+        if (session.canRecordRefunds) RefundControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
         Spacer(Modifier.height(8.dp))
     }
 

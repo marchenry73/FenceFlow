@@ -97,6 +97,7 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
     var fixing by remember { mutableStateOf<TimeEntry?>(null) }
     var discarding by remember { mutableStateOf<TimeEntry?>(null) }
     val syncBlocked by viewModel.syncBlocked.collectAsState()
+    val disputed by viewModel.disputed.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val message by viewModel.message.collectAsState()
     val messageText = message?.resolve()
@@ -148,6 +149,34 @@ fun TimeApprovalScreen(onBack: () -> Unit) {
                         jobName = jobs.firstOrNull { it.id == entry.jobId }?.customerName.orEmpty(),
                         onFix = { fixing = entry },
                         onDiscard = { discarding = entry }
+                    )
+                }
+            }
+
+            // Hours somebody has objected to, whether or not they were signed
+            // off already. Above the ordinary queue because a person is waiting
+            // on an answer about their own pay; below the blocked shifts
+            // because those are hours that exist nowhere but this handset.
+            //
+            // Not dismissible, and carrying no decision control. The record has
+            // no "settled" flag on purpose (supabase_shift_dispute.sql: a
+            // dispute puts a flag and a sentence beside the hours and leaves
+            // the office to settle it), so a button here could only pretend to
+            // close something. An objection leaves this list when the times it
+            // was about are corrected again.
+            if (disputed.isNotEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.time_disputed_heading, disputed.size),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                items(disputed, key = { "disputed-${it.id}" }) { entry ->
+                    DisputedShiftCard(
+                        entry = entry,
+                        who = employees.firstOrNull { it.id == entry.employeeId }?.name,
+                        jobName = jobs.firstOrNull { it.id == entry.jobId }?.customerName.orEmpty()
                     )
                 }
             }
@@ -274,6 +303,110 @@ private fun SyncBlockedShiftCard(
     }
 }
 
+/**
+ * One shift its own crew member says is wrong.
+ *
+ * NO money figure anywhere on this card, deliberately. A FOREMAN reaches this
+ * screen with APPROVE_TIME and without SEE_PAY, and such a phone reads shifts
+ * through a view with no hourly_rate column at all -- so anything derived from
+ * the rate would render as $0.00 and read as "these hours are worth nothing",
+ * which is the opposite of what an objection about pay needs to say. The times
+ * and the hours are what is being argued about anyway.
+ *
+ * Shows what the clock said next to what it was changed to, then the reason
+ * given for the change, then the crew member's words. In that order because the
+ * objection can only be judged against the change it answers.
+ */
+@Composable
+private fun DisputedShiftCard(
+    entry: TimeEntry,
+    who: String?,
+    jobName: String
+) {
+    val dayFormat = remember { SimpleDateFormat("EEE d MMM", Locale.US) }
+    val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.US) }
+    fun at(millis: Long?): String = millis?.let { timeFormat.format(Date(it)) }.orEmpty()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.WarningAmber,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    "  " + stringResource(R.string.time_dispute_badge),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Text(
+                who ?: stringResource(R.string.time_no_worker_set),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            if (jobName.isNotBlank()) {
+                Text(
+                    jobName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Text(
+                dayFormat.format(Date(entry.startedAt)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            // Each original is written by the trigger only for the time that
+            // actually moved, so a start that was never touched has none --
+            // falling back to the current value keeps the line readable
+            // instead of printing a gap.
+            if (entry.originalStartedAt != null || entry.originalEndedAt != null) {
+                Text(
+                    stringResource(
+                        R.string.time_dispute_times_changed,
+                        at(entry.originalStartedAt ?: entry.startedAt),
+                        at(entry.originalEndedAt ?: entry.endedAt),
+                        at(entry.startedAt),
+                        at(entry.endedAt)
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            if (entry.correctionReason.isNotBlank()) {
+                Text(
+                    stringResource(R.string.time_dispute_our_reason, entry.correctionReason),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Text(
+                stringResource(R.string.time_dispute_their_note, entry.disputeNote),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                stringResource(
+                    if (entry.isApproved) R.string.time_dispute_already_approved
+                    else R.string.time_dispute_still_waiting
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                stringResource(R.string.time_dispute_settle_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+    }
+}
+
 /** Picks who worked the shift, defaulting to the signed-in person's own record when linked. */
 @Composable
 private fun FixShiftDialog(
@@ -342,12 +475,30 @@ private fun PendingShiftCard(
         // than leaving a card that silently does nothing when pressed.
         onClick = { if (!isOwn) onReview() },
         modifier = Modifier.fillMaxWidth(),
-        colors = if (suspiciouslyLong) {
+        colors = if (suspiciouslyLong || entry.hasOpenDispute) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
         } else CardDefaults.cardColors()
     ) {
         Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(who, style = MaterialTheme.typography.titleMedium)
+            // A shift can be disputed and still be waiting for sign-off -- the
+            // office can correct the hours without approving them in the same
+            // breath. Flagged on the card as well as in the dialog so the queue
+            // itself says which one to open first.
+            if (entry.hasOpenDispute) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.WarningAmber,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Text(
+                        "  " + stringResource(R.string.time_dispute_badge),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
             if (isOwn) {
                 Text(
                     "Your own shift. Someone else has to sign this one off.",
@@ -447,6 +598,26 @@ private fun ReviewShiftDialog(
         title = { Text(stringResource(R.string.time_review_shift)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.row)) {
+                // First thing in the dialog, above the times and well above
+                // the Approve button. Approving anyway is legitimate -- the
+                // office may be right and the crew member wrong -- so this
+                // does not block anything; what it makes impossible is signing
+                // the hours off without having been shown what the person
+                // being paid said was wrong with them.
+                if (entry.hasOpenDispute) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                        Text(
+                            stringResource(R.string.time_dispute_badge),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            stringResource(R.string.time_dispute_their_note, entry.disputeNote),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
                 Text(
                     "Correct the times if the clock ran through a break or was left " +
                         "running, then approve. Approving is what makes these hours count.",

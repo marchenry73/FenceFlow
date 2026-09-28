@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloseFullscreen
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -75,6 +76,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -120,6 +122,7 @@ import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.ui.components.labelRes
 import com.fenceestimator.app.ui.theme.Graphite40
 import com.fenceestimator.app.ui.theme.PlanColors
 import com.fenceestimator.app.ui.theme.Radius
@@ -226,6 +229,14 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     }
     /** Set when Clear is tapped, held until confirmed. Same shape as gate removal below: this drawing is what the takeoff, post count, material order and price all come from, so wiping it is not a one-tap action. */
     var pendingClearPoints by remember(selectedRunId) { mutableStateOf(false) }
+    /**
+     * Set when Erase is tapped on the run picker row, held until confirmed.
+     *
+     * Keyed on the selected run like the two above: switching runs while the
+     * dialog is up would otherwise leave a confirmation naming one run and a
+     * selection pointing at another, and the Erase would take the wrong one.
+     */
+    var pendingRunErase by remember(selectedRunId) { mutableStateOf(false) }
     var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
@@ -403,9 +414,40 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             if (repriceFailed) {
                 RepriceFailedBanner()
             }
+            // Nothing drawn yet, and a way out of it.
+            //
+            // Erasing a run can empty a drawing that had one, and this branch
+            // used to be a cul-de-sac: it said to go and add a run on the job
+            // screen, a screen away, because the Add control sits below this
+            // early return and so was not on offer at the one moment somebody
+            // needed it most. Taking the last run off and being unable to
+            // start another without leaving is worse than not being able to
+            // take it off at all.
+            //
+            // The old fence is offered here by name for the same reason it is
+            // offered on the Add control: the run is the only thing that can
+            // be charged for pulling a fence out, and this is the first screen
+            // anybody looking to draw one arrives at.
+            //
+            // No new permission. Starting a run is an edit, not a delete, and
+            // this screen already offers it to everyone who can open it -- so
+            // a crew phone sees these two buttons exactly as it sees the Add
+            // control, and neither of them is the erase gated above.
             if (runs.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    EmptyState(stringResource(R.string.draw_add_run_first), modifier = Modifier.padding(Space.xl))
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(Space.xl),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    EmptyState(stringResource(R.string.draw_no_runs_yet))
+                    Spacer(Modifier.height(Space.md))
+                    Button(onClick = { viewModel.addRun(runDefaults, isTeardown = false) }) {
+                        Text(stringResource(R.string.draw_add_run_new))
+                    }
+                    Spacer(Modifier.height(Space.sm))
+                    OutlinedButton(onClick = { viewModel.addRun(runDefaults, isTeardown = true) }) {
+                        Text(stringResource(R.string.draw_add_run_teardown))
+                    }
                 }
                 return@Column
             }
@@ -468,6 +510,64 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                             )
                         }
                     }
+                    // Taking a run off the drawing, where the run is chosen.
+                    //
+                    // The picker beside this is select-only, so a second run
+                    // started on one drawing could be selected and drawn on but
+                    // never taken off again from here. The only way to remove
+                    // one was the run editor reached through the job screen,
+                    // which is two navigations away from the drawing it
+                    // belongs to.
+                    //
+                    // Offered only to someone who may delete records -- the
+                    // same permission the job screen's deletes and the run
+                    // editor's Delete ask, read rather than invented. Hidden
+                    // rather than greyed out, the way those are: a disabled
+                    // delete invites a crew member to ask the office to switch
+                    // on something they should not be doing. This screen is
+                    // deliberately open to crew, which is precisely why the
+                    // control needs its own gate instead of relying on who can
+                    // reach the screen.
+                    if (session.canDelete) {
+                        ToolIconButton(
+                            icon = Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.draw_erase_run),
+                            onClick = { pendingRunErase = true }
+                        )
+                    }
+                }
+                // The teardown CHARGE, beside where the old fence is drawn.
+                //
+                // Marking a run as the old fence coming out bills nothing by
+                // itself: a separate job-level switch decides whether the
+                // teardown is charged at all, and until now it existed only on
+                // the job screen. So a carefully traced teardown quietly
+                // charged zero until somebody scrolled far enough down a
+                // different screen to find the switch. This writes that same
+                // job field -- one switch shown in two places, never a second
+                // switch that could disagree with the first.
+                //
+                // It never moves on its own. Adding a teardown run does not
+                // turn it on, because a charge that appears because a line got
+                // drawn is a bill nobody decided to send.
+                //
+                // Only where money is visible. The job screen keeps its whole
+                // teardown section behind the same capability, and a crew phone
+                // draws on this screen every day.
+                //
+                // Shown when an old fence is drawn, or whenever the charge is
+                // already on. The second half is the one that matters: a switch
+                // that vanished while the charge stayed on would hide live money
+                // from the only person who can turn it off.
+                val teardownJob = job
+                if (session.canSeeMoney && teardownJob != null &&
+                    (runs.any { it.isTeardown } || teardownJob.teardownEnabled)
+                ) {
+                    TeardownChargeRow(
+                        chargeOn = teardownJob.teardownEnabled,
+                        hasTeardownRun = runs.any { it.isTeardown },
+                        onChargeChange = { viewModel.setTeardownCharge(it) }
+                    )
                 }
             }
 
@@ -1489,6 +1589,58 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         )
     }
 
+    // Asked, not assumed -- and asked with what it costs spelled out, because
+    // this is the one control on the drawing screen that cannot be walked back
+    // with Undo.
+    //
+    // The permission is read again here rather than trusted to the button that
+    // set the flag. A permission read once further up a screen and acted on
+    // further down survives the screen being recomposed with a different
+    // session -- a sign-out, or a role change pushed down while the drawing is
+    // open. The run editor's own delete repeats its gate on its dialog for the
+    // same reason.
+    if (pendingRunErase && session.canDelete) {
+        val eraseTarget = runs.firstOrNull { it.id == selectedRunId }
+        if (eraseTarget == null) {
+            // The selection went while the dialog was up (a sync from the
+            // office, another phone). There is nothing left to name, and
+            // erasing whatever the selection landed on instead would be a
+            // delete nobody confirmed.
+            pendingRunErase = false
+        } else {
+            val eraseName = eraseTarget.label.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.misc_survey_untitled)
+            AlertDialog(
+                onDismissRequest = { pendingRunErase = false },
+                title = { Text(stringResource(R.string.draw_erase_run_title)) },
+                text = { Text(stringResource(R.string.draw_erase_run_body, eraseName)) },
+                confirmButton = {
+                    // Red is spent only on what Undo cannot take back, the same
+                    // rule the job list and the run editor follow, so the colour
+                    // keeps meaning one thing across the app.
+                    Button(
+                        onClick = {
+                            pendingRunErase = false
+                            // The snap cue describes the last point placed on
+                            // the run that is about to go.
+                            lastSnap = null
+                            viewModel.eraseSelectedRun()
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) { Text(stringResource(R.string.draw_erase)) }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { pendingRunErase = false }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                }
+            )
+        }
+    }
+
     markerDialogPoint?.let { point ->
         SiteMarkerDialog(
             existing = siteMarkers,
@@ -1528,17 +1680,49 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     }
 }
 
-private fun markerShortLabelRes(kind: SiteMarkerKind): Int = when (kind) {
-    SiteMarkerKind.EXISTING_FENCE -> R.string.misc_marker_old_fence
-    SiteMarkerKind.HOUSE -> R.string.misc_marker_house
-    SiteMarkerKind.POOL -> R.string.misc_marker_pool
-    SiteMarkerKind.DRIVEWAY -> R.string.misc_marker_driveway
-    SiteMarkerKind.EASEMENT -> R.string.misc_marker_easement
-    SiteMarkerKind.UTILITY -> R.string.misc_marker_utility
-    SiteMarkerKind.TREE -> R.string.misc_marker_tree
-    SiteMarkerKind.SLOPE -> R.string.misc_marker_slope
-    SiteMarkerKind.OBSTACLE -> R.string.misc_marker_obstacle
-}
+/**
+ * The short name a marker carries on the canvas and in the already-marked list.
+ *
+ * The old-fence marker no longer reads as plainly "Old fence" here. A marker is
+ * a note pinned to a spot: it has no length, it is not part of any run, and it
+ * charges nothing. Being paid to pull an old fence out needs a teardown run --
+ * a drawn run whose footage feeds the teardown charge. The two sat beside each
+ * other under names that read the same, so the obvious-looking way to record an
+ * old fence was the one that bills zero, and nothing on screen said so.
+ *
+ * The enum value stays. Jobs already carry markers placed for a legitimate
+ * note-only reason -- a neighbour's fence on the line, a fence somebody else is
+ * clearing -- and dropping the value would silently turn every one of those
+ * into an obstacle.
+ *
+ * Only the old fence is named here. The other eight come from the shared
+ * marker-name table this app already keeps, so a marker kind added later is
+ * named in one place instead of two, and a copy of that table living in this
+ * file could not drift out of step with the original.
+ *
+ * The shared table still calls this kind plainly "Old fence", which is what
+ * the crew's read-only plan and the job sheet show. Repointing it at the same
+ * string this override uses would settle the wording everywhere and make this
+ * whole function redundant -- it is left here rather than done there because
+ * that table is shared with screens outside this change.
+ */
+private fun markerShortLabelRes(kind: SiteMarkerKind): Int =
+    if (kind == SiteMarkerKind.EXISTING_FENCE) R.string.misc_marker_old_fence_note
+    else kind.labelRes()
+
+/**
+ * The name the marker picker offers, which for the old fence is longer than the
+ * canvas could carry.
+ *
+ * On the canvas a label sits beside a dot and competes with the fence line for
+ * room, so it stays short. On a chip in the picker there is width to spend, and
+ * the distinction worth spending it on is that this marks an old fence nobody
+ * is being paid to remove -- which is the choice being made at that moment.
+ * Every other kind reads the same in both places.
+ */
+private fun markerPickerLabelRes(kind: SiteMarkerKind): Int =
+    if (kind == SiteMarkerKind.EXISTING_FENCE) R.string.draw_marker_old_fence_chip
+    else markerShortLabelRes(kind)
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -1569,9 +1753,26 @@ private fun SiteMarkerDialog(
                         androidx.compose.material3.FilterChip(
                             selected = kind == k,
                             onClick = { kind = k },
-                            label = { Text(stringResource(markerShortLabelRes(k))) }
+                            label = { Text(stringResource(markerPickerLabelRes(k))) }
                         )
                     }
+                }
+                // Said only while the old fence is the chosen kind, so the
+                // other eight are not lectured about teardown pricing.
+                //
+                // This is the line that keeps a marker from being mistaken for
+                // the billable thing. The picker and the teardown run read
+                // almost identically, and of the two only the run can be
+                // charged for; somebody recording an old fence the obvious way
+                // got no money for removing it and no warning either. So the
+                // marker says what it is not, and says where the charge lives.
+                if (kind == SiteMarkerKind.EXISTING_FENCE) {
+                    Spacer(Modifier.height(Space.sm))
+                    Text(
+                        stringResource(R.string.draw_marker_old_fence_not_charged),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
                 Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(
@@ -1624,6 +1825,56 @@ private fun RepriceFailedBanner() {
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(horizontal = Space.screen, vertical = Space.sm)
         )
+    }
+}
+
+/**
+ * The teardown charge, on the screen where the old fence gets drawn.
+ *
+ * A labelled switch on purpose, and not something that follows the drawing.
+ * Whether a run IS the old fence and whether anybody is being PAID to take it
+ * out are two different facts, and keeping them apart is what lets an old fence
+ * be drawn for the plan's sake on a job where the customer is clearing it
+ * themselves. Money never moves because a line was drawn.
+ *
+ * The off state says what off costs, because that is the exact mistake this
+ * control exists to catch: a fully drawn teardown that charges nothing. The on
+ * state says where the amounts come from, so nobody reads this switch as having
+ * set a price -- it decides whether the teardown is charged, and the rates and
+ * the haul fee are still typed on the job sheet.
+ */
+@Composable
+private fun TeardownChargeRow(
+    chargeOn: Boolean,
+    hasTeardownRun: Boolean,
+    onChargeChange: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.md, vertical = Space.xs)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.draw_teardown_charge),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Switch(checked = chargeOn, onCheckedChange = onChargeChange)
+        }
+        if (chargeOn) {
+            Text(
+                stringResource(R.string.draw_teardown_charge_on),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (hasTeardownRun) {
+            Text(
+                stringResource(R.string.draw_teardown_charge_off),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
     }
 }
 

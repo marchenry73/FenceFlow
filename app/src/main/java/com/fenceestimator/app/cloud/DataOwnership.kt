@@ -74,6 +74,52 @@ class DataOwnership(
 
     private val companyKey = stringPreferencesKey("local_data_company_id")
 
+    companion object {
+        /**
+         * The owner stamp a phone carries while the guest demo is running.
+         *
+         * A second, independent way of knowing that the data on this phone is
+         * sample data, and the one that does not depend on anything a visitor
+         * can type. The demo's rows are recognised elsewhere by two pieces of
+         * free text -- a customer name prefix and a referral tag -- and free
+         * text is only as durable as the rule that stops a visitor editing it.
+         * This stamp lives in its own preferences file with no screen anywhere
+         * that writes it, so it survives an edit, a crash, and a demo cleanup
+         * that never finished.
+         *
+         * Not a company id and not shaped like one, so it can never collide
+         * with a real company: [onSignedIn] compares against what the signed-in
+         * account actually is, and no account is this.
+         */
+        const val GUEST_DEMO_OWNER = "fenceflow-guest-demo"
+    }
+
+    /**
+     * Stamps this phone as holding demo data, before the demo has written a
+     * single row.
+     *
+     * Called when somebody starts the demo. The order matters: stamped first,
+     * seeded second, so a process that dies between the two leaves a phone
+     * marked as demo with nothing on it -- harmless -- rather than a phone full
+     * of sample jobs with nothing saying so.
+     */
+    suspend fun onGuestDemoStarted() = setOwner(GUEST_DEMO_OWNER)
+
+    /**
+     * Clears the demo stamp once the demo's rows are actually gone.
+     *
+     * Called last by the demo cleanup, after the rows have been removed and the
+     * countdown flag cleared, so every earlier step failing still leaves the
+     * stamp in place for [onSignedIn] to catch.
+     *
+     * Only ever clears the demo stamp. Without that condition this would be a
+     * way to un-own a real company's data, which is the opposite of what this
+     * class is for.
+     */
+    suspend fun onGuestDemoEnded() {
+        if (currentOwner() == GUEST_DEMO_OWNER) setOwner(null)
+    }
+
     /** Which company the data currently on this phone belongs to, if any. */
     suspend fun currentOwner(): String? =
         context.ownershipStore.data.map { it[companyKey] }.first()
@@ -93,10 +139,36 @@ class DataOwnership(
      * phone, and throwing it away at the moment they sign up would be the wrong
      * end of this trade entirely.
      *
+     * Data stamped as the guest demo is the one case that is wiped without
+     * being weighed against anything, because there is nothing on the other
+     * side of the scale: see the branch itself.
+     *
      * @return true if local data was wiped.
      */
     suspend fun onSignedIn(companyId: String): Boolean {
         val owner = currentOwner()
+
+        // Demo data never becomes a real company's data.
+        //
+        // Signing in during a demo used to reach the branch below with no owner
+        // stamp at all, which reads as "unclaimed local work" -- somebody who
+        // tried the app offline before making an account -- and adopted the
+        // sample jobs into the company that just signed in. From there the
+        // ordinary rule that anything the cloud has never seen is new work
+        // pushed them up as that company's real jobs.
+        //
+        // Wiped rather than held: the held-work path exists because unsynced
+        // work may be the only copy of a real day on a real site, and there is
+        // no version of that argument for a sample company that was generated
+        // on this phone minutes ago and is due to be deleted anyway. Nothing
+        // here is recoverable because nothing here was ever real.
+        if (owner == GUEST_DEMO_OWNER) {
+            wipeEverything()
+            setOwner(companyId)
+            _heldWork.value = null
+            return true
+        }
+
         if (owner == companyId) {
             // Matches again. If a mismatch earlier had this held back, that
             // is resolved now -- nothing left to warn about.
@@ -149,6 +221,17 @@ class DataOwnership(
      */
     suspend fun onSignedInWithoutCompany(): Boolean {
         val owner = currentOwner() ?: return false
+
+        // Demo data, same as in onSignedIn and for the same reason. Checked
+        // here too because an account that has not joined a company still
+        // syncs once it joins one, and a phone that kept its sample jobs
+        // through this branch would push them then.
+        if (owner == GUEST_DEMO_OWNER) {
+            wipeEverything()
+            setOwner(null)
+            _heldWork.value = null
+            return true
+        }
 
         // The person most likely to hit this branch is someone the owner just
         // removed from the crew -- profile.company_id went null out from under

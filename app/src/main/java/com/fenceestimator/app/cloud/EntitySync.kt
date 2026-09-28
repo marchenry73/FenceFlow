@@ -933,7 +933,32 @@ data class CloudTimeEntry(
      */
     @SerialName("break_minutes") val breakMinutes: Int? = null,
     @SerialName("break_started_at") val breakStartedAt: String? = null,
-    @SerialName("break_ended_at") val breakEndedAt: String? = null
+    @SerialName("break_ended_at") val breakEndedAt: String? = null,
+    /**
+     * The crew member's own answer to a correction of their hours.
+     *
+     * Pull-only, like the correction columns above, and for a stricter reason:
+     * the only writer the server accepts is the person the shift belongs to,
+     * through `dispute_my_shift` / `acknowledge_my_shift`
+     * (supabase_shift_dispute.sql). So they are on this class and deliberately
+     * NOT on [CloudTimeEntryPush] -- PostgREST names every column it sends, so
+     * a push carrying them would assert explicit nulls and erase an objection
+     * the crew member had just raised.
+     *
+     * Defaulted, and that is load-bearing rather than tidiness. A phone
+     * without SEE_PAY reads shifts from `time_entries_crew`, and that view
+     * carries none of these three (checked against the live database on
+     * 28 September: twenty-three columns, and not one of them a dispute
+     * column). The pull asks for no column list, so on that phone the keys
+     * simply arrive absent and fall back to these values, instead of failing
+     * to decode and taking the whole time-entries pull down with it -- which
+     * is what naming them in a select against that view would do.
+     *
+     * [disputeNote] is non-null for the same reason [correctionReason] is.
+     */
+    @SerialName("correction_seen_at") val correctionSeenAt: String? = null,
+    @SerialName("correction_disputed_at") val correctionDisputedAt: String? = null,
+    @SerialName("dispute_note") val disputeNote: String = ""
 )
 
 /**
@@ -2688,6 +2713,9 @@ object EntitySync {
                         originalEndedAt = CloudTime.parseMillis(row.originalEndedAt),
                         correctedAt = CloudTime.parseMillis(row.correctedAt),
                         correctionReason = row.correctionReason,
+                        correctionSeenAt = CloudTime.parseMillis(row.correctionSeenAt),
+                        correctionDisputedAt = CloudTime.parseMillis(row.correctionDisputedAt),
+                        disputeNote = row.disputeNote,
                         breakMinutes = row.breakMinutes,
                         breakStartedAt = CloudTime.parseMillis(row.breakStartedAt),
                         breakEndedAt = CloudTime.parseMillis(row.breakEndedAt)
@@ -2753,6 +2781,26 @@ object EntitySync {
                     correctedAt = CloudTime.parseMillis(row.correctedAt)
                         ?: existing.correctedAt,
                     correctionReason = row.correctionReason.ifBlank { existing.correctionReason },
+                    // The crew member's answer to that correction, under the
+                    // same "kept, not blanked" rule as the four columns above
+                    // -- but for a sharper reason than an old cloud row. These
+                    // three are absent from time_entries_crew altogether, so a
+                    // phone without SEE_PAY reads them as null on EVERY pull,
+                    // for ever. Blanking on a null would mean such a phone
+                    // erasing an objection that an owner's phone can see,
+                    // purely because of which door it reads the shift through,
+                    // and whichever phone synced last would win.
+                    //
+                    // Nothing ever clears these server-side either: a dispute
+                    // is not withdrawn, it stops applying once the times move
+                    // again (see TimeEntry.hasOpenDispute). So absence here is
+                    // never news, and "the cloud does not carry it" is not
+                    // "the objection was taken back".
+                    correctionSeenAt = CloudTime.parseMillis(row.correctionSeenAt)
+                        ?: existing.correctionSeenAt,
+                    correctionDisputedAt = CloudTime.parseMillis(row.correctionDisputedAt)
+                        ?: existing.correctionDisputedAt,
+                    disputeNote = row.disputeNote.ifBlank { existing.disputeNote },
                     // Same "kept, not blanked" rule as the correction columns
                     // just above, and for a related reason: only the insert-only
                     // pass of pushTimeEntries ever carries the break (see

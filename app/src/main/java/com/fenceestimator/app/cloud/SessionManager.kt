@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -16,6 +17,9 @@ data class SessionState(
     /**
      * Signed-out means local-only mode on your own phone, so it gets full
      * access -- the restricted roles only apply to a real company login.
+     *
+     * Except in the guest demo, which is also signed out and is not this
+     * person's phone in any meaningful sense. See [permissions].
      */
     val role: UserRole = UserRole.OWNER,
     /**
@@ -41,23 +45,80 @@ data class SessionState(
      * warn about not being connected must wait for this, or they announce it
      * every single launch during the moment before the answer arrives.
      */
-    val resolved: Boolean = false
+    val resolved: Boolean = false,
+    /**
+     * True while the guest demo is running: the sample company somebody is
+     * looking around in before they have an account.
+     *
+     * Kept separate from [signedIn] because signed-out covers two completely
+     * different people who used to share one flag. One is a solo owner working
+     * on their own phone before ever making an account -- their jobs are real,
+     * and taking write access away from them would break the app for the only
+     * person it belongs to. The other is a visitor in a sample company that
+     * gets deleted when the timer runs out. Telling them apart is what makes
+     * "read only" mean anything.
+     *
+     * Read from the one place that already decides whether a demo is running,
+     * the guest start time in SettingsStore, rather than from a second flag
+     * that could disagree with the countdown on screen.
+     */
+    val guestDemo: Boolean = false,
+    /**
+     * True once the guest flag above has actually been read off disk.
+     *
+     * The read is a DataStore round trip, so for the first moments of a launch
+     * the honest answer to "is this a demo" is "not yet known". [permissions]
+     * treats that moment as read-only rather than as full access: being wrong
+     * toward read-only shows a write button a fraction of a second late, and
+     * being wrong the other way is a writable demo, which is the bug this
+     * whole field exists to close.
+     */
+    val guestKnown: Boolean = false
 ) {
     /**
      * What this person can actually do, role plus their own adjustments.
      *
-     * Signed out means working alone on your own phone, so everything is
-     * allowed -- the restrictions exist to divide a team, and there is no team.
+     * Three different signed-out situations, which used to be one:
+     *
+     *  - The guest demo gets [GUEST_READ_ONLY]. The owner asked for a demo
+     *    where a visitor can see everything and change nothing, and signed-out
+     *    holding every permission is why that was not true: a visitor could
+     *    create, edit, delete and re-price jobs and rewrite the catalog and
+     *    company settings. Worse, the demo's sample rows are marked as demo
+     *    rows by two pieces of free text, one of them a customer name -- so a
+     *    visitor with edit access could rub out the very mark the end-of-demo
+     *    cleanup recognises them by.
+     *  - Signed out with the demo flag not yet read is read-only too, for the
+     *    reason on [guestKnown].
+     *  - Signed out for real is still everything. That is a solo owner working
+     *    alone on their own phone before making an account; the restrictions
+     *    exist to divide a team and there is no team.
      */
     val permissions: Set<Permission>
         get() = when {
-            // Working alone on your own phone. The restrictions exist to divide
-            // a team, and there is no team.
+            // The demo. Look at everything, change nothing.
+            !signedIn && guestDemo -> GUEST_READ_ONLY
+            // Signed out, and whether this is a demo has not been read yet.
+            !signedIn && !guestKnown -> GUEST_READ_ONLY
+            // Working alone on your own phone, before any account exists. The
+            // restrictions exist to divide a team, and there is no team.
             !signedIn -> Permission.ALL
             // Signed in but we have not read who they are. Nothing, until we do.
             !accessKnown -> emptySet()
             else -> PermissionOverrides.resolve(role, permissionOverrides)
         }
+
+    /**
+     * True for the read-only demo specifically, for the few screens that write
+     * without ever asking about a permission and so cannot be stopped by
+     * [permissions] alone.
+     *
+     * A screen reaching for this is a screen that should be asking about a
+     * named capability instead. It exists because the fence drawing is
+     * deliberately open to everyone -- crew draw on it -- so there is no
+     * permission to refuse it with.
+     */
+    val isGuestDemo: Boolean get() = guestDemo && !signedIn
 
     fun can(permission: Permission): Boolean = permission in permissions
 
@@ -93,8 +154,9 @@ data class SessionState(
      * A hint for what to offer, not the boundary: the server decides what
      * arrives, and [JobAccess.scope] carries its actual answer -- including
      * that a database without the crew scope shows everyone everything.
-     * Signed out it is true (working alone sees everything); signed in but
-     * unread ([accessKnown] false) it is false, like every other capability.
+     * Signed out it is true (working alone sees everything, and so does the
+     * read-only demo, which keeps SEE_MONEY); signed in but unread
+     * ([accessKnown] false) it is false, like every other capability.
      */
     val seesAllJobs: Boolean get() = canSeeMoney || canEditJobs || canScheduleAndAssign
 
@@ -121,6 +183,41 @@ data class SessionState(
     val canSeeReports: Boolean get() = can(Permission.SEE_REPORTS)
     val canManageAccess: Boolean get() = can(Permission.MANAGE_ACCESS)
     val canShareInviteCode: Boolean get() = can(Permission.SHARE_INVITE_CODE)
+
+    companion object {
+        /**
+         * Everything a guest in the read-only demo may do: look.
+         *
+         * Written as the list of things granted rather than as everything minus
+         * the writes, so a capability added to [Permission] later is refused to
+         * the demo until somebody decides it belongs here. The other spelling
+         * would hand every future permission to a visitor by default, which is
+         * how the demo came to hold all of them in the first place.
+         *
+         * Money is in, deliberately. The demo exists to show a contractor what
+         * the app does, and an estimating app with the prices hidden shows
+         * nothing; the figures a visitor sees are the seeded sample company's,
+         * not anybody's real books.
+         *
+         * Pay is deliberately OUT, although a demo has no real crew to expose.
+         * It is the only key to the crew roster, that screen's add and save
+         * buttons call straight through to the database without asking about a
+         * capability anywhere in the file, and the demo seeds no crew -- so
+         * granting it offered a visitor an empty list they could type into, and
+         * refusing it costs the demo nothing at all.
+         *
+         * Everything that changes, moves, approves, charges, deletes or invites
+         * is out: EDIT_JOBS, EDIT_CATALOG_AND_SETTINGS, SCHEDULE_AND_ASSIGN,
+         * REQUEST_PAYMENT, RECORD_REFUNDS, RECORD_FIELD_WORK, APPROVE_TIME,
+         * APPROVE_PLAN_CHANGES, DELETE_RECORDS, SHARE_INVITE_CODE and
+         * MANAGE_ACCESS.
+         */
+        val GUEST_READ_ONLY: Set<Permission> = setOf(
+            Permission.SEE_MONEY,
+            Permission.SEE_CUSTOMER_CONTACT,
+            Permission.SEE_REPORTS
+        )
+    }
 }
 
 /** App-wide view of who is signed in and what they're allowed to see. */
@@ -139,14 +236,76 @@ class SessionManager(private val scope: CoroutineScope) {
     val state: StateFlow<SessionState> = _state
 
     /**
+     * The one way this class replaces the session, so that whoever is signed in
+     * can never overwrite what is known about the guest demo.
+     *
+     * Every branch of [refresh] builds a fresh [SessionState] from scratch --
+     * signing out builds an empty one -- and a fresh one carries the demo flag
+     * as false. A refresh landing mid-demo would therefore have re-granted
+     * every permission for as long as it took the flag watch to notice, which
+     * is precisely the window a visitor is tapping through. Stamping here means
+     * there is no such window.
+     */
+    private var current: SessionState
+        get() = _state.value
+        set(value) {
+            _state.value = value.copy(guestDemo = guestDemoActive, guestKnown = guestDemoRead)
+        }
+
+    /**
      * Supplies this device's push token. Injected rather than imported so the
      * cloud layer stays free of any Firebase dependency -- if Firebase is ever
      * swapped out, nothing here changes.
      */
     var pushTokenProvider: (() -> String?)? = null
 
-    /** Set by the app on startup so signing in can restore company settings. */
-    var settingsStore: com.fenceestimator.app.data.SettingsStore? = null
+    /**
+     * Set by the app on startup so signing in can restore company settings.
+     *
+     * It is also how this class learns whether a guest demo is running, which
+     * is why assigning it starts a watch: the demo flag lives in the settings
+     * store, and the permission answer below is wrong until it has been read.
+     * Injected rather than read directly so nothing here has to know where the
+     * app keeps its settings.
+     */
+    var settingsStore: com.fenceestimator.app.data.SettingsStore?
+        get() = settingsStoreField
+        set(value) {
+            settingsStoreField = value
+            if (value != null) watchGuestFlag(value)
+        }
+    private var settingsStoreField: com.fenceestimator.app.data.SettingsStore? = null
+
+    /** Whether a guest demo is running, and whether that has been read yet. */
+    private var guestDemoActive = false
+    private var guestDemoRead = false
+    private var guestWatchStarted = false
+
+    /**
+     * Follows the guest demo flag for the life of the process.
+     *
+     * A flow rather than a one-off read because the flag changes underneath
+     * this class twice in a session -- once when somebody starts the demo, once
+     * when it is cleared -- and a permission answer that was read at startup
+     * would still say "full access" to a visitor who tapped Try it afterwards.
+     *
+     * The guest package's own "is a demo running" test is called here rather
+     * than copied, so the countdown on screen and the permissions behind it can
+     * never disagree about whether a demo is running.
+     */
+    private fun watchGuestFlag(store: com.fenceestimator.app.data.SettingsStore) {
+        if (guestWatchStarted) return
+        guestWatchStarted = true
+        scope.launch {
+            store.profile.collect { profile ->
+                val active = com.fenceestimator.app.guest.GuestSession.isActive(profile)
+                if (guestDemoRead && guestDemoActive == active) return@collect
+                guestDemoActive = active
+                guestDemoRead = true
+                _state.update { it.copy(guestDemo = active, guestKnown = true) }
+            }
+        }
+    }
 
     /** Set by the app on startup so signing in can clear another company's data. */
     var dataOwnership: DataOwnership? = null
@@ -217,7 +376,7 @@ class SessionManager(private val scope: CoroutineScope) {
                 appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
                 // ...and which jobs it was allowed to see, for the same reason.
                 JobAccess.forget()
-                _state.value = SessionState(resolved = true)
+                current = SessionState(resolved = true)
                 return@launch
             }
             // Fail closed, never open.
@@ -242,7 +401,7 @@ class SessionManager(private val scope: CoroutineScope) {
                 runCatching { CachedIdentity.load(ctx, email) }.getOrNull()
             }
             if (cached != null) {
-                _state.value = SessionState(
+                current = SessionState(
                     signedIn = true,
                     email = email,
                     companyId = cached.companyId,
@@ -271,7 +430,7 @@ class SessionManager(private val scope: CoroutineScope) {
                         )
                     }
                 }
-                _state.value = SessionState(
+                current = SessionState(
                     signedIn = true,
                     email = email,
                     companyId = profile.companyId,
@@ -286,7 +445,7 @@ class SessionManager(private val scope: CoroutineScope) {
                 // no company. Distinct from a failed read: nothing to remember,
                 // and anything remembered before is now wrong.
                 appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
-                _state.value = SessionState(
+                current = SessionState(
                     signedIn = true, email = email,
                     role = UserRole.CREW,
                     accessKnown = true, resolved = true
@@ -294,7 +453,7 @@ class SessionManager(private val scope: CoroutineScope) {
             } else if (cached == null) {
                 // The read failed and this phone has never known who it is, so
                 // there is genuinely nothing to go on. Fail closed and retry.
-                _state.value = SessionState(
+                current = SessionState(
                     signedIn = true, email = email,
                     role = UserRole.CREW,
                     accessKnown = false, accessUnavailable = true,

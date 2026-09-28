@@ -150,9 +150,11 @@ class MainActivity : FragmentActivity() {
                         // process -- the countdown may have run out while
                         // nothing was around to act on it. GuestWipe re-checks
                         // every guard itself; this call is a no-op whenever the
-                        // five minutes are not actually up.
+                        // countdown is not actually up.
                         LaunchedEffect(Unit) {
-                            GuestWipe.wipeIfDue(app.repository, app.settingsStore, app.session)
+                            GuestWipe.wipeIfDue(
+                                app.repository, app.settingsStore, app.session, app.dataOwnership
+                            )
                         }
 
                         // The visible countdown, ticking once a second for as
@@ -164,7 +166,10 @@ class MainActivity : FragmentActivity() {
                         LaunchedEffect(guestActive) {
                             while (guestActive) {
                                 guestNowTick = System.currentTimeMillis()
-                                if (GuestWipe.wipeIfDue(app.repository, app.settingsStore, app.session)) {
+                                if (GuestWipe.wipeIfDue(
+                                        app.repository, app.settingsStore, app.session, app.dataOwnership
+                                    )
+                                ) {
                                     welcomeDismissedThisLaunch = false
                                     break
                                 }
@@ -172,20 +177,27 @@ class MainActivity : FragmentActivity() {
                             }
                         }
 
-                        // Signing in for real while a guest session happens to
-                        // still be running (reachable from Settings > Account
-                        // inside the guest app itself) ends the countdown's
-                        // bookkeeping immediately. This clears only the flag,
-                        // never a row -- GuestWipe already refuses to delete
-                        // anything the moment somebody is signed in, so any
-                        // demo jobs already seeded are simply left in place,
-                        // still carrying their "Guest Demo" marker, for that
-                        // now-real account to see and remove itself. See the
-                        // handoff report for why this is judged safer than
-                        // trying to guess which rows to discard on their behalf.
+                        // Signing in for real while the demo is still running
+                        // (reachable from Settings > Account inside the demo
+                        // itself) clears the sample rows AND the countdown, in
+                        // that order.
+                        //
+                        // This used to clear the countdown alone and leave the
+                        // rows, reasoning that a signed-in phone's rows must
+                        // never be deleted. The rows then stopped being marked
+                        // as a demo in any way the rest of the app could act
+                        // on, and the phone did what it is built to do with
+                        // unclaimed local work: adopted it into the company
+                        // that had just signed in and pushed it to their
+                        // database. The demo is also refused at the push itself
+                        // (see JobSync) and again by the phone's ownership
+                        // stamp (see DataOwnership), because this effect lives
+                        // in a composition that a sign-in may outlive.
                         LaunchedEffect(appSession.signedIn, guestActive) {
                             if (appSession.signedIn && guestActive) {
-                                app.settingsStore.endGuestSession()
+                                GuestWipe.wipeOnSignIn(
+                                    app.repository, app.settingsStore, app.dataOwnership
+                                )
                             }
                         }
 
@@ -212,6 +224,15 @@ class MainActivity : FragmentActivity() {
                                 onTryGuest = {
                                     seedingGuest = true
                                     app.applicationScope.launch {
+                                        // Stamped as demo data BEFORE the first
+                                        // sample row exists. A process that
+                                        // dies mid-seed then leaves a phone
+                                        // marked as a demo with little or
+                                        // nothing on it, which the sign-in
+                                        // check handles; the other order leaves
+                                        // sample jobs with nothing saying they
+                                        // are samples.
+                                        app.dataOwnership.onGuestDemoStarted()
                                         runCatching { GuestSeeder.seed(app.repository) }
                                         app.settingsStore.startGuestSession(System.currentTimeMillis())
                                         postWelcomeStartRoute = Routes.JOBS
@@ -737,11 +758,28 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
             arguments = listOf(navArgument("jobId") { type = NavType.LongType })
         ) { backStackEntry ->
             val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
-            SurveyDrawScreen(
-                jobId = jobId,
-                onBack = { navController.popBackStack() },
-                onGoToEstimate = { id -> navController.navigate(Routes.estimate(id)) }
-            )
+            // The drawing is the one screen with no permission to refuse it
+            // with: it is deliberately open to everyone, because crew draw on
+            // it, so nothing on it ever asks the session anything. That makes
+            // it the one hole the read-only demo could not be closed through
+            // permissions, and it is not a small one -- the drawing is what the
+            // estimate, the post count and the material order are built from.
+            //
+            // So a visitor gets the same read-only plan crew get when they open
+            // a job, which is a real screen built for exactly this and not a
+            // disabled copy of the editor.
+            if (session.isGuestDemo) {
+                com.fenceestimator.app.ui.crew.CrewFencePlanScreen(
+                    jobId = jobId,
+                    onBack = { navController.popBackStack() }
+                )
+            } else {
+                SurveyDrawScreen(
+                    jobId = jobId,
+                    onBack = { navController.popBackStack() },
+                    onGoToEstimate = { id -> navController.navigate(Routes.estimate(id)) }
+                )
+            }
         }
         // Guarded: the survey is for everyone (crew draw), but its "To
         // Estimate" button led straight into the full pricing screen, which
@@ -881,8 +919,18 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
             // phones. It was the one list with no guard on it, so a crew
             // account could read every customer the business has while the
             // permission built for exactly this sat unused.
+            //
+            // Shut to the read-only demo as well, which otherwise passes on
+            // seeing contact details: every row here carries a button that
+            // creates a job, and nothing in that screen asks the session
+            // anything, so no permission can refuse it. A job made that way
+            // carries none of the demo's markers, so the end-of-demo cleanup
+            // would not recognise it and it would be left behind as work this
+            // phone appears to own. The list itself is no loss to a demo -- the
+            // same three sample customers are already on the job list, which is
+            // where a visitor lands.
             com.fenceestimator.app.ui.components.AccessGuard(
-                allowed = session.canSeeCustomerContact,
+                allowed = session.canSeeCustomerContact && !session.isGuestDemo,
                 permissionName = "See customer contact",
                 onLeave = { navController.popBackStack() }
             ) {

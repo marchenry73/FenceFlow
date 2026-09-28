@@ -76,8 +76,20 @@ fun WelcomeScreen(
                 Text(stringResource(R.string.welcome_try_guest))
             }
             androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+            // How long the demo lasts, worked out from the one constant that
+            // says so rather than written into the sentence. The caption used to
+            // spell the number out, in three languages, in three files nobody
+            // edits together -- so when the length changed the constant moved
+            // and all three captions went on promising the old figure. A
+            // sentence with no number in it cannot be left behind.
+            val durationHours = GuestSession.durationHours
             Text(
-                stringResource(R.string.welcome_try_guest_caption),
+                stringResource(
+                    R.string.welcome_try_guest_caption,
+                    androidx.compose.ui.res.pluralStringResource(
+                        R.plurals.guest_duration_hours, durationHours, durationHours
+                    )
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

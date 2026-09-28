@@ -831,6 +831,46 @@ object JobSync {
                     .forEach { repository.deleteJobLocallyOnly(it) }
             }
 
+            // Guest demo rows never go up, whatever else has happened here.
+            //
+            // The demo seeds its sample company into the real tables, and the
+            // cleanup that clears it runs the moment a real sign-in is noticed.
+            // If that cleanup is interrupted -- the process dies, this pass
+            // beats it, a visitor rubbed out the marker before the edit ban
+            // existed -- the sample jobs are still on disk and unknown to the
+            // cloud, and the branch further down reads "unknown to the cloud"
+            // as "new work, push it". That is how a fake customer and a fake
+            // payment become a real company's records. Refusing the push is the
+            // half that does not depend on the cleanup having worked.
+            //
+            // Recognised by both of the demo's markers together, the same test
+            // the cleanup uses, so there is one definition of a demo row rather
+            // than two that can drift.
+            //
+            // Removed locally only, never tombstoned -- the same treatment an
+            // office fixture gets just above, and for the same reason: these
+            // rows were never in the cloud, so there is nothing up there to
+            // mark deleted. One the cloud somehow already holds is left on disk
+            // and simply never pushed; deleting that one locally would only
+            // have the next pull bring it straight back, every pass, for ever.
+            val guestJobs = localJobs.filter(com.fenceestimator.app.guest.GuestMarker::isGuestSeeded)
+            val guestSyncIds = guestJobs.mapTo(HashSet()) { it.syncId }
+            if (guestJobs.isNotEmpty()) {
+                val strays = guestJobs.filter { it.syncId !in cloudBySyncId }
+                strays.forEach { repository.deleteJobLocallyOnly(it) }
+                android.util.Log.w(
+                    "JobSync",
+                    "guest demo: " + guestJobs.size + " demo job(s) refused for push, " +
+                        strays.size + " removed from this phone"
+                )
+            }
+
+            // Never pushed, never held, never counted as work waiting: office
+            // fixtures and demo rows. Both are somebody else's idea of sample
+            // data and neither is this phone's to send anywhere.
+            val neverPushSyncIds =
+                if (guestSyncIds.isEmpty()) fixtureSyncIds else fixtureSyncIds + guestSyncIds
+
             // Jobs this person is no longer on stop arriving through the crew
             // door (supabase_crew_job_scope.sql). They are HIDDEN here, never
             // deleted: a delete would cascade their shifts away and take any
@@ -841,7 +881,7 @@ object JobSync {
             // door that refuses them row by row (EntitySync.mayPushJobChildren).
             // Nothing is ever pushed or tombstoned for a held job.
             val access = jobScope ?: if (scope == MoneyScope.DENIED) JobAccess.askJobScope() else JobScope.Unknown
-            val holds = planJobHolds(localJobs.filter { it.syncId !in fixtureSyncIds }, cloudJobs, scope, access)
+            val holds = planJobHolds(localJobs.filter { it.syncId !in neverPushSyncIds }, cloudJobs, scope, access)
             val regained = ArrayList<IncomingChange>()
             var restored = 0
             if (!holds.changesNothing) {
@@ -862,7 +902,7 @@ object JobSync {
             }
 
             // Kept after this pass: held before and not back, or hidden just now.
-            val keptNow = localJobs.filter { it.syncId !in fixtureSyncIds && holds.keepsHeld(it) }
+            val keptNow = localJobs.filter { it.syncId !in neverPushSyncIds && holds.keepsHeld(it) }
 
             // A kept job the office has since deleted. The crew door sends a
             // tombstone only for a job this person can still see, so such a
@@ -910,7 +950,7 @@ object JobSync {
             }
 
             for (job in localJobs) {
-                if (job.syncId in fixtureSyncIds) continue
+                if (job.syncId in neverPushSyncIds) continue
                 // Nothing is pushed for a kept job (see keptNow): it waits on
                 // this phone until the door returns it. Most passes it would
                 // never get past "left alone" below anyway, but a pass whose

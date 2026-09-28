@@ -26,12 +26,70 @@ enum class SyncPhase {
     SIGNED_OUT,
 }
 
+/**
+ * Which of the several different "not everything is up there yet" situations a
+ * phone is in.
+ *
+ * All of them used to share one sentence, and that sentence talked about a
+ * queue. So a phone that had nothing typed on it -- one that had merely failed
+ * to ask the server what its account is allowed to see -- told its owner that
+ * work of his was stuck waiting to upload. He read that as the sync being
+ * broken on every new phone he signed into, and none of the three conditions
+ * actually means that.
+ *
+ * Splitting them does not soften any of it. Not one of the sentences below says
+ * the work is up.
+ */
+enum class UnsyncedReason {
+    /**
+     * Job edits made on this phone that the cloud has not taken -- a job the
+     * crew door refused, or one being kept on this phone with an edit still on
+     * it. The person's own typing, genuinely not up yet.
+     */
+    JOBS_HELD_BACK,
+
+    /**
+     * Rows in the tables other than jobs that this pass could not send. Also
+     * the person's own work, and also genuinely not up yet -- said separately
+     * because it is not a job, and pointing somebody at their job list for it
+     * sends them looking in the wrong place.
+     */
+    RECORDS_HELD_BACK,
+
+    /**
+     * This phone could not get an answer about what the account is allowed to
+     * see, so the half of the pass that moves jobs and prices did not run at
+     * all -- not because there was nothing to move, but because the app
+     * declined to guess. Whether anything of the person's is actually waiting
+     * is exactly what this pass could not find out, so the wording must not
+     * claim either way. This is the one that must not sound like a queue,
+     * because there is no queue answer in it either way.
+     */
+    ACCESS_NOT_CONFIRMED,
+}
+
 data class SyncState(
     val phase: SyncPhase = SyncPhase.OFFLINE_ONLY,
     val lastSyncedAt: Long? = null,
     val lastError: String? = null,
     /** True when work is saved on this phone but not yet in the cloud. */
     val hasUnsyncedWork: Boolean = false,
+    /**
+     * Why [hasUnsyncedWork] is set, so the sentence can say the true thing
+     * rather than the one thing that was true of all of them at once.
+     *
+     * Null means whoever built this state did not say which, and the wording
+     * falls back to the old catch-all -- which is vague but never claims the
+     * work is up, so a caller that forgets this cannot turn the card into good
+     * news.
+     *
+     * Read only by the [SyncPhase.OK] wording. Every other phase reaches the
+     * screen through copy() of an earlier state and can therefore be carrying
+     * an older pass's answer, which would be a stale reason wearing a current
+     * banner -- so no other branch asks. The only place OK is set builds a
+     * whole new state and sets this from that pass.
+     */
+    val unsyncedReason: UnsyncedReason? = null,
     /** Signed in, but not part of a company -- so there is nowhere to sync to. */
     val signedInWithoutCompany: Boolean = false,
     /** False while the app is still working out who is signed in. */
@@ -50,10 +108,36 @@ data class SyncState(
             // about this time. Saying "everything is backed up" over that is
             // exactly the empty-answer-reads-as-good-news shape of bug this
             // flag exists to prevent noticing.
+            //
+            // Split by [unsyncedReason], not softened. The first two name whose
+            // work is waiting and where to look for it; the third does not
+            // claim to know whether anything of the person's is waiting --
+            // JobSync.sync returns before its first read or write on an
+            // UNKNOWN pass, so a clean heldBack count here means the question
+            // was never asked, not that the answer was no. Asserting "nothing
+            // of yours is waiting" from that silence is the exact shape of bug
+            // this flag exists to catch, so this branch says only what the
+            // pass actually knows. None of them says the work reached the cloud.
             SyncPhase.OK ->
-                if (hasUnsyncedWork)
-                    "Some of this phone's work has not reached the cloud yet. It will go up on the next sync."
-                else "Everything is backed up"
+                if (!hasUnsyncedWork) "Everything is backed up"
+                else when (unsyncedReason) {
+                    UnsyncedReason.JOBS_HELD_BACK ->
+                        "Job changes made on this phone are not in the cloud yet. " +
+                            "They are saved here, and every sync tries them again."
+                    UnsyncedReason.RECORDS_HELD_BACK ->
+                        "Some records on this phone, other than jobs, are not in the " +
+                            "cloud yet. They are saved here, and every sync tries them again."
+                    UnsyncedReason.ACCESS_NOT_CONFIRMED ->
+                        "Jobs and prices were left alone this time -- this phone is " +
+                            "still confirming what your account is allowed to see, and it " +
+                            "will not guess. Checking again in a moment."
+                    // Listed rather than folded into the branches above, so
+                    // that a future condition added to somethingHeldBack
+                    // without a sentence of its own lands here instead of
+                    // borrowing one that is wrong about it.
+                    null ->
+                        "Some of this phone's work has not reached the cloud yet. It will go up on the next sync."
+                }
             SyncPhase.WAITING_FOR_SIGNAL ->
                 "No signal. Your work is saved on this phone and will upload by itself."
             // Never "it uploads on its own" here. It does not, and cannot: the
@@ -136,6 +220,58 @@ class AutoSync(
 
     /** A trigger that arrived while a sync was already running, to be honoured after it. */
     private val pendingSync = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Whether the pass that has just finished could get an answer about what
+     * this account is allowed to see. Set inside the lock, read after it, which
+     * is the only place a retry can be started from.
+     */
+    @Volatile private var couldNotAskMoneyScope = false
+
+    /**
+     * How many times in a row a pass has already asked again on its own, kept
+     * separately for the two reasons it does so. Each is reset by the first pass
+     * that gets past the thing it was waiting on.
+     */
+    private val tokenRetries = java.util.concurrent.atomic.AtomicInteger(0)
+    private val scopeRetries = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** One waiting retry at a time, across both reasons. */
+    private val retryWaiting = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Come back and try this pass again in a few seconds.
+     *
+     * For the two cases where the pass did not fail and did not succeed either:
+     * it asked a question and got no answer, and the next trigger that would
+     * have asked again is a minute away with the app on screen and fifteen with
+     * it in a pocket. A person who has just signed in on a second phone is
+     * looking at the job list during that gap, which is the whole of what
+     * "it does not synchronize immediately" describes.
+     *
+     * Bounded, and it goes quiet rather than getting louder. A company whose
+     * database has never had can_see_pay, or a phone parked in a dead spot,
+     * would otherwise keep this going for as long as the app is open. After the
+     * last attempt the heartbeat is the retry again, exactly as before.
+     */
+    private fun askAgainShortly(attemptsUsed: java.util.concurrent.atomic.AtomicInteger) {
+        if (attemptsUsed.get() >= RETRY_ATTEMPTS) return
+        // Several triggers can finish a pass within a second or two of each
+        // other -- a sign-in, the company id arriving and the heartbeat all
+        // land together at launch -- and without this each of them would start
+        // a timer of its own.
+        if (!retryWaiting.compareAndSet(false, true)) return
+        val attempt = attemptsUsed.incrementAndGet()
+        this@AutoSync.scope.launch {
+            // Lengthening, because the usual reason a question goes unanswered
+            // here is a connection that is still coming up rather than one that
+            // is down, and three questions in the same second are three
+            // refusals.
+            delay(RETRY_DELAY_MS * attempt)
+            retryWaiting.set(false)
+            runSync()
+        }
+    }
 
     /**
      * The first sync after launch pulls down everything this phone hasn't seen,
@@ -403,9 +539,28 @@ class AutoSync(
                     hasUnsyncedWork = true
                 )
                 session.refresh()
+                // "Not yet knowable" is not "no". RefreshOutcome.UNKNOWN means
+                // the stored session is still loading, or the last ask was
+                // inside the cooldown -- the window where this phone knows who
+                // it belongs to but does not hold a token yet. Reading the
+                // cloud in that window is the dangerous case the comment above
+                // describes: an unauthenticated read comes back as an empty
+                // list rather than an error, so the pass would report a result
+                // it never really got. Waiting and asking again is the whole
+                // fix; nothing here reads anything until there is a token.
+                //
+                // Deliberately not for NO_NETWORK. A dead spot is honestly
+                // reported by the banner this branch has just set, and it
+                // already has two retries that suit it better -- the
+                // connectivity watcher when signal returns, and the heartbeat.
+                if (outcome == SupabaseModule.RefreshOutcome.UNKNOWN) {
+                    askAgainShortly(tokenRetries)
+                }
                 return
             }
         }
+        // Past the token guard, so whatever was being waited on has arrived.
+        tokenRetries.set(0)
 
         mutex.withLock {
             _state.value = _state.value.copy(phase = SyncPhase.SYNCING, lastError = null)
@@ -416,6 +571,17 @@ class AutoSync(
             // read as "not allowed" while another read the real rows in the
             // same pass.
             val scope = askMoneyScope()
+            // Remembered for after the lock, which is where a retry can start.
+            //
+            // An unanswered question here is not a small thing. The job sync
+            // does no job work at all on a pass whose money scope is unknown --
+            // it returns before its first read -- and the catalog and the line
+            // items are skipped with it. So the pass that cannot ask is the
+            // pass that moves no jobs, while still reporting itself as having
+            // run. The commonest moment to be unable to ask is the first sync
+            // after signing in on a new phone: exactly when somebody is looking
+            // at an empty job list, deciding whether this app works.
+            couldNotAskMoneyScope = scope == MoneyScope.UNKNOWN
             // Employee pay is a separate door from job money -- a salesperson
             // can be ALLOWED here and DENIED there. Asked once, here, beside
             // the money scope, and handed down to pullAll rather than asked
@@ -633,11 +799,31 @@ class AutoSync(
                     val somethingHeldBack = (pushResult.getOrNull() ?: 0) < 0 ||
                         syncResult.heldBack > 0 ||
                         scope == MoneyScope.UNKNOWN
+                    // One card holds one sentence, so when more than one of the
+                    // three is true the person's own work is named first: that
+                    // is the only one of them that can cost him anything. The
+                    // unanswered question comes last for the same reason -- it
+                    // is the app's own bookkeeping, not his work.
+                    //
+                    // Ordered on the conditions themselves rather than on an
+                    // assumption that two of them cannot happen together, so
+                    // this stays correct if the sync's own rules about that
+                    // ever change.
+                    val reason = when {
+                        !somethingHeldBack -> null
+                        syncResult.heldBack > 0 -> UnsyncedReason.JOBS_HELD_BACK
+                        (pushResult.getOrNull() ?: 0) < 0 -> UnsyncedReason.RECORDS_HELD_BACK
+                        // Only the unanswered money scope is left: the three
+                        // conditions above are exactly what somethingHeldBack
+                        // is built from.
+                        else -> UnsyncedReason.ACCESS_NOT_CONFIRMED
+                    }
                     SyncState(
                         phase = SyncPhase.OK,
                         lastSyncedAt = System.currentTimeMillis(),
                         lastError = null,
-                        hasUnsyncedWork = somethingHeldBack
+                        hasUnsyncedWork = somethingHeldBack,
+                        unsyncedReason = reason
                     )
                 },
                 onFailure = {
@@ -656,7 +842,15 @@ class AutoSync(
         // Honour anything that was triggered while we held the lock. Cleared
         // before re-running, so a burst of triggers costs one extra pass and
         // cannot loop.
-        if (pendingSync.getAndSet(false)) runSync()
+        if (pendingSync.getAndSet(false)) {
+            runSync()
+            return
+        }
+
+        // A pass that could not ask what this account may see is a pass that
+        // moved no jobs, so ask again soon rather than leave somebody looking at
+        // a list with work missing from it and a card that does not explain why.
+        if (couldNotAskMoneyScope) askAgainShortly(scopeRetries) else scopeRetries.set(0)
     }
 
     /**
@@ -779,6 +973,15 @@ class AutoSync(
 
         /** While someone is looking at the app, a figure should never be more than a minute old. */
         const val FOREGROUND_HEARTBEAT_MS = 60 * 1000L
+        /**
+         * How many times a pass may ask again on its own before leaving it to
+         * the heartbeat, and how long the first wait is -- each attempt waits a
+         * multiple of it, so three attempts span roughly twenty seconds. Short
+         * enough to beat the foreground heartbeat, which is the gap somebody
+         * signing in on a second phone is staring at.
+         */
+        const val RETRY_ATTEMPTS = 3
+        const val RETRY_DELAY_MS = 4_000L
         const val NOTIFY_LIMIT = 5
         const val SUMMARY_NOTIFICATION_ID = 9_000
     }

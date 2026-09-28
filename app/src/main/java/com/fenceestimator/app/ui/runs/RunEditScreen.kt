@@ -64,6 +64,14 @@ fun RunEditScreen(
     // This screen never read the session at all, which is how its delete button
     // came to be the one delete in the app with no permission behind it.
     val session by app.session.state.collectAsState()
+    // Every field below wrote straight to the run with nothing asking a
+    // permission, the same hole the delete button had. isGuestDemo rather than
+    // canEditJobs on purpose: this table lets any company member write, and a
+    // real crew phone reaches this screen from the job's own fence-run list to
+    // size runs and fix specs on site, the same way drawing one is deliberately
+    // open to them. Only the guest demo -- signed out, no company to actually
+    // hold this write -- loses it.
+    val editable = !session.isGuestDemo
     var pendingDelete by remember { mutableStateOf(false) }
     val viewModel: RunEditViewModel = viewModel(
         key = "run_edit_$runId",
@@ -131,9 +139,9 @@ fun RunEditScreen(
                 SectionCard(stringResource(R.string.est2_section_run)) {
                     DraftTextField(
                         stableKey = currentRun.id, initialValue = currentRun.label,
-                        label = stringResource(R.string.est2_run_label_hint), modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.est2_run_label_hint), enabled = editable, modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(label = it) } }
-                    FenceTypeDropdown(currentRun.fenceType) { newType ->
+                    FenceTypeDropdown(currentRun.fenceType, editable) { newType ->
                         viewModel.update { r ->
                             r.copy(
                                 fenceType = newType,
@@ -143,7 +151,7 @@ fun RunEditScreen(
                     }
                     DraftTextField(
                         stableKey = currentRun.id, initialValue = currentRun.colorOrFinish,
-                        label = stringResource(R.string.est2_color_finish), modifier = Modifier.fillMaxWidth()
+                        label = stringResource(R.string.est2_color_finish), enabled = editable, modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(colorOrFinish = it) } }
                     // The field existed in the data model and synced to every
                     // phone -- and nothing anywhere let a person SET it. So the
@@ -162,6 +170,7 @@ fun RunEditScreen(
                         }
                         Switch(
                             checked = currentRun.isTeardown,
+                            enabled = editable,
                             onCheckedChange = { checked ->
                                 viewModel.update { r -> r.copy(isTeardown = checked) }
                             }
@@ -171,13 +180,13 @@ fun RunEditScreen(
             }
             item {
                 when (currentRun.fenceType) {
-                    FenceType.VINYL -> SectionCard(stringResource(R.string.est2_spec_vinyl)) { VinylFields(currentRun, viewModel) }
-                    FenceType.ALUMINUM -> SectionCard(stringResource(R.string.est2_spec_aluminum)) { AluminumFields(currentRun, viewModel) }
-                    FenceType.ORNAMENTAL_IRON -> SectionCard(stringResource(R.string.est2_spec_ornamental_iron)) { VinylFields(currentRun, viewModel) }
-                    FenceType.WOOD -> SectionCard(stringResource(R.string.est2_spec_wood)) { WoodFields(currentRun, viewModel) }
-                    FenceType.COMPOSITE -> SectionCard(stringResource(R.string.est2_spec_composite)) { WoodFields(currentRun, viewModel) }
-                    FenceType.SPLIT_RAIL -> SectionCard(stringResource(R.string.est2_spec_split_rail)) { SplitRailFields(currentRun, viewModel) }
-                    FenceType.CHAIN_LINK -> SectionCard(stringResource(R.string.est2_spec_chain_link)) { ChainLinkFields(currentRun, viewModel) }
+                    FenceType.VINYL -> SectionCard(stringResource(R.string.est2_spec_vinyl)) { VinylFields(currentRun, editable, viewModel) }
+                    FenceType.ALUMINUM -> SectionCard(stringResource(R.string.est2_spec_aluminum)) { AluminumFields(currentRun, editable, viewModel) }
+                    FenceType.ORNAMENTAL_IRON -> SectionCard(stringResource(R.string.est2_spec_ornamental_iron)) { VinylFields(currentRun, editable, viewModel) }
+                    FenceType.WOOD -> SectionCard(stringResource(R.string.est2_spec_wood)) { WoodFields(currentRun, editable, viewModel) }
+                    FenceType.COMPOSITE -> SectionCard(stringResource(R.string.est2_spec_composite)) { WoodFields(currentRun, editable, viewModel) }
+                    FenceType.SPLIT_RAIL -> SectionCard(stringResource(R.string.est2_spec_split_rail)) { SplitRailFields(currentRun, editable, viewModel) }
+                    FenceType.CHAIN_LINK -> SectionCard(stringResource(R.string.est2_spec_chain_link)) { ChainLinkFields(currentRun, editable, viewModel) }
                     FenceType.UNIVERSAL -> {}
                 }
             }
@@ -189,13 +198,14 @@ fun RunEditScreen(
                             stableKey = currentRun.id,
                             label = stringResource(R.string.est2_post_spacing_ft),
                             initialValue = currentRun.postSpacingFt,
-                            enabled = !locked,
+                            enabled = editable && !locked,
                             modifier = Modifier.weight(1f)
                         ) { viewModel.update { r -> r.copy(postSpacingFt = it) } }
                         DraftNumberField(
                             stableKey = currentRun.id,
                             label = stringResource(R.string.est2_concrete_bags_per_post),
                             initialValue = currentRun.concreteBagsPerPost,
+                            enabled = editable,
                             modifier = Modifier.weight(1f)
                         ) { viewModel.update { r -> r.copy(concreteBagsPerPost = it) } }
                     }
@@ -215,8 +225,19 @@ fun RunEditScreen(
             // crew phone could delete the fence line, its gates and the takeoff
             // priced from it -- the one delete in this app with nothing behind
             // it, while the four beside it on the job screen all ask
-            // session.canDelete. Nothing on the server substitutes: the runs
-            // table lets any company member write.
+            // session.canDelete.
+            //
+            // A server trigger does refuse the tombstone without the delete
+            // permission -- confirmed live, not assumed -- but that is not a
+            // substitute for this gate, for a different reason than "nothing
+            // stops it": the repository writes the pending-deletion record and
+            // deletes this phone's local copy of the run in the same call,
+            // before the server ever gets a chance to say no, and the priced
+            // lines under the run cascade with it locally. So a phone without
+            // this gate loses the run and its takeoff on itself regardless of
+            // what the cloud row does afterward. The app-side check is what
+            // stops the loss from happening at all, not the server's refusal
+            // of a write that already cost the phone its own copy.
             //
             // Hidden rather than disabled, the same way the job screen hides its
             // own: a greyed-out delete invites a crew member to ask the office to
@@ -285,11 +306,12 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FenceTypeDropdown(current: FenceType, onSelect: (FenceType) -> Unit) {
+private fun FenceTypeDropdown(current: FenceType, editable: Boolean, onSelect: (FenceType) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { if (editable) expanded = it }) {
         OutlinedTextField(
             value = current.label(), onValueChange = {}, readOnly = true,
+            enabled = editable,
             label = { Text(stringResource(R.string.est2_fence_type)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
@@ -306,24 +328,24 @@ private fun FenceTypeDropdown(current: FenceType, onSelect: (FenceType) -> Unit)
 }
 
 @Composable
-private fun VinylFields(run: FenceRun, viewModel: RunEditViewModel) {
+private fun VinylFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelHeightFt = it) }
         }
     }
 }
 
 @Composable
-private fun AluminumFields(run: FenceRun, viewModel: RunEditViewModel) {
+private fun AluminumFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelHeightFt = it) }
         }
     }
@@ -331,6 +353,7 @@ private fun AluminumFields(run: FenceRun, viewModel: RunEditViewModel) {
         Text(stringResource(R.string.est2_rackable), modifier = Modifier.weight(1f))
         Switch(
             checked = run.aluminumStyle == AluminumStyle.RACKABLE,
+            enabled = editable,
             onCheckedChange = { checked ->
                 viewModel.update { r -> r.copy(aluminumStyle = if (checked) AluminumStyle.RACKABLE else AluminumStyle.FLAT_TOP) }
             }
@@ -339,11 +362,12 @@ private fun AluminumFields(run: FenceRun, viewModel: RunEditViewModel) {
 }
 
 @Composable
-private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
+private fun WoodFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.est2_spaced_picket), modifier = Modifier.weight(1f))
         Switch(
             checked = run.woodStyle == WoodStyle.SPACED_PICKET,
+            enabled = editable,
             onCheckedChange = { checked ->
                 viewModel.update { r ->
                     r.copy(
@@ -355,21 +379,21 @@ private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
         )
     }
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fence_height_ft), initialValue = run.panelHeightFt, modifier = Modifier.weight(1f)) { newHeight ->
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fence_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) { newHeight ->
             viewModel.update { r ->
                 r.copy(panelHeightFt = newHeight, woodRailCount = if (newHeight > 4f) 3 else 2)
             }
         }
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rail_count), initialValue = run.woodRailCount.toFloat(), modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rail_count), initialValue = run.woodRailCount.toFloat(), enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(woodRailCount = it.toInt().coerceAtLeast(1)) }
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_width_in), initialValue = run.picketWidthIn, modifier = Modifier.weight(1f)) {
+        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_width_in), initialValue = run.picketWidthIn, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(picketWidthIn = it) }
         }
         if (run.woodStyle == WoodStyle.SPACED_PICKET) {
-            DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_gap_in), initialValue = run.picketGapIn, modifier = Modifier.weight(1f)) {
+            DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_gap_in), initialValue = run.picketGapIn, enabled = editable, modifier = Modifier.weight(1f)) {
                 viewModel.update { r -> r.copy(picketGapIn = it) }
             }
         }
@@ -377,28 +401,28 @@ private fun WoodFields(run: FenceRun, viewModel: RunEditViewModel) {
 }
 
 @Composable
-private fun ChainLinkFields(run: FenceRun, viewModel: RunEditViewModel) {
-    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fabric_height_ft), initialValue = run.fabricHeightFt, modifier = Modifier.fillMaxWidth()) {
+private fun ChainLinkFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
+    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fabric_height_ft), initialValue = run.fabricHeightFt, enabled = editable, modifier = Modifier.fillMaxWidth()) {
         viewModel.update { r -> r.copy(fabricHeightFt = it) }
     }
-    ToggleRow(stringResource(R.string.est2_include_top_rail), run.includeTopRail) { viewModel.update { r -> r.copy(includeTopRail = it) } }
-    ToggleRow(stringResource(R.string.est2_include_tension_wire), run.includeTensionWire) { viewModel.update { r -> r.copy(includeTensionWire = it) } }
-    ToggleRow(stringResource(R.string.est2_barbed_wire_arms), run.includeBarbedWireArms) { viewModel.update { r -> r.copy(includeBarbedWireArms = it) } }
-    ToggleRow(stringResource(R.string.est2_privacy_slats), run.includePrivacySlats) { viewModel.update { r -> r.copy(includePrivacySlats = it) } }
+    ToggleRow(stringResource(R.string.est2_include_top_rail), run.includeTopRail, editable) { viewModel.update { r -> r.copy(includeTopRail = it) } }
+    ToggleRow(stringResource(R.string.est2_include_tension_wire), run.includeTensionWire, editable) { viewModel.update { r -> r.copy(includeTensionWire = it) } }
+    ToggleRow(stringResource(R.string.est2_barbed_wire_arms), run.includeBarbedWireArms, editable) { viewModel.update { r -> r.copy(includeBarbedWireArms = it) } }
+    ToggleRow(stringResource(R.string.est2_privacy_slats), run.includePrivacySlats, editable) { viewModel.update { r -> r.copy(includePrivacySlats = it) } }
 }
 
 @Composable
-private fun SplitRailFields(run: FenceRun, viewModel: RunEditViewModel) {
-    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rails_per_section), initialValue = run.splitRailCount.toFloat(), modifier = Modifier.fillMaxWidth()) {
+private fun SplitRailFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
+    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rails_per_section), initialValue = run.splitRailCount.toFloat(), enabled = editable, modifier = Modifier.fillMaxWidth()) {
         viewModel.update { r -> r.copy(splitRailCount = it.toInt().coerceAtLeast(1)) }
     }
 }
 
 @Composable
-private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, enabled = enabled, onCheckedChange = onChange)
     }
 }
 

@@ -588,8 +588,17 @@ private fun SyncStatusCard(onRecalculate: () -> Unit) {
             Text(stringResource(R.string.account_cloud_save), style = MaterialTheme.typography.titleMedium)
             val (label, detail) = when (sync.phase) {
                 SyncPhase.SYNCING -> stringResource(R.string.sync_saving) to null
-                SyncPhase.OK -> stringResource(R.string.sync_saved) to
-                    sync.lastSyncedAt?.let { stringResource(R.string.acct_sync_last_saved, timeFormat.format(java.util.Date(it))) }
+                // An OK phase is not by itself "nothing is waiting" -- a table
+                // the server refused, or a money scope this pass could not
+                // confirm, both fold to OK too (see AutoSync.SyncState). The
+                // jobs list already reads hasUnsyncedWork before it will call
+                // anything saved; this card used to skip that check and say
+                // "Everything saved" regardless, so the two screens disagreed
+                // about the same pass. sync.message already carries the
+                // specific, honest sentence for whichever reason applies.
+                SyncPhase.OK ->
+                    (if (sync.hasUnsyncedWork) sync.message else stringResource(R.string.sync_saved)) to
+                        sync.lastSyncedAt?.let { stringResource(R.string.acct_sync_last_saved, timeFormat.format(java.util.Date(it))) }
                 // No signal is normal on a job site and fixes itself, so it
                 // reads as a status rather than a failure. Calling it an error
                 // teaches people to ignore the one that isn't.

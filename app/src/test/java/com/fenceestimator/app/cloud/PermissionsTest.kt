@@ -97,9 +97,22 @@ class PermissionsTest {
 
     @Test
     fun `signed out means working alone, so everything is allowed`() {
-        val local = SessionState(signedIn = false, role = UserRole.CREW)
+        // This is the pre-signup owner on their own phone, not the guest demo
+        // and not the brief window before the guest flag has been read -- both
+        // of those are read-only. Spelling that out is what guestKnown is for.
+        val local = SessionState(signedIn = false, role = UserRole.CREW, guestKnown = true)
         assertEquals(Permission.ALL, local.permissions)
         assertTrue(local.canDelete)
+    }
+
+    @Test
+    fun `signed out before the guest flag is read is read-only, not full access`() {
+        // The moment between launch and the guest-flag read settling must not
+        // be mistaken for the solo-owner case above, or a demo visitor gets a
+        // flash of full access before the read-only answer catches up.
+        val notYetRead = SessionState(signedIn = false, role = UserRole.CREW)
+        assertEquals(SessionState.GUEST_READ_ONLY, notYetRead.permissions)
+        assertFalse(notYetRead.canDelete)
     }
 
     @Test

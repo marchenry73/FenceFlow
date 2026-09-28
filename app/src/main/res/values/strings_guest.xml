@@ -6,10 +6,20 @@
     <string name="welcome_subtitle">Sign in to your company, or look around first with a sample company already set up.</string>
     <string name="welcome_sign_in">Sign in or create an account</string>
     <string name="welcome_try_guest">Try it without an account</string>
-    <string name="welcome_try_guest_caption">You’ll see a sample company with example jobs already in it. Everything resets in 5 minutes.</string>
+    <!-- How long the guest demo lasts, spoken by welcome_try_guest_caption below.
+         Never spell the number out in a translated sentence again; read it
+         from here instead. -->
+    <plurals name="guest_duration_hours">
+        <item quantity="one">1 hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+    <string name="welcome_try_guest_caption">You\'ll see a sample company with example jobs already in it. It\'s read-only, and everything resets after %1$s.</string>
 
     <!-- Guest session countdown banner, shown for the whole session. -->
     <string name="guest_banner_time_left">Guest demo — resets in %1$s</string>
-    <string name="guest_banner_explain">This is example data. When the timer ends, it’s all cleared and you’re back at the welcome screen.</string>
+    <string name="guest_banner_explain">Example data you can look through but not change. When the timer ends it\'s cleared and you\'re back at the welcome screen.</string>
     <string name="guest_setting_up">Setting up your sample company…</string>
+    <!-- Shown by AccessGuard when a guest reaches a screen the read-only demo
+         does not allow, instead of the real-user "your access changed" copy. -->
+    <string name="onb_access_changed_guest_body">This is a read-only demo, so this part of the app is turned off. Sign in with your own company to use it.</string>
 </resources>

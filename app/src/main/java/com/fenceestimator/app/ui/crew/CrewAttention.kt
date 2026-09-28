@@ -116,6 +116,23 @@ data class CrewAttentionItem(
  */
 object CrewAttention {
 
+    /**
+     * The key one hours correction is answered against.
+     *
+     * One function because two screens need the same string now: the attention
+     * row a crew member answers from, and the time card that shows their answer
+     * back to them afterwards out of the same
+     * [com.fenceestimator.app.ui.crew.CrewShiftReplyStore]. Both build it from
+     * the parts, and neither parses an id back out of a key -- which is how the
+     * two would quietly come to disagree about which correction was answered.
+     *
+     * [correctedAt] is part of it so that a shift the office corrects AGAIN is
+     * a new question, answerable again, rather than stuck on the answer given
+     * to the previous correction.
+     */
+    fun correctionKey(syncId: String, correctedAt: Long?): String =
+        "hours_corrected:" + syncId + ":" + correctedAt
+
     fun build(
         myEmployeeId: Long?,
         myEmail: String,
@@ -169,7 +186,7 @@ object CrewAttention {
         timeEntries.filter { it.employeeId == myEmployeeId && it.correctedAt != null }
             .forEach { t ->
                 items += CrewAttentionItem(
-                    key = "hours_corrected:" + t.syncId + ":" + t.correctedAt,
+                    key = correctionKey(t.syncId, t.correctedAt),
                     jobId = t.jobId,
                     kind = CrewAttentionItem.Kind.HOURS_CORRECTED,
                     detail = t.correctionReason,

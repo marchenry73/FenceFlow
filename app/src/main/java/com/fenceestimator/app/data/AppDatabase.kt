@@ -879,6 +879,18 @@ internal object SchemaV46 {
         // before markup/tax/discount. 0 for every existing job -- with 0 the
         // arithmetic is byte-for-byte what it was before this column existed,
         // so no company on this database is repriced by the update.
-        "ALTER TABLE `jobs` ADD COLUMN `minimumLaborCharge` REAL NOT NULL DEFAULT 0"
+        "ALTER TABLE `jobs` ADD COLUMN `minimumLaborCharge` REAL NOT NULL DEFAULT 0",
+        // TimeEntry.correctionSeenAt / correctionDisputedAt / disputeNote: the
+        // crew member's answer to a correction of their own hours, written on
+        // the server by acknowledge_my_shift and dispute_my_shift. Null and ''
+        // for every existing row, which reads as "they have not answered" --
+        // exactly what every shift on every phone meant before these columns
+        // existed, so no shift starts out looking disputed because the app
+        // updated. disputeNote is a non-null Kotlin String, which Room expects
+        // as TEXT NOT NULL with a default; the two timestamps are nullable
+        // Longs, which Room expects as INTEGER with no default.
+        "ALTER TABLE `time_entries` ADD COLUMN `correctionSeenAt` INTEGER",
+        "ALTER TABLE `time_entries` ADD COLUMN `correctionDisputedAt` INTEGER",
+        "ALTER TABLE `time_entries` ADD COLUMN `disputeNote` TEXT NOT NULL DEFAULT ''"
     )
 }

@@ -196,8 +196,10 @@ data class BusinessProfile(
      * guest session is running.
      *
      * Stored here rather than in memory so the countdown survives the app
-     * being backgrounded and killed -- a contractor who switches apps for a
-     * minute must come back to the same clock, not a fresh five minutes.
+     * being backgrounded and killed -- a contractor who switches apps
+     * mid-demo must come back to the same clock, not a fresh one. How long
+     * that clock runs is GuestSession.DURATION_MS, not restated here so this
+     * comment cannot drift out of step with it again.
      * Device-local only, never synced: guest mode never talks to the cloud,
      * and this field is only ever written by startGuestSession/endGuestSession
      * below, never by [save]'s normal profile-editing path.

@@ -12,8 +12,30 @@ import com.fenceestimator.app.data.BusinessProfile
  * clock that could drift from the one actually persisted.
  */
 object GuestSession {
-    /** Five minutes, exactly as the owner asked for. */
-    const val DURATION_MS: Long = 5 * 60 * 1000L
+    /**
+     * How long a guest demo lasts. The single source of this number.
+     *
+     * An hour, which is what the owner asked for after trying the first
+     * version: five minutes was not long enough to walk through a job, draw a
+     * fence and look at the money, which is the whole point of the demo.
+     *
+     * Every other statement of the duration is derived from this constant --
+     * see [durationHours] for why the sentences that describe it must not spell
+     * it out again.
+     */
+    const val DURATION_MS: Long = 60 * 60 * 1000L
+
+    /**
+     * The duration in whole hours, for the one sentence that tells a visitor
+     * how long they have before their demo is cleared.
+     *
+     * Derived, never written out again. The last change to the duration left
+     * the constant and three translated captions disagreeing, because the
+     * captions each spelled the number out in their own file and nobody edits
+     * those three files together. A caption that asks for this instead cannot
+     * be left behind, because there is no number in it to forget.
+     */
+    val durationHours: Int get() = (DURATION_MS / 3_600_000L).toInt().coerceAtLeast(1)
 
     fun isActive(profile: BusinessProfile): Boolean = profile.guestSessionStartedAt != 0L
 
@@ -27,11 +49,19 @@ object GuestSession {
     fun isExpired(profile: BusinessProfile, nowMs: Long = System.currentTimeMillis()): Boolean =
         isActive(profile) && remainingMs(profile, nowMs) <= 0L
 
-    /** "4:32" style countdown for the banner -- honest down to the second, never hidden. */
+    /**
+     * Countdown text for the banner -- honest down to the second, never hidden.
+     *
+     * Hours are shown as hours once there is one. The minutes-and-seconds form
+     * was written for a five-minute demo; left alone, an hour-long one opens on
+     * "60:00", which reads as a broken clock rather than as an hour.
+     */
     fun formatRemaining(remainingMs: Long): String {
         val totalSeconds = (remainingMs / 1000L).coerceAtLeast(0L)
-        val minutes = totalSeconds / 60
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
-        return "%d:%02d".format(minutes, seconds)
+        return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
+        else "%d:%02d".format(minutes, seconds)
     }
 }

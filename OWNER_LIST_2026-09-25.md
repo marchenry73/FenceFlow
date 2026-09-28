@@ -2,10 +2,33 @@
 
 Written down so it survives a context reset.
 
-**Status, 28 September.** Shipped and verified: A1, A3, D2(a), D4 (first half),
-and 1.526–1.532 before that. Built and awaiting a build: B3, F1, E1, F3.
-In flight: B2, the guest demo (I1–I3), D3 + D2(b), D5-as-reframed, the
-contract-terms editor, B1. Not started: D1, C1, C2, C3, E2, F2, F4, G1, G2.
+**Status, 28 September, evening.** Wave 2 finished all six tracks and its
+reviewer found THREE BLOCKERS, so none of it is shippable yet and nothing has
+been committed:
+
+1. **The app does not compile.** 33 resource keys are referenced from the new
+   Kotlin and exist in no values file. Two must be `<plurals>`, which this
+   project has never had.
+2. **The guest demo is not read-only** -- there is no write choke point, so a
+   visitor can edit pricing, apply a tier, record a payment and a refund, add a
+   fence run and edit its fields on the sample jobs. The new caption says
+   "It's read-only", which would make it a false claim as well as a gap.
+3. **The new sync sentence asserts something it cannot know** -- "Nothing of
+   yours is waiting to upload" is chosen from the ABSENCE of a held-back flag,
+   but on an unknown-scope pass nothing was attempted, so an unpushed job edit
+   is reported as nothing waiting. That is the empty-answer-reads-as-good-news
+   bug reintroduced by the fix for it.
+
+Majors also open: the Account screen still says "Everything saved" on the same
+pass the jobs list calls incomplete; the guest captions still promise 5 minutes
+where the duration is now an hour; four existing unit tests go red, three of
+them because the new guest rule works.
+
+Clean per the reviewer: claim-push, both teardown tracks, contract-terms.
+
+Shipped and verified earlier: A1, A3, D2(a), D4 (first half), and 1.526-1.532.
+Wave 3 is running: the quote page summary + drawn signature, the company
+reply-to address, and a six-domain money audit.
 
 SQL applied since the list was written: `supabase_r9_taxable_panels.sql`,
 `supabase_crew_view_dispute_columns.sql`, `supabase_admin_owner_login_email.sql`,

@@ -68,6 +68,24 @@ class TimeApprovalViewModel(
     val syncBlocked: StateFlow<List<TimeEntry>> = repository.observeSyncBlockedTimeEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * Shifts a crew member says are wrong.
+     *
+     * Its own list rather than a flag on [pending], because an objection can
+     * only land on a shift that has already been corrected, and correcting
+     * here is part of the same action as approving -- see
+     * [com.fenceestimator.app.data.TimeEntryDao.observeDisputed] for the live
+     * example. A badge confined to the approval queue would have shown nothing
+     * and read as nothing wrong.
+     *
+     * Filtered to objections that still stand against the times as they are
+     * now, by the same rule the server's own read-back uses, so this screen
+     * and the crew member's phone cannot disagree about whether one is open.
+     */
+    val disputed: StateFlow<List<TimeEntry>> = repository.observeDisputedTimeEntries()
+        .map { shifts -> shifts.filter { it.hasOpenDispute } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _message = MutableStateFlow<UiMessage?>(null)
     val message: StateFlow<UiMessage?> = _message
 

@@ -156,6 +156,7 @@
     <string name="svc_elsewhere_body">Esta cuenta inició sesión en otro teléfono. Una cuenta funciona en un solo teléfono a la vez, así que FenceFlow se detuvo en este.</string>
     <string name="svc_elsewhere_nothing_lost">No se ha borrado nada de este teléfono. Toca Usar este teléfono para seguir aquí; el otro teléfono se detendrá hasta que vuelva a iniciar sesión.</string>
     <string name="svc_elsewhere_seat_note">Si dos personas comparten esta cuenta, cada una necesita la suya; pídesela a la oficina. Si no fuiste tú, cambia tu contraseña.</string>
+    <string name="push_displaced_body">Esta cuenta acaba de iniciar sesión en otro teléfono, así que FenceFlow dejó de sincronizar aquí. No se ha borrado nada de este teléfono; abre FenceFlow para recuperar la sesión.</string>
     <string name="svc_use_this_phone">Usar este teléfono</string>
     <string name="svc_use_this_phone_working">Cambiando a este teléfono…</string>
     <string name="svc_use_this_phone_failed">No se pudo conectar con FenceFlow para cambiar de teléfono. Revisa la conexión e inténtalo de nuevo.</string>
@@ -248,6 +249,7 @@
     <!-- Survey & draw -->
     <string name="draw_title">Plano y dibujo</string>
     <string name="draw_add_run_first">Añade primero un tramo de cerca en la pantalla del trabajo, luego vuelve aquí a dibujarlo.</string>
+    <string name="draw_no_runs_yet">Aún no hay nada dibujado en este trabajo. Empieza la cerca nueva, o la vieja que se va a retirar.</string>
     <string name="draw_grid_size_ft">%1$d ft</string>
     <string name="draw_closed_perimeter">Perímetro cerrado (sin extremos abiertos)</string>
     <string name="draw_undo">Deshacer</string>
@@ -287,6 +289,10 @@
     <string name="draw_remove_gate_title">¿Quitar este portón?</string>
     <string name="draw_remove">Quitar</string>
     <string name="draw_keep">Dejar</string>
+    <string name="draw_erase_run">Borrar el tramo de cerca seleccionado</string>
+    <string name="draw_erase_run_title">¿Borrar este tramo de cerca?</string>
+    <string name="draw_erase_run_body">%1$s se quita de este dibujo, junto con su línea de cerca, sus puertas y los materiales calculados a partir de ella. Deshacer no lo recuperará. Va a la papelera, así que la oficina todavía puede restaurarlo.</string>
+    <string name="draw_erase">Borrar</string>
     <string name="draw_mark_spot">Marcar este punto</string>
     <string name="draw_note_optional">Nota (opcional)</string>
     <string name="draw_already_marked">Ya marcado:</string>
@@ -355,6 +361,17 @@
     <string name="set_business_name">Nombre del negocio</string>
     <string name="set_owner_name">Nombre del dueño</string>
     <string name="set_license_number">Número de licencia</string>
+    <string name="set_contract_terms">Condiciones del contrato</string>
+    <string name="set_contract_terms_needs_review">El aviso de cancelación sigue sin reemplazar</string>
+    <string name="set_contract_terms_explain">Estas son las condiciones que se imprimen en el contrato que firma su cliente. Reemplácelas por las suyas: las que trae FenceFlow son un punto de partida, no asesoría legal, y aquí nada comprueba si sus condiciones son válidas donde usted trabaja.</string>
+    <string name="set_contract_terms_field">Condiciones impresas en el contrato</string>
+    <string name="set_contract_terms_review_body">El bloque marcado para reemplazar sigue en el texto de abajo: busque SU DERECHO A CANCELAR. Pida a su abogado la redacción que exige su estado y péguela sobre ese párrafo. FenceFlow no sabe qué exige su estado y no lo comprueba.</string>
+    <string name="set_contract_terms_placeholders">Se rellenan al generar el contrato: {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Todo lo demás se imprime tal como usted lo escriba.</string>
+    <string name="set_contract_terms_this_phone">Estas condiciones se guardan en este teléfono. Un segundo teléfono de la misma cuenta guarda su propia copia, así que cámbielas también allí.</string>
+    <string name="set_contract_terms_blank">Esta casilla está vacía, así que el contrato no imprimirá ninguna condición.</string>
+    <string name="set_contract_terms_reset">Empezar de nuevo con las condiciones de FenceFlow</string>
+    <string name="set_contract_terms_reset_confirm">Esto reemplaza todo lo que hay en la casilla por las condiciones que trae FenceFlow, en su idioma. Su propia redacción no se conserva en ningún sitio.</string>
+    <string name="set_contract_terms_reset_action">Reemplazar</string>
     <string name="set_theme_system">Sistema</string>
     <string name="set_theme_light">Claro</string>
     <string name="set_theme_dark">Oscuro</string>
@@ -559,6 +576,18 @@
     <string name="jd_haul_fee">Acarreo / tiradero ($)</string>
     <string name="jd_teardown_length">Largo del retiro (pies) -- 0 = igual que la cerca nueva</string>
     <string name="jd_teardown_note">El retiro se cobra por el mismo metraje que la cerca nueva. Si la cerca vieja tenía otro largo, agrega un tramo aparte y escribe su largo en “Pies totales” -- así no se mezcla con el cálculo de la cerca nueva.</string>
+    <string name="jd_teardown_basis_typed_over_drawn">Se cobran %1$s pies: el largo escrito abajo. %2$s del dibujo (unos %3$s pies) no se está usando.</string>
+    <string name="jd_teardown_basis_typed">Se cobran %1$s pies: el largo escrito abajo. Nada en el dibujo está marcado como la cerca vieja.</string>
+    <string name="jd_teardown_basis_drawn">Del dibujo: %1$s, unos %2$s pies. Ese es el largo que se cobra.</string>
+    <string name="jd_teardown_basis_run_no_length">%1$s en el dibujo, todavía sin largo -- así que el retiro se cobra a lo largo de la cerca nueva, unos %2$s pies. Traza la cerca vieja o escribe su largo abajo.</string>
+    <string name="jd_teardown_basis_new_fence">No hay cerca vieja marcada en el dibujo, así que el retiro se cobra a lo largo de la cerca nueva, unos %1$s pies. Escribe un largo abajo si la cerca vieja tenía otro largo.</string>
+    <string name="jd_teardown_basis_no_length_at_all">Todavía no hay ningún largo en este trabajo, así que del retiro solo se cobran la tarifa fija y el acarreo.</string>
+    <string name="jd_teardown_length_override">Reemplazar el largo de la cerca vieja (pies) -- 0 = usar el dibujo</string>
+    <string name="jd_teardown_override_note">En 0, el retiro se calcula sobre la cerca vieja que dibujaste, o a lo largo de la cerca nueva si no dibujaste ninguna. Un número aquí reemplaza a las dos -- para una cerca vieja cuyo largo ya conoces sin trazarla. Nunca cambia el cálculo de la cerca nueva.</string>
+    <plurals name="jd_teardown_runs">
+        <item quantity="one">%1$d tramo de retiro</item>
+        <item quantity="other">%1$d tramos de retiro</item>
+    </plurals>
     <string name="jd_gates">Portones</string>
     <string name="jd_gate_rate">Tarifa de portón ($ por pie de abertura)</string>
     <string name="jd_gate_note">Se cobra solo por la abertura del portón, no por toda la cerca. Un portón de 5 pies a $%1$s/pie son $%2$s. Los portones son el trabajo más lento por pie, así que cobrarlos a la tarifa de la cerca pierde dinero en cada uno.</string>
@@ -1343,6 +1372,9 @@
     <string name="misc_survey_whats_here">¿Qué hay aquí? Se muestra en el plano para que la cuadrilla sepa qué evitar.</string>
     <string name="misc_survey_remove_marker">Quitar marcador</string>
     <string name="misc_marker_old_fence">Cerca vieja</string>
+    <string name="misc_marker_old_fence_note">Cerca vieja (nota)</string>
+    <string name="draw_marker_old_fence_chip">Cerca vieja (solo nota, sin cobro)</string>
+    <string name="draw_marker_old_fence_not_charged">Un marcador no cobra nada. Para cobrar por retirar la cerca vieja, dibújala como un tramo Cerca vieja (retiro).</string>
     <string name="misc_marker_house">Casa</string>
     <string name="misc_marker_pool">Alberca</string>
     <string name="misc_marker_driveway">Entrada de autos</string>
@@ -1909,6 +1941,9 @@
     <string name="draw_add_run_new">Nuevo tramo de cerca</string>
     <string name="draw_add_run_teardown">Cerca vieja (retiro)</string>
     <string name="draw_run_teardown_badge">Retiro</string>
+    <string name="draw_teardown_charge">Cobrar por el retiro</string>
+    <string name="draw_teardown_charge_on">Se calcula con las tarifas de retiro de la hoja del trabajo, a lo largo de la cerca vieja dibujada aquí, salvo que allí se haya escrito una longitud de retiro.</string>
+    <string name="draw_teardown_charge_off">Hay una cerca vieja dibujada pero no se está cobrando nada por retirarla.</string>
     <string name="jd_teardown_run_not_billed">Hay un tramo de retiro dibujado en este trabajo, pero “Incluir retiro de la cerca vieja” está desactivado más abajo -- no se está cobrando nada por quitar la cerca vieja hasta que lo actives.</string>
     <string name="jd_new_signature_confirm_title">Confirma el total antes de firmar</string>
     <string name="jd_new_signature_confirm_body">El cliente está por firmar por %1$s. ¿Continuar al panel de firma?</string>
@@ -1955,4 +1990,13 @@
     <string name="jd_drawhist_confirm_needs_online">Esto necesita conexión. La app comprueba primero que el cliente no haya vuelto a aprobar, y no restaura el plano si no puede comprobarlo.</string>
     <string name="jd_drawhist_resolved_meanwhile">El cliente ya ha vuelto a aprobar este presupuesto, así que no se cambió nada.</string>
     <string name="jd_drawhist_cannot_check">No se pudo comprobar en la nube si el cliente ya ha vuelto a aprobar, así que el plano no se tocó. Inténtalo de nuevo con cobertura.</string>
+
+    <string name="time_disputed_heading">%1$d turno(s) que el equipo dice que están mal</string>
+    <string name="time_dispute_badge">El equipo disputó estas horas</string>
+    <string name="time_dispute_their_note">Dijeron: %1$s</string>
+    <string name="time_dispute_our_reason">Motivo dado para el cambio: %1$s</string>
+    <string name="time_dispute_times_changed">El reloj marcó %1$s - %2$s, cambiado a %3$s - %4$s</string>
+    <string name="time_dispute_already_approved">Ya aprobado, así que estas horas se están pagando.</string>
+    <string name="time_dispute_still_waiting">Todavía en espera de aprobación.</string>
+    <string name="time_dispute_settle_note">Una disputa no cambia las horas ni el pago. Queda abierta hasta que se vuelvan a corregir las horas del turno.</string>
 </resources>

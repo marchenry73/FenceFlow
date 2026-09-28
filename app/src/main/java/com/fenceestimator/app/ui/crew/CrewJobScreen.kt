@@ -709,6 +709,22 @@ private fun TimeClockCard(
     val timeFormat = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.US) }
     val totalHours = myEntries.filter { !it.isRunning }.sumOf { it.hours }
 
+    // What this phone has already sent back about a correction, so an objection
+    // outlives the notification that carried it. Dismissing the "the office
+    // changed your hours" row used to be the end of it: nothing else on the
+    // phone mentioned the dispute again, which is why this got reported to
+    // March by text message rather than looked up in the app.
+    //
+    // A local store and not the shift row, because the row cannot answer it on
+    // a crew phone: without SEE_PAY the pull reads time_entries_crew, and that
+    // view carries none of the dispute columns, so the row reads null for them
+    // on every sync (see supabase_crew_view_dispute_columns.sql, written and
+    // NOT applied). The row is still preferred when it does carry an
+    // objection -- the server is the record, and this cache is only this
+    // device's memory of having sent one.
+    val context = LocalContext.current
+    val replyStore = remember(context) { CrewShiftReplyStore(context) }
+
     // Re-reads the clock every second so a running shift (or a running break)
     // visibly ticks up rather than looking frozen.
     var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -873,6 +889,38 @@ private fun TimeClockCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    // ...and what they said back about it. Same two sentences
+                    // the attention row shows at the moment of answering, so a
+                    // crew member reads the same words here a week later
+                    // instead of wondering whether it ever sent.
+                    //
+                    // Still no money on this row: the note above explains why a
+                    // figure here would read as "you earned nothing".
+                    val myAnswer = remember(entry.syncId, entry.correctedAt, entry.disputeNote) {
+                        when {
+                            entry.hasOpenDispute && entry.disputeNote.isNotBlank() ->
+                                CrewShiftReplyStore.Reply.Disputed(entry.disputeNote)
+                            entry.correctedAt != null ->
+                                replyStore.answerFor(
+                                    CrewAttention.correctionKey(entry.syncId, entry.correctedAt)
+                                )
+                            else -> null
+                        }
+                    }
+                    when (myAnswer) {
+                        is CrewShiftReplyStore.Reply.Disputed -> Text(
+                            stringResource(R.string.crew_attn_hours_disputed_note, myAnswer.note),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        CrewShiftReplyStore.Reply.Accepted -> Text(
+                            stringResource(R.string.crew_attn_hours_accepted_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        null -> Unit
                     }
                 }
             }
