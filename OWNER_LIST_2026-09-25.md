@@ -2,66 +2,72 @@
 
 Written down so it survives a context reset.
 
-**Status, 28 September, late.** Eleven waves. HEAD is 81852f9, which compiles
-clean with 1062 unit tests. Everything since then is uncommitted and is held
-back on purpose -- the reasons are below.
+**Status, 29 September.** Twenty waves. HEAD 56c3d9f, version 552. Everything
+below is COMMITTED and green: release Kotlin compiles, the pricing parity gate is
+GREEN at 85 of 85 (engine 2026.09.3), Kotlin 1167 tests 0 failures, node 987 tests
+967 passing with no real failures. Nothing is deployed and no APK is built.
 
-### Shipped and verified
-A1 tax base (the cause was DATA -- 4 of 92 catalog items untaxed, all panels).
-A3 balance. D2(a) crew delete. D4 tax-base note. B3 crew hours dispute. F1
-referral picker. F3 admin email. E1 product key. B2 sync sentence. D3 + D2(b)
-teardown. The contract-terms editor. B1 device-claim push. C2 quote summary +
-download. A4 money audit -- 11 findings confirmed across six domains, ten of
-them 3-of-3 on adversarial verification.
+### Done and verified
+A1 tax base (cause was DATA: 4 of 92 catalog items untaxed, all panels). A3
+balance. A4 money audit -- 11 findings, six domains, adversarially verified. B1
+device-claim push. B2 sync sentence. B3 crew hours dispute. C2 quote summary,
+download and pay link. C3 drawn signature (needs its column applied). D2 crew
+delete + erase from the drawing. D3 old fence. D4 tax-base note. D5 reframed. E1
+product key. F1 referral picker. F3 admin email. D1 PARTLY -- the grid is
+unlimited now, but SATELLITE still stops at 400 ft.
 
-Three jobs re-quoted at the corrected price and proved on the live customer
-link: James Bond 36,290, John Beaunissant 16,000, the unnamed draft 900.
-accepted_total untouched on all three, so what each customer originally agreed
-still anchors the price.
+Three jobs re-quoted and proved on the live customer link: James Bond 36,290, John
+Beaunissant 16,000, the unnamed draft 900. accepted_total untouched on all three.
 
-### The money defects found, and where each stands
-- **Office payment link billed above the agreed price** -- FIXED and tested.
-  It would have billed James Bond against 36,290 and John Beaunissant against
-  16,000. My own restamp is what made it reachable.
-- **Uncalibrated drawing bills full materials, zero labour** -- IN FLIGHT. 800
-  dollars unbilled on a 100 ft run; a 38 percent undercharge. Biggest money item.
-- **A time correction reprices old shifts at today's rate** -- NOT FIXED, needs
-  his decision. Verified from the live function body.
-- **Stripe credits money before it arrives** -- FIXED (an unpaid async session no
-  longer credits). The REVERSAL half needs his decision; SQL written, unapplied.
-- **Labour reports ignored the 200 floor** and got the verdict backwards --
-  FIXED, one definition now instead of three copies.
-- Uncapped deposit panel, gate-on-wall post cap, dead card-fee function: fixed
-  or judged cosmetic.
-- **Restored approval can make a signed change order vanish** -- armed, not
-  sprung, no job in that state. Not fixed.
+### The thirteen sabotage proofs RAN, and all thirteen passed
+They had never been executed -- behind a switch nobody threw. The crew line door,
+the signature stamp, the change-order latch and accepted_total on the money list
+are verified against production for the first time, inside a rolled-back
+transaction, with the reviewer stripping a live guard to confirm the green baseline
+was a real refusal rather than a call that never happened.
 
-### Two defects the waves introduced themselves, both caught by review
-- Business Settings could WIPE the company email (blank passes NOT NULL) --
-  fixed on both pages with a drift guard between them.
-- The admin console claimed saves it never made -- zero rows changed, no error,
-  dialog closed as success. In flight.
+### Money defects found and fixed
+The office payment link billed above the agreed price (1,510 exposed on two real
+jobs). An uncalibrated drawing billed materials with no labour (800 a hundred feet).
+Labour reports ignored the 200 floor AND got the verdict backwards. Stripe credited
+money before it arrived. A line-to-wall gate shorted a post cap. SIX buttons
+reported saves they never made -- including one that showed an email link as removed
+while the database still had it. An empty string could wipe the company email.
 
-### The guest demo (I1-I3) -- five waves, still not finished
-The read-only PROMISE is being taken out of the copy now, because it is false.
-A repository choke point exists (53 writes, one gate) but is DELIBERATELY NOT
-WIRED: switching it on as-is would turn open writes into silent swallows in the
-eleven view models that wrap writes in runCatching, and crashes in the two that
-do not. Correct order is gate the view models, decide what a refusal shows, then
-turn it on. Still open: pricing tiers, manufacturers, push-other-job, re-sign
-contract, crew change request, run list add/duplicate -- and the company profile
-save, which goes to a store no guard covers and the wipe does not revert, so a
-guest's edit OUTLIVES the demo. That one is the only write that escapes.
+### Still open
+- **Satellite zoom** -- the other half of D1.
+- **Nobody has looked at the new grid on a screen.** Drawing code, verified only by
+  compiling and reading. That needs HIS eyes before it ships.
+- **Office and phone measure an uncalibrated job differently** -- the office assumes
+  20 px/ft and never reads the grid size, so they agree only at 400 ft. Unreachable
+  today, but the new grid sizes raise the possible error from 5x to 25x.
+- **A false comment in PricingAdapters.kt** -- the same lie four deleted parity
+  cases were removed for.
+- C1 cancellation, E2 sandbox product key, F2 merged change feeds, G1 drawing
+  versions. G2 he said to leave.
+- The guest demo: manufacturers, push-another-job, re-sign contract, crew change
+  request, and the company profile save -- the only guest write that ESCAPES the
+  demo, because it goes to a store no guard covers and the wipe does not revert.
+  The repository choke point exists and is deliberately NOT wired: switching it on
+  as things stand turns open writes into silent swallows.
 
-### Not started
-D1 unlimited grid. C1 cancellation. C3 drawn signature (blocked on one
-edge-function change; SQL written, unapplied). E2 sandbox product key. F2 merged
-change feeds. G1, G2.
+### Waiting on him
+Back up the signing key (one copy, C:/keys/fenceflow-release.jks). Check whether
+bank debit is on in Stripe. Should a corrected shift keep the rate it was worked at
+(it does not today). Stripe reversals: automatic or a flag. Change orders during a
+re-approval. Woody (empty drawing geometry, engine says 350 against a stored 3,620)
+and James (unpriced 270 ft drawing, engine says 5,830 against a stored 200 that is
+just the minimum-charge floor).
 
-### SQL applied to his database, all of it deliberate and told to him
-supabase_r9_taxable_panels, crew_view_dispute_columns, admin_owner_login_email,
-r9_retax_signed_jobs + its two corrections, r9_retax_restamp_totals. Verified
-live with a positive control: NOTHING else in the repo root has been applied.
+**Deploy order when he ships: price-job FIRST.** Both sides carry 2026.09.3; the
+deployed function is from 5 September and the phone is older still. If the office is
+newer the phone backs off; ship the phone first and it overwrites the office.
+
+### SQL applied to his database -- all deliberate, all reported
+r9_taxable_panels, crew_view_dispute_columns, admin_owner_login_email,
+r9_retax_signed_jobs plus its two corrections, r9_retax_restamp_totals. Verified
+live with a positive control: NOTHING else in the repo root has been applied. Eight
+.sql files are written, committed and unapplied, each waiting on a decision.
 ---
 
 ## A. Wrong numbers — highest priority, he gave figures
