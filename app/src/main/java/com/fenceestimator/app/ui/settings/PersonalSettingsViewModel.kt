@@ -6,11 +6,13 @@ import com.fenceestimator.app.data.AppLanguage
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.SettingsStore
 import com.fenceestimator.app.data.ThemeMode
+import com.fenceestimator.app.guest.GuestSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -65,14 +67,51 @@ class PersonalSettingsViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    /**
+     * Writes [prefs] -- except that while a guest demo is active, auto-lock
+     * and biometric unlock are held at whatever this phone already has them
+     * set to, no matter what [prefs] carries for them.
+     *
+     * This is the real gap three earlier reviews missed by only checking the
+     * company-profile screen: a guest cannot reach that screen at all
+     * (Routes.SETTINGS hands a guest THIS screen instead), but this screen's
+     * four device-local keys are not covered by GuestWriteGuard -- they never
+     * go through [com.fenceestimator.app.data.Repository], so there is no
+     * write funnel for that guard to sit in front of. Theme and language are
+     * left alone here: they are cosmetic, arguably part of trying the
+     * product, and cannot lock the owner out of anything. Auto-lock minutes
+     * and biometric unlock are the opposite -- a visitor could otherwise turn
+     * off the owner's fingerprint unlock, permanently, on a phone the demo
+     * wipe never touches (see GuestWipe: it clears the guest countdown flag
+     * and deletes only the sample jobs, never any entry in this store).
+     *
+     * Checked here, not only by disabling the control in
+     * PersonalSettingsScreen: a control that merely looks disabled while the
+     * write underneath it would still succeed is exactly the "fake feature"
+     * this app's rules forbid, so the refusal has to live where the write
+     * actually happens, the same reasoning GuestWriteGuard is built on for
+     * every write that DOES go through Repository. The guest check runs
+     * first, before anything is written, matching the guard-goes-first rule
+     * everywhere else a write funnel refuses a guest.
+     *
+     * Guest state is read fresh from [settingsStore] rather than passed in
+     * from a remembered Compose value, for the same reason [GuestWipe]
+     * insists on a fresh read: a stale "not a guest" captured before this
+     * suspend function was scheduled must never let a real change through
+     * where a fresh read would have refused it -- the reverse mistake
+     * (refusing a real user) is merely annoying, so the fresh read costs
+     * nothing when it is not needed and matters exactly when it is.
+     */
     fun save(prefs: DevicePrefs) {
         appScope.launch {
             withContext(NonCancellable) {
+                val current = settingsStore.profile.first()
+                val guestActive = GuestSession.isActive(current)
                 settingsStore.saveDevicePrefs(
                     themeMode = prefs.themeMode,
                     language = prefs.language,
-                    autoLockMinutes = prefs.autoLockMinutes,
-                    biometricUnlockEnabled = prefs.biometricUnlockEnabled
+                    autoLockMinutes = if (guestActive) current.autoLockMinutes else prefs.autoLockMinutes,
+                    biometricUnlockEnabled = if (guestActive) current.biometricUnlockEnabled else prefs.biometricUnlockEnabled
                 )
             }
         }

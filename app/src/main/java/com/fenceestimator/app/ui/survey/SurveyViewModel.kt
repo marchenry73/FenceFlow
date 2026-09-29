@@ -1357,24 +1357,140 @@ class SurveyViewModel(
         val MIN_GRID_EXTENT_FT = GRID_SIZES_FT.first()
 
         /**
-         * The grid extent whose calibration works out to exactly 20 px/ft
-         * (GRID_CANVAS_SIZE / this == PIXELS_PER_FOOT_GRID) -- the scale the
-         * office's satellite tool always traces at, independent of the
-         * user's own grid-size choice. See [ensureSatelliteCalibration].
+         * The grid extent [ensureSatelliteCalibration] pins the drawing to
+         * the MOMENT satellite turns on -- GRID_CANVAS_SIZE / this ==
+         * PIXELS_PER_FOOT_GRID by construction, the same scale the office's
+         * satellite tool starts at. Still exactly 400 (see
+         * [GridExtentTest][com.fenceestimator.app.survey.GridExtentTest],
+         * which pins this number and must keep passing).
          *
-         * This is the one grid size [zoomGridExtent] must never be reached
-         * for: satellite tiles are always fetched and placed assuming exactly
-         * this extent (see SatelliteAnchor in SurveyDrawScreen.kt), a fixed
-         * simplification independent of gridExtentFt rather than a rendering
-         * or licensing limit of the imagery itself. Making satellite track an
-         * arbitrary extent would mean re-deriving SatelliteAnchor's world-to-
-         * survey-pixel ratio from the job's own scale instead of this
-         * constant, and re-checking what that does to tile-fetch zoom and
-         * cost -- a satellite-side change, not a grid-extent one, so D1 leaves
-         * it exactly as it was: the "Grid" background zooms without limit,
-         * "Satellite" stays pinned at 400ft, same as before this change.
+         * D1's OTHER half is what happens after that: this used to also be
+         * where satellite's zoom stopped, full stop, because SatelliteAnchor
+         * (SurveyDrawScreen.kt) hardcoded PIXELS_PER_FOOT_GRID as the scale
+         * it draws imagery at -- correct only when gridExtentFt was exactly
+         * this constant, wrong (silently mis-registering the photo against
+         * whatever was drawn) the moment someone used the grid's own
+         * "unlimited zoom" (+/- buttons, chips) while satellite was the
+         * active background, which nothing ever prevented. SatelliteAnchor
+         * now takes this job's real current scale instead, so satellite's
+         * zoom genuinely follows the grid's -- as far as [satelliteCanFullyCover]
+         * below says imagery can actually be fetched for. This constant
+         * itself is UNCHANGED: it is still where satellite starts, not a
+         * ceiling any more.
          */
         const val SATELLITE_CANVAS_EXTENT_FT = 400f
+
+        /**
+         * How many z=[SATELLITE_TILE_Z]
+         * imagery tiles it would take to cover an [extentFt]-wide square of
+         * ground centered on [siteLat] -- the real, latitude-dependent
+         * question "how far can satellite actually see here", answered from
+         * the same facts SurveyDrawScreen's SatelliteAnchor draws with
+         * (SatelliteMath.feetPerPx, a fact of the Web Mercator projection
+         * and latitude alone, and the app's own fixed tile-fetch zoom), not
+         * a guessed number. Zero Compose, zero Android, so this can be
+         * pinned by [SatelliteExtentTest][com.fenceestimator.app.survey.SatelliteExtentTest]
+         * without a device -- the actual on-screen crop when the count runs
+         * past budget (SurveyDrawScreen's visibleSatelliteTiles takes
+         * whichever tiles come first in raster order once
+         * [MAX_SATELLITE_TILES_FOR_EXTENT] is reached, not an even sample)
+         * is not something this function claims to predict, and is not
+         * something a plain JVM test can watch happen either -- see the
+         * caveat on [maxSatelliteExtentFt].
+         *
+         * +1 tile of margin on each axis: the anchor centers the canvas on
+         * the site's lat/lon, which essentially never lands exactly on a
+         * z=20 tile boundary, so an [extentFt]-wide square straddles one
+         * extra tile on every side beyond the plain division.
+         *
+         * Returns [Int.MAX_VALUE] (never "fits") for a non-finite or
+         * non-positive feet-per-tile, or for a tile-per-axis count so large
+         * that squaring it would overflow a 32-bit Int and silently wrap
+         * back to a small or negative number that would wrongly read as
+         * "fits". Both only happen as |[siteLat]| approaches 90 -- not a
+         * real site this app is ever pointed at -- but a function with no
+         * caller-checked precondition should not let an unrealistic input
+         * turn into a falsely reassuring answer; [SatelliteExtentTest] pins
+         * this specifically.
+         */
+        fun satelliteTilesNeeded(extentFt: Float, siteLat: Double): Int {
+            if (extentFt <= 0f || !extentFt.isFinite()) return 0
+            val feetPerTile = 256.0 *
+                com.fenceestimator.app.cloud.SatelliteMath.feetPerPx(
+                    siteLat, SATELLITE_TILE_Z
+                )
+            if (feetPerTile <= 0.0 || !feetPerTile.isFinite()) return Int.MAX_VALUE
+            val acrossExact = kotlin.math.ceil(extentFt / feetPerTile) + 1.0
+            // sqrt(Int.MAX_VALUE) is ~46340.95 -- anything at or past that
+            // would overflow Int the moment it is squared below, so it is
+            // turned into "does not fit" here instead of into whatever a
+            // wrapped 32-bit multiply happens to produce.
+            if (!acrossExact.isFinite() || acrossExact > 46_340.0) return Int.MAX_VALUE
+            val across = acrossExact.toInt()
+            return across * across
+        }
+
+        /**
+         * The actual fetch ceiling [satelliteTilesNeeded] is measured
+         * against -- SurveyDrawScreen.MAX_SATELLITE_TILES, duplicated as a
+         * name (not a number) here so this file never has to guess it: if
+         * that constant ever changes, this reference changes with it rather
+         * than silently reading a stale copy the way two independently
+         * hand-typed 64s could.
+         */
+        private val MAX_SATELLITE_TILES_FOR_EXTENT = MAX_SATELLITE_TILES
+
+        /**
+         * Whether satellite imagery can fully cover an [extentFt]-wide grid
+         * at [siteLat] within the phone's own fetch budget
+         * ([MAX_SATELLITE_TILES_FOR_EXTENT]) -- the honest question behind
+         * "can the zoom-out button on satellite actually do anything here".
+         * [extentFt] at or below [SATELLITE_CANVAS_EXTENT_FT] is always what
+         * satellite already starts at and is not re-checked by anything
+         * that calls this; this only matters once a grid zoomed out PAST
+         * that default is asked to keep showing satellite too.
+         */
+        fun satelliteCanFullyCover(extentFt: Float, siteLat: Double): Boolean =
+            satelliteTilesNeeded(extentFt, siteLat) <= MAX_SATELLITE_TILES_FOR_EXTENT
+
+        /**
+         * The largest extent, in feet, satellite imagery can fully cover at
+         * [siteLat] before [MAX_SATELLITE_TILES_FOR_EXTENT] runs out --
+         * what [LayersDialog][com.fenceestimator.app.ui.survey.LayersDialog]
+         * tells a person once they have zoomed the grid out past it, so the
+         * imagery thinning out or stopping reads as a stated limit rather
+         * than an unexplained, silently cropped picture.
+         *
+         * A closed form, not a search: [satelliteTilesNeeded]'s tile count
+         * per axis is `ceil(extentFt / feetPerTile) + 1`, which is at most
+         * `floor(sqrt(MAX_SATELLITE_TILES_FOR_EXTENT))` exactly when
+         * `extentFt <= (that - 1) * feetPerTile` -- ceil(x) <= n, for integer
+         * n, iff x <= n. [SatelliteExtentTest] checks this formula against
+         * [satelliteCanFullyCover] directly rather than trusting the algebra.
+         *
+         * Deliberately NOT a claim about what a person actually SEES at that
+         * exact number -- SurveyDrawScreen's tile fetch takes whichever
+         * tiles a raster scan reaches first once the budget is hit, not an
+         * even crop, and which corner that leaves un-photographed depends on
+         * where the canvas falls relative to tile boundaries. This number is
+         * the honest "imagery is complete up to about here", not a promise
+         * about the shape of what happens one foot past it -- that shape has
+         * never been looked at on a device, and this file cannot look.
+         *
+         * A negative or non-finite result (only possible at |lat| >= 90, see
+         * [satelliteTilesNeeded]) falls back to [SATELLITE_CANVAS_EXTENT_FT]
+         * rather than handing a caller a number that cannot be drawn.
+         */
+        fun maxSatelliteExtentFt(siteLat: Double): Float {
+            val feetPerTile = 256.0 *
+                com.fenceestimator.app.cloud.SatelliteMath.feetPerPx(
+                    siteLat, SATELLITE_TILE_Z
+                )
+            if (feetPerTile <= 0.0 || !feetPerTile.isFinite()) return SATELLITE_CANVAS_EXTENT_FT
+            val maxAcross = kotlin.math.floor(kotlin.math.sqrt(MAX_SATELLITE_TILES_FOR_EXTENT.toDouble()))
+            val result = ((maxAcross - 1.0) * feetPerTile).toFloat()
+            return if (result.isFinite() && result > 0f) result else SATELLITE_CANVAS_EXTENT_FT
+        }
 
         /** Units per foot for a grid covering [extentFt] across. See [DrawingScale.unitsPerFoot]. */
         fun unitsPerFoot(extentFt: Float): Float = DrawingScale.unitsPerFoot(extentFt)

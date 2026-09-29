@@ -24,6 +24,16 @@
          itself isn't there. -->
     <string name="sat_offline_note">No hay señal por ahora, así que se muestra la cuadrícula en lugar de la foto. Puedes seguir dibujando; la imagen vuelve a aparecer en cuanto el teléfono se reconecte.</string>
 
+    <!-- Shown in LayersDialog once the grid has been zoomed out past what
+         satellite imagery can fully cover at this job's own site latitude
+         (SurveyViewModel.maxSatelliteExtentFt): the honest "here's where
+         the photo runs out" instead of a silently cropped picture. %1$d is
+         that distance in feet, computed fresh per job/latitude, never a
+         fixed number. This is the common case, not a rare edge: the default
+         400ft canvas already exceeds the fetch budget at most latitudes the
+         moment someone zooms out once. -->
+    <string name="sat_extent_note">La imagen satelital está completa hasta unos %1$d pies de ancho en esta zona. Más allá, es posible que falten partes de la imagen y se muestre la cuadrícula en su lugar.</string>
+
     <!-- Employees screen: outcome of inviting a newly-added crew member by
          email (invite-crew). -->
     <string name="emp_invite_sent_title">Invitación enviada por correo</string>

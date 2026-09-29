@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -62,6 +63,33 @@ import com.fenceestimator.app.ui.components.currentApp
  * nothing else.
  *
  * Built from SettingsScreen's own pieces so the two read as one app.
+ *
+ * GUEST DEMO ON THIS SCREEN. Earlier review passes checked whether a guest
+ * could reach the company-profile screen (they cannot -- Routes.SETTINGS
+ * hands a guest exactly this screen instead) and stopped there. But nothing
+ * ever stopped a guest from reaching THIS screen and changing what is on it,
+ * and two of the four things here are not harmless: auto-lock minutes and
+ * biometric unlock are security settings for the actual phone in the
+ * visitor's hand, written to on-device storage the demo wipe never touches
+ * (see GuestWipe -- it clears the countdown flag and deletes the sample jobs,
+ * nothing in SettingsStore). A visitor could turn off the owner's fingerprint
+ * unlock, permanently, with no money and nothing reaching the cloud, but on
+ * his own phone.
+ *
+ * Decision: theme and language stay editable for a guest -- cosmetic,
+ * arguably part of trying the product, and incapable of locking anyone out
+ * of anything. Auto-lock and biometric unlock are refused: [securityLocked]
+ * below renders both visibly inert (grayed out, values still shown) rather
+ * than hidden or silently ignored, and [PersonalSettingsViewModel.save]
+ * refuses the underlying write independently, so a control that somehow
+ * still fired would change nothing -- the same belt-and-suspenders shape
+ * GuestWriteGuard uses for every write that goes through Repository, which
+ * these four keys never do.
+ *
+ * Nothing here is restored on demo end, because nothing here CAN change
+ * during a demo except theme and language, and those two are the pair this
+ * screen's own doc calls harmless. A real restore-on-wipe for theme/language
+ * would belong in GuestWipe.kt, outside what this screen owns.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +103,11 @@ fun PersonalSettingsScreen(
     val viewModel: PersonalSettingsViewModel = viewModel(
         factory = GenericViewModelFactory { PersonalSettingsViewModel(app.settingsStore, app.applicationScope) }
     )
+    val session by app.session.state.collectAsState()
+    // The demo predicate itself, never a permission -- same pattern as
+    // SettingsScreen's own `editable`. Only the two security fields are
+    // gated; see this function's own doc for why theme/language are not.
+    val securityLocked = session.isGuestDemo
     val loaded by viewModel.prefs.collectAsState()
     val loadedPrefs = loaded
 
@@ -183,20 +216,53 @@ fun PersonalSettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    // Visibly inert for a guest, not hidden: see this file's
+                    // own header doc for why these two -- and only these
+                    // two -- are refused. PersonalSettingsViewModel.save
+                    // refuses the underlying write independently of this UI
+                    // gate, so this is belt-and-suspenders, not the only
+                    // thing standing between a guest and the write.
+                    if (securityLocked) {
+                        Text(
+                            stringResource(R.string.pset_guest_security_locked),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     val autoLockNever = stringResource(R.string.set_auto_lock_never)
                     val autoLockOneMinute = stringResource(R.string.set_auto_lock_one_minute)
-                    SettingsEnumDropdown(
-                        stringResource(R.string.set_auto_lock_after),
-                        listOf(0, 1, 5, 15, 30, 60),
-                        local.autoLockMinutes,
-                        {
-                            when (it) {
-                                0 -> autoLockNever
-                                1 -> autoLockOneMinute
-                                else -> context.getString(R.string.set_auto_lock_minutes, it)
-                            }
+                    val autoLockDisplay: (Int) -> String = {
+                        when (it) {
+                            0 -> autoLockNever
+                            1 -> autoLockOneMinute
+                            else -> context.getString(R.string.set_auto_lock_minutes, it)
                         }
-                    ) { change(local.copy(autoLockMinutes = it)) }
+                    }
+                    if (securityLocked) {
+                        // Not SettingsEnumDropdown: that composable has no
+                        // `enabled` parameter (its only other caller,
+                        // SettingsScreen.kt, is a different track's file this
+                        // wave), so an inert version is built here instead of
+                        // adding one there. Same visual family
+                        // (OutlinedTextField, read-only) as the real dropdown,
+                        // plus enabled = false so it reads as refused rather
+                        // than as a plain label.
+                        OutlinedTextField(
+                            value = autoLockDisplay(local.autoLockMinutes),
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = false,
+                            label = { Text(stringResource(R.string.set_auto_lock_after)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        SettingsEnumDropdown(
+                            stringResource(R.string.set_auto_lock_after),
+                            listOf(0, 1, 5, 15, 30, 60),
+                            local.autoLockMinutes,
+                            autoLockDisplay
+                        ) { change(local.copy(autoLockMinutes = it)) }
+                    }
 
                     // Only offered where the phone can actually do it. A switch
                     // that turns on and then never asks for a fingerprint reads
@@ -207,7 +273,8 @@ fun PersonalSettingsScreen(
                             Text(stringResource(R.string.set_biometric_unlock), modifier = Modifier.weight(1f))
                             Switch(
                                 checked = local.biometricUnlockEnabled,
-                                onCheckedChange = { change(local.copy(biometricUnlockEnabled = it)) }
+                                onCheckedChange = { change(local.copy(biometricUnlockEnabled = it)) },
+                                enabled = !securityLocked
                             )
                         }
                         Text(

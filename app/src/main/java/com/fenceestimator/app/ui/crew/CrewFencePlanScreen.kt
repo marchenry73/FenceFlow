@@ -479,6 +479,27 @@ private fun MarkersCard(markers: List<SiteMarker>) {
 private fun RequestChangeCard(jobId: Long) {
     val app = currentApp()
     val session by app.session.state.collectAsState()
+    // The demo predicate itself, never a permission -- this screen is exactly
+    // where a guest is routed for the drawing (see MainActivity's Routes.SURVEY),
+    // so it is a screen a visitor definitely reaches, and this card had no
+    // guest gate at all: repository.requestPlanChange runs straight through
+    // (GuestWriteGuard cannot yet refuse it either, since
+    // Repository.isGuestSession is never set). Left un-gated it would have
+    // written a real FieldChange row for a sample job -- one that never syncs
+    // anywhere in guest mode and that dies with the sample job when the demo
+    // wipe runs, all while the button's own copy promises "they will see it
+    // straight away". That promise is false for a guest, so the button and
+    // that line of copy are both replaced rather than merely disabled.
+    //
+    // No permission check is added here, and none should be inferred from its
+    // absence for a real, signed-in crew member. There is no PERMISSION for
+    // *asking* for a plan change -- only APPROVE_PLAN_CHANGES, which governs
+    // *deciding* one, is a named permission (see cloud/Permissions.kt), and
+    // GUEST_READ_ONLY (cloud/SessionManager.kt) excludes it, so it plays no
+    // part in a guest's access to begin with. Read both files plus
+    // GuestReadOnlyTest/PermissionsTest before concluding otherwise; do not
+    // add a permission check here on a guess.
+    val editable = !session.isGuestDemo
     var showDialog by remember { mutableStateOf(false) }
     var sent by remember { mutableStateOf(false) }
     // The request had no job left to go with (see the send below), so it was
@@ -507,6 +528,10 @@ private fun RequestChangeCard(jobId: Long) {
                     when {
                         jobGone -> R.string.crew_plan_job_gone
                         sent -> R.string.crew_plan_office_has_it
+                        // Never reachable together with jobGone/sent above --
+                        // both require a saved request, which a guest can
+                        // never make once the button below is gone.
+                        !editable -> R.string.crew_plan_guest_no_office
                         else -> R.string.crew_plan_ask_office
                     }
                 ),
@@ -514,8 +539,10 @@ private fun RequestChangeCard(jobId: Long) {
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             // Asking again would only fail the same way: the job is not coming
-            // back to this screen.
-            if (!sent && !jobGone) {
+            // back to this screen. Absent for a guest outright, not merely
+            // disabled -- there is no office on the other end for a demo
+            // session to reach.
+            if (editable && !sent && !jobGone) {
                 OutlinedButton(
                     onClick = { showDialog = true },
                     modifier = Modifier.fillMaxWidth()

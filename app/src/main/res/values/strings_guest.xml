@@ -22,4 +22,10 @@
     <!-- Shown by AccessGuard when a guest reaches a screen the read-only demo
          does not allow, instead of the real-user "your access changed" copy. -->
     <string name="onb_access_changed_guest_body">This is a sample company to look around in, so this part of the app is switched off. Sign in with your own company to use it.</string>
+    <!-- CrewFencePlanScreen's request-change card, shown instead of
+         crew_plan_ask_office when the current viewer is the guest demo. The
+         real copy promises "they will see it straight away", which is not
+         true here: a guest demo never talks to the cloud, and the row this
+         would write dies with the sample job when the demo ends. -->
+    <string name="crew_plan_guest_no_office">This is a sample company, so there\'s no office to ask -- a request here would go nowhere and disappears with the demo. Sign in with your own company to send a real one.</string>
 </resources>

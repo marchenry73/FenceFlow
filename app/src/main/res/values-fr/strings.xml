@@ -1857,6 +1857,14 @@
     <string name="pset_account_explain">Qui est connecté sur ce téléphone, votre niveau d’accès, la synchronisation avec le cloud et la déconnexion.</string>
     <string name="pset_open_account">Ouvrir le compte</string>
 
+    <!-- Guest demo on THIS screen: auto-lock and biometric unlock are
+         security settings for the actual phone, not the demo, so they are
+         refused to a guest and shown visibly inert rather than silently
+         ignored. See PersonalSettingsScreen.kt and
+         PersonalSettingsViewModel.save. Theme and language stay editable
+         for a guest. -->
+    <string name="pset_guest_security_locked">Le verrouillage automatique et le déverrouillage par empreinte ou visage protègent ce téléphone, donc une entreprise de démonstration ne peut pas les modifier.</string>
+
     <!-- Crew see the jobs they are on, and ask for the rest
          (supabase_crew_job_scope.sql). See ui/jobs/JobScopeUi.kt.
          Typographic apostrophes and quotes: see the note on

@@ -738,14 +738,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
                 // Fixes the imagery to the app's own survey-pixel canvas: the
                 // content-space center is the job's site_lat/site_lon, at a
-                // zoom pinned to 20 (SATELLITE_TILE_Z) so it always agrees
-                // with the 20 px/ft calibration ensureSatelliteCalibration()
-                // sets. Recomputed only when the coordinates actually change,
-                // never when the user merely pans or zooms the SCREEN view --
-                // that is viewZoom/viewPan/FitTransform's job, layered on top.
-                val satelliteAnchor = remember(job2.siteLat, job2.siteLon) {
+                // zoom pinned to 20 (SATELLITE_TILE_Z), scaled by THIS job's
+                // own current drawing scale (gridPxPerFt, the same value
+                // drawSurveyBackground below already draws the grid at) --
+                // not a flat assumed 20 px/ft any more. Recomputed whenever
+                // the coordinates OR the scale change (gridExtentFt zoomed
+                // via the chips or +/- buttons, satellite on or off), never
+                // when the user merely pans or zooms the SCREEN view -- that
+                // is viewZoom/viewPan/FitTransform's job, layered on top. See
+                // the doc on SatelliteAnchor for why this must track the
+                // job's real scale rather than a hardcoded one.
+                val satelliteAnchor = remember(job2.siteLat, job2.siteLon, gridPxPerFt) {
                     val lat = job2.siteLat; val lon = job2.siteLon
-                    if (lat != null && lon != null) SatelliteAnchor(lat, lon) else null
+                    if (lat != null && lon != null) SatelliteAnchor(lat, lon, gridPxPerFt) else null
                 }
 
                 // Which imagery tiles the current view needs, fetched (or
@@ -2401,6 +2406,47 @@ private fun LayersDialog(
                                 enabled = editable
                             ) { Icon(Icons.Filled.Add, contentDescription = "Bigger grid") }
                         }
+                        // D1's other half: satellite's own zoom now genuinely
+                        // follows the same +/- buttons and chips above (see
+                        // the doc on SatelliteAnchor in this file) -- but only
+                        // as far as imagery can actually be FETCHED for. Past
+                        // that, SurveyDrawScreen's own tile budget
+                        // (MAX_SATELLITE_TILES) is what stops it, the same
+                        // safety valve that already exists for a slow
+                        // connection, and the grid shows through the rest --
+                        // the same honest fallback already used while imagery
+                        // is loading or the phone is offline (see
+                        // sat_offline_note above). This just says so, with a
+                        // real number computed from this job's own site
+                        // latitude, instead of leaving the picture stop
+                        // filling in with no explanation.
+                        //
+                        // sat_extent_note, not a Kotlin literal: this used to
+                        // be hardcoded English because the owner of
+                        // strings_satellite.xml hadn't been this track. It now
+                        // is, so the note is a real resource in all three
+                        // locales (see that file). This is also not a corner
+                        // case -- SATELLITE_CANVAS_EXTENT_FT is 400ft and the
+                        // grid's own zoom-out button doubles it to 800ft on
+                        // the very first press, which already exceeds the
+                        // ~776ft (at this job's latitude) the 64-tile budget
+                        // can fully cover -- so most sites show this note the
+                        // first time anyone zooms satellite out at all.
+                        if (satelliteOn) {
+                            val lat = job2.siteLat
+                            val extent = job2.gridExtentFt
+                            if (lat != null &&
+                                extent > SurveyViewModel.SATELLITE_CANVAS_EXTENT_FT &&
+                                !SurveyViewModel.satelliteCanFullyCover(extent, lat)
+                            ) {
+                                val reachFt = SurveyViewModel.maxSatelliteExtentFt(lat).toInt()
+                                Text(
+                                    stringResource(R.string.sat_extent_note, reachFt),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         DraftNumberField(
                             stableKey = job2.id, label = stringResource(R.string.misc_survey_feet_per_square),
                             initialValue = job2.gridFeetPerSquare,
@@ -2927,21 +2973,32 @@ private fun NudgePad(
 // ---------------------------------------------------------------------------
 
 /**
- * The zoom satellite imagery is always fetched and placed at. Fixed, not the
- * same thing as viewZoom (the on-screen pinch/+-/- zoom, which scales
- * FitTransform and is free to change at any time): if this changed too,
- * every already-placed point would need to be re-projected or it would
- * drift relative to the ground under it. 20 is also the office's own
- * starting zoom (SAT.z = 20 in openSatellite()) and the one satFeetPerPx
- * needs to agree with SurveyViewModel.PIXELS_PER_FOOT_GRID (20) for the
- * satellite-to-survey-pixel scale to come out to a clean 1.0 ratio budget --
- * see SatelliteAnchor.
+ * The zoom satellite imagery is always FETCHED at. Fixed, not the same thing
+ * as viewZoom (the on-screen pinch/+-/- zoom, which scales FitTransform and
+ * is free to change at any time): if this changed too, every already-placed
+ * point would need to be re-projected or it would drift relative to the
+ * ground under it. 20 is also the office's own starting zoom (SAT.z = 20 in
+ * openSatellite()).
+ *
+ * This does NOT mean satellite is pinned to one canvas scale any more --
+ * see [SatelliteAnchor]. Not private: [SurveyViewModel.satelliteTilesNeeded]
+ * needs the same zoom to answer "how far can satellite actually see here",
+ * and duplicating the number would let the two silently drift apart.
  */
-private const val SATELLITE_TILE_Z = 20
+const val SATELLITE_TILE_Z = 20
 
-/** A hard ceiling on tiles fetched for one view -- an extreme zoom-out on a
- *  slow connection must not queue hundreds of downloads at once. */
-private const val MAX_SATELLITE_TILES = 64
+/**
+ * A hard ceiling on tiles fetched for one view -- an extreme zoom-out on a
+ * slow connection must not queue hundreds of downloads at once.
+ *
+ * D1's other half (zooming satellite past its 400ft default, not just the
+ * grid) turns this from "a safety valve that never mattered" into the ACTUAL
+ * limit on how far satellite can see: [SurveyViewModel.satelliteTilesNeeded]
+ * counts how many z=[SATELLITE_TILE_Z] tiles an extent needs and compares it
+ * to this same number, so the two can never disagree about where satellite
+ * imagery runs out. Not private for that reason.
+ */
+const val MAX_SATELLITE_TILES = 64
 
 private fun satelliteTileKey(x: Int, y: Int) = "$SATELLITE_TILE_Z/$x/$y"
 
@@ -2952,16 +3009,50 @@ private fun satelliteTileKey(x: Int, y: Int) = "$SATELLITE_TILE_Z/$x/$y"
  * pinned to the job's own site latitude/longitude; from there, converting
  * between a Web Mercator pixel (what SatelliteMath and the tile grid speak)
  * and a survey pixel (what every point, gate and marker on this screen is
- * stored in) is one scale factor: how many survey pixels (20 per foot) one
- * Web Mercator pixel covers at this latitude and zoom. That is exactly
- * SatelliteMath.feetPerPx(lat, z) * PIXELS_PER_FOOT_GRID -- the same
- * arithmetic satPointsToRunSpace in website/dashboard.html does when it
- * converts a traced lat/lon point into the run's own pixel space.
+ * stored in) is one scale factor: how many survey pixels one Web Mercator
+ * pixel covers at this latitude and zoom. That is exactly
+ * SatelliteMath.feetPerPx(lat, z) * [unitsPerFoot] -- the same arithmetic
+ * satPointsToRunSpace in website/dashboard.html does when it converts a
+ * traced lat/lon point into the run's own pixel space, except THIS scale is
+ * now the job's own current drawing scale rather than always the flat 20.
+ *
+ * D1 (grid): this used to hardcode SurveyViewModel.PIXELS_PER_FOOT_GRID (20)
+ * here unconditionally -- correct only when the job's grid happened to be at
+ * exactly the 400ft SATELLITE_CANVAS_EXTENT_FT default, because
+ * GRID_CANVAS_SIZE/400 == PIXELS_PER_FOOT_GRID by construction (see the doc
+ * on SurveyViewModel.SATELLITE_CANVAS_EXTENT_FT). The grid's own "unlimited
+ * zoom" (SurveyViewModel.zoomGridExtent) reaches its +/- buttons and chips
+ * whether or not satellite happens to be the active background -- nothing
+ * on this screen ever disabled them for satellite -- so as soon as someone
+ * pressed "+" or picked a chip while looking at satellite, [setGridExtent]
+ * correctly rescaled every drawn point to keep its real length (that part
+ * was never wrong) while the OLD fixed-20 anchor kept drawing the imagery
+ * at the 400ft scale regardless. The picture never visibly moved -- the
+ * exact "control that appears to work but doesn't" shape -- and, worse, the
+ * fence line silently stopped lining up with the ground under it, because
+ * the canvas the points now lived in no longer matched the canvas the
+ * imagery was drawn into. Passing this job's real [unitsPerFoot] instead
+ * closes both: the imagery now visibly follows the SAME zoom the grid
+ * already had unlimited, and it can never again drift out of registration
+ * with what is actually drawn, because both read the one scale
+ * ([SurveyViewModel.drawingScale]) that setGridExtent is the only writer of.
+ *
+ * What this does NOT change: satellite tiles are still fetched at the fixed
+ * [SATELLITE_TILE_Z]=20 -- each tile still covers the same, fixed amount of
+ * real ground (a fact of the Web Mercator projection and latitude, not of
+ * this app's canvas). Zooming the grid out just means each of those
+ * fixed-size tiles now covers FEWER survey pixels, so more of them are
+ * needed to fill the same view -- which is exactly "zooming out" and costs
+ * nothing extra in code, but is bounded by [MAX_SATELLITE_TILES]: see
+ * [SurveyViewModel.satelliteTilesNeeded] and [SurveyViewModel.maxSatelliteExtentFt]
+ * for where that bound actually bites, and the note shown in [LayersDialog]
+ * for how a person is told about it rather than left with a silently
+ * cropped picture.
  */
-private class SatelliteAnchor(lat: Double, lon: Double) {
+private class SatelliteAnchor(lat: Double, lon: Double, unitsPerFoot: Float) {
     private val centerWorld = SatelliteMath.world(lat, lon, SATELLITE_TILE_Z)
     private val surveyPxPerWorldPx =
-        SatelliteMath.feetPerPx(lat, SATELLITE_TILE_Z) * SurveyViewModel.PIXELS_PER_FOOT_GRID
+        SatelliteMath.feetPerPx(lat, SATELLITE_TILE_Z) * unitsPerFoot
     private val centerContent = SurveyViewModel.GRID_CANVAS_SIZE / 2.0
 
     /** A Web Mercator pixel coordinate (e.g. a tile corner) -> survey-pixel content space. */

@@ -100,18 +100,29 @@ class Repository(private val db: AppDatabase) {
      * Whether the CURRENT session is an ephemeral guest demo, right now --
      * the single fact [guardWrite] refuses every gated write on. See
      * [com.fenceestimator.app.guest.GuestWriteGuard] for the question this
-     * answers and does not answer (never the real permission system).
+     * answers and does not answer (never the real permission system), and
+     * for that file's STATUS section on what follows from the paragraph
+     * below.
      *
-     * A plain settable flag, same shape as [deletingUser] just above and set
-     * the same way: by the app shell, reactively, whenever the fact it
-     * mirrors changes -- here, GuestSession's persisted flag
-     * (SettingsStore.profile.guestSessionStartedAt via
-     * com.fenceestimator.app.guest.GuestSession.isActive). Repository holds
-     * only an AppDatabase; it has no SettingsStore (a Context-backed
-     * DataStore) of its own to read, and re-deriving this with a suspend read
-     * before every single write in the file would make every write -- most of
-     * which are for a signed-in real user and will answer "no" -- pay for a
-     * disk read to find that out. Checking a field costs nothing.
+     * NOT CURRENTLY SET BY ANYTHING. It is a plain settable flag, same shape
+     * as [deletingUser] just above -- but unlike [deletingUser], which
+     * FenceEstimatorApp does keep current (it reacts to `session.state` and
+     * assigns `repository.deletingUser = it.email.orEmpty()`), nothing in
+     * this app ever writes to this property. It is declared here, read by
+     * [guardWrite] on every call, and initialized to `false`; that is the
+     * whole list of places it appears as an lvalue. The design intent, for
+     * when that changes, is the same shape: the app shell would assign it
+     * reactively off `session.state.isGuestDemo` (itself following
+     * GuestSession's persisted flag -- SettingsStore.profile via
+     * com.fenceestimator.app.guest.GuestSession.isActive -- through
+     * SessionManager.watchGuestFlag), the same way and in the same collector
+     * that already assigns [deletingUser]. Repository holds only an
+     * AppDatabase; it has no SettingsStore (a Context-backed DataStore) of
+     * its own to read, and re-deriving this with a suspend read before every
+     * single write in the file would make every write -- most of which are
+     * for a signed-in real user and will answer "no" -- pay for a disk read
+     * to find that out. Checking a field costs nothing; the field just never
+     * gets set to anything but its initial value today.
      *
      * Defaults to false: a build that never sets this behaves exactly as
      * Repository did before this guard existed, rather than refusing every
@@ -119,10 +130,10 @@ class Repository(private val db: AppDatabase) {
      * be allowed to have. THE DEFAULT BEING SAFE DOES NOT MEAN THE WIRING IS
      * OPTIONAL -- until something sets this to true when a guest demo is
      * actually running, every write below still succeeds for a guest exactly
-     * as it does today, and this whole file is inert. See the wave's report
-     * for the one line the app shell (FenceEstimatorApp, outside this file's
-     * ownership) still needs, mirroring how it already reacts to session
-     * state to set [deletingUser] a few lines above this one in that file.
+     * as it does today, and this whole file is inert. That is deliberate, not
+     * merely unfinished -- see [com.fenceestimator.app.guest.GuestWriteGuard]'s
+     * STATUS section for why arming it needs the silent-swallow-or-crash
+     * question answered in the view models first, and is the owner's call.
      */
     @Volatile
     var isGuestSession: Boolean = false
@@ -359,13 +370,18 @@ class Repository(private val db: AppDatabase) {
      *
      * [bypass] is granted only when [job] carries BOTH of [GuestMarker]'s
      * markers -- i.e. this delete came from [com.fenceestimator.app.guest.
-     * GuestWipe], the one caller that runs this WHILE [isGuestSession] is
-     * still true (the wipe deletes the rows first and clears the guest flag
-     * only afterward, on purpose -- see GuestWipe's own doc for why that
-     * order is the one that keeps a crash mid-wipe safe to retry). This
-     * method's only other caller is JobSync, reconciling a real signed-in
-     * account against the cloud, for which [isGuestSession] is always false
-     * and this bypass is never even consulted.
+     * GuestWipe], the one caller that -- once [isGuestSession] is actually
+     * wired (it is not; see that property's doc) -- would run this WHILE
+     * [isGuestSession] is still true (the wipe deletes the rows first and
+     * clears the guest flag only afterward, on purpose -- see GuestWipe's own
+     * doc for why that order is the one that keeps a crash mid-wipe safe to
+     * retry). This method's only other caller is JobSync, reconciling a real
+     * signed-in account against the cloud, for which [isGuestSession] is
+     * always false regardless of wiring. Today, with [isGuestSession] wired
+     * to nothing, it is always false for BOTH callers and this bypass is
+     * never consulted by either -- but it is also never wrong to have: it
+     * costs nothing while inert and is exactly what GuestWipe's delete will
+     * need the day [isGuestSession] is armed.
      */
     suspend fun deleteJobLocallyOnly(job: Job) =
         guardWrite("deleteJobLocallyOnly", bypass = GuestMarker.isGuestSeeded(job)) { jobDao.delete(job) }

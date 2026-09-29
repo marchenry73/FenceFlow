@@ -14,4 +14,5 @@
     <string name="guest_banner_explain">Données d\'exemple à explorer. Une fois le temps écoulé, elles sont effacées et vous revenez à l\'écran d\'accueil.</string>
     <string name="guest_setting_up">Préparation de votre entreprise d’exemple…</string>
     <string name="onb_access_changed_guest_body">Ceci est une entreprise d\'exemple à explorer, donc cette partie de l\'application est désactivée. Connectez-vous avec votre entreprise pour l\'utiliser.</string>
+    <string name="crew_plan_guest_no_office">Ceci est une entreprise d\'exemple, il n\'y a donc aucun bureau à qui demander -- une demande ici n\'irait nulle part et disparaît avec la démo. Connectez-vous avec votre entreprise pour en envoyer une vraie.</string>
 </resources>

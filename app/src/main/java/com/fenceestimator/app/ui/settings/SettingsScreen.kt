@@ -112,6 +112,15 @@ fun SettingsScreen(
         factory = GenericViewModelFactory { SettingsViewModel(app.settingsStore, app.repository, app.applicationScope) }
     )
     val session by app.session.state.collectAsState()
+    // The demo predicate itself, never a permission -- same reasoning as
+    // InventoryScreen and SupplierPricesScreen: values stay visible, the
+    // controls that would write disappear. Company settings routing already
+    // keeps a guest off this screen entirely today (Routes.SETTINGS hands a
+    // guest PersonalSettingsScreen, which carries none of these fields, since
+    // the guest demo never holds EDIT_CATALOG_AND_SETTINGS) -- this is the
+    // second, independent gate the rest of the app already relies on rather
+    // than trusting a single check to keep holding.
+    val editable = !session.isGuestDemo
     val profile by viewModel.profile.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val savedMessage = stringResource(R.string.settings_saved)
@@ -247,11 +256,21 @@ fun SettingsScreen(
             item { GroupHeading(stringResource(R.string.set_group_business)) }
             item {
                 SectionCard(stringResource(R.string.settings_business_profile), icon = Icons.Filled.Storefront) {
-                    DraftTextField(stableKey = "biz_name", initialValue = local.businessName, label = stringResource(R.string.set_business_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(businessName = it) }
-                    DraftTextField(stableKey = "biz_owner", initialValue = local.ownerName, label = stringResource(R.string.set_owner_name), modifier = Modifier.fillMaxWidth()) { local = local.copy(ownerName = it) }
-                    DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = stringResource(R.string.field_phone), keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth()) { local = local.copy(phone = it) }
-                    DraftTextField(stableKey = "biz_email", initialValue = local.email, label = stringResource(R.string.field_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth()) { local = local.copy(email = it) }
-                    DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth()) { local = local.copy(licenseNumber = it) }
+                    // Refused rather than let through and cleaned up after: this
+                    // write lands in SettingsStore (DataStore), a different store
+                    // from the sample jobs -- no GuestWriteGuard covers it (that
+                    // guard only sits in front of Repository/Room writes) and
+                    // GuestWipe never touches it (it only deletes GuestMarker
+                    // rows via deleteJobLocallyOnly). An edit that got through
+                    // here would survive the demo ending and could be adopted by
+                    // a genuine company later via SettingsSync's null-coalescing
+                    // merge. Inert-but-visible matches every other guest control
+                    // on this screen and needs no new machinery in the wipe.
+                    DraftTextField(stableKey = "biz_name", initialValue = local.businessName, label = stringResource(R.string.set_business_name), modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(businessName = it) }
+                    DraftTextField(stableKey = "biz_owner", initialValue = local.ownerName, label = stringResource(R.string.set_owner_name), modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(ownerName = it) }
+                    DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = stringResource(R.string.field_phone), keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(phone = it) }
+                    DraftTextField(stableKey = "biz_email", initialValue = local.email, label = stringResource(R.string.field_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(email = it) }
+                    DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(licenseNumber = it) }
                 }
             }
             item {
@@ -441,6 +460,14 @@ fun SettingsScreen(
                     // No tiers yet -- a new company starts blank here too,
                     // rather than quoting off FenceFlow's own labor rate
                     // without anyone having seen it.
+                    // Same treatment as every other guest control on this app:
+                    // values readable, action controls absent. Save, delete and
+                    // this copy-starting-tiers button all reach
+                    // repository.savePricingTier / deletePricingTier /
+                    // copyFenceFlowStartingPricingTiers, which -- like every
+                    // other write here -- Repository's GuestWriteGuard cannot
+                    // yet refuse (Repository.isGuestSession stays unassigned),
+                    // so the demo predicate is the only gate there is.
                     if (pricingTiers.isEmpty()) {
                         Text(
                             stringResource(R.string.set_pricing_tiers_empty),
@@ -448,15 +475,17 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                         )
-                        OutlinedButton(
-                            onClick = { showCopyStartingTiersConfirm = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(stringResource(R.string.set_copy_starting_tiers))
+                        if (editable) {
+                            OutlinedButton(
+                                onClick = { showCopyStartingTiersConfirm = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(stringResource(R.string.set_copy_starting_tiers))
+                            }
                         }
                     }
                     pricingTiers.forEach { tier ->
-                        Card(onClick = { editingTier = tier }, modifier = Modifier.fillMaxWidth()) {
+                        val tierRow: @Composable () -> Unit = {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -477,9 +506,20 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                        // The card's onClick is the only door to
+                        // EditTierDialog, which carries both Save and Delete --
+                        // so removing it for a guest removes both at once
+                        // rather than needing a second check inside the dialog.
+                        if (editable) {
+                            Card(onClick = { editingTier = tier }, modifier = Modifier.fillMaxWidth()) { tierRow() }
+                        } else {
+                            Card(modifier = Modifier.fillMaxWidth()) { tierRow() }
+                        }
                     }
-                    OutlinedButton(onClick = { showNewTier = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.set_add_pricing_tier))
+                    if (editable) {
+                        OutlinedButton(onClick = { showNewTier = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.set_add_pricing_tier))
+                        }
                     }
                 }
             }

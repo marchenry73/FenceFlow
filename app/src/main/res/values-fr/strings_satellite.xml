@@ -24,6 +24,16 @@
          itself isn't there. -->
     <string name="sat_offline_note">Pas de réseau pour le moment, alors la grille s\'affiche à la place de la photo. Le tracé fonctionne toujours ; l\'image réapparaît dès que le téléphone se reconnecte.</string>
 
+    <!-- Shown in LayersDialog once the grid has been zoomed out past what
+         satellite imagery can fully cover at this job's own site latitude
+         (SurveyViewModel.maxSatelliteExtentFt): the honest "here's where
+         the photo runs out" instead of a silently cropped picture. %1$d is
+         that distance in feet, computed fresh per job/latitude, never a
+         fixed number. This is the common case, not a rare edge: the default
+         400ft canvas already exceeds the fetch budget at most latitudes the
+         moment someone zooms out once. -->
+    <string name="sat_extent_note">L\'image satellite est complète jusqu\'à environ %1$d pieds de large ici. Au-delà, certaines parties de l\'image peuvent manquer et afficher la grille à la place.</string>
+
     <!-- Employees screen: outcome of inviting a newly-added crew member by
          email (invite-crew). -->
     <string name="emp_invite_sent_title">Invitation envoyée par email</string>

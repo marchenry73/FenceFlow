@@ -642,14 +642,31 @@ fun JobDetailScreen(
                 item { SectionCard(title = stringResource(R.string.section_change_orders), icon = Icons.Filled.EditNote) { ChangeOrdersSection(changeOrders, session.canDelete, !session.isGuestDemo, viewModel) } }
                 // Above the money, because a job running over is the thing
                 // that has to be dealt with today -- the invoice can wait.
-                item(key = "overrun") {
-                    OverrunSection(
-                        job = currentJob,
-                        allJobs = allJobs,
-                        workdayHours = (profile.workdayHours - profile.breakHoursPerDay)
-                            .coerceAtLeast(1.0),
-                        viewModel = viewModel
-                    )
+                //
+                // Hidden for the guest demo entirely, not just the reschedule
+                // button inside it. This card's "push X days" control writes
+                // ANOTHER job's scheduledDate through the same update() door as
+                // every other write here, and canSeeMoney alone -- which the
+                // guest deliberately holds -- used to be enough to reach it. It
+                // was quiet only because none of the three seeded demo jobs has
+                // actually run past its finish day; a job with a real overrun
+                // would have handed a visitor a real customer's calendar to
+                // move. OverrunSection.kt is a different file from this one and
+                // is not owned by this change, so the button cannot be removed
+                // at its source without touching a file outside this wave's
+                // list -- gated here instead, at the one call site this file
+                // does own. See [JobDetailViewModel.rescheduleOtherJob] for the
+                // matching guard on the write itself.
+                if (!session.isGuestDemo) {
+                    item(key = "overrun") {
+                        OverrunSection(
+                            job = currentJob,
+                            allJobs = allJobs,
+                            workdayHours = (profile.workdayHours - profile.breakHoursPerDay)
+                                .coerceAtLeast(1.0),
+                            viewModel = viewModel
+                        )
+                    }
                 }
                 item(key = SECTION_PAYMENT) {
                     SectionCard(title = stringResource(R.string.section_payment), icon = Icons.Filled.Payments) {
@@ -657,6 +674,22 @@ fun JobDetailScreen(
                             job = currentJob,
                             contractTotal = jobTotals.grandTotal,
                             linearFeet = jobTotals.billableLinearFeet,
+                            // The reason a signature is stale is read-only
+                            // information -- fine for the guest demo, which
+                            // already sees every other figure on this card.
+                            // Re-signing is not: it opens the pad and writes a
+                            // new acceptedTotal onto the job, same as the
+                            // original sign flow. Quiet today only because the
+                            // sample data never sets a signature date at all
+                            // (JobMoney.signatureIsStale needs one to fire), not
+                            // because anything here refused it -- the seeder
+                            // already writes a signed total and signed footage,
+                            // so a later sample-data change that also stamps a
+                            // signedAt would have opened this to guests
+                            // instantly. There is no read-only version of
+                            // "re-sign", so the button is absent rather than
+                            // merely disabled.
+                            canReSign = !session.isGuestDemo,
                             onGetNewSignature = { showSignatureConfirm = true }
                         )
                         PaymentFields(currentJob, profile, viewModel)
@@ -799,10 +832,14 @@ fun JobDetailScreen(
     // not have one.
     //
     // Both dialogs sit behind the same `if (session.canSeeMoney)` gate the
-    // payment section itself is declared under (SECTION_PAYMENT, above) --
-    // the button that sets showSignatureConfirm = true only exists inside
-    // that gated section, so a session that cannot see money never reaches
-    // either dialog.
+    // payment section itself is declared under (SECTION_PAYMENT, above), AND
+    // behind StaleSignatureBanner's own `canReSign` -- canSeeMoney alone is
+    // not enough since the guest demo holds it too. The button that sets
+    // showSignatureConfirm = true only exists inside that gated, canReSign
+    // button, so neither a session that cannot see money nor the guest demo
+    // ever reaches either dialog. captureSignature (JobDetailViewModel) also
+    // refuses a guest directly, the same belt-and-suspenders every other
+    // write on this screen gets.
     if (showSignatureConfirm) {
         AlertDialog(
             onDismissRequest = { showSignatureConfirm = false },
@@ -3441,6 +3478,11 @@ private fun StaleSignatureBanner(
     job: Job,
     contractTotal: Double,
     linearFeet: Float,
+    // False for the guest demo -- see the call site (SECTION_PAYMENT, above)
+    // for why canSeeMoney alone is not enough here. Gates only the action:
+    // the reason the signature is stale is read-only information and stays
+    // visible either way.
+    canReSign: Boolean,
     onGetNewSignature: () -> Unit
 ) {
     if (!JobMoney.signatureIsStale(job, contractTotal, linearFeet)) return
@@ -3467,8 +3509,10 @@ private fun StaleSignatureBanner(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            Button(onClick = onGetNewSignature, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.jd_get_new_signature))
+            if (canReSign) {
+                Button(onClick = onGetNewSignature, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.jd_get_new_signature))
+                }
             }
         }
     }
@@ -3950,11 +3994,17 @@ private fun restoreThatWouldWork(rows: List<ReapprovalRow>): ApprovalRestorePoin
  *    on site -- footage, a gate moved, a request still waiting on an answer
  *    (see [FieldChange]). Any company member may WRITE one, report or
  *    request; only [canApprovePlanChanges] may approve or reject a REQUEST,
- *    and that one IS enforced server-side (the `field_changes` UPDATE RLS
- *    policy: owner, manager or foreman only). Marking a change seen carries
- *    no permission check at all, in this card or before it -- see the call
- *    site in the LazyColumn above for why that pre-existing gap was left
- *    exactly as it was rather than quietly tightened here.
+ *    or mark one seen, and both ARE enforced server-side by the identical
+ *    `field_changes` UPDATE RLS policy: owner, manager or foreman only
+ *    (confirmed against the live policy, not the migration file that defined
+ *    it, 2026-09-29). Marking a change seen used to carry no permission check
+ *    at all, in this card or before it -- any company member who could open
+ *    the job could tap it, the write went into the local database, and
+ *    EntitySync's field-changes push (a different file) quietly discovered
+ *    the same server refusal and fell back to insert-only with nothing shown
+ *    on screen. Gated on [canApprovePlanChanges] now, same as the
+ *    approve/reject buttons just above, since it is the same write on the
+ *    same table under the same policy.
  *
  * So the merge keeps two different permissions on two different actions,
  * never one shared gate: a foreman (APPROVE_PLAN_CHANGES, no EDIT_JOBS) still
@@ -4050,8 +4100,39 @@ private fun JobChangesSection(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
-                        OutlinedButton(onClick = { viewModel.acknowledgeFieldChanges() }) {
-                            Text(stringResource(R.string.jsec_fc_mark_seen))
+                        // Marking a change seen is an UPDATE on field_changes,
+                        // the identical table and the identical policy that
+                        // gates PlanRequestCard's approve/reject buttons above
+                        // -- confirmed against the LIVE policy (not this repo's
+                        // migration file), 2026-09-29:
+                        //
+                        //   field_changes_update: company matches AND
+                        //   profiles.role = ANY ('OWNER','MANAGER','FOREMAN')
+                        //
+                        // This button used to carry no gate of its own at all
+                        // (see the class doc above): every role that can open a
+                        // job could tap it. The tap felt like it worked --
+                        // acknowledgeFieldChanges() writes the local row first
+                        // -- but EntitySync's pushFieldChanges (not owned by
+                        // this file) detects exactly this refusal and silently
+                        // drops to insert-only for the rest of the process, so
+                        // a crew or sales phone's "seen" never reached the
+                        // office and nothing on screen ever said so. Reusing
+                        // canApprovePlanChanges rather than inventing a second
+                        // check: it is already this screen's stand-in for this
+                        // same policy (see the class doc), and under every
+                        // role's DEFAULT permissions it is exactly the role
+                        // list above -- Owner, Manager and Foreman, before this
+                        // gate: everyone with an open job (owner, manager,
+                        // foreman, sales, accountant, crew); after: only owner,
+                        // manager and foreman, matching the server exactly. No
+                        // read-only stand-in is offered in its place -- there
+                        // is no value to show for a button that only ever
+                        // performs an action.
+                        if (canApprovePlanChanges) {
+                            OutlinedButton(onClick = { viewModel.acknowledgeFieldChanges() }) {
+                                Text(stringResource(R.string.jsec_fc_mark_seen))
+                            }
                         }
                     }
                 }
@@ -4107,6 +4188,23 @@ private fun JobChangesSection(
                 val timeFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.US) }
                 val someone = stringResource(R.string.jsec_fc_someone)
                 settled.forEach { change -> FieldChangeCard(change, someone, timeFormat) }
+            }
+            // Tied to hasFieldChanges (any field change at all), not to
+            // `settled`. Before the F2 merge (the standalone
+            // FieldChangesSection this card replaced), this hint printed
+            // unconditionally once the list wasn't empty -- it only ever
+            // returned early on changes.isEmpty(). Folding it inside
+            // `if (settled.isNotEmpty())` here was an accident of that merge,
+            // not a decision anyone wrote down: nothing in this card's own
+            // class doc discusses narrowing the hint, and the merge's stated
+            // reasoning for the `settled` block is about the old
+            // field-changes title and card list, never about this line. The
+            // regression it caused: a job with ONLY an unanswered request
+            // (settled empty, waiting non-empty) showed no reminder at all,
+            // although a request that gets approved is exactly a case where
+            // footage is about to move and the estimate is about to need
+            // re-running. Restored to the wider, pre-merge condition.
+            if (hasFieldChanges) {
                 Text(
                     stringResource(R.string.jsec_fc_rerun_hint),
                     style = MaterialTheme.typography.bodySmall,

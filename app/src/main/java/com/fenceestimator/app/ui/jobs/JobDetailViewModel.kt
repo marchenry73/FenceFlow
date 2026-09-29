@@ -362,12 +362,37 @@ class JobDetailViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun acknowledgeFieldChanges() {
-        // The field-changes "Mark seen" button (FieldChangesSection.kt) calls
-        // straight through here with no gate of its own -- latent rather than
-        // live, since none of the three seeded demo jobs carry a field
-        // change to acknowledge, but a guest who did see one would have
-        // written to it same as any other unguarded funnel here.
+        // The field-changes "Mark seen" button (JobChangesSection, in
+        // JobDetailScreen.kt) now shows only when canApprovePlanChanges is
+        // true, matching the second check below -- but both guards belong
+        // here too, not only on the button, the same belt-and-suspenders
+        // every other write in this file gets.
+        //
+        // TWO checks, not one, and the guest refusal FIRST. The permission
+        // check below is strictly stronger for a guest today (GUEST_READ_ONLY
+        // is SEE_MONEY/SEE_CUSTOMER_CONTACT/SEE_REPORTS and so excludes
+        // APPROVE_PLAN_CHANGES), so replacing the guest line with it looked
+        // like a safe tightening -- and it is, until the day GUEST_READ_ONLY
+        // changes. It also broke GuestReadOnlyTest's write-funnel sweep,
+        // which deliberately reads this file as text and requires every
+        // funnel here to OPEN with the guest refusal, so that a write added
+        // tomorrow is refused for a guest by default rather than by
+        // somebody noticing. That sweep is the thing keeping this file's
+        // guest guarantee from depending on a permission-set coincidence
+        // asserted in a different test, so the guest line stays as the first
+        // statement and the permission check is added after it.
         if (session.state.value.isGuestDemo) return
+        // canApprovePlanChanges: the live field_changes UPDATE policy is
+        // owner, manager or foreman only (confirmed against the policy
+        // itself, 2026-09-29), the identical policy decidePlanChange below is
+        // already held to, and under every role's default permissions
+        // canApprovePlanChanges IS exactly that role list -- so this closes
+        // the gap for crew, sales and accountant phones too, where before
+        // only the demo was refused and every signed-in role sailed through
+        // to a write the server was always going to refuse anyway (silently
+        // -- see EntitySync.pushFieldChanges, a different file, for where
+        // that refusal actually gets swallowed).
+        if (!session.state.value.canApprovePlanChanges) return
         viewModelScope.launch { repository.acknowledgeFieldChanges(jobId) }
     }
 
@@ -559,8 +584,16 @@ class JobDetailViewModel(
      * leaving the previous acceptedTotal standing. Skipping this reproduces a
      * real regression where a signature covered $9,710 and the quote page kept
      * recomputing to $13,410.
+     *
+     * Refuses the guest demo directly, same belt-and-suspenders as
+     * signChangeOrder above: the "Get New Signature" button that leads here
+     * (StaleSignatureBanner's `canReSign`, JobDetailScreen.kt) already keeps
+     * the guest demo from reaching this at all, but this is a re-sign of the
+     * WHOLE job's accepted total, not a value there is any reason to let
+     * through by a second route later.
      */
     fun captureSignature(path: String) {
+        if (session.state.value.isGuestDemo) return
         val current = job.value ?: return
         val agreed = contractTotal.value
         viewModelScope.launch {
@@ -590,9 +623,18 @@ class JobDetailViewModel(
      * field and work out the new day. The whole point is that it happens at the
      * moment the problem is noticed, because the alternative is remembering to
      * do it later and the customer finding out when nobody turns up.
+     *
+     * The caller, OverrunSection.kt, is a different file and already keeps its
+     * "push N days" button from ever being composed for the guest demo (see
+     * the `if (!session.isGuestDemo)` around its call site in
+     * JobDetailScreen.kt) -- guarded here too, the same belt-and-suspenders
+     * every other write on this screen gets, so this function stays safe on
+     * its own if a future caller ever reaches it without going through that
+     * button.
      */
     fun rescheduleOtherJob(other: com.fenceestimator.app.data.Job, newDate: Long?) {
         if (newDate == null) return
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.updateJob(other.copy(scheduledDate = newDate))
         }

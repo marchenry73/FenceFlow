@@ -1916,6 +1916,17 @@
     <string name="pset_account_explain">Who is signed in on this phone, your access level, cloud sync, and signing out.</string>
     <string name="pset_open_account">Open Account</string>
 
+    <!-- Guest demo on THIS screen (the real gap three earlier reviews missed
+         by only checking the company-profile screen a guest cannot even
+         reach): auto-lock and biometric unlock are security settings for
+         the actual phone, not the demo, so they are refused to a guest and
+         shown visibly inert (grayed out, not hidden) rather than silently
+         ignored. See PersonalSettingsScreen.kt and
+         PersonalSettingsViewModel.save, which refuses the write even if a
+         control here were ever bypassed. Theme and language stay editable
+         for a guest: harmless, and arguably part of trying the product. -->
+    <string name="pset_guest_security_locked">Auto-lock and fingerprint/face unlock protect this phone, so a sample company can’t change them.</string>
+
     <!-- Crew see the jobs they are on, and ask for the rest
          (supabase_crew_job_scope.sql): the job list's notices, the "Other
          jobs" and "Access requests" screens, and the job screen's "Also on

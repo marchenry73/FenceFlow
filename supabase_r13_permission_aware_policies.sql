@@ -1,0 +1,414 @@
+-- ============================================================================
+-- UNAPPLIED. Nothing in this file has been run against the live database.
+-- It is a proposal for the owner to review and apply by hand. Everything
+-- cited below was read LIVE from the catalogue of project newcrgafcptspmapacrx
+-- on 2026-09-29 (`npx --no-install supabase@2.115.0 db query --linked
+-- --project-ref newcrgafcptspmapacrx -f <f>.sql --output json`, SELECTs
+-- only, a positive control run before every probe, raw output checked for
+-- ERROR) -- never assumed from a repo .sql file, which is what was written,
+-- not necessarily what is deployed. tests/a23-policy-permission-vs-role.
+-- test.mjs proves every claim below against the live, CURRENT, unfixed
+-- policies in one rolled-back transaction (27/27 checks, run twice,
+-- confirmed zero residue afterward) -- run it yourself before trusting this
+-- header:
+--     node tests/a23-policy-permission-vs-role.test.mjs
+-- ============================================================================
+--
+-- THE MISMATCH
+-- ------------
+-- Three policies test the caller's ROLE directly, while the rest of this
+-- schema's write policies test a PERMISSION (has_permission('X'), reading
+-- profiles.permission_overrides, the thing the owner's own Team access
+-- screen writes per person, and the thing SessionManager.can(Permission.X)
+-- gates the app's own buttons on). Confirmed live, positive control first
+-- (137 total policies on this schema; all three named policies exist):
+--
+--   field_changes_update  (UPDATE, PERMISSIVE)
+--     USING: company_id = <caller's company> AND
+--            (select role::text from profiles ...) = ANY ('OWNER','MANAGER','FOREMAN')
+--
+--   job_payments_insert   (INSERT, PERMISSIVE)
+--     WITH CHECK: company_id = <caller's company> AND
+--            (select role from profiles ...) = ANY ('OWNER'::user_role,'MANAGER'::user_role)
+--
+--   job_payments_update   (UPDATE, PERMISSIVE)
+--     USING: identical role test to job_payments_insert
+--
+-- Each is the ONLY permissive policy for its command on its table (confirmed
+-- live), so there is no sibling policy quietly widening or narrowing these --
+-- what is written below is the whole rule for that command.
+--
+-- A role check cannot see permission_overrides, which is exactly what makes
+-- it a fake feature the moment the override is used in either direction:
+--   * an owner who REVOKES the permission from one MANAGER does not actually
+--     lose the ability these policies guard, because the policy never asked;
+--   * an owner who GRANTS the permission to a SALES or ACCOUNTANT profile
+--     that does not hold it by role sees the app's own control light up (the
+--     app asks the permission) while the server silently refuses the write
+--     anyway (it asks the role) -- his own Team access screen, offering
+--     every permission to every role, produces exactly this the moment he
+--     uses it.
+-- Both directions are proven live, not asserted, by the new test file (see
+-- checks 12-13 and 16-17 for field_changes, 21-22 and 31-32 for job_payments).
+--
+-- THE LIVE has_permission() MATRIX (pg_proc, re-read 2026-09-29)
+-- -----------------------------------------------------------------
+--   OWNER      -- every permission, unconditionally (short-circuited true)
+--   MANAGER    -- SEE_MONEY, SEE_PAY, EDIT_JOBS, EDIT_CATALOG_AND_SETTINGS,
+--                 SCHEDULE_AND_ASSIGN, REQUEST_PAYMENT, RECORD_FIELD_WORK,
+--                 SEE_CUSTOMER_CONTACT, SEE_REPORTS, APPROVE_TIME,
+--                 APPROVE_PLAN_CHANGES
+--   SALES      -- SEE_MONEY, EDIT_JOBS, SEE_CUSTOMER_CONTACT
+--   ACCOUNTANT -- SEE_MONEY, SEE_PAY, REQUEST_PAYMENT, RECORD_REFUNDS,
+--                 SEE_CUSTOMER_CONTACT, SEE_REPORTS
+--   FOREMAN    -- SCHEDULE_AND_ASSIGN, RECORD_FIELD_WORK, SEE_CUSTOMER_CONTACT,
+--                 APPROVE_TIME, APPROVE_PLAN_CHANGES
+--   CREW       -- RECORD_FIELD_WORK
+-- This is the CURRENT function body, not the one in supabase_permissions_
+-- patch.sql -- that repo file's comment matrix is stale (it has FOREMAN
+-- holding neither APPROVE_TIME nor APPROVE_PLAN_CHANGES; live, FOREMAN holds
+-- both). This is exactly why the task says read the catalogue, not a repo
+-- file. Cross-checked against the app's own UserRole.defaultPermissions
+-- (app/src/main/java/com/fenceestimator/app/cloud/Permissions.kt) and it is
+-- an exact match, member for member, role for role -- the client and the
+-- database agree with each other on defaults; they just were not both
+-- consulting has_permission() for these three writes.
+--
+-- LIVE OVERRIDES ON THIS ACCOUNT, RIGHT NOW (profiles.permission_overrides,
+-- re-read 2026-09-29): exactly one profile carries any override at all --
+--     SALES  f7e1c214-cdd0-492a-84b4-02392b264690  '+REQUEST_PAYMENT,+SEE_CUSTOMER_CONTACT'
+-- This is not a hypothetical fixture. tests/a23-policy-permission-vs-role.
+-- test.mjs's uSPAY profile is deliberately shaped identically (SALES,
+-- +REQUEST_PAYMENT) so check 22/32 prove the job_payments finding against
+-- this account's own real configuration, not an invented one.
+--
+-- ============================================================================
+-- POLICY 1 -- field_changes_update -> has_permission('APPROVE_PLAN_CHANGES')
+-- ============================================================================
+-- field_changes rows are crew plan-change requests and the office's decision
+-- on them (is_request, approved_at, rejected_at, decided_by). This write path
+-- is REAL and already client-exercised, not theoretical:
+--   * JobDetailViewModel.decidePlanChange() (app/src/main/java/com/
+--     fenceestimator/app/ui/jobs/JobDetailViewModel.kt) is the office's
+--     approve/reject action, backed by repository.decidePlanChange, which
+--     issues the UPDATE this policy guards.
+--   * JobDetailViewModel.acknowledgeFieldChanges(), a few lines above it,
+--     already carries this exact finding in its own comment (dated
+--     2026-09-29, i.e. today, from a different track this same wave): "the
+--     live field_changes UPDATE policy is owner, manager or foreman only ...
+--     under every role's default permissions canApprovePlanChanges IS
+--     exactly that role list" -- and session.canApprovePlanChanges is
+--     literally `can(Permission.APPROVE_PLAN_CHANGES)` (SessionManager.kt).
+-- So the app is ALREADY gating its own button on APPROVE_PLAN_CHANGES, on the
+-- documented assumption that it happens to equal the DB's role list today.
+-- This file is what makes that assumption unnecessary, by asking the
+-- permission the app already asks.
+--
+-- WHO CAN WRITE TODAY, AND WHO COULD WRITE AFTER
+-- -------------------------------------------------
+-- Under the DEFAULT permission set, APPROVE_PLAN_CHANGES is held by exactly
+-- OWNER, MANAGER and FOREMAN -- the SAME three roles the current policy
+-- names, no more and no fewer. Under the one LIVE override that exists
+-- today (SALES, +REQUEST_PAYMENT/+SEE_CUSTOMER_CONTACT), APPROVE_PLAN_CHANGES
+-- is untouched, so that account's answer does not change either.
+--
+--   Role         Role check (today)   has_permission (after)   Change
+--   OWNER        allow                allow                    none
+--   MANAGER      allow                allow                    none
+--   FOREMAN      allow                allow                    none
+--   SALES        refuse               refuse                   none
+--   ACCOUNTANT   refuse               refuse                   none
+--   CREW         refuse               refuse                   none
+--
+-- NOBODY GAINS OR LOSES ANYTHING TODAY. This is a pure tighten-to-match: the
+-- behaviour for every real account, under both its default role and its
+-- actual live overrides, is identical before and after. What changes is
+-- what happens the NEXT time the owner uses the Team access screen to grant
+-- or revoke "Approve plan changes" for a specific person -- today that
+-- action would silently do nothing to this policy; after this fix it does
+-- exactly what the screen says. Proven live (not merely computed by hand) by
+-- tests/a23-policy-permission-vs-role.test.mjs checks 00-04 (the permission
+-- answers) and 10-17 (the write attempts against the CURRENT, unfixed
+-- policy: 12/13 show a revoked MANAGER still gets through; 16/17 show a
+-- granted SALES profile still gets refused).
+--
+-- ============================================================================
+-- POLICY 2 & 3 -- job_payments_insert / job_payments_update
+-- -> has_permission('REQUEST_PAYMENT')
+-- ============================================================================
+-- job_payments rows are payment LINKS/attempts (payment_url, stripe_id,
+-- kind = deposit/final, status, processor) -- confirmed by column list and by
+-- website/dashboard.html's own comment at the one place it reads this table
+-- ("job_payments is the payment-LINK/attempt table"). REQUEST_PAYMENT's own
+-- description, verbatim from the enum that drives both the app's UI and this
+-- database's permission model (Permission.kt): "Ask customers for money" /
+-- "Create payment links and send invoices." A payment link is exactly what
+-- this table holds -- there is no ambiguity about which permission this is.
+--
+-- REJECTED ALTERNATIVE, ON PURPOSE: EDIT_CATALOG_AND_SETTINGS's default
+-- holders are OWNER and MANAGER only, a numerically exact match for today's
+-- role check with zero default-set change either direction. It was rejected
+-- anyway -- it is a permission about material prices, pricing tiers and
+-- company settings, unrelated in meaning to asking a customer for money, and
+-- picking it only because the numbers happen to line up today is "right
+-- behaviour, wrong reason": the day EDIT_CATALOG_AND_SETTINGS's membership
+-- changes for a catalog reason that has nothing to do with payments, this
+-- table's access would move with it for no reason anyone reviewing that
+-- catalog change would think to check. REQUEST_PAYMENT is the permission
+-- this table is actually about.
+--
+-- IS THIS EVEN WRITTEN BY A CLIENT? -- checked, not assumed
+-- -------------------------------------------------------------
+-- No client-authenticated path writes job_payments today:
+--   * Android app: zero matches for "job_payments" across app/src/main/java/
+--     com/fenceestimator/app/data/{Daos,Entities,AppDatabase}.kt or cloud/
+--     EntitySync.kt -- the table is absent from the sync layer entirely.
+--   * website/dashboard.html: two call sites, both `.select(...)` (loadJobPayments,
+--     and the failed/canceled-links fetch on the money tab) -- reads only,
+--     confirmed by reading both call sites; neither ever `.insert()`s or
+--     `.update()`s this table.
+--   * Every actual INSERT/UPDATE against job_payments lives in three Supabase
+--     Edge Functions (create-payment-link, stripe-webhook, square-webhook),
+--     and every one of them writes through `admin = createClient(url,
+--     SUPABASE_SERVICE_ROLE_KEY)` -- confirmed by grep, every `.from(
+--     "job_payments")` call in those three files is on that `admin` client.
+--     service_role BYPASSES RLS entirely, so job_payments_insert and
+--     job_payments_update are NEVER evaluated on the path that actually
+--     writes this table today.
+-- So, as the task anticipated: these two policies are THEORETICAL against
+-- every currently-shipping write path. They are not dead code to delete,
+-- though -- RLS is exactly the backstop for the path that is NOT the shipping
+-- app: a valid user JWT pointed at PostgREST directly. That is precisely what
+-- these policies still govern, and it is why getting them right still
+-- matters even though nothing exercises them today. (payment_records, the
+-- actual money LEDGER, is a different table and is written by the client --
+-- see the note at the end of this section; it is already correct.)
+--
+-- A RELATED BUG, NOT IN THIS FILE (out of scope -- not one of the three named
+-- policies, and not a policy at all): supabase/functions/create-payment-link/
+-- index.ts's office door checks `if (!["OWNER","MANAGER"].includes(profile.
+-- role))` -- the identical role-not-permission mistake, in application code
+-- rather than RLS, guarding the ONE real path that reaches job_payments. Worse,
+-- app/src/main/java/.../ui/jobs/JobDetailScreen.kt shows the card-payment-
+-- link button under the enclosing `if (session.canSeeMoney)` section (line
+-- ~671), not under `session.canRequestPayment` -- so SALES and ACCOUNTANT
+-- (both hold SEE_MONEY by default) already see this button today, and the
+-- Edge Function already refuses both of them with "Only an owner or manager
+-- can request payment." The one live SALES override on this account
+-- (+REQUEST_PAYMENT) does not fix this, because the Edge Function never asks
+-- the permission at all. This is a live fake-feature RIGHT NOW, independent
+-- of anything in this SQL file -- flagged here because it is the same defect
+-- family, not fixed here because it is Kotlin and Deno, not a database
+-- policy, and outside what this file owns.
+--
+-- WHO CAN WRITE TODAY, AND WHO COULD WRITE AFTER
+-- -------------------------------------------------
+-- Under DEFAULTS:
+--
+--   Role         Role check (today)   has_permission (after)   Change
+--   OWNER        allow                allow                    none
+--   MANAGER      allow                allow                    none
+--   SALES        refuse               refuse                   none
+--   FOREMAN      refuse               refuse                   none
+--   CREW         refuse               refuse                   none
+--   ACCOUNTANT   refuse               ALLOW                    GAIN
+--
+-- ACCOUNTANT HOLDS REQUEST_PAYMENT BY DEFAULT AND WOULD GAIN THE ABILITY TO
+-- INSERT/UPDATE JOB_PAYMENTS ROWS UNDER THIS FIX. It has never been able to
+-- today (role check excludes it). This is not a mistake in the fix -- it is
+-- the fix correctly answering the same question the rest of the schema
+-- already asks ACCOUNTANT for money actions (payment_records' own INSERT
+-- policy already requires REQUEST_PAYMENT and ACCOUNTANT already holds it
+-- there) -- but it is a real behavioural change and the owner's call, not
+-- mine, exactly as the task asked me to flag.
+--
+-- Under the ONE LIVE OVERRIDE that exists today:
+--
+--   Account (live)                          Role check (today)  After   Change
+--   SALES f7e1c214...                       refuse               ALLOW   GAIN
+--       (holds +REQUEST_PAYMENT today, confirmed live)
+--
+-- THIS REAL, NAMED, LIVE ACCOUNT WOULD GAIN THE ABILITY TO WRITE JOB_PAYMENTS
+-- ROWS. In practice this gain is inert today (see "is this even written by a
+-- client?" above -- nothing but service_role writes this table, and the
+-- Edge Function's own role check would still refuse this account regardless
+-- of what RLS says), but a determined holder of this account's real JWT
+-- calling PostgREST directly, bypassing both the app and the Edge Function,
+-- would gain what RLS alone stood between them and before. Both gains are
+-- proven live against the CURRENT unfixed policy by tests/a23-policy-
+-- permission-vs-role.test.mjs checks 05-06 (the permission answers) and
+-- 21-22 / 31-32 (the write attempts: both are refused TODAY despite holding
+-- REQUEST_PAYMENT, which is what checks 20/23 and 30/33's positive/negative
+-- controls establish this is actually testing role, not something else).
+--
+-- payment_records IS ALREADY CORRECT -- confirmed, not assumed. Read live,
+-- 2026-09-29, all 6 of its policies:
+--   payment_records_insert                 with check: has_permission('SEE_MONEY')
+--   payment_records_write_needs_request_payment (INSERT)
+--                                           with check: has_permission('REQUEST_PAYMENT')
+--                                             and (amount >= 0 or has_permission('RECORD_REFUNDS'))
+--   payment_records_read / _update         has_permission('SEE_MONEY')
+--   payment_records_edit_needs_request_payment (UPDATE)
+--                                           has_permission('REQUEST_PAYMENT')
+--                                             and (amount >= 0 or has_permission('RECORD_REFUNDS'))
+--   payment_records_not_suspended          (RESTRICTIVE, unrelated to this)
+-- Every one of these already asks a permission, never a role. This is the
+-- actual money LEDGER -- what the app calls RecordPaymentControl/RefundControl,
+-- confirmed written by the client (JobDetailScreen.kt, gated on
+-- session.canRequestPayment, matching the server exactly per that file's own
+-- 2026-09-29 comment). Nothing here needs fixing; it is the model the three
+-- policies above are being brought into line with.
+--
+-- ============================================================================
+-- PART 1 -- THE FIX (required)
+-- ============================================================================
+-- Each policy: same company-scoping, same command, same PERMISSIVE nature,
+-- same absence of a paired USING/WITH CHECK where the original had none --
+-- only the role test becomes a permission test. These three DROP+CREATE
+-- statements were syntax- and semantics-checked live, 2026-09-29, inside a
+-- rolled-back transaction (never committed): all three created cleanly and
+-- pg_policies read back exactly the qual/with_check text shown here, then
+-- the transaction was rolled back and re-verified against a fresh read that
+-- the live policies are still today's original role-based ones.
+
+drop policy if exists field_changes_update on public.field_changes;
+create policy field_changes_update on public.field_changes
+  for update
+  using (
+    company_id = (select company_id from profiles where id = auth.uid())
+    and public.has_permission('APPROVE_PLAN_CHANGES')
+  );
+
+drop policy if exists job_payments_insert on public.job_payments;
+create policy job_payments_insert on public.job_payments
+  for insert
+  with check (
+    company_id = (select company_id from profiles where id = auth.uid())
+    and public.has_permission('REQUEST_PAYMENT')
+  );
+
+drop policy if exists job_payments_update on public.job_payments;
+create policy job_payments_update on public.job_payments
+  for update
+  using (
+    company_id = (select company_id from profiles where id = auth.uid())
+    and public.has_permission('REQUEST_PAYMENT')
+  );
+
+select 'field_changes_update, job_payments_insert and job_payments_update now ask has_permission(), not role' as done;
+
+-- ============================================================================
+-- EXACT REVERSE (to undo PART 1 -- not run by this file; copy the block out
+-- and run it by hand if any of these three needs to come back out)
+-- ============================================================================
+-- drop policy if exists field_changes_update on public.field_changes;
+-- create policy field_changes_update on public.field_changes
+--   for update
+--   using (
+--     company_id = (select company_id from profiles where id = auth.uid())
+--     and (select role::text from profiles where id = auth.uid())
+--         = any (array['OWNER','MANAGER','FOREMAN'])
+--   );
+--
+-- drop policy if exists job_payments_insert on public.job_payments;
+-- create policy job_payments_insert on public.job_payments
+--   for insert
+--   with check (
+--     company_id = (select company_id from profiles where id = auth.uid())
+--     and (select role from profiles where id = auth.uid())
+--         = any (array['OWNER'::user_role,'MANAGER'::user_role])
+--   );
+--
+-- drop policy if exists job_payments_update on public.job_payments;
+-- create policy job_payments_update on public.job_payments
+--   for update
+--   using (
+--     company_id = (select company_id from profiles where id = auth.uid())
+--     and (select role from profiles where id = auth.uid())
+--         = any (array['OWNER'::user_role,'MANAGER'::user_role])
+--   );
+
+-- ============================================================================
+-- PART 2 -- THE SWEEP (item 3): every policy tested, so this is auditable
+-- rather than a claim
+-- ============================================================================
+-- All 137 PERMISSIVE and RESTRICTIVE policies in the public schema were read
+-- live (pg_policies.qual and .with_check, full text, 2026-09-29) and searched
+-- for a direct role comparison (profiles.role, ::user_role, or
+-- current_user_role()) as opposed to a has_permission(...) call. Nine matched:
+--
+--   1. field_changes_update                        -- FIXED above
+--   2. job_payments_insert                         -- FIXED above
+--   3. job_payments_update                         -- FIXED above
+--   4. audit_log_read (SELECT)
+--        role = ANY ('OWNER','MANAGER','ACCOUNTANT')
+--        SEE_REPORTS's default holders are exactly OWNER/MANAGER/ACCOUNTANT
+--        -- the same numerically-exact-match shape as the three fixed above.
+--        website/dashboard.html reads this table unconditionally (no client-
+--        side permission gate at all) and its own comment says "Only owners,
+--        managers and accountants can read this", relying entirely on RLS.
+--        Looks like the same bug, one command later (SELECT, not a write) --
+--        NOT FIXED HERE: it is not one of the three named policies and I own
+--        exactly those three plus the calibration file and new a23-policy
+--        tests, nothing else.
+--   5. companies_update (UPDATE)
+--        current_user_role() = 'OWNER' (singular, not a list)
+--        Confirmed a REAL client write path: website/dashboard.html directly
+--        `.update()`s this row (company email, guarded by a stale-role-vs-
+--        fresh-check race the page itself already documents in a comment at
+--        that call site). No Permission in the app's own enum models
+--        "company identity/billing" as distinct from role OWNER -- unlike
+--        the other findings here, this may be intentional: there is no
+--        permission for the owner to safely delegate this to, and
+--        MANAGE_ACCESS (the closest sensitive admin permission) is about
+--        people access, not billing identity. NOT FIXED HERE -- flagged for
+--        someone to decide whether a permission should exist for this at
+--        all, which is a product decision, not a mechanical swap.
+--   6. company_settings_money_needs_permission (SELECT)
+--        has_permission('SEE_MONEY') OR current_user_role() = ANY ('OWNER','MANAGER')
+--        The OR'd role clause is redundant under defaults (MANAGER always
+--        has SEE_MONEY) but NOT redundant against an override: if the owner
+--        ever revokes SEE_MONEY from a specific MANAGER, this raw-role OR
+--        clause still lets them read money-related company settings --
+--        silently overriding the override, the read-side mirror of the
+--        write-side bug. NOT FIXED HERE.
+--   7. company_settings_update (UPDATE) and
+--   8. company_settings_write (INSERT)
+--        current_user_role() = ANY ('OWNER','MANAGER'), pure role, no
+--        permission mentioned at all. EDIT_CATALOG_AND_SETTINGS's own
+--        description is literally "Material prices, pricing tiers AND
+--        COMPANY SETTINGS" -- an exact conceptual and numeric match. But the
+--        REAL enforcement for this table is the RPC save_company_settings()
+--        (SECURITY DEFINER, confirmed live), which every actual write goes
+--        through, and which contains the IDENTICAL bug inside its own body:
+--        `if current_user_role() not in ('OWNER','MANAGER') then raise
+--        exception ...`. So this is the same defect a third time, in a
+--        function this file does not own, with these two RLS policies as a
+--        secondary backstop behind it (same relationship job_payments has to
+--        its Edge Functions). NOT FIXED HERE -- it is a function body, not
+--        one of the three named policies, and touching it is a separate,
+--        reviewed change.
+--   9. profiles_update_own_company (UPDATE)
+--        role = 'OWNER' only (not ANY list). This looks intentional rather
+--        than a bug. profiles has three policies total (confirmed live):
+--        profiles_self_read (SELECT, no role/permission test), profiles_
+--        manage (UPDATE, has_permission('MANAGE_ACCESS') AND id <>
+--        auth.uid() -- explicitly EXCLUDES self-edit), and this one (UPDATE,
+--        role='OWNER', no self-edit exclusion at all). The missing self-edit
+--        exclusion is the tell: this is most plausibly the owner's own
+--        bootstrap/repair doorway, including onto their OWN row, which
+--        profiles_manage's own id<>auth.uid() guard could never allow no
+--        matter what permission it named. Gating role reassignment on a
+--        permission that is itself downstream of role would let a MANAGE_
+--        ACCESS holder promote themselves (or anyone) to OWNER -- exactly the
+--        privilege-escalation loop role-gating this one action prevents. NOT
+--        FIXED HERE, and I would not recommend changing it without the owner
+--        confirming what it actually gates.
+--
+-- Every one of the other 128 policies checked names has_permission(...),
+-- a company/ownership match with no role or permission test at all (e.g.
+-- "company_id = current_company_id()"), or a RESTRICTIVE company_is_
+-- suspended()/company_allowed() gate -- none of the remaining 128 compares
+-- profiles.role or current_user_role() directly. This was a full read of
+-- pg_policies for schemaname='public', not a sample.
+-- ============================================================================

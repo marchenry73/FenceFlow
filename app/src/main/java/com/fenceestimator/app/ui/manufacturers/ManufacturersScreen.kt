@@ -60,6 +60,14 @@ fun ManufacturersScreen(onBack: () -> Unit) {
     val manufacturers by viewModel.manufacturers.collectAsState()
     val session by app.session.state.collectAsState()
     val canDelete = session.canDelete
+    // The demo predicate itself, never a permission -- same pattern as
+    // SettingsScreen and every other guest control in this app. Delete is
+    // already correctly gated above on the DELETE_RECORDS permission; add and
+    // edit had nothing at all, so a visitor could create and rename suppliers
+    // straight through repository.save with no permission asked and no
+    // GuestWriteGuard bypass involved (Repository.isGuestSession is never
+    // set, so that guard cannot yet refuse it either).
+    val editable = !session.isGuestDemo
 
     var editing by remember { mutableStateOf<Manufacturer?>(null) }
     var showNew by remember { mutableStateOf(false) }
@@ -72,8 +80,13 @@ fun ManufacturersScreen(onBack: () -> Unit) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showNew = true }) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.mfr_add_manufacturer))
+            // Absent, not disabled -- there is nothing this button could do
+            // for a guest, and the FAB has no room to explain why it's greyed
+            // out the way an inert text field can.
+            if (editable) {
+                FloatingActionButton(onClick = { showNew = true }) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.mfr_add_manufacturer))
+                }
             }
         }
     ) { padding ->
@@ -96,7 +109,7 @@ fun ManufacturersScreen(onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(manufacturers, key = { it.id }) { m ->
-                        Card(onClick = { editing = m }, modifier = Modifier.fillMaxWidth()) {
+                        val row: @Composable () -> Unit = {
                             Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(m.name.ifBlank { stringResource(R.string.mfr_unnamed) }, fontWeight = FontWeight.Medium)
@@ -104,6 +117,10 @@ fun ManufacturersScreen(onBack: () -> Unit) {
                                     if (m.phone.isNotBlank()) Text(m.phone, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     if (m.hours.isNotBlank()) Text(m.hours, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
+                                // A map search, not a write -- left reachable for
+                                // a guest the same as every other read on this
+                                // screen; only the edit dialog behind the card's
+                                // own onClick is the control being removed below.
                                 if (m.address.isNotBlank()) {
                                     IconButton(
                                         onClick = { IntentHelpers.searchNearby(context, m.address) },
@@ -113,6 +130,16 @@ fun ManufacturersScreen(onBack: () -> Unit) {
                                     }
                                 }
                             }
+                        }
+                        // The card's onClick is the only door to
+                        // EditManufacturerDialog, which carries Save (and,
+                        // correctly already, Delete behind its own permission).
+                        // Removing the door for a guest removes Save without
+                        // touching that existing Delete gate at all.
+                        if (editable) {
+                            Card(onClick = { editing = m }, modifier = Modifier.fillMaxWidth()) { row() }
+                        } else {
+                            Card(modifier = Modifier.fillMaxWidth()) { row() }
                         }
                     }
                 }
