@@ -110,6 +110,7 @@ import com.fenceestimator.app.data.Expense
 import com.fenceestimator.app.data.ExpenseCategory
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
+import com.fenceestimator.app.data.FieldChange
 import com.fenceestimator.app.data.HoaApprovalStatus
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.JobPhoto
@@ -129,6 +130,7 @@ import com.fenceestimator.app.data.PricingTier
 import com.fenceestimator.app.ui.components.AddressAutocompleteField
 import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.DraftTextField
+import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.IntentHelpers
 import com.fenceestimator.app.ui.components.Money
@@ -265,11 +267,17 @@ fun JobDetailScreen(
         if (index >= 0) scope.launch { listState.animateScrollToItem(index) }
     }
 
-    // The withdrawal history behind the drawing-changes section further down.
-    // Read here rather than inside that section so the section can be left out
-    // of the list entirely when there is nothing in it: a LazyColumn item that
-    // renders nothing still takes the column's spacing, and most jobs never
-    // have an approval withdrawn at all.
+    // The withdrawal history behind the drawing-change half of the merged
+    // changes section further down (JobChangesSection). Hoisted here, above
+    // the LazyColumn, because a LaunchedEffect inside an `item {}` block only
+    // runs while that item is actually composed -- a LazyColumn does not
+    // compose items scrolled out of view -- and this fetch has to happen
+    // regardless of scroll position, once per job, not be at the mercy of it.
+    // Before the merge this was also how the card avoided reserving empty
+    // LazyColumn spacing on the (most common) job with no withdrawal history
+    // at all; that no longer applies now that the merged section is always
+    // present for the field-changes half anyway, but the fetch still has to
+    // be hoisted for the reason above.
     var drawingHistory by remember(currentJob.syncId) {
         mutableStateOf<DrawingHistory>(DrawingHistory.Loading)
     }
@@ -656,16 +664,12 @@ fun JobDetailScreen(
                 }
                 item { SectionCard(title = stringResource(R.string.section_expenses), icon = Icons.Filled.ReceiptLong) { ExpensesSection(expenses, session.canDelete, !session.isGuestDemo, viewModel) } }
             }
-            // What an approved drawing cost this job, and the way back to the
-            // drawing the customer actually approved. Next to the field changes
-            // because it is the same kind of thing -- what moved on this job and
-            // who is waiting on it -- and past the last section anything scrolls
-            // to, so it needs no entry in sectionOrder above.
-            //
-            // Absent unless there is something to say. The one case it appears
-            // with nothing in it is the case where silence would be a lie: the
-            // job row on this phone says the approval HAS been withdrawn, and
-            // the history that says what changed could not be read.
+            // What an approved drawing cost this job, and what the crew
+            // reported from the field, merged into one card -- see
+            // [JobChangesSection] for why they are one section now and what
+            // had to stay separate inside it (F2 on the owner's list). Past
+            // the last section anything scrolls to, so it needs no entry in
+            // sectionOrder above.
             val drawingRows = (drawingHistory as? DrawingHistory.Ready)?.rows.orEmpty()
             // Whether this job is actually waiting on a re-approval. Hoisted
             // because the card needs the same answer the banner above uses: a
@@ -674,29 +678,27 @@ fun JobDetailScreen(
             // drawing WITHDRAWS that approval instead of reinstating anything.
             val jobNeedsReapproval =
                 com.fenceestimator.app.reapproval.needsReapproval(currentJob.reapprovalRequiredAt)
-            if (drawingRows.isNotEmpty() ||
-                (drawingHistory !is DrawingHistory.Ready && jobNeedsReapproval)
-            ) {
-                item {
-                    DrawingChangesSection(
-                        history = drawingHistory,
-                        rows = drawingRows,
-                        runs = runs,
-                        canEdit = session.canEditJobs,
-                        jobNeedsReapproval = jobNeedsReapproval,
-                        viewModel = viewModel
-                    )
-                }
-            }
+            // Unconditional, same as the old field-changes item was: this
+            // section now carries the field feed's "always present, empty
+            // state if nothing" behaviour rather than the drawing feed's
+            // "absent unless there's something to say" one, because the two
+            // are now one item and cannot have two different presence rules.
+            // The drawing half keeps ITS old silence rule internally -- see
+            // [JobChangesSection]'s drawingNotice/hasDrawingRows -- so a job
+            // with nothing to say about its drawing still says nothing about
+            // it, just inside a card that is there anyway for field changes.
             item {
-                val changes by viewModel.fieldChanges.collectAsState()
-                SectionCard(
-                    title = stringResource(R.string.jd_section_field_changes) +
-                        if (changes.any { !it.isAcknowledged }) "  ●" else ""
-                , icon = Icons.Filled.ChangeCircle
-                ) {
-                    FieldChangesSection(changes, session.canApprovePlanChanges, viewModel)
-                }
+                val fieldChanges by viewModel.fieldChanges.collectAsState()
+                JobChangesSection(
+                    history = drawingHistory,
+                    drawingRows = drawingRows,
+                    runs = runs,
+                    canEditDrawing = session.canEditJobs,
+                    jobNeedsReapproval = jobNeedsReapproval,
+                    fieldChanges = fieldChanges,
+                    canApprovePlanChanges = session.canApprovePlanChanges,
+                    viewModel = viewModel
+                )
             }
             item {
                 SectionCard(title = stringResource(R.string.jd_section_held_up), icon = Icons.Filled.Block) {
@@ -3924,51 +3926,193 @@ private fun restoreThatWouldWork(rows: List<ReapprovalRow>): ApprovalRestorePoin
 }
 
 /**
- * The times this job's drawing changed after the customer had approved it, and
- * the way back to the drawing they approved.
+ * Everything that has moved on this job since the office last looked, in one
+ * card: the drawing changing after the customer approved it, and what the
+ * crew reported or asked about from the fence line. F2 on the owner's list --
+ * "merge 'Drawing changes since approval' with 'Changes from the field' into
+ * one section that looks good and saves space."
  *
- * [rows] are the withdrawals newest first; [history] is here as well as [rows]
- * because an empty list is not one thing. A read that could not be made says so
- * instead of reading as "nothing has ever changed on this job" -- which is the
- * one wrong answer this section cannot give, because the row it would be hiding
- * is the row that says the crew must not build yet.
+ * THEY ARE NOT THE SAME THING, merged here only to save the screen a second
+ * header and border. Read both halves before touching either:
  *
- * [canEdit] and [jobNeedsReapproval] come down from the screen rather than
- * being worked out here, so the button on a card is gated on the same two
- * answers the rest of the screen uses.
+ *  - Drawing changes ([drawingRows]) are withdrawals of the customer's
+ *    APPROVAL: a server trigger on `quote_reapprovals` writes one whenever an
+ *    approved job's fence_runs change underneath it (see [ReapprovalRow],
+ *    [DrawingHistory]). A restorable row can put the OLD drawing back
+ *    ([DrawingChangeCard]) -- re-approval machinery, tied to
+ *    [jobNeedsReapproval], and whether the approval actually returns is the
+ *    server's own decision, never promised here. Every company member may
+ *    READ every row (there is no money in one -- see [ReapprovalRow]'s own
+ *    doc); [canEditDrawing] gates only the restore BUTTON, and is a DISPLAY
+ *    gate exactly as it was before this merge -- fence_runs itself accepts a
+ *    write from any company member, so nothing server-side backs this one up.
+ *  - Field changes ([fieldChanges]) are what the crew reported or asked for
+ *    on site -- footage, a gate moved, a request still waiting on an answer
+ *    (see [FieldChange]). Any company member may WRITE one, report or
+ *    request; only [canApprovePlanChanges] may approve or reject a REQUEST,
+ *    and that one IS enforced server-side (the `field_changes` UPDATE RLS
+ *    policy: owner, manager or foreman only). Marking a change seen carries
+ *    no permission check at all, in this card or before it -- see the call
+ *    site in the LazyColumn above for why that pre-existing gap was left
+ *    exactly as it was rather than quietly tightened here.
+ *
+ * So the merge keeps two different permissions on two different actions,
+ * never one shared gate: a foreman (APPROVE_PLAN_CHANGES, no EDIT_JOBS) still
+ * gets no restore button; a salesperson (EDIT_JOBS, no APPROVE_PLAN_CHANGES)
+ * still gets no approve/reject; crew, holding neither, still get neither --
+ * exactly as before the merge, because both booleans still come from the same
+ * two [SessionState] getters they always did. The guest demo stays read-only
+ * on this card the same way it always was: [canEditDrawing] and
+ * [canApprovePlanChanges] are both false for [SessionState.isGuestDemo], so
+ * every action here was already hidden for a guest before this file changed,
+ * with no isGuestDemo check of its own to disturb.
+ *
+ * Every row keeps the group it came from -- [R.string.jd_drawhist_title] and
+ * [R.string.jd_section_field_changes], the two sections' own old titles,
+ * reused verbatim as sub-headings here rather than invented fresh -- and the
+ * one action it always had: a restorable drawing row still offers
+ * [DrawingChangeCard]'s restore button, and a crew request still offers
+ * [PlanRequestCard]'s approve/reject. Crew requests waiting on a decision
+ * stay first, ahead of both settled halves, because nothing about merging the
+ * cards should bury a crew member standing at the fence line waiting on an
+ * answer.
  */
 @Composable
-private fun DrawingChangesSection(
+private fun JobChangesSection(
     history: DrawingHistory,
-    rows: List<ReapprovalRow>,
+    drawingRows: List<ReapprovalRow>,
     runs: List<FenceRun>,
-    canEdit: Boolean,
+    canEditDrawing: Boolean,
     jobNeedsReapproval: Boolean,
+    fieldChanges: List<FieldChange>,
+    canApprovePlanChanges: Boolean,
     viewModel: JobDetailViewModel
 ) {
-    SectionCard(title = stringResource(R.string.jd_drawhist_title), icon = Icons.Filled.Undo) {
-        if (history !is DrawingHistory.Ready) {
-            Text(
-                when (history) {
-                    is DrawingHistory.NoSession -> stringResource(R.string.jd_drawhist_no_session)
-                    is DrawingHistory.Failed -> stringResource(R.string.jd_drawhist_failed)
-                    else -> stringResource(R.string.jd_drawhist_loading)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        val restorePoints = remember(rows) { restoreThatWouldWork(rows) }
-        rows.forEach { row ->
-            DrawingChangeCard(
-                row = row,
-                runs = runs,
-                canEdit = canEdit,
-                jobNeedsReapproval = jobNeedsReapproval,
-                returnsApproval =
-                    if (restorePoints.known) row.id in restorePoints.ids else null,
-                viewModel = viewModel
-            )
+    // The drawing half's old silence rule, preserved: a read that could not
+    // complete is only worth a line while this job is actually waiting on a
+    // re-approval (see [DrawingHistory]) -- otherwise it says nothing, same
+    // as before this was folded into an always-present card.
+    val drawingNotice = history !is DrawingHistory.Ready && jobNeedsReapproval
+    val hasDrawingRows = drawingRows.isNotEmpty()
+    val hasFieldChanges = fieldChanges.isNotEmpty()
+
+    SectionCard(
+        title = stringResource(R.string.jd_section_changes) +
+            if (fieldChanges.any { !it.isAcknowledged }) "  ●" else "",
+        icon = Icons.Filled.ChangeCircle
+    ) {
+        if (!drawingNotice && !hasDrawingRows && !hasFieldChanges) {
+            EmptyState(stringResource(R.string.jsec_fc_empty))
+        } else {
+            // Requests come first and stay first, whichever half of this card
+            // they belong to. A crew standing at the fence line waiting on an
+            // answer is a different thing from settled history, and burying
+            // the first among the second is how they end up waiting all
+            // afternoon. There is no drawing-side equivalent of "waiting": a
+            // withdrawn approval has nobody standing by for a reply from this
+            // screen.
+            val waiting = fieldChanges.filter { it.isAwaitingDecision }
+            if (waiting.isNotEmpty()) {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            stringResource(R.string.jsec_fc_waiting_title),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Text(
+                            stringResource(R.string.jsec_fc_waiting_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+                waiting.forEach { request -> PlanRequestCard(request, canApprovePlanChanges, viewModel) }
+            }
+
+            val unseen = fieldChanges.count { !it.isAcknowledged && !it.isAwaitingDecision }
+            if (unseen > 0) {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (unseen == 1) stringResource(R.string.jsec_fc_unseen_one, unseen)
+                            else stringResource(R.string.jsec_fc_unseen_many, unseen),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        OutlinedButton(onClick = { viewModel.acknowledgeFieldChanges() }) {
+                            Text(stringResource(R.string.jsec_fc_mark_seen))
+                        }
+                    }
+                }
+            }
+
+            if (drawingNotice) {
+                Text(
+                    when (history) {
+                        is DrawingHistory.NoSession -> stringResource(R.string.jd_drawhist_no_session)
+                        is DrawingHistory.Failed -> stringResource(R.string.jd_drawhist_failed)
+                        else -> stringResource(R.string.jd_drawhist_loading)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (hasDrawingRows) {
+                // The old drawing section's own title, kept word for word as
+                // the group heading here -- naming where these rows came from
+                // is the whole point of not just running the two feeds
+                // together with no seam at all.
+                Text(
+                    stringResource(R.string.jd_drawhist_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val restorePoints = remember(drawingRows) { restoreThatWouldWork(drawingRows) }
+                drawingRows.forEach { row ->
+                    DrawingChangeCard(
+                        row = row,
+                        runs = runs,
+                        canEdit = canEditDrawing,
+                        jobNeedsReapproval = jobNeedsReapproval,
+                        returnsApproval =
+                            if (restorePoints.known) row.id in restorePoints.ids else null,
+                        viewModel = viewModel
+                    )
+                }
+            }
+
+            val settled = fieldChanges.filter { !it.isAwaitingDecision }
+            if (settled.isNotEmpty()) {
+                // Same reasoning: the old field-changes section's own title,
+                // unchanged, now labelling its half of the merged card.
+                Text(
+                    stringResource(R.string.jd_section_field_changes),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val timeFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.US) }
+                val someone = stringResource(R.string.jsec_fc_someone)
+                settled.forEach { change -> FieldChangeCard(change, someone, timeFormat) }
+                Text(
+                    stringResource(R.string.jsec_fc_rerun_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

@@ -364,6 +364,20 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    // The CANCELLATION clause's deposit/materials/labor wording
+                    // is a real default, not a placeholder -- but it still
+                    // leaves two numbers as the owner's call (how much notice,
+                    // and any restocking charge), marked in the text the same
+                    // way the right-to-cancel block is. Unlike that block, this
+                    // is a business decision, not a legal one, so it does not
+                    // gate Send Contract the way [termsNeedReview] does -- it
+                    // is just said here, plainly, so it is not missed the one
+                    // time someone actually reads this far down the box.
+                    Text(
+                        stringResource(R.string.set_contract_terms_cancellation_note),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     // Said plainly because most of this screen follows the
                     // company account and this does not: the company slice that
                     // gets pushed carries the email templates and the pricing

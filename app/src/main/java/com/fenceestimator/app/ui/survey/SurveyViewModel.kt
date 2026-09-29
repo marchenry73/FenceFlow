@@ -1227,16 +1227,32 @@ class SurveyViewModel(
         return reach
     }
 
-    /** Puts the no-photo grid back on its default scale after a hand calibration. */
+    /**
+     * Puts the no-photo grid back on its OWN scale, undoing a hand
+     * calibration -- by handing [gridExtentFt][Job.gridExtentFt] straight
+     * back to [setGridExtent], the SAME path every other grid-scale change
+     * already goes through, rather than writing a number of its own.
+     *
+     * This used to write the flat [PIXELS_PER_FOOT_GRID] constant directly,
+     * unconditionally, with no check for a survey photo either. On any job
+     * whose grid extent was not the 400ft default that is wrong by
+     * construction -- 400ft is the one extent PIXELS_PER_FOOT_GRID is
+     * actually correct for -- and it is exactly the shape of a live
+     * data point found while closing this file's grid-extent/calibration
+     * split: one job carries grid_extent_ft 25 with calibration_pixels_per_foot
+     * 20, where a fresh calibration for a 25ft grid is 320. Nothing is drawn
+     * on that job, so nothing about its price is touched by this fix -- this
+     * only stops the function that most plausibly wrote that pair from being
+     * able to write it again. Going through [setGridExtent] instead means: a
+     * survey photo is left alone (its own guard), and anything actually
+     * drawn under the old, wrong number is rescaled by the ratio back to its
+     * real-world length -- so a job with real geometry on it neither moves
+     * price nor keeps a stale calibration, either way.
+     */
     fun resetGridCalibration() {
         if (viewerIsGuestDemo()) return
         val current = job.value ?: return
-        viewModelScope.launch {
-            repository.updateJob(
-                current.copy(calibrationPixelsPerFoot = PIXELS_PER_FOOT_GRID, calibrationKnownFeet = null)
-            )
-            clearDrawingHistory()
-        }
+        setGridExtent(current.gridExtentFt)
     }
 
     /** Purely a display setting (how far apart gridlines are drawn) -- never affects calibration or existing points. */
@@ -1248,12 +1264,55 @@ class SurveyViewModel(
         }
     }
 
-    /** Switches a run back to photo mode by clearing the survey image (drawing starts over). */
+    /**
+     * Switches a job back to the GRID (no survey photo), for the drawing to
+     * start over on -- "Use Grid" in the layers menu (SurveyDrawScreen's
+     * `onUseGrid`). The docstring here used to say this switches a run BACK
+     * TO PHOTO MODE, backwards from what the function does and its only
+     * caller asks for.
+     *
+     * THE SPLIT this closes: this used to leave calibrationPixelsPerFoot
+     * null and let [ensureGridCalibration] fill it in the next time the
+     * drawing screen opens. In between those two moments the row can sit
+     * with a non-default [Job.gridExtentFt] and no calibration at all --
+     * exactly the one state office pricing and this job's own drawing scale
+     * ([DrawingScale.of]) read differently: pricing falls back to a flat
+     * [PIXELS_PER_FOOT_GRID], the drawing to this job's own extent
+     * ([unitsPerFoot]), and the two only agree at the 400ft default. Nothing
+     * -- a sync push, a price-job run triggered from the office -- should be
+     * able to observe that window, so the seed is written in the SAME update
+     * that clears the photo instead. It is the identical number
+     * [ensureGridCalibration] would already have seeded, so no job's price
+     * moves; this only removes the gap where it could have been read wrong
+     * for a moment. Nothing drawn needs rescaling here (unlike
+     * [setGridExtent]): gridExtentFt itself does not change, so there is
+     * nothing on the canvas whose ratio to the scale has moved.
+     *
+     * Guarded on [Job.surveyStoragePath], not just the [Job.surveyImagePath]
+     * this function clears: a second phone that has not downloaded this
+     * job's photo yet has surveyImagePath == null with surveyStoragePath
+     * still set from the cloud, and [DrawingScale.isPhotoJob] -- the check
+     * [DrawingScale.calibrationToSeed] already uses for this same seed on
+     * the estimate side -- still calls that a photo job. Seeding a grid
+     * number onto it here would be the made-up-scale bug documented on
+     * [DrawingScale.isPhotoJob] itself; leaving the calibration null in that
+     * one case is exactly what this function already did before this fix.
+     */
     fun clearSurveyImage() {
         if (viewerIsGuestDemo()) return
         val current = job.value ?: return
         viewModelScope.launch {
-            repository.updateJob(current.copy(surveyImagePath = null, calibrationPixelsPerFoot = null, calibrationKnownFeet = null))
+            repository.updateJob(
+                current.copy(
+                    surveyImagePath = null,
+                    calibrationPixelsPerFoot = if (current.surveyStoragePath == null) {
+                        unitsPerFoot(current.gridExtentFt)
+                    } else {
+                        null
+                    },
+                    calibrationKnownFeet = null
+                )
+            )
             clearDrawingHistory()
         }
     }

@@ -4,6 +4,7 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.ui.survey.SurveyViewModel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -275,5 +276,188 @@ class GridExtentTest {
         assertTrue(src.contains("SurveyViewModel.GRID_SIZES_FT.forEach"))
         assertTrue(src.contains("SurveyViewModel.zoomGridExtent(job2.gridExtentFt, 2f)"))
         assertTrue(src.contains("SurveyViewModel.zoomGridExtent(job2.gridExtentFt, 0.5f)"))
+    }
+
+    // ---- THE SPLIT: office pricing's flat fallback vs. this job's own grid
+    // extent, and why a null calibration must never coexist with a non-
+    // default extent -- D1's unbounded sizes only made the possible error on
+    // that state bigger, they did not create it. ----
+    //
+    // EstimateEngine.footageOf (labour) and the real server (pricing/totals.ts)
+    // both fall back to the FLAT DrawingScale.PIXELS_PER_FOOT_GRID (20) for an
+    // uncalibrated GRID run -- deliberately, so the two engines agree
+    // (UncalibratedLabourTest, tests/a17-photo-uncalibrated-pricing.test.mjs
+    // section 3's canary). This job's own drawing scale (DrawingScale.of,
+    // read by SurveyViewModel/SurveyDrawScreen) falls back to this EXTENT's
+    // own scale instead (unitsPerFoot(gridExtentFt)). The two fallbacks are
+    // identical only at the 400ft default; SurveyViewModel must therefore
+    // never leave a job with calibrationPixelsPerFoot null at any other
+    // extent, or pricing and the drawing disagree about the same geometry.
+
+    private fun surveyViewModelSource(): String =
+        listOf(
+            File("src/main/java/com/fenceestimator/app/ui/survey/SurveyViewModel.kt"),
+            File("app/src/main/java/com/fenceestimator/app/ui/survey/SurveyViewModel.kt")
+        ).first { it.isFile }.readText()
+
+    @Test
+    fun `the possible error on a null-calibration job was fivefold, D1 raises it to twenty-fivefold and beyond`() {
+        // The flat fallback both pricing engines use.
+        val officeFlatPxPerFt = SurveyViewModel.PIXELS_PER_FOOT_GRID
+        // The old top of GRID_SIZES_FT, before 5000/10000 were added for D1
+        // (see the class doc on GRID_SIZES_FT): the paddock/acreage sizes
+        // 1000 and 2000 already existed, so 2000ft was already the worst case
+        // on the "too big" side.
+        val oldWorstExtent = 2000f
+        val oldWorstDrawingPxPerFt = SurveyViewModel.unitsPerFoot(oldWorstExtent)
+        assertEquals(
+            "2000ft used to be the extent furthest from the office's flat 20 px/ft",
+            5f,
+            officeFlatPxPerFt / oldWorstDrawingPxPerFt,
+            0.01f
+        )
+
+        // D1's new top of the list, and the floor at the other end -- both
+        // unchanged by D1 on the small-extent side (MIN_GRID_EXTENT_FT was
+        // already 25ft), but now reachable without limit past 10000ft since
+        // zoomGridExtent has no ceiling of its own.
+        val newWorstExtent = SurveyViewModel.GRID_SIZES_FT.last() // 10000f
+        val newWorstDrawingPxPerFt = SurveyViewModel.unitsPerFoot(newWorstExtent)
+        assertEquals(
+            "10000ft is where D1's own 'twenty-fivefold' figure comes from",
+            25f,
+            officeFlatPxPerFt / newWorstDrawingPxPerFt,
+            0.01f
+        )
+
+        val floorExtent = SurveyViewModel.MIN_GRID_EXTENT_FT // 25ft
+        val floorDrawingPxPerFt = SurveyViewModel.unitsPerFoot(floorExtent)
+        assertEquals(
+            "the small-extent side is worth naming too: the floor was never raised by D1, " +
+                "and is already a sixteenfold gap on its own",
+            16f,
+            floorDrawingPxPerFt / officeFlatPxPerFt,
+            0.01f
+        )
+
+        // "and beyond": zoomGridExtent has no ceiling, so a job zoomed out
+        // past the largest quick pick makes the gap worse without limit.
+        val pastTheList = SurveyViewModel.zoomGridExtent(newWorstExtent, 2f) // 20000ft
+        val pastTheListRatio = officeFlatPxPerFt / SurveyViewModel.unitsPerFoot(pastTheList)
+        assertTrue(
+            "one more zoom-out past the biggest quick pick must already exceed the twenty-fivefold figure",
+            pastTheListRatio > 25f
+        )
+    }
+
+    @Test
+    fun `the live drift this guards against -- grid 25, calibration 20 -- is not the null case, but proves the two fields can disagree`() {
+        // A real row, queried read-only from the live database (2026-09-29,
+        // project newcrgafcptspmapacrx, positive control 19 non-deleted
+        // jobs): grid_extent_ft = 25, calibration_pixels_per_foot = 20,
+        // survey_storage_path = null (a grid job, nothing drawn on it).
+        // A FRESH calibration for a 25ft grid is 320, not 20 -- proof the two
+        // columns can drift apart in the live data, not just in theory.
+        val liveGridExtentFt = 25f
+        val liveStoredCalibration = 20f
+        val freshCalibrationForThatExtent = SurveyViewModel.unitsPerFoot(liveGridExtentFt)
+        assertEquals(320f, freshCalibrationForThatExtent, 0.01f)
+        assertTrue(
+            "the row's stored calibration does not match what a fresh one would be -- the drift is real",
+            kotlin.math.abs(freshCalibrationForThatExtent - liveStoredCalibration) > 0.01f
+        )
+        // It is NOT, however, a violation of the null-calibration invariant:
+        // the stored value is a real, non-null number, so DrawingScale.of --
+        // the actual function both the drawing screen and (via
+        // job.calibrationPixelsPerFoot) office pricing read -- returns that
+        // SAME stored 20 for this row, not the fresh 320. Pricing and the
+        // drawing agree with EACH OTHER on this job; they just do not agree
+        // with what a brand new 25ft grid would calibrate to. That is
+        // exactly why option (b) -- never let calibration go null at a
+        // non-default extent, rather than teaching the server to recompute
+        // it from gridExtentFt -- is the safe one: recomputing from
+        // gridExtentFt on a row shaped like this one would silently swap in
+        // a DIFFERENT number (320) for the one already on record (20),
+        // moving a price on a live row the moment anything got drawn on it.
+        val actualScale = SurveyViewModel.drawingScale(
+            calibrationPixelsPerFoot = liveStoredCalibration,
+            surveyImagePath = null,
+            gridExtentFt = liveGridExtentFt
+        )
+        assertTrue("DrawingScale.of must answer for a job with a real stored calibration", actualScale != null)
+        assertEquals(
+            "DrawingScale.of must take the stored value as-is here, not recompute it from gridExtentFt -- " +
+                "that recomputation is exactly what option (a) would have to do, and exactly what would move this row's price",
+            liveStoredCalibration,
+            actualScale!!,
+            0.01f
+        )
+    }
+
+    @Test
+    fun `clearSurveyImage seeds this job's own grid scale in the same write, instead of leaving calibration null`() {
+        val body = surveyViewModelSource()
+            .substringAfter("fun clearSurveyImage() {")
+            .substringBefore("\n    companion object {")
+        assertTrue(
+            "clearSurveyImage must seed the SAME grid scale ensureGridCalibration would (unitsPerFoot of this job's own extent)",
+            body.contains("unitsPerFoot(current.gridExtentFt)")
+        )
+        assertTrue(
+            "the seed must be skipped when a lingering surveyStoragePath still makes this a photo job elsewhere " +
+                "(DrawingScale.isPhotoJob) -- guessing a grid scale for that job would be the made-up-scale bug",
+            body.contains("current.surveyStoragePath == null")
+        )
+    }
+
+    @Test
+    fun `clearSurveyImage planted failure -- an unconditional null calibration must be caught`() {
+        // The exact pre-fix line: calibration written null no matter what,
+        // with no seed and no photo-elsewhere guard. If clearSurveyImage
+        // regresses to this, the null-calibration invariant this file exists
+        // to protect breaks again, silently, the next time a job's grid
+        // extent is not the 400ft default.
+        val plantedOld = "calibrationPixelsPerFoot = null, calibrationKnownFeet = null"
+        val body = surveyViewModelSource()
+            .substringAfter("fun clearSurveyImage() {")
+            .substringBefore("\n    companion object {")
+        assertFalse(
+            "the check above must go red if clearSurveyImage regresses to the old unconditional-null write",
+            body.contains(plantedOld)
+        )
+        // Teeth: confirm the assertion really can fail, against a hand-built
+        // copy of the old body.
+        val oldBody = """
+            fun clearSurveyImage() {
+                if (viewerIsGuestDemo()) return
+                val current = job.value ?: return
+                viewModelScope.launch {
+                    repository.updateJob(current.copy(surveyImagePath = null, $plantedOld))
+                    clearDrawingHistory()
+                }
+            }
+        """.trimIndent()
+        assertTrue(
+            "the planted-failure body must actually contain the pattern being checked for, " +
+                "or this test proves nothing",
+            oldBody.contains(plantedOld)
+        )
+    }
+
+    @Test
+    fun `resetGridCalibration goes through setGridExtent, not a hardcoded flat constant`() {
+        val body = surveyViewModelSource()
+            .substringAfter("fun resetGridCalibration() {")
+            .substringBefore("fun setGridLineSpacingFt(feet: Float) {")
+        assertTrue(
+            "resetGridCalibration must hand this job's own extent back to setGridExtent -- the same rescale-" +
+                "and-recalibrate path every other grid-scale change uses",
+            body.contains("setGridExtent(current.gridExtentFt)")
+        )
+        assertFalse(
+            "the planted failure this guards against: writing the flat PIXELS_PER_FOOT_GRID constant directly, " +
+                "independent of gridExtentFt -- the exact shape of the live grid-25/calibration-20 drift",
+            body.contains("calibrationPixelsPerFoot = PIXELS_PER_FOOT_GRID")
+        )
     }
 }

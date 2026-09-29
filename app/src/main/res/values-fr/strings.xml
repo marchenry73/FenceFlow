@@ -372,6 +372,7 @@
     <string name="set_contract_terms_field">Conditions imprimées sur le contrat</string>
     <string name="set_contract_terms_review_body">Le bloc à remplacer est toujours dans le texte ci-dessous : cherchez VOTRE DROIT D\'ANNULATION. Demandez à votre avocat la formulation exigée par votre État et collez-la à la place de ce paragraphe. FenceFlow ne sait pas ce qu\'exige votre État et ne le vérifie pas.</string>
     <string name="set_contract_terms_placeholders">Remplis à la production du contrat : {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Tout le reste est imprimé tel que vous le tapez.</string>
+    <string name="set_contract_terms_cancellation_note">La section ANNULATION ci-dessous laisse votre préavis et vos frais de reprise en blanc, marqués REMPLISSEZ CECI AVANT D\'UTILISER CE CONTRAT — ce sont vos propres chiffres, pas ceux de FenceFlow. Complétez-les avant d\'envoyer un contrat.</string>
     <string name="set_contract_terms_this_phone">Ces conditions sont conservées sur ce téléphone. Un second téléphone du même compte garde sa propre copie : modifiez-les aussi là-bas.</string>
     <string name="set_contract_terms_blank">Cette case est vide : le contrat n\'imprimera aucune condition.</string>
     <string name="set_contract_terms_reset">Repartir des conditions fournies avec FenceFlow</string>
@@ -548,6 +549,7 @@
     <string name="jd_section_tier">Grille tarifaire et remise</string>
     <string name="jd_section_teardown">Démolition de la clôture existante</string>
     <string name="jd_section_field_changes">Changements depuis le terrain</string>
+    <string name="jd_section_changes">Changements</string>
     <string name="jd_section_held_up">Bloqué / Non terminé</string>
     <string name="jd_delete_job">Supprimer le chantier</string>
     <string name="jd_only_owner_deletes">Seul le propriétaire peut supprimer un chantier. Demandez-le-lui, ou passez le statut à Refusé pour l\'écarter.</string>

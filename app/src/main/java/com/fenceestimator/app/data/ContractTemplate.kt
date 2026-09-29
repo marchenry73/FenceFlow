@@ -14,6 +14,16 @@ package com.fenceestimator.app.data
  * which is state-specific.
  *
  * {PLACEHOLDERS} are filled in when the document is produced.
+ *
+ * CANCELLATION carries two separate things an owner must still act on, and
+ * they are deliberately not the same marker: the statutory right-to-cancel
+ * paragraph is attorney wording this app cannot write (see
+ * [contractTermsNeedLegalReview]), while the notice-period and
+ * restocking-charge line above it is a plain business decision this app
+ * could never know either way, just one nobody needs a lawyer for. Both are
+ * left as visible bracketed placeholders in the text rather than blank,
+ * because a blank clause reads as "no policy" and a customer will assume
+ * whichever answer suits them.
  */
 const val DEFAULT_CONTRACT_TERMS: String = """
 SCOPE OF WORK
@@ -65,9 +75,28 @@ Fence lines are built to follow the ground. Minor variation in height and gaps
 along uneven terrain is normal and is not a defect.
 
 CANCELLATION
-You may cancel in writing before materials are ordered for a full refund of the
-deposit. After materials are ordered, the deposit covers materials already
-bought and restocking charges.
+You may cancel this agreement in writing at any time before the work is
+finished.
+
+If you cancel before materials are ordered, your deposit is refunded in
+full.
+
+If you cancel after materials are ordered, your deposit first covers the
+cost of the materials already bought for your job, then a restocking charge
+on anything that can be returned; any part of the deposit left over after
+that is refunded to you. Materials already bought for your job are not
+handed over to you -- covering their cost is what that part of the deposit
+is for.
+
+If you cancel after installation has begun, the above still applies, and you
+also owe for the work already done. {COMPANY} will total that amount and
+either bill you separately or deduct it from the deposit before any refund.
+
+NOTICE AND RESTOCKING CHARGE -- [FILL THIS IN BEFORE USING THIS CONTRACT]
+Add your own numbers here: how much written notice you require before a
+scheduled start date, and any restocking or reordering charge on materials
+that can be returned. These are business decisions, not legal ones, and this
+app does not set them for you.
 
 YOUR RIGHT TO CANCEL -- [REPLACE THIS BLOCK BEFORE USING THIS CONTRACT]
 Most states require a home-improvement contract to state, in specific wording
@@ -89,6 +118,13 @@ walked and agreed.
  * placeholders, so a Spanish-speaking company's first contract reads as
  * theirs rather than as a translation bolted on. The cancellation block
  * keeps its REPLACE marker: state wording is the attorney's, not ours.
+ *
+ * This is a plain, literal translation done without a native Spanish
+ * speaker's review. Every other clause here shipped that way already, but
+ * it is worth repeating for CANCELACIÓN specifically: it is customer-facing
+ * legal-adjacent text, exactly where a mistranslation can change what a
+ * document promises. Get it checked before relying on it with a real
+ * customer.
  */
 const val DEFAULT_CONTRACT_TERMS_ES: String = """
 ALCANCE DEL TRABAJO
@@ -144,9 +180,28 @@ Las cercas se construyen siguiendo el terreno. Una variación menor de altura y
 de separaciones en terreno irregular es normal y no constituye un defecto.
 
 CANCELACIÓN
-Usted puede cancelar por escrito antes de que se pidan los materiales, con
-reembolso total del depósito. Después de pedidos los materiales, el depósito
-cubre los materiales ya comprados y los cargos de devolución.
+Usted puede cancelar este acuerdo por escrito en cualquier momento antes de
+que el trabajo termine.
+
+Si cancela antes de pedir los materiales, se le reembolsa el depósito en su
+totalidad.
+
+Si cancela después de pedir los materiales, el depósito cubre primero el
+costo de los materiales ya comprados para su trabajo y luego un cargo de
+devolución sobre lo que se pueda devolver; cualquier parte del depósito que
+sobre después de eso se le reembolsa. Los materiales ya comprados para su
+trabajo no se le entregan -- para eso sirve esa parte del depósito.
+
+Si cancela después de que la instalación haya comenzado, se aplica lo
+anterior y además usted debe pagar el trabajo ya realizado. {COMPANY}
+calculará ese monto y se lo cobrará por separado o lo descontará del
+depósito antes de cualquier reembolso.
+
+AVISO Y CARGO DE DEVOLUCIÓN -- [COMPLETE ESTO ANTES DE USAR ESTE CONTRATO]
+Agregue aquí sus propios números: cuánto aviso por escrito exige antes de
+una fecha de inicio programada, y cualquier cargo de devolución sobre
+materiales que se puedan devolver. Son decisiones de negocio, no legales, y
+esta aplicación no las establece por usted.
 
 SU DERECHO A CANCELAR -- [REEMPLACE ESTE BLOQUE ANTES DE USAR ESTE CONTRATO]
 La mayoría de los estados exigen que un contrato de mejoras al hogar indique,
@@ -163,7 +218,11 @@ inmueble o está autorizado a encargar este trabajo, y que la línea de la cerca
 se ha recorrido y acordado.
 """
 
-/** The same default terms in French. See [DEFAULT_CONTRACT_TERMS_ES]. */
+/**
+ * The same default terms in French. See [DEFAULT_CONTRACT_TERMS_ES] --
+ * the same "get ANNULATION checked by a native speaker before relying on
+ * it" note applies here.
+ */
 const val DEFAULT_CONTRACT_TERMS_FR: String = """
 ÉTENDUE DES TRAVAUX
 {COMPANY} fournira la main-d'œuvre, les matériaux et l'équipement nécessaires
@@ -220,9 +279,28 @@ Les clôtures suivent le terrain. Une légère variation de hauteur et d'écart 
 un terrain irrégulier est normale et ne constitue pas un défaut.
 
 ANNULATION
-Vous pouvez annuler par écrit avant la commande des matériaux, avec
-remboursement intégral de l'acompte. Une fois les matériaux commandés,
-l'acompte couvre les matériaux déjà achetés et les frais de reprise.
+Vous pouvez annuler le présent accord par écrit à tout moment avant la fin
+des travaux.
+
+Si vous annulez avant la commande des matériaux, votre acompte vous est
+remboursé intégralement.
+
+Si vous annulez après la commande des matériaux, l'acompte couvre d'abord le
+coût des matériaux déjà achetés pour votre projet, puis des frais de reprise
+sur ce qui peut être retourné ; toute partie de l'acompte restant après cela
+vous est remboursée. Les matériaux déjà achetés pour votre projet ne vous
+sont pas remis -- c'est à cela que sert cette partie de l'acompte.
+
+Si vous annulez après le début de l'installation, ce qui précède s'applique
+également, et vous devez en plus payer le travail déjà effectué. {COMPANY}
+calculera ce montant et vous le facturera séparément ou le déduira de
+l'acompte avant tout remboursement.
+
+AVIS ET FRAIS DE REPRISE -- [REMPLISSEZ CECI AVANT D'UTILISER CE CONTRAT]
+Ajoutez ici vos propres chiffres : le préavis écrit que vous exigez avant
+une date de début programmée, et tout frais de reprise sur les matériaux
+retournables. Ce sont des décisions commerciales, pas juridiques, et cette
+application ne les fixe pas pour vous.
 
 VOTRE DROIT D'ANNULATION -- [REMPLACEZ CE BLOC AVANT D'UTILISER CE CONTRAT]
 La plupart des États exigent qu'un contrat de rénovation résidentielle indique,

@@ -171,12 +171,39 @@ object PricingRunner {
             )
         }
 
-        // The scale the takeoff measures by. Typed footage ignores it; a drawn
-        // run uses the job's calibration, or the grid's 20 px/ft when there is
-        // none (EstimateViewModel.regenerateInternal, TakeoffRefresher).
-        // linearFeet() below does NOT share this fallback -- an uncalibrated
-        // drawn run bills zero labour feet while still getting materials --
-        // and that asymmetry is the phone's, so it is reproduced, not repaired.
+        // The scale the takeoff (materials) measures by. Typed footage
+        // ignores it; a drawn run uses the job's calibration, or the grid's
+        // own scale when there is none (EstimateViewModel.regenerateInternal
+        // via DrawingScale.calibrationToSeed, TakeoffRefresher).
+        //
+        // linearFeet() below (EstimateEngine.footageOf) used to disagree with
+        // this for an uncalibrated GRID run -- it read
+        // job.calibrationPixelsPerFoot directly with no fallback at all, so
+        // an uncalibrated drawn run billed full materials and zero labour off
+        // the SAME footage. That asymmetry is FIXED (UncalibratedLabourTest,
+        // fixtures/pricing/drawn-uncalibrated.json): footageOf now falls back
+        // to the flat DrawingScale.PIXELS_PER_FOOT_GRID (20) exactly as the
+        // takeoff's own seed does at the default 400ft grid, so the same
+        // 100ft run that used to bill $0 labour now bills $800 (100ft @
+        // $8/ft) -- reproduced here, not repaired, since this file mirrors
+        // the phone, it does not correct it.
+        //
+        // That fallback is deliberately the FLAT constant, not this job's own
+        // grid extent (DrawingScale.unitsPerFoot) -- footageOf's own doc
+        // explains why: matching the extent here is a second, unrelated
+        // formula change the real server (pricing/totals.ts) has no way to
+        // follow, since only THIS gap (photo vs. grid) is what that fix
+        // closed. A grid job left uncalibrated at a non-default extent is a
+        // different, still-open split (between this flat fallback and the
+        // drawing screen's own DrawingScale.of, which IS extent-aware) that
+        // SurveyViewModel closes by never leaving such a job uncalibrated in
+        // the first place, not by changing this formula -- see
+        // SurveyViewModel.clearSurveyImage and GridExtentTest.
+        //
+        // Only an uncalibrated SURVEY PHOTO run is still given no fallback at
+        // all and bills zero -- a grid square is a known size to guess from;
+        // a photo is not (DrawingScale.isPhotoJob; PhotoScaleTest,
+        // tests/a17-photo-uncalibrated-pricing.test.mjs).
         val pixelsPerFoot = f32(input.pixelsPerFoot, "pixels_per_foot")
 
         val runOutputs = mutableListOf<RunOutput>()

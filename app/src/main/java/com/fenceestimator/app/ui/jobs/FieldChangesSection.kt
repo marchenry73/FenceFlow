@@ -22,112 +22,50 @@ import androidx.compose.runtime.getValue
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
 import com.fenceestimator.app.R
-import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.data.FieldChange
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * What the crew changed on site, for whoever is running the job.
+ * One thing the crew changed or reported on site -- a single row of
+ * [JobChangesSection]'s field-changes half (JobDetailScreen.kt), which is
+ * where the section this used to render on its own now lives (F2 on the
+ * owner's list: merged with the drawing-changes half into one card).
  *
- * The crew are allowed to correct the plan -- they're standing at the fence
- * line and the drawing isn't. But footage drives the estimate, the post count
- * and the material order, so a correction the office never sees is a job that
- * quietly stops matching what the customer agreed to pay. Unacknowledged
- * changes stay red until someone has actually looked at them.
+ * Not a request -- see [PlanRequestCard] for those. This is either a plain
+ * report ("the run is now 138 ft") or a request already decided one way or
+ * the other; either way there is nothing left to press here, only to read.
+ *
+ * [someone] and [timeFormat] are hoisted by the caller so every row in the
+ * merged list shares one formatter and one fallback name instead of each row
+ * rebuilding its own.
  */
 @Composable
-fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewModel: JobDetailViewModel) {
-    val timeFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.US) }
-
-    if (changes.isEmpty()) {
-        EmptyState(stringResource(R.string.jsec_fc_empty))
-        return
-    }
-
-    // Requests come first and stay first. A crew standing at a fence line
-    // waiting on an answer is a different thing from a note about work already
-    // done, and burying the first among the second is how they end up waiting
-    // all afternoon.
-    val waiting = changes.filter { it.isAwaitingDecision }
-    if (waiting.isNotEmpty()) {
-        Card(
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-        ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    stringResource(R.string.jsec_fc_waiting_title),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-                Text(
-                    stringResource(R.string.jsec_fc_waiting_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
+fun FieldChangeCard(change: FieldChange, someone: String, timeFormat: SimpleDateFormat) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (change.isAcknowledged) MaterialTheme.colorScheme.surface
+            else MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(change.summary, fontWeight = FontWeight.Medium)
+            if (change.detail.isNotBlank()) {
+                Text(change.detail, style = MaterialTheme.typography.bodySmall)
             }
-        }
-        waiting.forEach { request -> PlanRequestCard(request, canApprove, viewModel) }
-    }
-
-    val unseen = changes.count { !it.isAcknowledged && !it.isAwaitingDecision }
-    if (unseen > 0) {
-        Card(
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Text(
-                    if (unseen == 1) stringResource(R.string.jsec_fc_unseen_one, unseen)
-                    else stringResource(R.string.jsec_fc_unseen_many, unseen),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-                OutlinedButton(onClick = { viewModel.acknowledgeFieldChanges() }) {
-                    Text(stringResource(R.string.jsec_fc_mark_seen))
-                }
-            }
-        }
-    }
-
-    val someone = stringResource(R.string.jsec_fc_someone)
-    changes.filter { !it.isAwaitingDecision }.forEach { change ->
-        Card(
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (change.isAcknowledged) MaterialTheme.colorScheme.surface
-                else MaterialTheme.colorScheme.secondaryContainer
+            Text(
+                buildString {
+                    append(change.changedBy.ifBlank { someone })
+                    if (change.changedByRole.isNotBlank()) append(" (${change.changedByRole})")
+                    append(" · ${timeFormat.format(Date(change.at))}")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(change.summary, fontWeight = FontWeight.Medium)
-                if (change.detail.isNotBlank()) {
-                    Text(change.detail, style = MaterialTheme.typography.bodySmall)
-                }
-                Text(
-                    buildString {
-                        append(change.changedBy.ifBlank { someone })
-                        if (change.changedByRole.isNotBlank()) append(" (${change.changedByRole})")
-                        append(" · ${timeFormat.format(Date(change.at))}")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
-
-    Text(
-        stringResource(R.string.jsec_fc_rerun_hint),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 }
 
 /**
@@ -137,9 +75,17 @@ fun FieldChangesSection(changes: List<FieldChange>, canApprove: Boolean, viewMod
  * the crew asking on the phone anyway, which is the call the request existed to
  * avoid -- and the person who has to explain it is standing in a yard rather
  * than sitting at a desk.
+ *
+ * Not private any more: [JobChangesSection] in JobDetailScreen.kt calls this
+ * directly now that the "waiting on you" block lives in the merged section
+ * instead of in a separate FieldChangesSection composable. Nothing about the
+ * card itself changed -- same [canApprove] gate (APPROVE_PLAN_CHANGES, the
+ * one this repo's field_changes UPDATE policy actually enforces
+ * server-side), same self-approval shift rule, same required-reason-to-reject
+ * rule.
  */
 @Composable
-private fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel: JobDetailViewModel) {
+fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel: JobDetailViewModel) {
     // Keyed on the request, or a note typed for one card carried over to the
     // next when the list changed underneath it.
     var note by remember(request.id) { mutableStateOf("") }
