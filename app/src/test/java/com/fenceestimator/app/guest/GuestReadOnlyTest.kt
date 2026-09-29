@@ -406,8 +406,91 @@ class GuestReadOnlyTest {
     private val jobDetailWriteFunnel = listOf(
         "update", "addPhoto", "addExpense", "addPunchListItem", "togglePunchListItem",
         "addChangeOrder", "signChangeOrder", "updateChangeOrder",
-        "acknowledgeFieldChanges", "reconcilePaymentStatus"
+        "acknowledgeFieldChanges", "reconcilePaymentStatus",
+        // Added this wave: both already carry the guard in production (see
+        // each function's own KDoc -- captureSignature calls it "belt-and-
+        // suspenders", rescheduleOtherJob calls it "guarded here too"), but
+        // neither was in this list, so a future removal of either guard would
+        // have gone unnoticed by this sweep. See the class-level doc note
+        // below this list for rescheduleOtherJob's one wrinkle.
+        "captureSignature"
     )
+
+    /**
+     * NOT added to [jobDetailWriteFunnel] above, on purpose: `rescheduleOtherJob`
+     * opens with `if (newDate == null) return` and only THEN the guest guard --
+     * so [opensWith]'s strict "first real statement" test, run against the exact
+     * guard string every other entry in this file is checked with, is false for
+     * it today. That first line cannot itself reach `repository.updateJob` (it
+     * only ever returns), so a guest is still refused before any write happens --
+     * this is not the addPhoto-shaped hole three earlier waves found. But it is
+     * a real, live departure from the wave's own rule that "a guest guard must
+     * stay the first statement", and from what every sibling in this exact file
+     * does (see `update`, `addExpense`, `addChangeOrder`, `acknowledgeFieldChanges`
+     * -- acknowledgeFieldChanges' own comment spells out why the guest line has
+     * to be textually first rather than merely present). Recorded here rather
+     * than silently special-cased: whoever next touches rescheduleOtherJob
+     * should move the null check after the guest guard (not remove either),
+     * which needs no behaviour change since a null newDate refuses for every
+     * caller regardless of order.
+     */
+    @Test
+    fun `JobDetailViewModel rescheduleOtherJob refuses a guest before it ever reaches the repository`() {
+        val body = functionBody(src("ui/jobs/JobDetailViewModel.kt"), "rescheduleOtherJob")
+        val guardExpr = "if (session.state.value.isGuestDemo) return"
+        assertTrue(
+            "rescheduleOtherJob must still carry the guest guard somewhere in its body " +
+                "(expected to find `$guardExpr`) -- if this fails, the guard itself is gone, " +
+                "not merely reordered",
+            body.contains(guardExpr)
+        )
+        assertFalse(
+            "KNOWN, LIVE DEVIATION (see the KDoc directly above this test): rescheduleOtherJob's " +
+                "first real statement is the `newDate == null` check, not the guest guard, unlike " +
+                "every other entry in jobDetailWriteFunnel. This assertion is expected to be false " +
+                "today -- if it ever turns true, the function was fixed to match the wave's own " +
+                "\"guest guard must be the first statement\" rule and this test (and its KDoc) should " +
+                "be deleted in favour of simply adding \"rescheduleOtherJob\" to jobDetailWriteFunnel above.",
+            opensWith(body, guardExpr)
+        )
+        // The property that actually matters: the guard still sits before the
+        // write, whatever comes ahead of it.
+        val guardAt = body.indexOf(guardExpr)
+        val repoCallAt = body.indexOf("repository.updateJob(")
+        assertTrue("expected both the guard and the repository call to be present", guardAt >= 0 && repoCallAt >= 0)
+        assertTrue(
+            "the guest guard must still precede the repository.updateJob call, even though it is " +
+                "not the function's very first statement",
+            guardAt < repoCallAt
+        )
+    }
+
+    @Test
+    fun `rescheduleOtherJob check has teeth -- planted failure`() {
+        val body = functionBody(src("ui/jobs/JobDetailViewModel.kt"), "rescheduleOtherJob")
+        val guardExpr = "if (session.state.value.isGuestDemo) return"
+        // Sanity: the real file really does have the wrinkle this test documents.
+        assertFalse("sanity: the real function should not open with the guard today", opensWith(body, guardExpr))
+        // Removing the guard entirely (not just reordering it) must be caught.
+        val gutted = body.replaceFirst("$guardExpr\n", "")
+        assertFalse(
+            "the check must go red if the guest guard is removed outright, not merely reordered",
+            gutted.contains(guardExpr)
+        )
+        // Hoisting the repository call above the guard -- the actual choke-point
+        // failure -- must also be caught, independent of statement order at the top.
+        val hoisted = "fun rescheduleOtherJob(other: com.fenceestimator.app.data.Job, newDate: Long?) {\n" +
+            "    if (newDate == null) return\n" +
+            "    viewModelScope.launch { repository.updateJob(other.copy(scheduledDate = newDate)) }\n" +
+            "    if (session.state.value.isGuestDemo) return\n" +
+            "}"
+        val guardAt = hoisted.indexOf(guardExpr)
+        val repoCallAt = hoisted.indexOf("repository.updateJob(")
+        assertFalse(
+            "a guard placed AFTER the repository call must fail the ordering check",
+            guardAt < repoCallAt
+        )
+    }
 
     @Test
     fun `every JobDetailViewModel write funnel opens with the guest refusal`() {
@@ -1294,5 +1377,276 @@ class GuestReadOnlyTest {
         assertTrue("zero must fall below the floor of 2, proving the tie check would now go red for this file too", actual < 2)
         // ...and the real file must still clear its new floor.
         assertTrue(count(src("ui/runs/FenceRunListViewModel.kt"), "session.state.value.isGuestDemo") >= 2)
+    }
+
+    // =====================================================================
+    // SECTION 5 -- the sweep's OWN coverage, checked against every write this
+    // app can actually make, not just the four files this sweep already knew
+    // about. Asked for this wave after two prior sweeps (this one, and the
+    // live-policy sweep in supabase_r14_remaining_role_policies.sql) were
+    // each reported complete while missing real cases.
+    //
+    // METHOD, so the hole in it is visible rather than assumed away: every
+    // *ViewModel.kt under ui/ (25 files, `grep -rl "class.*ViewModel"`) was
+    // read for (a) every `fun` whose body calls `repository.<verb>(` or
+    // `settingsStore.<verb>(` with verb matching a broad write-shaped list
+    // (insert/update/delete/save/add/toggle/set/record/capture/reschedule/
+    // decide/apply/clear/reset/move/undo/redo/mark/acknowledge/retire/
+    // create/remove/assign/approve/reject/sign/... -- not a read verb:
+    // get/observe/read/fetch/list/query/is/has/can/find), and (b) whether
+    // ANY of four spellings of the guest question appears in that function's
+    // own body: `isGuestDemo`, `viewerIsGuestDemo()`, `GuestWriteGuard`, or
+    // `GuestSession.isActive(...)` -- the fourth found only by hand, in
+    // PersonalSettingsViewModel.save, after the first three's automated pass
+    // misreported it as unguarded; it is not, it just spells the question
+    // differently (see that function for what it actually does: guest gets a
+    // partial write, cosmetic prefs saved, the two security fields held back
+    // -- correct, and a poorer sweep would have flagged it as a false gap).
+    // A function calling an already-guarded function of the SAME class (e.g.
+    // SurveyViewModel's undoLast/redo/movePoint routing through editRun) was
+    // cross-checked by hand against [editRunFunnelCallers] above, not treated
+    // as a hit or a miss by this text-only method, which cannot see through
+    // a function call.
+    //
+    // WHAT THIS SWEEP (SECTIONS 1-4 above) ACTUALLY COVERS, in files: exactly
+    // four -- JobDetailViewModel (now 11 in jobDetailWriteFunnel + captureSignature's
+    // + rescheduleOtherJob's own dedicated tests), SurveyViewModel (13 direct +
+    // editRun + 9 funnel-callers), RunEditViewModel (update), FenceRunListViewModel
+    // (addRun, duplicateRun). Twenty-one of the twenty-five ViewModels that exist
+    // are entirely outside it.
+    //
+    // WHAT THE METHOD ABOVE ACTUALLY FOUND, by file (write-shaped functions with
+    // NONE of the four guest spellings in their own body):
+    //   JobDetailViewModel   -- deletePhoto, deleteExpense, deletePunchListItem,
+    //                           deleteChangeOrder, delete (whole job), recordPayment,
+    //                           recordRefund, decidePlanChange, restoreRunDrawing,
+    //                           recordRestoreInFeed, followComputedDuration
+    //   RunEditViewModel     -- delete
+    //   FenceRunListViewModel-- deleteRun
+    //   SurveyViewModel      -- eraseSelectedRun, commitEdit (undoLast/redo/
+    //                           noteFootageChange/createBlankRun/ensureSiteLocation
+    //                           cross-checked by hand: the first two route through
+    //                           the guarded editRun funnel via movePoint-style
+    //                           callers already in editRunFunnelCallers or are
+    //                           themselves internal helpers of a guarded caller --
+    //                           not a further gap)
+    //   JobsViewModel        -- createJob, deleteJob
+    //   CatalogViewModel     -- saveItem, deleteItem, applyImportSelections, confirmPrice
+    //   EmployeesViewModel   -- save, addCrewMember, delete
+    //   ManufacturersViewModel -- save, delete
+    //   SettingsViewModel    -- save, saveTier, deleteTier
+    //   CustomersViewModel   -- createJobForCustomer
+    //   TimeApprovalViewModel-- sendDecision, fixAndRetry, discardBlocked
+    //
+    // NOT ALL OF THESE ARE THE SAME SEVERITY -- each was checked by hand against
+    // MainActivity's nav graph and the calling screen, not left as a bare list:
+    //
+    //   STRUCTURALLY SAFE TODAY, by a permission a guest cannot ever hold (guest's
+    //   permission set is the hardcoded constant SessionState.GUEST_READ_ONLY, never
+    //   a real profiles row, so nothing can override it the way a real account's
+    //   permission_overrides can):
+    //     - CatalogViewModel, EmployeesViewModel, SettingsViewModel: the ROUTE
+    //       itself is behind AccessGuard(canEditCatalogAndSettings) / (canSeePay),
+    //       or (Settings) silently switches a non-canEditCatalogAndSettings session
+    //       to PersonalSettingsScreen instead -- the guest never reaches the
+    //       ViewModel at all, confirmed by reading FenceEstimatorNavHost directly.
+    //     - CustomersViewModel: the route is `canSeeCustomerContact && !session.
+    //       isGuestDemo` -- an EXPLICIT, deliberate guest exclusion at the nav
+    //       layer, even though guest otherwise holds canSeeCustomerContact.
+    //     - ManufacturersViewModel: the route carries no AccessGuard of its own,
+    //       but its only entry point is Settings (itself gated as above), AND
+    //       ManufacturersScreen.kt separately computes `val editable =
+    //       !session.isGuestDemo` and disables its save/delete controls on it --
+    //       named directly in GuestWriteGuard.kt's own doc as a working example.
+    //     - JobDetailViewModel's delete family (deletePhoto/deleteExpense/
+    //       deletePunchListItem/deleteChangeOrder/delete) and RunEditViewModel.
+    //       delete / FenceRunListViewModel.deleteRun: every one of their call
+    //       sites is behind `session.canDelete`, and Section 1 above proves
+    //       DELETE_RECORDS is never in GUEST_READ_ONLY -- the identical, already-
+    //       accepted pattern `eraseSelectedRun needs no guest guard of its own`
+    //       documents for SurveyViewModel. Consistent, not a new gap.
+    //     - JobDetailViewModel.recordPayment/recordRefund: triple-gated at the UI
+    //       (`if (editable) { ... }` wrapping BOTH controls, PLUS RecordPaymentControl
+    //       needs session.canRequestPayment and RefundControl needs canRecordRefunds
+    //       AND canRequestPayment -- see the dedicated test above this section) --
+    //       the best-defended entry in this whole list, just not at the ViewModel
+    //       itself, unlike every OTHER money-adjacent write in the same file.
+    //     - JobDetailViewModel.followComputedDuration: takes `mayWrite: Boolean`
+    //       from its caller, wired to `session.canEditJobs || session.
+    //       canScheduleAndAssign` (JobDetailScreen.kt) -- neither is ever true for
+    //       a guest, and the parameter is explicit rather than inferred.
+    //
+    //   SAME PROTECTION, WEAKEST FORM -- a single UI permission check, no nav-level
+    //   AccessGuard, no screen-level `editable`, no ViewModel guard, so nothing
+    //   backs it up if that one condition is ever duplicated, loosened, or a new
+    //   caller is added elsewhere:
+    //     - JobsViewModel.createJob / deleteJob: gated only by `session.canEditJobs`
+    //       / `session.canDelete` around the two buttons in JobsListScreen.kt --
+    //       and JOBS is the guest's OWN HOME SCREEN (`startDestination =
+    //       Routes.JOBS`), the single most-visited screen in the whole app for
+    //       this session type.
+    //     - TimeApprovalViewModel.sendDecision/fixAndRetry/discardBlocked: Routes.
+    //       TIME_APPROVAL carries no AccessGuard at all (unlike CATALOG/EMPLOYEES/
+    //       TRASH); its only entry point is one chip on the Jobs home screen gated
+    //       on `session.canApproveTime && ent.timeAndCrew && pendingHours.isNotEmpty()`
+    //       -- guest lacks APPROVE_TIME so the chip never shows, but TimeApproval-
+    //       ViewModel.kt and TimeApprovalScreen.kt both carry ZERO occurrences of
+    //       any of the four guest spellings above, so nothing inside either file
+    //       would refuse a guest who reached it by any other route.
+    //   (restoreRunDrawing / recordRestoreInFeed were traced to a confirm dialog
+    //   reached from job drawing-history; the full chain back to a permission or
+    //   editable gate was not finished this pass -- named here rather than quietly
+    //   dropped, per this section's own point about honest coverage.)
+    //
+    //   ONE UI-ONLY GATE, NOT AN UNPROTECTED WRITE: decidePlanChange. An earlier
+    //   draft of this section called it "genuinely unprotected, anywhere" and a
+    //   live hole a guest could tap. THAT WAS WRONG, and the way it was wrong is
+    //   worth keeping on the record, because it is the same mistake this repo has
+    //   made before (see the memory note "grep the region, not the body"): the
+    //   draft searched FieldChangesSection.kt for the literal spellings
+    //   `canApprovePlanChanges`, `isGuestDemo` and `editable`, found none, and
+    //   concluded the buttons were ungated. The gate is there -- it just arrives
+    //   as a PARAMETER under a shorter name. PlanRequestCard's signature is
+    //   `(request, canApprove: Boolean, viewModel)`, its approve/reject Row sits
+    //   behind `if (canApprove && !isOwnRequest)`, and JobDetailScreen.kt binds
+    //   that argument to `session.canApprovePlanChanges` (the call at
+    //   `waiting.forEach { ... PlanRequestCard(request, canApprovePlanChanges, ...) }`,
+    //   itself fed from `canApprovePlanChanges = session.canApprovePlanChanges`).
+    //   APPROVE_PLAN_CHANGES is deliberately absent from GUEST_READ_ONLY, so a
+    //   guest never sees the buttons at all. A grep for guard spellings inside one
+    //   file cannot see a guard passed into it; following the call site can.
+    //
+    //   What IS true, and is what the tests below now pin, is the weaker and much
+    //   duller version: decidePlanChange has no guard in its OWN body, so its only
+    //   protection is that single UI condition in another file -- the same
+    //   "weakest form" category as recordPayment/recordRefund above, not a live
+    //   hole. Adding the belt-and-suspenders check is a tidy-up, not a fix.
+    // =====================================================================
+
+    /**
+     * decidePlanChange -- a crew's plan-change request being APPROVED or
+     * REJECTED, the decision `acknowledgeFieldChanges` (right above it in
+     * JobDetailViewModel.kt) only ever marks as *seen*.
+     *
+     * WHAT IS TRUE: the function's own body carries no guard. No
+     * `session.state.value.isGuestDemo` check, no permission check, and
+     * `Repository.decidePlanChange`'s `guardWrite(...)` -> `GuestWriteGuard`
+     * backstop is inert in production (GuestWriteGuard.kt's own class doc says
+     * so: nothing ever assigns `Repository.isGuestSession` away from `false`).
+     * So this write's protection lives entirely in one UI condition in another
+     * file -- the same "weakest form" category as recordPayment/recordRefund,
+     * and worth tidying up with the belt-and-suspenders check every sibling
+     * write in JobDetailViewModel.kt already has.
+     *
+     * WHAT IS NOT TRUE, and was asserted here in an earlier draft: that a guest
+     * can tap Approve or Reject. They cannot, and the correction matters more
+     * than the finding did. The draft grepped FieldChangesSection.kt for the
+     * literal strings `canApprovePlanChanges`, `isGuestDemo` and `editable`,
+     * found none, and called the buttons ungated. But the gate reaches that
+     * file as a PARAMETER under a shorter name:
+     *
+     *   FieldChangesSection.kt: fun PlanRequestCard(request, canApprove: Boolean, viewModel)
+     *                           ... if (canApprove && !isOwnRequest) { Approve / Reject }
+     *   JobDetailScreen.kt:     PlanRequestCard(request, canApprovePlanChanges, viewModel)
+     *                           ... canApprovePlanChanges = session.canApprovePlanChanges
+     *
+     * and APPROVE_PLAN_CHANGES is deliberately absent from
+     * SessionState.GUEST_READ_ONLY, so `canApprove` is false for a guest and the
+     * buttons are never composed. A signed-in role without the permission is
+     * refused the same way. A search for guard spellings INSIDE one file cannot
+     * see a guard handed into it; only following the call site can. That is the
+     * hole in the method, named so the next sweep can avoid it.
+     *
+     * The tests below therefore pin the real chain in both directions: the
+     * missing body-level guard (so adding it is noticed), AND the UI gate that
+     * actually protects the write today (so REMOVING that would fail loudly).
+     * The second one is the assertion the earlier draft got backwards, and is
+     * the one with teeth that matter.
+     */
+    @Test
+    fun `decidePlanChange has no guard of its own -- protected only by its caller's canApprove gate`() {
+        val text = src("ui/jobs/JobDetailViewModel.kt")
+        val body = functionBody(text, "decidePlanChange")
+        assertTrue(
+            "sanity: decidePlanChange must still exist and still write through the repository, " +
+                "or this test is checking the wrong thing",
+            body.contains("repository.decidePlanChange(")
+        )
+        assertTrue(
+            "true TODAY -- decidePlanChange carries no guest guard in its own body, so the UI gate " +
+                "asserted in the next test is its ONLY protection. THE MOMENT THIS TURNS FALSE the " +
+                "belt-and-suspenders check was added: delete this assertion and add \"decidePlanChange\" " +
+                "to jobDetailWriteFunnel above instead (guest line FIRST, the order every sibling uses)",
+            !opensWith(body, "if (session.state.value.isGuestDemo) return")
+        )
+    }
+
+    @Test
+    fun `the approve-reject buttons are gated on canApprovePlanChanges through the canApprove parameter`() {
+        val section = src("ui/jobs/FieldChangesSection.kt")
+        val screen = src("ui/jobs/JobDetailScreen.kt")
+
+        // The gate inside the card: the buttons that call decidePlanChange are
+        // composed only when canApprove is true.
+        assertTrue(
+            "PlanRequestCard must still take the gate as a parameter named canApprove",
+            section.contains("fun PlanRequestCard(") && section.contains("canApprove: Boolean")
+        )
+        assertTrue(
+            "the approve/reject Row must still sit behind canApprove -- if this gate is ever removed, " +
+                "every signed-in role without APPROVE_PLAN_CHANGES, and the guest demo, could decide a " +
+                "crew's plan change, and decidePlanChange has no guard of its own to stop them",
+            section.contains("if (canApprove && !isOwnRequest)")
+        )
+        val guardedRegion = section.substringAfter("if (canApprove && !isOwnRequest)")
+            .substringBefore("} else {")
+        assertTrue(
+            "both decidePlanChange calls must sit INSIDE the canApprove branch, not beside it",
+            guardedRegion.contains("decidePlanChange(request, approved = true") &&
+                guardedRegion.contains("decidePlanChange(request, approved = false")
+        )
+
+        // ...and the binding that makes that parameter mean the permission.
+        assertTrue(
+            "JobDetailScreen must still pass canApprovePlanChanges as PlanRequestCard's gate",
+            screen.contains("PlanRequestCard(request, canApprovePlanChanges, viewModel)")
+        )
+        assertTrue(
+            "...and that flag must still come from the session permission, not a literal true",
+            screen.contains("canApprovePlanChanges = session.canApprovePlanChanges")
+        )
+    }
+
+    @Test
+    fun `the decidePlanChange checks have teeth -- planted failures both ways`() {
+        // (1) the body-level guard landing: `!opensWith(...)` must flip to false.
+        val fixed = "fun decidePlanChange(change: com.fenceestimator.app.data.FieldChange, approved: Boolean, note: String) {\n" +
+            "    if (session.state.value.isGuestDemo) return\n" +
+            "    viewModelScope.launch {\n" +
+            "        repository.decidePlanChange(change, approved, decidedByName, note)\n" +
+            "    }\n" +
+            "}"
+        assertFalse(
+            "once the body guard is added, `!opensWith(...)` must read false -- proving the check " +
+                "above reads live source and would catch the fix landing",
+            !opensWith(fixed, "if (session.state.value.isGuestDemo) return")
+        )
+        val real = functionBody(src("ui/jobs/JobDetailViewModel.kt"), "decidePlanChange")
+        assertTrue(
+            "sanity: the real function must still lack the body guard, or the assertion above is stale",
+            !opensWith(real, "if (session.state.value.isGuestDemo) return")
+        )
+
+        // (2) the UI gate being REMOVED -- the failure mode that would actually
+        // matter. A copy of the card with the gate stripped must fail the same
+        // substring check the real file passes, or that check proves nothing.
+        val strippedCard = "fun PlanRequestCard(request: FieldChange, canApprove: Boolean, viewModel: JobDetailViewModel) {\n" +
+            "    Button(onClick = { viewModel.decidePlanChange(request, approved = true, note = \"\") }) { }\n" +
+            "}"
+        assertFalse(
+            "a card with the canApprove branch stripped out must NOT satisfy the gate check -- " +
+                "otherwise that check would stay green through the exact regression it exists to catch",
+            strippedCard.contains("if (canApprove && !isOwnRequest)")
+        )
     }
 }

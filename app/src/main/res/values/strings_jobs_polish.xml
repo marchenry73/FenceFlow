@@ -17,4 +17,8 @@
 
     <!-- JobsListScreen: JobRow's owner-only delete icon (see task 4). -->
     <string name="jobpolish_delete_job">Delete job</string>
+
+    <!-- JobDetailScreen PaymentFields: shown instead of the mint-a-payment-link
+         button to a role the create-payment-link edge function would refuse. -->
+    <string name="jd_paylink_owner_manager_only">Only an owner or manager can request payment by card.</string>
 </resources>

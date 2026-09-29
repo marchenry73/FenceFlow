@@ -202,8 +202,26 @@ object PricingRunner {
         //
         // Only an uncalibrated SURVEY PHOTO run is still given no fallback at
         // all and bills zero -- a grid square is a known size to guess from;
-        // a photo is not (DrawingScale.isPhotoJob; PhotoScaleTest,
-        // tests/a17-photo-uncalibrated-pricing.test.mjs).
+        // a photo is not (DrawingScale.isPhotoJob).
+        //
+        // THIS HARNESS CANNOT REACH THAT CASE, and not by oversight: no photo
+        // field travels through the JSON contract at all (PricingJob carries
+        // calibration_pixels_per_foot and nothing about a survey image), so the
+        // Job built above leaves BOTH surveyImagePath and surveyStoragePath at
+        // their null defaults and DrawingScale.isPhotoJob is false for every
+        // fixture, present or future. Every parity case is a grid job by
+        // construction, so footageOf's zero branch is unreachable from here --
+        // do not read a green fixture as covering it. The real server has the
+        // same blind spot for the same reason (its JobRow has no photo field
+        // either) and closes it one layer out, at the boundary that builds the
+        // input: buildPricingInput (load.ts) reads survey_storage_path and,
+        // for such a job, blanks points_encoded and gates_encoded on every run
+        // that has no typed footage (neutralizeUnscaledRun) -- so the engine
+        // sees a run with nothing drawn on it and refuses it unchanged, while
+        // typed footage still wins as it always does. So that case is pinned
+        // where a photo can actually exist: PhotoScaleTest.kt against the real
+        // Job, and tests/a17-photo-uncalibrated-pricing.test.mjs against
+        // load.ts.
         val pixelsPerFoot = f32(input.pixelsPerFoot, "pixels_per_foot")
 
         val runOutputs = mutableListOf<RunOutput>()

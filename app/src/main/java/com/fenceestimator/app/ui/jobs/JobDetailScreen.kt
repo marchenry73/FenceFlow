@@ -117,6 +117,7 @@ import com.fenceestimator.app.data.JobPhoto
 import com.fenceestimator.app.data.JobStatus
 import com.fenceestimator.app.data.Manufacturer
 import com.fenceestimator.app.cloud.PaymentsApi
+import com.fenceestimator.app.cloud.UserRole
 import com.fenceestimator.app.ui.components.StageAction
 import com.fenceestimator.app.data.PaymentStatus
 import com.fenceestimator.app.data.PermitStatus
@@ -2342,49 +2343,111 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     val paymentDescription = stringResource(R.string.jd_payment_description, job.address.ifBlank { job.customerName })
     val requestAmount = JobMoney.nextRequestAmount(job, contractTotal)
     val requestLabel = JobMoney.nextRequestLabel(job, contractTotal)
-    Button(
-        onClick = {
-            scope.launch {
-                creatingLink = true
-                linkError = null
-                val result = PaymentsApi.createPaymentLink(
-                    jobSyncId = job.syncId,
-                    amountDollars = requestAmount,
-                    kind = if (requestLabel == "balance") PaymentsApi.Kind.FINAL
-                    else PaymentsApi.Kind.DEPOSIT,
-                    description = paymentDescription
-                )
-                creatingLink = false
-                when (result) {
-                    is PaymentsApi.Result.Ok -> {
-                        liveLink = result.liveMode
-                        viewModel.update { j ->
-                            j.copy(paymentLinkUrl = result.url, paymentLinkAmount = requestAmount)
+
+    // The button below calls create-payment-link, which mints a live Stripe
+    // (or Square) checkout link -- money moving, not money merely displayed.
+    // Its "office, signed in" door checks the signed-in profile's ROLE
+    // directly (supabase/functions/create-payment-link/index.ts):
+    //
+    //   if (!["OWNER", "MANAGER"].includes(profile.role))
+    //     return json({ error: "Only an owner or manager can request payment" }, 403)
+    //
+    // Read live from the Postgres catalog on 2026-09-29 (pg_get_functiondef
+    // against has_permission() and company_allowed(), the two functions that
+    // sit beside this check) to confirm neither is consulted here at all --
+    // this is a bare role test, not the permission system has_permission()
+    // implements for everything else. Before this, this screen showed the
+    // button to anyone holding canSeeMoney -- Sales, Accountant, the guest
+    // demo -- with nothing stopping a tap from reaching the server and being
+    // refused: a fake feature with extra steps, the same class this file
+    // already fixed once below for RecordPaymentControl and RefundControl.
+    //
+    // REQUEST_PAYMENT alone is NOT the fix: has_permission(), read the same
+    // way, grants REQUEST_PAYMENT to ACCOUNTANT by default, and the edge
+    // function would still 403 an Accountant who holds it -- gating on the
+    // permission alone is the same class of mismatch one step over, just
+    // moved from a role name to a permission name. So this asks about BOTH:
+    // the literal role the server tests (because that is what actually
+    // decides), AND the permission (because the server never looks at a
+    // per-person override at all here -- role alone decides -- so an owner
+    // who has deliberately revoked REQUEST_PAYMENT from one specific Owner-
+    // or Manager-role account, via AccessScreen's per-person adjustment,
+    // still has that revocation respected on this phone even though the
+    // server itself would still accept the request). Both conditions can
+    // only narrow this further than the server's own rule, never reopen the
+    // fake-feature gap being closed.
+    //
+    // Nothing here hides the MONEY: the contract total / paid / still-owed
+    // card above, the existing payment-link field and stale-link warning,
+    // and the text/email share buttons for a link already made are all
+    // outside this check and stay visible to Sales and Accountant exactly as
+    // before -- only the control that mints a NEW link is gated. Seeing a
+    // balance is not the same thing as being able to bill it.
+    val canMintPaymentLink = session.canRequestPayment &&
+        (session.role == UserRole.OWNER || session.role == UserRole.MANAGER)
+    if (canMintPaymentLink) {
+        Button(
+            onClick = {
+                scope.launch {
+                    creatingLink = true
+                    linkError = null
+                    val result = PaymentsApi.createPaymentLink(
+                        jobSyncId = job.syncId,
+                        amountDollars = requestAmount,
+                        kind = if (requestLabel == "balance") PaymentsApi.Kind.FINAL
+                        else PaymentsApi.Kind.DEPOSIT,
+                        description = paymentDescription
+                    )
+                    creatingLink = false
+                    when (result) {
+                        is PaymentsApi.Result.Ok -> {
+                            liveLink = result.liveMode
+                            viewModel.update { j ->
+                                j.copy(paymentLinkUrl = result.url, paymentLinkAmount = requestAmount)
+                            }
                         }
+                        is PaymentsApi.Result.Failed -> linkError = result.reason
                     }
-                    is PaymentsApi.Result.Failed -> linkError = result.reason
                 }
-            }
-        },
-        // No payment is asked for before the customer has accepted the quote
-        // -- a drawn signature or an online approval, either one. Money
-        // requested against an unaccepted estimate is money argued about later.
-        enabled = !creatingLink && requestAmount >= 0.50 &&
-            com.fenceestimator.app.estimate.JobMoney.isAccepted(job),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+            },
+            // No payment is asked for before the customer has accepted the quote
+            // -- a drawn signature or an online approval, either one. Money
+            // requested against an unaccepted estimate is money argued about later.
+            enabled = !creatingLink && requestAmount >= 0.50 &&
+                com.fenceestimator.app.estimate.JobMoney.isAccepted(job),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                when {
+                    creatingLink -> stringResource(R.string.jd_creating_link)
+                    requestAmount >= 0.50 -> stringResource(R.string.jd_request_by_card, Money.format(requestAmount).removePrefix("$"), requestLabel)
+                    else -> stringResource(R.string.jd_request_payment_by_card)
+                }
+            )
+        }
+        // A grey button with no reason reads as the app being broken.
+        if (!com.fenceestimator.app.estimate.JobMoney.isAccepted(job)) {
+            Text(
+                stringResource(R.string.jd_payment_after_signature),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    } else {
+        // No button offered rather than one that would only ever come back
+        // refused -- same reasoning as jd_only_owner_deletes further down
+        // this file. The track that added this gate left the sentence as a
+        // plain English literal because it did not own the strings files and
+        // an R.string id with no entry in values/values-es/values-fr breaks
+        // the whole build. The gate closed that handover instead of carrying
+        // it: jd_paylink_owner_manager_only now exists in all three locales
+        // (values, values-es, values-fr strings_jobs_polish.xml), so a
+        // Spanish- or French-speaking manager is told why the button is gone
+        // in their own language rather than in English. The wording matches
+        // the server's own refusal message word for word, so nothing shown
+        // here is new information, only shown sooner and without a tap.
         Text(
-            when {
-                creatingLink -> stringResource(R.string.jd_creating_link)
-                requestAmount >= 0.50 -> stringResource(R.string.jd_request_by_card, Money.format(requestAmount).removePrefix("$"), requestLabel)
-                else -> stringResource(R.string.jd_request_payment_by_card)
-            }
-        )
-    }
-    // A grey button with no reason reads as the app being broken.
-    if (!com.fenceestimator.app.estimate.JobMoney.isAccepted(job)) {
-        Text(
-            stringResource(R.string.jd_payment_after_signature),
+            stringResource(R.string.jd_paylink_owner_manager_only),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

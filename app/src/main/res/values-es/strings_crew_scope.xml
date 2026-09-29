@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Counterpart of values/strings_crew_scope.xml. That file shipped with no
+         values-es or values-fr sibling at all, so Routes.TRASH's AccessGuard
+         printed its permission name in English on a Spanish or French phone.
+         Wording follows this app's own term for the same MANAGE_ACCESS
+         permission (enum_perm_manage_access). -->
+    <string name="access_manage_access_permission_name">Administrar acceso</string>
+</resources>

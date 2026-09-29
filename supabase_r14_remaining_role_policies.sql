@@ -1,0 +1,537 @@
+-- ============================================================================
+-- UNAPPLIED. Nothing in this file has been run against the live database.
+-- It is a proposal for the owner to review and apply by hand. Everything
+-- cited below was read LIVE from the catalogue of project newcrgafcptspmapacrx
+-- on 2026-09-29 (`npx --no-install supabase@2.115.0 db query --linked
+-- --project-ref newcrgafcptspmapacrx -f <f>.sql --output json`, SELECTs
+-- only, a positive control run before every probe, raw JSON output checked
+-- for an error string on every call) -- never assumed from a repo .sql file.
+--
+-- WHY THIS FILE EXISTS. supabase_r13_permission_aware_policies.sql reported
+-- "137 total policies... searched for a direct role comparison (profiles.role,
+-- ::user_role, or current_user_role())... Nine matched." A live re-read today,
+-- same search vocabulary, same table (pg_policies, schemaname='public'),
+-- finds FOURTEEN, not nine, and still 137 total (positive control: `select
+-- count(*) from pg_policies where schemaname='public'` = 137, matching r13's
+-- own count, so this is not a case of the schema having grown since -- the
+-- five extra were there then too). The five it missed:
+--
+--   build_templates_insert, build_templates_update, pricing_drift_read,
+--   pricing_drift_update, mail_access_read
+--
+-- THE "DIFFERENT SPELLING" CLAIM, CHECKED AND NOT BORNE OUT. The task that
+-- produced this file was told the five missed policies "are written with a
+-- different spelling of the same idea -- a helper that returns the current
+-- user's role -- which its search never looked for." Read live, that is not
+-- what happened: all five call the exact same function, spelled the exact
+-- same way, that four of r13's own nine already matched on
+-- (companies_update, company_settings_write, company_settings_
+-- money_needs_permission, company_settings_update all use
+-- `current_user_role()` too) --
+--
+--   build_templates_insert:  (current_user_role())::text = ANY (ARRAY['OWNER','MANAGER'])
+--   build_templates_update:  (current_user_role())::text = ANY (ARRAY['OWNER','MANAGER'])
+--   pricing_drift_read:      (current_user_role())::text = ANY (ARRAY['OWNER','MANAGER'])
+--   pricing_drift_update:    (current_user_role())::text = ANY (ARRAY['OWNER','MANAGER'])
+--   mail_access_read:        ((select current_user_role())::text = 'OWNER' or profile_id = (select auth.uid()))
+--
+-- literal `current_user_role()`, the identical spelling, not a synonym. There
+-- IS a second, genuinely differently-spelled helper live in this schema --
+-- `public.my_role()`, `returns text`, identical body
+-- (`select role::text from profiles where id = auth.uid()`) -- found by
+-- listing every function in pg_proc whose name matches role/permission/
+-- current_user/whoami (positive control: 172 total functions in public;
+-- eight matched that filter: current_user_role, has_permission,
+-- is_service_role, my_role, set_member_role, enforce_delete_permission,
+-- guard_time_entry_write_permission, and the count itself). But `my_role()`
+-- is not the explanation here: grepping every OTHER function body in public
+-- for `my_role(` (positive control: the same search for `current_user_role`
+-- inside function bodies hits 8) returns ZERO callers, and it does not
+-- appear in ANY of the 137 policies' qual/with_check text either (checked by
+-- searching all 137 for the substring "role" case-insensitively: exactly 15
+-- hits, 14 of them the ones counted here and one, `app_errors_insert`'s
+-- `auth.role() = 'authenticated'`, which is Supabase's own JWT-role check --
+-- anon/authenticated/service_role -- an unrelated concept this file does not
+-- touch). `my_role()` is dead code: defined, unused, a landmine for the NEXT
+-- sweep if someone starts calling it and a search narrowed to
+-- `current_user_role()` alone misses it -- named here so it is on record, not
+-- because it explains today's five.
+--
+-- So the honest conclusion is not "a new vocabulary word was missed" but "the
+-- same word was not looked for everywhere it appears" -- most likely r13's
+-- live read did not cover these three tables at all (build_templates and
+-- pricing_drift ship together in supabase_build_templates_patch.sql; mail_access
+-- in supabase_mail.sql), rather than a spelling gap in the regex. Recorded
+-- exactly as found rather than accepted on the task's word for it, per this
+-- wave's own rule that a sweep is only as good as its search.
+--
+-- EVERY SPELLING ACTUALLY SEARCHED FOR, this pass, against the LIVE qual/
+-- with_check text of all 137 policies (not a sample):
+--   1. `profiles.role` / `profiles_1.role` (an inline correlated subselect,
+--      not the shared function) -- 5 hits: audit_log_read, field_changes_update,
+--      job_payments_insert, job_payments_update, profiles_update_own_company
+--   2. `::user_role` (a cast, marking a literal array of the enum) -- 6 hits,
+--      all already covered by #1, #3 or #4 below (companies_update,
+--      company_settings_write/_update/_money_needs_permission, job_payments_
+--      insert/_update)
+--   3. `current_user_role()` (the shared helper) -- 9 hits: build_templates_
+--      insert/_update, companies_update, company_settings_write/_update/
+--      _money_needs_permission, mail_access_read, pricing_drift_read/_update
+--   4. `role::text` -- 0 hits beyond what #1-#3 already found
+--   5. a literal `= 'OWNER'` / `= 'MANAGER'` etc. role-string comparison --
+--      3 hits, all already covered above (companies_update, mail_access_read,
+--      profiles_update_own_company)
+--   6. `any (array[...])` of role literals -- 11 hits, all already covered
+--   7. `my_role(`, `get_user_role`, `get_role`, `session_role`, `user_role_of`,
+--      `auth_role`, `role_of`, bare `current_role` -- 0 hits anywhere in any
+--      policy (my_role() exists, per above, but nothing calls it)
+--   8. `has_permission(` -- 21 hits, the CORRECT/already-fixed shape, listed
+--      only to confirm the search net was wide enough to tell the two apart
+--      rather than only ever matching one side
+--   9. bare substring `role` (case-insensitive), as a catch-all over the same
+--      137 rows, to prove #1-#8 did not miss an unanticipated spelling -- 15
+--      hits total: the 14 counted here plus `app_errors_insert`'s unrelated
+--      `auth.role()` JWT check (excluded, reasoned above, not a role/
+--      permission mismatch of the kind this sweep is about)
+-- Union of 1-6 and 9, minus the app_errors_insert false positive = 14,
+-- exactly matching the 9 (r13) + 5 (this file) accounting below. Nothing in
+-- #7's search turned up a real hit, so there is no sixteenth policy hiding
+-- behind a spelling neither sweep looked for -- there MAY be one behind a
+-- spelling neither sweep thought to try (a sweep can only report what it
+-- searched for), which is exactly why this list of nine search patterns is
+-- written out rather than just the count.
+--
+-- ALL FOURTEEN, VERIFIED LIVE TODAY (positive control before this table:
+-- `select count(*) from pg_policies where schemaname='public'` = 137):
+--
+--   Already handled in supabase_r13_permission_aware_policies.sql (fixed there,
+--   NOT duplicated here -- see "RELATIONSHIP TO r13" below):
+--     1. field_changes_update   (UPDATE)  -- FIXED by r13
+--     2. job_payments_insert    (INSERT)  -- FIXED by r13
+--     3. job_payments_update    (UPDATE)  -- FIXED by r13
+--
+--   Already SWEPT and DELIBERATELY NOT FIXED by r13, with reasons given there
+--   (re-read live today, text unchanged from r13's own citation -- not
+--   re-litigated in this file, only re-confirmed current):
+--     4. audit_log_read                    (SELECT) -- r13's finding #4
+--     5. companies_update                  (UPDATE) -- r13's finding #5
+--     6. company_settings_money_needs_permission (SELECT, RESTRICTIVE) -- r13's #6
+--     7. company_settings_update           (UPDATE) -- r13's finding #7
+--     8. company_settings_write            (INSERT) -- r13's finding #8
+--     9. profiles_update_own_company       (UPDATE) -- r13's finding #9
+--
+--   NEW in this file, the five r13 missed -- decided below, PART 1:
+--    10. build_templates_insert  (INSERT)
+--    11. build_templates_update  (UPDATE)
+--    12. pricing_drift_read      (SELECT)
+--    13. pricing_drift_update    (UPDATE)
+--    14. mail_access_read        (SELECT)
+--
+-- RELATIONSHIP TO r13: no table overlap at all (r13 touches field_changes and
+-- job_payments; this file touches build_templates, pricing_drift and
+-- mail_access) -- the two files can be applied in EITHER order, or only one
+-- of them, with no interaction. This file does not restate or re-decide any
+-- of r13's nine; apply r13 for those three, this file for these five, on
+-- whatever schedule the owner wants.
+--
+-- LIVE has_permission() MATRIX, re-read today (pg_get_functiondef, positive
+-- control: 8 other functions in public reference current_user_role in their
+-- own body, confirming pg_get_functiondef works and is not silently empty) --
+-- unchanged from r13's citation, re-confirmed rather than assumed stale:
+--   OWNER      -- every permission, unconditionally
+--   MANAGER    -- SEE_MONEY, SEE_PAY, EDIT_JOBS, EDIT_CATALOG_AND_SETTINGS,
+--                 SCHEDULE_AND_ASSIGN, REQUEST_PAYMENT, RECORD_FIELD_WORK,
+--                 SEE_CUSTOMER_CONTACT, SEE_REPORTS, APPROVE_TIME,
+--                 APPROVE_PLAN_CHANGES
+--   SALES      -- SEE_MONEY, EDIT_JOBS, SEE_CUSTOMER_CONTACT
+--   ACCOUNTANT -- SEE_MONEY, SEE_PAY, REQUEST_PAYMENT, RECORD_REFUNDS,
+--                 SEE_CUSTOMER_CONTACT, SEE_REPORTS
+--   FOREMAN    -- SCHEDULE_AND_ASSIGN, RECORD_FIELD_WORK, SEE_CUSTOMER_CONTACT,
+--                 APPROVE_TIME, APPROVE_PLAN_CHANGES
+--   CREW       -- RECORD_FIELD_WORK
+-- MANAGE_ACCESS (used below, for policy 14) is held, by default, by OWNER
+-- ONLY -- it is the one permission MANAGER's own list explicitly omits
+-- ("Deliberately no SHARE_INVITE_CODE and no MANAGE_ACCESS", app/src/main/
+-- java/com/fenceestimator/app/cloud/Permissions.kt), and no other role's
+-- default list names it either. EDIT_CATALOG_AND_SETTINGS (used below, for
+-- policies 10-13) is held by OWNER and MANAGER only, matching this function
+-- body exactly.
+--
+-- LIVE OVERRIDES ON THIS ACCOUNT, RIGHT NOW (profiles.permission_overrides,
+-- re-read fresh today, not copied from r13 -- positive control: 8 profiles
+-- total on this schema, non-zero): exactly one profile carries any override
+-- at all, the same one r13 cited --
+--     SALES  f7e1c214-cdd0-492a-84b4-02392b264690  '+REQUEST_PAYMENT,+SEE_CUSTOMER_CONTACT'
+-- Neither override touches EDIT_CATALOG_AND_SETTINGS or MANAGE_ACCESS, so
+-- this account's answer is identical under defaults and under its actual
+-- live override for every policy this file changes -- unlike r13's
+-- job_payments fix, none of the five below produce a GAIN for any real,
+-- named account today.
+--
+-- ============================================================================
+-- POLICIES 10-11 -- build_templates_insert / build_templates_update
+-- -> has_permission('EDIT_CATALOG_AND_SETTINGS')
+-- ============================================================================
+-- build_templates rows are the company's own saved fence specs (panel width,
+-- post spacing, rail count, gate defaults...) that a new fence run or the
+-- office's "start from a template" picker copies onto a job. EDIT_CATALOG_
+-- AND_SETTINGS's own description, verbatim from the enum that drives both the
+-- app's UI and this database's permission model (Permissions.kt): "Material
+-- prices, pricing tiers and company settings. Affects every future estimate."
+-- A build template is exactly that kind of default -- it is not itself a
+-- price, but it is picked from the same "what future estimates start from"
+-- shelf as a pricing tier, and it is edited from the same place in the app a
+-- pricing tier is (Settings, behind the same catalog screen).
+--
+-- SIBLING POLICIES, CHECKED (so nothing here is quietly widened or narrowed
+-- by something this file does not mention): build_templates carries
+-- build_templates_read (SELECT, `company_id is null or company_id =
+-- current_company_id()` -- no role or permission test, unaffected) and
+-- build_templates_not_suspended (RESTRICTIVE, `not company_is_suspended()`,
+-- applies on top of both fixed policies unchanged). No admin-scoped sibling
+-- exists for this table the way pricing_drift has one. There is no DELETE
+-- policy at all (retiring a template is deleted_at through
+-- retire_build_template(), not a raw DELETE) -- unaffected by this file.
+--
+-- IS THIS EVEN THE REAL WRITE PATH? -- checked, not assumed. Grepped for any
+-- client (Android app or website/dashboard.html) calling
+-- `.from('build_templates').insert(...)` or `.update(...)` directly: zero
+-- matches, in either codebase. Every real write goes through two SECURITY
+-- DEFINER RPCs instead (supabase_build_templates_patch.sql):
+-- save_build_template(p jsonb) and retire_build_template(p_sync_id uuid),
+-- both of which do their OWN inline check --
+--     if current_user_role()::text not in ('OWNER','MANAGER') then
+--         raise exception 'Office roles only' using errcode = '42501';
+--     end if;
+-- the SAME role-not-permission mistake, one layer deeper, in a function this
+-- file does not own (SECURITY DEFINER functions are not RLS policies and are
+-- out of this sweep's stated scope). So, exactly the shape r13 found for
+-- job_payments behind its Edge Functions: fixing build_templates_insert/
+-- _update below tightens the RLS backstop for a caller who reaches this
+-- table directly through PostgREST (a valid JWT, bypassing both RPCs) --
+-- real protection, but it does NOT change what a phone or the office site
+-- experiences today, because both currently-shipping write paths ask the
+-- role question a second time inside the RPC regardless of what RLS says.
+-- This is very likely what the task's own reviewer note means by "build_
+-- templates is pull-only": the table is written by RPC, read directly
+-- (my_build_templates()) -- not, on the evidence here, that nothing ever
+-- writes it at all.
+--
+-- WHO CAN WRITE TODAY, AND WHO COULD WRITE AFTER (identical for both
+-- policies; same role list, same permission)
+-- -------------------------------------------------------------------------
+--   Role         Role check (today)   has_permission (after)   Change
+--   OWNER        allow                allow                    none
+--   MANAGER      allow                allow                    none
+--   SALES        refuse               refuse                   none
+--   ACCOUNTANT   refuse               refuse                   none
+--   FOREMAN      refuse               refuse                   none
+--   CREW         refuse               refuse                   none
+--
+-- Under the one live override (SALES, +REQUEST_PAYMENT/+SEE_CUSTOMER_CONTACT):
+-- unchanged -- that account does not hold EDIT_CATALOG_AND_SETTINGS before or
+-- after. NOBODY GAINS OR LOSES ANYTHING, at the RLS layer, today. (The RPC's
+-- own inline role check, unaffected by this file, would still decide the
+-- outcome for every real caller until someone with ownership of
+-- supabase_build_templates_patch.sql fixes it too -- flagged, not fixed here.)
+--
+-- ============================================================================
+-- POLICIES 12-13 -- pricing_drift_read / pricing_drift_update
+-- -> has_permission('EDIT_CATALOG_AND_SETTINGS')
+-- ============================================================================
+-- pricing_drift rows are filed by the PHONE (app/src/main/java/com/
+-- fenceestimator/app/cloud/PricingDrift.kt, insert-only, never read or
+-- updated on-device) whenever its own price calculation disagrees with the
+-- office's recompute for the same job -- a stale app build, a catalog edit
+-- that has not synced, or a genuine engine bug. It is a signal that the
+-- CATALOG or the pricing engine acting on it needs a look, which is the same
+-- territory EDIT_CATALOG_AND_SETTINGS already covers ("Affects every future
+-- estimate") -- not a stretch fit picked because the numbers happen to line
+-- up, the way r13 explicitly rejected for job_payments. It is also the
+-- SAME permission proposed for build_templates just above, for the same
+-- reason: both tables are inputs to "what does an estimate come out to",
+-- reviewed and corrected by whoever can already change the catalog.
+--
+-- REJECTED ALTERNATIVE, ON PURPOSE: SEE_REPORTS ("Revenue, collected,
+-- outstanding, and the detail behind them") was considered because ACCOUNTANT
+-- holds it by default and pricing_drift reads like a report. Rejected: a
+-- pricing/catalog mismatch is not a revenue or collections fact, an
+-- accountant has no action to take on it (the fix is a catalog correction, a
+-- MANAGER/OWNER action), and picking SEE_REPORTS would hand ACCOUNTANT a new
+-- ability today (a GAIN, unlike every fix in this file) for no product reason
+-- connected to what SEE_REPORTS actually describes. Exactly the "right
+-- behaviour for the wrong reason" trap r13 named and avoided for the same
+-- table shape.
+--
+-- SIBLING POLICIES, CHECKED. pricing_drift carries FOUR policies total, not
+-- two -- pricing_drift_insert (INSERT, `company_id = current_company_id()`,
+-- no role/permission test, unaffected -- this is the phone's own write door)
+-- and pricing_drift_admin_read (SELECT, `using (is_platform_admin())`) IN
+-- ADDITION to the two named here. PERMISSIVE policies for the same command
+-- are OR'd: pricing_drift_read and pricing_drift_admin_read are BOTH
+-- SELECT policies on this table, so a platform admin already sees every
+-- company's rows today through the admin-scoped sibling regardless of
+-- anything this file changes about pricing_drift_read -- fixing
+-- pricing_drift_read only changes what an ordinary (non-admin) OWNER/MANAGER
+-- of the row's own company can read, which is unaffected in practice for a
+-- platform admin either way.
+--
+-- pricing_drift_update has NO admin-scoped sibling -- confirmed live, only
+-- one UPDATE policy exists on this table today. This is a SEPARATE, already-
+-- named gap: website/admin.html's "Mark seen" button
+-- (`db.from('pricing_drift').update({seen_at:...})`) needs to write a ROW
+-- BELONGING TO A DIFFERENT COMPANY than the admin's own, which
+-- pricing_drift_update's company-scoping can never satisfy no matter what
+-- its role/permission clause says -- the unapplied
+-- supabase_admin_drift_mark_seen_patch.sql already proposes the actual fix for
+-- that (a new, additive `pricing_drift_admin_update` policy using
+-- `is_platform_admin()`, not a change to this policy). THIS FILE'S CHANGE TO
+-- pricing_drift_update DOES NOT FIX THAT BUTTON -- it only swaps the
+-- COMPANY-SCOPED policy's role test for a permission test; the admin's own
+-- path still needs that other, already-drafted policy. The two files touch
+-- different policies on the same table and do not conflict; apply either or
+-- both in any order. (One hygiene note, not a functional issue: supabase_
+-- admin_drift_mark_seen_patch.sql's own header quotes pricing_drift_update's
+-- CURRENT role-based text as of 2026-09-28 -- once this file is applied that
+-- quoted text becomes stale documentation, though the policy it proposes
+-- adding is unaffected either way.)
+--
+-- IS pricing_drift_read EVEN A REAL CLIENT PATH? -- checked. Grepped
+-- website/dashboard.html (the office site) for "pricing_drift" or "drift":
+-- zero matches -- the office dashboard never reads this table at all today,
+-- company-scoped or otherwise. The ONLY reader is website/admin.html's
+-- loadDrift(), a PLATFORM ADMIN page, which is served by the OR'd
+-- pricing_drift_admin_read sibling regardless of this policy (an admin who
+-- also happens to be an OWNER/MANAGER of their own company gets a redundant
+-- second path to their own rows via pricing_drift_read, changed by this file
+-- with no visible effect since pricing_drift_admin_read already covers them
+-- for everything). So, like build_templates above: this is a correct fix
+-- with essentially no live client-visible effect today, tightening a policy
+-- that would matter to a direct PostgREST caller and to any FUTURE office-side
+-- "your own company's pricing drift" panel, should one ever be built.
+--
+-- WHO CAN READ/WRITE TODAY, AND WHO COULD AFTER (identical shape for both
+-- policies; same role list, same permission)
+-- -------------------------------------------------------------------------
+--   Role         Role check (today)   has_permission (after)   Change
+--   OWNER        allow                allow                    none
+--   MANAGER      allow                allow                    none
+--   SALES        refuse               refuse                   none
+--   ACCOUNTANT   refuse               refuse                   none
+--   FOREMAN      refuse               refuse                   none
+--   CREW         refuse               refuse                   none
+--
+-- Under the one live override: unchanged, that account does not hold
+-- EDIT_CATALOG_AND_SETTINGS before or after. NOBODY GAINS OR LOSES ANYTHING.
+--
+-- ============================================================================
+-- POLICY 14 -- mail_access_read -> the OWNER branch becomes
+-- has_permission('MANAGE_ACCESS'); the self-row branch is untouched
+-- ============================================================================
+-- mail_access rows are per-person grants of company-email use beyond a
+-- role's default (supabase_mail.sql's own comment: "Who may use company email
+-- beyond the role default... written only by set_mail_access()"). This
+-- policy's CURRENT shape already has two branches, and only one of them is
+-- role-tested:
+--   ((select current_user_role())::text = 'OWNER') OR (profile_id = auth.uid())
+-- i.e. "the owner sees the WHOLE company's grants; everyone else sees only
+-- their OWN row" -- confirmed against the file's own comment at this exact
+-- policy ("The owner sees the whole company's grants... everyone else sees
+-- only their own row"). Only the OWNER branch is touched here; profile_id =
+-- auth.uid() is not a role test and stays exactly as it is.
+--
+-- MANAGE_ACCESS is the cleanest fit of any policy in this file, both
+-- numerically and by its own stated purpose. Its description, verbatim
+-- (Permissions.kt): "Change other people's access, including granting this."
+-- Seeing WHO ELSE in the company has been granted company-email access
+-- (mail_access is nothing but an access-grant table) is exactly "other
+-- people's access", and MANAGE_ACCESS is already the permission
+-- profiles_manage (r13's finding #9's sibling policy on the SAME concept,
+-- access administration) gates on. Numerically: MANAGE_ACCESS is held, by
+-- default, by OWNER only -- MANAGER's own default list explicitly excludes
+-- it, and Permissions.kt's own comment says why ("Handing out the code is
+-- handing out entry to the company, and a manager who needs to do it can be
+-- given it by name") for the sibling SHARE_INVITE_CODE permission, the same
+-- reasoning applying to MANAGE_ACCESS being withheld from MANAGER by
+-- default too. So `has_permission('MANAGE_ACCESS')` and
+-- `current_user_role() = 'OWNER'` name EXACTLY the same set of accounts
+-- under every default role -- a pure tighten-to-match, not a widening.
+--
+-- SIBLING POLICIES, CHECKED. mail_access carries exactly ONE policy, this
+-- one -- confirmed live (no INSERT/UPDATE/DELETE policy exists on this table
+-- for authenticated at all; supabase_mail.sql's own comment: "No client write
+-- grant exists at all... Every write goes through set_mail_access()", a
+-- SECURITY DEFINER RPC checked separately below). So this is the WHOLE rule
+-- for what a client can see of this table -- nothing else narrows or widens it.
+--
+-- IS THIS A REAL CLIENT PATH? -- yes, unlike the four policies above. website/
+-- dashboard.html's Team/Access screen calls
+-- `db.from('mail_access').select('profile_id, allowed')` directly (the "Company
+-- email" column on the seat table) -- a real, shipping, company-facing read,
+-- not a theoretical backstop. This is the one policy in this file where the
+-- fix has an actual live effect today (see "WHO CAN READ" below: none, since
+-- nobody holds MANAGE_ACCESS by override today either) and would matter the
+-- day the owner next uses the Access screen to grant it to someone by name.
+--
+-- WHAT ABOUT set_mail_access() ITSELF? -- checked live (pg_get_functiondef,
+-- public.set_mail_access, positive control: 8 other functions in public
+-- reference current_user_role in their own body), and it carries the SAME
+-- defect, not a clean one this fix would leave stranded next to a correct
+-- neighbour. Its exact live body:
+--     if public.current_user_role()::text is distinct from 'OWNER' then
+--         raise exception 'Only the owner can change who uses company email'
+--             using errcode = '42501';
+--     end if;
+-- ALSO a raw role test, guarding who may CALL set_mail_access at all (as distinct from
+-- mail_access_read, which is who may SELECT existing grants; different verb,
+-- different function, same table). This is the SAME defect family, in a
+-- SECURITY DEFINER function this file does not own -- flagged here exactly as
+-- r13 flagged create-payment-link/index.ts and save_company_settings(), not
+-- fixed here. If mail_access_read below is tightened to has_permission(
+-- 'MANAGE_ACCESS') but set_mail_access() keeps its own role='OWNER' check,
+-- the day the owner grants MANAGE_ACCESS to a MANAGER that person would be
+-- able to SEE every grant (this fix) but still could not SET one (the RPC's
+-- own unfixed check) -- a real, if narrow, mismatch this file's change would
+-- introduce between two halves of the same feature. Named here so whoever
+-- applies this also considers set_mail_access() at the same time, rather than
+-- discovering the split later.
+--
+-- WHO CAN READ TODAY, AND WHO COULD AFTER
+-- -------------------------------------------------------------------------
+--   Role         Sees own row (today & after, unaffected)   Sees WHOLE company (today)  Sees WHOLE company (after)
+--   OWNER        yes                                         yes                         yes
+--   MANAGER      yes (if a row exists for them)               no                          no
+--   SALES        yes (if a row exists for them)               no                          no
+--   ACCOUNTANT   yes (if a row exists for them)               no                          no
+--   FOREMAN      yes (if a row exists for them)               no                          no
+--   CREW         mail_access rows for CREW are always
+--                allowed=false (set_mail_access refuses
+--                any other value for CREW); still sees own row either way
+--
+-- Under the one live override (SALES, +REQUEST_PAYMENT/+SEE_CUSTOMER_CONTACT):
+-- unchanged -- does not hold MANAGE_ACCESS before or after; still sees only
+-- their own row (if any) either way. NOBODY GAINS OR LOSES ANYTHING today.
+-- What changes is the same thing r13's field_changes_update fix changed:
+-- the NEXT time the owner grants or revokes MANAGE_ACCESS on the Access
+-- screen, this policy starts actually answering to it instead of silently
+-- ignoring the grant, the way it does today.
+--
+-- ============================================================================
+-- PART 1 -- THE FIX (proposed; NOT applied by this file)
+-- ============================================================================
+-- Same company-scoping, same command, same PERMISSIVE nature, same absence of
+-- a paired USING/WITH CHECK where the original had none -- only the role test
+-- becomes a permission test. Written in the exact style/subselect shape the
+-- live catalogue already showed for each (`current_company_id()` bare for
+-- build_templates/pricing_drift, `(select current_company_id())` /
+-- `(select current_user_role())` subselects for mail_access, matching that
+-- policy's own existing style) -- not syntax-checked in a live rolled-back
+-- transaction the way r13 was (this pass had no positive-control harness for
+-- a scratch transaction; the owner or whoever applies this should paste each
+-- DROP+CREATE into a transaction and roll it back once before committing, the
+-- same discipline r13 used).
+
+drop policy if exists build_templates_insert on public.build_templates;
+create policy build_templates_insert on public.build_templates for insert
+    with check (company_id = public.current_company_id()
+                and public.has_permission('EDIT_CATALOG_AND_SETTINGS'));
+
+drop policy if exists build_templates_update on public.build_templates;
+create policy build_templates_update on public.build_templates for update
+    using (company_id = public.current_company_id()
+           and public.has_permission('EDIT_CATALOG_AND_SETTINGS'))
+    with check (company_id = public.current_company_id());
+
+drop policy if exists pricing_drift_read on public.pricing_drift;
+create policy pricing_drift_read on public.pricing_drift for select
+    using (company_id = public.current_company_id()
+           and public.has_permission('EDIT_CATALOG_AND_SETTINGS'));
+
+drop policy if exists pricing_drift_update on public.pricing_drift;
+create policy pricing_drift_update on public.pricing_drift for update
+    using (company_id = public.current_company_id()
+           and public.has_permission('EDIT_CATALOG_AND_SETTINGS'))
+    with check (company_id = public.current_company_id());
+
+drop policy if exists mail_access_read on public.mail_access;
+create policy mail_access_read on public.mail_access
+    for select to authenticated
+    using (company_id = (select public.current_company_id())
+           and (public.has_permission('MANAGE_ACCESS') or profile_id = (select auth.uid())));
+
+select 'build_templates_insert/_update, pricing_drift_read/_update and mail_access_read '
+       'now ask has_permission(), not role' as done;
+
+-- ============================================================================
+-- EXACT REVERSE (to undo PART 1 -- not run by this file; copy the needed
+-- block out and run it by hand if any of these five needs to come back out)
+-- ============================================================================
+-- drop policy if exists build_templates_insert on public.build_templates;
+-- create policy build_templates_insert on public.build_templates for insert
+--     with check (company_id = public.current_company_id()
+--                 and public.current_user_role()::text in ('OWNER','MANAGER'));
+--
+-- drop policy if exists build_templates_update on public.build_templates;
+-- create policy build_templates_update on public.build_templates for update
+--     using (company_id = public.current_company_id()
+--            and public.current_user_role()::text in ('OWNER','MANAGER'))
+--     with check (company_id = public.current_company_id());
+--
+-- drop policy if exists pricing_drift_read on public.pricing_drift;
+-- create policy pricing_drift_read on public.pricing_drift for select
+--     using (company_id = public.current_company_id()
+--            and public.current_user_role()::text in ('OWNER','MANAGER'));
+--
+-- drop policy if exists pricing_drift_update on public.pricing_drift;
+-- create policy pricing_drift_update on public.pricing_drift for update
+--     using (company_id = public.current_company_id()
+--            and public.current_user_role()::text in ('OWNER','MANAGER'))
+--     with check (company_id = public.current_company_id());
+--
+-- drop policy if exists mail_access_read on public.mail_access;
+-- create policy mail_access_read on public.mail_access
+--     for select to authenticated
+--     using (company_id = (select public.current_company_id())
+--            and ((select public.current_user_role())::text = 'OWNER'
+--                 or profile_id = (select auth.uid())));
+
+-- ============================================================================
+-- PART 2 -- POLICIES DELIBERATELY NOT CHANGED (this file owns only the five
+-- named above; everything below is re-confirmed live, not re-decided)
+-- ============================================================================
+-- r13's own six deliberately-unfixed findings (audit_log_read, companies_update,
+-- company_settings_money_needs_permission, company_settings_update,
+-- company_settings_write, profiles_update_own_company) were re-read live today
+-- and their qual/with_check text is byte-identical to what r13 quoted --
+-- nothing has drifted since r13 was written, so its reasoning for leaving
+-- each alone is re-confirmed rather than re-litigated here. See that file for
+-- the reasoning on each.
+--
+-- pricing_drift_insert carries no role or permission test at all
+-- (`with check (company_id = current_company_id())`) -- not part of this
+-- defect family, unaffected, not touched.
+--
+-- pricing_drift_admin_read and companies_platform_admin_update-shaped
+-- policies (`using (is_platform_admin())`) are a different axis entirely --
+-- PLATFORM admin vs. company role/permission -- and none of them compare
+-- profiles.role or current_user_role(), so none matched this sweep's search
+-- and none are reconsidered here.
+--
+-- ============================================================================
+-- PART 3 -- THE SWEEP, ENUMERATED (so this is auditable, not a claim)
+-- ============================================================================
+-- All 137 policies in the public schema, qual and with_check, full text, read
+-- live today via one query (not sampled, not paged -- 137 rows returned in one
+-- result set, positive control confirmed 137 before running the real search).
+-- Searched with every spelling listed above this file's header. Total matches
+-- for "compares profiles.role or current_user_role(), directly or through a
+-- literal role-string/array, rather than asking has_permission(...)": FOURTEEN,
+-- the ones enumerated at the top of this file. Every one of the other 123
+-- policies (137 - 14) either names has_permission(...) (21 of them, confirmed
+-- by the same pass), tests only company/ownership match with no role or
+-- permission clause at all (the majority), or is a RESTRICTIVE
+-- company_is_suspended()/company_allowed()/is_platform_admin() gate unrelated
+-- to this defect family. This was a full read of pg_policies for
+-- schemaname='public', not a sample, run fresh for this file rather than
+-- trusted from r13's own count.
+-- ============================================================================
