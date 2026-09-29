@@ -1953,6 +1953,16 @@
 
         <h2 data-t="settingsFormHead">Business Settings</h2>
         <div id="setNote"></div><div class="msg" id="setMsg"></div>
+        <!-- Not `disabled` like the email box above, because these three boxes are
+             NOT owner-only: business name, phone and licence number are stored in
+             two places and a manager can still write one of them. The owner-only
+             half is companies.name/.phone/.license_no, the record a customer sees;
+             the half every editor reaches is company_settings, which is what the
+             phones print on a PDF quote. Disabling the boxes would take a working
+             capability away from managers; saying so is the honest middle. Shown
+             only once loadSettings() has confirmed a non-OWNER, same as
+             #s_emailOwnerNote. -->
+        <p id="s_companyOwnerNote" style="display:none;font-size:11px;color:var(--muted);margin:0 0 8px" data-t="settingsCompanyOwnerOnly">Business name, phone and license number save to your phones from here, but the copy your customers see — on quote pages, crew invitations and payment links — can only be changed by the owner.</p>
         <div class="row2">
           <div><label data-t="settingsLabelBizName">Business name</label><input id="s_businessName"></div>
           <div><label data-t="settingsLabelOwnerName">Owner name</label><input id="s_ownerName"></div>
@@ -1990,6 +2000,9 @@
           <strong data-t="settingsHelpIntro">These are the starting values for every new job.</strong> <span data-t="settingsHelpIntro2">Changing them here does not
   re-price a job you have already created — open that job and change it there.</span><br>
   <span data-t="settingsHelpSaved">Saved to your company account — phones pick these up on next sync.</span><br>
+  <span data-t="settingsHelpCompanyRecord">Business name, phone and license number go further than the phones: they are also
+  what a customer reads on your quote page, what crew invitations and follow-up emails come
+  from, and the name on a payment link. Until now this panel only ever reached the phones.</span><br>
   <span data-t="settingsHelpVinylSync">Post spacing, panel width, panel height and bags above also update your default Vinyl
   build template below (creating one from FenceFlow's shipped Vinyl privacy 6&nbsp;ft if you
   have none yet) — the same four numbers, now read from one place instead of two.</span>
@@ -3677,6 +3690,7 @@ const TL = {
     settingsLabelPhone:'Phone', settingsLabelEmail:'Company email (customers see it)',
     settingsEmailNote:'Printed on your quotes, and the reply-to on crew invitations, follow-ups and FenceFlow mail until you connect your own inbox. Your company\'s own address, not a personal one.',
     settingsEmailOwnerOnly:'Only the owner can change this.',
+    settingsCompanyOwnerOnly:'Business name, phone and license number save to your phones from here, but the copy your customers see — on quote pages, crew invitations and payment links — can only be changed by the owner.',
     settingsLabelLicense:'License number',
     settingsLabelTax:'Tax rate (%)', settingsLabelMarkup:'Markup (%)',
     settingsLabelLabor:'Labor rate ($/ft)', settingsLabelSpacing:'Post spacing (ft)',
@@ -3688,10 +3702,12 @@ const TL = {
     settingsHelpIntro:'These are the starting values for every new job.',
     settingsHelpIntro2:'Changing them here does not re-price a job you have already created — open that job and change it there.',
     settingsHelpSaved:'Saved to your company account — phones pick these up on next sync.',
+    settingsHelpCompanyRecord:'Business name, phone and license number go further than the phones: they are also what a customer reads on your quote page, what crew invitations and follow-up emails come from, and the name on a payment link. Until now this panel only ever reached the phones.',
     settingsHelpVinylSync:'Post spacing, panel width, panel height and bags above also update your default Vinyl build template below (creating one from FenceFlow\'s shipped Vinyl privacy 6 ft if you have none yet) — the same four numbers, now read from one place instead of two.',
     settingsSavedMsg:'Saved. Phones pick these up on next sign-in or sync.',
     settingsEmailBlankMsg:'The other settings saved, but the company email was left as it was — the box was empty, and an empty address would break outgoing mail, the customer-facing quote, and crew invitations. Type an address to change it.',
     settingsEmailInvalidMsg:'The other settings saved, but the company email was left as it was — "%s" does not look like a full email address (name@domain.tld). Fix it and save again.',
+    settingsCompanySaveNoRowsMsg:'The other settings saved, but your business name, phone and license number did not reach the company record your customers see — the write matched no row. The most likely cause is that this account is no longer the company owner (someone changed your role while this page was open). Sign out, sign back in, and check Settings again.',
     settingsEmailSaveNoRowsMsg:'The other settings saved, but the company email did not — the write matched no row. The most likely cause is that this account is no longer the company owner (someone changed your role while this page was open). Sign out, sign back in, and check Settings again.',
     settingsVinylUpdateFailedMsg:'Settings saved, but your standard Vinyl build did not update: %s',
     settingsLoadFailed:'Couldn\'t load your business settings just now — the boxes below are blank because the load failed, not because nothing is set. Switch tabs and back, or refresh, to try again.',
@@ -5264,6 +5280,7 @@ const TL = {
     settingsLabelPhone:'Teléfono', settingsLabelEmail:'Correo de la empresa (los clientes lo ven)',
     settingsEmailNote:'Se imprime en sus presupuestos, y es la dirección de respuesta de las invitaciones a la cuadrilla, los seguimientos y el correo de FenceFlow hasta que conecte su propio buzón. La dirección propia de su empresa, no una personal.',
     settingsEmailOwnerOnly:'Solo el propietario puede cambiar esto.',
+    settingsCompanyOwnerOnly:'El nombre del negocio, el teléfono y el número de licencia se guardan desde aquí para sus celulares, pero la copia que ven sus clientes — en las páginas de cotización, las invitaciones al equipo y los enlaces de pago — solo la puede cambiar el propietario.',
     settingsLabelLicense:'Número de licencia',
     settingsLabelTax:'Impuesto (%)', settingsLabelMarkup:'Recargo (%)',
     settingsLabelLabor:'Tarifa de mano de obra ($/pie)', settingsLabelSpacing:'Espaciado de postes (pies)',
@@ -5275,10 +5292,12 @@ const TL = {
     settingsHelpIntro:'Estos son los valores iniciales de cada trabajo nuevo.',
     settingsHelpIntro2:'Cambiarlos aquí no vuelve a calcular el precio de un trabajo que ya creó — abra ese trabajo y cámbielo ahí.',
     settingsHelpSaved:'Se guarda en la cuenta de la empresa — los celulares lo reciben en la próxima sincronización.',
+    settingsHelpCompanyRecord:'El nombre del negocio, el teléfono y el número de licencia llegan más lejos que los celulares: son también lo que el cliente lee en su página de cotización, el remitente de las invitaciones al equipo y de los correos de seguimiento, y el nombre que aparece en un enlace de pago. Hasta ahora este panel solo llegaba a los celulares.',
     settingsHelpVinylSync:'El espaciado de postes, el ancho y alto del panel y las bolsas de arriba también actualizan su plantilla de construcción Vinyl predeterminada más abajo (creando una a partir del modelo Vinyl privacidad de 6 pies de FenceFlow si todavía no tiene ninguna) — los mismos cuatro números, ahora leídos de un solo lugar en vez de dos.',
     settingsSavedMsg:'Guardado. Los celulares lo reciben en el próximo inicio de sesión o sincronización.',
     settingsEmailBlankMsg:'Los demás ajustes se guardaron, pero el correo de la empresa se dejó como estaba — el campo estaba vacío, y una dirección vacía interrumpiría el correo saliente, la cotización que ve el cliente y las invitaciones al equipo. Escriba una dirección para cambiarla.',
     settingsEmailInvalidMsg:'Los demás ajustes se guardaron, pero el correo de la empresa se dejó como estaba — "%s" no parece una dirección de correo completa (nombre@dominio.tld). Corríjala y guarde de nuevo.',
+    settingsCompanySaveNoRowsMsg:'Los demás ajustes se guardaron, pero el nombre del negocio, el teléfono y el número de licencia no llegaron al registro de la empresa que ven sus clientes — la escritura no coincidió con ninguna fila. La causa más probable es que esta cuenta ya no es la propietaria de la empresa (alguien cambió su rol mientras esta página estaba abierta). Cierre sesión, vuelva a iniciarla y revise Ajustes de nuevo.',
     settingsEmailSaveNoRowsMsg:'Los demás ajustes se guardaron, pero el correo de la empresa no — la escritura no coincidió con ninguna fila. La causa más probable es que esta cuenta ya no es la propietaria de la empresa (alguien cambió su rol mientras esta página estaba abierta). Cierre sesión, vuelva a iniciarla y revise Ajustes de nuevo.',
     settingsVinylUpdateFailedMsg:'Ajustes guardados, pero su plantilla estándar de Vinyl no se actualizó: %s',
     settingsLoadFailed:'No se pudieron cargar los ajustes de la empresa en este momento — los campos de abajo están en blanco porque falló la carga, no porque no haya nada configurado. Cambie de pestaña y vuelva, o actualice la página, para intentarlo de nuevo.',
@@ -6821,6 +6840,7 @@ const TL = {
     settingsLabelPhone:'Téléphone', settingsLabelEmail:'Courriel de l’entreprise (visible par les clients)',
     settingsEmailNote:'Imprimé sur vos devis, et adresse de réponse des invitations à l’équipe, des suivis et du courrier FenceFlow jusqu’à ce que vous connectiez votre propre boîte de réception. L’adresse propre à votre entreprise, pas une adresse personnelle.',
     settingsEmailOwnerOnly:'Seul le propriétaire peut modifier ceci.',
+    settingsCompanyOwnerOnly:'Le nom de l’entreprise, le téléphone et le numéro de licence s’enregistrent d’ici vers vos téléphones, mais la copie que vos clients voient — sur les pages de soumission, les invitations à l’équipe et les liens de paiement — ne peut être modifiée que par le propriétaire.',
     settingsLabelLicense:'Numéro de licence',
     settingsLabelTax:'Taxe (%)', settingsLabelMarkup:'Majoration (%)',
     settingsLabelLabor:'Taux de main-d’œuvre ($/pi)', settingsLabelSpacing:'Espacement des poteaux (pi)',
@@ -6832,10 +6852,12 @@ const TL = {
     settingsHelpIntro:'Ce sont les valeurs de départ pour chaque nouveau chantier.',
     settingsHelpIntro2:'Les modifier ici ne recalcule pas le prix d’un chantier déjà créé — ouvrez ce chantier et changez-le là.',
     settingsHelpSaved:'Enregistré dans le compte de l’entreprise — les téléphones le reçoivent à la prochaine synchronisation.',
+    settingsHelpCompanyRecord:'Le nom de l’entreprise, le téléphone et le numéro de licence vont plus loin que les téléphones : ils sont aussi ce que le client lit sur votre page de soumission, l’expéditeur des invitations à l’équipe et des courriels de relance, et le nom affiché sur un lien de paiement. Jusqu’ici, ce panneau n’atteignait que les téléphones.',
     settingsHelpVinylSync:'L’espacement des poteaux, la largeur et la hauteur du panneau et les sacs ci-dessus mettent aussi à jour votre modèle de construction Vinyle par défaut plus bas (en créant un à partir du modèle Vinyle intimité de 6 pi fourni par FenceFlow si vous n’en avez pas encore) — les quatre mêmes chiffres, désormais lus à un seul endroit plutôt que deux.',
     settingsSavedMsg:'Enregistré. Les téléphones le reçoivent à la prochaine connexion ou synchronisation.',
     settingsEmailBlankMsg:'Les autres paramètres ont été enregistrés, mais l’adresse courriel de l’entreprise n’a pas été modifiée — le champ était vide, et une adresse vide empêcherait l’envoi de courriels, la soumission vue par le client et les invitations à l’équipe. Saisissez une adresse pour la changer.',
     settingsEmailInvalidMsg:'Les autres paramètres ont été enregistrés, mais l’adresse courriel de l’entreprise n’a pas été modifiée — « %s » ne ressemble pas à une adresse courriel complète (nom@domaine.tld). Corrigez-la et enregistrez de nouveau.',
+    settingsCompanySaveNoRowsMsg:'Les autres paramètres ont été enregistrés, mais le nom de l’entreprise, le téléphone et le numéro de licence n’ont pas atteint la fiche d’entreprise que vos clients voient — l’écriture n’a touché aucune ligne. La cause la plus probable est que ce compte n’est plus propriétaire de l’entreprise (quelqu’un a changé votre rôle pendant que cette page était ouverte). Déconnectez-vous, reconnectez-vous, puis vérifiez de nouveau les Paramètres.',
     settingsEmailSaveNoRowsMsg:'Les autres paramètres ont été enregistrés, mais pas l’adresse courriel de l’entreprise — l’écriture n’a touché aucune ligne. La cause la plus probable est que ce compte n’est plus propriétaire de l’entreprise (quelqu’un a changé votre rôle pendant que cette page était ouverte). Déconnectez-vous, reconnectez-vous, puis vérifiez de nouveau les Paramètres.',
     settingsVinylUpdateFailedMsg:'Paramètres enregistrés, mais votre modèle Vinyle standard n’a pas été mis à jour : %s',
     settingsLoadFailed:'Impossible de charger les paramètres de l’entreprise pour l’instant — les champs ci-dessous sont vides parce que le chargement a échoué, pas parce que rien n’est configuré. Changez d’onglet et revenez, ou actualisez la page, pour réessayer.',
@@ -23266,7 +23288,7 @@ async function loadSettings(){
       // quote-view, invite-crew, send-follow-ups). Loading the blob's copy
       // showed the office a value that was not the one actually in effect,
       // which is how this field went stale for months with no error anywhere.
-      db.from('companies').select('email').eq('id',profile.company_id).maybeSingle(),
+      db.from('companies').select('email, name, phone, license_no').eq('id',profile.company_id).maybeSingle(),
     ]);
     if(error) throw error;
     if(company.error) throw company.error;
@@ -23285,6 +23307,52 @@ async function loadSettings(){
     }
     const emailOwnerNote=$('s_emailOwnerNote');
     if(emailOwnerNote) emailOwnerNote.style.display = profile.role === 'OWNER' ? 'none' : '';
+
+    // Business name, phone and licence number are MIRRORED, not moved the way
+    // the email box above was, because unlike the blob's dead `email` key BOTH
+    // stores are read by something real:
+    //
+    //   companies.name / .phone / .license_no -- the record the CUSTOMER sees.
+    //     quote-view prints name and phone at the top of the public quote page;
+    //     invite-crew puts them on crew invitations; send-follow-ups and mail's
+    //     caller.ts use the name on outgoing mail; create-payment-link and
+    //     lead-intake read the name. Only welcome.html's onboarding step
+    //     (complete_company_details) ever wrote these, so an office that
+    //     renamed itself, got a new number or finally got licensed kept
+    //     quoting under the old details for ever, with this panel reporting
+    //     "Saved" every time.
+    //
+    //   company_settings.settings->>'business_name' / 'phone' /
+    //     'license_number' -- the PHONE's copy. SettingsSync.kt pulls all three
+    //     into SettingsStore.BusinessProfile and PdfExporter.kt prints them in
+    //     the header of every PDF quote and contract; my_setup_progress()'s
+    //     'business' step is literally
+    //     `coalesce(trim(settings->>'business_name'),'') <> ''`, which is the
+    //     checklist line renderSetup() clears at the end of saveSettings().
+    //     (Both checked live, 29 September -- see
+    //     supabase_company_business_record.sql.)
+    //
+    // So dropping either half would only move the fake control somewhere else:
+    // write only companies and the office can no longer change what its own
+    // phones print, and the setup checklist can never be completed from here.
+    // saveSettings() writes BOTH; this reads the customer-facing column first
+    // because that is the value actually in effect today, and falls back to the
+    // phone's copy only when the column is blank -- live, the two companies
+    // that have ever used this panel carry a real phone number and licence in
+    // the blob and '' in companies, so reading companies alone would show an
+    // empty box over a value that exists. Where the two genuinely disagree
+    // there is no timestamp to break the tie (companies has no updated_at for
+    // these columns), so the box shows what the customer sees, and the next
+    // save makes the phones agree with it.
+    const pick=(col,key)=>{
+      const live=String(company.data?.[col] ?? '').trim();
+      return live!=='' ? live : (s[key] ?? '');
+    };
+    const bizNameEl=$('s_businessName'); if(bizNameEl) bizNameEl.value=pick('name','business_name');
+    const bizPhoneEl=$('s_phone');       if(bizPhoneEl) bizPhoneEl.value=pick('phone','phone');
+    const bizLicEl=$('s_license');       if(bizLicEl)   bizLicEl.value  =pick('license_no','license_number');
+    const companyOwnerNote=$('s_companyOwnerNote');
+    if(companyOwnerNote) companyOwnerNote.style.display = profile.role === 'OWNER' ? 'none' : '';
   } catch(e) {
     console.error('loadSettings failed:', e);
     if(note){
@@ -23376,6 +23444,43 @@ async function saveSettings(){
         .update({ email: newEmail }).eq('id', profile.company_id).select('id');
       if (emailErr) return msg('setMsg', emailErr.message, 'err');
       if (!savedEmailRows || !savedEmailRows.length) return msg('setMsg', tr('settingsEmailSaveNoRowsMsg'), 'err');
+    }
+
+    // The other three columns of the same customer-facing record. The payload
+    // above already wrote business_name/phone/license_number into
+    // company_settings and still does -- that blob is what the PHONE prints on
+    // a PDF quote, and what my_setup_progress()'s 'business' step reads -- so
+    // this is a SECOND write, not a replacement. loadSettings() above has the
+    // full account of why both stores are live.
+    //
+    // A separate UPDATE from the email one rather than one merged patch: the
+    // email box has its own blank and shape rules (an empty or malformed
+    // address breaks outgoing mail outright, so it is refused with a message
+    // naming it), these three do not, and each write gets a failure message
+    // that says which half of the save did not land. Both run only for an
+    // OWNER, because companies_update is OWNER-only and a filtered UPDATE is
+    // zero rows with NO error -- see the note on the email write above.
+    //
+    // Blank is skipped here even though the blob write above stores '',
+    // because these columns are NOT NULL with a '' default and would take the
+    // blank happily: a load that failed leaves every box empty (loadSettings()
+    // says so in #setNote, but nothing stops a save afterwards), and a save on
+    // top of that would blank the name on every quote page, crew invitation
+    // and payment link at once. "Blank means I did not set this" is the rule
+    // the numeric boxes and the email box above already follow. The cost is
+    // that a phone number or licence cannot be CLEARED from the customer's
+    // record here -- typing a new one replaces it, and the admin console can
+    // empty it -- which is the cheaper of the two failures by a wide margin.
+    const companyRecord = {};
+    for (const [id, col] of [['s_businessName','name'], ['s_phone','phone'], ['s_license','license_no']]) {
+      const typed = $(id)?.value.trim() ?? '';
+      if (typed !== '') companyRecord[col] = typed;
+    }
+    if (Object.keys(companyRecord).length) {
+      const { data: savedRecordRows, error: recordErr } = await db.from('companies')
+        .update(companyRecord).eq('id', profile.company_id).select('id');
+      if (recordErr) return msg('setMsg', recordErr.message, 'err');
+      if (!savedRecordRows || !savedRecordRows.length) return msg('setMsg', tr('settingsCompanySaveNoRowsMsg'), 'err');
     }
   }
 
