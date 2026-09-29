@@ -1109,10 +1109,7 @@ class SurveyViewModel(
                 current.copy(
                     gridExtentFt = extentFt,
                     calibrationPixelsPerFoot = after,
-                    // Squares that read sensibly at this size: about twenty
-                    // across, so a 25ft grid gets roughly 1ft squares and a
-                    // 400ft grid gets 20ft ones.
-                    gridFeetPerSquare = (extentFt / 20f).coerceAtLeast(0.5f)
+                    gridFeetPerSquare = gridFeetPerSquareFor(extentFt)
                 )
             )
           }
@@ -1272,7 +1269,10 @@ class SurveyViewModel(
         const val PIXELS_PER_FOOT_GRID = DrawingScale.PIXELS_PER_FOOT_GRID
 
         /**
-         * Grid sizes to choose from, in feet across.
+         * Grid sizes to choose from, in feet across -- the quick picks. Not a
+         * ceiling any more: [zoomGridExtent] below reaches past the last of
+         * these with no top of its own, so this list only has to cover the
+         * common cases, not every case.
          *
          * A gate and a paddock are not the same drawing problem. At 400ft one
          * foot is about two and a half pixels on a phone and a 20ft run cannot
@@ -1280,24 +1280,103 @@ class SurveyViewModel(
          *
          * 400ft used to be the top of this list, which meant a job bigger than
          * that had nowhere to grow -- the fence kept running off the edge of
-         * the grid with no size left to pick. Not truly unbounded (that needs
-         * a typed-in extent, not a chip row) but 1000 and 2000 cover anything
-         * a paddock or acreage job is likely to need; [setGridExtent] and
-         * [DrawingScale.unitsPerFoot] both work off a plain ratio and have no
-         * ceiling of their own baked in.
+         * the grid with no size left to pick. 1000 and 2000 were added for
+         * that (paddock and acreage jobs); 5000 and 10000 (roughly a mile and
+         * two miles across) extend the same idea to a whole property line.
+         * [setGridExtent] and [DrawingScale.unitsPerFoot] both work off a
+         * plain ratio and have no ceiling of their own baked in -- the limit
+         * was always this list, not the math underneath it.
          */
-        val GRID_SIZES_FT = listOf(25f, 50f, 100f, 200f, 400f, 1000f, 2000f)
+        val GRID_SIZES_FT = listOf(25f, 50f, 100f, 200f, 400f, 1000f, 2000f, 5000f, 10000f)
+
+        /**
+         * Floor for [zoomGridExtent]'s zoom-in direction -- the smallest quick
+         * pick above. Below this a 20ft run stops being distinguishable from a
+         * point on a phone screen (see the class doc on [GRID_SIZES_FT]); there
+         * is no matching ceiling on the way out, which is the point of D1.
+         */
+        val MIN_GRID_EXTENT_FT = GRID_SIZES_FT.first()
 
         /**
          * The grid extent whose calibration works out to exactly 20 px/ft
          * (GRID_CANVAS_SIZE / this == PIXELS_PER_FOOT_GRID) -- the scale the
          * office's satellite tool always traces at, independent of the
          * user's own grid-size choice. See [ensureSatelliteCalibration].
+         *
+         * This is the one grid size [zoomGridExtent] must never be reached
+         * for: satellite tiles are always fetched and placed assuming exactly
+         * this extent (see SatelliteAnchor in SurveyDrawScreen.kt), a fixed
+         * simplification independent of gridExtentFt rather than a rendering
+         * or licensing limit of the imagery itself. Making satellite track an
+         * arbitrary extent would mean re-deriving SatelliteAnchor's world-to-
+         * survey-pixel ratio from the job's own scale instead of this
+         * constant, and re-checking what that does to tile-fetch zoom and
+         * cost -- a satellite-side change, not a grid-extent one, so D1 leaves
+         * it exactly as it was: the "Grid" background zooms without limit,
+         * "Satellite" stays pinned at 400ft, same as before this change.
          */
         const val SATELLITE_CANVAS_EXTENT_FT = 400f
 
         /** Units per foot for a grid covering [extentFt] across. See [DrawingScale.unitsPerFoot]. */
         fun unitsPerFoot(extentFt: Float): Float = DrawingScale.unitsPerFoot(extentFt)
+
+        /**
+         * The next grid extent when zooming the GRID (not satellite) out or
+         * in by one step -- D1's "keep finding grid" control, distinct from
+         * [GRID_SIZES_FT]'s fixed quick-pick chips.
+         *
+         * Doubles (zooming out, [factor] = 2) or halves (zooming in, [factor]
+         * = 0.5) the CURRENT extent rather than stepping through a fixed
+         * list, so it has no top: every tap finds a bigger grid than the last,
+         * forever, which is what "unlimited" means here. The only floor is
+         * [MIN_GRID_EXTENT_FT], zooming in, for the same accuracy reason
+         * [GRID_SIZES_FT] starts at 25ft rather than 1ft.
+         *
+         * A pure function of the current extent and nothing else -- no job,
+         * no side effect -- so [GridExtentTest] can pin the doubling/halving
+         * relationship without a database. The caller still goes through
+         * [setGridExtent] to apply the result, which is what actually
+         * rescales the drawing and keeps every measured length unchanged;
+         * this only decides what number to ask it for.
+         *
+         * Guards against a non-finite result (an extent so large that
+         * doubling it overflows Float to infinity) by returning [current]
+         * unchanged rather than asking [setGridExtent] to calibrate against
+         * infinity -- not reachable from the UI in practice (it would take
+         * on the order of a hundred taps from the largest quick pick), but a
+         * function with no caller-supplied ceiling should not trust the
+         * caller to stop tapping.
+         */
+        fun zoomGridExtent(current: Float, factor: Float): Float {
+            val base = if (current.isFinite() && current > 0f) current else MIN_GRID_EXTENT_FT
+            val next = base * factor
+            if (!next.isFinite() || next <= 0f) return base
+            return next.coerceAtLeast(MIN_GRID_EXTENT_FT)
+        }
+
+        /**
+         * The real-world size of one grid square for a grid covering
+         * [extentFt] across -- squares that read sensibly at any size: about
+         * twenty across, so a 25ft grid gets roughly 1ft squares and a 400ft
+         * grid gets 20ft ones, and (the point of D1) a 10000ft grid gets
+         * 500ft ones rather than either vanishing into a solid colour or
+         * needing to draw 400 lines to stay "1ft apart".
+         *
+         * [setGridExtent] writes this alongside calibrationPixelsPerFoot every
+         * time the extent changes, which is what keeps it meaningful: paired
+         * with [unitsPerFoot], one square is always
+         * `gridFeetPerSquareFor(extentFt) * unitsPerFoot(extentFt)` ==
+         * `GRID_CANVAS_SIZE / 20` canvas units, a constant independent of
+         * extentFt -- see [GridExtentTest]. That constant is also what bounds
+         * SurveyDrawScreen's drawGrid to a fixed number of lines per axis
+         * under ordinary use (it does not depend on this function once
+         * someone hand-types a spacing of their own, which is why drawGrid
+         * carries its own explicit ceiling too).
+         *
+         * Extracted out of [setGridExtent] so the ratio can be pinned by a
+         * plain unit test without a repository or a job.
+         */
+        fun gridFeetPerSquareFor(extentFt: Float): Float = (extentFt / 20f).coerceAtLeast(0.5f)
 
         /**
          * The scale a drawing is measured at, in canvas units per foot, or

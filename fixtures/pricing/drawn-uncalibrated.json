@@ -2,10 +2,10 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.3",
-    "generated_at": "2026-09-29T07:15:59.729032400Z"
+    "generated_at": "2026-09-29T08:54:40.747585100Z"
   },
   "case": "drawn-uncalibrated",
-  "note": "No calibration on the job: the takeoff measures at the grid's 20 px/ft (materials appear), but linear_feet is 0 so labour bills nothing. The phone's own asymmetry, reproduced.",
+  "note": "No calibration on the job, but this is a GRID job, not a survey photo: EstimateEngine.footageOf falls back to the grid's flat 20 px/ft for LABOUR exactly as suggestQuantities already does for materials, so both price off the same 100 ft -- 100 ft x $8/ft = $800 labour, not zero. The asymmetry this case's name once reproduced (full materials, zero labour on an uncalibrated run) is gone for a grid job; it survives only for an uncalibrated survey PHOTO, a job shape this fixture format has no field to represent -- see tests/a17-photo-uncalibrated-pricing.test.mjs and PhotoScaleTest.kt, which pin that case directly against the real Job / load.ts.",
   "input": {
     "engine_version": "2026.09.3",
     "pixels_per_foot": 20.0,

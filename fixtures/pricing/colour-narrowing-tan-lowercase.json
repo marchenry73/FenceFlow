@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.3",
-    "generated_at": "2026-09-29T07:15:59.729032400Z"
+    "generated_at": "2026-09-29T08:54:40.747585100Z"
   },
   "case": "colour-narrowing-tan-lowercase",
   "note": "Colour 'tan' matches the Tan rows case-insensitively; roles with no Tan row fall back to every row.",

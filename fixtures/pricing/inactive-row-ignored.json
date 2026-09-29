@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.3",
-    "generated_at": "2026-09-29T07:15:59.729032400Z"
+    "generated_at": "2026-09-29T08:54:40.747585100Z"
   },
   "case": "inactive-row-ignored",
   "note": "The White 6 ft panel is inactive, so White narrows to the 8 ft row and the count is reconciled to 13.",

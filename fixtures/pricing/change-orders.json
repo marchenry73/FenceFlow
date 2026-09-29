@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.3",
-    "generated_at": "2026-09-29T07:15:59.729032400Z"
+    "generated_at": "2026-09-29T08:54:40.747585100Z"
   },
   "case": "change-orders",
   "note": "Two change orders: feet billed at the labour rate, cost added dollar for dollar, both marked up.",

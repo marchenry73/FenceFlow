@@ -39,7 +39,7 @@ object ParityCases {
 
     fun all(): List<ParityCase> {
         val cases = geometryCases() + fenceTypeCases() + gateCases() + catalogCases() +
-            carryOverCases() + totalsCases() + templateCases() + photoCases()
+            carryOverCases() + totalsCases() + templateCases()
         require(cases.map { it.id }.distinct().size == cases.size) { "duplicate case id" }
         return cases
     }
@@ -64,8 +64,14 @@ object ParityCases {
             run(FenceType.VINYL, points = square(1600), closed = true)
         },
         case(5, "drawn-uncalibrated") {
-            note = "No calibration on the job: the takeoff measures at the grid's 20 px/ft (materials appear), " +
-                "but linear_feet is 0 so labour bills nothing. The phone's own asymmetry, reproduced."
+            note = "No calibration on the job, but this is a GRID job, not a survey photo: " +
+                "EstimateEngine.footageOf falls back to the grid's flat 20 px/ft for LABOUR exactly " +
+                "as suggestQuantities already does for materials, so both price off the same 100 ft " +
+                "-- 100 ft x \$8/ft = \$800 labour, not zero. The asymmetry this case's name once " +
+                "reproduced (full materials, zero labour on an uncalibrated run) is gone for a grid " +
+                "job; it survives only for an uncalibrated survey PHOTO, a job shape this fixture " +
+                "format has no field to represent -- see tests/a17-photo-uncalibrated-pricing.test.mjs " +
+                "and PhotoScaleTest.kt, which pin that case directly against the real Job / load.ts."
             job = job.copy(calibrationPixelsPerFoot = null)
             run(FenceType.VINYL, points = pts(0 to 0, 2000 to 0))
         },
@@ -565,85 +571,60 @@ object ParityCases {
         }
     )
 
-    /* ---------------- uncalibrated survey photos ---------------- */
+    /* ---------------- survey photos: deliberately not here ---------------- */
 
     /**
-     * Not one of the 85 cases above sets anything photo-related, so every
-     * uncalibrated-photo fix -- [EstimateEngine.footageOf]'s refusal to
-     * guess a scale, [EstimateEngine.computeTotals]'s matching refusal for
-     * gate feet, and the materials
-     * [com.fenceestimator.app.estimate.TakeoffRefresher.refreshRun] clears --
-     * has been invisible to this gate and checked by hand instead.
+     * There is no `photoCases()`. Four cases that tried to be one --
+     * `photo-uncalibrated-drawn-run`, `photo-uncalibrated-with-gate`,
+     * `photo-calibrated-normal`, `photo-typed-footage-override` -- were
+     * removed on 2026-09-29 rather than left in: a fixture of this shape
+     * cannot pin the uncalibrated-survey-photo refusal, and their notes
+     * claimed it did anyway.
      *
-     * [PricingJob] carries no photo field of its own: [PricingRunner.price]
-     * builds a phone [com.fenceestimator.app.data.Job] with no
-     * `surveyStoragePath`, so
-     * [com.fenceestimator.app.estimate.DrawingScale.isPhotoJob] is always
-     * false inside this harness, no matter what a case sets. A ParityCase
-     * cannot ask the engine to refuse a run the way a real photo job does;
-     * giving it real drawn points with `calibrationPixelsPerFoot = null`
-     * would just re-price case 5's ordinary uncalibrated-GRID scenario (the
-     * grid fallback, guessed at 20 px/ft) under a misleading name, not the
-     * photo refusal this section exists to pin.
+     * [PricingJob] carries no photo field of its own -- no
+     * `survey_image_path`, no `survey_storage_path` -- so
+     * [PricingRunner.price] always builds a phone
+     * [com.fenceestimator.app.data.Job] with both null, and
+     * [com.fenceestimator.app.estimate.DrawingScale.isPhotoJob] is false for
+     * every case this file could ever write, whatever a case's note claims.
+     * The refusal itself lives upstream of the engine entirely: the
+     * office's `load.ts` (`buildPricingInput` / `neutralizeUnscaledRun`) and
+     * the phone's
+     * [com.fenceestimator.app.estimate.TakeoffRefresher.refreshRun]. The
+     * closest a fixture case can get is handing the engine the RESULT of
+     * that refusal -- a run with `points_encoded` and `gates_encoded`
+     * already blanked -- which prices exactly like a run nobody ever drew
+     * on, and pins nothing beyond what an ordinary empty run already does.
+     * The removed drawn-run and with-gate cases did exactly this and
+     * called it photo coverage; their "a regression that let a blanked
+     * gate bill again would be caught" claim could not have been true --
+     * the fixture never carried a gate for a regression to bill.
      *
-     * What DOES travel into a `PricingInput`, on both the phone and the
-     * office, is the RESULT of that refusal, not the refusal itself: the
-     * phone's [com.fenceestimator.app.estimate.TakeoffRefresher.refreshRun]
-     * clears a blocked run's line items, and the office's `load.ts`
-     * (`neutralizeUnscaledRun`) blanks
-     * `points_encoded` AND `gates_encoded` together before its engine ever
-     * sees the row -- both keyed off `survey_storage_path`, the column
-     * that travels between devices, never the phone-local
-     * `survey_image_path` a single phone might set before the photo has
-     * even finished uploading. Pricing a job off the field the OTHER side
-     * can never read is exactly the "phone-only answer the office can
-     * never reproduce" this fix exists to close -- so a blanked run,
-     * calibration left null, is the one shape both engines actually
-     * receive for an uncalibrated photo job, and the one this file can
-     * honestly pin.
+     * The removed calibrated and typed-footage cases fare no better from
+     * the other direction: a calibrated drawn run and a typed-footage run
+     * are exactly what every OTHER case in this file already is, and the
+     * engine has no way to tell one apart from a plain grid job. Framing
+     * them as pinning `isPhotoJob` / `blockedByUncalibratedPhoto` claimed a
+     * check neither case could ever exercise here.
+     *
+     * The coverage lives where the refusal actually happens, in both
+     * languages, against the real objects rather than the parity JSON
+     * contract:
+     *   - `tests/a17-photo-uncalibrated-pricing.test.mjs` calls the
+     *     office's own `buildPricingInput` + `priceJob` with a real
+     *     `survey_storage_path`, proving the blanking and the resulting
+     *     zero price for a drawn run with and without a gate, a calibrated
+     *     counter-case, a typed-footage counter-case, and a
+     *     revert-the-fix-and-confirm-red check.
+     *   - `PhotoScaleTest.kt` calls
+     *     [com.fenceestimator.app.estimate.TakeoffRefresher.blockedByUncalibratedPhoto]
+     *     and [com.fenceestimator.app.estimate.EstimateEngine] directly
+     *     with a real `Job.surveyStoragePath`, for the identical shapes.
+     *
+     * Do not re-add a photo case here without first finding a way to give
+     * [PricingJob] a real photo signal the harness can flip -- otherwise it
+     * is the same false claim again.
      */
-    private fun photoCases() = listOf(
-        case(83, "photo-uncalibrated-drawn-run") {
-            note = "Uncalibrated survey photo, a fence line was drawn on it: both sides blank the " +
-                "run before pricing (load.ts neutralizeUnscaledRun / TakeoffRefresher.refreshRun), " +
-                "so this prices exactly like a run nobody has drawn on at all -- every total zero, " +
-                "no line items."
-            job = job.copy(calibrationPixelsPerFoot = null)
-            run(FenceType.VINYL, points = "", gates = "")
-        },
-        case(84, "photo-uncalibrated-with-gate") {
-            note = "Uncalibrated survey photo, a gate was also marked on it: gates are blanked " +
-                "ALONGSIDE the fence line, not priced on their own -- a gate's width needs no " +
-                "scale, but billing it while the fence line it opens onto is correctly refused is " +
-                "the same half-priced bug moved, not fixed. Every total zero, same as " +
-                "photo-uncalibrated-drawn-run. \$45/ft gate rate (not the usual \$20) on purpose: a " +
-                "regression that let a blanked gate bill again would miss this by a lot, not by a " +
-                "rounding error easy to wave off."
-            job = job.copy(calibrationPixelsPerFoot = null, gateRatePerFt = 45.0)
-            run(FenceType.VINYL, points = "", gates = "")
-        },
-        case(85, "photo-calibrated-normal") {
-            note = "A survey photo that HAS been calibrated prices normally, no special-casing: " +
-                "isUncalibratedPhotoJob / isPhotoJob only ever fire when calibration is null. 10 " +
-                "px/ft on purpose, not the grid's own 20 -- matching the fallback by coincidence " +
-                "would hide a bug that ignored the job's own calibration entirely. A 1000 px " +
-                "straight line at 10 px/ft is the same 100 ft open run vinyl-typed-open (case 1) " +
-                "types directly, so this prices identically to it: 18 posts (16 line + 2 end), 17 " +
-                "panels, 18 caps, 18 bags, \$2,120 grand total."
-            job = job.copy(calibrationPixelsPerFoot = 10.0)
-            run(FenceType.VINYL, points = pts(0 to 0, 1000 to 0))
-        },
-        case(86, "photo-typed-footage-override") {
-            note = "An uncalibrated survey photo where the contractor typed the footage instead of " +
-                "drawing it: manual_linear_feet overrides the drawing before calibration is even " +
-                "considered -- blockedByUncalibratedPhoto excludes a run that usesManualFeet by " +
-                "name. Prices identically to vinyl-typed-open (case 1) -- 100 ft, \$2,120 grand " +
-                "total -- even though the job is exactly as uncalibrated as the two zero-priced " +
-                "cases above."
-            job = job.copy(calibrationPixelsPerFoot = null)
-            run(FenceType.VINYL, feet = 100.0)
-        }
-    )
 
     /* ---------------- the DSL ---------------- */
 

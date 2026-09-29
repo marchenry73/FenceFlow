@@ -662,6 +662,15 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 // Same rule the view model measures edits by, so a typed
                 // length matches the label it replaces.
                 val pxPerFt = SurveyViewModel.drawingScale(job2)
+                // The scale the no-photo grid's own background actually draws
+                // at, for drawGrid/drawSurveyBackground below -- never the
+                // flat PIXELS_PER_FOOT_GRID constant on its own, the same
+                // fallback-only-when-null rule every other reader of pxPerFt
+                // on this screen already follows (liveFeet, totalFeetAllRuns
+                // above). See the comment on drawGrid for why this matters:
+                // it used to be the flat constant unconditionally, which drew
+                // the wrong-size squares on every grid but the 400ft default.
+                val gridPxPerFt = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
 
                 // The magnifier loupe (see MagnifierLoupe below): where to draw
                 // it (screen space), what ground it should be centered on
@@ -1033,7 +1042,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
 
                         drawSurveyBackground(
                             bmp, transform, canvasContentSize.first, canvasContentSize.second,
-                            job2.gridFeetPerSquare, satelliteOn, satelliteAnchor, satelliteTiles
+                            job2.gridFeetPerSquare, gridPxPerFt, satelliteOn, satelliteAnchor, satelliteTiles
                         )
 
                         // A gate at its real width, hung on real posts, drawn
@@ -1548,6 +1557,7 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                 contentW = canvasContentSize.first,
                                 contentH = canvasContentSize.second,
                                 gridFeetPerSquare = job2.gridFeetPerSquare,
+                                pxPerFt = gridPxPerFt,
                                 satelliteOn = satelliteOn,
                                 satelliteAnchor = satelliteAnchor,
                                 satelliteTiles = satelliteTiles,
@@ -2363,6 +2373,34 @@ private fun LayersDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        // D1: "unlimited grid -- draw bigger, zoom out and
+                        // keep finding grid." The chip row above is a fixed
+                        // list of quick picks and always will be; this is the
+                        // control with no top, one double/halve per tap
+                        // (SurveyViewModel.zoomGridExtent). It goes through
+                        // the same onSetGridExtent the chips use, so a job's
+                        // drawing is rescaled and its measured lengths held
+                        // fixed exactly the way picking a chip already does --
+                        // this never touches calibration on its own, only
+                        // asks setGridExtent for a bigger or smaller number.
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                            IconButton(
+                                onClick = {
+                                    onSetGridExtent(SurveyViewModel.zoomGridExtent(job2.gridExtentFt, 0.5f))
+                                },
+                                enabled = editable && job2.gridExtentFt > SurveyViewModel.MIN_GRID_EXTENT_FT
+                            ) { Icon(Icons.Filled.Remove, contentDescription = "Smaller grid") }
+                            Text(
+                                stringResource(R.string.draw_grid_size_ft, job2.gridExtentFt.toInt()),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            IconButton(
+                                onClick = {
+                                    onSetGridExtent(SurveyViewModel.zoomGridExtent(job2.gridExtentFt, 2f))
+                                },
+                                enabled = editable
+                            ) { Icon(Icons.Filled.Add, contentDescription = "Bigger grid") }
+                        }
                         DraftNumberField(
                             stableKey = job2.id, label = stringResource(R.string.misc_survey_feet_per_square),
                             initialValue = job2.gridFeetPerSquare,
@@ -2649,17 +2687,84 @@ private fun viewTransform(contentW: Int, contentH: Int, canvasSize: IntSize, zoo
     return FitTransform(scale, offsetX, offsetY)
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform: FitTransform, contentW: Int, contentH: Int, gridLineSpacingFt: Float) {
+/**
+ * A hard ceiling on gridlines drawn per axis, independent of extent, of
+ * gridLineSpacingFt, and of the device this runs on.
+ *
+ * contentW/contentH are fixed (GRID_CANVAS_SIZE), so the number of lines
+ * drawn is contentW / stepUnits. Before D1 that was self-limiting by
+ * accident: gridFeetPerSquare is set to extentFt/20 every time the extent
+ * changes ([SurveyViewModel.setGridExtent]), so at the CORRECT per-job scale
+ * (extentFt/20 feet * 8000/extentFt units/ft = 400 units, always) that ratio
+ * already comes out to a constant ~20 lines per axis at any extent -- the
+ * "squares stay meaningful" property D1 asks for falls straight out of that
+ * arithmetic. But gridLineSpacingFt can also be typed in by hand
+ * (setGridLineSpacingFt, floor 0.5ft, no ceiling), and D1 removes the other
+ * half of that ceiling too (zoomGridExtent has no top). 0.5ft of spacing on
+ * an extent zoomed out several times over would ask this loop for millions
+ * of lines and hang the frame -- not a hypothetical once both inputs are
+ * genuinely unbounded, so the bound is enforced here directly rather than
+ * trusted to stay small by construction.
+ */
+private const val MAX_GRID_LINES_PER_AXIS = 200
+
+/**
+ * Draws the no-photo grid: the background rectangle, then vertical and
+ * horizontal lines every [gridLineSpacingFt] feet (every fifth one heavier,
+ * matching [PlanColors.gridMajor]'s doc), labelled with their distance from
+ * the canvas's own top-left corner once they are far enough apart on screen
+ * to hold a label without crowding.
+ *
+ * [pxPerFt] is the scale THIS job actually measures its drawing at
+ * ([SurveyViewModel.drawingScale] / [com.fenceestimator.app.estimate.DrawingScale.of]),
+ * which is what turns [gridLineSpacingFt] (real feet) into canvas units here.
+ * Before D1 this used the flat, legacy [SurveyViewModel.PIXELS_PER_FOOT_GRID]
+ * constant unconditionally -- correct only on the 400ft default, where that
+ * constant and the job's real scale are the same number by construction. On
+ * every other grid size the two diverge (a 2000ft grid measures at 4
+ * units/ft, not 20), so a "100 ft" square was actually drawn 5x too far
+ * apart -- wrong on every grid this screen already shipped (1000ft, 2000ft),
+ * and exactly backwards for D1, which is asking for MORE grid sizes to be
+ * legible, not fewer. [CrewFencePlanScreen]'s read-only copy of this same
+ * grid already carries this fix, with the identical reasoning in its own
+ * comment; this was this screen's matching half.
+ *
+ * This is purely cosmetic. Nothing here writes calibrationPixelsPerFoot or a
+ * stored point -- [SurveyViewModel.setGridExtent] and the transform used to
+ * place a tap are the only things that do that, and neither changes with
+ * this fix -- so no existing job's measured footage or price moves. What
+ * moves is only which lines get drawn where in the background picture, i.e.
+ * whether the square someone is eyeballing a distance against is honestly
+ * the size the "feet per square" field claims.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(
+    transform: FitTransform,
+    contentW: Int,
+    contentH: Int,
+    gridLineSpacingFt: Float,
+    pxPerFt: Float,
+    showLabels: Boolean = true
+) {
     drawRect(
         PlanColors.canvasBackground,
         topLeft = Offset(transform.offsetX, transform.offsetY),
         size = androidx.compose.ui.geometry.Size(contentW * transform.scale, contentH * transform.scale)
     )
-    val stepUnits = (gridLineSpacingFt.coerceAtLeast(0.5f)) * SurveyViewModel.PIXELS_PER_FOOT_GRID
+    val safePxPerFt = if (pxPerFt.isFinite() && pxPerFt > 0f) pxPerFt else SurveyViewModel.PIXELS_PER_FOOT_GRID
+    val wantedStepUnits = gridLineSpacingFt.coerceAtLeast(0.5f) * safePxPerFt
+    val minStepForBudget = contentW / MAX_GRID_LINES_PER_AXIS.toFloat()
+    // Only ever WIDENS the gap versus what was asked for, never narrows it --
+    // so this can make an extreme combination coarser than gridLineSpacingFt
+    // claims, but never draws MORE than what a normal extent already would.
+    val stepUnits = if (wantedStepUnits.isFinite() && wantedStepUnits >= minStepForBudget) wantedStepUnits else minStepForBudget
     // Shared with the crew's copy of this grid via PlanColors, so a square
     // means the same thing measured off either screen.
     val minorColor = PlanColors.grid
     val majorColor = PlanColors.gridMajor
+    // Below this on-screen gap a label would overlap its neighbour, so it is
+    // left off rather than drawn crowded -- the same "too small to hold it"
+    // rule the fence-segment length labels below already use.
+    val canLabel = showLabels && stepUnits * transform.scale >= 64f
     var lineIndex = 0
     var x = 0f
     while (x <= contentW) {
@@ -2670,6 +2775,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform:
             Offset(cx, transform.offsetY), Offset(cx, transform.offsetY + contentH * transform.scale),
             strokeWidth = if (isMajor) 1.5f else 0.75f
         )
+        if (isMajor && canLabel && x > 0f) {
+            drawGridLabel(x / safePxPerFt, cx + 4f, transform.offsetY + 16f, majorColor)
+        }
         x += stepUnits
         lineIndex++
     }
@@ -2683,9 +2791,45 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(transform:
             Offset(transform.offsetX, cy), Offset(transform.offsetX + contentW * transform.scale, cy),
             strokeWidth = if (isMajor) 1.5f else 0.75f
         )
+        if (isMajor && canLabel && y > 0f) {
+            drawGridLabel(y / safePxPerFt, transform.offsetX + 4f, cy - 6f, majorColor)
+        }
         y += stepUnits
         lineIndex++
     }
+}
+
+/**
+ * A small distance readout beside a major gridline -- "1,000 ft" -- so a
+ * zoomed-out grid reads as a ruler instead of an unlabelled lattice where
+ * nobody can tell a square's real size by eye any more. Distance is from the
+ * canvas's own fixed top-left corner (content-space origin), the same
+ * reference every point, gate and marker on this screen is already stored
+ * against -- a ruler mark, not a claim about where any particular fence
+ * starts.
+ *
+ * Never drawn inside [MagnifierLoupe]'s 130dp circle ([showLabels] is false
+ * there): there is no room for text at that size, and the loupe's own
+ * crosshair already says what it needs to.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGridLabel(distanceFt: Float, x: Float, y: Float, color: Color) {
+    val label = "%,d ft".format(distanceFt.roundToInt())
+    val paint = android.graphics.Paint().apply {
+        textSize = 22f
+        isAntiAlias = true
+        this.color = color.toArgb()
+    }
+    // A light backing so the label stays legible over satellite imagery too,
+    // the same reasoning as the segment-length labels below.
+    val halfWidth = paint.measureText(label) / 2f
+    drawContext.canvas.nativeCanvas.drawRoundRect(
+        x - 3f, y - 18f, x + halfWidth * 2f + 3f, y + 4f, 6f, 6f,
+        android.graphics.Paint().apply {
+            this.color = android.graphics.Color.argb(200, 255, 255, 255)
+            isAntiAlias = true
+        }
+    )
+    drawContext.canvas.nativeCanvas.drawText(label, x, y, paint)
 }
 
 /**
@@ -2877,9 +3021,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSurveyBackgroun
     contentW: Int,
     contentH: Int,
     gridFeetPerSquare: Float,
+    pxPerFt: Float,
     satelliteOn: Boolean,
     satelliteAnchor: SatelliteAnchor?,
-    satelliteTiles: Map<String, Bitmap>
+    satelliteTiles: Map<String, Bitmap>,
+    showGridLabels: Boolean = true
 ) {
     if (bmp != null) {
         drawImage(
@@ -2889,7 +3035,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSurveyBackgroun
         )
         return
     }
-    drawGrid(transform, contentW, contentH, gridFeetPerSquare)
+    drawGrid(transform, contentW, contentH, gridFeetPerSquare, pxPerFt, showGridLabels)
     if (satelliteOn && satelliteAnchor != null) {
         val viewport = IntSize(size.width.toInt(), size.height.toInt())
         visibleSatelliteTiles(satelliteAnchor, transform, viewport).forEach { (tx, ty) ->
@@ -2937,6 +3083,7 @@ private fun MagnifierLoupe(
     contentW: Int,
     contentH: Int,
     gridFeetPerSquare: Float,
+    pxPerFt: Float,
     satelliteOn: Boolean,
     satelliteAnchor: SatelliteAnchor?,
     satelliteTiles: Map<String, Bitmap>,
@@ -2959,8 +3106,11 @@ private fun MagnifierLoupe(
                     offsetY = size.height / 2f - centerContent.y * scale
                 )
                 drawSurveyBackground(
-                    bmp, localTransform, contentW, contentH, gridFeetPerSquare,
-                    satelliteOn, satelliteAnchor, satelliteTiles
+                    bmp, localTransform, contentW, contentH, gridFeetPerSquare, pxPerFt,
+                    satelliteOn, satelliteAnchor, satelliteTiles,
+                    // No room for a distance label in a 130dp circle -- see
+                    // drawGridLabel's doc.
+                    showGridLabels = false
                 )
                 // A crosshair at the loupe's exact centre -- always the point
                 // being dragged, by construction of localTransform above.

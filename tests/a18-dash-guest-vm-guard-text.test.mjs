@@ -1,12 +1,17 @@
 // DEFECTS (this wave), Android side -- covers three of the four owner-flagged
 // defects that live in .kt files, not website/dashboard.html:
 //
-//   2. FenceRunListViewModel.addRun()/duplicateRun() used to refuse a guest
-//      by returning with their `onCreated` callback never invoked at all --
-//      no error, no navigation, no explanation for whatever was waiting on
-//      it. Fixed to emit on a new `message` SharedFlow instead (see that
-//      file's own KDoc for why `onCreated` itself could not honestly carry
-//      the signal).
+//   2. FenceRunListViewModel.addRun()/duplicateRun() refuse a guest by
+//      returning before repository.createFenceRun is ever called -- the
+//      choke point that actually stops the write. An earlier fix also had
+//      the guard emit onto a `message` SharedFlow, and this very file used
+//      to assert that emission under the name "tells the caller something"
+//      -- but nothing on JobDetailScreen ever collected that flow (checked
+//      again this wave; see FenceRunListViewModel.kt's own KDoc), so it
+//      told nobody. Removed rather than wired into a screen this file does
+//      not own: what is checked below now is what actually defends a
+//      guest -- the guard returns, it logs, and the repository call sits
+//      behind that return.
 //   3. CrewJobViewModel.deleteTimeEntry() was dead code with no caller
 //      anywhere in the app -- a delete function sitting in a crew-facing
 //      view model, against this project's own "crew can never delete
@@ -108,13 +113,13 @@ function count(text, needle) {
 }
 
 // =============================================================================
-// DEFECT 2 -- FenceRunListViewModel: guard refuses AND tells the caller something
+// DEFECT 2 -- FenceRunListViewModel: guard refuses and never reaches the repository
 // =============================================================================
 
 const guardMarker = "if (session.state.value.isGuestDemo) {";
 const fenceRunListWriteFunnel = ["addRun", "duplicateRun"];
 
-test("FenceRunListViewModel's addRun/duplicateRun refuse a guest and surface something instead of silently swallowing the callback", () => {
+test("FenceRunListViewModel's addRun/duplicateRun refuse a guest, log it, and never reach the repository", () => {
   const text = src("ui/runs/FenceRunListViewModel.kt");
   assert.ok(text.includes("session: SessionManager"));
   for (const name of fenceRunListWriteFunnel) {
@@ -123,19 +128,46 @@ test("FenceRunListViewModel's addRun/duplicateRun refuse a guest and surface som
     const guardBlock = block(body, guardMarker, name);
     assert.ok(guardBlock.includes("return"), `${name}'s guard must still refuse (return)`);
     assert.ok(
-      guardBlock.includes("_message.tryEmit("),
-      `${name}'s guard must surface something on refusal -- this is the fix for the silent-callback defect`
+      guardBlock.includes("android.util.Log.w("),
+      `${name}'s guard must log, so a refused write is at least loud in logcat`
+    );
+    // THE CHOKE POINT: repository.createFenceRun must sit textually AFTER
+    // the guard block, i.e. behind the `return` above -- the actual defence
+    // is that a guest's call is refused before it ever reaches the
+    // repository, not merely that a guard exists somewhere in the function.
+    const guardEnd = body.indexOf(guardBlock) + guardBlock.length;
+    const repoCallIndex = body.indexOf("repository.createFenceRun(");
+    assert.ok(repoCallIndex >= 0, `${name} must call repository.createFenceRun to actually create a run`);
+    assert.ok(
+      repoCallIndex > guardEnd,
+      `${name}'s repository.createFenceRun call must sit AFTER the guest guard, not before or inside it -- ` +
+        "otherwise the guard's return would not stop it from running"
     );
   }
 });
 
-test("PLANTED FAILURE: the pre-fix single-line guard shape surfaces nothing on refusal", () => {
-  // Reconstructs exactly what FenceRunListViewModel.kt carried before this
-  // wave: `if (session.state.value.isGuestDemo) return` with nothing else.
-  const preFixAddRun = `fun addRun(\n        onCreated: (Long) -> Unit\n    ) {\n        if (session.state.value.isGuestDemo) return\n        viewModelScope.launch { onCreated(1L) }\n    }`;
-  assert.ok(opensWith(preFixAddRun, "if (session.state.value.isGuestDemo) return"), "sanity: the pre-fix shape really does open with the bare guard");
-  assert.ok(!opensWith(preFixAddRun, guardMarker), "sanity: the pre-fix shape has no block-style guard at all");
-  assert.ok(!preFixAddRun.includes("_message.tryEmit("), "the bug: the pre-fix shape surfaces nothing on refusal");
+test("PLANTED FAILURE: the repository choke-point check catches a call hoisted above the guard", () => {
+  // Simulates a regression where the guard is still present but the
+  // repository call was hoisted above it -- the guard would no longer stand
+  // between a guest and the write it exists to stop.
+  const before = [
+    "fun addRun(onCreated: (Long) -> Unit) {",
+    "    val id = repository.createFenceRun(run)",
+    "    if (session.state.value.isGuestDemo) {",
+    '        android.util.Log.w("FenceRunListViewModel", "guest demo refused write: addRun")',
+    "        return",
+    "    }",
+    "    onCreated(id)",
+    "}",
+  ].join("\n");
+  const body = functionBody(before, "addRun");
+  const guardBlock = block(body, guardMarker, "planted addRun guest refusal");
+  const guardEnd = body.indexOf(guardBlock) + guardBlock.length;
+  const repoCallIndex = body.indexOf("repository.createFenceRun(");
+  assert.ok(
+    !(repoCallIndex > guardEnd),
+    "a repository call hoisted above the guard must fail the choke-point check"
+  );
 });
 
 test("DEFECT 3: CrewJobViewModel has no delete-time-entry function left, and nothing in the app calls one on it", () => {

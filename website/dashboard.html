@@ -21950,7 +21950,11 @@ function wizStepSendHtml(){
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
         <button class="btn btn-sm" id="wz_q_copy" type="button" ${zeroQuote?'disabled':''} style="${zeroQuote?'opacity:.5':''}" title="${zeroQuote?esc(tr('qBlockZeroBtnTitle')):''}">Copy link</button>
         <button class="btn btn-sm btn-grey" id="wz_q_open" type="button" ${zeroQuote?'disabled':''} style="${zeroQuote?'opacity:.5':''}" title="${zeroQuote?esc(tr('qBlockZeroBtnTitle')):''}">Preview it</button>
-        <button class="btn btn-sm btn-grey" id="wz_q_sent" type="button">Mark as sent</button>
+        <!-- Gated on the same zeroQuote this step already computes for wz_q_copy and
+             wz_q_open above: marking a $0 quote sent stamps quote_sent_at, and JobSync
+             stops pushing a fresh contract_total once that is set, so this was the one
+             door of the three that could freeze a $0 price on the job permanently. -->
+        <button class="btn btn-sm btn-grey" id="wz_q_sent" type="button" ${zeroQuote?'disabled':''} style="${zeroQuote?'opacity:.5':''}" title="${zeroQuote?esc(tr('qBlockZeroBtnTitle')):''}">Mark as sent</button>
       </div>
       <p class="sub" style="margin-top:9px">${esc(bits.join(' '))}</p>
     </div>

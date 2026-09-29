@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.3",
-    "generated_at": "2026-09-29T07:15:59.729032400Z"
+    "generated_at": "2026-09-29T08:54:40.747585100Z"
   },
   "case": "hand-added-extras-survive",
   "note": "Role-NONE rows on the run and any row with no run survive into the totals; a stale generated row on the run is replaced; an edited HOLE_PLUG the run no longer builds is kept as it is; a roled row with no run survives but carries nothing.",

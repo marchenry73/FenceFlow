@@ -5,6 +5,8 @@ import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FencePoint
+import com.fenceestimator.app.geometry.GateMarker
+import com.fenceestimator.app.geometry.GateMounting
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -117,5 +119,53 @@ class PhotoScaleTest {
         assertFalse(TakeoffRefresher.blockedByUncalibratedPhoto(job, run))
         assertEquals(100f, EstimateEngine.linearFeet(job, listOf(run)))
         assertEquals(100f, EstimateEngine.suggestQuantities(run, pixelsPerFoot = DrawingScale.PIXELS_PER_FOOT_GRID).netLinearFeet)
+    }
+
+    private fun gateOnlyRun() = FenceRun(
+        jobId = 1,
+        fenceType = FenceType.VINYL,
+        gatesEncoded = FenceCodec.encodeGates(listOf(GateMarker(0f, 0f, 5f, GateMounting.LINE))),
+    )
+
+    /**
+     * The other half of what the parity-gate review asked this file and
+     * a17-photo-uncalibrated-pricing.test.mjs to pin between them: not only
+     * that an uncalibrated photo run's FOOTAGE prices at zero (the tests
+     * above), but that its GATE does too.
+     * [EstimateEngine.computeTotals] applies
+     * [TakeoffRefresher.blockedByUncalibratedPhoto] to a run's gate feet the
+     * same way [EstimateEngine.linearFeet] applies it to fence footage --
+     * see the comment on [EstimateEngine.computeTotals]'s own `gateFeet`
+     * line for why: a gate's width is typed in feet and needs no scale, so
+     * nothing else stops it from being billed while the fence line it opens
+     * onto correctly bills zero.
+     *
+     * ZeroPriceGuardTest.kt already pins this exact rule thoroughly (a
+     * FIXED case, a POSITIVE CONTROL, and a CANARY, all keyed on
+     * `Job.surveyStoragePath`). Restated here, keyed the identical way, so
+     * this file -- the one the review named as covering the photo work
+     * alongside a17 -- does not depend on a third file being found to
+     * account for the gate half of that claim.
+     */
+    @Test
+    fun `an uncalibrated photo run bills no gate feet or gate charge`() {
+        val job = Job(customerName = "Test", surveyStoragePath = storagePath, calibrationPixelsPerFoot = null, gateRatePerFt = 35.0)
+        val run = gateOnlyRun()
+
+        assertTrue(TakeoffRefresher.blockedByUncalibratedPhoto(job, run))
+        val totals = EstimateEngine.computeTotals(job, emptyList(), 0f, runs = listOf(run))
+        assertEquals("gate blanked along with the fence line -- no gate feet", 0.0, totals.gateFeet, 0.001)
+        assertEquals("no gate charge either", 0.0, totals.gateCharge, 0.001)
+    }
+
+    @Test
+    fun `CANARY -- the identical gate on an uncalibrated GRID job still bills in full`() {
+        val job = Job(customerName = "Test", surveyStoragePath = null, calibrationPixelsPerFoot = null, gateRatePerFt = 35.0)
+        val run = gateOnlyRun()
+
+        assertFalse(TakeoffRefresher.blockedByUncalibratedPhoto(job, run))
+        val totals = EstimateEngine.computeTotals(job, emptyList(), 0f, runs = listOf(run))
+        assertEquals(5.0, totals.gateFeet, 0.001)
+        assertEquals("5 ft gate x \$35/ft", 175.0, totals.gateCharge, 0.001)
     }
 }

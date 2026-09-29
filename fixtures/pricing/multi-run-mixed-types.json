@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.09.3",
-    "generated_at": "2026-09-29T07:15:59.729032400Z"
+    "generated_at": "2026-09-29T08:54:40.747585100Z"
   },
   "case": "multi-run-mixed-types",
   "note": "Three runs of three types on one job: items concatenated in run order, sort_order restarting per run, totals summed in (sort_order, sync_id) order across runs.",

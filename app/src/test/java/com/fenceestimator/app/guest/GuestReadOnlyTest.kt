@@ -1059,23 +1059,26 @@ class GuestReadOnlyTest {
 
     private val fenceRunListWriteFunnel = listOf("addRun", "duplicateRun")
 
-    // The guard grew from a bare `if (session.state.value.isGuestDemo)
-    // return` into a block that also tells the caller something (see
-    // FenceRunListViewModel's own KDoc on `message`): the fix for "the
-    // callback is never invoked and nothing else is told either" -- a
-    // caller waiting on `onCreated` to navigate used to get no error, no
-    // movement and no explanation at all. `onCreated` itself could not
-    // honestly carry that signal (it hands back the id of a run that now
-    // exists; faking one would navigate to an editor for a run that was
-    // never created), so the guard now emits on the same `message`
-    // SharedFlow CrewJobViewModel's sibling functions use instead. The
-    // checks below follow SurveyViewModel.editRun's own block-guard idiom
-    // (see that section above) for exactly this reason: a guard that does
-    // more than return in one statement cannot be pinned as a single line.
+    // The guard is a block, not a bare `if (...) return`, because it also
+    // logs -- the checks below follow SurveyViewModel.editRun's own
+    // block-guard idiom (see that section above) for exactly this reason: a
+    // guard that does more than return in one statement cannot be pinned as
+    // a single line.
+    //
+    // DEFECT (this wave): this guard used to also emit onto a `message`
+    // SharedFlow, and this very test used to assert that emission under the
+    // name "tells the caller something" -- but nothing on JobDetailScreen
+    // ever collected that flow (see FenceRunListViewModel's own KDoc), so
+    // the emission told nobody anything. The test's name and the flow it
+    // pinned both overstated what the fix did. The flow has been removed
+    // rather than wired into a screen this file does not own; what is
+    // checked below is what actually defends a guest from this write --
+    // the guard returns, it logs, and repository.createFenceRun sits behind
+    // that return, not in front of it.
     private val fenceRunListGuardMarker = "if (session.state.value.isGuestDemo) {"
 
     @Test
-    fun `every FenceRunListViewModel write funnel opens with the guest refusal and tells the caller something`() {
+    fun `every FenceRunListViewModel write funnel opens with the guest refusal and never reaches the repository`() {
         val text = src("ui/runs/FenceRunListViewModel.kt")
         assertTrue(
             "FenceRunListViewModel's constructor must take a `session: SessionManager` parameter, " +
@@ -1088,11 +1091,48 @@ class GuestReadOnlyTest {
             val guardBlock = block(body, fenceRunListGuardMarker, "$name's guest refusal")
             assertTrue("$name's guest refusal must still return rather than fall through", guardBlock.contains("return"))
             assertTrue(
-                "$name's guest refusal must surface something on the `message` flow rather than silently " +
-                    "returning with onCreated never invoked and nothing else said either",
-                guardBlock.contains("_message.tryEmit(")
+                "$name's guest refusal must log, so a refused write is at least loud in logcat",
+                guardBlock.contains("android.util.Log.w(")
+            )
+            // THE CHOKE POINT: repository.createFenceRun must sit textually
+            // AFTER the guard block, i.e. behind the `return` above. That is
+            // the actual defence -- not that a guard exists somewhere in the
+            // function, but that a guest's call is refused before it ever
+            // reaches the repository.
+            val guardEnd = body.indexOf(guardBlock) + guardBlock.length
+            val repoCallIndex = body.indexOf("repository.createFenceRun(")
+            assertTrue("$name must call repository.createFenceRun to actually create a run", repoCallIndex >= 0)
+            assertTrue(
+                "$name's repository.createFenceRun call must sit AFTER the guest guard, not before or inside " +
+                    "it -- otherwise the guard's return would not stop it from running",
+                repoCallIndex > guardEnd
             )
         }
+    }
+
+    @Test
+    fun `the repository choke-point check has teeth -- planted failure`() {
+        // Simulates a regression where the guard is still present but the
+        // repository call was hoisted above it -- the guard would no longer
+        // stand between a guest and the write it exists to stop.
+        val before = """
+            fun addRun(onCreated: (Long) -> Unit) {
+                val id = repository.createFenceRun(run)
+                if (session.state.value.isGuestDemo) {
+                    android.util.Log.w("FenceRunListViewModel", "guest demo refused write: addRun")
+                    return
+                }
+                onCreated(id)
+            }
+        """.trimIndent()
+        val body = functionBody(before, "addRun")
+        val guardBlock = block(body, fenceRunListGuardMarker, "planted addRun guest refusal")
+        val guardEnd = body.indexOf(guardBlock) + guardBlock.length
+        val repoCallIndex = body.indexOf("repository.createFenceRun(")
+        assertFalse(
+            "a repository call hoisted above the guard must fail the choke-point check",
+            repoCallIndex > guardEnd
+        )
     }
 
     @Test
