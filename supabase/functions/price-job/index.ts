@@ -65,11 +65,20 @@ const json = (body: unknown, status = 200) =>
 // stamps contract_total, so whichever wrote last would win on the contract.
 // check-parity.mjs cannot catch it: it runs the two ENGINES over a shared
 // fixture and never exercises this select.
+//
+// survey_storage_path is in this list for the same reason: it is the one
+// column that tells buildPricingInput (load.ts) whether an uncalibrated job
+// is a GRID (known scale, keep guessing it) or a PHOTO (no scale exists --
+// refuse rather than guess). Missing from this list, isUncalibratedPhotoJob
+// reads it as undefined and treats that as "no photo" (see the comment
+// there), so the quiet failure mode is the OLD bug -- a photo job's
+// materials guessed at the grid scale -- not a new one that would also
+// block every ordinary grid job.
 const JOB_COLUMNS = "sync_id, updated_at, calibration_pixels_per_foot, tax_rate_percent, " +
   "markup_percent, discount_percent, labor_rate_per_ft, labor_flat_fee, minimum_job_charge, " +
   "minimum_labor_charge, " +
   "waste_percent, gate_rate_per_ft, trash_haul_fee, teardown_enabled, teardown_flat_fee, " +
-  "teardown_rate_per_ft, teardown_feet, preferred_manufacturer_sync_id";
+  "teardown_rate_per_ft, teardown_feet, preferred_manufacturer_sync_id, survey_storage_path";
 const RUN_COLUMNS = "sync_id, label, fence_type, color_or_finish, points_encoded, gates_encoded, " +
   "closed_loop, manual_linear_feet, manual_corner_count, panel_width_ft, panel_height_ft, " +
   "post_spacing_ft, concrete_bags_per_post, aluminum_style, wood_style, wood_rail_count, " +

@@ -109,7 +109,7 @@ object EstimateEngine {
      * any formula here is a new version, regenerated fixtures, and the port
      * moved in the same commit -- never one side alone.
      */
-    const val PRICING_ENGINE_VERSION = "2026.09.1"
+    const val PRICING_ENGINE_VERSION = "2026.09.2"
 
     private data class PostCounts(
         val linePosts: Int,
@@ -185,20 +185,76 @@ object EstimateEngine {
      * came from -- the sort of disagreement that reads as the app inventing
      * numbers. Calling this from all of them means they cannot drift apart.
      *
-     * An uncalibrated run with no typed-in footage contributes nothing rather
-     * than guessing, so a half-set-up job reads as incomplete instead of wrong.
+     * A drawn run with a stored calibration measures at it; an uncalibrated
+     * drawn run on the GRID (no survey photo) measures at
+     * [DrawingScale.PIXELS_PER_FOOT_GRID] -- the same flat scale
+     * [suggestQuantities] already measures materials at for it, and the same
+     * one the server port's own footageOf (pricing/totals.ts) uses, so a run
+     * priced off the drawing bills the same footage on both halves of the
+     * estimate AND the same footage the office would compute for it. This
+     * used to read the job's calibration directly and treat "none set" as
+     * zero feet, which billed full materials and zero labour for the same
+     * grid run.
+     *
+     * An uncalibrated drawn run on a SURVEY PHOTO is different, and is NOT
+     * given that same fallback. A grid square is a known size, so 20 px/ft
+     * is a fact; a photo has no scale at all until somebody calibrates it
+     * against something of known length. Guessing one would price labour off
+     * a made-up number -- worse than the zero this billed before, because
+     * zero at least reads as "incomplete" rather than as a real quote nobody
+     * can trust. [DrawingScale.isPhotoJob] is what tells the two cases apart
+     * ([DrawingScale.of] already refuses to answer for exactly this job
+     * shape); a photo run with no calibration still contributes nothing,
+     * same as every uncalibrated run did before the grid fallback existed.
+     *
+     * The server (pricing/totals.ts) cannot make this same distinction by
+     * reading `job.calibrationPixelsPerFoot` alone: its JobRow / PricingInput
+     * contract has no survey-photo field of its own, only
+     * `calibration_pixels_per_foot` -- adding one would mean widening a type
+     * this file does not own. Instead the boundary that builds the engine's
+     * input (`buildPricingInput`, supabase/functions/_shared/pricing/load.ts)
+     * reads the column that DOES travel to the office, `survey_storage_path`
+     * (verified against the live schema, not assumed -- `survey_image_path`,
+     * the phone-local field, is not a column at all), and for an uncalibrated
+     * photo run hands the engine that run with no drawing and no gates --
+     * exactly what a run that was never drawn looks like. The unmodified
+     * engine then refuses it on its own, the same way it already refuses a
+     * run with nothing drawn on it. A calibrated photo, and every grid run,
+     * reach the engine untouched.
+     *
+     * Only a run with neither typed footage nor any drawing at all, and an
+     * uncalibrated photo run, still contribute nothing.
      */
     // Only fence being BUILT. The old fence's footage is the teardown
     // charge's business, not the labour rate's -- counting it here billed
     // installation labour for a fence that is leaving the property.
     fun linearFeet(job: Job, runs: List<FenceRun>): Float =
-        runs.filterNot { it.isTeardown }.sumOf { run ->
-            val manual = run.manualLinearFeet
-            if (manual != null && manual > 0f) manual.toDouble()
-            else job.calibrationPixelsPerFoot
-                ?.let { resolveGeometry(run, it).totalLinearFeet.toDouble() }
-                ?: 0.0
-        }.toFloat()
+        runs.filterNot { it.isTeardown }.sumOf { run -> footageOf(job, run) }.toFloat()
+
+    /**
+     * The body [linearFeet] and [teardownLinearFeet] share: typed footage,
+     * else the stored calibration, else the grid's flat fallback scale
+     * UNLESS this is an uncalibrated survey photo ([DrawingScale.isPhotoJob])
+     * -- in which case there is no honest scale to measure by and the run
+     * contributes nothing, same as a run with no drawing at all. See
+     * [linearFeet] for how the server reaches the identical answer without
+     * this function, or this check, existing on that side at all.
+     *
+     * Deliberately NOT [DrawingScale.of]: that helper also rescales an
+     * uncalibrated GRID job to its own extent
+     * ([DrawingScale.unitsPerFoot]), which a job whose grid is not the
+     * default 400 ft would measure differently here than the flat scale the
+     * server still assumes. Only the photo/grid split is this function's to
+     * fix; changing the grid case's own scale would be a second, unrelated
+     * formula change the server has no way to follow.
+     */
+    private fun footageOf(job: Job, run: FenceRun): Double {
+        val manual = run.manualLinearFeet
+        if (manual != null && manual > 0f) return manual.toDouble()
+        if (job.calibrationPixelsPerFoot == null && DrawingScale.isPhotoJob(job)) return 0.0
+        val pixelsPerFoot = job.calibrationPixelsPerFoot ?: DrawingScale.PIXELS_PER_FOOT_GRID
+        return resolveGeometry(run, pixelsPerFoot).totalLinearFeet.toDouble()
+    }
 
     /**
      * Footage either comes from the drawing or is typed in. Typed-in footage
@@ -783,15 +839,9 @@ object EstimateEngine {
      *   slowest work on the job per foot, and pricing it like fence line loses
      *   money on every gate.
      */
-    /** The old fence's own footage, for the teardown charge. */
+    /** The old fence's own footage, for the teardown charge. Same fallback -- and same photo refusal -- as [linearFeet]. */
     fun teardownLinearFeet(job: Job, runs: List<FenceRun>): Float =
-        runs.filter { it.isTeardown }.sumOf { run ->
-            val manual = run.manualLinearFeet
-            if (manual != null && manual > 0f) manual.toDouble()
-            else job.calibrationPixelsPerFoot
-                ?.let { resolveGeometry(run, it).totalLinearFeet.toDouble() }
-                ?: 0.0
-        }.toFloat()
+        runs.filter { it.isTeardown }.sumOf { run -> footageOf(job, run) }.toFloat()
 
     fun computeTotals(
         job: Job,

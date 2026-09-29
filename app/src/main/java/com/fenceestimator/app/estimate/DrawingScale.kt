@@ -17,13 +17,19 @@ import com.fenceestimator.app.data.Job
  * Pure -- no Android, no database -- so the rule is held to a test
  * (DrawingScaleSharedTest) and every caller reads the same answer.
  *
- * NOT used by [EstimateEngine.linearFeet] / [EstimateEngine.teardownLinearFeet]
- * yet, deliberately. Those count an uncalibrated drawn run as 0 ft, and the
- * server's price-job reproduces exactly that (supabase/functions/_shared/
- * pricing/totals.ts footageOf, pinned by the drawn-uncalibrated parity fixture
- * and smoke case 3b). Moving the phone alone would make the office and the
- * phone quote the same job two ways, which is the failure the parity gate
- * exists to stop -- the two have to move in one commit.
+ * [isPhotoJob] IS used by [EstimateEngine.linearFeet] and
+ * [EstimateEngine.teardownLinearFeet] (both go through the shared private
+ * `footageOf`, which calls it once): an uncalibrated GRID run bills its flat
+ * [PIXELS_PER_FOOT_GRID] footage (a grid square is a known size), while an
+ * uncalibrated PHOTO run bills nothing rather than a guessed scale. This
+ * used to be one undifferentiated 0 ft for every uncalibrated run, grid or
+ * photo, which is what let a grid run bill full materials
+ * (suggestQuantities, measured at the same grid fallback) and zero labour
+ * for the identical footage. [TakeoffRefresher.blockedByUncalibratedPhoto]
+ * applies the identical photo check before materials are (re)generated, and
+ * the server closes the same gap at the boundary (see load.ts
+ * buildPricingInput) rather than in this file, which nothing on the server
+ * imports.
  */
 object DrawingScale {
 

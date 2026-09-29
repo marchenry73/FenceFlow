@@ -34,9 +34,18 @@ import type {
 // Database rows, exactly as price-job selects them.
 // ---------------------------------------------------------------------------
 
-/** `jobs`, plus the two columns the engine itself never reads: the id used
- * to load everything else, and the clock `commit`'s 409 check compares. */
-export type DbJobRow = JobRow & { sync_id: string; updated_at: string };
+/** `jobs`, plus three columns the engine itself never reads: the id used to
+ * load everything else, the clock `commit`'s 409 check compares, and
+ * `survey_storage_path` -- the one column that tells this file (never the
+ * engine) whether a run with no calibration is an uncalibrated GRID (a known
+ * size -- keep guessing its scale) or an uncalibrated PHOTO (no scale exists
+ * until somebody calibrates it -- see `buildPricingInput`). Verified against
+ * the live schema, not assumed: `survey_storage_path` is a real `jobs`
+ * column (`text`, nullable); `survey_image_path`, the phone-local field
+ * `DrawingScale.isPhotoJob` also reads on the phone, is not a column here at
+ * all -- it never leaves the device that took the photo, so it is not a
+ * signal this file could read even if it wanted to. */
+export type DbJobRow = JobRow & { sync_id: string; updated_at: string; survey_storage_path: string | null };
 
 /** `fence_runs`, non-deleted, in `sort_order`. Same shape as the contract's
  * own `FenceRunRow` -- the table was designed to be read straight across. */
@@ -222,20 +231,92 @@ export interface PricingInputSource {
 }
 
 /**
- * Assembles one `PricingInput`. `pixels_per_foot` is worked out here, not
- * left to the caller, because getting the fallback right (the job's own
- * calibration, or the survey grid's 20 px/ft when there is none) is the one
- * genuinely stateful decision in "turn rows into a PricingInput" -- see
- * PRICING_CONTRACT.md's note that this fallback and `linear_feet`'s do NOT
- * agree, on purpose.
+ * Whether [job] is a survey photo nobody has calibrated: no calibration set,
+ * and `survey_storage_path` -- the column that travels to a second phone and
+ * to the office, unlike the phone-local `survey_image_path`, which is not
+ * even a column here (see the note on [DbJobRow]) -- says there is a photo.
+ * Mirrors [com.fenceestimator.app.estimate.DrawingScale.isPhotoJob] crossed
+ * with the same null check [EstimateEngine.footageOf] (totals.ts's own
+ * `footageOf`) makes on `calibration_pixels_per_foot`: `<= 0` or non-finite
+ * is deliberately NOT treated as "uncalibrated" here, for the same reason
+ * neither Kotlin function does either -- widening the check is a separate,
+ * unrelated bug fix, not this one.
+ */
+function isUncalibratedPhotoJob(job: JobRow, surveyStoragePath: string | null | undefined): boolean {
+  // Null-only, deliberately matching DrawingScale.isPhotoJob's own check
+  // (`surveyImagePath != null || surveyStoragePath != null`) exactly -- that
+  // function does not treat an empty string as "no photo" either, and a
+  // parity gap between the two engines on what counts as "has a photo" is
+  // exactly the kind of drift this whole change exists to close.
+  //
+  // undefined (the column missing from a select -- see the JOB_COLUMNS note
+  // in price-job/index.ts) reads as "no photo", the same as null: failing
+  // this check open re-guesses the grid scale, exactly what every job did
+  // before this change existed. Failing it the other way -- treating a
+  // missing column as "yes, a photo" -- would refuse to price every
+  // uncalibrated GRID job's materials too, which is a new, worse bug this
+  // fix must not introduce.
+  return job.calibration_pixels_per_foot === null &&
+    surveyStoragePath !== null && surveyStoragePath !== undefined;
+}
+
+/**
+ * A run's own drawing and gates, when it cannot be honestly measured: an
+ * uncalibrated survey photo has no scale at all, so neither is knowable, any
+ * more than a page nobody has drawn on. Typed footage
+ * (`manual_linear_feet`) is untouched -- it needs no scale in the first
+ * place, which is exactly why it is allowed to override the drawing at all
+ * (`resolveGeometry` / [EstimateEngine.resolveGeometry]).
+ *
+ * Gates are blanked along with the points, not only the fence line: a gate's
+ * width is typed directly in feet and does not depend on pixels_per_foot,
+ * but pricing its hinges and panel while refusing the fence line it opens
+ * onto is the same "half priced, half not" split this whole fix exists to
+ * remove (an uncalibrated photo job billing real materials against zero
+ * labour) -- just moved from footage-vs-materials to fence-vs-gate. Refusing
+ * the whole run is the one answer that cannot read as a second, quieter
+ * version of the original bug.
+ */
+function neutralizeUnscaledRun(row: DbFenceRunRow): DbFenceRunRow {
+  const manual = row.manual_linear_feet;
+  if (manual !== null && manual !== undefined && manual > 0) return row;
+  return { ...row, points_encoded: "", gates_encoded: "" };
+}
+
+/**
+ * Assembles one `PricingInput`. Two decisions live here rather than in the
+ * caller, because both are genuinely stateful and both have to be made
+ * before a single `FenceRunRow` exists for the engine to look at:
+ *
+ *  - `pixels_per_foot`: the job's own calibration, or the survey grid's
+ *    20 px/ft when there is none.
+ *  - Whether this job's runs can be trusted to carry a real drawing at all.
+ *    An uncalibrated GRID job's fallback above is a fact (a grid square is a
+ *    known size); an uncalibrated PHOTO job's is a guess with no way to tell
+ *    it apart from a real measurement, which is exactly what let the phone
+ *    and the office price the same photo job two different ways (the phone
+ *    refuses; this file, before this change, could not). `PricingInput` /
+ *    `JobRow` (index.ts) carry no photo field of their own, and this file
+ *    does not own that engine to add one -- so instead of widening the
+ *    engine's contract, [neutralizeUnscaledRun] is applied to every run of
+ *    an [isUncalibratedPhotoJob] before it is turned into the `FenceRunRow`
+ *    the engine actually sees. A neutralized run looks, to the completely
+ *    unmodified engine, exactly like a run nobody has drawn on yet -- which
+ *    the engine already refuses to invent footage or materials for -- so
+ *    `pixels_per_foot` being a grid guess stops mattering for it: there is
+ *    nothing left on the run for that number to multiply. A calibrated
+ *    photo, and every grid job, pass through untouched.
  */
 export function buildPricingInput(src: PricingInputSource): PricingInput {
   const job = jobRowToInput(src.job);
+  const runs = isUncalibratedPhotoJob(job, src.job.survey_storage_path)
+    ? src.runs.map(neutralizeUnscaledRun)
+    : src.runs;
   return {
     engine_version: src.engineVersion,
     pixels_per_foot: f32(job.calibration_pixels_per_foot ?? 20),
     job,
-    runs: src.runs.map(fenceRunRowToInput),
+    runs: runs.map(fenceRunRowToInput),
     catalog: src.catalog.map(materialItemRowToInput),
     manufacturers: src.manufacturers.map(manufacturerRowToInput),
     change_orders: src.changeOrders.map(changeOrderRowToInput),

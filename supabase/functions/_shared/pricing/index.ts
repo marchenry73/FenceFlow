@@ -39,7 +39,7 @@ export {
  * engine and the fixtures, is a red parity gate; at runtime it is what lets
  * a phone tell that the office priced a job with newer rules.
  */
-export const PRICING_ENGINE_VERSION = "2026.09.1";
+export const PRICING_ENGINE_VERSION = "2026.09.2";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

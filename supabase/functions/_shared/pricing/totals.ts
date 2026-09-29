@@ -15,6 +15,19 @@ import { lineTotal } from "./types.ts";
 import type { ChangeOrder, EstimateLineItem, FenceRun, Job } from "./types.ts";
 
 /**
+ * The survey grid's own scale, in pixels per foot, used to measure a drawn
+ * run when the job has no calibration.
+ *
+ * Mirrors DrawingScale.PIXELS_PER_FOOT_GRID (EstimateEngine.kt /
+ * DrawingScale.kt) and the identical fallback load.ts's buildPricingInput
+ * already applies when it works out PricingInput.pixels_per_foot -- the
+ * value suggestQuantities() measures MATERIALS at for exactly this run. Kept
+ * as its own constant, rather than a bare 20 next to the one read site
+ * below, so the two are visibly the same number to change together.
+ */
+const GRID_PIXELS_PER_FOOT = 20.0;
+
+/**
  * Total footage across a job's runs.
  *
  * The one place this is worked out. It used to be copied by hand into the
@@ -23,8 +36,32 @@ import type { ChangeOrder, EstimateLineItem, FenceRun, Job } from "./types.ts";
  * came from -- the sort of disagreement that reads as the app inventing
  * numbers. Calling this from all of them means they cannot drift apart.
  *
- * An uncalibrated run with no typed-in footage contributes nothing rather
- * than guessing, so a half-set-up job reads as incomplete instead of wrong.
+ * A drawn run with no calibration measures at the grid's own scale, same as
+ * suggestQuantities() already measures materials for it -- so a run priced
+ * off the drawing bills the same footage on both halves of the estimate.
+ * This used to read the job's calibration directly and treat "none set" as
+ * zero feet, which billed full materials and zero labour for the same run
+ * (fixtures/pricing/drawn-uncalibrated.json). Only a run with neither typed
+ * footage nor any drawing at all still contributes nothing -- there is no
+ * length anywhere to measure.
+ *
+ * That grid fallback is only correct for a job with no survey photo. A grid
+ * square is a known size, so guessing 20 px/ft for it is a fact, not a
+ * guess; a photo has no scale at all until somebody calibrates it against
+ * something of known length, and pricing labour off a made-up scale is worse
+ * than the zero this used to bill. The phone knows the difference --
+ * EstimateEngine.linearFeet refuses (0 ft) for an uncalibrated run on a
+ * photo, via DrawingScale.isPhotoJob -- and THIS function does not have to
+ * follow it separately, because it never sees the photo case at all: `job`
+ * and `runs` here are already whatever load.ts's buildPricingInput decided
+ * to hand the engine, and for an uncalibrated photo job that is every run
+ * with its drawing and gates blanked (neutralizeUnscaledRun) -- the shape of
+ * a run nobody has drawn on, which the "no typed footage and no drawing"
+ * case just above already prices at zero. `JobRow` / `PricingInput` (index.ts)
+ * still carry no survey-photo field of their own; the signal
+ * (`survey_storage_path`, verified against the live schema) is read and
+ * spent entirely at that boundary, one file this change does own, rather
+ * than by widening a contract this file does not.
  *
  * Only fence being BUILT. The old fence's footage is the teardown
  * charge's business, not the labour rate's -- counting it here billed
@@ -34,17 +71,22 @@ export function linearFeet(job: Job, runs: readonly FenceRun[]): number {
   return f32(doubleSum(runs.filter((r) => !r.isTeardown).map((run) => footageOf(job, run))));
 }
 
-/** The old fence's own footage, for the teardown charge. */
+/** The old fence's own footage, for the teardown charge. Same grid fallback, and the same photo handling upstream, as [linearFeet]. */
 export function teardownLinearFeet(job: Job, runs: readonly FenceRun[]): number {
   return f32(doubleSum(runs.filter((r) => r.isTeardown).map((run) => footageOf(job, run))));
 }
 
-/** The body both sums share: typed footage, else the calibrated drawing, else nothing. */
+/**
+ * The body both sums share: typed footage, else the drawing measured at the
+ * job's calibration or the grid's own scale when there is none, else
+ * nothing (no typed footage and no drawing to measure). See [linearFeet] for
+ * where the photo case is actually decided -- not here, and not by reading
+ * anything photo-related off `job`.
+ */
 function footageOf(job: Job, run: FenceRun): number {
   const manual = run.manualLinearFeet;
   if (manual !== null && manual > 0) return manual;
-  const pixelsPerFoot = job.calibrationPixelsPerFoot;
-  if (pixelsPerFoot === null) return 0.0;
+  const pixelsPerFoot = job.calibrationPixelsPerFoot ?? GRID_PIXELS_PER_FOOT;
   return resolveGeometry(run, pixelsPerFoot).totalLinearFeet;
 }
 

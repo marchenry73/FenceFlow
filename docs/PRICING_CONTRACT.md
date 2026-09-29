@@ -14,7 +14,7 @@ If a Kotlin value has no column here, ADD it to this file in the same commit
 
 ```jsonc
 {
-  "engine_version": "2026.09.1",
+  "engine_version": "2026.09.2",
   "pixels_per_foot": 20,                 // job.calibration_pixels_per_foot ?? 20 (EstimateViewModel fallback)
   "job": {
     "calibration_pixels_per_foot": null, // number | null, as stored
@@ -72,10 +72,42 @@ part of the contract (sums iterate in order).
 - **`pixels_per_foot`** is the scale the TAKEOFF measures by:
   `job.calibration_pixels_per_foot ?? 20` (the grid's `PIXELS_PER_FOOT_GRID`,
   the fallback EstimateViewModel and TakeoffRefresher both use).
-  `linear_feet` / `teardown_linear_feet` do NOT share the fallback: they use
-  `job.calibration_pixels_per_foot` as stored and count an uncalibrated drawn
-  run as 0 ft. So an uncalibrated job gets materials and no labour feet. That
-  is the phone's behaviour; reproduce it.
+  `linear_feet` / `teardown_linear_feet` now share that same grid fallback,
+  not a separate rule: an uncalibrated run on a **grid** drawing (no survey
+  photo behind it) measures at the grid's own known scale for BOTH materials
+  and labour, because a grid square is a known size -- guessing 20 px/ft for
+  it is a fact, not a guess. This used to read `job.calibration_pixels_per_foot`
+  directly with no fallback and count an uncalibrated drawn run as 0 ft of
+  labour while `pixels_per_foot` still billed full materials for the same
+  run (`fixtures/pricing/drawn-uncalibrated.json`) -- that asymmetry is what
+  got fixed; it was never the intended contract.
+  An uncalibrated run on a **survey photo**, by contrast, has no scale at all
+  until someone calibrates it against something of known length -- a photo
+  carries no equivalent of the grid's fixed size. Guessing a scale for it is
+  worse than the old zero, so the correct rule is to price that run at zero
+  altogether: no labour feet AND no materials, not merely the old
+  labour-only zero. `EstimateEngine.linearFeet` already refuses (0 ft) for
+  this case via `DrawingScale.isPhotoJob`, and `EstimateViewModel` already
+  declines to generate any line items at all for an uncalibrated photo run
+  (`evm_set_scale_or_type`) rather than falling back to the grid guess.
+  THAT GAP IS CLOSED, and the way it is closed matters to anyone porting
+  this. `PricingInput.job` itself still carries no photo field; the signal is
+  consumed one level earlier, at the loader. `buildPricingInput` reads the
+  job's `survey_storage_path` and, for an uncalibrated photo job, BLANKS the
+  drawn geometry of every run that has no typed footage -- points and gates
+  both -- before that run ever becomes engine input. So the engine itself
+  needs no photo rule: a neutralised run is indistinguishable from one nobody
+  drew on, and prices at zero for materials and labour alike, which is the
+  intended contract above.
+
+  Two consequences a porter must know. The column has to be SELECTED for the
+  guard to see it: `survey_storage_path` is in price-job's own column list,
+  and dropping it makes every uncalibrated photo job silently grid-guessed
+  again with no error, because the guard fails OPEN by design -- an absent
+  field reads as "no photo" rather than blocking every job. And the signal
+  must be the path that TRAVELS: `survey_image_path` is a device-local field
+  and is not a column in the database at all, so keying on it would give a
+  phone-only answer the office can never reproduce.
 - **Manufacturers**: the engine narrows on the phone's Long ids. A
   `preferred_manufacturer_sync_id` or `manufacturer_sync_id` that is not in
   `manufacturers[]` resolves to null (= no preference / no manufacturer),
@@ -112,7 +144,7 @@ part of the contract (sums iterate in order).
 
 ```jsonc
 {
-  "engine_version": "2026.09.1",
+  "engine_version": "2026.09.2",
   "linear_feet": 143.5,                  // EstimateEngine.linearFeet(job, runs)
   "teardown_linear_feet": 0,             // EstimateEngine.teardownLinearFeet
   "billable_linear_feet": 143.5,         // what labour is charged on (computeTotals)
@@ -218,7 +250,7 @@ both sides. Do not drop it.
 
 ```jsonc
 { "schema": 1,
-  "engine": { "version": "2026.09.1", "generated_at": "…" },
+  "engine": { "version": "2026.09.2", "generated_at": "…" },
   "case": "vinyl-open-two-gates",
   "note": "why this case exists and what it pins",
   "input": PricingInput,
@@ -234,7 +266,7 @@ also refuses a fixture whose `input` no longer equals the case that produced
 it, and a case set that does not match the files on disk -- either means
 "regenerate", never "edit the JSON".
 
-`fixtures/pricing/manifest.json`: `{ "version": "2026.09.1", "generated_at": "…", "case_count": N }`.
+`fixtures/pricing/manifest.json`: `{ "version": "2026.09.2", "generated_at": "…", "case_count": N }`.
 
 Kotlin writes them (`ParityFixtureWriter`, active only with env
 `FENCEFLOW_PARITY_OUT=<dir>`); Kotlin (`ParityFixtureCheck`) and the

@@ -18,8 +18,8 @@ import org.junit.Test
  */
 class LinearFeetTest {
 
-    private fun job(pixelsPerFoot: Float? = null) =
-        Job(customerName = "Test", calibrationPixelsPerFoot = pixelsPerFoot)
+    private fun job(pixelsPerFoot: Float? = null, surveyImagePath: String? = null) =
+        Job(customerName = "Test", calibrationPixelsPerFoot = pixelsPerFoot, surveyImagePath = surveyImagePath)
 
     private fun run(
         feet: Float? = null,
@@ -61,11 +61,35 @@ class LinearFeetTest {
     }
 
     @Test
-    fun `an uncalibrated drawing counts as nothing rather than guessing`() {
-        // Half-set-up job: better it reads as incomplete than as a wrong number
-        // that somebody quotes off.
+    fun `an uncalibrated GRID drawing measures at the grid's own scale rather than nothing`() {
+        // Was: "an uncalibrated drawing counts as nothing rather than
+        // guessing", asserting 0f here on the theory that no calibration
+        // means no scale worth trusting at all. That was half right and half
+        // wrong. A GRID drawing (no survey photo) DOES have a real scale --
+        // the grid square is a known size, not a guess -- and
+        // suggestQuantities() was already measuring this exact run's
+        // MATERIALS off that same grid fallback. Refusing to bill LABOUR for
+        // it left one run fully priced for materials and zero for labour on
+        // the same estimate (fixtures/pricing/drawn-uncalibrated.json),
+        // which is the bug this fix closes. The photo half of the old
+        // decision was correct and is kept below.
         val drawn = run(points = listOf(0f to 0f, 200f to 0f))
-        assertEquals(0f, EstimateEngine.linearFeet(job(pixelsPerFoot = null), listOf(drawn)))
+        // 200px at the grid's 20px/ft fallback is 10 ft.
+        assertEquals(10f, EstimateEngine.linearFeet(job(pixelsPerFoot = null), listOf(drawn)))
+    }
+
+    @Test
+    fun `an uncalibrated PHOTO drawing still counts as nothing rather than guessing`() {
+        // This is the half of the old decision that was RIGHT and stays: a
+        // survey photo has no scale at all until somebody calibrates it
+        // against something of known length (DrawingScale.isPhotoJob) -- so,
+        // unlike the grid case above, there is no honest number to measure
+        // this run at, and guessing would price labour off a made-up scale.
+        val drawn = run(points = listOf(0f to 0f, 200f to 0f))
+        assertEquals(
+            0f,
+            EstimateEngine.linearFeet(job(pixelsPerFoot = null, surveyImagePath = "/data/survey.jpg"), listOf(drawn))
+        )
     }
 
     @Test

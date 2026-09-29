@@ -322,16 +322,27 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   check("case3 grand total", out.totals.grand_total, 3340);
 }
 
-// Case 3b: the same drawing with the calibration missing. The takeoff still
-//   runs at the 20 px/ft grid fallback the ViewModel supplies, but the job's
-//   own footage reads as nothing -- the phone's "uncalibrated counts as 0".
+// Case 3b: the same drawing with the calibration missing. FIXED: this used
+//   to bill zero labour for the very run whose materials the takeoff had
+//   already measured at the grid's 20 px/ft fallback -- linearFeet()
+//   (totals.ts footageOf) now shares that same fallback, so an uncalibrated
+//   GRID run bills the same 100 ft on both halves of the estimate instead of
+//   full materials and zero labour for it.
+//   This fixture has no survey photo -- the JobRow contract this engine
+//   reads has no such field at all, so every uncalibrated case this file can
+//   express is a grid case. An uncalibrated PHOTO job is a different rule
+//   (refuse rather than guess, since a photo has no real scale the way a
+//   grid square does) that the phone now applies (EstimateEngine.linearFeet,
+//   via DrawingScale.isPhotoJob) and this server engine still cannot --
+//   see the comment on footageOf in totals.ts for why.
 {
   const out = priceJob(input(
     job({ labor_rate_per_ft: 10 }),
     [run("run-3", { points_encoded: "0:0,1000:0,1000:1000" })],
   ));
   check("case3b takeoff still measures", out.runs[0].net_feet, 100);
-  check("case3b job footage is nothing", [out.linear_feet, out.billable_linear_feet, out.totals.labor_cost], [0, 0, 0]);
+  check("case3b job footage now bills the same 100 ft the takeoff measures",
+    [out.linear_feet, out.billable_linear_feet, out.totals.labor_cost], [100, 100, 1000]);
 }
 
 // Case 4: a suppressed role stays gone, and PANEL is re-derived when the

@@ -7,7 +7,6 @@ import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.ui.survey.SurveyViewModel
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -20,10 +19,19 @@ import org.junit.Test
  * drawing is at 80 units per foot, so the seed quartered the scale and every
  * side then measured four times its length -- on the plan and in the takeoff.
  *
- * And the rule it deliberately does NOT change yet: the job's own footage
- * (EstimateEngine.linearFeet) still counts an uncalibrated drawn run as
- * nothing, because price-job does exactly that (pricing/totals.ts footageOf)
- * and the phone and the office must price a job one way.
+ * Was also true, until this fix, that the job's own footage
+ * (EstimateEngine.linearFeet) counted EVERY uncalibrated drawn run as
+ * nothing, grid or photo alike, to keep the phone and price-job pricing a
+ * job one way. That was too wide a brush: a grid square is a known size, so
+ * an uncalibrated GRID run has a real scale to bill labour at (the same one
+ * suggestQuantities() already billed materials at), and treating it as
+ * nothing just reproduced the materials-vs-labour split this whole helper
+ * exists to prevent. linearFeet now bills the grid case and still refuses
+ * only the PHOTO case, where there genuinely is no honest scale
+ * ([DrawingScale.isPhotoJob]). The server (pricing/totals.ts footageOf)
+ * cannot make that same photo/grid distinction -- its input contract carries
+ * no survey-photo field -- so it still guesses the grid scale for every
+ * uncalibrated job; see the comment on footageOf in totals.ts.
  */
 class DrawingScaleSharedTest {
 
@@ -90,23 +98,58 @@ class DrawingScaleSharedTest {
     }
 
     /**
-     * Pinned to price-job, on purpose. Counting this run at the grid's scale
-     * here and not in pricing/totals.ts would have the phone and the office
-     * quote the same job two ways -- the failure the parity gate exists for.
-     * Both move together, or neither.
+     * Pinned to price-job, on purpose. Counting a GRID run at the grid's flat
+     * scale here and not in pricing/totals.ts footageOf would have the phone
+     * and the office quote the same job two ways -- the failure the parity
+     * gate exists for. Both move together, or neither.
+     *
+     * Was: "an uncalibrated drawn run still bills no footage, as price-job
+     * does", asserting 0f and reading that as the two sides agreeing. That
+     * agreement was accidental -- BOTH sides zeroed an uncalibrated GRID run
+     * out, which was simply wrong (fixtures/pricing/drawn-uncalibrated.json:
+     * full materials, zero labour, for the very same run). A grid square is
+     * a known size, so there was always a real number to bill; both engines
+     * now use it, and still agree.
      */
     @Test
-    fun `an uncalibrated drawn run still bills no footage, as price-job does`() {
+    fun `an uncalibrated GRID run bills its flat grid footage, matching price-job`() {
         val side = FenceRun(
             jobId = 1, fenceType = FenceType.VINYL,
             pointsEncoded = FenceCodec.encodePoints(listOf(FencePoint(0f, 0f), FencePoint(2000f, 0f)))
         )
         val uncalibratedGrid = Job()
-        assertEquals(0f, EstimateEngine.linearFeet(uncalibratedGrid, listOf(side)), 0f)
-        // ...while the drawing screen shows it at 100 ft. Seeding the scale
-        // (what Suggest now does) is what makes the two agree.
-        assertNotEquals(0f, DrawingScale.of(uncalibratedGrid)!!, 0f)
-        val seeded = uncalibratedGrid.copy(calibrationPixelsPerFoot = DrawingScale.calibrationToSeed(uncalibratedGrid))
-        assertEquals(100f, EstimateEngine.linearFeet(seeded, listOf(side)), 0.01f)
+        // 2000px at the grid's flat 20px/ft fallback is 100 ft -- the same
+        // fallback pricing/totals.ts footageOf applies server-side.
+        assertEquals(100f, EstimateEngine.linearFeet(uncalibratedGrid, listOf(side)), 0f)
+        // The drawing screen's own scale agrees for this (default) grid.
+        // DrawingScale.of is extent-aware, unlike linearFeet's flat
+        // fallback, so the two would read differently on a non-default grid
+        // -- a separate, pre-existing gap this fix does not touch (see the
+        // "Deliberately NOT DrawingScale.of" note on EstimateEngine.footageOf).
+        assertEquals(20f, DrawingScale.of(uncalibratedGrid)!!, 0f)
+    }
+
+    /**
+     * The photo half of the old decision was right, and stays: a survey
+     * photo has no scale at all until somebody calibrates it, so linearFeet
+     * still refuses rather than guessing -- the same "no answer"
+     * [DrawingScale.of] gives the drawing screen for the identical job.
+     *
+     * price-job (pricing/totals.ts) can NOT be pinned against this one the
+     * way the grid case above is: its JobRow input carries no survey-photo
+     * field at all, so the server has no way to tell this job apart from an
+     * uncalibrated grid job, and still guesses the grid scale for it. That
+     * gap is real and open -- not proven closed by this test, which only
+     * covers the phone.
+     */
+    @Test
+    fun `an uncalibrated PHOTO run still bills no footage, same as the drawing screen`() {
+        val side = FenceRun(
+            jobId = 1, fenceType = FenceType.VINYL,
+            pointsEncoded = FenceCodec.encodePoints(listOf(FencePoint(0f, 0f), FencePoint(2000f, 0f)))
+        )
+        val uncalibratedPhoto = Job(surveyImagePath = photo)
+        assertEquals(0f, EstimateEngine.linearFeet(uncalibratedPhoto, listOf(side)), 0f)
+        assertNull(DrawingScale.of(uncalibratedPhoto))
     }
 }
