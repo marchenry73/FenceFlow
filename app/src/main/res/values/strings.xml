@@ -959,6 +959,7 @@
     <string name="est2_provisional_pricing">Provisional pricing</string>
     <string name="est2_provisional_pricing_body">Materials are costed from your catalog, not from a supplier quote. Send the material list, then enter what they come back with.</string>
     <string name="est2_locked_price_changed">Locked: the price changed after this was signed.</string>
+    <string name="est2_locked_zero_quote">Locked: this totals $0 -- calibrate the photo or type the length first.</string>
     <string name="est2_contract_hint">Scope, price and your terms. No material breakdown.</string>
     <string name="contract_legal_gap_title">Your contract is missing the cancellation notice</string>
     <string name="contract_legal_gap_body">The terms still contain the block marked for replacement. Most states require a home-improvement contract to tell the customer, in specific wording, that they can cancel within three business days — and a contract signed at the customer\'s home has a federal rule of its own. Without it the agreement can be unenforceable. Ask your attorney for your state\'s wording and paste it into Settings, Contract terms.</string>

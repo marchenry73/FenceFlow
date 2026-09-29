@@ -3475,6 +3475,8 @@ const TL = {
     qBlockOne:'Not ready to send. 1 price on this quote is still the one FenceFlow shipped rather than yours: %s. Confirm it in Catalog first.',
     qBlockMany:'Not ready to send. %s prices on this quote are still the ones FenceFlow shipped rather than yours: %s. Confirm them in Catalog first.',
     qBlockAndMore:'%s, and more', qBlockBtnTitle:'Confirm the catalog prices on this quote first',
+    qBlockZero:'Not ready to send. This totals $0 because it is drawn on a survey photo nobody has calibrated yet -- there is no reading of a $0 fence contract that is ever the right one to send. Calibrate the photo, or type the footage, on the phone first.',
+    qBlockZeroBtnTitle:'Calibrate the survey photo, or type the footage, on the phone first',
     qProvisional:'Material prices on this job have not been confirmed with a supplier. The total is close enough to quote from, not close enough to bank on.',
     qStatusApproved:'Approved by %s on %s.', qStatusTheCustomer:'the customer',
     qStatusViewed:'Viewed %s, not approved yet.', qStatusSent:'Sent %s, not opened yet.', qStatusNotSent:'Not sent yet.',
@@ -3549,6 +3551,7 @@ const TL = {
     jobCrewUnnamed:'Unnamed', jobCrewGone:'Someone no longer on the crew', jobCrewOffSuffix:'%s — off the crew',
     jobCostRemoveBtn:'Remove', jobCostNoneMsg:'None logged.',
     jobCostAmountErr:'Enter an amount greater than zero.', jobCostAddedMsg:'Added.',
+    jobCostRetireNothingChangedErr:'Not removed — the write matched nothing. This cost may already be gone, or this account can no longer edit it. Reload and try again.',
     expCatFuel:'Fuel', expCatRental:'Equipment rental', expCatPermit:'Permit fee', expCatOther:'Other',
     opUntitledRun:'Untitled run', opRunGateOne:'1 gate', opRunGates:'%s gates', opTeardownWord:'teardown',
     opRunNet:'%s ft net', opRunPosts:'%s posts', opEditedWord:'edited', opSupplierWord:'supplier price',
@@ -5059,6 +5062,8 @@ const TL = {
     qBlockOne:'Todavía no se puede enviar. 1 precio de este presupuesto sigue siendo el que trae FenceFlow y no el suyo: %s. Confírmelo primero en Catálogo.',
     qBlockMany:'Todavía no se puede enviar. %s precios de este presupuesto siguen siendo los que trae FenceFlow y no los suyos: %s. Confírmelos primero en Catálogo.',
     qBlockAndMore:'%s y más', qBlockBtnTitle:'Confirme primero los precios del catálogo en este presupuesto',
+    qBlockZero:'Todavía no se puede enviar. Esto totaliza $0 porque está dibujado sobre una foto de estudio que nadie ha calibrado todavía -- no existe una lectura de un contrato de cerca por $0 que sea jamás la correcta para enviar. Calibre la foto, o escriba el metraje, primero en el teléfono.',
+    qBlockZeroBtnTitle:'Calibre la foto del estudio, o escriba el metraje, primero en el teléfono',
     qProvisional:'Los precios de materiales de este trabajo no se han confirmado con un proveedor. El total sirve para cotizar, pero no para darlo por seguro.',
     qStatusApproved:'Aprobado por %s el %s.', qStatusTheCustomer:'el cliente',
     qStatusViewed:'Visto el %s, todavía sin aprobar.', qStatusSent:'Enviado el %s, todavía sin abrir.', qStatusNotSent:'Todavía no se ha enviado.',
@@ -5133,6 +5138,7 @@ const TL = {
     jobCrewUnnamed:'Sin nombre', jobCrewGone:'Alguien que ya no está en la cuadrilla', jobCrewOffSuffix:'%s — fuera de la cuadrilla',
     jobCostRemoveBtn:'Quitar', jobCostNoneMsg:'Nada registrado.',
     jobCostAmountErr:'Ingrese un importe mayor que cero.', jobCostAddedMsg:'Agregado.',
+    jobCostRetireNothingChangedErr:'No se quitó: la escritura no coincidió con nada. Es posible que este costo ya no exista, o que esta cuenta ya no pueda editarlo. Recargue e inténtelo de nuevo.',
     expCatFuel:'Combustible', expCatRental:'Alquiler de equipo', expCatPermit:'Tarifa de permiso', expCatOther:'Otro',
     opUntitledRun:'Tramo sin nombre', opRunGateOne:'1 puerta', opRunGates:'%s puertas', opTeardownWord:'desmontaje',
     opRunNet:'%s ft netos', opRunPosts:'%s postes', opEditedWord:'editado', opSupplierWord:'precio de proveedor',
@@ -6613,6 +6619,8 @@ const TL = {
     qBlockOne:'Pas encore prêt à envoyer. 1 prix de ce devis est encore celui fourni par FenceFlow et non le vôtre : %s. Confirmez-le d’abord dans Catalogue.',
     qBlockMany:'Pas encore prêt à envoyer. %s prix de ce devis sont encore ceux fournis par FenceFlow et non les vôtres : %s. Confirmez-les d’abord dans Catalogue.',
     qBlockAndMore:'%s, et d’autres', qBlockBtnTitle:'Confirmez d’abord les prix du catalogue sur ce devis',
+    qBlockZero:'Pas encore prêt à envoyer. Ce devis totalise 0 $ parce qu’il est dessiné sur une photo de relevé que personne n’a encore calibrée -- il n’existe aucune lecture d’un contrat de clôture à 0 $ qui soit jamais la bonne à envoyer. Calibrez la photo, ou saisissez le métrage, d’abord sur le téléphone.',
+    qBlockZeroBtnTitle:'Calibrez la photo du relevé, ou saisissez le métrage, d’abord sur le téléphone',
     qProvisional:'Les prix des matériaux de ce chantier n’ont pas été confirmés avec un fournisseur. Le total suffit pour faire un devis, pas pour compter dessus.',
     qStatusApproved:'Approuvé par %s le %s.', qStatusTheCustomer:'le client',
     qStatusViewed:'Consulté le %s, pas encore approuvé.', qStatusSent:'Envoyé le %s, pas encore ouvert.', qStatusNotSent:'Pas encore envoyé.',
@@ -6687,6 +6695,7 @@ const TL = {
     jobCrewUnnamed:'Sans nom', jobCrewGone:'Quelqu’un qui n’est plus dans l’équipe', jobCrewOffSuffix:'%s — hors de l’équipe',
     jobCostRemoveBtn:'Retirer', jobCostNoneMsg:'Rien d’enregistré.',
     jobCostAmountErr:'Saisissez un montant supérieur à zéro.', jobCostAddedMsg:'Ajouté.',
+    jobCostRetireNothingChangedErr:'Non supprimé : l’écriture n’a rien modifié. Ce coût a peut-être déjà disparu, ou ce compte ne peut plus le modifier. Rechargez et réessayez.',
     expCatFuel:'Carburant', expCatRental:'Location d’équipement', expCatPermit:'Frais de permis', expCatOther:'Autre',
     opUntitledRun:'Section sans nom', opRunGateOne:'1 portail', opRunGates:'%s portails', opTeardownWord:'démontage',
     opRunNet:'%s pi nets', opRunPosts:'%s poteaux', opEditedWord:'modifié', opSupplierWord:'prix fournisseur',
@@ -9984,6 +9993,16 @@ const JOB_COLUMNS = [
   'materials_received_at','material_prices_confirmed_at',
   'production_stage','wizard_step','priced_at','priced_by','pricing_engine_version',
   'calibration_pixels_per_foot','site_lat','site_lon','first_contact_at','first_contact_by',
+  // survey_storage_path -- the one column that says whether this job is drawn
+  // over a survey photo at all (DrawingScale.isPhotoJob on the phone; the
+  // office has no drawing screen and cannot see the run geometry's own
+  // canvas, so this column is the only way it can tell "an uncalibrated
+  // photo, unmeasurable" apart from "an uncalibrated grid, priced off its own
+  // known scale" -- see jobHasUnmeasurablePhotoWork below). Left off this
+  // list until now, which is exactly why that check could not be written
+  // honestly before: reading job.survey_storage_path with it missing here
+  // would have read undefined on every job, silently never firing.
+  'survey_storage_path',
   'is_test_fixture','created_at','updated_at','deleted_at',
   'reapproval_required_at','reapproval_reason','reapproval_count',
   // The price the customer accepted (supabase_r6_price_stability.sql PART 1,
@@ -18232,6 +18251,60 @@ function unverifiedPricesOn(job){
   return [...names];
 }
 
+/* The phone refuses to send a contract or an invoice for a job that totals
+   $0 because it is drawn on a survey photo nobody has calibrated -- there is
+   no reading of a $0 fence contract that is ever the right document to send
+   (EstimateEngine.hasUnmeasurablePhotoWork, EstimateScreen's
+   zeroQuoteBlocked). The office had no such lock at all on either of its own
+   two doors to the same quote link -- the job view's Copy link/Preview
+   (gated only on unverifiedPricesOn above) and the quote wizard's own Copy
+   link/Preview (gated on nothing) -- so the identical job could still be
+   sent from a desk. Same trap as unverifiedPricesOn's own comment names: a
+   gate on one door only. Both doors call the two functions below, so there
+   is exactly one definition of "unmeasurable" for this page to drift from.
+
+   Reproduced from the data the office actually has, not re-derived by
+   feel: job.calibration_pixels_per_foot was already loaded (JOB_COLUMNS);
+   job.survey_storage_path was NOT, and without it this check cannot tell an
+   uncalibrated PHOTO job (genuinely unmeasurable) from an uncalibrated GRID
+   job (priced off its own known scale, DrawingScale.PIXELS_PER_FOOT_GRID --
+   see the phone's own DrawingScale.of()/isPhotoJob) -- so it has been added
+   to JOB_COLUMNS above. survey_storage_path is the column that travels to
+   the office at all (the phone-local survey_image_path never does; see
+   supabase/functions/_shared/pricing/load.ts's own comment on the same
+   column). */
+function jobHasUnmeasurablePhotoWork(job, allRuns){
+  // isPhotoJob: DrawingScale.isPhotoJob(job) == survey_storage_path != null
+  //   on the office (survey_image_path is phone-local only, never synced).
+  // blockedByUncalibratedPhoto's other half: calibration_pixels_per_foot
+  //   strictly == null, same as the Kotlin -- a stored 0 counts as
+  //   "calibrated" on the phone too, so this matches that quirk rather than
+  //   inventing a stricter check.
+  if (!job || job.survey_storage_path == null || job.calibration_pixels_per_foot != null) return false;
+  return (allRuns || []).some(r => {
+    if (!r || r.job_sync_id !== job.sync_id || r.deleted_at) return false;
+    // FenceRun.usesManualFeet -- typed footage needs no scale at all, on
+    // the phone or here, and is never blocked.
+    if ((r.manual_linear_feet || 0) > 0) return false;
+    // "genuinely unmeasurable" vs "nothing drawn yet": at least two points,
+    // or at least one gate -- FenceCodec.decodePoints.size >= 2 /
+    // decodeGates.isNotEmpty() on the phone. A brand-new job with nothing
+    // drawn on an uncalibrated photo must not be blocked or nagged.
+    return decodeRunPoints(r.points_encoded).length >= 2 || decodeRunGates(r.gates_encoded).length > 0;
+  });
+}
+
+/* EstimateScreen's zeroQuoteBlocked: a $0 total on its own proves nothing (a
+   brand-new job also totals $0), so this locks only once BOTH halves hold.
+   job.contract_total is the office's own name for the live figure the phone
+   calls totals.grandTotal -- see showJob()'s own "livePrice" readout and its
+   comment: the office never prices a job, so this is always a readout of
+   the app's own number, never a second opinion computed here. */
+function zeroQuoteBlockedOn(job, allRuns){
+  const total = job ? Number(job.contract_total || 0) : 0;
+  return total <= 0.005 && jobHasUnmeasurablePhotoWork(job, allRuns);
+}
+
 /* What has to be true before a crew is sent to a job.
 
    Each line is read from something the product already records, so nothing
@@ -18391,10 +18464,23 @@ async function addJobCost(){
     the job's history is ever audited. */
 async function retireJobCost(syncId){
   if(!canEdit() || !openJob) return;
-  const { error } = await db.from('expenses')
+  // .select() so this is judged on what the write actually changed, not on
+  // the absence of an error -- expenses_update is a plain company_id filter
+  // (supabase_schema.sql), so a row already retired, or moved to another
+  // company, by another device is simply excluded from the affected set
+  // with no error at all. Unlike toggleCatalogActive/retireCatalogItem/
+  // retireTierRow/retireSupplierDialog, there is no refreshExpenses() this
+  // function can fall back on to correct a wrong screen a moment later --
+  // `expenses` is only ever repopulated by loadAll() -- so a silently-
+  // refused write must not touch the local array at all, or the row stays
+  // gone from this screen until the next full page load while the database
+  // still has it.
+  const { data, error } = await db.from('expenses')
     .update({ deleted_at: new Date().toISOString(), deleted_by: 'office dashboard' })
-    .eq('company_id', profile.company_id).eq('sync_id', syncId);
+    .eq('company_id', profile.company_id).eq('sync_id', syncId)
+    .select();
   if(error){ msg('jcMsg', error.message, 'err'); return; }
+  if(!data || !data.length){ msg('jcMsg', tr('jobCostRetireNothingChangedErr'), 'err'); return; }
   expenses = expenses.filter(e => e.sync_id !== syncId);
   renderJobCosts(openJob.sync_id);
 }
@@ -18819,24 +18905,38 @@ function renderQuoteBlock(){
   // Blocked, not merely warned. A quote is a number a customer holds you to,
   // and the difference between a market estimate and this company's real
   // supplier cost is the whole margin.
+  //
+  // Two independent reasons can block the same two buttons. Checked in the
+  // same priority order the phone's own EstimateScreen uses for its
+  // equivalent buttons (needsResign, then zeroQuoteBlocked, then unverified
+  // prices): a $0 quote drawn on an uncalibrated photo is a refusal, not a
+  // judgement call an owner might knowingly send past the way an unconfirmed
+  // catalog price sometimes is, so its message takes the slot when both
+  // happen to be true at once.
+  const zeroQuote = zeroQuoteBlockedOn(j, runs);
   const unchecked = unverifiedPricesOn(j);
-  const shown = unchecked.slice(0, 5).join(', ');
-  $('q_block').style.display = unchecked.length ? 'block' : 'none';
-  const shownList = unchecked.length > 5 ? tr('qBlockAndMore', shown) : shown;
-  $('q_block').textContent = unchecked.length
-    ? (unchecked.length === 1 ? tr('qBlockOne', shownList) : tr('qBlockMany', unchecked.length, shownList))
-    : '';
+  const blocked = zeroQuote || unchecked.length > 0;
+  $('q_block').style.display = blocked ? 'block' : 'none';
+  if (zeroQuote) {
+    $('q_block').textContent = tr('qBlockZero');
+  } else if (unchecked.length) {
+    const shown = unchecked.slice(0, 5).join(', ');
+    const shownList = unchecked.length > 5 ? tr('qBlockAndMore', shown) : shown;
+    $('q_block').textContent = unchecked.length === 1 ? tr('qBlockOne', shownList) : tr('qBlockMany', unchecked.length, shownList);
+  } else {
+    $('q_block').textContent = '';
+  }
   ['q_copy','q_open'].forEach(id => {
     const b = $(id); if (!b) return;
-    b.disabled = unchecked.length > 0;
-    b.style.opacity = unchecked.length ? .5 : 1;
-    b.title = unchecked.length ? tr('qBlockBtnTitle') : '';
+    b.disabled = blocked;
+    b.style.opacity = blocked ? .5 : 1;
+    b.title = blocked ? (zeroQuote ? tr('qBlockZeroBtnTitle') : tr('qBlockBtnTitle')) : '';
   });
 
   // Separate from the block above: the catalog may be checked while this
   // particular job was never priced against a live supplier quote.
   const prov = !j.material_prices_confirmed_at;
-  $('q_provisional').style.display = prov && !unchecked.length ? 'block' : 'none';
+  $('q_provisional').style.display = prov && !blocked ? 'block' : 'none';
   $('q_provisional').textContent = prov ? tr('qProvisional') : '';
   const bits = [];
   if (j.quote_approved_at)
@@ -21834,14 +21934,22 @@ function wizStepSendHtml(){
   else if (j.quote_viewed_at) bits.push('Viewed '+d(j.quote_viewed_at).toLocaleString()+', not approved yet.');
   else if (j.quote_sent_at) bits.push('Sent '+d(j.quote_sent_at).toLocaleDateString()+'.');
   else bits.push('Not sent yet.');
+  // Same hard lock as the job view's own Copy link/Preview (renderQuoteBlock,
+  // zeroQuoteBlockedOn) -- this wizard step had NONE at all, so a $0 job
+  // drawn on an uncalibrated photo could still be sent from here even with
+  // the job view's own door closed. Baked straight into the markup, not set
+  // afterward in wizWireSend, because this whole step is re-rendered from
+  // scratch every time it is shown.
+  const zeroQuote = zeroQuoteBlockedOn(j, runs);
   return `
     <div class="panel"><h2>Customer quote page</h2>
       <p class="sub">A link for the homeowner: the quote, their fence in 3D, and an Approve button
         that signs with their name. No app, no account — the link is the key, so only send it to them.</p>
       <div class="readout" id="wz_q_link" style="user-select:all;overflow-wrap:anywhere">${esc(quoteLinkFor(j))}</div>
+      ${zeroQuote ? `<div class="msg err" id="wz_q_block" style="margin-top:9px">${esc(tr('qBlockZero'))}</div>` : ''}
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
-        <button class="btn btn-sm" id="wz_q_copy" type="button">Copy link</button>
-        <button class="btn btn-sm btn-grey" id="wz_q_open" type="button">Preview it</button>
+        <button class="btn btn-sm" id="wz_q_copy" type="button" ${zeroQuote?'disabled':''} style="${zeroQuote?'opacity:.5':''}" title="${zeroQuote?esc(tr('qBlockZeroBtnTitle')):''}">Copy link</button>
+        <button class="btn btn-sm btn-grey" id="wz_q_open" type="button" ${zeroQuote?'disabled':''} style="${zeroQuote?'opacity:.5':''}" title="${zeroQuote?esc(tr('qBlockZeroBtnTitle')):''}">Preview it</button>
         <button class="btn btn-sm btn-grey" id="wz_q_sent" type="button">Mark as sent</button>
       </div>
       <p class="sub" style="margin-top:9px">${esc(bits.join(' '))}</p>

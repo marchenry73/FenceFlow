@@ -760,6 +760,7 @@ private fun ExportSection(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val totals by viewModel.totals.collectAsState()
+    val runs by viewModel.runs.collectAsState()
     var showSignaturePad by remember { mutableStateOf(false) }
     var showPreSendCheck by remember { mutableStateOf(false) }
     val unverified by viewModel.unverifiedPriceNames.collectAsState()
@@ -792,6 +793,20 @@ private fun ExportSection(
     // customer never agreed to. Nothing downstream is reachable while this is
     // true -- the signed document and the bill have to describe the same job.
     val needsResign = JobMoney.signatureIsStale(job, totals.grandTotal, totals.billableLinearFeet)
+
+    // A refusal, not a warning: unlike the legal-gap or unverified-price
+    // cases below (both real judgement calls an owner might knowingly send
+    // past -- terms already reviewed elsewhere, a price they intend to
+    // true up later), there is no reading of a $0 fence contract that is
+    // ever right to send. The estimate warnings card already says WHY (it
+    // reuses the same Survey screen prompt this refusal's caption points
+    // at), but a card above the fold on a long estimate is easy to scroll
+    // past entirely -- exactly how the bug this guards against went out
+    // unnoticed. Locking the button the same way a stale signature already
+    // does ([needsResign]) is the one answer that makes it impossible to
+    // send by accident rather than merely easy to miss having been warned.
+    val zeroQuoteBlocked = totals.grandTotal <= 0.005 &&
+        EstimateEngine.hasUnmeasurablePhotoWork(job, runs)
 
     Column {
         if (needsResign) {
@@ -930,7 +945,7 @@ private fun ExportSection(
                 if (sendBlockers.isNotEmpty()) showPreSendCheck = true
                 else shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_CONTRACT)
             },
-            enabled = !needsResign,
+            enabled = !needsResign && !zeroQuoteBlocked,
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
@@ -942,6 +957,7 @@ private fun ExportSection(
         Text(
             when {
                 needsResign -> stringResource(R.string.est2_locked_price_changed)
+                zeroQuoteBlocked -> stringResource(R.string.est2_locked_zero_quote)
                 unverified.isNotEmpty() ->
                     stringResource(R.string.est_unverified_banner, unverified.size)
                 legalGap -> stringResource(R.string.contract_legal_gap_banner)
@@ -949,7 +965,7 @@ private fun ExportSection(
             },
             style = MaterialTheme.typography.bodySmall,
             color = when {
-                needsResign -> MaterialTheme.colorScheme.error
+                needsResign || zeroQuoteBlocked -> MaterialTheme.colorScheme.error
                 unverified.isNotEmpty() || legalGap -> MaterialTheme.semantic.warning
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
             }
@@ -975,8 +991,12 @@ private fun ExportSection(
             // A bill for a job nobody agreed to is how disputes start. The
             // invoice waits for acceptance -- a drawn signature or an online
             // approval, either one -- the contract button stays live above
-            // because it is the path TO that acceptance.
-            enabled = !needsResign && com.fenceestimator.app.estimate.JobMoney.isAccepted(job),
+            // because it is the path TO that acceptance. Also locked on a $0
+            // quote for the same reason the contract button is: a bill asking
+            // a customer to pay nothing is never the right document to send,
+            // and this closes the one door that could still reach one after
+            // a $0 estimate was hand-signed in person rather than sent.
+            enabled = !needsResign && !zeroQuoteBlocked && com.fenceestimator.app.estimate.JobMoney.isAccepted(job),
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Filled.Share, contentDescription = null)
@@ -985,11 +1005,12 @@ private fun ExportSection(
         Text(
             when {
                 needsResign -> stringResource(R.string.est2_locked_price_changed)
+                zeroQuoteBlocked -> stringResource(R.string.est2_locked_zero_quote)
                 !com.fenceestimator.app.estimate.JobMoney.isAccepted(job) -> stringResource(R.string.est2_locked_until_signed)
                 else -> stringResource(R.string.est2_invoice_hint)
             },
             style = MaterialTheme.typography.bodySmall,
-            color = if (needsResign || !com.fenceestimator.app.estimate.JobMoney.isAccepted(job)) MaterialTheme.colorScheme.error
+            color = if (needsResign || zeroQuoteBlocked || !com.fenceestimator.app.estimate.JobMoney.isAccepted(job)) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(Space.sm))

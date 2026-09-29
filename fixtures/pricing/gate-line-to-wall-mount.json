@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.09.2",
-    "generated_at": "2026-09-29T03:13:02.220041600Z"
+    "version": "2026.09.3",
+    "generated_at": "2026-09-29T07:15:59.729032400Z"
   },
   "case": "gate-line-to-wall-mount",
-  "note": "Line to wall: three end posts and 3.5 bags, while gatePosts stays 2 -- the cap undercount, reproduced.",
+  "note": "Line to wall: three end posts and 3.5 bags; gatePosts now counts 3 for this mounting (not the flat 2 every other mounting still takes), so POST_CAP bills all three -- the old undercount is fixed, not reproduced.",
   "input": {
-    "engine_version": "2026.09.2",
+    "engine_version": "2026.09.3",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.09.2",
+    "engine_version": "2026.09.3",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -403,9 +403,9 @@
           "line": 14,
           "corner": 0,
           "end": 2,
-          "gate": 2,
-          "terminal": 4,
-          "total": 18
+          "gate": 3,
+          "terminal": 5,
+          "total": 19
         },
         "entries": [
           {
@@ -434,7 +434,7 @@
           },
           {
             "role": "POST_CAP",
-            "quantity": 18.0,
+            "quantity": 19.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -520,19 +520,19 @@
           },
           {
             "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
+            "quantity": 3.0,
             "unit": "",
             "group": "POSTS"
           },
           {
             "label": "Total posts",
-            "quantity": 18.0,
+            "quantity": 19.0,
             "unit": "",
             "group": "POSTS"
           },
           {
             "label": "Post caps",
-            "quantity": 18.0,
+            "quantity": 19.0,
             "unit": "",
             "group": "POSTS"
           },
@@ -629,7 +629,7 @@
         "fence_run_sync_id": "0000001d-0000-4000-8000-000000000001",
         "sort_order": 3,
         "description": "5\" External Pyramid PVC Post Cap, White",
-        "quantity": 18.0,
+        "quantity": 19.0,
         "unit": "EA",
         "unit_price": 0.74,
         "supplier_unit_price": null,
@@ -769,9 +769,9 @@
       "e6750293-9285-3810-bbb2-f7d66c46a42a"
     ],
     "totals": {
-      "materials_subtotal": 1535.9799999999998,
-      "taxable_subtotal": 553.3299999999999,
-      "tax": 38.7331,
+      "materials_subtotal": 1536.7199999999998,
+      "taxable_subtotal": 554.0699999999999,
+      "tax": 38.7849,
       "labor_cost": 768.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -781,7 +781,7 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 2422.7131,
+      "pre_markup_total": 2423.5049,
       "grand_total": 2430.0,
       "billable_linear_feet": 100.0
     }

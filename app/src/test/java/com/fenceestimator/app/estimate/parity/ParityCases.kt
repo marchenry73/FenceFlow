@@ -39,7 +39,7 @@ object ParityCases {
 
     fun all(): List<ParityCase> {
         val cases = geometryCases() + fenceTypeCases() + gateCases() + catalogCases() +
-            carryOverCases() + totalsCases() + templateCases()
+            carryOverCases() + totalsCases() + templateCases() + photoCases()
         require(cases.map { it.id }.distinct().size == cases.size) { "duplicate case id" }
         return cases
     }
@@ -208,7 +208,9 @@ object ParityCases {
             run(FenceType.VINYL, feet = 100.0, colour = "White", gates = gates(gate(500, 0, 4.0, GateMounting.LINE)))
         },
         case(29, "gate-line-to-wall-mount") {
-            note = "Line to wall: three end posts and 3.5 bags, while gatePosts stays 2 -- the cap undercount, reproduced."
+            note = "Line to wall: three end posts and 3.5 bags; gatePosts now counts 3 for this mounting " +
+                "(not the flat 2 every other mounting still takes), so POST_CAP bills all three -- " +
+                "the old undercount is fixed, not reproduced."
             run(FenceType.VINYL, feet = 100.0, colour = "White", gates = gates(gate(500, 0, 4.0, GateMounting.LINE_TO_WALL)))
         },
         case(30, "gate-7-99-ft") {
@@ -560,6 +562,86 @@ object ParityCases {
         },
         template(74, "template-10-composite-privacy-6ft", "6 ft Composite Privacy: spacing 8, 3 rails.") {
             run(FenceType.COMPOSITE, feet = 100.0, panelHeight = 6.0, rails = 3)
+        }
+    )
+
+    /* ---------------- uncalibrated survey photos ---------------- */
+
+    /**
+     * Not one of the 85 cases above sets anything photo-related, so every
+     * uncalibrated-photo fix -- [EstimateEngine.footageOf]'s refusal to
+     * guess a scale, [EstimateEngine.computeTotals]'s matching refusal for
+     * gate feet, and the materials
+     * [com.fenceestimator.app.estimate.TakeoffRefresher.refreshRun] clears --
+     * has been invisible to this gate and checked by hand instead.
+     *
+     * [PricingJob] carries no photo field of its own: [PricingRunner.price]
+     * builds a phone [com.fenceestimator.app.data.Job] with no
+     * `surveyStoragePath`, so
+     * [com.fenceestimator.app.estimate.DrawingScale.isPhotoJob] is always
+     * false inside this harness, no matter what a case sets. A ParityCase
+     * cannot ask the engine to refuse a run the way a real photo job does;
+     * giving it real drawn points with `calibrationPixelsPerFoot = null`
+     * would just re-price case 5's ordinary uncalibrated-GRID scenario (the
+     * grid fallback, guessed at 20 px/ft) under a misleading name, not the
+     * photo refusal this section exists to pin.
+     *
+     * What DOES travel into a `PricingInput`, on both the phone and the
+     * office, is the RESULT of that refusal, not the refusal itself: the
+     * phone's [com.fenceestimator.app.estimate.TakeoffRefresher.refreshRun]
+     * clears a blocked run's line items, and the office's `load.ts`
+     * (`neutralizeUnscaledRun`) blanks
+     * `points_encoded` AND `gates_encoded` together before its engine ever
+     * sees the row -- both keyed off `survey_storage_path`, the column
+     * that travels between devices, never the phone-local
+     * `survey_image_path` a single phone might set before the photo has
+     * even finished uploading. Pricing a job off the field the OTHER side
+     * can never read is exactly the "phone-only answer the office can
+     * never reproduce" this fix exists to close -- so a blanked run,
+     * calibration left null, is the one shape both engines actually
+     * receive for an uncalibrated photo job, and the one this file can
+     * honestly pin.
+     */
+    private fun photoCases() = listOf(
+        case(83, "photo-uncalibrated-drawn-run") {
+            note = "Uncalibrated survey photo, a fence line was drawn on it: both sides blank the " +
+                "run before pricing (load.ts neutralizeUnscaledRun / TakeoffRefresher.refreshRun), " +
+                "so this prices exactly like a run nobody has drawn on at all -- every total zero, " +
+                "no line items."
+            job = job.copy(calibrationPixelsPerFoot = null)
+            run(FenceType.VINYL, points = "", gates = "")
+        },
+        case(84, "photo-uncalibrated-with-gate") {
+            note = "Uncalibrated survey photo, a gate was also marked on it: gates are blanked " +
+                "ALONGSIDE the fence line, not priced on their own -- a gate's width needs no " +
+                "scale, but billing it while the fence line it opens onto is correctly refused is " +
+                "the same half-priced bug moved, not fixed. Every total zero, same as " +
+                "photo-uncalibrated-drawn-run. \$45/ft gate rate (not the usual \$20) on purpose: a " +
+                "regression that let a blanked gate bill again would miss this by a lot, not by a " +
+                "rounding error easy to wave off."
+            job = job.copy(calibrationPixelsPerFoot = null, gateRatePerFt = 45.0)
+            run(FenceType.VINYL, points = "", gates = "")
+        },
+        case(85, "photo-calibrated-normal") {
+            note = "A survey photo that HAS been calibrated prices normally, no special-casing: " +
+                "isUncalibratedPhotoJob / isPhotoJob only ever fire when calibration is null. 10 " +
+                "px/ft on purpose, not the grid's own 20 -- matching the fallback by coincidence " +
+                "would hide a bug that ignored the job's own calibration entirely. A 1000 px " +
+                "straight line at 10 px/ft is the same 100 ft open run vinyl-typed-open (case 1) " +
+                "types directly, so this prices identically to it: 18 posts (16 line + 2 end), 17 " +
+                "panels, 18 caps, 18 bags, \$2,120 grand total."
+            job = job.copy(calibrationPixelsPerFoot = 10.0)
+            run(FenceType.VINYL, points = pts(0 to 0, 1000 to 0))
+        },
+        case(86, "photo-typed-footage-override") {
+            note = "An uncalibrated survey photo where the contractor typed the footage instead of " +
+                "drawing it: manual_linear_feet overrides the drawing before calibration is even " +
+                "considered -- blockedByUncalibratedPhoto excludes a run that usesManualFeet by " +
+                "name. Prices identically to vinyl-typed-open (case 1) -- 100 ft, \$2,120 grand " +
+                "total -- even though the job is exactly as uncalibrated as the two zero-priced " +
+                "cases above."
+            job = job.copy(calibrationPixelsPerFoot = null)
+            run(FenceType.VINYL, feet = 100.0)
         }
     )
 

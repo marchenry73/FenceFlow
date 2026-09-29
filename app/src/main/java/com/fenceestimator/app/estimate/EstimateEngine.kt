@@ -108,8 +108,31 @@ object EstimateEngine {
      * constant, and the committed parity fixtures carry it too: a change to
      * any formula here is a new version, regenerated fixtures, and the port
      * moved in the same commit -- never one side alone.
+     *
+     * Bumped 2026.09.2 -> 2026.09.3 for the LINE_TO_WALL post-cap fix
+     * (computePostCounts' gatePosts, ported to takeoff.ts): the formula
+     * moved and this stayed 2026.09.2 on BOTH engines through that whole
+     * change, so an old phone and the new office would have priced the
+     * identical job differently with nothing to catch it -- see
+     * tests/a18-gate-post-cap-parity-fix.test.mjs and
+     * tests/a4-engine-parity.test.mjs FINDING 2. jobs.pricing_engine_version
+     * (JobSync.kt pushContractTotal / price-job/index.ts) needs no
+     * migration for the bump: [JobMoney.anchoredTotal] is checked FIRST
+     * and, when a total is anchored (a quote
+     * that has been sent or accepted), no recompute happens regardless of
+     * engine version, so a signed price never moves under a customer's
+     * feet just because this number changed. An un-anchored job priced by
+     * this phone under the old version simply re-prices, silently, on its
+     * next sync, the same as any other formula fix always has; an
+     * un-anchored job the OFFICE priced under the old version is caught by
+     * JobSync's own engineVersionIsNewer comparison, which now sees the
+     * phone ahead of the stored office version, records the disagreement
+     * to pricing_drift (or app_errors if the phone is somehow the one
+     * behind), and still refuses to overwrite a total once quote_sent_at is
+     * set. Old rows read as stale, not wrong, and stale is exactly what
+     * lets that machinery do its job.
      */
-    const val PRICING_ENGINE_VERSION = "2026.09.2"
+    const val PRICING_ENGINE_VERSION = "2026.09.3"
 
     private data class PostCounts(
         val linePosts: Int,
@@ -390,7 +413,21 @@ object EstimateEngine {
         netFt: Float
     ): PostCounts {
         val gateCount = gates.size
-        val gatePosts = gateCount * 2
+        // Two end posts per gate, except LINE_TO_WALL, which ends the fence
+        // line a SECOND time -- gateAreaEntries adds a third END_POST for
+        // that mounting alone (its own two, plus the one where the rest of
+        // the run terminates at the wall). This count is what POST_CAP is
+        // priced off (totalPosts below), so it has to agree with what
+        // gateAreaEntries actually builds, or a LINE_TO_WALL gate stands one
+        // more post than it bills a cap for -- which it did, until now. WALL
+        // and LINE both still take exactly two.
+        // The `n: Int` is load-bearing, not style: a bare `if (..) 3 else 2`
+        // leaves sumOf ambiguous between its Int and Long overloads and does
+        // not compile.
+        val gatePosts = gates.sumOf { gate ->
+            val n: Int = if (gate.mounting == GateMounting.LINE_TO_WALL) 3 else 2
+            n
+        }
         val cornerPosts = geometry.cornerCount
         val endPosts = geometry.endCount
 
@@ -861,8 +898,24 @@ object EstimateEngine {
         // Gate openings, charged by the foot of opening. The gate width was
         // already removed from the fence footage by the takeoff, so this adds
         // rather than double-charges.
+        //
+        // A run this job cannot honestly measure -- an uncalibrated survey
+        // photo, the same test [TakeoffRefresher.blockedByUncalibratedPhoto]
+        // already applies to that run's fence footage above (via
+        // [linearFeet]/[footageOf]) -- contributes no gate feet either. A
+        // gate's width is typed directly in feet and needs no scale, so
+        // nothing here stopped it from being billed even while the fence
+        // line it opens onto correctly billed zero: two 6 ft gates at
+        // $35/ft with 25% markup billed $525 the office (which blanks a run
+        // it cannot measure entirely -- gates included, see load.ts's
+        // neutralizeUnscaledRun) had already zeroed out, and the gap SCALES
+        // with the gate rate rather than staying a rounding error. Refusing
+        // the run's gates along with its fence line is the one answer that
+        // cannot read as a second, quieter version of the zero-quote bug
+        // this same uncalibrated-photo case exists to fix.
         val gateFeet = runs.sumOf { run ->
-            FenceCodec.decodeGates(run.gatesEncoded).sumOf { it.widthFt.toDouble() }
+            if (TakeoffRefresher.blockedByUncalibratedPhoto(job, run)) 0.0
+            else FenceCodec.decodeGates(run.gatesEncoded).sumOf { it.widthFt.toDouble() }
         }
         val gateCharge = gateFeet * job.gateRatePerFt
 
@@ -926,6 +979,37 @@ object EstimateEngine {
     private const val LOW_KEPT_THRESHOLD_PERCENT = 35.0
 
     /**
+     * Whether this job's price reads as zero (or near it) for a reason a
+     * contractor cannot see anywhere on the screen: real work is drawn --
+     * a fence line, or a gate -- on a survey PHOTO nobody has calibrated, so
+     * [linearFeet] and [computeTotals]'s own gate feet (both applying
+     * [TakeoffRefresher.blockedByUncalibratedPhoto]) correctly refuse to
+     * guess its length rather than price off a made-up scale.
+     * That refusal is the right arithmetic -- guessing would be worse, a
+     * real-looking number nobody can trust -- but nothing before this said
+     * WHY the total reads zero, and there was no guard anywhere stopping
+     * that zero from being sent to a customer as if it were a real quote.
+     *
+     * Deliberately false for a run that is blocked for the identical reason
+     * but has nothing drawn on it at all: a brand-new job on an uploaded
+     * photo, not yet calibrated and not yet drawn, is not a mistake to warn
+     * about -- it is every job's very first moment, and nagging it is
+     * exactly the kind of warning that teaches people to stop reading
+     * warnings. What tells the two apart is content, not calibration state:
+     * at least one point placed on the drawing, or at least one gate.
+     *
+     * A run with typed footage ([FenceRun.usesManualFeet]) is never blocked
+     * in the first place -- it needs no scale -- so it never reaches this
+     * check at all.
+     */
+    fun hasUnmeasurablePhotoWork(job: Job, runs: List<FenceRun>): Boolean =
+        runs.any { run ->
+            TakeoffRefresher.blockedByUncalibratedPhoto(job, run) &&
+                (FenceCodec.decodePoints(run.pointsEncoded).size >= 2 ||
+                    FenceCodec.decodeGates(run.gatesEncoded).isNotEmpty())
+        }
+
+    /**
      * Rule-based sanity checks over the current estimate -- no AI needed,
      * just flags the mistakes that are easy to miss when quoting fast.
      *
@@ -948,6 +1032,17 @@ object EstimateEngine {
     ): List<EstimateWarning> {
         val warnings = mutableListOf<EstimateWarning>()
         fun money(x: Double): String = "%.2f".format(java.util.Locale.US, x)
+
+        // A zero total that is really "nothing measurable" rather than
+        // "nothing drawn" ([hasUnmeasurablePhotoWork]). Checked first and
+        // against the raw total, not a share or a rate, because every other
+        // warning below is about a number on a real quote reading wrong --
+        // this one is about a quote that is not real yet at all. Reuses the
+        // Survey screen's own scale prompt rather than a near-duplicate:
+        // the fix is the same tap on the same screen either way.
+        if (totals.grandTotal <= 0.005 && hasUnmeasurablePhotoWork(job, runs)) {
+            warnings += EstimateWarning(R.string.survey_not_calibrated)
+        }
 
         // What stays with the business after materials, as a share of the
         // price (tax excluded on both sides -- it is a passthrough).

@@ -1059,8 +1059,23 @@ class GuestReadOnlyTest {
 
     private val fenceRunListWriteFunnel = listOf("addRun", "duplicateRun")
 
+    // The guard grew from a bare `if (session.state.value.isGuestDemo)
+    // return` into a block that also tells the caller something (see
+    // FenceRunListViewModel's own KDoc on `message`): the fix for "the
+    // callback is never invoked and nothing else is told either" -- a
+    // caller waiting on `onCreated` to navigate used to get no error, no
+    // movement and no explanation at all. `onCreated` itself could not
+    // honestly carry that signal (it hands back the id of a run that now
+    // exists; faking one would navigate to an editor for a run that was
+    // never created), so the guard now emits on the same `message`
+    // SharedFlow CrewJobViewModel's sibling functions use instead. The
+    // checks below follow SurveyViewModel.editRun's own block-guard idiom
+    // (see that section above) for exactly this reason: a guard that does
+    // more than return in one statement cannot be pinned as a single line.
+    private val fenceRunListGuardMarker = "if (session.state.value.isGuestDemo) {"
+
     @Test
-    fun `every FenceRunListViewModel write funnel opens with the guest refusal`() {
+    fun `every FenceRunListViewModel write funnel opens with the guest refusal and tells the caller something`() {
         val text = src("ui/runs/FenceRunListViewModel.kt")
         assertTrue(
             "FenceRunListViewModel's constructor must take a `session: SessionManager` parameter, " +
@@ -1069,7 +1084,14 @@ class GuestReadOnlyTest {
         )
         fenceRunListWriteFunnel.forEach { name ->
             val body = functionBody(text, name)
-            assertOpensWithGuard("FenceRunListViewModel", name, body, "if (session.state.value.isGuestDemo) return")
+            assertOpensWithGuard("FenceRunListViewModel", name, body, fenceRunListGuardMarker)
+            val guardBlock = block(body, fenceRunListGuardMarker, "$name's guest refusal")
+            assertTrue("$name's guest refusal must still return rather than fall through", guardBlock.contains("return"))
+            assertTrue(
+                "$name's guest refusal must surface something on the `message` flow rather than silently " +
+                    "returning with onCreated never invoked and nothing else said either",
+                guardBlock.contains("_message.tryEmit(")
+            )
         }
     }
 
@@ -1080,11 +1102,12 @@ class GuestReadOnlyTest {
         val text = src("ui/runs/FenceRunListViewModel.kt")
         fenceRunListWriteFunnel.forEach { name ->
             val body = functionBody(text, name)
-            assertTrue("sanity: $name() really does open with the guard", opensWith(body, "if (session.state.value.isGuestDemo) return"))
-            val stripped = body.replaceFirst("if (session.state.value.isGuestDemo) return\n", "")
+            assertTrue("sanity: $name() really does open with the guard", opensWith(body, fenceRunListGuardMarker))
+            val guardBlock = block(body, fenceRunListGuardMarker, "$name's guest refusal")
+            val stripped = body.replace(guardBlock, "")
             assertFalse(
                 "the sweep must go red naming $name() once its guard is removed",
-                opensWith(stripped, "if (session.state.value.isGuestDemo) return")
+                opensWith(stripped, fenceRunListGuardMarker)
             )
         }
         // The exact regression a doc-comment-only check could not have
@@ -1092,10 +1115,12 @@ class GuestReadOnlyTest {
         // the constructor's own KDoc -- which names both `session:
         // SessionManager` and `isGuestDemo` -- is left completely untouched.
         // This is what the old whole-file `.contains()` check was blind to.
-        val bothGuardsGutted = text.replace("if (session.state.value.isGuestDemo) return\n", "")
+        val addRunGuard = block(functionBody(text, "addRun"), fenceRunListGuardMarker, "addRun's guest refusal")
+        val duplicateRunGuard = block(functionBody(text, "duplicateRun"), fenceRunListGuardMarker, "duplicateRun's guest refusal")
+        val bothGuardsGutted = text.replace(addRunGuard, "").replace(duplicateRunGuard, "")
         assertTrue(
             "sanity: the gutted copy really has zero guards left in the function bodies",
-            count(bothGuardsGutted, "if (session.state.value.isGuestDemo) return") == 0
+            count(bothGuardsGutted, fenceRunListGuardMarker) == 0
         )
         assertTrue(
             "sanity: the constructor's own doc comment still carries both strings on its own -- " +
@@ -1123,8 +1148,20 @@ class GuestReadOnlyTest {
         Regex("<string name=\"${Regex.escape(name)}\"[^>]*>([\\s\\S]*?)</string>")
             .find(xml)?.groupValues?.get(1)
 
+    // DEFECT (this wave): this test used to be named `the read-only promise
+    // the guest banner shows still exists`, which claims to pin a "read-only"
+    // promise -- but Section 4's own comment above says guest_banner_explain
+    // was reworded, as of an earlier wave, specifically to NOT claim
+    // read-only outright (see onb_access_changed_guest_body's own history),
+    // and the body below only ever asked whether the string exists and is
+    // non-blank. It could not have failed if the resource were reworded to
+    // say the exact opposite of read-only, so a name promising a pinned
+    // "read-only" claim was a name overstating its own body -- the next
+    // reader would believe more was being checked here than actually is.
+    // Renamed to what it checks; the promise this section actually pins is
+    // carried by TIE below, not by this string's wording.
     @Test
-    fun `the read-only promise the guest banner shows still exists`() {
+    fun `the guest banner's explain string exists and is not blank`() {
         val xml = resText("values/strings_guest.xml")
         val body = stringResourceBody(xml, "guest_banner_explain")
         assertTrue("expected a guest_banner_explain string resource in strings_guest.xml", body != null)
@@ -1152,8 +1189,10 @@ class GuestReadOnlyTest {
      * a floor of zero rows means a floor of zero guards demanded.
      *
      * Known gap: three other view models with the identical
-     * `session.state.value.isGuestDemo` guard -- CrewJobViewModel.kt (11
-     * occurrences), EstimateViewModel.kt (11) and InventoryViewModel.kt (6),
+     * `session.state.value.isGuestDemo` guard -- CrewJobViewModel.kt (10
+     * occurrences, after this wave's dead-code removal took deleteTimeEntry
+     * and its guard out entirely), EstimateViewModel.kt (11) and
+     * InventoryViewModel.kt (6),
      * all under active work by other tracks this wave -- have no entry here
      * either. That is the same shape of gap this section exists to close;
      * left unaddressed here on purpose because those three files are mid-edit

@@ -281,9 +281,16 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
 // Case 3: a drawn L at 20 px/ft (two 1000 px legs = 100 ft, one 90 degree corner)
 //   with an 8 ft LINE_TO_WALL gate and a 12 ft WALL gate, lowercase colour.
 //   net = 80; bays = ceil(13.33) = 14; open so standard = 14 + 1 - 2 = 13;
-//   line = 13 - 1 - 2 = 10; gate posts 4; total 17; 14 panels; 13 fence bags
-//   + 3.5 + 1 = 17.5 -> 18. Both gates are wide, so two braces and two hinge
-//   sets each; the two widths keep two GATE_PANEL lines with width-qualified ids.
+//   line = 13 - 1 - 2 = 10; gate posts: LINE_TO_WALL takes 3 (its own hinge
+//   and latch posts, plus the one where the rest of the run terminates at
+//   the wall a second time), WALL takes 2 (a blank post plus an end post) --
+//   3 + 2 = 5, not the flat "2 per gate" this used to assume before the
+//   LINE_TO_WALL post-cap fix (tests/a18-gate-post-cap-parity-fix.test.mjs);
+//   total 18; 14 panels; 13 fence bags + 3.5 + 1 = 17.5 -> 18 (concrete was
+//   never short -- gateAreaEntries already bagged the third LINE_TO_WALL
+//   post correctly, only POST_CAP undercounted it). Both gates are wide, so
+//   two braces and two hinge sets each; the two widths keep two GATE_PANEL
+//   lines with width-qualified ids.
 {
   const out = priceJob(input(
     job({ calibration_pixels_per_foot: 20, labor_rate_per_ft: 10 }),
@@ -296,12 +303,12 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
     segments: [{ from_index: 0, to_index: 1, length_ft: 50 }, { from_index: 1, to_index: 2, length_ft: 50 }],
     vertices: [{ index: 0, kind: "END", turn_degrees: 0 }, { index: 1, kind: "CORNER", turn_degrees: 90 }, { index: 2, kind: "END", turn_degrees: 0 }],
   });
-  check("case3 posts", out.runs[0].posts, { line: 10, corner: 1, end: 2, gate: 4, terminal: 7, total: 17 });
+  check("case3 posts", out.runs[0].posts, { line: 10, corner: 1, end: 2, gate: 5, terminal: 8, total: 18 });
   check("case3 entry count", out.runs[0].entries.length, 28);
   check("case3 last entry is the one concrete line", entriesOf(out)[27], ["CONCRETE_BAG", 18, null, null]);
   check("case3 items", itemsOf(out), [
     [0, "PANEL", 14, 52.35, null, true], [1, "LINE_POST", 10, 16.56, null, true], [2, "CORNER_POST", 1, 16.56, null, true],
-    [3, "END_POST", 6, 16.56, null, true], [4, "POST_CAP", 17, 0.74, null, true], [5, "GATE_PANEL", 1, 290, null, true],
+    [3, "END_POST", 6, 16.56, null, true], [4, "POST_CAP", 18, 0.74, null, true], [5, "GATE_PANEL", 1, 290, null, true],
     [6, "HINGE_SET", 4, 32.25, null, true], [7, "LATCH", 2, 25.87, null, true], [8, "HANDLE", 2, 5, null, true],
     [9, "BRACE", 4, 6.5, null, true], [10, "TRIM", 8, 2, null, true], [11, "STIFFENER", 2, 52.75, null, true],
     [12, "GATE_PANEL", 1, 290, null, true], [13, "BLANK_POST", 1, 16.56, null, true], [14, "HOLE_PLUG", 4, 0.15, null, true],
@@ -313,13 +320,17 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
     nameUUIDFromString("fenceflow-line:run-3:GATE_PANEL:8.0"), nameUUIDFromString("fenceflow-line:run-3:GATE_PANEL:12.0"),
   ]);
   check("case3 single-role ids unqualified", out.items[1].sync_id, nameUUIDFromString("fenceflow-line:run-3:LINE_POST"));
-  const materials = 14 * 52.35 + 10 * 16.56 + 1 * 16.56 + 6 * 16.56 + 17 * 0.74 + 290 + 4 * 32.25 + 2 * 25.87 + 2 * 5
+  const materials = 14 * 52.35 + 10 * 16.56 + 1 * 16.56 + 6 * 16.56 + 18 * 0.74 + 290 + 4 * 32.25 + 2 * 25.87 + 2 * 5
     + 4 * 6.5 + 8 * 2 + 2 * 52.75 + 290 + 16.56 + 4 * 0.15 + 18 * 4.75;
   check("case3 materials", out.totals.materials_subtotal, materials);
   check("case3 gate", [out.totals.gate_feet, out.totals.gate_charge], [20, 400]);
   check("case3 labor on 80 ft", out.totals.labor_cost, 800);
-  // 2047.90 + 92.05 tax + 800 + 400 = 3339.95, up to the next ten.
-  check("case3 grand total", out.totals.grand_total, 3340);
+  // One more $0.74 cap than before the LINE_TO_WALL post-cap fix: materials
+  // 2048.64 (was 2047.90), taxable 1315.74 x 7% = 92.1018 tax (was 92.05).
+  // 2048.64 + 92.1018 + 800 + 400 = 3340.7418, up to the next ten -- crosses
+  // this case's own $10 ceiling, so grand_total moves too (3340 -> 3350),
+  // not just materials.
+  check("case3 grand total", out.totals.grand_total, 3350);
 }
 
 // Case 3b: the same drawing with the calibration missing. FIXED: this used

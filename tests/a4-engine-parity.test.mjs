@@ -1,12 +1,12 @@
 // A4 audit -- "the two pricing engines and the tax base"
 // (app/src/main/java/com/fenceestimator/app/estimate/EstimateEngine.kt vs
 // supabase/functions/_shared/pricing/). Originally a READ-ONLY audit proving
-// two real money bugs without fixing them; FINDING 1 below is now FIXED (both
-// engines bill labour for an uncalibrated GRID run) and its assertions were
-// rewritten to check the corrected numbers instead of the bug. FINDING 2 is
-// untouched and still documents an open bug -- this file no longer proves
-// only bugs, but it still only asserts what it can show to be true, fixed or
-// not.
+// two real money bugs without fixing them. Both findings are now FIXED:
+// FINDING 1 (both engines bill labour for an uncalibrated GRID run) and
+// FINDING 2 (a LINE_TO_WALL gate bills a post cap for every post it stands)
+// have each had their assertions rewritten to check the corrected numbers
+// instead of the bug they used to pin. This file no longer proves only bugs,
+// but it still only asserts what it can show to be true, fixed or not.
 //
 // Both are called here exactly the way price-job/index.ts calls the real
 // server engine: priceJob(PricingInput), the same function
@@ -17,7 +17,7 @@
 // Neither finding is a Kotlin-vs-TypeScript disagreement -- both fixtures
 // used here are Kotlin-generated parity fixtures committed at fixtures/
 // pricing/, so the two engines always agreed with each other on these exact
-// inputs; FINDING 1 was agreeing on a wrong number, FINDING 2 still is. A
+// inputs; FINDING 1 was agreeing on a wrong number, and so was FINDING 2. A
 // parity gate, by construction, cannot catch that class of bug; only reading
 // the formula against what it should compute can. `npx tsx supabase/
 // functions/_shared/pricing/parity.ts` is the parity gate itself and is not
@@ -26,7 +26,7 @@
 // Run: npx tsx tests/a4-engine-parity.test.mjs
 
 import { readFileSync } from "node:fs";
-import { priceJob } from "../supabase/functions/_shared/pricing/index.ts";
+import { priceJob, PRICING_ENGINE_VERSION } from "../supabase/functions/_shared/pricing/index.ts";
 
 let pass = 0, fail = 0;
 const ok = (label, cond, detail = "") => {
@@ -37,6 +37,22 @@ const ok = (label, cond, detail = "") => {
 const fixture = (name) =>
   JSON.parse(readFileSync(new URL(`../fixtures/pricing/${name}.json`, import.meta.url), "utf8"));
 const clone = (x) => JSON.parse(JSON.stringify(x));
+
+// A committed fixture's `input.engine_version` is stamped with whatever
+// PRICING_ENGINE_VERSION was live the day it was generated -- the same
+// version-inlining trap the wave that fixed FINDING 2 exists to close (see
+// tests/a17-photo-uncalibrated-pricing.test.mjs, which hit this first).
+// priceJob() refuses an input whose engine_version disagrees with the
+// engine it is called on, so reading a fixture's `.input` verbatim and
+// calling the CURRENT priceJob() throws the moment the two drift -- which
+// they now always will, since PRICING_ENGINE_VERSION moves every time a
+// formula does and a committed fixture only catches up when the parity gate
+// regenerates it. This file is about the SHAPE of a job (its geometry, its
+// gates, its rates), not about proving the fixture's own stamp is current --
+// that is the parity gate's job, not this audit's -- so every fixture input
+// used below is cloned and re-stamped with today's PRICING_ENGINE_VERSION
+// before it is priced.
+const withCurrentVersion = (input) => ({ ...clone(input), engine_version: PRICING_ENGINE_VERSION });
 
 // ===========================================================================
 // FINDING 1 (FIXED) -- an uncalibrated drawn run used to bill full materials
@@ -69,27 +85,19 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 // exercises it, because nothing in this contract can represent it.
 //
 // Not a hypothetical shape -- fixtures/pricing/drawn-uncalibrated.json is a
-// real, Kotlin-generated parity fixture. It has NOT been regenerated for this
-// fix yet -- that is a later phase of this wave, not done here -- and it
-// still carries engine.version "2026.09.1" and a `note` field (sourced from
-// ParityCases.kt) describing the pre-fix asymmetry as "reproduced". Running
-// this file against the still-old fixture is expected to fail RIGHT NOW: the
-// live pricing engine's own version guard (index.ts) throws
-// `input engine_version 2026.09.1 != 2026.09.2` before a single assertion
-// below even runs, because PRICING_ENGINE_VERSION was bumped to 2026.09.2 as
-// part of the fix this file exercises. That is not a bug in this test file --
-// the assertions below are the correct, intended behaviour and are simply
-// waiting on the fixture regeneration. Do not weaken or delete them to make
-// this file pass early; treat red here as expected until
-// fixtures/pricing/drawn-uncalibrated.json is regenerated (bumping its
-// engine.version to 2026.09.2 and rewriting its `note` to match) in that
-// later phase, at which point this file should go green with no further
-// changes needed.
+// real, Kotlin-generated parity fixture. Its own `note` field (sourced from
+// ParityCases.kt) still describes the pre-fix asymmetry as "reproduced" --
+// stale prose nobody has rewritten yet, not a code bug -- but its `input` is
+// what this section actually reads, run through withCurrentVersion (see the
+// top of this file) rather than priceJob(fixture(...).input) directly: a
+// committed fixture's own engine.version stamp is only ever as current as
+// the last parity-gate regeneration, and this audit has no business failing
+// just because that regeneration has not run since the version last moved.
 // ===========================================================================
 console.log("\n1. Uncalibrated GRID run: labour now bills the same footage materials already priced (fixtures/pricing/drawn-uncalibrated.json):");
 
 {
-  const input = fixture("drawn-uncalibrated").input;
+  const input = withCurrentVersion(fixture("drawn-uncalibrated").input);
   ok("fixture precondition: the job really is uncalibrated",
     input.job.calibration_pixels_per_foot === null,
     `calibration_pixels_per_foot=${input.job.calibration_pixels_per_foot}`);
@@ -146,7 +154,7 @@ console.log("\n1. Uncalibrated GRID run: labour now bills the same footage mater
 // it guards against the fix ever drifting back to two different answers for
 // "null" and "the value null falls back to".
 {
-  const uncalibratedInput = fixture("drawn-uncalibrated").input;
+  const uncalibratedInput = withCurrentVersion(fixture("drawn-uncalibrated").input);
   const calibratedInput = clone(uncalibratedInput);
   calibratedInput.job.calibration_pixels_per_foot = 20;
 
@@ -172,29 +180,34 @@ console.log("\n1. Uncalibrated GRID run: labour now bills the same footage mater
 }
 
 // ===========================================================================
-// FINDING 2 -- a LINE_TO_WALL gate bills one fewer post cap than the number
-// of posts the SAME takeoff puts in the ground for that job.
+// FINDING 2 (FIXED) -- a LINE_TO_WALL gate used to bill one fewer post cap
+// than the number of posts the SAME takeoff put in the ground for that job.
+// Now it bills exactly one per physical post.
 //
-// computePostCounts() always assumes exactly 2 "gate posts" per gate
+// computePostCounts() used to assume exactly 2 "gate posts" per gate
 // (gatePosts = gateCount * 2, unconditional on mounting, identical in both
 // engines) and POST_CAP is priced off that count (posts.totalPosts, used by
 // panelBasedEntries/picketAndRailEntries/chainLinkEntries). But
 // gateAreaEntries() for GateMounting.LINE_TO_WALL adds THREE END_POST
 // entries -- the gate's own hinge and latch posts, plus the post where the
 // rest of the fence terminates at the wall, because that mounting ends the
-// run twice. The post-cap count never learns about that third post; the
-// concrete count does (gateAreaEntries adds its bags explicitly per
-// mounting), so only POST_CAP falls short.
+// run twice. The post-cap count never learned about that third post; the
+// concrete count already did (gateAreaEntries adds its bags explicitly per
+// mounting), so only POST_CAP fell short. gatePosts (both engines'
+// takeoff, ported in the same change -- see
+// tests/a18-gate-post-cap-parity-fix.test.mjs) now counts 3 for
+// LINE_TO_WALL and 2 for everything else, so POST_CAP matches physical
+// posts exactly, including the gate's own blank/end posts.
 //
 // Not a hypothetical shape -- fixtures/pricing/gate-line-to-wall-mount.json
-// is a real, currently-passing, Kotlin-generated parity fixture whose own
-// `note` field names this exact shortfall and says it is "reproduced", not
-// fixed.
+// is a real, Kotlin-generated parity fixture. Its `note` field still names
+// this fixed shortfall as "reproduced" -- stale prose nobody has rewritten
+// yet, same as FINDING 1's fixture above, not a code bug.
 // ===========================================================================
-console.log("\n2. LINE_TO_WALL gate: one post stands with no cap billed for it (fixtures/pricing/gate-line-to-wall-mount.json):");
+console.log("\n2. LINE_TO_WALL gate: post caps now match physical posts exactly (fixtures/pricing/gate-line-to-wall-mount.json):");
 
 {
-  const input = fixture("gate-line-to-wall-mount").input;
+  const input = withCurrentVersion(fixture("gate-line-to-wall-mount").input);
   const out = priceJob(input);
   const run = out.runs[0];
 
@@ -209,29 +222,32 @@ console.log("\n2. LINE_TO_WALL gate: one post stands with no cap billed for it (
   ok("fixture precondition: this really is the LINE_TO_WALL path (3 END_POST added by the gate area, not 2)",
     endPostQty === 5, `END_POST entries sum to ${endPostQty} (expected 2 fence-end + 3 gate-end)`);
 
-  ok(`BUG: ${physicalPosts} physical posts stand on this job (${run.posts.line} line + ` +
-     `${run.posts.corner} corner + ${endPostQty} end) but only ${capEntry.quantity} post caps are billed`,
-    physicalPosts === 19 && capEntry.quantity === 18,
+  ok(`FIXED: ${physicalPosts} physical posts stand on this job (${run.posts.line} line + ` +
+     `${run.posts.corner} corner + ${endPostQty} end) and exactly ${capEntry.quantity} post caps are ` +
+     `billed -- no shortfall`,
+    physicalPosts === 19 && capEntry.quantity === 19 && physicalPosts === capEntry.quantity,
     `physicalPosts=${physicalPosts} capQty=${capEntry.quantity}`);
 
   const capCatalogRow = input.catalog.find((c) => c.role === "POST_CAP");
   const capLineItem = out.items.find((i) => i.role === "POST_CAP");
-  ok(`BUG, in dollars: materials_subtotal/taxable_subtotal/tax are each short by exactly one ` +
-     `cap ($${capCatalogRow.unit_price.toFixed(2)}, taxable=${capLineItem.taxable}) on every LINE_TO_WALL gate ` +
-     `-- $${capCatalogRow.unit_price.toFixed(2)} undercharged materials, ` +
-     `$${(capCatalogRow.unit_price * input.job.tax_rate_percent / 100).toFixed(4)} undercharged tax`,
-    capLineItem.quantity === 18 && capLineItem.taxable === true && capCatalogRow.unit_price === 0.74,
+  ok(`FIXED, in dollars: materials_subtotal/taxable_subtotal/tax each carry the FULL ` +
+     `19 caps ($${capCatalogRow.unit_price.toFixed(2)} each, taxable=${capLineItem.taxable}) -- the ` +
+     `$${capCatalogRow.unit_price.toFixed(2)} materials and ` +
+     `$${(capCatalogRow.unit_price * input.job.tax_rate_percent / 100).toFixed(4)} tax this job used to ` +
+     `undercharge on every LINE_TO_WALL gate are gone`,
+    capLineItem.quantity === 19 && capLineItem.taxable === true && capCatalogRow.unit_price === 0.74,
     `capLineItem.quantity=${capLineItem.quantity} taxable=${capLineItem.taxable} unit_price=${capCatalogRow.unit_price}`);
 }
 
 // CANARY: change ONLY the gate's mounting from LINE_TO_WALL to LINE (same
-// run, same gate width, same everything else) and the shortfall disappears:
-// the gate area then adds exactly 2 END_POST entries, matching the flat
-// "2 gate posts" the cap count assumes, so physical posts and billed caps
-// come back equal. Proves the defect above is specific to LINE_TO_WALL, not
-// a general off-by-one every gate carries.
+// run, same gate width, same everything else) and the count stays exactly
+// matched: the gate area then adds exactly 2 END_POST entries, matching the
+// 2 gate posts LINE (and WALL) still assume, so physical posts and billed
+// caps agree here too. Proves the fix above is specific to LINE_TO_WALL --
+// it neither touches nor needs to touch any other mounting -- not a second,
+// wider formula change riding along with it.
 {
-  const input = clone(fixture("gate-line-to-wall-mount").input);
+  const input = clone(withCurrentVersion(fixture("gate-line-to-wall-mount").input));
   input.runs[0].gates_encoded = input.runs[0].gates_encoded.replace("LINE_TO_WALL", "LINE");
   ok("mutation actually changed the mounting and nothing else",
     input.runs[0].gates_encoded === "500.0:0.0:4.0:LINE:IN",
@@ -244,9 +260,41 @@ console.log("\n2. LINE_TO_WALL gate: one post stands with no cap billed for it (
   const capEntry = run.entries.find((e) => e.role === "POST_CAP");
 
   ok("CANARY: the same gate mounted LINE instead needs only 2 end posts, and the billed " +
-     "cap count matches the physical post count exactly -- no shortfall",
+     "cap count matches the physical post count exactly -- no shortfall, same as it never had one",
     endPostQty === 4 && physicalPosts === 18 && physicalPosts === capEntry.quantity,
     `endPostQty=${endPostQty} physicalPosts=${physicalPosts} capQty=${capEntry.quantity}`);
+}
+
+// ===========================================================================
+// ENFORCEMENT -- the rule the version bump above exists to hold: a formula
+// change is a version change. FINDING 2's own fix is the concrete case that
+// slipped past every existing check the day it landed: the post-cap formula
+// moved (18 -> 19 caps on this exact fixture) while PRICING_ENGINE_VERSION
+// stayed 2026.09.2 on both engines, so an old phone and the new office would
+// have priced the identical LINE_TO_WALL job two different ways with
+// nothing anywhere to catch it. Pin that pairing here, generally enough to
+// catch the same mistake again on a future formula change: whenever this
+// job's post-cap count has moved off its PRE-FIX value, the engine version
+// must have moved off its PRE-FIX value too. Reverting one without the
+// other -- the version bumped back down, or the formula reverted without
+// reverting the bump -- fails this exactly as it should.
+// ===========================================================================
+{
+  const PRE_FIX_VERSION = "2026.09.2";
+  const PRE_FIX_CAP_QTY = 18;
+  const input = withCurrentVersion(fixture("gate-line-to-wall-mount").input);
+  const capQtyNow = priceJob(input).runs[0].entries.find((e) => e.role === "POST_CAP").quantity;
+  const formulaMovedOffPreFix = capQtyNow !== PRE_FIX_CAP_QTY;
+
+  ok("ENFORCEMENT: the post-cap formula truly did move off its pre-fix value on this fixture " +
+     "(precondition -- if this fails, the check below is not exercising anything)",
+    formulaMovedOffPreFix, `capQtyNow=${capQtyNow} preFix=${PRE_FIX_CAP_QTY}`);
+
+  ok("ENFORCEMENT: since the post-cap formula moved off its 2026.09.2 value, " +
+     "PRICING_ENGINE_VERSION must have moved off 2026.09.2 too -- this is the check that would " +
+     "have caught 'the version stamp is lying' before it shipped",
+    !formulaMovedOffPreFix || PRICING_ENGINE_VERSION !== PRE_FIX_VERSION,
+    `capQtyNow=${capQtyNow} PRICING_ENGINE_VERSION=${PRICING_ENGINE_VERSION}`);
 }
 
 console.log(`\n${pass} of ${pass + fail} checks passed`);

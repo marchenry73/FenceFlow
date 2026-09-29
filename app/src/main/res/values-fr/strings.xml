@@ -926,6 +926,7 @@
     <string name="est2_provisional_pricing">Prix provisoires</string>
     <string name="est2_provisional_pricing_body">Les matériaux sont chiffrés d\'après votre catalogue, pas d\'après un devis fournisseur. Envoyez la liste de matériaux, puis saisissez ce qu\'ils vous renvoient.</string>
     <string name="est2_locked_price_changed">Verrouillé : le prix a changé après la signature.</string>
+    <string name="est2_locked_zero_quote">Verrouillé : ceci totalise 0 $ -- calibrez la photo ou saisissez la longueur d\'abord.</string>
     <string name="est2_contract_hint">Portée, prix et vos conditions. Sans détail des matériaux.</string>
     <string name="contract_legal_gap_title">Votre contrat n\'a pas d\'avis d\'annulation</string>
     <string name="contract_legal_gap_body">Les conditions contiennent encore le bloc à remplacer. La plupart des États exigent qu\'un contrat de rénovation indique, dans des termes précis, que le client peut annuler sous trois jours ouvrables, et un contrat signé au domicile du client relève en plus d\'une règle fédérale. Sans ce texte, l\'accord peut être inapplicable. Demandez à votre avocat la formulation de votre État et collez-la dans Réglages, Conditions du contrat.</string>

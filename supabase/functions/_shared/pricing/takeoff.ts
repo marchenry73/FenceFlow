@@ -267,7 +267,14 @@ export function computePostCounts(
   netFt: number,
 ): PostCounts {
   const gateCount = gates.length;
-  const gatePosts = gateCount * 2;
+  // Two end posts per gate, except LINE_TO_WALL, which ends the fence line a
+  // SECOND time -- gateAreaEntries adds a third END_POST for that mounting
+  // alone (its own two, plus the one where the rest of the run terminates at
+  // the wall). This count is what POST_CAP is priced off (totalPosts below),
+  // so it has to agree with what gateAreaEntries actually builds, or a
+  // LINE_TO_WALL gate stands one more post than it bills a cap for -- which
+  // it did, until now. WALL and LINE both still take exactly two.
+  const gatePosts = gates.reduce((sum, g) => sum + (g.mounting === "LINE_TO_WALL" ? 3 : 2), 0);
   const cornerPosts = geometry.cornerCount;
   const endPosts = geometry.endCount;
 
@@ -429,9 +436,9 @@ function gateAreaEntries(gate: GateMarker): QtyEntry[] {
       break;
     case "LINE_TO_WALL":
       // The gate's own two end posts, plus the one where the rest of
-      // the run terminates at the wall. (The phone counts three end
-      // posts and three posts' worth of concrete here; the takeoff's
-      // gatePosts still adds only two. Replicated, not corrected.)
+      // the run terminates at the wall. computePostCounts' gatePosts now
+      // counts this third post too, so POST_CAP matches what actually
+      // stands in the ground for this mounting.
       entries.push(qty("END_POST", 3.0));
       entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS));
       break;

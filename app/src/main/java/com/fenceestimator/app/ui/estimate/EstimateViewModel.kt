@@ -16,6 +16,7 @@ import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.PostWorkings
 import com.fenceestimator.app.estimate.TakeoffLine
+import com.fenceestimator.app.estimate.TakeoffRefresher
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.ui.survey.SurveyViewModel
@@ -75,19 +76,44 @@ class EstimateViewModel(
             if (currentJob == null) emptyMap()
             else currentRuns.associate { r ->
                 r.id to runCatching {
-                    EstimateEngine.suggestQuantities(
-                        run = r,
-                        pixelsPerFoot = currentJob.calibrationPixelsPerFoot
-                            ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
-                        wastePercent = currentJob.wastePercent,
-                    ).takeoff
+                    // The same refusal [TakeoffRefresher.refreshRun] applies
+                    // before it (re)writes a run's stored line items: a run
+                    // on an uncalibrated survey photo has no honest scale to
+                    // measure, so the grid's flat fallback below would be a
+                    // guess, not a fact. Without this check this readout
+                    // measured one anyway -- real post and panel counts sat
+                    // right next to the $0 total [EstimateEngine.linearFeet]
+                    // correctly billed for the identical run, which read as
+                    // the app contradicting itself on the same screen. Reused
+                    // rather than re-derived, so this can never drift from
+                    // the rule the stored takeoff already follows.
+                    if (TakeoffRefresher.blockedByUncalibratedPhoto(currentJob, r)) {
+                        emptyList<TakeoffLine>()
+                    } else {
+                        EstimateEngine.suggestQuantities(
+                            run = r,
+                            pixelsPerFoot = currentJob.calibrationPixelsPerFoot
+                                ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
+                            wastePercent = currentJob.wastePercent,
+                        ).takeoff
+                    }
                 }.getOrDefault(emptyList())
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    /** The arithmetic behind one run's post count, for the "why?" sheet. */
+    /**
+     * The arithmetic behind one run's post count, for the "why?" sheet.
+     *
+     * Null for a run [TakeoffRefresher.blockedByUncalibratedPhoto] blocks,
+     * same as a run with nothing drawn yet ([EstimateEngine.explainPosts]
+     * throwing on it) already returns null here -- the caller already
+     * dismisses the sheet on a null answer, and a worked explanation for a
+     * post count this same screen no longer shows (see [takeoff] above)
+     * would be explaining a number that is not on the page.
+     */
     fun postWorkings(run: FenceRun): PostWorkings? {
         val currentJob = job.value ?: return null
+        if (TakeoffRefresher.blockedByUncalibratedPhoto(currentJob, run)) return null
         return runCatching {
             EstimateEngine.explainPosts(
                 run,

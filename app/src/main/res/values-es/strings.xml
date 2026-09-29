@@ -926,6 +926,7 @@
     <string name="est2_provisional_pricing">Precios provisionales</string>
     <string name="est2_provisional_pricing_body">Los materiales se cotizan con tu catálogo, no con una cotización del proveedor. Envía la lista de materiales y luego ingresa lo que te respondan.</string>
     <string name="est2_locked_price_changed">Bloqueado: el precio cambió después de la firma.</string>
+    <string name="est2_locked_zero_quote">Bloqueado: esto totaliza $0 -- calibra la foto o escribe la longitud primero.</string>
     <string name="est2_contract_hint">Alcance, precio y tus condiciones. Sin desglose de materiales.</string>
     <string name="contract_legal_gap_title">A su contrato le falta el aviso de cancelación</string>
     <string name="contract_legal_gap_body">Las condiciones todavía contienen el bloque marcado para reemplazar. La mayoría de los estados exigen que un contrato de mejoras del hogar indique, con palabras concretas, que el cliente puede cancelar en un plazo de tres días hábiles, y un contrato firmado en casa del cliente tiene además su propia norma federal. Sin ese texto el acuerdo puede ser inexigible. Pida a su abogado la redacción de su estado y péguela en Ajustes, Condiciones del contrato.</string>

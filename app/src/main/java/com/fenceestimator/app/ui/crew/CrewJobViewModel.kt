@@ -200,11 +200,6 @@ class CrewJobViewModel(
         }
     }
 
-    fun deleteTimeEntry(entry: com.fenceestimator.app.data.TimeEntry) {
-        if (session.state.value.isGuestDemo) return
-        viewModelScope.launch { repository.deleteTimeEntry(entry) }
-    }
-
     fun toggleStep(step: JobStep) {
         if (session.state.value.isGuestDemo) return
         viewModelScope.launch {

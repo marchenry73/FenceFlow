@@ -38,8 +38,21 @@ export {
  * a pricing rule changes. A mismatch between the two engines, or between an
  * engine and the fixtures, is a red parity gate; at runtime it is what lets
  * a phone tell that the office priced a job with newer rules.
+ *
+ * Bumped 2026.09.2 -> 2026.09.3 for the LINE_TO_WALL post-cap fix
+ * (takeoff.ts's gatePosts, ported from EstimateEngine.kt's
+ * computePostCounts): the formula moved and this stayed 2026.09.2 on BOTH
+ * engines through that whole change, which is exactly the failure mode this
+ * constant exists to make impossible -- see
+ * tests/a18-gate-post-cap-parity-fix.test.mjs and
+ * tests/a4-engine-parity.test.mjs FINDING 2. See the matching comment on
+ * EstimateEngine.PRICING_ENGINE_VERSION for what this bump means for a
+ * `jobs.pricing_engine_version` row already carrying the old value -- in
+ * short, nothing migrates: an anchored (signed/sent) total never moves
+ * regardless of this number, and JobSync's own version comparison already
+ * treats a stale stored value as exactly that, not as a crash.
  */
-export const PRICING_ENGINE_VERSION = "2026.09.2";
+export const PRICING_ENGINE_VERSION = "2026.09.3";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.
