@@ -149,6 +149,22 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     // for people working under someone -- an owner editing their own drawing
     // has nobody to report to, and logging that would be noise.
     val session by app.session.state.collectAsState()
+    // This screen had no guest check at all before -- reached from the run
+    // screen's ungated "Edit drawing" button with nothing behind it, a guest
+    // could add a fence run, draw points, add gates and drop site markers.
+    // The requirement is look at everything, change nothing, and a read-only
+    // view of the drawing IS achievable here -- the canvas and every panel
+    // below only ever READ runs/gates/siteMarkers, so nothing about routing a
+    // guest away from this screen was necessary. What is refused instead:
+    // the mode switcher offers only Move View (pan/zoom, itself a pure view
+    // control) so the write-capable tools are never in hand rather than
+    // present and silently doing nothing; the Add Run controls, the Layers
+    // dialog's upload/grid/satellite actions and the closed-loop/Clear
+    // controls in the property panel are refused at their own call sites
+    // below. SurveyViewModel repeats every one of these as its own guard, so
+    // this is the second line of defence the review asked for, not the only
+    // one -- the same shape as RunEditScreen's `editable`.
+    val editable = !session.isGuestDemo
     LaunchedEffect(session.role, session.email) {
         val reportsToSomeone = session.role in setOf(
             com.fenceestimator.app.cloud.UserRole.CREW,
@@ -440,13 +456,26 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     verticalArrangement = Arrangement.Center
                 ) {
                     EmptyState(stringResource(R.string.draw_no_runs_yet))
-                    Spacer(Modifier.height(Space.md))
-                    Button(onClick = { viewModel.addRun(runDefaults, isTeardown = false) }) {
-                        Text(stringResource(R.string.draw_add_run_new))
-                    }
-                    Spacer(Modifier.height(Space.sm))
-                    OutlinedButton(onClick = { viewModel.addRun(runDefaults, isTeardown = true) }) {
-                        Text(stringResource(R.string.draw_add_run_teardown))
+                    // This is the one guest path that actually writes today:
+                    // the sample jobs the guest demo seeds carry no fence runs
+                    // at all (GuestSeeder never creates one), so every guest
+                    // opening this screen lands right here, and these two
+                    // buttons were the only thing on the whole screen with no
+                    // gate of any kind, neither a hidden control nor a refusal
+                    // behind it -- addRun() wrote straight through. There is
+                    // nothing to look at yet on a job with no drawing, so
+                    // unlike the rest of this screen there is no read-only
+                    // view to offer in its place; the buttons are simply not
+                    // offered.
+                    if (editable) {
+                        Spacer(Modifier.height(Space.md))
+                        Button(onClick = { viewModel.addRun(runDefaults, isTeardown = false) }) {
+                            Text(stringResource(R.string.draw_add_run_new))
+                        }
+                        Spacer(Modifier.height(Space.sm))
+                        OutlinedButton(onClick = { viewModel.addRun(runDefaults, isTeardown = true) }) {
+                            Text(stringResource(R.string.draw_add_run_teardown))
+                        }
                     }
                 }
                 return@Column
@@ -483,7 +512,12 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     // trigger itself do not change, so the existing
                     // draw_add_run string (and anyone who has learned this
                     // button) still applies.
-                    Box {
+                    //
+                    // Hidden for a guest the same way the empty-state buttons
+                    // above are: addRun() refuses the write regardless, but a
+                    // "+" that opens a menu whose choices do nothing is the
+                    // fake control this wave exists to close.
+                    if (editable) Box {
                         var addRunMenuExpanded by remember { mutableStateOf(false) }
                         ToolIconButton(
                             icon = Icons.Filled.Add,
@@ -566,23 +600,31 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     TeardownChargeRow(
                         chargeOn = teardownJob.teardownEnabled,
                         hasTeardownRun = runs.any { it.isTeardown },
+                        enabled = editable,
                         onChargeChange = { viewModel.setTeardownCharge(it) }
                     )
                 }
             }
 
-            val visibleModes = remember(usingGrid) {
+            val visibleModes = remember(usingGrid, editable) {
                 buildList {
-                    add(SurveyMode.DRAW to R.string.mode_draw)
-                    // No Calibrate on the grid. The grid already knows its own
-                    // scale, so the step asked people to solve a problem they did
-                    // not have -- it was the single most confusing thing here.
-                    // On a survey photo it is unavoidable: nothing else can tell
-                    // the app how big the picture is.
-                    if (!usingGrid) add(SurveyMode.CALIBRATE to R.string.mode_calibrate)
-                    add(SurveyMode.GATE to R.string.mode_gate)
-                    add(SurveyMode.MARKER to R.string.mode_mark_site)
-                    add(SurveyMode.ADJUST to R.string.mode_adjust)
+                    // Every mode but Move View can write -- Draw and Calibrate
+                    // place points, Gate and Marker place or remove gates and
+                    // site markers, Adjust drags and nudges them. A guest gets
+                    // only the one that cannot: panning and zooming to look,
+                    // never a tool in hand whose taps go nowhere.
+                    if (editable) {
+                        add(SurveyMode.DRAW to R.string.mode_draw)
+                        // No Calibrate on the grid. The grid already knows its own
+                        // scale, so the step asked people to solve a problem they did
+                        // not have -- it was the single most confusing thing here.
+                        // On a survey photo it is unavoidable: nothing else can tell
+                        // the app how big the picture is.
+                        if (!usingGrid) add(SurveyMode.CALIBRATE to R.string.mode_calibrate)
+                        add(SurveyMode.GATE to R.string.mode_gate)
+                        add(SurveyMode.MARKER to R.string.mode_mark_site)
+                        add(SurveyMode.ADJUST to R.string.mode_adjust)
+                    }
                     add(SurveyMode.PAN to R.string.mode_move_view)
                 }
             }
@@ -590,6 +632,13 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             // the canvas in a mode with no button to leave it by.
             LaunchedEffect(usingGrid) {
                 if (usingGrid && mode == SurveyMode.CALIBRATE) viewModel.setMode(SurveyMode.DRAW)
+            }
+            // A guest whose session turns out this way after the screen was
+            // already open (a demo that starts mid-visit) must not be left
+            // sitting in a write-capable mode just because visibleModes above
+            // no longer offers a button to leave it by.
+            LaunchedEffect(editable) {
+                if (!editable && mode != SurveyMode.PAN) viewModel.setMode(SurveyMode.PAN)
             }
             val activeRun = runs.firstOrNull { it.id == selectedRunId }
             val job2 = job
@@ -1449,7 +1498,13 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         onSnapChange = { snapOn = it; lastSnap = null },
                         lastSnap = lastSnap,
                         onSegmentClick = { editingSegment = it },
-                        onClear = { pendingClearPoints = true }
+                        onClear = { pendingClearPoints = true },
+                        // This panel sits outside the mode switcher -- its
+                        // segment chips, closed-perimeter checkbox and Clear
+                        // button are reachable whatever tool is selected, so
+                        // restricting visibleModes to Move View alone does not
+                        // reach them. Guarded here for the same reason.
+                        editable = editable
                     )
 
                     // NudgePad -- unchanged, still bottom-end, still only
@@ -1675,7 +1730,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
             onShowDimensionsLayerChange = { showDimensionsLayer = it },
             showMarkersLayer = showMarkersLayer,
             onShowMarkersLayerChange = { showMarkersLayer = it },
-            onDismiss = { layersMenuOpen = false }
+            onDismiss = { layersMenuOpen = false },
+            editable = editable
         )
     }
 }
@@ -1847,6 +1903,7 @@ private fun RepriceFailedBanner() {
 private fun TeardownChargeRow(
     chargeOn: Boolean,
     hasTeardownRun: Boolean,
+    enabled: Boolean = true,
     onChargeChange: (Boolean) -> Unit
 ) {
     Column(
@@ -1860,7 +1917,12 @@ private fun TeardownChargeRow(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f)
             )
-            Switch(checked = chargeOn, onCheckedChange = onChargeChange)
+            // Visibly dimmed rather than a switch that flips on screen and
+            // then silently does not stick -- SurveyViewModel.setTeardownCharge
+            // refuses a guest regardless, but a live-looking switch whose tap
+            // is swallowed is exactly the fake control this wave exists to
+            // close.
+            Switch(checked = chargeOn, onCheckedChange = onChargeChange, enabled = enabled)
         }
         if (chargeOn) {
             Text(
@@ -2041,7 +2103,8 @@ private fun PropertyInfoPanel(
     onSnapChange: (Boolean) -> Unit,
     lastSnap: com.fenceestimator.app.geometry.SnapResult?,
     onSegmentClick: (Int) -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    editable: Boolean = true
 ) {
     Surface(
         modifier = modifier.widthIn(max = 360.dp),
@@ -2113,6 +2176,7 @@ private fun PropertyInfoPanel(
                         for (seg in committedGeometry.segments) {
                             AssistChip(
                                 onClick = { onSegmentClick(seg.fromIndex) },
+                                enabled = editable,
                                 label = {
                                     Text(
                                         stringResource(
@@ -2156,7 +2220,7 @@ private fun PropertyInfoPanel(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = closedLoop, onCheckedChange = onClosedLoopChange)
+                    Checkbox(checked = closedLoop, onCheckedChange = onClosedLoopChange, enabled = editable)
                     Text(stringResource(R.string.draw_closed_perimeter))
                 }
                 Spacer(Modifier.height(Space.sm))
@@ -2165,9 +2229,16 @@ private fun PropertyInfoPanel(
                 // on this run (it still opens the same confirmation below),
                 // so it must never be the first thing a thumb finds inside
                 // this panel.
-                OutlinedButton(onClick = onClear, modifier = Modifier.align(Alignment.End)) {
-                    Icon(Icons.Filled.Clear, contentDescription = null)
-                    Text(" " + stringResource(R.string.draw_clear))
+                //
+                // Hidden rather than disabled for a guest, the same
+                // convention the run editor's own delete follows: a greyed
+                // Clear invites asking the office to switch on something that
+                // was never meant to be theirs to press.
+                if (editable) {
+                    OutlinedButton(onClick = onClear, modifier = Modifier.align(Alignment.End)) {
+                        Icon(Icons.Filled.Clear, contentDescription = null)
+                        Text(" " + stringResource(R.string.draw_clear))
+                    }
                 }
             }
         }
@@ -2203,7 +2274,13 @@ private fun LayersDialog(
     onShowDimensionsLayerChange: (Boolean) -> Unit,
     showMarkersLayer: Boolean,
     onShowMarkersLayerChange: (Boolean) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /**
+     * Background and scale all write to the job (or, for a photo, start a new
+     * one) -- the four show/hide layer switches below do not, so they stay
+     * enabled regardless.
+     */
+    editable: Boolean = true
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2231,11 +2308,13 @@ private fun LayersDialog(
                         FilterChip(
                             selected = !satelliteOn,
                             onClick = { onSatelliteToggle(false) },
+                            enabled = editable,
                             label = { Text(stringResource(R.string.misc_survey_layers_grid)) }
                         )
                         FilterChip(
                             selected = satelliteOn,
                             onClick = { onSatelliteToggle(true) },
+                            enabled = editable,
                             label = { Text(stringResource(R.string.sat_toggle_label)) }
                         )
                     }
@@ -2254,7 +2333,7 @@ private fun LayersDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    OutlinedButton(onClick = onUploadPhoto) { Text(stringResource(R.string.survey_upload_photo)) }
+                    OutlinedButton(onClick = onUploadPhoto, enabled = editable) { Text(stringResource(R.string.survey_upload_photo)) }
                     if (job2 != null) {
                         Spacer(Modifier.height(Space.xs))
                         // How much ground the grid covers.
@@ -2274,6 +2353,7 @@ private fun LayersDialog(
                                 FilterChip(
                                     selected = selected,
                                     onClick = { onSetGridExtent(size) },
+                                    enabled = editable,
                                     label = { Text(stringResource(R.string.draw_grid_size_ft, size.toInt())) }
                                 )
                             }
@@ -2286,12 +2366,13 @@ private fun LayersDialog(
                         DraftNumberField(
                             stableKey = job2.id, label = stringResource(R.string.misc_survey_feet_per_square),
                             initialValue = job2.gridFeetPerSquare,
+                            enabled = editable,
                             modifier = Modifier.fillMaxWidth()
                         ) { onSetGridSpacing(it) }
                     }
                 } else {
                     Text(stringResource(R.string.misc_survey_drawing_on_photo), style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = onUseGrid) { Text(stringResource(R.string.survey_use_grid)) }
+                    OutlinedButton(onClick = onUseGrid, enabled = editable) { Text(stringResource(R.string.survey_use_grid)) }
                 }
 
                 Spacer(Modifier.height(Space.xs))

@@ -63,13 +63,73 @@ class KeptJobCrewScreenTest {
         }
     }
 
+    /**
+     * The text of the nearest `if`/`else if` guarding a `Button` whose
+     * `onClick` is [onClickTarget], found by searching backwards from that
+     * reference through [body]. Anchoring on whether the guard MENTIONS
+     * `allowClockIn` -- rather than matching the guard's exact text -- is
+     * what survives a legitimate change like the crew track's own `editable`
+     * (guest) term joining this condition: that term changed the literal
+     * source of `} else if (allowClockIn) {`, but not the thing this test is
+     * actually about, which is whether `allowClockIn` still gates the
+     * button at all. This repo has had a source-text probe rot or crash on
+     * a missing anchor three times already, so a miss here throws with a
+     * message naming what could not be found, instead of quietly reporting
+     * a guard that is actually still present as absent.
+     */
+    private fun conditionGuarding(body: String, onClickTarget: String, label: String): String {
+        val clickAt = body.indexOf("onClick = $onClickTarget")
+        assertTrue(
+            "`onClick = $onClickTarget` was not found in $label -- has the control been renamed or removed?",
+            clickAt > 0
+        )
+        val windowStart = (clickAt - 600).coerceAtLeast(0)
+        val window = body.substring(windowStart, clickAt)
+        val guard = Regex("""(?:else\s+)?if\s*\(([^()]{1,160}?)\)""").findAll(window).lastOrNull()
+        assertTrue(
+            "no `if (...)` guarding `onClick = $onClickTarget` was found in the " +
+                "${clickAt - windowStart} characters before it in $label -- the button may no " +
+                "longer sit directly inside the condition that decides whether it is shown",
+            guard != null
+        )
+        return guard!!.groupValues[1]
+    }
+
     @Test
     fun `clock-out stays, clock-in does not, and the way back in is offered`() {
-        assertTrue(screen.contains("allowClockIn = !kept"))
-        assertTrue(screen.contains("} else if (allowClockIn) {"))
-        assertTrue(screen.contains("onClick = onOpenRequestAccess"))
+        assertTrue(
+            "TimeClockCard is no longer wired from !kept at the call site",
+            screen.contains("allowClockIn = !kept")
+        )
+
+        // Clock-out stays: ending a running shift must not additionally be
+        // turned off by allowClockIn (kept-ness) -- only by editable (the
+        // guest demo).
+        val clockOutGuard = conditionGuarding(screen, "onClockOut", "CrewJobScreen")
+        assertFalse(
+            "Clock Out's guard (\"$clockOutGuard\") now mentions allowClockIn -- a kept job " +
+                "(where clock-in is disallowed) would also lose the ability to end a running shift",
+            clockOutGuard.contains("allowClockIn")
+        )
+
+        // Clock-in does not: starting a new shift must still be refused once
+        // allowClockIn is false, whatever else joins that condition.
+        val clockInGuard = conditionGuarding(screen, "onClockIn", "CrewJobScreen")
+        assertTrue(
+            "Clock In's guard (\"$clockInGuard\") no longer mentions allowClockIn -- a kept job " +
+                "could offer starting a new shift on a job this person is off",
+            clockInGuard.contains("allowClockIn")
+        )
+
+        assertTrue(
+            "the way back in (request access) is no longer wired on the kept-job screen",
+            screen.contains("onClick = onOpenRequestAccess")
+        )
         val main = File("src/main/java/com/fenceestimator/app/MainActivity.kt").readText()
-        assertTrue("MainActivity does not wire the crew screen's request access", main.contains("onOpenRequestAccess = { navController.navigate(Routes.REQUEST_ACCESS) }"))
+        assertTrue(
+            "MainActivity does not wire the crew screen's request access",
+            main.contains("onOpenRequestAccess = { navController.navigate(Routes.REQUEST_ACCESS) }")
+        )
     }
 
     @Test

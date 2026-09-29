@@ -77,6 +77,7 @@ import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.theme.Space
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+import com.fenceestimator.app.cloud.UnsyncedReason
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.NumberFormat
 import java.util.Calendar
@@ -314,22 +315,27 @@ fun JobsListScreen(
                 ),
                 actions = {
                     IconButton(onClick = onOpenSchedule) {
-                        Icon(Icons.Filled.CalendarMonth, contentDescription = "Schedule")
+                        // Reuses the Schedule screen's own title rather than a
+                        // second "Schedule" string -- same word, one place it
+                        // is translated. These five icon labels were hardcoded
+                        // English until now, disagreeing with every other
+                        // localized string on this same toolbar.
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = stringResource(R.string.misc_schedule_title))
                     }
                     // The customer list is nothing but contact details, and its
                     // route refuses anyone without them -- so the icon only
                     // led crew to a wall.
                     if (session.canSeeCustomerContact) {
                         IconButton(onClick = onOpenCustomers) {
-                            Icon(Icons.Filled.People, contentDescription = "Customers")
+                            Icon(Icons.Filled.People, contentDescription = stringResource(R.string.misc_customers_title))
                         }
                     }
                     if (session.canSeeMoney && ent.pipeline) {
                         IconButton(onClick = onOpenPipeline) {
-                            Icon(Icons.Filled.ViewKanban, contentDescription = "Pipeline")
+                            Icon(Icons.Filled.ViewKanban, contentDescription = stringResource(R.string.misc_pipeline_title))
                         }
                         IconButton(onClick = onOpenReports) {
-                            Icon(Icons.Filled.BarChart, contentDescription = "Reports")
+                            Icon(Icons.Filled.BarChart, contentDescription = stringResource(R.string.reports_title))
                         }
                     }
                     // Catalog and settings live in the overflow rather than on
@@ -341,7 +347,10 @@ fun JobsListScreen(
                     // catalog stays with the people who can edit it.
                     var moreOpen by remember { mutableStateOf(false) }
                     IconButton(onClick = { moreOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                        // jobs_more_menu is a new key -- handed over separately,
+                        // this file cannot add it. No existing "More" overflow
+                        // string was found anywhere else in the app to reuse.
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.jobs_more_menu))
                     }
                     DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
                         if (session.canEditCatalogAndSettings) {
@@ -460,7 +469,33 @@ fun JobsListScreen(
                         ) {
                             Column(Modifier.padding(12.dp)) {
                                 Text(
-                                    sync.message,
+                                    // sync.message used to be read directly here,
+                                    // which is untranslated literal English for
+                                    // every phase (see AutoSync.SyncState) -- it
+                                    // has no Context to resolve a string resource
+                                    // with, so it can only ever be English. OK
+                                    // already mapped its enum to a localized
+                                    // sentence below; every other phase now gets
+                                    // the same treatment, reusing exactly the
+                                    // resources AccountScreen's own sync card
+                                    // shows for each phase so the two screens
+                                    // never disagree in wording.
+                                    when (sync.phase) {
+                                        com.fenceestimator.app.cloud.SyncPhase.OK ->
+                                            unsyncedReasonMessage(sync.unsyncedReason)
+                                        com.fenceestimator.app.cloud.SyncPhase.SYNCING ->
+                                            stringResource(R.string.sync_saving)
+                                        com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL ->
+                                            stringResource(R.string.acct_sync_waiting_for_signal)
+                                        com.fenceestimator.app.cloud.SyncPhase.SIGNED_OUT ->
+                                            stringResource(R.string.acct_sync_signed_out)
+                                        com.fenceestimator.app.cloud.SyncPhase.FAILED ->
+                                            stringResource(R.string.sync_failed)
+                                        com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY ->
+                                            stringResource(R.string.sync_local_only)
+                                        com.fenceestimator.app.cloud.SyncPhase.IDLE ->
+                                            stringResource(R.string.acct_sync_waiting)
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
@@ -473,23 +508,27 @@ fun JobsListScreen(
                                     // uploaded nothing.
                                     when (sync.phase) {
                                         com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY ->
-                                            "This phone is not connected to your company, so these " +
-                                                "figures are its own. Open Account & Team and sign in."
+                                            stringResource(R.string.jobs_sync_offline_detail)
                                         com.fenceestimator.app.cloud.SyncPhase.SIGNED_OUT ->
-                                            "This will not fix itself. Open Account & Team and sign " +
-                                                "in — everything on this phone uploads as soon as you do."
+                                            stringResource(R.string.jobs_sync_signed_out_detail)
                                         else ->
-                                            "Nothing is lost. Keep working — it uploads on its own."
+                                            stringResource(R.string.jobs_sync_reassurance)
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                                 sync.lastSyncedAt?.let { at ->
                                     // A figure with no time against it invites
-                                    // the assumption that it is current.
+                                    // the assumption that it is current. Reuses
+                                    // AccountScreen's "Last saved %1$s" wording
+                                    // rather than a near-duplicate "Last updated"
+                                    // string of its own -- same fact, one sentence
+                                    // to keep translated.
                                     Text(
-                                        "Last updated " + android.text.format.DateUtils
-                                            .getRelativeTimeSpanString(at),
+                                        stringResource(
+                                            R.string.acct_sync_last_saved,
+                                            android.text.format.DateUtils.getRelativeTimeSpanString(at)
+                                        ),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
@@ -969,6 +1008,31 @@ fun JobsListScreen(
             }
         )
     }
+}
+
+/**
+ * The honest sentence for why work on this phone has not reached the cloud
+ * yet, localized from [UnsyncedReason] directly. SyncState.message cannot do
+ * this itself -- it has no Context to resolve a string resource with (see
+ * AutoSync.kt) -- so the wording decision lives here, and in
+ * AccountScreen's matching copy of this function.
+ *
+ * The combined reason reuses the two sentences it is made of, rather than
+ * getting one of its own, so there is nothing new here to mistranslate.
+ *
+ * The null branch stays explicit rather than folding into an else, so a
+ * future reason added without a sentence of its own lands on the vague-
+ * but-safe catch-all instead of silently borrowing one that is wrong about
+ * it -- the same shape AutoSync's own reason wording used to use.
+ */
+@Composable
+private fun unsyncedReasonMessage(reason: UnsyncedReason?): String = when (reason) {
+    UnsyncedReason.JOBS_HELD_BACK -> stringResource(R.string.sync_unsynced_jobs)
+    UnsyncedReason.RECORDS_HELD_BACK -> stringResource(R.string.sync_unsynced_records)
+    UnsyncedReason.RECORDS_HELD_BACK_AND_ACCESS_NOT_CONFIRMED ->
+        stringResource(R.string.sync_unsynced_records) + " " + stringResource(R.string.sync_scope_not_confirmed)
+    UnsyncedReason.ACCESS_NOT_CONFIRMED -> stringResource(R.string.sync_scope_not_confirmed)
+    null -> stringResource(R.string.sync_unsynced_unspecified)
 }
 
 /** One wording for a job's status everywhere it is shown; see [JobStatus.label]. */

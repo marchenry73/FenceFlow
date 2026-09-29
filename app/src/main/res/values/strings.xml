@@ -156,6 +156,21 @@
     <string name="account_cloud_save">Cloud Save</string>
     <string name="sync_saving">Saving to cloud…</string>
     <string name="sync_saved">Everything saved</string>
+    <!-- The four sentences behind SyncState.unsyncedReason (AutoSync.kt).
+         SyncState.message has no Context and cannot resolve a string
+         resource, so AccountScreen.SyncStatusCard and JobsListScreen each
+         map the enum straight to one of these instead of reading
+         sync.message. The combined "records held back and scope unknown"
+         case reuses sync_unsynced_records and sync_scope_not_confirmed
+         together rather than getting a sentence of its own; see
+         UnsyncedReason.RECORDS_HELD_BACK_AND_ACCESS_NOT_CONFIRMED. -->
+    <string name="sync_unsynced_jobs">Job changes made on this phone are not in the cloud yet. They are saved here, and every sync tries them again.</string>
+    <string name="sync_unsynced_records">Some records on this phone, other than jobs, are not in the cloud yet. They are saved here, and every sync tries them again.</string>
+    <string name="sync_scope_not_confirmed">Jobs and prices were left alone this time — this phone is still confirming what your account is allowed to see, and it will not guess. Checking again in a moment.</string>
+    <!-- The null-reason fallback, unchanged wording from the old
+         catch-all sentence, now reached only when unsyncedReason itself is
+         null. -->
+    <string name="sync_unsynced_unspecified">Some of this phone\'s work has not reached the cloud yet. It will go up on the next sync.</string>
     <string name="sync_plain_no_signal">No signal right now. Your work is saved on this phone and goes up by itself when you\'re back on.</string>
     <string name="sync_plain_signed_out">You\'ve been signed out. Sign back in and everything on this phone will upload.</string>
     <string name="sync_plain_conflict">Someone changed the same thing on another phone. Pull down to sync again and the two will settle.</string>
@@ -234,6 +249,7 @@
     <!-- Jobs list extras -->
     <string name="jobs_materials_catalog">Materials catalog</string>
     <string name="jobs_settings">Settings</string>
+    <string name="jobs_more_menu">More</string>
     <string name="jobs_delete_title">Delete this job?</string>
     <string name="jobs_review_catalog">Review catalog</string>
     <string name="jobs_make_prices_yours">Make these prices yours</string>
@@ -1916,6 +1932,15 @@
     <string name="jobs_kept_title">Kept on this phone</string>
     <string name="jobs_kept_body">No longer assigned to you. Anything not sent yet stays here; request access to send it. A running shift can still be clocked out.</string>
     <string name="jobs_kept_unsent">Has changes not sent yet</string>
+
+    <!-- The jobs list's sync card, second line: what someone standing at a
+         job site needs to know about whether their work is going anywhere.
+         Distinct from AccountScreen's own sync card wording because this one
+         can point at "Open Account & Team", a screen away from here, which
+         AccountScreen (already being that screen) has no reason to say. -->
+    <string name="jobs_sync_offline_detail">This phone is not connected to your company, so these figures are its own. Open Account &amp; Team and sign in.</string>
+    <string name="jobs_sync_signed_out_detail">This will not fix itself. Open Account &amp; Team and sign in — everything on this phone uploads as soon as you do.</string>
+    <string name="jobs_sync_reassurance">Nothing is lost. Keep working — it uploads on its own.</string>
     <string name="access_needs_connection">Needs a connection.</string>
     <string name="access_refused_ask_not_allowed">This login can’t ask for jobs. Check with the office.</string>
     <string name="access_refused_answer_not_allowed">Not allowed. Answering requests needs “Schedule work and assign crew”, and nobody answers their own request.</string>

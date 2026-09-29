@@ -169,11 +169,11 @@ fun JobDetailScreen(
     val context = LocalContext.current
     val viewModel: JobDetailViewModel = viewModel(
         key = "job_detail_$jobId",
-        factory = GenericViewModelFactory { JobDetailViewModel(app.repository, jobId, app.settingsStore.profile) }
+        factory = GenericViewModelFactory { JobDetailViewModel(app.repository, jobId, app.session, app.settingsStore.profile) }
     )
     val runsViewModel: FenceRunListViewModel = viewModel(
         key = "job_runs_$jobId",
-        factory = GenericViewModelFactory { FenceRunListViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { FenceRunListViewModel(app.repository, jobId, app.session) }
     )
     val job by viewModel.job.collectAsState()
     /** The live contract figures, so the signature check compares against what the estimate says now. */
@@ -631,7 +631,7 @@ fun JobDetailScreen(
             item(key = SECTION_LOCATE) { LocateSection(currentJob, viewModel) }
             item(key = SECTION_HOA) { SectionCard(title = stringResource(R.string.section_hoa_permits), icon = Icons.Filled.Gavel) { HoaFields(currentJob, runs, profile, editable = session.canEditJobs, viewModel = viewModel) } }
             if (session.canSeeMoney) {
-                item { SectionCard(title = stringResource(R.string.section_change_orders), icon = Icons.Filled.EditNote) { ChangeOrdersSection(changeOrders, session.canDelete, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_change_orders), icon = Icons.Filled.EditNote) { ChangeOrdersSection(changeOrders, session.canDelete, !session.isGuestDemo, viewModel) } }
                 // Above the money, because a job running over is the thing
                 // that has to be dealt with today -- the invoice can wait.
                 item(key = "overrun") {
@@ -654,7 +654,7 @@ fun JobDetailScreen(
                         PaymentFields(currentJob, profile, viewModel)
                     }
                 }
-                item { SectionCard(title = stringResource(R.string.section_expenses), icon = Icons.Filled.ReceiptLong) { ExpensesSection(expenses, session.canDelete, viewModel) } }
+                item { SectionCard(title = stringResource(R.string.section_expenses), icon = Icons.Filled.ReceiptLong) { ExpensesSection(expenses, session.canDelete, !session.isGuestDemo, viewModel) } }
             }
             // What an approved drawing cost this job, and the way back to the
             // drawing the customer actually approved. Next to the field changes
@@ -700,17 +700,44 @@ fun JobDetailScreen(
             }
             item {
                 SectionCard(title = stringResource(R.string.jd_section_held_up), icon = Icons.Filled.Block) {
-                    JobBlockedSection(currentJob, profile, viewModel)
+                    if (session.isGuestDemo) {
+                        // JobBlockedSection's two free-text boxes look fully
+                        // editable, but both write through update(), which the
+                        // guest funnel already refuses -- so a visitor could
+                        // type out why the job is blocked, tap away, and watch
+                        // it vanish. Silently discarding what somebody typed
+                        // is worse than never having offered the box, so this
+                        // shows the same two values read-only instead, the
+                        // way PaymentFields shows the deposit and tip: the
+                        // text is visible, the editor is not offered.
+                        //
+                        // Kept out of JobBlockedSection.kt itself -- this
+                        // wave's file list does not include it, so the
+                        // notify-customer card and its Text/Email buttons
+                        // (which stamp customerNotifiedAt through the same
+                        // guarded update()) are left exactly as they are
+                        // rather than partially rebuilt here.
+                        ReadOnlyField(
+                            stringResource(R.string.jsec_blocked_reason_label),
+                            currentJob.blockedReason
+                        )
+                        ReadOnlyField(
+                            stringResource(R.string.jsec_blocked_must_clear_label),
+                            currentJob.customerMustClear
+                        )
+                    } else {
+                        JobBlockedSection(currentJob, profile, viewModel)
+                    }
                 }
             }
-            item { SectionCard(title = stringResource(R.string.section_punch_list), icon = Icons.Filled.Checklist) { PunchListSection(punchList, session.canDelete, viewModel) } }
+            item { SectionCard(title = stringResource(R.string.section_punch_list), icon = Icons.Filled.Checklist) { PunchListSection(punchList, session.canDelete, !session.isGuestDemo, viewModel) } }
             item {
                 SectionCard(title = stringResource(R.string.section_photos), icon = Icons.Filled.PhotoCamera) {
-                    PhotosSection(photos, session.canDelete, viewModel)
+                    PhotosSection(photos, session.canDelete, !session.isGuestDemo, viewModel)
                 }
             }
             item { SectionCard(title = stringResource(R.string.section_review), icon = Icons.Filled.StarRate) { ReviewRequestFields(currentJob, profile, viewModel) } }
-            item { StatusSelector(currentJob, fullControl = session.canEditJobs, viewModel = viewModel) }
+            item { StatusSelector(currentJob, fullControl = session.canEditJobs, editable = !session.isGuestDemo, viewModel = viewModel) }
             // Owner only, and behind a typed confirmation. Deleting a job takes
             // its signed change orders, its payment record and its photos with
             // it -- exactly the evidence you would need in a dispute.
@@ -1235,10 +1262,18 @@ private fun PricingFields(job: Job, editable: Boolean, viewModel: JobDetailViewM
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StatusSelector(job: Job, fullControl: Boolean, viewModel: JobDetailViewModel) {
+private fun StatusSelector(job: Job, fullControl: Boolean, editable: Boolean, viewModel: JobDetailViewModel) {
     var expanded by remember { mutableStateOf(false) }
-    val choices = if (fullControl) JobStatus.values().toList()
-        else listOf(JobStatus.COMPLETED).filter { it != job.status }
+    // A guest reaches this with fullControl already false -- canEditJobs is
+    // one of the permissions the demo never holds -- which used to leave the
+    // same single COMPLETED choice crew get, and crew_save_job accepts that
+    // move from anyone. [editable] closes it off from the guest specifically,
+    // without touching what crew or a foreman may still do here.
+    val choices = when {
+        !editable -> emptyList()
+        fullControl -> JobStatus.values().toList()
+        else -> listOf(JobStatus.COMPLETED).filter { it != job.status }
+    }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it && choices.isNotEmpty() }) {
         OutlinedTextField(
             value = statusLabel(job.status), onValueChange = {}, readOnly = true,
@@ -1880,29 +1915,52 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDetailViewModel) {
+    // Read up front: every money-writing control in this section needs it,
+    // starting with the payment status dropdown right below. Re-read locally
+    // rather than threaded in, the same way HoaFields and CrewFields already
+    // do further up this file.
+    val paymentApp = currentApp()
+    val session by paymentApp.session.state.collectAsState()
+    // None of the fields below asked about a permission at all before this --
+    // they sat here unconditionally under canSeeMoney, so the guest demo's
+    // SEE_MONEY was enough to rewrite every one of them. There is no
+    // permission for "recording what came in" that a real company role should
+    // also lose, so this asks the guest question directly, the same way
+    // RunEditScreen's fields do.
+    val editable = !session.isGuestDemo
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = job.paymentStatus.label(), onValueChange = {}, readOnly = true,
-            label = { Text(stringResource(R.string.jd_payment_status)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor()
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            PaymentStatus.values().forEach { status ->
-                DropdownMenuItem(
-                    text = { Text(status.label()) },
-                    onClick = { viewModel.update { j -> j.copy(paymentStatus = status) }; expanded = false }
-                )
+    if (editable) {
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+            OutlinedTextField(
+                value = job.paymentStatus.label(), onValueChange = {}, readOnly = true,
+                label = { Text(stringResource(R.string.jd_payment_status)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                PaymentStatus.values().forEach { status ->
+                    DropdownMenuItem(
+                        text = { Text(status.label()) },
+                        onClick = { viewModel.update { j -> j.copy(paymentStatus = status) }; expanded = false }
+                    )
+                }
             }
         }
+    } else {
+        ReadOnlyField(stringResource(R.string.jd_payment_status), job.paymentStatus.label())
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        DraftNumberField(
-            stableKey = job.id,
-            label = stringResource(R.string.jd_deposit_amount), initialValue = job.depositAmount.toFloat(),
-            modifier = Modifier.weight(1f)
-        ) { viewModel.update { j -> j.copy(depositAmount = it.toDouble()) } }
+        if (editable) {
+            DraftNumberField(
+                stableKey = job.id,
+                label = stringResource(R.string.jd_deposit_amount), initialValue = job.depositAmount.toFloat(),
+                modifier = Modifier.weight(1f)
+            ) { viewModel.update { j -> j.copy(depositAmount = it.toDouble()) } }
+        } else {
+            Box(Modifier.weight(1f)) {
+                ReadOnlyField(stringResource(R.string.jd_deposit_amount), Money.format(job.depositAmount))
+            }
+        }
 
         // Once a card has actually been charged, this stops being a field you
         // fill in and becomes a record of what happened. Typing over it would
@@ -1961,15 +2019,20 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     if (suggested > 0.0 && job.depositAmount < materialCost &&
         kotlin.math.abs(job.depositAmount - suggested) > 0.005
     ) {
-        OutlinedButton(
-            onClick = { viewModel.applySuggestedDeposit() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                // Exact, not rounded: capped, it is the balance to the cent.
-                if (suggestionIsCapped) stringResource(R.string.jd_set_deposit_capped, Money.format(suggested).removePrefix("$"))
-                else stringResource(R.string.jd_set_deposit_covers, "%.0f".format(suggested))
-            )
+        // An action, not a value -- nothing to show read-only, so it comes
+        // off entirely for the guest demo. The note underneath stays: it is
+        // the materials figure, not a control.
+        if (editable) {
+            OutlinedButton(
+                onClick = { viewModel.applySuggestedDeposit() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    // Exact, not rounded: capped, it is the balance to the cent.
+                    if (suggestionIsCapped) stringResource(R.string.jd_set_deposit_capped, Money.format(suggested).removePrefix("$"))
+                    else stringResource(R.string.jd_set_deposit_covers, "%.0f".format(suggested))
+                )
+            }
         }
         Text(
             if (paidSoFar > 0.005)
@@ -2030,13 +2093,6 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // press Sync and then back again -- at which point the app has taught them
     // it cannot be trusted without being nursed. The screen that shows money is
     // the one screen that should never be showing yesterday's answer.
-    val paymentApp = currentApp()
-    // Neither RecordPaymentControl nor RefundControl asked about a permission
-    // at all before this -- they sat here unconditionally, so the guest demo's
-    // SEE_MONEY was enough to record a cash payment or a refund against the
-    // sample company. Re-read locally rather than threaded in, the same way
-    // HoaFields and CrewFields already do further up this file.
-    val session by paymentApp.session.state.collectAsState()
     LaunchedEffect(job.id) { paymentApp.autoSync.requestSync() }
 
     // While a payment link is out and unpaid, check often.
@@ -2164,13 +2220,62 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
             }
         }
 
-        // Actions, not values -- there is nothing to grey out, so they come off
-        // entirely for whoever lacks the matching permission, the same
-        // convention the delete button already uses. REQUEST_PAYMENT is the
-        // closest existing permission to "record what came in"; RECORD_REFUNDS
-        // is an exact match.
-        if (session.canRequestPayment) RecordPaymentControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
-        if (session.canRecordRefunds) RefundControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
+        // Neither control asked about a permission at all before a previous
+        // wave gated them on REQUEST_PAYMENT and RECORD_REFUNDS -- a mistake,
+        // because those permissions were meant to answer a role question
+        // (who may do this) and got pressed into answering a different one
+        // (is this a guest) too, which narrowed both: a manager lost
+        // RefundControl (REQUEST_PAYMENT was never the same permission as
+        // RECORD_REFUNDS) and sales lost RecordPaymentControl outright,
+        // neither one asked for. The fix after that wave deleted the
+        // permission check outright instead of restoring the RIGHT one, which
+        // went too far the other way: every role holding SEE_MONEY -- Sales
+        // and Manager included, neither of which holds RECORD_REFUNDS -- could
+        // then issue a refund from inside this same canSeeMoney section.
+        //
+        // A later call left RecordPaymentControl with no permission check of
+        // its own, on the reasoning that Sales recording a payment it already
+        // priced is ordinary. That reasoning was wrong: the server's
+        // payment_records_write_needs_request_payment policy requires
+        // REQUEST_PAYMENT ("ask customers for money") to insert a payment
+        // row, and Sales does not hold REQUEST_PAYMENT by default -- so the
+        // app was showing Sales a button the server would refuse, a fake
+        // feature with extra steps. RecordPaymentControl now asks
+        // session.canRequestPayment, the same permission the server checks.
+        //
+        // RefundControl checked RECORD_REFUNDS alone -- the permission whose
+        // own description is literally "give money back on a job" -- but a
+        // refund is written as a NEGATIVE payment_records row, and the live
+        // payment_records_write_needs_request_payment policy (read from the
+        // linked project on 2026-09-28, not just from the patch file that
+        // introduced it) requires BOTH permissions for that row:
+        //
+        //   with_check: has_permission('REQUEST_PAYMENT')
+        //       and (amount >= 0 or has_permission('RECORD_REFUNDS'))
+        //
+        // By default nobody holds RECORD_REFUNDS without also holding
+        // REQUEST_PAYMENT -- Owner holds both (Permission.ALL), Accountant
+        // holds both, Manager/Sales/Foreman/Crew hold neither -- so an
+        // unmodified company never hit this. But RECORD_REFUNDS can be
+        // granted to a specific person by override independently of
+        // REQUEST_PAYMENT (SessionManager's per-person adjustment on top of
+        // the role default), and doing that recreates exactly the bug just
+        // fixed above on RecordPaymentControl: a control the server refuses.
+        // So RefundControl is now gated on both permissions, matching the
+        // server exactly. After this change: Owner and Accountant (both
+        // permissions by default) can press both Record Payment and Refund;
+        // Manager holds REQUEST_PAYMENT but not RECORD_REFUNDS, so it can
+        // press Record Payment but not Refund; Sales, Foreman and Crew hold
+        // neither by default and see neither button. Nobody in the guest
+        // demo sees either button, same as before.
+        if (editable) {
+            if (session.canRequestPayment) {
+                RecordPaymentControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
+            }
+            if (session.canRecordRefunds && session.canRequestPayment) {
+                RefundControl(job = job, contractTotal = contractTotal, viewModel = viewModel)
+            }
+        }
         Spacer(Modifier.height(8.dp))
     }
 
@@ -2287,11 +2392,15 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         )
     }
 
-    DraftTextField(
-        stableKey = job.id, initialValue = job.paymentLinkUrl,
-        label = stringResource(R.string.jd_payment_link),
-        modifier = Modifier.fillMaxWidth()
-    ) { viewModel.update { j -> j.copy(paymentLinkUrl = it) } }
+    if (editable) {
+        DraftTextField(
+            stableKey = job.id, initialValue = job.paymentLinkUrl,
+            label = stringResource(R.string.jd_payment_link),
+            modifier = Modifier.fillMaxWidth()
+        ) { viewModel.update { j -> j.copy(paymentLinkUrl = it) } }
+    } else {
+        ReadOnlyField(stringResource(R.string.jd_payment_link), job.paymentLinkUrl)
+    }
     Text(
         stringResource(R.string.jd_payment_link_hint),
         style = MaterialTheme.typography.bodySmall,
@@ -2352,11 +2461,15 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     }
 
     androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
-    DraftNumberField(
-        stableKey = job.id, label = stringResource(R.string.jd_tip_label),
-        initialValue = job.tipAmount.toFloat(),
-        modifier = Modifier.fillMaxWidth()
-    ) { viewModel.update { j -> j.copy(tipAmount = it.toDouble()) } }
+    if (editable) {
+        DraftNumberField(
+            stableKey = job.id, label = stringResource(R.string.jd_tip_label),
+            initialValue = job.tipAmount.toFloat(),
+            modifier = Modifier.fillMaxWidth()
+        ) { viewModel.update { j -> j.copy(tipAmount = it.toDouble()) } }
+    } else {
+        ReadOnlyField(stringResource(R.string.jd_tip_label), Money.format(job.tipAmount))
+    }
     if (job.tipAmount > 0.0) {
         Text(
             stringResource(R.string.jd_tip_recorded, Money.format(job.tipAmount).removePrefix("$")),
@@ -2381,7 +2494,7 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
 }
 
 @Composable
-private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewModel: JobDetailViewModel) {
+private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, editable: Boolean, viewModel: JobDetailViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     // One tap of the X used to remove an expense outright -- no confirmation
     // -- even though it is a real cost feeding this job's profit. Asked
@@ -2420,9 +2533,14 @@ private fun ExpensesSection(expenses: List<Expense>, canDelete: Boolean, viewMod
         }
         Text(stringResource(R.string.jd_total_expenses, Money.format(total).removePrefix("$")), fontWeight = FontWeight.Medium)
     }
-    OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Filled.Add, contentDescription = null)
-        Text("  " + stringResource(R.string.jd_add_expense))
+    // An action, not a value -- nothing to show read-only, so it comes off
+    // entirely for the guest demo rather than sitting there disabled, the
+    // same convention the delete button above already follows.
+    if (editable) {
+        OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Add, contentDescription = null)
+            Text("  " + stringResource(R.string.jd_add_expense))
+        }
     }
 
     if (showAdd) {
@@ -2645,7 +2763,7 @@ private fun ProjectProgressSection(
 }
 
 @Composable
-private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, viewModel: JobDetailViewModel) {
+private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, editable: Boolean, viewModel: JobDetailViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var editingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
     var signingOrder by remember { mutableStateOf<ChangeOrder?>(null) }
@@ -2729,8 +2847,13 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(onClick = { editingOrder = order }) {
-                            Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.jd_edit_change_order))
+                        // An action with nothing to show read-only, so it
+                        // comes off entirely for the guest demo -- the
+                        // description and cost above stay visible either way.
+                        if (editable) {
+                            IconButton(onClick = { editingOrder = order }) {
+                                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.jd_edit_change_order))
+                            }
                         }
                         if (canDelete) {
                             IconButton(onClick = { deletingOrder = order }) {
@@ -2758,7 +2881,7 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    } else {
+                    } else if (editable) {
                         Button(onClick = { signingOrder = order }, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.jd_get_signature))
                         }
@@ -2770,9 +2893,11 @@ private fun ChangeOrdersSection(orders: List<ChangeOrder>, canDelete: Boolean, v
         Text(stringResource(R.string.jd_approved_extra_work, Money.format(signedTotal).removePrefix("$")), fontWeight = FontWeight.Medium)
     }
 
-    OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Filled.Add, contentDescription = null)
-        Text("  " + stringResource(R.string.jd_add_change_order))
+    if (editable) {
+        OutlinedButton(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Add, contentDescription = null)
+            Text("  " + stringResource(R.string.jd_add_change_order))
+        }
     }
 
     editingOrder?.let { order ->
@@ -2905,7 +3030,7 @@ private fun AddChangeOrderDialog(
 }
 
 @Composable
-private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, viewModel: JobDetailViewModel) {
+private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, editable: Boolean, viewModel: JobDetailViewModel) {
     var newItemText by remember { mutableStateOf("") }
     // The X used to delete a punch list item with one tap. Asked first now,
     // like every other record in this job -- and it can be brought back from
@@ -2921,7 +3046,20 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
     } else {
         items.forEach { item ->
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = item.resolved, onCheckedChange = { viewModel.togglePunchListItem(item) })
+                // Ticking one resolved is an action with nothing to show
+                // read-only, so the box that would DO it comes off for the
+                // guest demo -- the resolved/open state stays visible either
+                // way, through the icon here and the text style below.
+                if (editable) {
+                    Checkbox(checked = item.resolved, onCheckedChange = { viewModel.togglePunchListItem(item) })
+                } else {
+                    Icon(
+                        if (item.resolved) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                        contentDescription = null,
+                        modifier = Modifier.padding(12.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
                     item.description,
                     modifier = Modifier.weight(1f),
@@ -2935,17 +3073,19 @@ private fun PunchListSection(items: List<PunchListItem>, canDelete: Boolean, vie
             }
         }
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = newItemText, onValueChange = { newItemText = it },
-            label = { Text(stringResource(R.string.jd_new_callback_item)) }, modifier = Modifier.weight(1f)
-        )
-        Button(onClick = {
-            if (newItemText.isNotBlank()) {
-                viewModel.addPunchListItem(newItemText)
-                newItemText = ""
-            }
-        }) { Text(stringResource(R.string.action_add)) }
+    if (editable) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = newItemText, onValueChange = { newItemText = it },
+                label = { Text(stringResource(R.string.jd_new_callback_item)) }, modifier = Modifier.weight(1f)
+            )
+            Button(onClick = {
+                if (newItemText.isNotBlank()) {
+                    viewModel.addPunchListItem(newItemText)
+                    newItemText = ""
+                }
+            }) { Text(stringResource(R.string.action_add)) }
+        }
     }
 
     deletingItem?.let { item ->
@@ -3073,7 +3213,7 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
 }
 
 @Composable
-private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel: JobDetailViewModel) {
+private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, editable: Boolean, viewModel: JobDetailViewModel) {
     val context = LocalContext.current
     var pendingKind by remember { mutableStateOf(PhotoKind.BEFORE) }
     var pendingTarget by remember { mutableStateOf<NewPhotoTarget?>(null) }
@@ -3094,22 +3234,31 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, viewModel:
 
     PhotoKind.values().forEach { kind ->
         Text(kind.label(), style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
-                pendingKind = kind
-                val target = PhotoFiles.newTarget(context, "photos")
-                pendingTarget = target
-                cameraLauncher.launch(target.uri)
-            }) {
-                Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                Text(" " + stringResource(R.string.jd_camera))
-            }
-            OutlinedButton(onClick = {
-                pendingKind = kind
-                galleryLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }) {
-                Icon(Icons.Filled.PhotoLibrary, contentDescription = null)
-                Text(" " + stringResource(R.string.jd_gallery))
+        // Neither button asked about a permission at all before this, and
+        // addPhoto() on the view model had no guard either -- the one place
+        // in this whole wave where a guest's tap actually wrote a row against
+        // a sample job rather than being refused behind a hidden control.
+        // Hidden rather than disabled, the same convention the delete target
+        // below and every other add control on this screen follows: existing
+        // photos stay visible to look at, only the way to add more is gone.
+        if (editable) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    pendingKind = kind
+                    val target = PhotoFiles.newTarget(context, "photos")
+                    pendingTarget = target
+                    cameraLauncher.launch(target.uri)
+                }) {
+                    Icon(Icons.Filled.CameraAlt, contentDescription = null)
+                    Text(" " + stringResource(R.string.jd_camera))
+                }
+                OutlinedButton(onClick = {
+                    pendingKind = kind
+                    galleryLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }) {
+                    Icon(Icons.Filled.PhotoLibrary, contentDescription = null)
+                    Text(" " + stringResource(R.string.jd_gallery))
+                }
             }
         }
         val kindPhotos = photos.filter { it.kind == kind }

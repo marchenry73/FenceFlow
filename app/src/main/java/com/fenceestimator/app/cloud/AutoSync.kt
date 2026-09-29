@@ -66,6 +66,21 @@ enum class UnsyncedReason {
      * because there is no queue answer in it either way.
      */
     ACCESS_NOT_CONFIRMED,
+
+    /**
+     * [RECORDS_HELD_BACK] and [ACCESS_NOT_CONFIRMED] at the same time: a
+     * table push this pass genuinely refused something, AND the money scope
+     * came back unknown, so the jobs half of the same pass never ran at all
+     * (see [ACCESS_NOT_CONFIRMED]). Naming only the refusal would let the
+     * reader assume jobs were checked and are fine -- exactly the assumption
+     * this pass never got to make. Naming only the unanswered scope would go
+     * quiet about a real, actionable refusal that has nothing to do with
+     * money. Neither sentence alone is honest about a pass where both are
+     * true, so this gets its own value rather than folding into either one;
+     * the card composes it from the two existing sentences instead of a new
+     * one, so nothing here needs its own translation.
+     */
+    RECORDS_HELD_BACK_AND_ACCESS_NOT_CONFIRMED,
 }
 
 data class SyncState(
@@ -83,11 +98,14 @@ data class SyncState(
      * work is up, so a caller that forgets this cannot turn the card into good
      * news.
      *
-     * Read only by the [SyncPhase.OK] wording. Every other phase reaches the
-     * screen through copy() of an earlier state and can therefore be carrying
-     * an older pass's answer, which would be a stale reason wearing a current
-     * banner -- so no other branch asks. The only place OK is set builds a
-     * whole new state and sets this from that pass.
+     * Read only when [phase] is [SyncPhase.OK] -- by AccountScreen and
+     * JobsListScreen, which map it straight to a localized string; see the
+     * note on [message] below for why that mapping does not live here.
+     * Every other phase reaches the screen through copy() of an earlier
+     * state and can therefore be carrying an older pass's answer, which
+     * would be a stale reason wearing a current banner -- so no other phase
+     * reads this. The only place OK is set builds a whole new state and
+     * sets this from that pass.
      */
     val unsyncedReason: UnsyncedReason? = null,
     /** Signed in, but not part of a company -- so there is nowhere to sync to. */
@@ -109,35 +127,18 @@ data class SyncState(
             // exactly the empty-answer-reads-as-good-news shape of bug this
             // flag exists to prevent noticing.
             //
-            // Split by [unsyncedReason], not softened. The first two name whose
-            // work is waiting and where to look for it; the third does not
-            // claim to know whether anything of the person's is waiting --
-            // JobSync.sync returns before its first read or write on an
-            // UNKNOWN pass, so a clean heldBack count here means the question
-            // was never asked, not that the answer was no. Asserting "nothing
-            // of yours is waiting" from that silence is the exact shape of bug
-            // this flag exists to catch, so this branch says only what the
-            // pass actually knows. None of them says the work reached the cloud.
+            // The specific reason is deliberately NOT spelled out here any
+            // more. This getter has no Context and cannot resolve a string
+            // resource (see the class doc), so a literal English sentence per
+            // [unsyncedReason] here is a translation bug waiting to happen --
+            // it is exactly how a Spanish or French owner ended up reading
+            // English on this card. AccountScreen and JobsListScreen map
+            // [unsyncedReason] to a localized string directly instead, so
+            // this branch only needs to stay true, not specific: it must
+            // never say the work reached the cloud.
             SyncPhase.OK ->
                 if (!hasUnsyncedWork) "Everything is backed up"
-                else when (unsyncedReason) {
-                    UnsyncedReason.JOBS_HELD_BACK ->
-                        "Job changes made on this phone are not in the cloud yet. " +
-                            "They are saved here, and every sync tries them again."
-                    UnsyncedReason.RECORDS_HELD_BACK ->
-                        "Some records on this phone, other than jobs, are not in the " +
-                            "cloud yet. They are saved here, and every sync tries them again."
-                    UnsyncedReason.ACCESS_NOT_CONFIRMED ->
-                        "Jobs and prices were left alone this time -- this phone is " +
-                            "still confirming what your account is allowed to see, and it " +
-                            "will not guess. Checking again in a moment."
-                    // Listed rather than folded into the branches above, so
-                    // that a future condition added to somethingHeldBack
-                    // without a sentence of its own lands here instead of
-                    // borrowing one that is wrong about it.
-                    null ->
-                        "Some of this phone's work has not reached the cloud yet. It will go up on the next sync."
-                }
+                else "Some of this phone's work has not reached the cloud yet. It will go up on the next sync."
             SyncPhase.WAITING_FOR_SIGNAL ->
                 "No signal. Your work is saved on this phone and will upload by itself."
             // Never "it uploads on its own" here. It does not, and cannot: the
@@ -809,11 +810,34 @@ class AutoSync(
                     // assumption that two of them cannot happen together, so
                     // this stays correct if the sync's own rules about that
                     // ever change.
+                    //
+                    // syncResult.heldBack is checked first and alone, never
+                    // paired with the scope check below it, because it cannot
+                    // be spuriously true: JobSync.sync returns before its
+                    // first read whenever scope is UNKNOWN (see its own
+                    // guard), so heldBack is always 0 on a pass this pushed
+                    // no jobs. A held-back job is real work, every time it is
+                    // reported.
+                    //
+                    // The push-refusal check is NOT the same guarantee, and
+                    // that is the bug this ordering used to have: pushAll
+                    // covers every table but jobs, none of them gated on the
+                    // money scope, so a table can be refused on the exact
+                    // same pass that the scope comes back UNKNOWN. Testing
+                    // "pushResult < 0" before "scope == UNKNOWN" picked
+                    // RECORDS_HELD_BACK on that pass and said nothing about
+                    // jobs never having been asked about at all -- read as
+                    // reassurance about the one thing that was never checked.
+                    // Testing the pair first, ahead of the plain refusal
+                    // check, says both true things instead of guessing which
+                    // one to hide.
                     val reason = when {
                         !somethingHeldBack -> null
                         syncResult.heldBack > 0 -> UnsyncedReason.JOBS_HELD_BACK
+                        (pushResult.getOrNull() ?: 0) < 0 && scope == MoneyScope.UNKNOWN ->
+                            UnsyncedReason.RECORDS_HELD_BACK_AND_ACCESS_NOT_CONFIRMED
                         (pushResult.getOrNull() ?: 0) < 0 -> UnsyncedReason.RECORDS_HELD_BACK
-                        // Only the unanswered money scope is left: the three
+                        // Only the unanswered money scope is left: the
                         // conditions above are exactly what somethingHeldBack
                         // is built from.
                         else -> UnsyncedReason.ACCESS_NOT_CONFIRMED

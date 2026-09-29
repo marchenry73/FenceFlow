@@ -78,7 +78,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     val app = currentApp()
     val viewModel: EstimateViewModel = viewModel(
         key = "estimate_$jobId",
-        factory = GenericViewModelFactory { EstimateViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { EstimateViewModel(app.repository, jobId, app.session) }
     )
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
@@ -88,6 +88,12 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     val takeoff by viewModel.takeoff.collectAsState()
     val changeOrders by viewModel.changeOrders.collectAsState()
     val currentJob = job ?: return
+    // The guest demo: look at everything on this estimate, change nothing.
+    // Gated on the demo predicate itself, never on a permission -- the demo
+    // deliberately holds SEE_MONEY so it can show pricing at all, and gating
+    // on that would wave every write through with it.
+    val session by app.session.state.collectAsState()
+    val editable = !session.isGuestDemo
 
     var editingItem by remember { mutableStateOf<EstimateLineItem?>(null) }
     /** The run whose post count is being explained, if somebody asked. */
@@ -130,6 +136,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                     linearFeet = viewModel.linearFeetFor(run),
                     items = itemsByRun[run.id].orEmpty(),
                     takeoff = takeoff[run.id].orEmpty(),
+                    editable = editable,
                     onRegenerate = { viewModel.regenerateSuggested(run) },
                     onManualFeet = { feet, corners -> viewModel.setManualFeet(run, feet, corners) },
                     wasDrawn = viewModel.canRecalibrateFrom(run),
@@ -143,6 +150,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
             item {
                 WasteCard(
                     wastePercent = currentJob.wastePercent,
+                    editable = editable,
                     onChange = { viewModel.setWastePercent(it) }
                 )
             }
@@ -151,7 +159,13 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.est_other_items), style = MaterialTheme.typography.titleMedium)
-                    OutlinedButton(onClick = { viewModel.addManualLineItem() }) { Text(stringResource(R.string.est_add_item)) }
+                    // A guest gets no path to a form that only writes on
+                    // Save -- an Add button behind that has nothing to show
+                    // read-only, so it disappears rather than sitting there
+                    // disabled.
+                    if (editable) {
+                        OutlinedButton(onClick = { viewModel.addManualLineItem() }) { Text(stringResource(R.string.est_add_item)) }
+                    }
                 }
             }
             if (unassigned.isEmpty()) {
@@ -168,7 +182,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
             if (warnings.isNotEmpty()) {
                 item { WarningsCard(warnings) }
             }
-            item { ExportSection(viewModel, profile, currentJob, onOpenSupplierPrices) }
+            item { ExportSection(viewModel, profile, currentJob, onOpenSupplierPrices, editable) }
         }
     }
 
@@ -179,7 +193,6 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     }
 
     editingItem?.let { item ->
-        val session by com.fenceestimator.app.ui.components.currentApp().session.state.collectAsState()
         EditLineItemDialog(
             item = item,
             // What the server lets this person tombstone: anything with
@@ -189,10 +202,17 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
             // Delete past that line removed the line on this phone alone:
             // the server refused the tombstone, and this phone then priced
             // the job without a line every other phone still counted.
-            canDelete = session.canDelete || lineIsTakeoffGenerated(item),
+            //
+            // canDelete alone let a guest through anyway: an auto-generated
+            // takeoff line satisfies lineIsTakeoffGenerated with no
+            // permission at all, so this ORs in editable to close that for
+            // the demo specifically without touching what a real, signed-in
+            // no-delete-permission user is allowed to reach.
+            canDelete = editable && (session.canDelete || lineIsTakeoffGenerated(item)),
+            editable = editable,
             onSave = { viewModel.updateLineItem(it); editingItem = null },
             onDelete = { viewModel.deleteLineItem(item); editingItem = null },
-            onUseSuggested = if (lineIsHandEditedTakeoff(item)) {
+            onUseSuggested = if (editable && lineIsHandEditedTakeoff(item)) {
                 { viewModel.useSuggested(item); editingItem = null }
             } else null,
             onDismiss = { editingItem = null }
@@ -214,6 +234,8 @@ private fun RunSection(
     linearFeet: Float,
     items: List<EstimateLineItem>,
     takeoff: List<TakeoffLine>,
+    /** False in the guest demo: every field below reads, none of them write. */
+    editable: Boolean,
     onRegenerate: () -> Unit,
     onManualFeet: (Float?, Int) -> Unit,
     /** True when this run has a drawn line the scale can be worked out from. */
@@ -276,6 +298,7 @@ private fun RunSection(
                     },
                     label = { Text(stringResource(R.string.est_total_feet)) },
                     singleLine = true,
+                    readOnly = !editable,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f)
                 )
@@ -287,6 +310,7 @@ private fun RunSection(
                     },
                     label = { Text(stringResource(R.string.est_corners)) },
                     singleLine = true,
+                    readOnly = !editable,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f)
                 )
@@ -304,7 +328,7 @@ private fun RunSection(
             // This goes the other way: it works the scale out from the line as
             // drawn, which corrects the whole plan at once.
             val typedFeet = feetText.replace(',', '.').toFloatOrNull()
-            if (wasDrawn && typedFeet != null && typedFeet > 0f) {
+            if (editable && wasDrawn && typedFeet != null && typedFeet > 0f) {
                 Spacer(Modifier.height(Space.sm))
                 OutlinedButton(
                     onClick = { onFixScaleFromFeet(typedFeet) },
@@ -319,10 +343,17 @@ private fun RunSection(
                 )
             }
 
-            Spacer(Modifier.height(Space.row))
-            Button(onClick = onRegenerate, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.Refresh, contentDescription = null)
-                Text("  " + stringResource(R.string.est_suggest_quantities))
+            // Suggest Quantities rewrites this run's auto-generated line
+            // items for real (replaceAutoGeneratedLineItemsForRun) -- it is
+            // not what fills in the takeoff block below, which is a pure
+            // derived figure and is already shown unconditionally. Nothing
+            // read-only is lost by dropping the button for the demo.
+            if (editable) {
+                Spacer(Modifier.height(Space.row))
+                Button(onClick = onRegenerate, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.Refresh, contentDescription = null)
+                    Text("  " + stringResource(R.string.est_suggest_quantities))
+                }
             }
 
             if (takeoff.isNotEmpty()) {
@@ -346,7 +377,9 @@ private fun RunSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
-                    OutlinedButton(onClick = onRestoreRemoved) { Text(stringResource(R.string.est_restore)) }
+                    if (editable) {
+                        OutlinedButton(onClick = onRestoreRemoved) { Text(stringResource(R.string.est_restore)) }
+                    }
                 }
             }
 
@@ -432,7 +465,7 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>, onExplainPosts: () -> Unit)
 
 /** Cut-and-waste allowance, applied only to materials bought by length or count. */
 @Composable
-private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
+private fun WasteCard(wastePercent: Double, editable: Boolean, onChange: (Double) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Space.card)) {
             Text(stringResource(R.string.est_waste_allowance), style = MaterialTheme.typography.titleMedium)
@@ -454,6 +487,7 @@ private fun WasteCard(wastePercent: Double, onChange: (Double) -> Unit) {
                 listOf(0.0, 5.0, 10.0, 15.0).forEach { pct ->
                     androidx.compose.material3.FilterChip(
                         selected = wastePercent == pct,
+                        enabled = editable,
                         onClick = { onChange(pct) },
                         label = { Text(if (pct == 0.0) stringResource(R.string.est2_none) else stringResource(R.string.est2_percent, pct.toInt())) }
                     )
@@ -720,7 +754,9 @@ private fun ExportSection(
     viewModel: EstimateViewModel,
     profile: BusinessProfile,
     job: Job,
-    onOpenSupplierPrices: (Long) -> Unit
+    onOpenSupplierPrices: (Long) -> Unit,
+    /** False in the guest demo: no signature may be captured against sample data. */
+    editable: Boolean
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val totals by viewModel.totals.collectAsState()
@@ -805,8 +841,14 @@ private fun ExportSection(
                 // scroll -- re-signing is a secondary path back into it, and two
                 // filled buttons in the same column reads as "pick either", when
                 // only one of them is the actual next step for most estimates.
-                OutlinedButton(onClick = { showSignaturePad = true }) {
-                    Text(stringResource(if (needsResign) R.string.est2_get_new_signature else R.string.est2_re_sign))
+                //
+                // Guarded here too, not just in captureSignature: this button
+                // sits behind canSeeMoney, which the guest demo deliberately
+                // holds, so the permission alone would wave it through.
+                if (editable) {
+                    OutlinedButton(onClick = { showSignaturePad = true }) {
+                        Text(stringResource(if (needsResign) R.string.est2_get_new_signature else R.string.est2_re_sign))
+                    }
                 }
             }
         } else if (approvedOnlineOnly) {
@@ -824,11 +866,13 @@ private fun ExportSection(
                 // A wet signature is never required once the customer has
                 // already approved online -- this is purely optional, for an
                 // owner who wants one on file too.
-                OutlinedButton(onClick = { showSignaturePad = true }) {
-                    Text(stringResource(R.string.est2_add_wet_signature))
+                if (editable) {
+                    OutlinedButton(onClick = { showSignaturePad = true }) {
+                        Text(stringResource(R.string.est2_add_wet_signature))
+                    }
                 }
             }
-        } else {
+        } else if (editable) {
             OutlinedButton(onClick = { showSignaturePad = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.est_sign_to_accept))
             }
@@ -1055,6 +1099,8 @@ private fun EditLineItemDialog(
     item: EstimateLineItem,
     /** False hides Delete; see the caller for which lines this person may delete. */
     canDelete: Boolean,
+    /** False in the guest demo: the fields below read, Save and Delete are gone. */
+    editable: Boolean,
     onSave: (EstimateLineItem) -> Unit,
     onDelete: () -> Unit,
     /** Non-null for a takeoff line somebody changed: offers the way back to the drawing's number. */
@@ -1080,71 +1126,82 @@ private fun EditLineItemDialog(
         title = { Text(stringResource(R.string.est_edit_line_item)) },
         text = {
             Column {
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text(stringResource(R.string.est_description)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = description, onValueChange = { description = it }, readOnly = !editable, label = { Text(stringResource(R.string.est_description)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(Space.sm))
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    OutlinedTextField(value = qtyText, onValueChange = { qtyText = it }, label = { Text(stringResource(R.string.est_qty)) }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text(stringResource(R.string.est_unit)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = qtyText, onValueChange = { qtyText = it }, readOnly = !editable, label = { Text(stringResource(R.string.est_qty)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = unit, onValueChange = { unit = it }, readOnly = !editable, label = { Text(stringResource(R.string.est_unit)) }, modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(Space.sm))
-                OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text(stringResource(R.string.est_unit_price)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = priceText, onValueChange = { priceText = it }, readOnly = !editable, label = { Text(stringResource(R.string.est_unit_price)) }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val qty = qtyText.replace(',', '.').toDoubleOrNull() ?: return@Button
-                val price = priceText.replace(',', '.').toDoubleOrNull() ?: return@Button
-                // A price typed by hand is the newest decision on this line, so
-                // it has to win. The supplier figure outranks unitPrice
-                // everywhere the total is worked out, so leaving it in place
-                // made editing the price look like it did nothing at all.
-                val supplierNowStale = item.supplierUnitPrice != null &&
-                    kotlin.math.abs(price - item.effectiveUnitPrice) > 0.005
-                // Save with nothing changed is not an edit. It used to mark
-                // the line hand-edited anyway -- and a hand-edited line no
-                // longer follows the drawing, so opening a line and tapping
-                // Save froze it for good.
-                val nothingChanged = description == item.description &&
-                    qty == item.quantity && unit == item.unit &&
-                    kotlin.math.abs(price - item.effectiveUnitPrice) <= 0.005
-                if (nothingChanged) {
-                    onDismiss()
-                    return@Button
-                }
-                onSave(
-                    item.copy(
-                        description = description, quantity = qty, unitPrice = price,
-                        unit = unit, isAutoGenerated = false,
-                        supplierUnitPrice = if (supplierNowStale) null else item.supplierUnitPrice
+            // A guest gets Close, not Save -- there is nothing behind this
+            // dialog for Save to write to that the demo is allowed to touch.
+            if (!editable) {
+                Button(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+            } else {
+                Button(onClick = {
+                    val qty = qtyText.replace(',', '.').toDoubleOrNull() ?: return@Button
+                    val price = priceText.replace(',', '.').toDoubleOrNull() ?: return@Button
+                    // A price typed by hand is the newest decision on this line, so
+                    // it has to win. The supplier figure outranks unitPrice
+                    // everywhere the total is worked out, so leaving it in place
+                    // made editing the price look like it did nothing at all.
+                    val supplierNowStale = item.supplierUnitPrice != null &&
+                        kotlin.math.abs(price - item.effectiveUnitPrice) > 0.005
+                    // Save with nothing changed is not an edit. It used to mark
+                    // the line hand-edited anyway -- and a hand-edited line no
+                    // longer follows the drawing, so opening a line and tapping
+                    // Save froze it for good.
+                    val nothingChanged = description == item.description &&
+                        qty == item.quantity && unit == item.unit &&
+                        kotlin.math.abs(price - item.effectiveUnitPrice) <= 0.005
+                    if (nothingChanged) {
+                        onDismiss()
+                        return@Button
+                    }
+                    onSave(
+                        item.copy(
+                            description = description, quantity = qty, unitPrice = price,
+                            unit = unit, isAutoGenerated = false,
+                            supplierUnitPrice = if (supplierNowStale) null else item.supplierUnitPrice
+                        )
                     )
-                )
-            }) { Text(stringResource(R.string.action_save)) }
+                }) { Text(stringResource(R.string.action_save)) }
+            }
         },
         dismissButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                if (onUseSuggested != null) {
-                    OutlinedButton(onClick = onUseSuggested) { Text(stringResource(R.string.est_use_suggested)) }
-                    Spacer(Modifier.height(Space.xs))
-                }
-                Row {
-                    if (canDelete) {
-                        OutlinedButton(onClick = { confirmingDelete = true }) { Text(stringResource(R.string.action_delete)) }
-                        Spacer(Modifier.width(Space.sm))
+            // Nothing here at all for a guest: Close above is already the
+            // whole story, and an empty slot is how AlertDialog is meant to
+            // be told this dialog has no second button.
+            if (editable) {
+                Column(horizontalAlignment = Alignment.End) {
+                    if (onUseSuggested != null) {
+                        OutlinedButton(onClick = onUseSuggested) { Text(stringResource(R.string.est_use_suggested)) }
+                        Spacer(Modifier.height(Space.xs))
                     }
-                    OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-                }
-                if (!canDelete) {
-                    Text(
-                        stringResource(R.string.est_delete_needs_permission),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row {
+                        if (canDelete) {
+                            OutlinedButton(onClick = { confirmingDelete = true }) { Text(stringResource(R.string.action_delete)) }
+                            Spacer(Modifier.width(Space.sm))
+                        }
+                        OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+                    }
+                    if (!canDelete) {
+                        Text(
+                            stringResource(R.string.est_delete_needs_permission),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
     )
 
-    if (confirmingDelete) {
+    if (editable && confirmingDelete) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmingDelete = false },
             title = { Text(stringResource(R.string.est_delete_line_item_title)) },

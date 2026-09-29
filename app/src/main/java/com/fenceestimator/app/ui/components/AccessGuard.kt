@@ -8,6 +8,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -50,6 +51,15 @@ fun AccessGuard(
         return
     }
 
+    // Read locally rather than threaded through every call site, the same
+    // way JobDetailScreen's own money fields reach the session for
+    // themselves. A guest in the read-only demo landing here has not had
+    // anything taken away -- nobody revoked anything, there is no owner to
+    // ask -- so "your access changed" is the wrong sentence for them even
+    // though the panel underneath is the right one. onb_access_changed_guest_body
+    // exists for exactly this and was sitting unused.
+    val isGuestDemo = currentApp().session.state.collectAsState().value.isGuestDemo
+
     Column(
         modifier = Modifier.fillMaxSize().padding(28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
@@ -61,15 +71,21 @@ fun AccessGuard(
             fontWeight = FontWeight.Bold
         )
         Text(
-            stringResource(R.string.onb_access_changed_body, permissionName),
+            if (isGuestDemo) stringResource(R.string.onb_access_changed_guest_body)
+            else stringResource(R.string.onb_access_changed_body, permissionName),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text(
-            stringResource(R.string.onb_access_changed_ask_owner),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        // "Ask an owner" makes no sense to somebody in a sample company with
+        // no owner but themselves -- the guest body above already tells them
+        // the one thing they can actually do, which is sign in for real.
+        if (!isGuestDemo) {
+            Text(
+                stringResource(R.string.onb_access_changed_ask_owner),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Button(onClick = onLeave) { Text(stringResource(R.string.onb_go_back)) }
     }
 }

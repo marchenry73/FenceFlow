@@ -145,6 +145,10 @@
     <string name="account_cloud_save">Guardado en la nube</string>
     <string name="sync_saving">Guardando en la nube…</string>
     <string name="sync_saved">Todo guardado</string>
+    <string name="sync_unsynced_jobs">Los cambios de trabajos hechos en este teléfono aún no están en la nube. Están guardados aquí y cada sincronización vuelve a intentarlo.</string>
+    <string name="sync_unsynced_records">Algunos registros de este teléfono, distintos de los trabajos, aún no están en la nube. Están guardados aquí y cada sincronización vuelve a intentarlo.</string>
+    <string name="sync_scope_not_confirmed">Esta vez no se tocaron los trabajos ni los precios: este teléfono todavía está confirmando qué puede ver tu cuenta y no lo va a suponer. Se vuelve a comprobar en un momento.</string>
+    <string name="sync_unsynced_unspecified">Parte del trabajo de este teléfono aún no ha llegado a la nube. Se subirá en la próxima sincronización.</string>
     <string name="sync_plain_no_signal">No hay señal por ahora. Tu trabajo está guardado en este teléfono y se sube solo en cuanto vuelvas a tener conexión.</string>
     <string name="sync_plain_signed_out">Se cerró tu sesión. Vuelve a iniciar sesión y todo lo que hay en este teléfono se subirá.</string>
     <string name="sync_plain_conflict">Alguien cambió lo mismo desde otro teléfono. Desliza hacia abajo para sincronizar de nuevo y los dos cambios se acomodarán.</string>
@@ -217,6 +221,7 @@
     <!-- Jobs list extras -->
     <string name="jobs_materials_catalog">Catálogo de materiales</string>
     <string name="jobs_settings">Ajustes</string>
+    <string name="jobs_more_menu">Más</string>
     <string name="jobs_delete_title">¿Eliminar este trabajo?</string>
     <string name="jobs_review_catalog">Revisar catálogo</string>
     <string name="jobs_make_prices_yours">Haz tuyos estos precios</string>
@@ -1867,6 +1872,9 @@
     <string name="jobs_kept_title">Guardados en este teléfono</string>
     <string name="jobs_kept_body">Ya no estás asignado. Lo que aún no se ha enviado se queda aquí; pide acceso para enviarlo. Un turno en curso todavía se puede cerrar.</string>
     <string name="jobs_kept_unsent">Tiene cambios sin enviar</string>
+    <string name="jobs_sync_offline_detail">Este teléfono no está conectado a tu empresa, así que estas cifras son solo de este teléfono. Abre Cuenta y equipo e inicia sesión.</string>
+    <string name="jobs_sync_signed_out_detail">Esto no se va a arreglar solo. Abre Cuenta y equipo e inicia sesión — todo lo que hay en este teléfono se sube en cuanto lo hagas.</string>
+    <string name="jobs_sync_reassurance">No se pierde nada. Sigue trabajando — se sube solo.</string>
     <string name="access_needs_connection">Necesita conexión.</string>
     <string name="access_refused_ask_not_allowed">Este usuario no puede pedir trabajos. Consulta con la oficina.</string>
     <string name="access_refused_answer_not_allowed">No permitido. Responder solicitudes requiere “Programar trabajo y asignar cuadrilla”, y nadie responde su propia solicitud.</string>

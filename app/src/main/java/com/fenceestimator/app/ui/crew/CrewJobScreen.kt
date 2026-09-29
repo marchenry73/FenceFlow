@@ -119,6 +119,12 @@ fun CrewJobScreen(
         return
     }
     val currentJob = job!!
+    // The guest demo: look at a real crew screen, change nothing on it.
+    // Gated on the demo predicate itself, never a permission -- crew's own
+    // permission (RECORD_FIELD_WORK) is untouched by this, so a signed-in
+    // crew member, who is never guestDemo, renders exactly as before.
+    val session by app.session.state.collectAsState()
+    val editable = !session.isGuestDemo
     // Kept on this phone after its person was taken off it (Job.accessEndedAt):
     // it opens here from "Kept on this phone" so a running shift can be
     // clocked out, and nothing on it may pretend the job can still be worked.
@@ -139,9 +145,14 @@ fun CrewJobScreen(
         pendingTarget = null
     }
 
-    val walkthrough = steps.filter { it.kind == JobStepKind.WALKTHROUGH }
-    val finalWalkthrough = steps.filter { it.kind == JobStepKind.FINAL_WALKTHROUGH }
-    val install = steps.filter { it.kind == JobStepKind.INSTALL }
+    // The real steps flow stays empty for the whole demo -- init skips the
+    // seed write for a guest entirely (CrewJobViewModel) -- so the guest
+    // reads the same checklist off guestStepPreview instead: what would have
+    // been seeded, computed live, never persisted.
+    val effectiveSteps = if (editable) steps else viewModel.guestStepPreview
+    val walkthrough = effectiveSteps.filter { it.kind == JobStepKind.WALKTHROUGH }
+    val finalWalkthrough = effectiveSteps.filter { it.kind == JobStepKind.FINAL_WALKTHROUGH }
+    val install = effectiveSteps.filter { it.kind == JobStepKind.INSTALL }
 
     // Whether they are finishing tonight or coming back.
     //
@@ -478,6 +489,7 @@ fun CrewJobScreen(
                     // A running shift on a kept job still ends here; a new
                     // one does not start on a job this person is off.
                     allowClockIn = !kept,
+                    editable = editable,
                     onClockIn = { viewModel.clockIn() },
                     onClockOut = { viewModel.clockOut() },
                     onStartBreak = { viewModel.startBreak() },
@@ -593,6 +605,7 @@ fun CrewJobScreen(
                     JobStageCard(
                         stage = currentJob.productionStage,
                         online = online,
+                        editable = editable,
                         onAdvance = { next -> viewModel.moveStage(next, online) },
                         onRevert = { prev -> viewModel.moveStage(prev, online) }
                     )
@@ -603,6 +616,7 @@ fun CrewJobScreen(
                         title = stringResource(R.string.crew_walkthrough),
                         subtitle = stringResource(R.string.misc_crew_walkthrough_subtitle),
                         steps = walkthrough,
+                        editable = editable,
                         onToggle = { viewModel.toggleStep(it) }
                     )
                 }
@@ -612,6 +626,7 @@ fun CrewJobScreen(
                         title = stringResource(R.string.crew_install_steps),
                         subtitle = null,
                         steps = install,
+                        editable = editable,
                         onToggle = { viewModel.toggleStep(it) }
                     )
                 }
@@ -621,6 +636,7 @@ fun CrewJobScreen(
                         title = stringResource(R.string.misc_crew_final_walkthrough_title),
                         subtitle = stringResource(R.string.misc_crew_final_walkthrough_subtitle),
                         steps = finalWalkthrough,
+                        editable = editable,
                         onToggle = { viewModel.toggleStep(it) }
                     )
                 }
@@ -629,6 +645,7 @@ fun CrewJobScreen(
                     FinalSignOffCard(
                         job = currentJob,
                         steps = finalWalkthrough,
+                        editable = editable,
                         onSign = { path -> viewModel.captureFinalSignOff(path) }
                     )
                 }
@@ -637,16 +654,18 @@ fun CrewJobScreen(
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
                             Text(stringResource(R.string.crew_photos), style = MaterialTheme.typography.titleMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                                listOf(PhotoKind.BEFORE, PhotoKind.AFTER).forEach { kind ->
-                                    OutlinedButton(onClick = {
-                                        pendingKind = kind
-                                        val target = PhotoFiles.newTarget(context, "photos")
-                                        pendingTarget = target
-                                        cameraLauncher.launch(target.uri)
-                                    }) {
-                                        Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                                        Text("  " + stringResource(if (kind == PhotoKind.BEFORE) R.string.misc_photo_before else R.string.misc_photo_after))
+                            if (editable) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                                    listOf(PhotoKind.BEFORE, PhotoKind.AFTER).forEach { kind ->
+                                        OutlinedButton(onClick = {
+                                            pendingKind = kind
+                                            val target = PhotoFiles.newTarget(context, "photos")
+                                            pendingTarget = target
+                                            cameraLauncher.launch(target.uri)
+                                        }) {
+                                            Icon(Icons.Filled.CameraAlt, contentDescription = null)
+                                            Text("  " + stringResource(if (kind == PhotoKind.BEFORE) R.string.misc_photo_before else R.string.misc_photo_after))
+                                        }
                                     }
                                 }
                             }
@@ -668,14 +687,19 @@ fun CrewJobScreen(
                     }
                 }
 
-                item {
-                    val allDone = install.isNotEmpty() && install.all { it.checked }
-                    Button(
-                        onClick = { viewModel.markJobComplete() },
-                        enabled = allDone,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(stringResource(if (allDone) R.string.crew_mark_complete else R.string.crew_finish_steps_first))
+                // A pure action with nothing read-only to replace it with --
+                // gone for the demo rather than a button that looks pressable
+                // and silently does nothing.
+                if (editable) {
+                    item {
+                        val allDone = install.isNotEmpty() && install.all { it.checked }
+                        Button(
+                            onClick = { viewModel.markJobComplete() },
+                            enabled = allDone,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(if (allDone) R.string.crew_mark_complete else R.string.crew_finish_steps_first))
+                        }
                     }
                 }
             }
@@ -700,6 +724,13 @@ private fun TimeClockCard(
     historyNote: String? = null,
     /** False on a kept job: a running shift can still end, a new one cannot start. */
     allowClockIn: Boolean = true,
+    /**
+     * False in the guest demo: every button below is gone. Kept separate
+     * from [allowClockIn], whose false branch prints a specific ("you're no
+     * longer on this job") reason that would be a lie here -- the demo just
+     * shows nothing where the action was, the same as every other screen.
+     */
+    editable: Boolean = true,
     onClockIn: () -> Unit,
     onClockOut: () -> Unit,
     onStartBreak: () -> Unit,
@@ -760,7 +791,9 @@ private fun TimeClockCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(onClick = onClockOut, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_out)) }
+                if (editable) {
+                    Button(onClick = onClockOut, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_out)) }
+                }
 
                 // One break per shift, matching the two columns it is stored
                 // in -- see TimeEntry.breakStartedAt/breakEndedAt. Once a
@@ -779,8 +812,10 @@ private fun TimeClockCard(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        OutlinedButton(onClick = onEndBreak, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.crew_end_break))
+                        if (editable) {
+                            OutlinedButton(onClick = onEndBreak, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.crew_end_break))
+                            }
                         }
                     }
                     running.hasRecordedBreak -> {
@@ -790,15 +825,15 @@ private fun TimeClockCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    else -> {
+                    editable -> {
                         OutlinedButton(onClick = onStartBreak, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.crew_start_break))
                         }
                     }
                 }
-            } else if (allowClockIn) {
+            } else if (allowClockIn && editable) {
                 Button(onClick = onClockIn, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_in)) }
-            } else {
+            } else if (!allowClockIn) {
                 Text(
                     stringResource(R.string.crew_kept_no_clock_in),
                     style = MaterialTheme.typography.bodyMedium,
@@ -954,6 +989,8 @@ private fun stageLabel(stage: String?): String = when (stage) {
 private fun JobStageCard(
     stage: String?,
     online: Boolean,
+    /** False in the guest demo: the current stage still reads, Advance and Revert are gone. */
+    editable: Boolean = true,
     onAdvance: (String) -> Unit,
     onRevert: (String) -> Unit
 ) {
@@ -974,18 +1011,18 @@ private fun JobStageCard(
                     color = MaterialTheme.colorScheme.error
                 )
             }
-            if (next != null) {
+            if (next != null && editable) {
                 Button(onClick = { onAdvance(next) }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.crew_stage_advance_to, stageLabel(next)))
                 }
-            } else {
+            } else if (next == null) {
                 Text(
                     stringResource(R.string.crew_stage_pipeline_done),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (previous != null) {
+            if (previous != null && editable) {
                 TextButton(onClick = { onRevert(previous) }, modifier = Modifier.align(Alignment.End)) {
                     Text(stringResource(R.string.crew_stage_revert_to, stageLabel(previous)))
                 }
@@ -1017,6 +1054,8 @@ private fun StepSection(
     title: String,
     subtitle: String?,
     steps: List<JobStep>,
+    /** False in the guest demo: each checkbox still shows checked/unchecked, none of them flip. */
+    editable: Boolean = true,
     onToggle: (JobStep) -> Unit
 ) {
     val done = steps.count { it.checked }
@@ -1035,7 +1074,7 @@ private fun StepSection(
             }
             steps.forEach { step ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Checkbox(checked = step.checked, onCheckedChange = { onToggle(step) })
+                    Checkbox(checked = step.checked, enabled = editable, onCheckedChange = { onToggle(step) })
                     Column(Modifier.weight(1f)) {
                         Text(
                             step.displayText(),
@@ -1067,6 +1106,8 @@ private fun StepSection(
 private fun FinalSignOffCard(
     job: com.fenceestimator.app.data.Job,
     steps: List<JobStep>,
+    /** False in the guest demo: an existing sign-off still shows, the button to take a new one is gone. */
+    editable: Boolean = true,
     onSign: (String) -> Unit
 ) {
     var showPad by remember { mutableStateOf(false) }
@@ -1095,11 +1136,13 @@ private fun FinalSignOffCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(
-                    onClick = { showPad = true },
-                    enabled = remaining == 0,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.crew_sign_off_button)) }
+                if (editable) {
+                    Button(
+                        onClick = { showPad = true },
+                        enabled = remaining == 0,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(stringResource(R.string.crew_sign_off_button)) }
+                }
             }
         }
     }

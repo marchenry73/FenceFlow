@@ -145,6 +145,10 @@
     <string name="account_cloud_save">Sauvegarde cloud</string>
     <string name="sync_saving">Enregistrement dans le cloud…</string>
     <string name="sync_saved">Tout est enregistré</string>
+    <string name="sync_unsynced_jobs">Les modifications de chantiers faites sur ce téléphone ne sont pas encore dans le cloud. Elles sont enregistrées ici, et chaque synchronisation réessaie.</string>
+    <string name="sync_unsynced_records">Certains enregistrements de ce téléphone, autres que les chantiers, ne sont pas encore dans le cloud. Ils sont enregistrés ici, et chaque synchronisation réessaie.</string>
+    <string name="sync_scope_not_confirmed">Les chantiers et les prix n\'ont pas été touchés cette fois : ce téléphone confirme encore ce que votre compte est autorisé à voir, et il ne devinera pas. Nouvelle vérification dans un instant.</string>
+    <string name="sync_unsynced_unspecified">Une partie du travail de ce téléphone n\'a pas encore atteint le cloud. Elle sera envoyée à la prochaine synchronisation.</string>
     <string name="sync_plain_no_signal">Pas de réseau pour le moment. Votre travail est enregistré sur ce téléphone et sera envoyé automatiquement dès que vous serez de nouveau en ligne.</string>
     <string name="sync_plain_signed_out">Vous avez été déconnecté. Reconnectez-vous et tout ce qui se trouve sur ce téléphone sera envoyé.</string>
     <string name="sync_plain_conflict">Quelqu\'un a modifié la même chose sur un autre téléphone. Tirez vers le bas pour resynchroniser et les deux versions se régleront.</string>
@@ -217,6 +221,7 @@
     <!-- Jobs list extras -->
     <string name="jobs_materials_catalog">Catalogue de matériaux</string>
     <string name="jobs_settings">Réglages</string>
+    <string name="jobs_more_menu">Plus</string>
     <string name="jobs_delete_title">Supprimer ce chantier ?</string>
     <string name="jobs_review_catalog">Revoir le catalogue</string>
     <string name="jobs_make_prices_yours">Faites de ces prix les vôtres</string>
@@ -1867,6 +1872,9 @@
     <string name="jobs_kept_title">Conservés sur ce téléphone</string>
     <string name="jobs_kept_body">Ne vous sont plus attribués. Ce qui n’a pas encore été envoyé reste ici ; demandez l’accès pour l’envoyer. Un pointage en cours peut toujours être clôturé.</string>
     <string name="jobs_kept_unsent">Modifications pas encore envoyées</string>
+    <string name="jobs_sync_offline_detail">Ce téléphone n\'est pas connecté à votre entreprise, ces chiffres lui sont donc propres. Ouvrez Compte et équipe et connectez-vous.</string>
+    <string name="jobs_sync_signed_out_detail">Cela ne se réglera pas tout seul. Ouvrez Compte et équipe et connectez-vous — tout ce qui est sur ce téléphone sera envoyé dès que vous le ferez.</string>
+    <string name="jobs_sync_reassurance">Rien n\'est perdu. Continuez à travailler — cela s\'envoie tout seul.</string>
     <string name="access_needs_connection">Connexion nécessaire.</string>
     <string name="access_refused_ask_not_allowed">Ce compte ne peut pas demander de chantiers. Voyez avec le bureau.</string>
     <string name="access_refused_answer_not_allowed">Non autorisé. Répondre aux demandes nécessite « Planifier le travail et affecter l’équipe », et personne ne répond à sa propre demande.</string>

@@ -53,6 +53,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncPhase
+import com.fenceestimator.app.cloud.UnsyncedReason
 import com.fenceestimator.app.ui.components.UiMessage
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
@@ -577,11 +578,35 @@ private fun SignedInSection(
     }
 }
 
+/**
+ * The honest sentence for why work on this phone has not reached the cloud
+ * yet, localized from [UnsyncedReason] directly. [com.fenceestimator.app.cloud.SyncState.message]
+ * cannot do this itself -- it has no Context to resolve a string resource
+ * with (see that class's doc) -- so the wording decision lives here and in
+ * JobsListScreen's matching copy of this function instead.
+ *
+ * The combined reason reuses the two sentences it is made of, rather than
+ * getting one of its own, so there is nothing new here to mistranslate.
+ *
+ * The null branch stays explicit rather than folding into an else, so a
+ * future reason added without a sentence of its own lands on the vague-
+ * but-safe catch-all instead of silently borrowing one that is wrong about
+ * it -- the same shape AutoSync's own reason wording used to use.
+ */
+@Composable
+private fun unsyncedReasonMessage(reason: UnsyncedReason?): String = when (reason) {
+    UnsyncedReason.JOBS_HELD_BACK -> stringResource(R.string.sync_unsynced_jobs)
+    UnsyncedReason.RECORDS_HELD_BACK -> stringResource(R.string.sync_unsynced_records)
+    UnsyncedReason.RECORDS_HELD_BACK_AND_ACCESS_NOT_CONFIRMED ->
+        stringResource(R.string.sync_unsynced_records) + " " + stringResource(R.string.sync_scope_not_confirmed)
+    UnsyncedReason.ACCESS_NOT_CONFIRMED -> stringResource(R.string.sync_scope_not_confirmed)
+    null -> stringResource(R.string.sync_unsynced_unspecified)
+}
+
 @Composable
 private fun SyncStatusCard(onRecalculate: () -> Unit) {
     val app = currentApp()
     val sync by app.autoSync.state.collectAsState()
-    val timeFormat = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.US) }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -594,11 +619,24 @@ private fun SyncStatusCard(onRecalculate: () -> Unit) {
                 // jobs list already reads hasUnsyncedWork before it will call
                 // anything saved; this card used to skip that check and say
                 // "Everything saved" regardless, so the two screens disagreed
-                // about the same pass. sync.message already carries the
-                // specific, honest sentence for whichever reason applies.
+                // about the same pass. unsyncedReasonMessage maps
+                // sync.unsyncedReason to the specific, honest, localized
+                // sentence for whichever reason applies -- sync.message
+                // cannot, since it has no Context to localize with.
                 SyncPhase.OK ->
-                    (if (sync.hasUnsyncedWork) sync.message else stringResource(R.string.sync_saved)) to
-                        sync.lastSyncedAt?.let { stringResource(R.string.acct_sync_last_saved, timeFormat.format(java.util.Date(it))) }
+                    (if (sync.hasUnsyncedWork) unsyncedReasonMessage(sync.unsyncedReason) else stringResource(R.string.sync_saved)) to
+                        // Was a fixed "h:mm a" formatted with Locale.US, so the
+                        // AM/PM stayed English under every language while the
+                        // rest of the screen translated -- and disagreed with
+                        // the jobs list, which already showed this same fact as
+                        // a localized relative time. Matching that instead of
+                        // inventing a locale-aware clock-time formatter: it is
+                        // already proven correct on the other screen, and
+                        // "how long ago" reads better than a bare clock time
+                        // for a status the person is checking to see is current.
+                        sync.lastSyncedAt?.let {
+                            stringResource(R.string.acct_sync_last_saved, android.text.format.DateUtils.getRelativeTimeSpanString(it))
+                        }
                 // No signal is normal on a job site and fixes itself, so it
                 // reads as a status rather than a failure. Calling it an error
                 // teaches people to ignore the one that isn't.

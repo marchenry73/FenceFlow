@@ -56,6 +56,24 @@ class CrewJobViewModel(
     val steps: StateFlow<List<JobStep>> = repository.observeJobSteps(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * What ensureJobStepsSeeded would have written for this job, computed
+     * once and never persisted. init (below) skips the real seed for a guest
+     * entirely, so [steps] stays empty for the whole demo -- this is what the
+     * walkthrough, install and final-walkthrough sections read instead, the
+     * same fix the Materials screen's tool checklist needed.
+     */
+    val guestStepPreview: List<JobStep> =
+        com.fenceestimator.app.data.DefaultJobSteps.WALKTHROUGH.mapIndexed { index, step ->
+            JobStep(jobId = jobId, kind = com.fenceestimator.app.data.JobStepKind.WALKTHROUGH, description = step.text, sortOrder = index, stepKey = step.key)
+        } +
+        com.fenceestimator.app.data.DefaultJobSteps.INSTALL.mapIndexed { index, step ->
+            JobStep(jobId = jobId, kind = com.fenceestimator.app.data.JobStepKind.INSTALL, description = step.text, sortOrder = index, stepKey = step.key)
+        } +
+        com.fenceestimator.app.data.DefaultJobSteps.FINAL.mapIndexed { index, step ->
+            JobStep(jobId = jobId, kind = com.fenceestimator.app.data.JobStepKind.FINAL_WALKTHROUGH, description = step.text, sortOrder = index, stepKey = step.key)
+        }
+
     val photos: StateFlow<List<JobPhoto>> = repository.observePhotos(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -83,8 +101,17 @@ class CrewJobViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
-        viewModelScope.launch { repository.ensureJobStepsSeeded(jobId) }
-        viewModelScope.launch { refreshPerFootCrewCount() }
+        // Both of these write with no button pressed, the same shape as the
+        // Materials screen's start-up seed this session found and fixed --
+        // opening this screen was enough. Repository now throws
+        // (GuestWriteGuard) rather than seeding for a guest, and an
+        // uncaught throw inside a bare viewModelScope.launch here would
+        // crash the screen the instant a guest opened it, so both are opted
+        // out up front instead of relying on that throw.
+        if (!session.state.value.isGuestDemo) {
+            viewModelScope.launch { repository.ensureJobStepsSeeded(jobId) }
+            viewModelScope.launch { refreshPerFootCrewCount() }
+        }
     }
 
     /**
@@ -124,6 +151,12 @@ class CrewJobViewModel(
      * authoritative pay.
      */
     fun clockIn() {
+        // The guest demo reaches this screen with no gate on the route or the
+        // button today -- refused here regardless of what the UI shows, the
+        // same guest-demo predicate every other screen's write funnel uses.
+        // Never a permission: a real, signed-in crew member is never
+        // guestDemo, so nothing here narrows what crew can already do.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             val result = ClockInIdentity.resolve(
                 employees = employees.value,
@@ -141,11 +174,13 @@ class CrewJobViewModel(
     }
 
     fun clockOut() {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch { repository.clockOut(jobId) }
     }
 
     /** Starts the unpaid break on the shift currently running for this job. */
     fun startBreak() {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch { repository.startBreak(jobId) }
     }
 
@@ -155,6 +190,7 @@ class CrewJobViewModel(
      * a break the database would reject anyway must not read as saved.
      */
     fun endBreak() {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             when (repository.endBreak(jobId)) {
                 is com.fenceestimator.app.data.BreakResult.TooLong ->
@@ -165,10 +201,12 @@ class CrewJobViewModel(
     }
 
     fun deleteTimeEntry(entry: com.fenceestimator.app.data.TimeEntry) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch { repository.deleteTimeEntry(entry) }
     }
 
     fun toggleStep(step: JobStep) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.updateJobStep(
                 step.copy(
@@ -187,6 +225,7 @@ class CrewJobViewModel(
      * have never latched, this is the record that answers it.
      */
     fun captureFinalSignOff(path: String) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             val current = job.value ?: return@launch
             repository.updateJob(
@@ -199,6 +238,7 @@ class CrewJobViewModel(
     }
 
     fun addPhoto(kind: PhotoKind, filePath: String) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.addPhoto(JobPhoto(jobId = jobId, kind = kind, filePath = filePath))
         }
@@ -228,6 +268,7 @@ class CrewJobViewModel(
      * than translated into something vaguer.
      */
     fun moveStage(nextStage: String, online: Boolean) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             if (!online) {
                 _message.tryEmit(UiMessage(R.string.crew_stage_needs_signal))
@@ -270,6 +311,7 @@ class CrewJobViewModel(
      * labor cost forever.
      */
     fun markJobComplete() {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.clockOut(jobId)
             val current = job.value ?: return@launch

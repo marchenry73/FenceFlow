@@ -63,10 +63,15 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: EstimateViewModel = viewModel(
         key = "estimate_$jobId",
-        factory = GenericViewModelFactory { EstimateViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { EstimateViewModel(app.repository, jobId, app.session) }
     )
     val job by viewModel.job.collectAsState()
     val lineItems by viewModel.lineItems.collectAsState()
+    // Gated on the demo predicate itself, never a permission -- the demo
+    // deliberately holds SEE_MONEY, which is what gets a guest to this
+    // screen at all.
+    val session by app.session.state.collectAsState()
+    val editable = !session.isGuestDemo
 
     // Typed values live here until saved, so a half-entered figure never
     // re-prices the job mid-keystroke.
@@ -109,6 +114,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = reference,
                     onValueChange = { reference = it },
+                    readOnly = !editable,
                     label = { Text(stringResource(R.string.est2_supplier_reference)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -147,21 +153,28 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
                 SupplierPriceRow(
                     item = item,
                     typed = entered[item.id] ?: item.supplierUnitPrice?.let { "%.2f".format(java.util.Locale.US, it) } ?: "",
+                    editable = editable,
                     onChange = { entered[item.id] = it }
                 )
             }
 
-            item {
-                Button(
-                    onClick = {
-                        val prices = lineItems.mapNotNull { item ->
-                            entered[item.id]?.trim()?.replace(',', '.')?.toDoubleOrNull()?.let { item.id to it }
-                        }.toMap()
-                        viewModel.applySupplierPrices(prices, reference.trim())
-                        onBack()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.est2_save_supplier_prices)) }
+            // Save is a pure action with nothing read-only to stand in for
+            // it -- applySupplierPrices already refuses the write on its own,
+            // but leaving the button up would still look like a working save
+            // that quietly does nothing.
+            if (editable) {
+                item {
+                    Button(
+                        onClick = {
+                            val prices = lineItems.mapNotNull { item ->
+                                entered[item.id]?.trim()?.replace(',', '.')?.toDoubleOrNull()?.let { item.id to it }
+                            }.toMap()
+                            viewModel.applySupplierPrices(prices, reference.trim())
+                            onBack()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(stringResource(R.string.est2_save_supplier_prices)) }
+                }
             }
         }
     }
@@ -171,6 +184,7 @@ fun SupplierPricesScreen(jobId: Long, onBack: () -> Unit) {
 private fun SupplierPriceRow(
     item: EstimateLineItem,
     typed: String,
+    editable: Boolean,
     onChange: (String) -> Unit
 ) {
     Row(
@@ -191,6 +205,7 @@ private fun SupplierPriceRow(
         OutlinedTextField(
             value = typed,
             onValueChange = { onChange(it.filter { c -> c.isDigit() || c == '.' }) },
+            readOnly = !editable,
             label = { Text(stringResource(R.string.est2_their_price)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

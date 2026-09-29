@@ -1,6 +1,8 @@
 package com.fenceestimator.app.data
 
 import androidx.room.withTransaction
+import com.fenceestimator.app.guest.GuestMarker
+import com.fenceestimator.app.guest.GuestWriteGuard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -94,6 +96,56 @@ class Repository(private val db: AppDatabase) {
      */
     var deletingUser: String = ""
 
+    /**
+     * Whether the CURRENT session is an ephemeral guest demo, right now --
+     * the single fact [guardWrite] refuses every gated write on. See
+     * [com.fenceestimator.app.guest.GuestWriteGuard] for the question this
+     * answers and does not answer (never the real permission system).
+     *
+     * A plain settable flag, same shape as [deletingUser] just above and set
+     * the same way: by the app shell, reactively, whenever the fact it
+     * mirrors changes -- here, GuestSession's persisted flag
+     * (SettingsStore.profile.guestSessionStartedAt via
+     * com.fenceestimator.app.guest.GuestSession.isActive). Repository holds
+     * only an AppDatabase; it has no SettingsStore (a Context-backed
+     * DataStore) of its own to read, and re-deriving this with a suspend read
+     * before every single write in the file would make every write -- most of
+     * which are for a signed-in real user and will answer "no" -- pay for a
+     * disk read to find that out. Checking a field costs nothing.
+     *
+     * Defaults to false: a build that never sets this behaves exactly as
+     * Repository did before this guard existed, rather than refusing every
+     * write for every real user, which is the one failure mode this can never
+     * be allowed to have. THE DEFAULT BEING SAFE DOES NOT MEAN THE WIRING IS
+     * OPTIONAL -- until something sets this to true when a guest demo is
+     * actually running, every write below still succeeds for a guest exactly
+     * as it does today, and this whole file is inert. See the wave's report
+     * for the one line the app shell (FenceEstimatorApp, outside this file's
+     * ownership) still needs, mirroring how it already reacts to session
+     * state to set [deletingUser] a few lines above this one in that file.
+     */
+    @Volatile
+    var isGuestSession: Boolean = false
+
+    /**
+     * The one gate a write in this file passes through to run -- see
+     * [com.fenceestimator.app.guest.GuestWriteGuard] for why a throw is the
+     * contract, what [bypass] may and may not be used for, and what "one
+     * gate" is actually able to guarantee given this file's own shape (a
+     * private function every write CAN call, not one Room or the Kotlin
+     * compiler forces a write to call -- see the wave report's honesty note
+     * about what would close that remaining gap).
+     *
+     * `suspend inline` so [action] -- almost always a single suspend DAO call
+     * -- is spliced directly into the caller with no extra suspension point
+     * or allocation, the same shape `androidx.room.withTransaction` (already
+     * used throughout this file) already uses for the same reason.
+     */
+    private suspend inline fun <T> guardWrite(operation: String, bypass: Boolean = false, action: suspend () -> T): T {
+        GuestWriteGuard.check(operation, isGuestSession, bypass)
+        return action()
+    }
+
     /** Flushes pending writes to disk so a raw copy of the DB file for backup is complete. */
     suspend fun checkpointForBackup() = db.checkpoint()
 
@@ -170,8 +222,24 @@ class Repository(private val db: AppDatabase) {
         /** Sync ids bound per statement -- well under SQLite's 999 variable limit. */
         const val HOLD_CHUNK = 500
     }
-    suspend fun createJob(job: Job): Long = jobDao.insert(job)
-    suspend fun updateJob(job: Job) = jobDao.update(job.copy(updatedAt = System.currentTimeMillis()))
+    /**
+     * [bypass] is granted whenever [job] already carries BOTH of
+     * [GuestMarker]'s markers -- i.e. this insert came from GuestSeeder. Not
+     * strictly needed: the app starts a guest session by seeding FIRST and
+     * only then stamping SettingsStore's guest flag (see
+     * MainActivity.onTryGuest), so [isGuestSession] is still false for the
+     * whole seed pass and every one of these inserts would sail through with
+     * no bypass at all. Granted anyway, keyed on the same pair of markers
+     * [GuestWipe] already trusts to find these exact rows again, because a
+     * guard whose only defense is "nothing has reordered two lines in
+     * MainActivity" is not a guard -- it is a hope. This one holds even if
+     * that ordering ever changes, and it cannot be reused by accident: no
+     * other caller in this app constructs a Job with both markers set.
+     */
+    suspend fun createJob(job: Job): Long =
+        guardWrite("createJob", bypass = GuestMarker.isGuestSeeded(job)) { jobDao.insert(job) }
+    suspend fun updateJob(job: Job) =
+        guardWrite("updateJob") { jobDao.update(job.copy(updatedAt = System.currentTimeMillis())) }
 
     /**
      * Writes a job pulled from the cloud WITHOUT touching updatedAt -- the
@@ -190,7 +258,7 @@ class Repository(private val db: AppDatabase) {
      * next sync pulled it straight back as "a job this phone is missing" --
      * which is why deleted jobs kept reappearing.
      */
-    suspend fun deleteJob(job: Job) {
+    suspend fun deleteJob(job: Job) = guardWrite("deleteJob") {
         jobDao.delete(job)
         pendingDeletionDao.insert(PendingDeletion(syncId = job.syncId, tableName = "jobs", deletedBy = deletingUser))
     }
@@ -266,11 +334,21 @@ class Repository(private val db: AppDatabase) {
      * The tombstone is written first: if the sync runs between the two steps,
      * a delete that is queued but not yet applied locally is harmless, whereas
      * the reverse loses the instruction entirely.
+     *
+     * Also the shared choke point behind deleteFenceRun, deleteMaterialItem,
+     * deleteManufacturer, deletePricingTier, deleteEmployee, deleteExpense,
+     * deleteTimeEntry, deleteSiteMarker, deleteChangeOrder,
+     * deletePunchListItem and deleteLineItem -- gating it here gates all
+     * eleven in one place rather than eleven times. No bypass: nothing a
+     * guest demo seeds or wipes is ever deleted through this function (the
+     * seeder never deletes anything, and the wipe deletes jobs specifically,
+     * through [deleteJobLocallyOnly], never through here).
      */
-    private suspend fun deleteSynced(syncId: String, tableName: String, deleteLocal: suspend () -> Unit) {
-        pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName, deletedBy = deletingUser))
-        deleteLocal()
-    }
+    private suspend fun deleteSynced(syncId: String, tableName: String, deleteLocal: suspend () -> Unit) =
+        guardWrite("delete $tableName") {
+            pendingDeletionDao.insert(PendingDeletion(syncId = syncId, tableName = tableName, deletedBy = deletingUser))
+            deleteLocal()
+        }
 
     /**
      * Removes a job because the cloud says it was deleted somewhere else.
@@ -278,8 +356,19 @@ class Repository(private val db: AppDatabase) {
      * Deliberately does NOT queue a deletion of its own: the tombstone already
      * exists in the cloud, and queueing another would have this device stamp a
      * row that is already stamped. The cloud copy is what keeps it restorable.
+     *
+     * [bypass] is granted only when [job] carries BOTH of [GuestMarker]'s
+     * markers -- i.e. this delete came from [com.fenceestimator.app.guest.
+     * GuestWipe], the one caller that runs this WHILE [isGuestSession] is
+     * still true (the wipe deletes the rows first and clears the guest flag
+     * only afterward, on purpose -- see GuestWipe's own doc for why that
+     * order is the one that keeps a crash mid-wipe safe to retry). This
+     * method's only other caller is JobSync, reconciling a real signed-in
+     * account against the cloud, for which [isGuestSession] is always false
+     * and this bypass is never even consulted.
      */
-    suspend fun deleteJobLocallyOnly(job: Job) = jobDao.delete(job)
+    suspend fun deleteJobLocallyOnly(job: Job) =
+        guardWrite("deleteJobLocallyOnly", bypass = GuestMarker.isGuestSeeded(job)) { jobDao.delete(job) }
 
     /**
      * Removes rows another device deleted, without queueing a deletion of our
@@ -353,7 +442,7 @@ class Repository(private val db: AppDatabase) {
      * a cache of the ledger rather than a second source of truth: recomputed
      * from the rows every time one is added, so the two cannot drift.
      */
-    suspend fun recordPayment(record: PaymentRecord) {
+    suspend fun recordPayment(record: PaymentRecord) = guardWrite("recordPayment") {
         paymentRecordDao.insert(record.copy(recordedBy = record.recordedBy.ifBlank { deletingUser }))
         syncJobTotalsFromLedger(record.jobId)
     }
@@ -423,7 +512,7 @@ class Repository(private val db: AppDatabase) {
      * orders it covered -- and an order that was unsigned at the signature
      * would then be billed again the day it was signed.
      */
-    suspend fun recordSignedAcceptance(signed: Job) {
+    suspend fun recordSignedAcceptance(signed: Job) = guardWrite("recordSignedAcceptance") {
         db.withTransaction {
             jobDao.update(signed.copy(updatedAt = System.currentTimeMillis()))
             changeOrderDao.markAllInAcceptedTotal(signed.id)
@@ -459,7 +548,7 @@ class Repository(private val db: AppDatabase) {
             // Matches no real employee row, so passing nothing here scrubs
             // every employee -- blank-profileId ones included -- rather than
             // accidentally exempting every unlinked row via profileId == "".
-            ?: " -no-employee-profile- "
+            ?: "\u0000-no-employee-profile-\u0000"
         db.withTransaction {
             jobDao.scrubMoney()
             lineItemDao.scrubMoney()
@@ -556,11 +645,13 @@ class Repository(private val db: AppDatabase) {
     fun observeFenceRun(id: Long): Flow<FenceRun?> = fenceRunDao.observeById(id)
     suspend fun getFenceRun(id: Long): FenceRun? = fenceRunDao.getById(id)
     /** A user edit (including the initial creation of a new run), so this phone's clock moves. */
-    suspend fun createFenceRun(run: FenceRun): Long =
+    suspend fun createFenceRun(run: FenceRun): Long = guardWrite("createFenceRun") {
         fenceRunDao.insert(run.copy(updatedAt = System.currentTimeMillis()))
+    }
     /** A user edit, so this phone's clock moves. */
-    suspend fun updateFenceRun(run: FenceRun) =
+    suspend fun updateFenceRun(run: FenceRun) = guardWrite("updateFenceRun") {
         fenceRunDao.update(run.copy(updatedAt = System.currentTimeMillis()))
+    }
     /**
      * The pull half of fence-run sync. Stores the row exactly as handed in --
      * including its `updatedAt`, which the caller has already set to the
@@ -577,8 +668,9 @@ class Repository(private val db: AppDatabase) {
 
     fun observePerFootCrewCount(jobSyncId: String): Flow<Int?> =
         jobPayShareDao.observe(jobSyncId).map { it?.perFootCrewCount }
-    suspend fun savePerFootCrewCount(jobSyncId: String, count: Int) =
+    suspend fun savePerFootCrewCount(jobSyncId: String, count: Int) = guardWrite("savePerFootCrewCount") {
         jobPayShareDao.upsert(JobPayShare(jobSyncId = jobSyncId, perFootCrewCount = count))
+    }
 
     // ---- Build templates (pull-only; see EntitySync.pullBuildTemplates) ----
 
@@ -592,10 +684,12 @@ class Repository(private val db: AppDatabase) {
     fun observeCatalog(): Flow<List<MaterialItem>> = materialDao.observeAllActive()
     fun observeFullCatalog(): Flow<List<MaterialItem>> = materialDao.observeAll()
     suspend fun getByRole(role: MaterialRole): List<MaterialItem> = materialDao.getByRole(role)
-    suspend fun saveMaterialItem(item: MaterialItem): Long =
+    suspend fun saveMaterialItem(item: MaterialItem): Long = guardWrite("saveMaterialItem") {
         materialDao.insert(item.copy(lastUpdated = System.currentTimeMillis()))
-    suspend fun updateMaterialItem(item: MaterialItem) =
+    }
+    suspend fun updateMaterialItem(item: MaterialItem) = guardWrite("updateMaterialItem") {
         materialDao.update(item.copy(lastUpdated = System.currentTimeMillis()))
+    }
     /**
      * The pull half of catalog sync. Stores the row exactly as handed in --
      * including its `lastUpdated`, which the caller has already set to the
@@ -607,7 +701,7 @@ class Repository(private val db: AppDatabase) {
     suspend fun saveMaterialItemFromCloud(item: MaterialItem): Long = materialDao.insert(item)
     suspend fun updateMaterialItemFromCloud(item: MaterialItem) = materialDao.update(item)
     suspend fun deleteMaterialItem(item: MaterialItem) = deleteSynced(item.syncId, "material_items") { materialDao.delete(item) }
-    suspend fun addMaterialItems(items: List<MaterialItem>) = materialDao.insertAll(items)
+    suspend fun addMaterialItems(items: List<MaterialItem>) = guardWrite("addMaterialItems") { materialDao.insertAll(items) }
 
     fun observeLineItems(jobId: Long): Flow<List<EstimateLineItem>> = lineItemDao.observeForJob(jobId)
     suspend fun getLineItems(jobId: Long): List<EstimateLineItem> = lineItemDao.getForJob(jobId)
@@ -646,7 +740,7 @@ class Repository(private val db: AppDatabase) {
      * and writing it. If the write fails, the notes roll back with it.
      */
     suspend fun replaceAutoGeneratedLineItemsForRun(runId: Long, built: List<EstimateLineItem>): TakeoffLineMerge.Plan =
-        db.withTransaction {
+        guardWrite("replaceAutoGeneratedLineItemsForRun") { db.withTransaction {
             val merged = TakeoffLineMerge.plan(lineItemDao.getGeneratedForRun(runId), built)
             if (!merged.unchanged) {
                 lineItemResurrections.noteWritten(merged.revive)
@@ -666,7 +760,7 @@ class Repository(private val db: AppDatabase) {
                 pendingDeletionDao.clearFor("estimate_line_items", chunk)
             }
             merged
-        }
+        } }
 
     /**
      * Deletes the takeoff lines another device tombstoned -- all of
@@ -718,12 +812,26 @@ class Repository(private val db: AppDatabase) {
      * costs. A change made on this phone, so it is marked to go up
      * ([EstimateLineItem.pendingPush]); a pull writes through
      * [saveLineItemFromCloud] instead.
+     *
+     * No bypass parameter, unlike [createJob] -- and none is needed. Every
+     * call GuestSeeder makes to this happens in the same seed pass as its
+     * createJob calls, before SettingsStore's guest flag is set (see
+     * createJob's doc), so [isGuestSession] already reads false for it. A
+     * marker-based bypass like createJob's would not even be safe here: an
+     * EstimateLineItem carries no marker of its own, only a jobId, and a
+     * guest tapping "add line item" on one of the three seeded jobs LATER in
+     * the live demo would produce the exact same shape (id == 0L, jobId
+     * pointing at a guest-marked job) as the seeder's own insert -- so
+     * anything keyed on the job being guest-marked would let that guest edit
+     * through too, which is precisely the write this guard exists to refuse.
      */
-    suspend fun saveLineItem(item: EstimateLineItem): Long {
+    suspend fun saveLineItem(item: EstimateLineItem): Long = guardWrite("saveLineItem") {
         val marked = item.copy(pendingPush = true)
-        return if (marked.id == 0L) lineItemDao.insert(marked) else { lineItemDao.update(marked); marked.id }
+        if (marked.id == 0L) lineItemDao.insert(marked) else { lineItemDao.update(marked); marked.id }
     }
-    suspend fun updateLineItem(item: EstimateLineItem) = lineItemDao.update(item.copy(pendingPush = true))
+    suspend fun updateLineItem(item: EstimateLineItem) = guardWrite("updateLineItem") {
+        lineItemDao.update(item.copy(pendingPush = true))
+    }
 
     /**
      * A line as the cloud holds it. Not marked to push -- sending the cloud
@@ -773,15 +881,16 @@ class Repository(private val db: AppDatabase) {
     suspend fun getAllManufacturers(): List<Manufacturer> = manufacturerDao.getAll()
     suspend fun getEmployee(id: Long): Employee? = employeeDao.getById(id)
     suspend fun getManufacturer(id: Long): Manufacturer? = manufacturerDao.getById(id)
-    suspend fun saveManufacturer(m: Manufacturer): Long =
+    suspend fun saveManufacturer(m: Manufacturer): Long = guardWrite("saveManufacturer") {
         if (m.id == 0L) manufacturerDao.insert(m) else { manufacturerDao.update(m); m.id }
+    }
     suspend fun deleteManufacturer(m: Manufacturer) = deleteSynced(m.syncId, "manufacturers") { manufacturerDao.delete(m) }
 
     fun observePricingTiers(): Flow<List<PricingTier>> = pricingTierDao.observeAll()
     /** A user edit (including the initial creation of a new tier), so this phone's clock moves. */
-    suspend fun savePricingTier(tier: PricingTier): Long {
+    suspend fun savePricingTier(tier: PricingTier): Long = guardWrite("savePricingTier") {
         val stamped = tier.copy(updatedAt = System.currentTimeMillis())
-        return if (stamped.id == 0L) pricingTierDao.insert(stamped) else { pricingTierDao.update(stamped); stamped.id }
+        if (stamped.id == 0L) pricingTierDao.insert(stamped) else { pricingTierDao.update(stamped); stamped.id }
     }
     /**
      * The pull half of pricing-tier sync. Stores the row exactly as handed in
@@ -797,17 +906,17 @@ class Repository(private val db: AppDatabase) {
 
     fun observePhotos(jobId: Long): Flow<List<JobPhoto>> = jobPhotoDao.observeForJob(jobId)
     suspend fun getPhotos(jobId: Long): List<JobPhoto> = jobPhotoDao.getForJob(jobId)
-    suspend fun updatePhoto(photo: JobPhoto) = jobPhotoDao.update(photo)
-    suspend fun addPhoto(photo: JobPhoto): Long = jobPhotoDao.insert(photo)
-    suspend fun deletePhoto(photo: JobPhoto) = jobPhotoDao.delete(photo)
+    suspend fun updatePhoto(photo: JobPhoto) = guardWrite("updatePhoto") { jobPhotoDao.update(photo) }
+    suspend fun addPhoto(photo: JobPhoto): Long = guardWrite("addPhoto") { jobPhotoDao.insert(photo) }
+    suspend fun deletePhoto(photo: JobPhoto) = guardWrite("deletePhoto") { jobPhotoDao.delete(photo) }
 
     fun observeInventory(jobId: Long): Flow<List<InventoryChecklistItem>> = inventoryItemDao.observeForJob(jobId)
     suspend fun getInventory(jobId: Long): List<InventoryChecklistItem> = inventoryItemDao.getForJob(jobId)
-    suspend fun addInventoryItems(items: List<InventoryChecklistItem>) = inventoryItemDao.insertAll(items)
-    suspend fun addInventoryItem(item: InventoryChecklistItem): Long = inventoryItemDao.insert(item)
-    suspend fun updateInventoryItem(item: InventoryChecklistItem) = inventoryItemDao.update(item)
-    suspend fun deleteInventoryItem(item: InventoryChecklistItem) = inventoryItemDao.delete(item)
-    suspend fun clearInventoryMaterials(jobId: Long) = inventoryItemDao.deleteByKind(jobId, InventoryKind.MATERIAL)
+    suspend fun addInventoryItems(items: List<InventoryChecklistItem>) = guardWrite("addInventoryItems") { inventoryItemDao.insertAll(items) }
+    suspend fun addInventoryItem(item: InventoryChecklistItem): Long = guardWrite("addInventoryItem") { inventoryItemDao.insert(item) }
+    suspend fun updateInventoryItem(item: InventoryChecklistItem) = guardWrite("updateInventoryItem") { inventoryItemDao.update(item) }
+    suspend fun deleteInventoryItem(item: InventoryChecklistItem) = guardWrite("deleteInventoryItem") { inventoryItemDao.delete(item) }
+    suspend fun clearInventoryMaterials(jobId: Long) = guardWrite("clearInventoryMaterials") { inventoryItemDao.deleteByKind(jobId, InventoryKind.MATERIAL) }
 
     /**
      * Everyone, including people who have left.
@@ -840,7 +949,7 @@ class Repository(private val db: AppDatabase) {
      *   Unfinished ones need a live person against them or they quietly become
      *   nobody's responsibility, which is how a job gets missed.
      */
-    suspend fun deactivateEmployee(employee: Employee, reassignTo: Long?) {
+    suspend fun deactivateEmployee(employee: Employee, reassignTo: Long?) = guardWrite("deactivateEmployee") {
         val openJobs = jobDao.getAll().filter {
             it.assignedEmployeeId == employee.id && it.status != JobStatus.COMPLETED
         }
@@ -855,16 +964,18 @@ class Repository(private val db: AppDatabase) {
     }
 
     /** Puts somebody back on the crew. */
-    suspend fun reactivateEmployee(employee: Employee) =
+    suspend fun reactivateEmployee(employee: Employee) = guardWrite("reactivateEmployee") {
         employeeDao.update(employee.copy(isActive = true, deactivatedAt = null))
+    }
 
     /** Their unfinished jobs, so you can be told what is about to move. */
     suspend fun openJobsFor(employeeId: Long): List<Job> =
         jobDao.getAll().filter {
             it.assignedEmployeeId == employeeId && it.status != JobStatus.COMPLETED
         }
-    suspend fun saveEmployee(e: Employee): Long =
+    suspend fun saveEmployee(e: Employee): Long = guardWrite("saveEmployee") {
         if (e.id == 0L) employeeDao.insert(e) else { employeeDao.update(e); e.id }
+    }
     /**
      * Removes a crew member everywhere, not just here.
      *
@@ -880,9 +991,10 @@ class Repository(private val db: AppDatabase) {
     suspend fun getExpenses(jobId: Long): List<Expense> = expenseDao.getForJob(jobId)
     suspend fun getAllExpenses(): List<Expense> = expenseDao.getAll()
     /** Insert or update, by id. See [saveChangeOrder] for what a bare insert costs. */
-    suspend fun saveExpense(expense: Expense): Long =
+    suspend fun saveExpense(expense: Expense): Long = guardWrite("saveExpense") {
         if (expense.id == 0L) expenseDao.insert(expense) else { expenseDao.update(expense); expense.id }
-    suspend fun updateExpense(expense: Expense) = expenseDao.update(expense)
+    }
+    suspend fun updateExpense(expense: Expense) = guardWrite("updateExpense") { expenseDao.update(expense) }
     suspend fun deleteExpense(expense: Expense) = deleteSynced(expense.syncId, "expenses") { expenseDao.delete(expense) }
 
     /**
@@ -922,14 +1034,14 @@ class Repository(private val db: AppDatabase) {
      * checked prices. Safe to call more than once: [deleteDuplicates] on the
      * next app start collapses any repeat copy back down.
      */
-    suspend fun copyFenceFlowStartingCatalog() = materialDao.insertAll(SeedData.materialItems())
+    suspend fun copyFenceFlowStartingCatalog() = guardWrite("copyFenceFlowStartingCatalog") { materialDao.insertAll(SeedData.materialItems()) }
 
     /**
      * Opt-in "Copy FenceFlow's starting tiers" action for the Settings
      * screen. See [copyFenceFlowStartingCatalog] -- same reasoning, for the
      * five pricing tiers instead of the catalog.
      */
-    suspend fun copyFenceFlowStartingPricingTiers() = pricingTierDao.insertAll(SeedData.pricingTiers())
+    suspend fun copyFenceFlowStartingPricingTiers() = guardWrite("copyFenceFlowStartingPricingTiers") { pricingTierDao.insertAll(SeedData.pricingTiers()) }
 
     suspend fun catalogCount(): Int = materialDao.count()
 
@@ -955,7 +1067,7 @@ class Repository(private val db: AppDatabase) {
     suspend fun getTimeEntries(jobId: Long): List<TimeEntry> = timeEntryDao.getForJob(jobId)
     suspend fun getAllTimeEntries(): List<TimeEntry> = timeEntryDao.getAll()
     suspend fun deleteTimeEntry(entry: TimeEntry) = deleteSynced(entry.syncId, "time_entries") { timeEntryDao.delete(entry) }
-    suspend fun updateTimeEntry(entry: TimeEntry) = timeEntryDao.update(entry)
+    suspend fun updateTimeEntry(entry: TimeEntry) = guardWrite("updateTimeEntry") { timeEntryDao.update(entry) }
 
     /** Shifts the cloud has permanently refused -- see [TimeEntry.isSyncBlocked]. */
     fun observeSyncBlockedTimeEntries(): Flow<List<TimeEntry>> = timeEntryDao.observeSyncBlocked()
@@ -1013,11 +1125,11 @@ class Repository(private val db: AppDatabase) {
      * untouched if a shift is already running -- double-tapping Clock In must
      * never create two overlapping spans and double-bill the labor.
      */
-    suspend fun clockIn(jobId: Long, employeeId: Long?, hourlyRate: Double): TimeEntry {
-        timeEntryDao.runningForJob(jobId)?.let { return it }
+    suspend fun clockIn(jobId: Long, employeeId: Long?, hourlyRate: Double): TimeEntry = guardWrite("clockIn") {
+        timeEntryDao.runningForJob(jobId)?.let { return@guardWrite it }
         val entry = TimeEntry(jobId = jobId, employeeId = employeeId, hourlyRate = hourlyRate)
         val id = timeEntryDao.insert(entry)
-        return entry.copy(id = id)
+        entry.copy(id = id)
     }
 
     /**
@@ -1032,8 +1144,8 @@ class Repository(private val db: AppDatabase) {
      * at the clock-out instant is the same rule [markJobComplete] already
      * applies to a shift left running.
      */
-    suspend fun clockOut(jobId: Long) {
-        val running = timeEntryDao.runningForJob(jobId) ?: return
+    suspend fun clockOut(jobId: Long) = guardWrite("clockOut") {
+        val running = timeEntryDao.runningForJob(jobId) ?: return@guardWrite
         val now = System.currentTimeMillis()
         val withBreakClosed = if (running.isOnBreak) {
             val minutes = ((now - running.breakStartedAt!!) / 60_000L).coerceAtLeast(0L)
@@ -1053,12 +1165,12 @@ class Repository(private val db: AppDatabase) {
      * can say why nothing happened instead of the button silently doing
      * nothing.
      */
-    suspend fun startBreak(jobId: Long): TimeEntry? {
-        val running = timeEntryDao.runningForJob(jobId) ?: return null
-        if (running.isOnBreak) return running
+    suspend fun startBreak(jobId: Long): TimeEntry? = guardWrite("startBreak") {
+        val running = timeEntryDao.runningForJob(jobId) ?: return@guardWrite null
+        if (running.isOnBreak) return@guardWrite running
         val updated = running.copy(breakStartedAt = System.currentTimeMillis())
         timeEntryDao.update(updated)
-        return updated
+        updated
     }
 
     /**
@@ -1075,17 +1187,17 @@ class Repository(private val db: AppDatabase) {
      * clamping would silently record a number the crew member never agreed
      * to.
      */
-    suspend fun endBreak(jobId: Long): BreakResult {
-        val running = timeEntryDao.runningForJob(jobId) ?: return BreakResult.NoRunningShift
-        val start = running.breakStartedAt ?: return BreakResult.NoBreakRunning
-        if (running.breakEndedAt != null) return BreakResult.Ended(running)
+    suspend fun endBreak(jobId: Long): BreakResult = guardWrite("endBreak") {
+        val running = timeEntryDao.runningForJob(jobId) ?: return@guardWrite BreakResult.NoRunningShift
+        val start = running.breakStartedAt ?: return@guardWrite BreakResult.NoBreakRunning
+        if (running.breakEndedAt != null) return@guardWrite BreakResult.Ended(running)
         val now = System.currentTimeMillis()
         val minutes = ((now - start) / 60_000L).coerceAtLeast(0L)
         val shiftMinutesSoFar = ((now - running.startedAt) / 60_000L).coerceAtLeast(0L)
-        if (minutes > shiftMinutesSoFar) return BreakResult.TooLong
+        if (minutes > shiftMinutesSoFar) return@guardWrite BreakResult.TooLong
         val updated = running.copy(breakEndedAt = now, breakMinutes = minutes.toInt())
         timeEntryDao.update(updated)
-        return BreakResult.Ended(updated)
+        BreakResult.Ended(updated)
     }
 
     /** Shifts waiting on a manager or the owner. */
@@ -1120,7 +1232,7 @@ class Repository(private val db: AppDatabase) {
         correctedStart: Long? = null,
         correctedEnd: Long? = null,
         note: String = ""
-    ) {
+    ) = guardWrite("approveTimeEntry") {
         timeEntryDao.update(
             entry.copy(
                 startedAt = correctedStart ?: entry.startedAt,
@@ -1144,15 +1256,15 @@ class Repository(private val db: AppDatabase) {
      * a rejection is a decision and a decision goes through
      * `approve_time_entry` first.
      */
-    suspend fun rejectTimeEntry(entry: TimeEntry, note: String) {
+    suspend fun rejectTimeEntry(entry: TimeEntry, note: String) = guardWrite("rejectTimeEntry") {
         timeEntryDao.update(
             entry.copy(rejectedAt = System.currentTimeMillis(), approvedAt = null, reviewNote = note)
         )
     }
 
     fun observeSiteMarkers(jobId: Long): Flow<List<SiteMarker>> = siteMarkerDao.observeForJob(jobId)
-    suspend fun addSiteMarker(marker: SiteMarker): Long = siteMarkerDao.insert(marker)
-    suspend fun updateSiteMarker(marker: SiteMarker) = siteMarkerDao.update(marker)
+    suspend fun addSiteMarker(marker: SiteMarker): Long = guardWrite("addSiteMarker") { siteMarkerDao.insert(marker) }
+    suspend fun updateSiteMarker(marker: SiteMarker) = guardWrite("updateSiteMarker") { siteMarkerDao.update(marker) }
     suspend fun deleteSiteMarker(marker: SiteMarker) = deleteSynced(marker.syncId, "site_markers") { siteMarkerDao.delete(marker) }
 
     fun observeChangeOrders(jobId: Long): Flow<List<ChangeOrder>> = changeOrderDao.observeForJob(jobId)
@@ -1166,8 +1278,9 @@ class Repository(private val db: AppDatabase) {
      * $400 and the contract, the invoice and the payment link all stayed $500
      * too high, with nothing to show anything had gone wrong.
      */
-    suspend fun saveChangeOrder(order: ChangeOrder): Long =
+    suspend fun saveChangeOrder(order: ChangeOrder): Long = guardWrite("saveChangeOrder") {
         saveChangeOrderRow(order.copy(pendingPush = true))
+    }
 
     /**
      * An edit made HERE, so it is owed an upload ([ChangeOrder.pendingPush]).
@@ -1175,8 +1288,9 @@ class Repository(private val db: AppDatabase) {
      * [saveChangeOrder] -- including JobFileUploader storing the path of a
      * signature it has just uploaded, which is the whole point of uploading it.
      */
-    suspend fun updateChangeOrder(order: ChangeOrder) =
+    suspend fun updateChangeOrder(order: ChangeOrder) = guardWrite("updateChangeOrder") {
         changeOrderDao.update(order.copy(pendingPush = true))
+    }
 
     /**
      * The cloud's copy, taken as it arrived: NOT owed an upload. A pull that
@@ -1243,7 +1357,7 @@ class Repository(private val db: AppDatabase) {
     suspend fun deleteChangeOrder(order: ChangeOrder) = deleteSynced(order.syncId, "change_orders") { changeOrderDao.delete(order) }
 
     fun observeJobSteps(jobId: Long): Flow<List<JobStep>> = jobStepDao.observeForJob(jobId)
-    suspend fun updateJobStep(step: JobStep) = jobStepDao.update(step)
+    suspend fun updateJobStep(step: JobStep) = guardWrite("updateJobStep") { jobStepDao.update(step) }
 
     /** Used by cloud pull to restore records made on another phone. */
     suspend fun insertJobStep(step: JobStep): Long = jobStepDao.insert(step)
@@ -1255,7 +1369,7 @@ class Repository(private val db: AppDatabase) {
     fun observeUnacknowledgedFieldChanges(): Flow<List<FieldChange>> = fieldChangeDao.observeUnacknowledged()
     fun observeUnacknowledgedChanges(): Flow<List<FieldChange>> = fieldChangeDao.observeUnacknowledged()
     suspend fun getFieldChanges(jobId: Long): List<FieldChange> = fieldChangeDao.getForJob(jobId)
-    suspend fun recordFieldChange(change: FieldChange): Long = fieldChangeDao.insert(change)
+    suspend fun recordFieldChange(change: FieldChange): Long = guardWrite("recordFieldChange") { fieldChangeDao.insert(change) }
     /** For the sync: a cloud copy applied over the local row. */
     suspend fun updateFieldChangeFromCloud(change: FieldChange) = fieldChangeDao.update(change)
     /**
@@ -1267,33 +1381,36 @@ class Repository(private val db: AppDatabase) {
      * first means nobody realises a decision is owed and the crew wait all
      * afternoon.
      */
-    suspend fun requestPlanChange(jobId: Long, summary: String, detail: String, by: String, role: String) {
-        fieldChangeDao.insert(
-            FieldChange(
-                jobId = jobId,
-                summary = summary,
-                detail = detail,
-                changedBy = by,
-                changedByRole = role,
-                isRequest = true
+    suspend fun requestPlanChange(jobId: Long, summary: String, detail: String, by: String, role: String) =
+        guardWrite("requestPlanChange") {
+            fieldChangeDao.insert(
+                FieldChange(
+                    jobId = jobId,
+                    summary = summary,
+                    detail = detail,
+                    changedBy = by,
+                    changedByRole = role,
+                    isRequest = true
+                )
             )
-        )
-    }
+        }
 
-    suspend fun decidePlanChange(change: FieldChange, approved: Boolean, by: String, note: String) {
-        fieldChangeDao.update(
-            change.copy(
-                approvedAt = if (approved) System.currentTimeMillis() else null,
-                rejectedAt = if (approved) null else System.currentTimeMillis(),
-                decidedBy = by,
-                decisionNote = note,
-                acknowledgedAt = System.currentTimeMillis()
+    suspend fun decidePlanChange(change: FieldChange, approved: Boolean, by: String, note: String) =
+        guardWrite("decidePlanChange") {
+            fieldChangeDao.update(
+                change.copy(
+                    approvedAt = if (approved) System.currentTimeMillis() else null,
+                    rejectedAt = if (approved) null else System.currentTimeMillis(),
+                    decidedBy = by,
+                    decisionNote = note,
+                    acknowledgedAt = System.currentTimeMillis()
+                )
             )
-        )
-    }
+        }
 
-    suspend fun acknowledgeFieldChanges(jobId: Long) =
+    suspend fun acknowledgeFieldChanges(jobId: Long) = guardWrite("acknowledgeFieldChanges") {
         fieldChangeDao.acknowledgeAllForJob(jobId, System.currentTimeMillis())
+    }
 
     /**
      * Seeds the three checklists the first time a job's crew view is opened.
@@ -1302,7 +1419,7 @@ class Repository(private val db: AppDatabase) {
      * before the closing walkthrough existed gains it on next open instead of
      * being stuck without one forever.
      */
-    suspend fun ensureJobStepsSeeded(jobId: Long) {
+    suspend fun ensureJobStepsSeeded(jobId: Long) = guardWrite("ensureJobStepsSeeded") {
         val existing = jobStepDao.getForJob(jobId)
         val present = existing.map { it.kind }.toSet()
         val toAdd = mutableListOf<JobStep>()
@@ -1326,8 +1443,8 @@ class Repository(private val db: AppDatabase) {
     }
 
     fun observePunchList(jobId: Long): Flow<List<PunchListItem>> = punchListDao.observeForJob(jobId)
-    suspend fun addPunchListItem(item: PunchListItem): Long = punchListDao.insert(item)
-    suspend fun updatePunchListItem(item: PunchListItem) = punchListDao.update(item)
+    suspend fun addPunchListItem(item: PunchListItem): Long = guardWrite("addPunchListItem") { punchListDao.insert(item) }
+    suspend fun updatePunchListItem(item: PunchListItem) = guardWrite("updatePunchListItem") { punchListDao.update(item) }
     suspend fun deletePunchListItem(item: PunchListItem) = deleteSynced(item.syncId, "punch_list_items") { punchListDao.delete(item) }
 }
 

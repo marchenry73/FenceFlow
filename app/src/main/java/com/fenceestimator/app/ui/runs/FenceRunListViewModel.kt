@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.runs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fenceestimator.app.cloud.SessionManager
 import com.fenceestimator.app.data.BuildTemplate
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.FenceRun
@@ -12,7 +13,26 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class FenceRunListViewModel(private val repository: Repository, private val jobId: Long) : ViewModel() {
+class FenceRunListViewModel(
+    private val repository: Repository,
+    private val jobId: Long,
+    /**
+     * Who is holding the phone, so [addRun] and [duplicateRun] have their own
+     * refusal for a guest in the read-only demo -- the same reference
+     * RunEditViewModel, JobDetailViewModel, CrewJobViewModel and SurveyViewModel
+     * already take, and for the same reason: read live rather than fixed at
+     * construction, so a demo that starts or ends while this screen is
+     * already open is still caught.
+     *
+     * Until now this view model was the one gap: JobDetailScreen's own
+     * `if (!session.isGuestDemo)` around the two buttons that call
+     * [addRun] and [duplicateRun] was the only thing standing between a guest
+     * and a write, with nothing behind it -- the shape of the last three
+     * regressions in this app's guest demo. This is the second line of
+     * defence, not the only one.
+     */
+    private val session: SessionManager
+) : ViewModel() {
     val runs: StateFlow<List<FenceRun>> = repository.observeFenceRuns(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -34,6 +54,7 @@ class FenceRunListViewModel(private val repository: Repository, private val jobI
         isTeardown: Boolean = false,
         onCreated: (Long) -> Unit
     ) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             val nextOrder = (runs.value.maxOfOrNull { it.sortOrder } ?: -1) + 1
             // Applied on both branches on purpose. A run started from a build
@@ -63,6 +84,7 @@ class FenceRunListViewModel(private val repository: Repository, private val jobI
     }
 
     fun duplicateRun(run: FenceRun, onCreated: (Long) -> Unit) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             val nextOrder = (runs.value.maxOfOrNull { it.sortOrder } ?: -1) + 1
             val copy = run.copy(

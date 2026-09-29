@@ -32,7 +32,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-class EstimateViewModel(private val repository: Repository, private val jobId: Long) : ViewModel() {
+class EstimateViewModel(
+    private val repository: Repository,
+    private val jobId: Long,
+    /**
+     * Who is holding the phone, so every write funnel below can refuse a
+     * guest in the read-only demo. Read live rather than taken once, the way
+     * every other view model in this app reaches the session, so a demo that
+     * starts or ends while this screen is already open is caught too.
+     */
+    private val session: com.fenceestimator.app.cloud.SessionManager
+) : ViewModel() {
     val job: StateFlow<Job?> = repository.observeJob(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -142,6 +152,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     private val regenerating = mutableSetOf<Long>()
 
     fun regenerateSuggested(run: FenceRun) {
+        if (session.state.value.isGuestDemo) return
         if (!regenerating.add(run.id)) return
         viewModelScope.launch {
             try {
@@ -172,8 +183,12 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
                     // it was a quarter of its real scale, and every side then
                     // measured four times its length. Stored, not just used,
                     // so the job's own footage (EstimateEngine.linearFeet,
-                    // which counts an uncalibrated drawing as nothing) and the
-                    // office's price-job read the same scale.
+                    // which now measures a grid drawing at this same known
+                    // scale instead of counting it as nothing -- it only
+                    // falls back to a real 0 ft for an uncalibrated SURVEY
+                    // PHOTO, via DrawingScale.isPhotoJob, where there is no
+                    // known scale to fall back to) and the office's
+                    // price-job read the same scale.
                     pxPerFt = seed
                     repository.updateJob(current.copy(calibrationPixelsPerFoot = seed))
                 } else {
@@ -275,6 +290,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
 
     /** Clears the run's removed-item list so auto-added hardware comes back. */
     fun restoreRemovedItems(run: FenceRun) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(suppressedRolesCsv = ""))
             _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(R.string.evm_removed_restored))
@@ -282,6 +298,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     }
 
     fun setManualFeet(run: FenceRun, feet: Float?, corners: Int) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(manualLinearFeet = feet, manualCornerCount = corners))
         }
@@ -315,6 +332,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
      * @return true when the scale was set.
      */
     fun recalibrateFromRun(run: FenceRun, actualFeet: Float) {
+        if (session.state.value.isGuestDemo) return
         val points = FenceCodec.decodePoints(run.pointsEncoded)
         val pixels = FenceGeometryEngine.pixelLength(points, run.closedLoop)
         val currentJob = job.value
@@ -341,6 +359,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     }
 
     fun setWastePercent(percent: Double) {
+        if (session.state.value.isGuestDemo) return
         val current = job.value ?: return
         viewModelScope.launch { repository.updateJob(current.copy(wastePercent = percent)) }
     }
@@ -350,6 +369,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     }
 
     fun updateLineItem(item: EstimateLineItem) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch { repository.updateLineItem(item) }
     }
 
@@ -365,6 +385,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
      * number could only be traded for no line at all.
      */
     fun useSuggested(item: EstimateLineItem) {
+        if (session.state.value.isGuestDemo) return
         val run = runs.value.firstOrNull { it.id == item.fenceRunId } ?: return
         if (item.role == com.fenceestimator.app.data.MaterialRole.NONE) return
         viewModelScope.launch {
@@ -379,6 +400,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
      * That's what makes "unless I remove them" actually hold.
      */
     fun deleteLineItem(item: EstimateLineItem) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.deleteLineItem(item)
             val role = item.role ?: return@launch
@@ -390,6 +412,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
     }
 
     fun addManualLineItem() {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.saveLineItem(
                 EstimateLineItem(
@@ -428,6 +451,7 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
      * than one that admits it.
      */
     fun applySupplierPrices(pricesByItemId: Map<Long, Double>, reference: String) {
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             val items = lineItems.value
             items.forEach { item ->
@@ -534,6 +558,11 @@ class EstimateViewModel(private val repository: Repository, private val jobId: L
      * the figure, and must not be added again when it is signed tomorrow.
      */
     fun captureSignature(path: String) {
+        // One of the five money/scheduling actions this session found gated
+        // only by canSeeMoney with no refusal of its own -- and the guest
+        // demo deliberately holds SEE_MONEY, so that gate alone waves a
+        // guest straight through to a real signature write.
+        if (session.state.value.isGuestDemo) return
         val current = job.value ?: return
         val agreed = totals.value
         viewModelScope.launch {

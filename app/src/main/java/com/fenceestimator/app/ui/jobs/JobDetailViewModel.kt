@@ -18,6 +18,7 @@ import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.geometry.DrawingSnapshot
+import com.fenceestimator.app.cloud.SessionManager
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FieldChange
@@ -35,6 +36,15 @@ import kotlinx.coroutines.launch
 class JobDetailViewModel(
     private val repository: Repository,
     private val jobId: Long,
+    /**
+     * Who is holding the phone, so the write funnel below can refuse a guest
+     * in the read-only demo. Read the way every other view model in this
+     * package reaches the session, rather than threading a plain boolean down
+     * from the composable -- a boolean taken at construction would freeze the
+     * answer for the life of the screen, while a live session catches a demo
+     * that starts or ends while the screen is already open.
+     */
+    private val session: SessionManager,
     /**
      * The company's rates, for the computed install hours
      * ([followComputedDuration]). Empty by default, which simply means the
@@ -218,7 +228,29 @@ class JobDetailViewModel(
         repository.observeTimeEntries(jobId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * The funnel every ordinary job edit on this screen writes through --
+     * the deposit, the payment status, the payment link, the tip, applying
+     * the suggested deposit, and the status dropdown all call this rather
+     * than the repository directly.
+     *
+     * Refuses outright for the read-only guest demo. The app said in three
+     * languages that the demo cannot change money, and a control that looks
+     * live while this silently ate the write would be its own kind of lie --
+     * so the screen has to look inert too, which is done separately by
+     * hiding or disabling each control for a guest. This is the half that
+     * actually guarantees it: nothing about the UI layer is trustworthy on
+     * its own, because a fresh field or a moved button only has to forget the
+     * check once.
+     *
+     * Not the only funnel, though -- several actions on this same screen
+     * write straight to the repository without passing through here (adding
+     * an expense, adding or signing a change order, adding or resolving a
+     * punch list item). Each of those carries the identical guard for the
+     * identical reason.
+     */
     fun update(transform: (Job) -> Job) {
+        if (session.state.value.isGuestDemo) return
         val current = job.value ?: return
         viewModelScope.launch { repository.updateJob(transform(current)) }
     }
@@ -236,6 +268,11 @@ class JobDetailViewModel(
     }
 
     fun addPhoto(kind: PhotoKind, filePath: String) {
+        // Same bypass of update(), same guard. This one actually wrote: the
+        // Camera and Gallery buttons had no gate either, so a guest's photo
+        // landed on the sample job's row for real, not merely past a hidden
+        // button.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.addPhoto(JobPhoto(jobId = jobId, kind = kind, filePath = filePath))
         }
@@ -246,6 +283,9 @@ class JobDetailViewModel(
     }
 
     fun addExpense(category: com.fenceestimator.app.data.ExpenseCategory, description: String, amount: Double) {
+        // Writes straight to the repository, bypassing update() -- carries
+        // its own copy of the same guest refusal rather than inheriting one.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.saveExpense(
                 Expense(jobId = jobId, category = category, description = description, amount = amount)
@@ -258,12 +298,16 @@ class JobDetailViewModel(
     }
 
     fun addPunchListItem(description: String) {
+        // Same bypass of update(), same guard.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.addPunchListItem(PunchListItem(jobId = jobId, description = description))
         }
     }
 
     fun togglePunchListItem(item: PunchListItem) {
+        // Same bypass of update(), same guard.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.updatePunchListItem(
                 item.copy(
@@ -284,6 +328,8 @@ class JobDetailViewModel(
         additionalCost: Double,
         materialCost: Double = 0.0
     ) {
+        // Same bypass of update(), same guard.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.saveChangeOrder(
                 ChangeOrder(
@@ -298,6 +344,8 @@ class JobDetailViewModel(
     }
 
     fun signChangeOrder(order: ChangeOrder, signaturePath: String) {
+        // Same bypass of update(), same guard.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch {
             repository.updateChangeOrder(
                 order.copy(signatureImagePath = signaturePath, signedAt = System.currentTimeMillis())
@@ -314,6 +362,12 @@ class JobDetailViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun acknowledgeFieldChanges() {
+        // The field-changes "Mark seen" button (FieldChangesSection.kt) calls
+        // straight through here with no gate of its own -- latent rather than
+        // live, since none of the three seeded demo jobs carry a field
+        // change to acknowledge, but a guest who did see one would have
+        // written to it same as any other unguarded funnel here.
+        if (session.state.value.isGuestDemo) return
         viewModelScope.launch { repository.acknowledgeFieldChanges(jobId) }
     }
 
@@ -336,6 +390,13 @@ class JobDetailViewModel(
      *   what it read back rather than let this read a stale copy.
      */
     fun reconcilePaymentStatus(known: Job? = null) {
+        // Runs unasked, from a LaunchedEffect on the job screen every time
+        // amountPaid, refundedAmount or the contract total change -- no
+        // button behind it at all, so it reaches a guest whether or not
+        // anything else on the screen is gated. Latent today because none of
+        // the three seeded demo jobs sit at a payment total that would move
+        // their status, but guarded here rather than left to that.
+        if (session.state.value.isGuestDemo) return
         val current = known ?: job.value ?: return
         // What the job is billed against, not the live estimate: once the
         // customer has accepted a price, a recompute that drifted above it
@@ -572,6 +633,8 @@ class JobDetailViewModel(
         additionalCost: Double,
         materialCost: Double
     ) {
+        // Same bypass of update(), same guard.
+        if (session.state.value.isGuestDemo) return
         val termsChanged = additionalCost != order.additionalCost ||
             additionalFeet != order.additionalFeet ||
             materialCost != order.materialCost

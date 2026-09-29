@@ -8,10 +8,10 @@
         <item quantity="one">1 hora</item>
         <item quantity="other">%1$d horas</item>
     </plurals>
-    <string name="welcome_try_guest_caption">Verás una empresa de ejemplo con trabajos de muestra ya cargados. Es solo de lectura, y todo se reinicia después de %1$s.</string>
+    <string name="welcome_try_guest_caption">Verás una empresa de ejemplo con trabajos de muestra ya cargados, lista para explorar. Todo se reinicia después de %1$s.</string>
 
     <string name="guest_banner_time_left">Demo de invitado — se reinicia en %1$s</string>
-    <string name="guest_banner_explain">Datos de ejemplo que puedes explorar pero no modificar. Cuando termine el tiempo, se borran y vuelves a la pantalla de bienvenida.</string>
+    <string name="guest_banner_explain">Datos de ejemplo para explorar. Cuando termine el tiempo, se borran y vuelves a la pantalla de bienvenida.</string>
     <string name="guest_setting_up">Preparando tu empresa de ejemplo…</string>
-    <string name="onb_access_changed_guest_body">Esta es una demostración de solo lectura, así que esta parte de la aplicación está desactivada. Inicia sesión con tu empresa para usarla.</string>
+    <string name="onb_access_changed_guest_body">Esta es una empresa de ejemplo para explorar, así que esta parte de la aplicación está desactivada. Inicia sesión con tu empresa para usarla.</string>
 </resources>

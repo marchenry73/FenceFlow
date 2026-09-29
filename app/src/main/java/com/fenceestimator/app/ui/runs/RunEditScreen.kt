@@ -75,7 +75,7 @@ fun RunEditScreen(
     var pendingDelete by remember { mutableStateOf(false) }
     val viewModel: RunEditViewModel = viewModel(
         key = "run_edit_$runId",
-        factory = GenericViewModelFactory { RunEditViewModel(app.repository, runId) }
+        factory = GenericViewModelFactory { RunEditViewModel(app.repository, runId, app.session) }
     )
     val run by viewModel.run.collectAsState()
     // `run ?: return` used to show the same bare back arrow whether the run
@@ -119,6 +119,16 @@ fun RunEditScreen(
                 // The natural next step after naming a run is drawing it. Without
                 // this you had to back out to the job and find the survey screen,
                 // which broke the flow every single time.
+                //
+                // Left reachable for a guest on purpose, not hidden behind
+                // `editable` the way the fields below are. The drawing screen
+                // this leads to has its own guest check now (SurveyDrawScreen,
+                // SurveyViewModel) and renders read-only rather than refusing
+                // entry -- a visitor can still look at a sample job's fence
+                // line, its gates and its markers, exactly the "see
+                // everything" half of the rule. Gating the button too would
+                // only have routed a guest away from a screen that is now
+                // actually safe to open.
                 val hasLine = currentRun.pointsEncoded.isNotBlank()
                 androidx.compose.material3.Button(
                     onClick = { onDrawRun(currentRun.jobId) },

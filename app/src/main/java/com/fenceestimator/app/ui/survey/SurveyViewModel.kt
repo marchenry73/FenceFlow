@@ -195,6 +195,29 @@ class SurveyViewModel(
         return session.canSeeMoney
     }
 
+    /**
+     * Whether this phone is in the guest demo -- signed out, in the sample
+     * company, not any real business's own data. Read the same way the two
+     * guards above read theirs.
+     *
+     * This screen had no guest check at all before: the fence line, its
+     * gates and its site markers were open to a visitor to draw on with
+     * nothing refusing the write, the only thing standing between a guest
+     * and a real change being whichever button happened to be hidden.
+     *
+     * Unknown counts as YES here, the opposite default from the two guards
+     * above. Those ask "may I", where a wrong guess grants something; this
+     * asks "must I refuse", where a wrong guess should also refuse. A view
+     * model built outside the app has no session to ask, and the safe answer
+     * to a question it cannot answer is still whichever one blocks the write.
+     */
+    private fun viewerIsGuestDemo(): Boolean {
+        val session = (appContext.applicationContext as? com.fenceestimator.app.FenceEstimatorApp)
+            ?.session?.state?.value
+            ?: return true
+        return session.isGuestDemo
+    }
+
     init {
         // The crew plan reads the drawing and must never re-price it; see
         // [repriceOnDrawingChange].
@@ -271,8 +294,21 @@ class SurveyViewModel(
     /**
      * Runs [change] against a fresh read of run [runId], behind
      * [drawingWrites]. [onMissing] fires when the run no longer exists.
+     *
+     * The one door every ordinary drawing edit goes through -- see
+     * [commitEdit] -- which makes it the one place a guest's write needs
+     * refusing to close all of addDrawPoint, movePoint, setSegmentLengthFeet,
+     * undoLast, redo, clearPoints and toggleClosedLoop at once, the same way
+     * JobDetailViewModel.update() closes its own funnel in one place.
+     * [onMissing] rather than a silent return: a guest calling Undo or Redo
+     * still deserves the same "nothing happened" event a genuinely missing
+     * run would raise, not a button that looks dead.
      */
     private fun editRun(runId: Long?, onMissing: () -> Unit = {}, change: suspend (FenceRun) -> Unit) {
+        if (viewerIsGuestDemo()) {
+            onMissing()
+            return
+        }
         if (runId == null) {
             onMissing()
             return
@@ -345,6 +381,7 @@ class SurveyViewModel(
     }
 
     fun importImage(context: Context, uri: Uri) {
+        if (viewerIsGuestDemo()) return
         viewModelScope.launch {
             val savedPath = withContext(Dispatchers.IO) {
                 val dir = File(context.filesDir, "surveys").apply { mkdirs() }
@@ -748,6 +785,7 @@ class SurveyViewModel(
     }
 
     fun applyCalibration(p1: FencePoint, p2: FencePoint, knownFeet: Float) {
+        if (viewerIsGuestDemo()) return
         val current = job.value ?: return
         val distPx = kotlin.math.hypot((p2.x - p1.x).toDouble(), (p2.y - p1.y).toDouble()).toFloat()
         if (distPx <= 0f || knownFeet <= 0f) return
@@ -763,12 +801,14 @@ class SurveyViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun addSiteMarker(kind: SiteMarkerKind, x: Float, y: Float, label: String) {
+        if (viewerIsGuestDemo()) return
         viewModelScope.launch {
             repository.addSiteMarker(SiteMarker(jobId = jobId, kind = kind, x = x, y = y, label = label))
         }
     }
 
     fun deleteSiteMarker(marker: SiteMarker) {
+        if (viewerIsGuestDemo()) return
         viewModelScope.launch { repository.deleteSiteMarker(marker) }
     }
 
@@ -791,6 +831,7 @@ class SurveyViewModel(
         swing: GateSwing = GateSwing.IN,
         runDefaults: BusinessProfile? = null
     ) {
+        if (viewerIsGuestDemo()) return
         viewModelScope.launch {
             drawingWrites.withLock {
                 val targetId = selectedRun()?.id ?: runs.value.firstOrNull()?.id
@@ -829,6 +870,7 @@ class SurveyViewModel(
      * needing a typed-in length on a different screen.
      */
     fun addRun(defaults: BusinessProfile? = null, isTeardown: Boolean = false) {
+        if (viewerIsGuestDemo()) return
         viewModelScope.launch {
             drawingWrites.withLock { createBlankRun(defaults, isTeardown) }
         }
@@ -875,6 +917,12 @@ class SurveyViewModel(
      * writable, so the app-side check is the whole of it.
      */
     fun setTeardownCharge(enabled: Boolean) {
+        // The guest demo carries SEE_MONEY on purpose (see
+        // SessionState.GUEST_READ_ONLY) so a visitor can see what the app
+        // shows a real company -- which means viewerMaySeeMoney() alone
+        // would have let a guest flip this. Asked separately, same as every
+        // other write on this screen.
+        if (viewerIsGuestDemo()) return
         if (!viewerMaySeeMoney()) return
         viewModelScope.launch {
             val current = repository.getJob(jobId) ?: return@launch
@@ -951,6 +999,7 @@ class SurveyViewModel(
 
     /** Moves a site marker, for the same reason gates can be moved. */
     fun moveSiteMarker(marker: SiteMarker, x: Float, y: Float) {
+        if (viewerIsGuestDemo()) return
         viewModelScope.launch {
             repository.updateSiteMarker(marker.copy(x = x, y = y))
         }
@@ -973,6 +1022,14 @@ class SurveyViewModel(
      * can never silently rescale a line you already drew.
      */
     fun ensureGridCalibration() {
+        // Runs unasked, from a LaunchedEffect the moment the screen opens --
+        // no button behind it at all, so a guest reaches this whether or not
+        // anything else on the screen is gated. Nothing downstream actually
+        // needs the seed: DrawingScale.of() already falls back to computing
+        // the grid's own scale from gridExtentFt when calibrationPixelsPerFoot
+        // is null, so refusing the write here costs a guest's rendering
+        // nothing.
+        if (viewerIsGuestDemo()) return
         val current = job.value ?: return
         if (current.surveyImagePath != null) return
         // Only seed a scale when there isn't one. This used to force the grid
@@ -1009,6 +1066,7 @@ class SurveyViewModel(
      * another grid size hit this.)
      */
     fun setGridExtent(extentFt: Float) {
+        if (viewerIsGuestDemo()) return
         val current = job.value ?: return
         if (current.surveyImagePath != null) return
         if (extentFt <= 0f) return
@@ -1174,6 +1232,7 @@ class SurveyViewModel(
 
     /** Puts the no-photo grid back on its default scale after a hand calibration. */
     fun resetGridCalibration() {
+        if (viewerIsGuestDemo()) return
         val current = job.value ?: return
         viewModelScope.launch {
             repository.updateJob(
@@ -1185,6 +1244,7 @@ class SurveyViewModel(
 
     /** Purely a display setting (how far apart gridlines are drawn) -- never affects calibration or existing points. */
     fun setGridLineSpacingFt(feet: Float) {
+        if (viewerIsGuestDemo()) return
         val current = job.value ?: return
         viewModelScope.launch {
             repository.updateJob(current.copy(gridFeetPerSquare = feet.coerceAtLeast(0.5f)))
@@ -1193,6 +1253,7 @@ class SurveyViewModel(
 
     /** Switches a run back to photo mode by clearing the survey image (drawing starts over). */
     fun clearSurveyImage() {
+        if (viewerIsGuestDemo()) return
         val current = job.value ?: return
         viewModelScope.launch {
             repository.updateJob(current.copy(surveyImagePath = null, calibrationPixelsPerFoot = null, calibrationKnownFeet = null))

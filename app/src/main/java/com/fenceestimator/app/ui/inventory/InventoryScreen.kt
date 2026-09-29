@@ -72,11 +72,22 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
     val app = currentApp()
     val viewModel: InventoryViewModel = viewModel(
         key = "inventory_$jobId",
-        factory = GenericViewModelFactory { InventoryViewModel(app.repository, jobId) }
+        factory = GenericViewModelFactory { InventoryViewModel(app.repository, jobId, app.session) }
     )
     val items by viewModel.items.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
     var addDialogKind by remember { mutableStateOf<InventoryKind?>(null) }
+    // The demo predicate itself, never a permission -- look through this
+    // screen, change nothing on it.
+    val session by app.session.state.collectAsState()
+    val editable = !session.isGuestDemo
+    // A guest's own rows are never written (ensureToolsSeeded and
+    // syncMaterialsFromEstimate both refuse below), so the real checklist is
+    // always empty for the demo. These are what would have been seeded and
+    // synced, computed live and shown instead -- a sensible screen with
+    // nothing behind it to persist.
+    val guestToolPreview by viewModel.guestToolPreview.collectAsState()
+    val guestMaterialPreview by viewModel.guestMaterialPreview.collectAsState()
 
     LaunchedEffect(jobId) {
         // The collected profile starts as a placeholder holding the built-in
@@ -119,35 +130,44 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.inv_materials), style = MaterialTheme.typography.titleMedium)
-                    OutlinedButton(onClick = { viewModel.syncMaterialsFromEstimate() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Text(" " + stringResource(R.string.inv_sync_from_estimate))
+                    // Writes for real (clearInventoryMaterials + addInventoryItems)
+                    // -- nothing read-only stands in for a resync button, so it
+                    // is gone rather than disabled for the demo.
+                    if (editable) {
+                        OutlinedButton(onClick = { viewModel.syncMaterialsFromEstimate() }) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
+                            Text(" " + stringResource(R.string.inv_sync_from_estimate))
+                        }
                     }
                 }
             }
-            val materials = items.filter { it.kind == InventoryKind.MATERIAL }
+            val materials = if (editable) items.filter { it.kind == InventoryKind.MATERIAL } else guestMaterialPreview
             if (materials.isEmpty()) {
                 item { EmptyState(stringResource(R.string.misc_inventory_no_materials)) }
             }
-            materials.forEach { checkItem -> item { ChecklistRow(checkItem, viewModel) } }
-            item {
-                OutlinedButton(onClick = { addDialogKind = InventoryKind.MATERIAL }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.inv_add_material))
+            materials.forEach { checkItem -> item { ChecklistRow(checkItem, editable, viewModel) } }
+            if (editable) {
+                item {
+                    OutlinedButton(onClick = { addDialogKind = InventoryKind.MATERIAL }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.inv_add_material))
+                    }
                 }
             }
 
             item { Text(stringResource(R.string.inv_tools), style = MaterialTheme.typography.titleMedium) }
-            val tools = items.filter { it.kind == InventoryKind.TOOL }
+            val tools = if (editable) items.filter { it.kind == InventoryKind.TOOL } else guestToolPreview
             // Tools sat blank with no explanation when the seeded default list
             // was cleared -- Materials already says why an empty list is empty,
             // Tools needs the same rather than looking like the load failed.
             if (tools.isEmpty()) {
                 item { EmptyState(stringResource(R.string.inv_no_tools_yet)) }
             }
-            tools.forEach { checkItem -> item { ChecklistRow(checkItem, viewModel) } }
-            item {
-                OutlinedButton(onClick = { addDialogKind = InventoryKind.TOOL }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.inv_add_tool))
+            tools.forEach { checkItem -> item { ChecklistRow(checkItem, editable, viewModel) } }
+            if (editable) {
+                item {
+                    OutlinedButton(onClick = { addDialogKind = InventoryKind.TOOL }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.inv_add_tool))
+                    }
                 }
             }
         }
@@ -163,7 +183,7 @@ fun InventoryScreen(jobId: Long, onBack: () -> Unit) {
 }
 
 @Composable
-private fun ChecklistRow(item: InventoryChecklistItem, viewModel: InventoryViewModel) {
+private fun ChecklistRow(item: InventoryChecklistItem, editable: Boolean, viewModel: InventoryViewModel) {
     val context = LocalContext.current
     var pendingPath by remember { mutableStateOf<String?>(null) }
     // Asked first, because this button sits directly beside the camera button
@@ -180,7 +200,9 @@ private fun ChecklistRow(item: InventoryChecklistItem, viewModel: InventoryViewM
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(Space.row), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = item.checked, onCheckedChange = { viewModel.toggle(item) })
+            // A guest sees the checked state (a value) but cannot flip it --
+            // the demo's checklist rows are not even real rows to toggle.
+            Checkbox(checked = item.checked, enabled = editable, onCheckedChange = { viewModel.toggle(item) })
             Text(
                 item.description,
                 modifier = Modifier.weight(1f),
@@ -193,13 +215,17 @@ private fun ChecklistRow(item: InventoryChecklistItem, viewModel: InventoryViewM
                     modifier = Modifier.size(36.dp).clip(RoundedCornerShape(6.dp))
                 )
             }
-            IconButton(onClick = {
-                val target = PhotoFiles.newTarget(context, "inventory")
-                pendingPath = target.absolutePath
-                cameraLauncher.launch(target.uri)
-            }) { Icon(Icons.Filled.CameraAlt, contentDescription = stringResource(R.string.misc_inventory_verify_with_photo)) }
-            IconButton(onClick = { confirmingRemoval = true }) {
-                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.draw_remove), tint = MaterialTheme.colorScheme.error)
+            // Camera and Delete are pure actions with no read-only stand-in --
+            // gone for the demo rather than disabled buttons that go nowhere.
+            if (editable) {
+                IconButton(onClick = {
+                    val target = PhotoFiles.newTarget(context, "inventory")
+                    pendingPath = target.absolutePath
+                    cameraLauncher.launch(target.uri)
+                }) { Icon(Icons.Filled.CameraAlt, contentDescription = stringResource(R.string.misc_inventory_verify_with_photo)) }
+                IconButton(onClick = { confirmingRemoval = true }) {
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.draw_remove), tint = MaterialTheme.colorScheme.error)
+                }
             }
             if (confirmingRemoval) {
                 AlertDialog(
