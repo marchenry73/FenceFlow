@@ -1,0 +1,127 @@
+-- ============================================================
+-- FenceFlow -- column for a drawn signature on the public quote page
+-- NOT APPLIED. Written and left here for review; run in Supabase -> SQL
+-- Editor -> New query -> Run only after someone decides to. Safe to re-run
+-- (add column if not exists).
+--
+-- Additive only. Nothing existing is renamed, dropped, or changed shape.
+-- ============================================================
+--
+-- WHY THIS EXISTS
+--
+-- website/quote.html TRACK, item C3(a): the customer-facing quote page
+-- should let a homeowner draw a signature as an alternative to typing their
+-- name. The drawing itself (a canvas, cleared and re-drawn) is client-side
+-- work with no server dependency. Where it needs a server change is
+-- STORAGE: whatever the canvas produces has to land somewhere on the jobs
+-- row, the same way a typed name already lands in quote_approved_name.
+-- supabase/functions/quote-view/index.ts is the only thing that can write
+-- that row (service role; the customer's browser never gets a database
+-- credential), and it was locked for this change -- another wave was
+-- mid-edit on files elsewhere in the app at the same time. This file is the
+-- schema half of that change, ready for whoever can safely touch
+-- quote-view/index.ts next.
+--
+-- WHY A NEW COLUMN, NOT jobs.signature_storage_path
+--
+-- jobs already has a column that sounds like the right place:
+-- signature_storage_path (added by supabase_storage_patch.sql), paired with
+-- signed_at / signed_contract_total / signed_linear_feet. It would be the
+-- wrong place. That column means something specific and already audited:
+-- THE SIGNED CONTRACT, captured in person on a crew or owner phone
+-- (FileSync.kt, kind="signature", bucket job-files, write-once storage
+-- policy job_files_signatures_are_write_once) and pinned against tampering
+-- by crew pushes and by ACCOUNTANT direct UPDATEs
+-- (supabase_p2_contract_columns_pin.sql). The office dashboard reads it as
+-- proof a contract was signed (dashboard.html:7362) and reads jobs.signed_at
+-- for "No signature on file" (dashboard.html:12570).
+--
+-- Writing a REMOTE, unauthenticated, token-gated web approval's drawing into
+-- that same column would make an online "type your name or draw" quote
+-- approval look, to every piece of code that already trusts
+-- signature_storage_path, exactly like an in-person signed contract. That is
+-- a meaning collision, not a reuse -- the two events (a homeowner tapping a
+-- link at home vs. a crew member handing over a tablet on site) are not the
+-- same fact and must not share one column.
+--
+-- This column instead sits next to quote_approved_name / quote_approved_at
+-- (supabase_r6_price_stability.sql and the base jobs columns quote-view
+-- already reads/writes) and is governed the same way: written only by
+-- quote-view's action=approve, in the same UPDATE as quote_approved_name and
+-- quote_approved_at, and read only by that same page and whatever the office
+-- later builds to look at a remote approval. It is never write-once the way
+-- the in-person contract signature is (a customer who mis-draws before
+-- approving should be able to clear and redraw -- nothing is "signed" until
+-- the approve button is pressed and the row is written), and it is never to
+-- be conflated with, copied into, or read as jobs.signature_storage_path.
+
+alter table public.jobs
+  add column if not exists quote_approved_signature_path text;
+
+comment on column public.jobs.quote_approved_signature_path is
+  'Storage path (bucket job-files, convention {company_id}/{job_sync_id}/quote-signature/{file}.png -- same bucket and shape FileSync.kt already uses for other kinds, a NEW kind) of a signature the customer drew on the public quote page instead of typing their name. Null when they typed their name, or before any approval. Set only by supabase/functions/quote-view/index.ts action=approve, in the same UPDATE as quote_approved_name and quote_approved_at -- never by the crew app, never write-once, and never to be confused with jobs.signature_storage_path (the in-person signed contract; see supabase_p2_contract_columns_pin.sql).';
+
+-- ------------------------------------------------------------------
+-- STATUS (2026-09-28): the code half described below has now been written,
+-- in supabase/functions/quote-view/index.ts and website/quote.html. This
+-- file itself is UNCHANGED in effect -- still exactly the one additive
+-- `alter table` above, still NOT APPLIED. Nothing in the code path below
+-- can go live until it is. The paragraphs that follow describe what the
+-- code ACTUALLY does now, not the plan that preceded it, so anyone reading
+-- this file does not have to cross-check it against the .ts/.html source to
+-- know what is true.
+--
+-- supabase/functions/quote-view/index.ts:
+--   - The job read itself steps down a column at a time: it first selects
+--     quote_approved_signature_path alongside everything else, and only
+--     when that fails with a missing-column error (this file not applied
+--     yet, or an old deploy) does it re-select without it. The result,
+--     canRecordSignature, is sent to the page as signatureCaptureReady on
+--     the GET response -- the page shows the drawing option ONLY when this
+--     is true, which is what keeps this feature from being a fake control
+--     while the migration below is still unapplied.
+--   - POST action="approve" accepts an OPTIONAL signatureDataUrl alongside
+--     the already-required name. It is checked BEFORE the phone gate spends
+--     an attempt: canRecordSignature must be true (else 400
+--     code:"signature_unavailable" -- the approval is refused outright,
+--     never silently accepted minus the drawing), the string must match
+--     `data:image/png;base64,...`, decode to at most 300KB, and the
+--     DECODED BYTES (never the client's claimed prefix) must start with the
+--     real PNG signature -- any failure is 400 code:"signature_invalid"
+--     with a message that says which problem it was. name stays required
+--     exactly as before (name.length<2 refused) and un-touched by any of
+--     this -- the drawing rides alongside it, never instead of it.
+--   - Only for the approval that is actually landing (justApproved -- the
+--     same guard that already made "first approval wins" true before this
+--     change) are the bytes uploaded, to job-files at
+--     `${job.company_id}/${job.sync_id}/quote-signature/${Date.now()}.png`,
+--     and only on a successful upload does quote_approved_signature_path
+--     join the SAME `approval` object as quote_approved_name and
+--     quote_approved_at, written in the one guarded UPDATE
+--     (`.is('quote_approved_at', null)`) that already existed. A second
+--     approval attempt never reaches this code at all (justApproved is
+--     false by then), so it can carry any signature it likes and neither
+--     the name nor the path on the row moves -- verified in
+--     tests/a15-signature-approval.test.mjs.
+--   - The GET response carries signatureCaptureReady and
+--     approvedSignatureUrl (a short-lived storage.createSignedUrl, never
+--     the raw path -- job-files is a private bucket) so the page, and the
+--     downloaded copy, can show a signature once one is on the record.
+--
+-- website/quote.html: a two-button choice above the name field (shown only
+-- when signatureCaptureReady), a <canvas> driven by Pointer Events (one
+-- code path for a finger and a mouse) with a Clear button, and doApprove()
+-- sending signatureDataUrl in the SAME POST it already sends -- no second
+-- approval route, same phone gate, same 409 quote_changed handling. The
+-- "download a copy" file never embeds the signed URL itself (it expires in
+-- an hour, and this file is meant to still open correctly months later with
+-- no network) -- it converts the image to a data: URI first, preferring the
+-- exact bytes this page just drew and sent over re-fetching anything.
+--
+-- Left for whoever ships this: TWO things must both be true before a
+-- customer ever sees the drawing option -- this file applied, AND the
+-- updated quote-view deployed (neither happened in this session; see the
+-- findings this change was reported with). Once both are true,
+-- canRecordSignature/signatureCaptureReady turn true on their own with no
+-- further code change -- whichever of the two lands second is what
+-- activates it, and the page picks it up on the very next quote it loads.

@@ -1,0 +1,75 @@
+-- supabase_admin_drift_mark_seen_patch.sql -- ADDITIVE. NOT APPLIED.
+-- Run in: Supabase -> SQL Editor -> New query -> Run  (when you decide to).
+--
+-- What this fixes: website/admin.html's Pricing Drift panel has a "Mark seen"
+-- button per row that calls
+--     db.from('pricing_drift').update({ seen_at: ... }).eq('id', row.id)
+-- Live pg_policies on pricing_drift (checked directly, 2026-09-28):
+--
+--   pricing_drift_admin_read (select)
+--     using (is_platform_admin())
+--   pricing_drift_read (select)
+--     using (company_id = current_company_id()
+--            and current_user_role() in ('OWNER','MANAGER'))
+--   pricing_drift_update (update)
+--     using (company_id = current_company_id()
+--            and current_user_role() in ('OWNER','MANAGER'))
+--     with check (company_id = current_company_id())
+--   pricing_drift_insert (insert)
+--     with check (company_id = current_company_id())
+--   pricing_drift_not_suspended (restrictive, all)
+--     using (not company_is_suspended())
+--
+-- So the platform admin can SEE every company's drift row
+-- (pricing_drift_admin_read) but can change none but their own, if they even
+-- belong to a company -- there is no admin UPDATE policy at all. Confirmed
+-- live with a positive control in the same probe/session: a planted row on a
+-- ZZ TEST fixture company (not the admin's own, nobody in it) was visible to
+-- an impersonated platform-admin session but its UPDATE matched zero rows
+-- with no error, while the identical session's UPDATE on companies (which
+-- DOES have an admin UPDATE policy) succeeded -- so this is the missing
+-- policy, not a broken session, a broken is_platform_admin(), or a lapsed
+-- second factor. It was latent only because pricing_drift held zero rows at
+-- the time; it bites on the first drift row belonging to a company other
+-- than the admin's own.
+--
+-- Modeled on companies_platform_admin_update (supabase_platform_admin_patch.sql,
+-- as it now actually reads live, not as that file's comment used to claim --
+-- see the corrected comment in website/admin.html's saveEdit()): same shape,
+-- same flag, nothing added or loosened --
+--   using (is_platform_admin()) with check (is_platform_admin())
+-- -- so this cannot be satisfied by anything companies_platform_admin_update
+-- could not also be satisfied by. It grants UPDATE only, not ALL: a platform
+-- admin still cannot INSERT or DELETE a pricing_drift row through this, and
+-- SELECT is already covered by pricing_drift_admin_read above -- this adds
+-- exactly the one missing verb, "Mark seen" needs.
+--
+-- pricing_drift_not_suspended (restrictive) still applies on top of this
+-- exactly as it already does for pricing_drift_update: company_is_suspended()
+-- reads the CALLER's own company (profiles.company_id via auth.uid()), not
+-- the row's company, so a platform admin with no company of their own (or an
+-- unsuspended one) passes it the same way pricing_drift_admin_read already
+-- does today -- this policy does not change who that restrictive gate lets
+-- through, only what a platform admin can do once it does.
+--
+-- What this grants, precisely: UPDATE on pricing_drift, to any account whose
+-- profiles.is_platform_admin is true AND whose session passes
+-- admin_second_factor_ok() (is_platform_admin() folds both in already).
+-- Nothing else changes -- crew, and every non-admin company member, are
+-- untouched; this adds no SELECT, INSERT or DELETE grant of any kind.
+--
+-- With this applied: website/admin.html's "Mark seen" button on a client
+-- company's drift row actually marks it (the .select('id') check added this
+-- wave sees a returned row and proceeds normally).
+-- Without it: the button (after this wave's admin.html fix) correctly
+-- refuses and shows driftMarkNoRowsMsg, naming the missing policy, instead of
+-- silently doing nothing the way it did before.
+--
+-- Your call which of those two you want live -- this file only adds the
+-- option; it changes nothing by existing unapplied.
+
+drop policy if exists pricing_drift_admin_update on public.pricing_drift;
+create policy pricing_drift_admin_update on public.pricing_drift
+    for update
+    using (is_platform_admin())
+    with check (is_platform_admin());
