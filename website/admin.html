@@ -604,6 +604,15 @@
        open access, copy the setup code -- the handful of things you actually
        come here to do, using the same admin_* RPCs as the row buttons. -->
   <div class="qa-row" id="qaRow"></div>
+  <!-- Who owns this company, by the email they sign in with. Read-only on
+       purpose: it lives in the authentication system rather than in this table,
+       and the only person who can change it is its owner. It sits above the
+       editable fields because it is what tells this company apart from another
+       one -- the company email below is a typed setting, two companies can hold
+       the same one, and this admin's own company holds a FenceFlow address in
+       it. Hidden entirely when the list carried no owner email, so nothing here
+       ever guesses at one. -->
+  <div id="e_ownerRow" style="display:none;font-size:13px;margin:0 0 10px"></div>
   <div class="row2">
     <div><label data-t="editPlanLabel">Plan</label>
       <select id="e_plan">
@@ -620,7 +629,9 @@
     <div><label data-t="editPriceLabel">Price per month ($)</label><input id="e_price" type="number" step="1">
       <span id="e_priceNote" style="display:none;font-size:11px;color:var(--muted)" data-t="setByStripeNote">Set by Stripe — change it there, not here.</span>
     </div>
-    <div><label data-t="editContactLabel">Contact email</label><input id="e_contact" type="email" data-t="editContactPh" placeholder="where the invitation goes"></div>
+    <div><label data-t="editContactLabel">Company email (customers see it)</label><input id="e_contact" type="email" data-t="editContactPh" placeholder="shown on this company's quotes">
+      <span style="font-size:11px;color:var(--muted)" data-t="editContactNote">Printed on the company's quotes for its customers; also the reply-to on the crew invitations, follow-up emails and FenceFlow mail it sends (until the company connects its own inbox), and where a FenceFlow invitation goes when no other address is on file. The company's own address, not one person's. Never a login.</span>
+    </div>
     <div><label data-t="editBillingLabel">Billing email</label><input id="e_email" type="email" data-t="editBillingPh" placeholder="where receipts go"></div>
     <div><label data-t="editGraceLabel">Grace period ends</label><input id="e_grace" type="date"></div>
   </div>
@@ -801,6 +812,13 @@ const TL = {
     colCompany:'Company', colStatus:'Status', colOnboarding:'Onboarding', colPlan:'Plan',
     colPriceMo:'$/mo', colSeats:'Seats', colJobs:'Jobs', colLastSeen:'Last seen',
     colVersion:'Version', colRenewsEnds:'Renews / ends',
+    rowOwnerLabel:'Owner:',
+    rowOwnerTitle:'The email address this company\'s owner signs in with. It is what tells one company from another: a company email is a typed setting two companies can share, a login is not.',
+    rowOwnerNone:'no owner account yet',
+    rowOwnerNoneTitle:'Nobody has signed in as the owner of this company yet, so there is no login email to show.',
+    rowContactLabel:'Customers see:',
+    rowContactTitle:'The company\'s own address. It is printed on its quotes, and it is the reply-to on the crew invitations, follow-ups and FenceFlow mail it sends. A setting, never a login.',
+    rowContactNone:'not set',
     daysCount:'%s days', trialEndedOn:'trial ended %s',
     companiesEmpty:'No client companies yet.', companiesEmptyFiltered:'No company matches "%s".',
     companiesLoading:'Loading…', workingEllipsis:'Working…',
@@ -900,6 +918,7 @@ const TL = {
     driftNoteBody:'Full cross-company visibility needs a platform-admin read policy on %s (something like %s, the same shape as the one on %s), or a SECURITY DEFINER %s RPC the way crashes and companies already have. Neither exists yet -- %s is scoped to %s, so this table can only ever show rows your own account happens to be allowed to see, typically none.',
     driftNoneVisible:'Nothing visible to this account.', driftApart:'%s apart',
     driftMarkFailed:'Could not mark it: %s',
+    driftMarkNoRowsMsg:'Not marked -- the write matched no row. pricing_drift has no admin update policy yet, only one scoped to that company\'s own owner or manager, so a platform admin can see this row but cannot change it (see the note above). It needs that policy added before this button can work on another company\'s row.',
 
     accountHead:'Account', accountSub:'Your own sign-in to this console — password and two-factor.',
     mfaChecking:'Checking…',
@@ -929,8 +948,16 @@ const TL = {
     editPlanLabel:'Plan', planOptNone:'No plan — nothing unlocked',
     planOptSolo:'Solo — 1 login', planOptCrew:'Crew — 6 logins', planOptPro:'Pro — unlimited logins',
     setByStripeNote:'Set by Stripe — change it there, not here.',
-    editPriceLabel:'Price per month ($)', editContactLabel:'Contact email',
-    editContactPh:'where the invitation goes', editBillingLabel:'Billing email',
+    editPriceLabel:'Price per month ($)',
+    editContactLabel:'Company email (customers see it)',
+    editContactPh:'shown on this company\'s quotes',
+    editContactNote:'Printed on the company\'s quotes for its customers; also the reply-to on the crew invitations, follow-up emails and FenceFlow mail it sends (until the company connects its own inbox), and where a FenceFlow invitation goes when no other address is on file. The company\'s own address, not one person\'s. Never a login.',
+    editEmailBlankMsg:'The other changes saved, but the company email was left as it was — the box was empty, and an empty address would break this company\'s outgoing mail, its customer-facing quote, and its crew invitations. Type an address to change it.',
+    editEmailInvalidMsg:'The other changes saved, but the company email was left as it was — "%s" does not look like a full email address (name@domain.tld). Fix it and save again.',
+    editSaveNoRowsMsg:'Nothing was saved — the write matched no row. The most likely cause is that this admin session\'s second factor has gone stale since you opened this dialog. Sign out, sign back in with a fresh code, and try again.',
+    editOwnerLine:'Owner login: %s',
+    editOwnerUnknown:'No owner account yet — nobody has signed in as the owner of this company.',
+    editBillingLabel:'Billing email',
     editBillingPh:'where receipts go', editGraceLabel:'Grace period ends',
     editNotesLabel:'Notes (only you see these)', saveBtn:'Save', editPassFeeLabel:'Their subscription price includes the Stripe fee (applies at their next checkout or plan change)',
     editUnnamedCompany:'Unnamed company',
@@ -1024,6 +1051,13 @@ const TL = {
     colCompany:'Empresa', colStatus:'Estado', colOnboarding:'Incorporación', colPlan:'Plan',
     colPriceMo:'$/mes', colSeats:'Cupos', colJobs:'Trabajos', colLastSeen:'Última vez visto',
     colVersion:'Versión', colRenewsEnds:'Renueva / termina',
+    rowOwnerLabel:'Propietario:',
+    rowOwnerTitle:'La dirección de correo con la que inicia sesión el propietario de esta empresa. Es lo que distingue una empresa de otra: un correo de empresa es un ajuste escrito a mano que dos empresas pueden compartir, un inicio de sesión no.',
+    rowOwnerNone:'todavía sin cuenta de propietario',
+    rowOwnerNoneTitle:'Nadie ha iniciado sesión como propietario de esta empresa todavía, así que no hay correo de inicio de sesión que mostrar.',
+    rowContactLabel:'Los clientes ven:',
+    rowContactTitle:'La dirección propia de la empresa. Se imprime en sus presupuestos, y es la dirección de respuesta de las invitaciones a la cuadrilla, los seguimientos y el correo de FenceFlow que envía. Un ajuste, nunca un inicio de sesión.',
+    rowContactNone:'sin configurar',
     daysCount:'%s días', trialEndedOn:'la prueba terminó %s',
     companiesEmpty:'Todavía no hay empresas clientes.', companiesEmptyFiltered:'Ninguna empresa coincide con "%s".',
     companiesLoading:'Cargando…', workingEllipsis:'Procesando…',
@@ -1123,6 +1157,7 @@ const TL = {
     driftNoteBody:'La visibilidad completa entre empresas necesita una política de lectura de administrador de plataforma sobre %s (algo como %s, con la misma forma que la que existe sobre %s), o una RPC %s con SECURITY DEFINER de la misma forma que ya tienen los fallos y las empresas. Ninguna existe todavía -- %s está limitada a %s, así que esta tabla solo puede mostrar las filas que su propia cuenta tenga permiso de ver, típicamente ninguna.',
     driftNoneVisible:'Nada visible para esta cuenta.', driftApart:'%s de diferencia',
     driftMarkFailed:'No se pudo marcar: %s',
+    driftMarkNoRowsMsg:'No se marcó -- la escritura no coincidió con ninguna fila. pricing_drift todavía no tiene una política de actualización para el administrador, solo una limitada al propio dueño o gerente de esa empresa, así que un administrador de la plataforma puede ver esta fila pero no puede cambiarla (vea la nota de arriba). Hace falta agregar esa política para que este botón funcione en la fila de otra empresa.',
 
     accountHead:'Cuenta', accountSub:'Su propio inicio de sesión en esta consola — contraseña y verificación en dos pasos.',
     mfaChecking:'Comprobando…',
@@ -1152,8 +1187,16 @@ const TL = {
     editPlanLabel:'Plan', planOptNone:'Sin plan — nada desbloqueado',
     planOptSolo:'Solo — 1 inicio de sesión', planOptCrew:'Crew — 6 inicios de sesión', planOptPro:'Pro — inicios de sesión ilimitados',
     setByStripeNote:'Lo fija Stripe — cámbielo ahí, no aquí.',
-    editPriceLabel:'Precio por mes ($)', editContactLabel:'Correo de contacto',
-    editContactPh:'a dónde va la invitación', editBillingLabel:'Correo de facturación',
+    editPriceLabel:'Precio por mes ($)',
+    editContactLabel:'Correo de la empresa (los clientes lo ven)',
+    editContactPh:'aparece en los presupuestos de esta empresa',
+    editContactNote:'Se imprime en los presupuestos de la empresa para sus clientes; también es la dirección de respuesta de las invitaciones a la cuadrilla, los correos de seguimiento y el correo de FenceFlow que envía (hasta que la empresa conecte su propio buzón), y a donde va una invitación de FenceFlow cuando no hay otra dirección registrada. La dirección propia de la empresa, no la de una persona. Nunca es un inicio de sesión.',
+    editEmailBlankMsg:'Los demás cambios se guardaron, pero el correo de la empresa se dejó como estaba — el campo estaba vacío, y una dirección vacía interrumpiría el correo saliente de esta empresa, la cotización que ve el cliente y las invitaciones a la cuadrilla. Escriba una dirección para cambiarla.',
+    editEmailInvalidMsg:'Los demás cambios se guardaron, pero el correo de la empresa se dejó como estaba — "%s" no parece una dirección de correo completa (nombre@dominio.tld). Corríjala y guarde de nuevo.',
+    editSaveNoRowsMsg:'No se guardó nada — la escritura no coincidió con ninguna fila. La causa más probable es que el segundo factor de esta sesión de administrador haya caducado desde que abrió este cuadro de diálogo. Cierre sesión, vuelva a iniciarla con un código nuevo e inténtelo de nuevo.',
+    editOwnerLine:'Inicio de sesión del propietario: %s',
+    editOwnerUnknown:'Todavía sin cuenta de propietario — nadie ha iniciado sesión como propietario de esta empresa.',
+    editBillingLabel:'Correo de facturación',
     editBillingPh:'a dónde van los recibos', editGraceLabel:'El período de gracia termina',
     editNotesLabel:'Notas (solo usted las ve)', saveBtn:'Guardar', editPassFeeLabel:'Su suscripción incluye la comisión de Stripe (se aplica en su próximo pago o cambio de plan)',
     editUnnamedCompany:'Empresa sin nombre',
@@ -1247,6 +1290,13 @@ const TL = {
     colCompany:'Entreprise', colStatus:'Statut', colOnboarding:'Intégration', colPlan:'Forfait',
     colPriceMo:'$/mois', colSeats:'Postes', colJobs:'Chantiers', colLastSeen:'Vu pour la dernière fois',
     colVersion:'Version', colRenewsEnds:'Renouvelle / se termine',
+    rowOwnerLabel:'Propriétaire :',
+    rowOwnerTitle:'L\'adresse courriel avec laquelle le propriétaire de cette entreprise se connecte. C\'est ce qui distingue une entreprise d\'une autre : un courriel d\'entreprise est un réglage saisi à la main que deux entreprises peuvent partager, un identifiant non.',
+    rowOwnerNone:'aucun compte propriétaire',
+    rowOwnerNoneTitle:'Personne ne s\'est encore connecté comme propriétaire de cette entreprise, il n\'y a donc aucun identifiant à afficher.',
+    rowContactLabel:'Les clients voient :',
+    rowContactTitle:'L\'adresse propre à l\'entreprise. Elle est imprimée sur ses devis, et c\'est l\'adresse de réponse des invitations à l\'équipe, des suivis et du courrier FenceFlow qu\'elle envoie. Un réglage, jamais un identifiant.',
+    rowContactNone:'non renseignée',
     daysCount:'%s jours', trialEndedOn:'essai terminé le %s',
     companiesEmpty:'Aucune entreprise cliente pour l\'instant.', companiesEmptyFiltered:'Aucune entreprise ne correspond à « %s ».',
     companiesLoading:'Chargement…', workingEllipsis:'Traitement…',
@@ -1346,6 +1396,7 @@ const TL = {
     driftNoteBody:'Une visibilité complète entre entreprises a besoin d\'une politique de lecture admin-plateforme sur %s (quelque chose comme %s, de la même forme que celle sur %s), ou d\'une RPC %s en SECURITY DEFINER comme les plantages et les entreprises en ont déjà une. Aucune n\'existe encore -- %s est limitée à %s, donc cette table ne peut montrer que les lignes que votre propre compte a le droit de voir, généralement aucune.',
     driftNoneVisible:'Rien de visible pour ce compte.', driftApart:'%s d\'écart',
     driftMarkFailed:'Impossible de marquer : %s',
+    driftMarkNoRowsMsg:'Non marqué -- l\'écriture n\'a touché aucune ligne. pricing_drift n\'a pas encore de politique de mise à jour pour l\'administrateur, seulement une limitée au propriétaire ou au gérant de cette entreprise, donc un administrateur de la plateforme peut voir cette ligne mais ne peut pas la modifier (voir la note ci-dessus). Il faut ajouter cette politique pour que ce bouton fonctionne sur la ligne d\'une autre entreprise.',
 
     accountHead:'Compte', accountSub:'Votre propre connexion à cette console — mot de passe et vérification en deux étapes.',
     mfaChecking:'Vérification…',
@@ -1375,8 +1426,16 @@ const TL = {
     editPlanLabel:'Forfait', planOptNone:'Aucun forfait — rien de débloqué',
     planOptSolo:'Solo — 1 connexion', planOptCrew:'Crew — 6 connexions', planOptPro:'Pro — connexions illimitées',
     setByStripeNote:'Fixé par Stripe — changez-le là-bas, pas ici.',
-    editPriceLabel:'Prix par mois ($)', editContactLabel:'Courriel de contact',
-    editContactPh:'où l\'invitation est envoyée', editBillingLabel:'Courriel de facturation',
+    editPriceLabel:'Prix par mois ($)',
+    editContactLabel:'Courriel de l\'entreprise (visible par les clients)',
+    editContactPh:'affiché sur les devis de cette entreprise',
+    editContactNote:'Imprimé sur les devis de l\'entreprise pour ses clients ; c\'est aussi l\'adresse de réponse des invitations à l\'équipe, des courriels de suivi et du courrier FenceFlow qu\'elle envoie (jusqu\'à ce que l\'entreprise connecte sa propre boîte de réception), et c\'est là qu\'arrive une invitation FenceFlow lorsqu\'aucune autre adresse n\'est au dossier. L\'adresse propre à l\'entreprise, pas celle d\'une seule personne. Jamais un identifiant.',
+    editEmailBlankMsg:'Les autres modifications ont été enregistrées, mais l’adresse courriel de l’entreprise n’a pas été modifiée — le champ était vide, et une adresse vide empêcherait l’envoi de courriels de cette entreprise, la soumission vue par le client et les invitations à l’équipe. Saisissez une adresse pour la changer.',
+    editEmailInvalidMsg:'Les autres modifications ont été enregistrées, mais l’adresse courriel de l’entreprise n’a pas été modifiée — « %s » ne ressemble pas à une adresse courriel complète (nom@domaine.tld). Corrigez-la et enregistrez de nouveau.',
+    editSaveNoRowsMsg:'Rien n\'a été enregistré — l\'écriture n\'a touché aucune ligne. La cause la plus probable est que le second facteur de cette session d\'administrateur a expiré depuis l\'ouverture de cette boîte de dialogue. Déconnectez-vous, reconnectez-vous avec un code récent, puis réessayez.',
+    editOwnerLine:'Identifiant du propriétaire : %s',
+    editOwnerUnknown:'Aucun compte propriétaire — personne ne s\'est connecté comme propriétaire de cette entreprise.',
+    editBillingLabel:'Courriel de facturation',
     editBillingPh:'où les reçus sont envoyés', editGraceLabel:'Fin de la période de grâce',
     editNotesLabel:'Notes (vous seul les voyez)', saveBtn:'Enregistrer', editPassFeeLabel:'Leur abonnement inclut les frais Stripe (appliqué à leur prochain paiement ou changement de forfait)',
     editUnnamedCompany:'Entreprise sans nom',
@@ -1900,15 +1959,19 @@ function switchView(name) {
 /* The company this admin account's own login belongs to.
    Null until loadAll() has read it, and null is "not known", never "none".
 
-   Why the page needs it: every row here identifies a company by its NAME and
-   companies.email, which are settings the owner types. For this account that
-   reads "Fence solutions / support@fenceflowapp.com" -- a FenceFlow address --
-   so the admin's own company sits in the customer list looking like a FenceFlow
-   support account, and the admin's actual login appears nowhere on the page. On
-   2026-09-23 that is exactly what happened: it was suspended from this list by
-   the person inside it, which took their own office offline (twenty-one
-   *_not_suspended policies refuse every row), and afterwards they could not find
-   themselves in the list to undo it.
+   Why the page needs it: a company's NAME and its companies.email are both
+   settings its owner types, and nothing makes either of them unique. Companies
+   on this list do share a companies.email, and this admin's own company carries
+   a FenceFlow address in that column rather than the address he signs in with --
+   so his own row did not look like his. On 2026-09-23 it was suspended from
+   this list by the person inside it, which took their own office offline
+   (twenty-one *_not_suspended policies refuse every row), and afterwards they
+   could not find themselves in the list to undo it.
+
+   The row now also prints the owner's LOGIN email, which is the one thing about
+   a company that cannot be shared or retyped. This flag stays alongside it: the
+   badge and the missing Suspend button are worth having even when an address is
+   read too quickly.
 
    The server refuses it now too (admin_suspend, supabase_r7_admin_cannot_suspend_itself.sql).
    This half is so the row can be recognised BEFORE the click. */
@@ -2268,6 +2331,67 @@ function isMine(c) {
   return myCompanyId != null && c && c.id === myCompanyId;
 }
 
+/* The owner's login email for one company row, as three answers that must not
+   be blurred into one.
+
+     known   an address to print.
+     none    the list carried the column and it came back empty: nobody with
+             the OWNER role is in this company. True of a company that was
+             created here and never claimed, which is a real state -- several
+             rows are in it.
+     absent  the list did not carry the column at all, because the database has
+             not had the owner-email patch applied. Saying "no owner" in that
+             state would be false about every company that does have one, so
+             callers print nothing and the page looks exactly as it did before.
+
+   The discriminator is whether the KEY is there, not whether it is empty:
+   PostgREST returns the key holding null when the column exists and matched
+   nothing, and omits the key entirely when the function does not return it. */
+function ownerLogin(c) {
+  if (!c || !('owner_email' in c)) return { state: 'absent', email: '' };
+  const email = (c.owner_email || '').trim();
+  return email ? { state: 'known', email } : { state: 'none', email: '' };
+}
+
+/* The lines under a company's name, and which of them is its identity.
+
+   Two different addresses were doing one job here. companies.email is a
+   setting: it is printed on the company's quotes where its customers read it,
+   and it is the reply-to on the crew invitations the company sends -- so it is
+   pointed at whatever address the company wants a customer to answer, and two
+   companies can hold the same one. The owner's login cannot be shared and
+   cannot be retyped from this page, so that is what tells one row from
+   another and it goes first.
+
+   Neither is dropped and neither is repurposed. A customer-facing field that
+   quietly starts meaning something else is how the wrong address ends up on a
+   quote. */
+function identityLines(c) {
+  const owner = ownerLogin(c);
+  const contact = (c.email || '').trim();
+  const line = (style, title, label, value) =>
+    `<br><span style="font-size:12px;${style}" title="${esc(title)}">` +
+    `<span style="color:var(--muted)">${esc(label)}</span> ${esc(value)}</span>`;
+
+  // Nothing to label yet, so this cell stays what it has always been: the
+  // company's own address, bare.
+  if (owner.state === 'absent') {
+    return `<br><span style="color:var(--muted);font-size:12px">${esc(contact)}</span>`;
+  }
+
+  const identity = owner.state === 'known'
+    ? line('', tr('rowOwnerTitle'), tr('rowOwnerLabel'), owner.email)
+    : line('color:var(--muted)', tr('rowOwnerNoneTitle'), tr('rowOwnerLabel'), tr('rowOwnerNone'));
+
+  // When the customer-facing address IS the owner's login, the line above is
+  // already the whole truth about both, and repeating it would make every row
+  // in the list a line taller for nothing.
+  if (owner.state === 'known' && contact.toLowerCase() === owner.email.toLowerCase()) return identity;
+
+  return identity + line('color:var(--muted)', tr('rowContactTitle'),
+                         tr('rowContactLabel'), contact || tr('rowContactNone'));
+}
+
 function accessButton(c) {
   // Never offer to suspend the company you are standing in. It takes your own
   // office offline -- every job, estimate, shift and payment, for you, your
@@ -2328,6 +2452,11 @@ function renderCompaniesTable() {
   const filtered = !q ? clients.slice() : clients.filter(c =>
     (c.name || '').toLowerCase().includes(q) ||
     (c.email || '').toLowerCase().includes(q) ||
+    // The owner's login is searchable for the same reason it is shown: it is
+    // the address the person typing it thinks of as theirs. Searching for it
+    // and being told no company matches is how an admin concludes they are not
+    // in their own list.
+    (c.owner_email || '').toLowerCase().includes(q) ||
     (c.subscription_plan || '').toLowerCase().includes(q) ||
     (c.subscription_status || '').toLowerCase().includes(q));
   filtered.sort(compareClients);
@@ -2346,8 +2475,8 @@ function renderCompaniesTable() {
       <td><b>${esc(c.name || tr('rowUnnamedCompany'))}</b>${isMine(c) ? `
           <span style="display:inline-block;margin-left:6px;padding:2px 6px;border-radius:4px;
                        font-size:11px;font-weight:700;letter-spacing:.4px;
-                       background:#4c1d24;color:#ffb3c4;border:1px solid #ffb3c4">YOUR COMPANY</span>` : ''}<br>
-          <span style="color:var(--muted);font-size:12px">${esc(c.email || '')}</span>${isMine(c) ? `
+                       background:#4c1d24;color:#ffb3c4;border:1px solid #ffb3c4">YOUR COMPANY</span>` : ''}
+          ${identityLines(c)}${isMine(c) ? `
           <br><span style="color:#ffb3c4;font-size:12px">This is the company your own login is in.</span>` : ''}</td>
       <td>${statusPill(c)}</td>
       <td>${onboardingTrack(c)}</td>
@@ -2764,6 +2893,31 @@ function crashGroups(cur) {
  * screen) pair to admin_mark_errors_seen; they go together behind one
  * second-factor check and one reload, the way a single group always did.
  * Only rows that exist are marked -- nothing is added or removed.
+ *
+ * DEFECT (this wave): the live admin_mark_errors_seen(msg, wh) puts its
+ * platform-admin check inside the UPDATE's WHERE clause and RETURNS VOID, so
+ * a caller who fails that check (most concretely: the admin's second factor
+ * has gone stale server-side -- is_platform_admin() folds in
+ * admin_second_factor_ok() -- in the window between this page's own
+ * secondFactorFresh() last checking and the RPC actually landing) gets back
+ * { error: null } with zero rows changed: identical to a real success. See
+ * tests/a14-admin-mark-errors-seen-honest.test.mjs and the additive, unapplied
+ * fix in supabase_admin_mark_errors_seen_fix.sql, which -- like every OTHER
+ * admin_* RPC here (admin_suspend, admin_unsuspend, admin_promote_release,
+ * admin_create_company) -- raises instead of matching zero rows silently.
+ *
+ * Both call sites below already treat `error` as the one failure signal and
+ * need no change to benefit from that fix once it is applied: adminAction()
+ * shows error.message and skips the reload; the loop here shows it and stops.
+ * What DID need fixing, independent of whether that SQL is ever applied: this
+ * loop used to set $('msg') to the error and only THEN await loadAll() --
+ * but loadAll() overwrites $('msg') with its own "loading" text the instant
+ * it starts and can leave it at '' when it finishes, wiping the very message
+ * this branch exists to show before anyone could read it. Reload first, THEN
+ * report, so a real refusal is not erased by the reload that follows it. This
+ * makes the multi-row path honest the moment the SQL half lands; until then
+ * it changes nothing, because the live function still never returns an error
+ * for this loop to display.
  */
 async function markCrashGroupSeen(g, btn) {
   const open = g.members.filter(m => m.any_unseen);
@@ -2777,9 +2931,12 @@ async function markCrashGroupSeen(g, btn) {
   for (const m of open) {
     const { error } = await db.rpc('admin_mark_errors_seen', { msg: m.message, wh: m.where_at });
     if (error) {
-      $('msg').textContent = error.message;
       btn.disabled = false; btn.textContent = tr('crashMarkSeen');
+      // Reload BEFORE reporting -- loadAll() clobbers $('msg') with its own
+      // loading/success text, so setting the error message first only for
+      // loadAll() to erase it a moment later would show nothing at all.
       await loadAll();
+      $('msg').textContent = error.message;
       return false;
     }
   }
@@ -2975,12 +3132,28 @@ function renderDrift() {
 
   document.querySelectorAll('[data-drift-seen]').forEach(b =>
     b.addEventListener('click', async () => {
-      const { error } = await db.from('pricing_drift')
-        .update({ seen_at: new Date().toISOString() }).eq('id', b.dataset.driftSeen);
+      // .select('id') so this is judged on what it actually changed, not on
+      // the absence of an error -- pricing_drift carries an admin SELECT
+      // policy (pricing_drift_admin_read, using (is_platform_admin())) but no
+      // admin UPDATE policy at all. The only UPDATE policy is
+      // pricing_drift_update: company_id = current_company_id() and the
+      // caller's role is OWNER or MANAGER, scoped to that company's own
+      // account, never a platform admin's. Confirmed live, with a positive
+      // control (an admin session that DOES succeed writing companies in the
+      // same probe): clicking this on another company's row matches zero
+      // rows, no error, no data -- exactly a real success's shape. Latent only
+      // because pricing_drift held no rows at the time; it bites on the first
+      // drift row belonging to a company other than the admin's own. See
+      // tests/a12-admin-drift-mark-seen-zero-rows.test.mjs and the additive,
+      // unapplied policy in supabase_admin_drift_mark_seen_patch.sql -- until
+      // that runs, this correctly refuses rather than silently doing nothing.
+      const { data, error } = await db.from('pricing_drift')
+        .update({ seen_at: new Date().toISOString() }).eq('id', b.dataset.driftSeen).select('id');
       // Said out loud. It used to fail silently, which leaves the row looking
       // unhandled with no reason given -- so the next person clicks it again,
       // and again, and concludes the button does nothing.
       if (error) { b.textContent = tr('driftMarkFailed', error.message); return; }
+      if (!data || !data.length) { b.textContent = tr('driftMarkNoRowsMsg'); return; }
       await loadDrift(); renderDrift();
     }));
 }
@@ -3099,6 +3272,19 @@ function openEdit(id) {
   // anything typed here on the next billing event.
   $('e_plan').disabled = !!editing.stripe_subscription_id;
   $('e_planNote').style.display = editing.stripe_subscription_id ? 'inline' : 'none';
+  // The owner's login, or nothing at all. The three states are not the same
+  // thing and the dialog must not say one when it means another: an address to
+  // show, a company nobody has signed into as owner, and a list that did not
+  // carry the column -- the last of which leaves this dialog exactly as it was,
+  // because announcing "no owner" about every company would be false.
+  {
+    const o = ownerLogin(editing);
+    $('e_ownerRow').style.display = o.state === 'absent' ? 'none' : '';
+    $('e_ownerRow').textContent =
+      o.state === 'known' ? tr('editOwnerLine', o.email)
+      : o.state === 'none' ? tr('editOwnerUnknown')
+      : '';
+  }
   $('e_contact').value = editing.email || '';
   $('e_price').value = editing.monthly_price || 0;
   $('e_price').disabled = !!editing.stripe_subscription_id;
@@ -3118,6 +3304,23 @@ function openEdit(id) {
   $('editDialog').showModal();
 }
 
+/* The ONE rule for whether a typed companies.email is worth writing:
+   non-blank, and shaped like a real address (something@something.tld). This
+   exact function, same name and same body, also lives in dashboard.html's
+   Business Settings save path -- that page closed this hole for the one
+   company its own owner can edit; this page's admin_companies() lets the
+   platform admin edit EVERY company's row, so the same guard has to hold
+   here too. The two pages are static files that cannot import from each
+   other, so this is necessarily a copy, not a shared module;
+   tests/a8-company-email-guard.test.mjs reads BOTH files and asserts they
+   define this function with matching behaviour, so a change to one that is
+   not mirrored in the other fails loudly instead of drifting quietly (the
+   way the labour formula once drifted into three copies). Pure -- no DOM --
+   so that test can run it directly. */
+function isValidCompanyEmail(email){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email ?? '').trim());
+}
+
 async function saveEdit() {
   if (!editing) return;
   $('editMsg').textContent = tr('savingEllipsis');
@@ -3126,7 +3329,9 @@ async function saveEdit() {
     // with a '' default, so "|| null" made Save changes fail outright on any
     // company created without an email -- which is every company made with the
     // setup-code path, and exactly the ones most likely to be edited next.
-    email: $('e_contact').value.trim(),
+    // companies.email itself is handled below, after this object, because an
+    // empty or malformed box must be LEFT OUT of the patch rather than
+    // written straight through -- see isValidCompanyEmail above.
     billing_email: $('e_email').value.trim(),
     grace_ends_at: $('e_grace').value ? new Date($('e_grace').value).toISOString() : null,
     admin_notes: $('e_notes').value,
@@ -3135,6 +3340,23 @@ async function saveEdit() {
   if (!editing.stripe_subscription_id) {
     patch.subscription_plan = $('e_plan').value.trim();
     patch.monthly_price = Number($('e_price').value || 0);
+  }
+
+  // companies.email is the SAME NOT-NULL column Business Settings guards in
+  // dashboard.html, and this dialog can reach it for every company on the
+  // platform, not just one -- an empty or malformed address here breaks that
+  // company's outgoing mail, the customer-facing quote on every one of its
+  // jobs, and its crew invitations. Skip the write and say why, exactly as
+  // saveSettings() does, rather than writing it through or silently dropping
+  // what the admin typed with no explanation.
+  let emailSkippedMsg = '';
+  const newContactEmail = $('e_contact').value.trim();
+  if (newContactEmail === '') {
+    emailSkippedMsg = tr('editEmailBlankMsg');
+  } else if (!isValidCompanyEmail(newContactEmail)) {
+    emailSkippedMsg = tr('editEmailInvalidMsg', newContactEmail);
+  } else {
+    patch.email = newContactEmail;
   }
 
   /* Suspending a company asks first. Changing what it pays did not, which is
@@ -3182,9 +3404,48 @@ async function saveEdit() {
   }
 
   if (!(await secondFactorFresh())) return;
-  const { error } = await db.from('companies').update(patch).eq('id', editing.id);
+  // .select('id') so the save is judged on what it actually changed, not on
+  // the absence of an error. CORRECTED (2026-09-28): there is no single
+  // `companies_platform_admin_all for all using (is_platform_admin())` policy
+  // live -- that got dropped and replaced by three narrower ones (checked
+  // directly against pg_policies, not against the migration file that first
+  // wrote it, which still names the old one and is stale):
+  //   companies_platform_admin_read   (select) using (is_platform_admin())
+  //   companies_platform_admin_insert (insert) with check (is_platform_admin())
+  //   companies_platform_admin_update (update) using (is_platform_admin())
+  //                                             with check (is_platform_admin())
+  // This save's row filter is companies_platform_admin_update's own USING
+  // clause, and that policy DOES carry its own separate WITH CHECK (worded
+  // identically to the USING clause, but written out, not implied by a bare
+  // `for all`). The behaviour this comment is explaining is unchanged either
+  // way: Postgres RLS on an UPDATE applies the USING clause as a plain row
+  // filter, so a row it excludes is just not part of the affected set -- no
+  // exception, no error field, nothing for the old `const { error } = ...`
+  // line to catch. is_platform_admin() is the platform-admin flag AND
+  // admin_second_factor_ok() (supabase_r7_admin_second_factor.sql) -- so the
+  // one way this admin's own session can lose the row between
+  // secondFactorFresh() above and this request landing is that second factor
+  // going stale in that window, and that failure mode writes NOTHING: not the
+  // plan, not the price, not the grace date, not the notes, not the billing
+  // email -- while this call comes back with data: [] and error: null,
+  // exactly what a real success looks like without this check. See
+  // tests/a10-admin-save-zero-rows.test.mjs -- whose own header comment still
+  // names the old, now-nonexistent policy; that file is outside this wave's
+  // scope (new a12-admin-* test files only) so it was not corrected here.
+  const { data: savedRows, error } = await db.from('companies').update(patch).eq('id', editing.id).select('id');
 
   if (error) { $('editMsg').textContent = error.message; return; }
+  if (!savedRows || !savedRows.length) { $('editMsg').textContent = tr('editSaveNoRowsMsg'); return; }
+  if (emailSkippedMsg) {
+    // Everything else in patch saved. Closing the dialog now, the way an
+    // ordinary successful save does below, would hide the one line saying
+    // the email did not -- exactly the "told Saved, nothing happened" trap
+    // Business Settings closed on the manager side. Leave it open on the
+    // message instead.
+    $('editMsg').textContent = emailSkippedMsg;
+    await loadAll();
+    return;
+  }
   $('editDialog').close();
   await loadAll();
 }
@@ -3268,9 +3529,15 @@ function csvSafeCell(v) {
 // name -- not console prose, so there is no data-t/tr() here the way there
 // is on the table these rows are drawn from.
 function exportCsv() {
-  const head = ['CompanyId', 'Company', 'Status', 'Plan', 'MonthlyPrice', 'Seats', 'Jobs', 'LastSeen', 'Suspended', 'BillingEmail'];
+  // OwnerLogin sits next to Company because it is the identity of the row, not
+  // a contact detail: the name and the company email are both typed settings
+  // and neither has to be unique. It is blank rather than absent when the
+  // database has no owner email to give, so a script reading this file by
+  // column name keeps working either way.
+  const head = ['CompanyId', 'Company', 'OwnerLogin', 'Status', 'Plan', 'MonthlyPrice', 'Seats', 'Jobs', 'LastSeen', 'Suspended', 'BillingEmail'];
   const rows = clients.map(c => [
-    c.id, c.name, c.subscription_status, c.subscription_plan, c.monthly_price,
+    c.id, c.name, ownerLogin(c).email,
+    c.subscription_status, c.subscription_plan, c.monthly_price,
     c.people, c.jobs, day(c.last_seen), c.suspended ? 'yes' : 'no',
     c.billing_email || c.email || ''
   ]);

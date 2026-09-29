@@ -110,6 +110,40 @@ async function acceptanceFor(
   };
 }
 
+/**
+ * What the office may bill against while a re-approval is pending, or null
+ * when nothing overrides the normal (depositFigures) rule.
+ *
+ * billableTotal() -- reached through depositFigures() -- deliberately falls
+ * back to the LIVE contract_total once acceptance.reapprovalRequiredAt is
+ * set: "the old accepted figure does not stand" (quote-deposit.ts), which is
+ * correct for a figure meant to show what the drawing prices out to today.
+ * It is wrong for a CAP on what may be BILLED, because the live figure is
+ * exactly the one the customer has not agreed to. The safe reading: nobody
+ * -- office or homeowner -- may raise a charge above the price the customer
+ * last actually agreed to while that agreement stands withdrawn. So the cap
+ * used for billing is accepted_total itself, not the live fallback.
+ *
+ * accepted_total is untouched by a withdrawal -- reapp_withdraw_approval's
+ * own UPDATE deliberately never writes it ("a withdrawal freezes the price
+ * exactly where it was", supabase_reapproval_on_drawing_change.sql) -- so it
+ * is still there to cap against even though quote_approved_at, the timestamp
+ * billableTotal's own date arithmetic needs, was cleared along with it.
+ *
+ * Null (no override) when reapprovalRequiredAt is not set -- the ordinary
+ * case, left to depositFigures() exactly as before -- or when there is no
+ * positive accepted_total to anchor to, which leaves the existing "nothing
+ * anchors the price: contract_total" fallback as the only option, same as a
+ * job accepted before the column existed.
+ */
+export function reapprovalBillingCap(
+  acceptance: { acceptedTotal: number | null; reapprovalRequiredAt: string | null } | null,
+): number | null {
+  if (!acceptance?.reapprovalRequiredAt) return null;
+  const accepted = Number(acceptance.acceptedTotal);
+  return Number.isFinite(accepted) && accepted > 0.005 ? accepted : null;
+}
+
 /** Stripe's API is form-encoded, not JSON. */
 async function stripe(path: string, form: Record<string, string>, account?: string) {
   const headers: Record<string, string> = {
@@ -586,7 +620,6 @@ Deno.serve(async (req) => {
         console.error("create-payment-link change orders unreadable", qjob.sync_id);
         return json({ code: "owed_unreadable" }, 500);
       }
-      const netPaid = (Number(qjob.amount_paid) || 0) - (Number(qjob.refunded_amount) || 0);
       const deposit = depositFigures({
         depositAmount: qjob.deposit_amount,
         contractTotal: qjob.contract_total,
@@ -594,10 +627,22 @@ Deno.serve(async (req) => {
         refundedAmount: qjob.refunded_amount,
         ...acceptance,
       });
-      const total = deposit.total;
+      // deposit.balance is already `Math.max(0, total - netPaid)` with netPaid
+      // itself floored at zero -- depositFigures does both in one place so
+      // nobody has to redo this arithmetic. A second copy here used to redo it
+      // WITHOUT the floor (dollars = total - (amount_paid - refunded_amount)),
+      // so a job whose refunded_amount exceeds amount_paid -- reachable
+      // because the ledger trigger sums paid and refunded rows independently
+      // with nothing tying them together -- computed a NEGATIVE netPaid,
+      // inflated "what's owed" above the real total, and got the resulting
+      // request bounced by makeLink()'s own (correctly floored) cap: a
+      // homeowner who genuinely owes the whole accepted total could not pay
+      // it, refused with "that is more than this job still owes" on a job
+      // that was not paid in full. Using the one figure depositFigures already
+      // returns fixes it without a second definition of "what is owed".
       const dollars = kindWanted === "deposit"
         ? deposit.due
-        : Math.max(0, total - netPaid);
+        : deposit.balance;
       const cents = Math.round(dollars * 100);
       if (cents < 50) return json({ error: "There is nothing to pay on this quote yet." }, 400);
 
@@ -783,10 +828,54 @@ async function makeLink(
     // planOpenLinks caps against contract_total; hand it the billable figure
     // in that slot, so its tested arithmetic is unchanged and only the total
     // it measures against moves.
+    //
+    // While a re-approval is pending (acceptance.reapprovalRequiredAt set),
+    // billableTotal() -- called through depositFigures() below -- deliberately
+    // falls back to the LIVE contract_total: "the old accepted figure does not
+    // stand" (quote-deposit.ts). That is correct for a figure meant to show
+    // what the drawing prices out to today, but wrong for a CAP on what may be
+    // billed, because the live figure is exactly the one the customer has not
+    // agreed to -- that is what a pending re-approval means. Door two (the
+    // homeowner's own quoteToken link, above) never reaches this arithmetic at
+    // all in that state: reapp_withdraw_approval() clears quote_approved_at to
+    // null when it sets reapproval_required_at, so door two's own
+    // `if (!qjob.quote_approved_at) return 404` refuses it first. Door one
+    // (here) has no equivalent gate, so nothing stopped it from billing the
+    // live, un-agreed figure -- real money, on two real jobs (James Bond:
+    // signed $35,240, live $36,290; John Beaunissant: signed $15,540, live
+    // $16,000), both with a re-approval pending and nothing paid.
+    //
+    // The chosen behaviour: nobody -- office or homeowner -- may raise a
+    // charge above the price the customer last actually agreed to while that
+    // agreement is withdrawn. So the cap here is accepted_total itself, not
+    // billableTotal()'s live fallback, whenever a re-approval is pending.
+    // accepted_total is untouched by the withdrawal (reapp_withdraw_approval's
+    // own UPDATE deliberately never writes it -- "a withdrawal freezes the
+    // price exactly where it was"), so it is still there to cap against even
+    // though quote_approved_at -- the timestamp billableTotal's own date
+    // arithmetic needs -- was cleared along with it. This is deliberately NOT
+    // a silent clamp: a request that exceeds the accepted price is REFUSED
+    // below with a reason the office can act on, never quietly reduced to
+    // accepted_total and billed anyway -- billing $35,240 on a job the office
+    // believes is $36,290 would be its own kind of wrong. A request that does
+    // NOT exceed the accepted price still goes through normally: a deposit or
+    // a balance within what was already agreed needs no fresh approval.
+    //
+    // Untouched by this: a job with no re-approval pending (reapprovalRequiredAt
+    // is falsy, so this branch is skipped entirely and depositFigures() runs
+    // exactly as before); a job with no accepted_total on record, where there
+    // is nothing yet to anchor a cap to and the existing "nothing anchors the
+    // price: contract_total" fallback still applies; a signed change order
+    // that legitimately raises the accepted price (billableTotal's own
+    // change-order arithmetic is untouched -- this only replaces its
+    // reapproval-pending escape hatch, not its normal path); a deposit link, a
+    // balance link, and the Square path as well as the Stripe one, since all
+    // of them share this same billedJob and the same planOpenLinks() call.
+    const reapprovalCap = reapprovalBillingCap(acceptance);
     const billedJob = jobRow && acceptance
       ? {
         ...jobRow,
-        contract_total: depositFigures({
+        contract_total: reapprovalCap ?? depositFigures({
           depositAmount: 0,
           contractTotal: jobRow.contract_total,
           amountPaid: 0,
@@ -799,6 +888,19 @@ async function makeLink(
     const live = liveNow();
     const plan = planOpenLinks(billedJob, openLinks as OpenLink[], { kind, amountCents: amount }, live);
     if (!plan.ok) {
+      // Name the reapproval reason explicitly rather than letting this read
+      // as an ordinary over-owed typo to fix: "that is more than this job
+      // still owes" invites lowering the number and trying again, which is
+      // still billing money nobody has agreed to. "waiting for the customer
+      // to approve a new price" tells the office the actual next step.
+      if (reapprovalCap != null && (plan.code === "over_owed" || plan.code === "over_owed_with_open_links")) {
+        return json({
+          code: "reapproval_pending",
+          error: "This job is waiting for the customer to approve a new price, so a link cannot ask for " +
+            "more than the " + reapprovalCap.toFixed(2) + " they already agreed to. Ask them to approve " +
+            "the new drawing, or lower the amount.",
+        }, 400);
+      }
       if (plan.code === "over_owed") {
         return json({
           code: plan.code,

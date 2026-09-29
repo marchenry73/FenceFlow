@@ -495,8 +495,15 @@ const tokensSent = (r) => r.sent.map((s) => s.token);
 
 const T = Math.floor(Date.now() / 1000);
 const EVENTS = {
+  // payment_status: 'paid' -- a synchronous method (a card) clears by the
+  // moment this event exists. Without it the fixture now falls into
+  // stripe-webhook's "session which has not cleared" branch (the
+  // payment_status fix in checkout.session.completed below), which is a
+  // deliberate no-op: nothing is credited and no push goes out at all, so
+  // every test below that expects a payment push to fire needs a session
+  // that actually says it cleared.
   paid: { type: 'checkout.session.completed', livemode: true,
-    data: { object: { mode: 'payment', payment_link: 'plink_1', payment_intent: 'pi_1', metadata: { company_id: C1 } } } },
+    data: { object: { mode: 'payment', payment_link: 'plink_1', payment_intent: 'pi_1', payment_status: 'paid', metadata: { company_id: C1 } } } },
   dispute: { type: 'charge.dispute.created', livemode: true,
     data: { object: { id: 'dp_1', payment_intent: 'pi_1', amount: 420000, currency: 'usd', reason: 'fraudulent', status: 'needs_response', created: T } } },
   declined: { type: 'checkout.session.async_payment_failed', livemode: true,

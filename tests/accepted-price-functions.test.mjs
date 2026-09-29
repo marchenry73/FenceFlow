@@ -348,10 +348,36 @@ test("a database without in_accepted_total yet: the balance reads the old column
   assert.ok(reads.some((e) => /in_accepted_total/.test(e.cols)) && reads.some((e) => !/in_accepted_total/.test(e.cols)));
 });
 
-test("a pending re-approval bills the live contract_total, as before", async () => {
+test("a pending re-approval refuses to bill above the accepted price, not the live drifted contract_total", async () => {
+  // reapprovalBillingCap()'s whole point: while a re-approval is pending,
+  // nobody -- office or homeowner -- may bill above what the customer last
+  // actually agreed to (accepted_total, $9,710), never billableTotal()'s
+  // live contract_total fallback ($13,410) -- the exact figure the customer
+  // has NOT agreed to. This is precisely what stopped the real incidents
+  // supabase_reapproval_on_drawing_change.sql describes (James Bond: signed
+  // $35,240, live $36,290; John Beaunissant: signed $15,540, live $16,000),
+  // both billed the live, un-agreed figure while a re-approval sat open --
+  // exactly the behaviour this test used to assert as correct.
   const w = paymentWorld({ job: { reapproval_required_at: AFTER } });
-  await post(w.handler, "https://fn.test/create-payment-link", { quoteToken: TOKEN, kind: "balance" });
-  assert.deepEqual(linkCents(w), [1341000]);
+  const r = await post(w.handler, "https://fn.test/create-payment-link", { quoteToken: TOKEN, kind: "balance" });
+  // The balance asked for (13410 - 0 paid) exceeds the $9,710 accepted-price
+  // cap, so the request is refused outright -- never silently clamped down
+  // to the cap and billed anyway (billing $9,710 on a job the office
+  // believes is $13,410 would be its own kind of wrong).
+  assert.equal(r.status, 400, JSON.stringify(r.body));
+  assert.equal(r.body.code, "reapproval_pending");
+  assert.match(r.body.error, /9710\.00/, "names the real accepted-price cap, not the live figure it refused");
+  assert.deepEqual(linkCents(w), [], "no link created -- the old rule would have billed the live $13,410 the customer never agreed to");
+});
+
+test("a pending re-approval still lets a request WITHIN the accepted price through", async () => {
+  // The cap is a ceiling, not a blanket freeze: a deposit link asking for
+  // less than the $9,710 already agreed needs no fresh approval and must
+  // not be caught by the same reapproval_pending gate.
+  const w = paymentWorld({ job: { reapproval_required_at: AFTER, deposit_amount: 2000 } });
+  const r = await post(w.handler, "https://fn.test/create-payment-link", { quoteToken: TOKEN, kind: "deposit" });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(linkCents(w), [200000]);
 });
 
 test("office cap: measured against the accepted price", async () => {

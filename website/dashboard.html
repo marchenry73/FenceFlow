@@ -989,6 +989,23 @@
           until the job is done.</p>
         <div id="setupList"></div>
       </div>
+
+      <!-- Points at the product-key panel, which lives fifth down the Crew
+           tab. It is here because the keys have been live for weeks and the
+           owner reported he could not find them at all -- so none of his
+           customers could put a second phone on a login. Shown only once
+           loadDeviceKeys() has actually shown that panel (owner or manager,
+           and the functions present on this database), so it can never point
+           at something that is not there. -->
+      <div class="panel" id="dkPointerPanel" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div>
+            <h2 style="margin:0;font-size:15px" data-t="dkPointerHead">Product keys</h2>
+            <p class="sub" style="margin:4px 0 0" data-t="dkPointerBody">A one-time product key lets one more phone sign in to this company. Issue one in the Crew tab, read it out, and whoever uses it first spends it.</p>
+          </div>
+          <button class="btn btn-sm btn-grey" type="button" id="dkPointerBtn" data-t="dkPointerBtn">Show me</button>
+        </div>
+      </div>
       <div class="panel" id="briefingPanel">
         <h2 style="margin-bottom:2px" data-t="briefingHead">Daily briefing</h2>
         <p class="sub" style="margin-top:0" data-t="briefingBody">What changed in the last 24 hours, and what needs you today
@@ -1305,31 +1322,43 @@
         </div>
       </div>
 
-      <!-- Device keys let a second phone claim a login when a company turns on
-           require_device_key (supabase_r8_device_keys.sql, not yet applied).
-           mint_device_key/revoke_device_key/list_device_keys all refuse anyone
-           who is not OWNER or MANAGER inside the function body, so canEdit()
-           below only mirrors that same check for the whole panel -- never a
-           looser or a stricter rule of its own. There is deliberately no
-           switch here for require_device_key itself: turning it on locks out
-           any crew phone that cannot yet send a key back, so it stays a
-           by-hand SQL step taken once every phone is updated, never a button
-           someone could tap by accident. -->
+      <!-- "Product key" is the owner's own word for this, so it leads
+           everywhere a person reads. The database and the phone call the same
+           thing a device key, and "device" is kept below only where it means
+           the phone itself.
+
+           A key is what lets a second phone claim a login once a company
+           requires one. claim_device reads that requirement out of
+           company_settings and treats it as off when it is absent, so a key
+           can be issued and held before any company ever switches it on. It
+           also never asks an OWNER for a key: the person who issues them must
+           not be the person locked out.
+
+           mint_device_key, revoke_device_key and list_device_keys each refuse
+           anyone who is not OWNER or MANAGER inside the function body, so
+           canEdit() below only mirrors that same check for the whole panel --
+           never a looser or a stricter rule of its own.
+
+           There is deliberately no switch here for the requirement itself.
+           Turning it on while a crew phone is still on an older build locks
+           that person out of their own work with no way back, so it stays a
+           change made by hand once every phone is updated, never a control
+           anybody could find by accident. -->
       <div class="panel" id="deviceKeysPanel" style="margin-top:12px;display:none">
-        <h2 style="margin:0 0 6px" data-t="dkHead">Device keys</h2>
-        <p class="sub" style="margin-top:0" data-t="dkBody">A one-time code that lets one more phone sign in when this company requires it. Read it out once — whoever uses it first spends it.</p>
+        <h2 style="margin:0 0 6px" data-t="dkHead">Product keys</h2>
+        <p class="sub" style="margin-top:0" data-t="dkBody">A one-time product key that lets one more phone sign in to this company. Read it out once — whoever uses it first spends it.</p>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
-          <div><label style="display:block;font-size:12px;color:var(--muted)" data-t="dkLabelLabel">Label</label>
+          <div><label style="display:block;font-size:12px;color:var(--muted)" data-t="dkLabelLabel">Which phone is it for</label>
             <input id="dkLabelInput" type="text" style="width:200px" data-t="dkLabelPh"></div>
           <div><label style="display:block;font-size:12px;color:var(--muted)" data-t="dkLabelDays">Days good for</label>
             <input id="dkDaysInput" type="number" min="1" max="30" step="1" value="7" style="width:80px"></div>
-          <button class="btn btn-sm" type="button" id="dkMintBtn" data-t="dkMintBtn">Mint a key</button>
+          <button class="btn btn-sm" type="button" id="dkMintBtn" data-t="dkMintBtn">Issue a product key</button>
         </div>
         <div id="dkNewCode" style="display:none;margin-bottom:14px"></div>
         <div class="scroll"><table>
-          <thead><tr><th data-t="dkColLabel">Label</th><th data-t="dkColCode">Code</th><th data-t="dkColStatus">Status</th><th data-t="dkColExpires">Expires</th><th></th></tr></thead>
+          <thead><tr><th data-t="dkColLabel">Which phone</th><th data-t="dkColCode">Product key</th><th data-t="dkColStatus">Status</th><th data-t="dkColExpires">Expires</th><th></th></tr></thead>
           <tbody id="dkRows"></tbody></table></div>
-        <div class="empty" id="dkEmpty" style="display:none" data-t="dkEmptyMsg">No device keys yet.</div>
+        <div class="empty" id="dkEmpty" style="display:none" data-t="dkEmptyMsg">No product keys yet.</div>
         <div class="msg" id="dkMsg"></div>
       </div>
     </div>
@@ -1893,6 +1922,25 @@
         </div>
         <button class="btn btn-sm" id="runSetupAgain" type="button" data-t="setupAgainBtn">Run setup again</button>
       </div>
+
+      <!-- The way back from a Dismiss on the Dashboard.
+           Dismiss there is final by design: the "N hidden" line it used to
+           leave behind only ever appeared when nothing else was left to show,
+           so with any other reminder outstanding a dismissed one just vanished
+           and turned up again later. That was reported twice as hiding rather
+           than dismissing. An accidental tap still must not be permanent, so
+           the undo lives here, on the tab the checklist already sends people
+           to. Drawn by renderDismissedReminders(), and hidden entirely when
+           there is nothing dismissed -- a restore button with an empty list is
+           a control whose only possible outcome is no change. -->
+      <div class="panel" id="setupHiddenPanel" style="display:none">
+        <h2 style="margin:0 0 4px" data-t="setupHiddenHead">Reminders you dismissed</h2>
+        <p class="sub" style="margin:0 0 10px" data-t="setupHiddenBody">Dismissing a setup reminder takes it off the Dashboard for good — for you, never for anyone else in the company. If you dismissed one by mistake, bring them all back here.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span class="sub" id="setupHiddenCount" style="margin:0"></span>
+          <button class="btn btn-sm btn-grey" type="button" id="setupHiddenShowBtn" data-t="setupShowHiddenBtn">Show them</button>
+        </div>
+      </div>
       <div class="panel">
         <h2 data-t="leadPageHead">Your get-a-quote page</h2>
         <p class="sub" data-t="leadPageSub">A homeowner opens this link, asks for a fence and lands in
@@ -1909,7 +1957,20 @@
           <div><label data-t="settingsLabelBizName">Business name</label><input id="s_businessName"></div>
           <div><label data-t="settingsLabelOwnerName">Owner name</label><input id="s_ownerName"></div>
           <div><label data-t="settingsLabelPhone">Phone</label><input id="s_phone"></div>
-          <div><label data-t="settingsLabelEmail">Email</label><input id="s_email"></div>
+          <!-- disabled by default, not just when loadSettings() confirms a non-owner:
+               a manager who opens this tab while loadSettings() is failing (a network
+               blip, a missing table) must never see an editable box, because
+               saveSettings() only guards the WRITE for non-owners -- it does not tell
+               a manager their typed address was ignored. The only way this box may
+               ever become editable is loadSettings() succeeding AND confirming
+               profile.role === 'OWNER'; every other path (first paint, a failed load,
+               a load that hasn't run yet) leaves it exactly as it starts here. That
+               makes the failure mode "cannot type into it" instead of "typed into it,
+               told Saved, nothing happened." -->
+          <div><label data-t="settingsLabelEmail">Company email (customers see it)</label><input id="s_email" type="email" disabled>
+            <span style="font-size:11px;color:var(--muted)" data-t="settingsEmailNote">Printed on your quotes, and the reply-to on crew invitations, follow-ups and FenceFlow mail until you connect your own inbox. Your company's own address, not a personal one.</span>
+            <span id="s_emailOwnerNote" style="display:none;font-size:11px;color:var(--muted)" data-t="settingsEmailOwnerOnly">Only the owner can change this.</span>
+          </div>
           <div><label data-t="settingsLabelLicense">License number</label><input id="s_license"></div>
           <div><label data-t="settingsLabelTax">Tax rate (%)</label><input id="s_tax" type="number" step="0.1"></div>
           <div><label data-t="settingsLabelMarkup">Markup (%)</label><input id="s_markup" type="number" step="0.1"></div>
@@ -2131,7 +2192,8 @@
       </div>
       <div class="row2">
         <div><label data-t="jobLabelEmail">Email</label><input id="j_email"></div>
-        <div><label data-t="jobLabelReferral">How they found us</label><input id="j_referral_source"></div>
+        <div><label data-t="jobLabelReferral">How they found us</label><select id="j_referral_source"></select>
+          <input id="j_referral_other" style="display:none;margin-top:6px" data-t="refOtherPh" placeholder="Where did they hear about you?"></div>
       </div>
       <label data-t="jobLabelNotes">Notes</label><textarea id="j_notes"></textarea>
     </div>
@@ -2897,6 +2959,7 @@ const TL = {
     mailRetryBtn:'Try again', mailMarkedUnread:'Marked unread.',
     mailLinkJobBtn:'Link to a job', mailLinkPickPh:'Choose a job…', mailLinkSaveBtn:'Link', mailCancelBtn:'Cancel',
     mailUnlinkBtn:'Remove this link', mailLinkedOk:'Linked to %s.',
+    mailUnlinkFailedMsg:'That link is still there. Reloading this thread to show what is actually linked.',
     mailGoneNote:'Deleted or moved in your mailbox.',
     mailChangedNote:'Your mailbox has renumbered its messages. Check for new mail, then open this again.',
     mailUnavailableDisconnected:'This mailbox was disconnected before this message was opened, so FenceFlow has no copy of it.',
@@ -3358,6 +3421,8 @@ const TL = {
     jobBatchAssignQ:'Assign %s to %s?', jobBatchAssignDone:'%s assigned to %s.',
     jobBatchSchedQ:'Schedule %s for %s?', jobBatchSchedDone:'%s scheduled for %s.',
     jobBatchAskBody:'This changes %s. You can change them back the same way.', jobBatchAskBtn:'Change %s',
+    jobBatchNothingChangedErr:'Nothing was changed — the write matched none of the selected jobs. They may have been removed or moved since you selected them. Reload and try again.',
+    jobBatchPartialMsg:'%s of %s changed — the rest did not match (removed or moved since you selected them). Reloading to show which.',
     jobBatchThatCrew:'that crew member',
     jobBatchExportBtn:'Export these', jobBatchClearBtn:'Clear selection',
     jobStatusAll:'All', jobStatusDraft:'Draft', jobStatusSent:'Sent',
@@ -3373,6 +3438,12 @@ const TL = {
     addrUpdated:'Address updated — remember to save the job.',
     addrNotPlaced:'Could not place it. Add the city, state and ZIP.', addrCheckFailed:'Could not check just now.',
     jobLabelReferral:'How they found us', jobLabelNotes:'Notes',
+    refNotRecorded:'Not recorded', refOther:'Something else…', refOtherPh:'Where did they hear about you?',
+    refWebsite:'Website', refGoogle:'Google search', refFacebook:'Facebook',
+    refInstagram:'Instagram', refNextdoor:'Nextdoor', refCustomerReferral:'Customer referral',
+    refRepeat:'Repeat customer', refYardSign:'Yard sign', refTruck:'Truck or trailer',
+    refLeadService:'Lead service (Angi, Thumbtack)', refBuilder:'Builder or contractor',
+    refRealtor:'Realtor', refHoa:'HOA or property manager',
     jobSecRuns:'Fence Runs', jobMeasureSatBtn:'Measure from satellite',
     satNoAddressWhere:'This job has no address yet, so there is nowhere to look.',
     satNoAddressErr:'Add the property address to the job first.',
@@ -3498,6 +3569,7 @@ const TL = {
     jobPhotosErr:'Could not load the photos just now.', jobFilePhoto:'Photo', jobFileSignature:'Signature',
     jobFileSurvey:'Survey drawing', jobFileCoSignature:'Change order signature',
     jobSaveNothingChangedErr:'Not saved — the save came back with nothing changed. This job may have been deleted from a phone, or this account can no longer edit it. Close it and reload the page.',
+    wizSaveNothingChangedErr:'Not saved — the wizard\'s save came back with nothing changed. This job may have been deleted from a phone, or this account can no longer edit it. Close the wizard and reload the page.',
     jobSavedNote:'Saved. Phones pick this up on their next sync.',
     jobSavedPricingNote:'Saved. Pricing at the office…',
     jobSavedRepricedNote:'Saved. Re-priced at the office — %s.',
@@ -3599,7 +3671,9 @@ const TL = {
     leadPageSub:'A homeowner opens this link, asks for a fence and lands in your pipeline as a Website lead. Put it on your business card, your Facebook page or a QR code on your truck.',
     leadPageCopied:'Copied: %s', leadPageFetchErr:'Could not fetch the link. Try again in a moment.',
     settingsLabelBizName:'Business name', settingsLabelOwnerName:'Owner name',
-    settingsLabelPhone:'Phone', settingsLabelEmail:'Email',
+    settingsLabelPhone:'Phone', settingsLabelEmail:'Company email (customers see it)',
+    settingsEmailNote:'Printed on your quotes, and the reply-to on crew invitations, follow-ups and FenceFlow mail until you connect your own inbox. Your company\'s own address, not a personal one.',
+    settingsEmailOwnerOnly:'Only the owner can change this.',
     settingsLabelLicense:'License number',
     settingsLabelTax:'Tax rate (%)', settingsLabelMarkup:'Markup (%)',
     settingsLabelLabor:'Labor rate ($/ft)', settingsLabelSpacing:'Post spacing (ft)',
@@ -3613,13 +3687,18 @@ const TL = {
     settingsHelpSaved:'Saved to your company account — phones pick these up on next sync.',
     settingsHelpVinylSync:'Post spacing, panel width, panel height and bags above also update your default Vinyl build template below (creating one from FenceFlow\'s shipped Vinyl privacy 6 ft if you have none yet) — the same four numbers, now read from one place instead of two.',
     settingsSavedMsg:'Saved. Phones pick these up on next sign-in or sync.',
+    settingsEmailBlankMsg:'The other settings saved, but the company email was left as it was — the box was empty, and an empty address would break outgoing mail, the customer-facing quote, and crew invitations. Type an address to change it.',
+    settingsEmailInvalidMsg:'The other settings saved, but the company email was left as it was — "%s" does not look like a full email address (name@domain.tld). Fix it and save again.',
+    settingsEmailSaveNoRowsMsg:'The other settings saved, but the company email did not — the write matched no row. The most likely cause is that this account is no longer the company owner (someone changed your role while this page was open). Sign out, sign back in, and check Settings again.',
     settingsVinylUpdateFailedMsg:'Settings saved, but your standard Vinyl build did not update: %s',
     settingsLoadFailed:'Couldn\'t load your business settings just now — the boxes below are blank because the load failed, not because nothing is set. Switch tabs and back, or refresh, to try again.',
     setupReminderTag:'reminder, not required', setupSetItBtn:'Set it', setupDismissBtn:'Dismiss',
-    setupDismissTitle:'Hide this reminder for you until it\'s done — nobody else\'s checklist changes',
+    setupDismissTitle:'Takes this reminder off the Dashboard for good, for you — nobody else\'s checklist changes. Settings has the way back.',
     setupDismissAllBtn:'Dismiss all', setupShowHiddenBtn:'Show them',
-    setupDismissAllTitle:'Hide every reminder below, for you. They come back with Show them.',
-    setupHiddenOnly:'%s still unset, hidden by you.',
+    setupDismissAllTitle:'Takes every reminder below off the Dashboard in one go, for you. Settings has the way back.',
+    setupHiddenOnly:'%s still unset, dismissed by you.',
+    setupHiddenHead:'Reminders you dismissed',
+    setupHiddenBody:'Dismissing a setup reminder takes it off the Dashboard for good — for you, never for anyone else in the company. If you dismissed one by mistake, bring them all back here.',
     setupWelcomeLabel:'Finish the welcome steps',
     setupWelcomeDetail:'Your business details, the FenceFlow agreement and your plan were never finished on the welcome page. Your jobs are all here in the meantime — finish them when you have a minute.',
     setupWelcomeBtn:'Open them',
@@ -3689,6 +3768,7 @@ const TL = {
     tplNameRequiredMsg:'Give this template a name.',
     tplDefaultTemplateName:'this template',
     tplRetireConfirmBody:'Jobs already built from it keep their own copy of the spec — retiring a template never changes a run that already exists.',
+    tplRetireGoneMsg:'That template was already retired — there is nothing left to undo.',
     fenceTypeWood:'Wood', fenceTypeVinyl:'Vinyl', fenceTypeChainLink:'Chain link',
     fenceTypeAluminum:'Aluminum', fenceTypeOrnamentalIron:'Ornamental iron',
     fenceTypeSplitRail:'Split rail', fenceTypeComposite:'Composite',
@@ -3803,20 +3883,23 @@ const TL = {
     seatRemoveBody:'They lose access on their phone straight away. Everything they recorded — jobs, hours, notes — stays exactly where it is, and their seat is freed. The code they joined with stops working for them, and you can let them back in later if you change your mind.',
     seatRemovedOk:'%s removed. That seat is free.',
     seatThisPerson:'this person', seatThey:'they',
-    dkHead:'Device keys',
-    dkBody:'A one-time code that lets one more phone sign in when this company requires it. Read it out once — whoever uses it first spends it.',
-    dkLabelLabel:'Label', dkLabelPh:'e.g. spare phone', dkLabelDays:'Days good for',
-    dkMintBtn:'Mint a key',
-    dkColLabel:'Label', dkColCode:'Code', dkColStatus:'Status', dkColExpires:'Expires',
-    dkEmptyMsg:'No device keys yet.', dkUnlabeled:'No label',
+    dkHead:'Product keys',
+    dkBody:'A one-time product key that lets one more phone sign in to this company. Read it out once — whoever uses it first spends it.',
+    dkLabelLabel:'Which phone is it for', dkLabelPh:'e.g. spare phone', dkLabelDays:'Days good for',
+    dkMintBtn:'Issue a product key',
+    dkColLabel:'Which phone', dkColCode:'Product key', dkColStatus:'Status', dkColExpires:'Expires',
+    dkEmptyMsg:'No product keys yet.', dkUnlabeled:'No label',
     dkStateReady:'Ready', dkStateUsed:'Used', dkStateExpired:'Expired', dkStateRevoked:'Revoked',
     dkUsedByPrefix:'used by %s',
-    dkRevokeBtn:'Revoke', dkRevokeQ:'Revoke key %s?',
-    dkRevokeBody:'Nobody will be able to sign in with this code afterward. It has not been used yet, so nobody currently signed in is affected.',
-    dkRevokeGoneMsg:'That key was already used or revoked — there is nothing left to undo.',
-    dkRevokedOk:'Key revoked. It can no longer be used to sign in.',
-    dkMintedOk:'Key minted. Read it out below.',
-    dkNewCodeLabel:'New device key — read this out now', dkDismissBtn:'Done',
+    dkRevokeBtn:'Revoke', dkRevokeQ:'Revoke product key %s?',
+    dkRevokeBody:'Nobody will be able to sign in with this product key afterward. It has not been used yet, so nobody currently signed in is affected.',
+    dkRevokeGoneMsg:'That product key was already used or revoked — there is nothing left to undo.',
+    dkRevokedOk:'Product key revoked. It can no longer be used to sign in.',
+    dkMintedOk:'Product key issued. Read it out below.',
+    dkNewCodeLabel:'New product key — read this out now', dkDismissBtn:'Done',
+    dkPointerHead:'Product keys',
+    dkPointerBody:'A one-time product key lets one more phone sign in to this company. Issue one in the Crew tab, read it out, and whoever uses it first spends it.',
+    dkPointerBtn:'Show me',
     crewUnnamed:'Unnamed', crewOffCrew:'Off the crew', crewPayNotVisible:'Not visible',
     crewPayNotVisibleTitle:'Pay is not visible to your account',
     crewResendInviteBtn:'Resend invite',
@@ -4460,6 +4543,7 @@ const TL = {
     mailRetryBtn:'Intentar de nuevo', mailMarkedUnread:'Marcado como no leído.',
     mailLinkJobBtn:'Vincular a un trabajo', mailLinkPickPh:'Elija un trabajo…', mailLinkSaveBtn:'Vincular', mailCancelBtn:'Cancelar',
     mailUnlinkBtn:'Quitar este vínculo', mailLinkedOk:'Vinculado a %s.',
+    mailUnlinkFailedMsg:'Ese vínculo todavía está ahí. Volviendo a cargar esta conversación para mostrar lo que realmente está vinculado.',
     mailGoneNote:'Borrado o movido en su buzón.',
     mailChangedNote:'Su buzón volvió a numerar sus mensajes. Busque correo nuevo y vuelva a abrir este.',
     mailUnavailableDisconnected:'Este buzón se desconectó antes de abrir este mensaje, así que FenceFlow no tiene una copia.',
@@ -4921,6 +5005,8 @@ const TL = {
     jobBatchAssignQ:'¿Asignar %s a %s?', jobBatchAssignDone:'Hecho: %s para %s.',
     jobBatchSchedQ:'¿Programar %s para el %s?', jobBatchSchedDone:'Hecho: %s con fecha %s.',
     jobBatchAskBody:'Esto cambia %s. Puede revertirlo de la misma manera.', jobBatchAskBtn:'Cambiar %s',
+    jobBatchNothingChangedErr:'No se cambió nada: la escritura no coincidió con ninguno de los trabajos seleccionados. Puede que se hayan eliminado o movido desde que los seleccionó. Recargue e inténtelo de nuevo.',
+    jobBatchPartialMsg:'%s de %s cambiados: el resto no coincidió (se eliminaron o movieron desde que los seleccionó). Recargando para mostrar cuáles.',
     jobBatchThatCrew:'ese miembro de la cuadrilla',
     jobBatchExportBtn:'Exportar estos', jobBatchClearBtn:'Quitar selección',
     jobStatusAll:'Todos', jobStatusDraft:'Borrador', jobStatusSent:'Enviado',
@@ -4936,6 +5022,12 @@ const TL = {
     addrUpdated:'Dirección actualizada: recuerde guardar el trabajo.',
     addrNotPlaced:'No se pudo ubicar. Agregue la ciudad, el estado y el código postal.', addrCheckFailed:'No se pudo comprobar en este momento.',
     jobLabelReferral:'Cómo nos encontró', jobLabelNotes:'Notas',
+    refNotRecorded:'No registrado', refOther:'Otra cosa…', refOtherPh:'¿Dónde oyó hablar de usted?',
+    refWebsite:'Sitio web', refGoogle:'Búsqueda en Google', refFacebook:'Facebook',
+    refInstagram:'Instagram', refNextdoor:'Nextdoor', refCustomerReferral:'Recomendación de un cliente',
+    refRepeat:'Cliente que repite', refYardSign:'Cartel en el jardín', refTruck:'Camioneta o remolque',
+    refLeadService:'Servicio de contactos (Angi, Thumbtack)', refBuilder:'Constructor o contratista',
+    refRealtor:'Agente inmobiliario', refHoa:'HOA o administrador de la propiedad',
     jobSecRuns:'Tramos de cerca', jobMeasureSatBtn:'Medir desde satélite',
     satNoAddressWhere:'Este trabajo aún no tiene dirección, así que no hay dónde buscar.',
     satNoAddressErr:'Primero agregue la dirección de la propiedad al trabajo.',
@@ -5061,6 +5153,7 @@ const TL = {
     jobPhotosErr:'No se pudieron cargar las fotos en este momento.', jobFilePhoto:'Foto', jobFileSignature:'Firma',
     jobFileSurvey:'Plano del levantamiento', jobFileCoSignature:'Firma de orden de cambio',
     jobSaveNothingChangedErr:'No se guardó: el guardado no cambió nada. Puede que este trabajo se haya eliminado desde un teléfono o que esta cuenta ya no pueda editarlo. Ciérrelo y recargue la página.',
+    wizSaveNothingChangedErr:'No se guardó: el guardado del asistente no cambió nada. Puede que este trabajo se haya eliminado desde un teléfono o que esta cuenta ya no pueda editarlo. Cierre el asistente y recargue la página.',
     jobSavedNote:'Guardado. Los teléfonos lo reciben en su próxima sincronización.',
     jobSavedPricingNote:'Guardado. Calculando el precio en la oficina…',
     jobSavedRepricedNote:'Guardado. Precio recalculado en la oficina: %s.',
@@ -5162,7 +5255,9 @@ const TL = {
     leadPageSub:'Un propietario abre este enlace, pide una cerca y entra en su embudo como cliente potencial del sitio web. Póngalo en su tarjeta de presentación, su página de Facebook o un código QR en su camioneta.',
     leadPageCopied:'Copiado: %s', leadPageFetchErr:'No se pudo obtener el enlace. Inténtelo de nuevo en un momento.',
     settingsLabelBizName:'Nombre de la empresa', settingsLabelOwnerName:'Nombre del dueño',
-    settingsLabelPhone:'Teléfono', settingsLabelEmail:'Correo electrónico',
+    settingsLabelPhone:'Teléfono', settingsLabelEmail:'Correo de la empresa (los clientes lo ven)',
+    settingsEmailNote:'Se imprime en sus presupuestos, y es la dirección de respuesta de las invitaciones a la cuadrilla, los seguimientos y el correo de FenceFlow hasta que conecte su propio buzón. La dirección propia de su empresa, no una personal.',
+    settingsEmailOwnerOnly:'Solo el propietario puede cambiar esto.',
     settingsLabelLicense:'Número de licencia',
     settingsLabelTax:'Impuesto (%)', settingsLabelMarkup:'Recargo (%)',
     settingsLabelLabor:'Tarifa de mano de obra ($/pie)', settingsLabelSpacing:'Espaciado de postes (pies)',
@@ -5176,13 +5271,18 @@ const TL = {
     settingsHelpSaved:'Se guarda en la cuenta de la empresa — los celulares lo reciben en la próxima sincronización.',
     settingsHelpVinylSync:'El espaciado de postes, el ancho y alto del panel y las bolsas de arriba también actualizan su plantilla de construcción Vinyl predeterminada más abajo (creando una a partir del modelo Vinyl privacidad de 6 pies de FenceFlow si todavía no tiene ninguna) — los mismos cuatro números, ahora leídos de un solo lugar en vez de dos.',
     settingsSavedMsg:'Guardado. Los celulares lo reciben en el próximo inicio de sesión o sincronización.',
+    settingsEmailBlankMsg:'Los demás ajustes se guardaron, pero el correo de la empresa se dejó como estaba — el campo estaba vacío, y una dirección vacía interrumpiría el correo saliente, la cotización que ve el cliente y las invitaciones al equipo. Escriba una dirección para cambiarla.',
+    settingsEmailInvalidMsg:'Los demás ajustes se guardaron, pero el correo de la empresa se dejó como estaba — "%s" no parece una dirección de correo completa (nombre@dominio.tld). Corríjala y guarde de nuevo.',
+    settingsEmailSaveNoRowsMsg:'Los demás ajustes se guardaron, pero el correo de la empresa no — la escritura no coincidió con ninguna fila. La causa más probable es que esta cuenta ya no es la propietaria de la empresa (alguien cambió su rol mientras esta página estaba abierta). Cierre sesión, vuelva a iniciarla y revise Ajustes de nuevo.',
     settingsVinylUpdateFailedMsg:'Ajustes guardados, pero su plantilla estándar de Vinyl no se actualizó: %s',
     settingsLoadFailed:'No se pudieron cargar los ajustes de la empresa en este momento — los campos de abajo están en blanco porque falló la carga, no porque no haya nada configurado. Cambie de pestaña y vuelva, o actualice la página, para intentarlo de nuevo.',
-    setupReminderTag:'recordatorio, no obligatorio', setupSetItBtn:'Configurar', setupDismissBtn:'Ocultar',
-    setupDismissTitle:'Oculta este recordatorio solo para usted hasta que esté hecho — la lista de nadie más cambia',
-    setupDismissAllBtn:'Ocultar todo', setupShowHiddenBtn:'Mostrarlos',
-    setupDismissAllTitle:'Oculta todos los recordatorios de abajo, solo para usted. Vuelven con Mostrarlos.',
-    setupHiddenOnly:'%s sin configurar, ocultos por usted.',
+    setupReminderTag:'recordatorio, no obligatorio', setupSetItBtn:'Configurar', setupDismissBtn:'Descartar',
+    setupDismissTitle:'Quita este recordatorio del Panel definitivamente, solo para usted — la lista de nadie más cambia. La forma de recuperarlo está en Ajustes.',
+    setupDismissAllBtn:'Descartar todo', setupShowHiddenBtn:'Mostrarlos',
+    setupDismissAllTitle:'Quita del Panel todos los recordatorios de abajo de una vez, solo para usted. La forma de recuperarlos está en Ajustes.',
+    setupHiddenOnly:'%s sin configurar, descartados por usted.',
+    setupHiddenHead:'Recordatorios que descartó',
+    setupHiddenBody:'Descartar un recordatorio de configuración lo quita del Panel definitivamente — para usted, nunca para el resto de la empresa. Si descartó uno por error, recupérelos todos aquí.',
     setupWelcomeLabel:'Termine los pasos de bienvenida',
     setupWelcomeDetail:'Los datos de su empresa, el acuerdo de FenceFlow y su plan nunca se terminaron en la página de bienvenida. Mientras tanto, todos sus trabajos están aquí — termínelos cuando tenga un momento.',
     setupWelcomeBtn:'Abrirlos',
@@ -5252,6 +5352,7 @@ const TL = {
     tplNameRequiredMsg:'Póngale un nombre a esta plantilla.',
     tplDefaultTemplateName:'esta plantilla',
     tplRetireConfirmBody:'Los trabajos que ya se construyeron con ella conservan su propia copia de la especificación — retirar una plantilla nunca cambia un tramo que ya existe.',
+    tplRetireGoneMsg:'Esa plantilla ya estaba retirada — no queda nada que deshacer.',
     fenceTypeWood:'Madera', fenceTypeVinyl:'Vinilo', fenceTypeChainLink:'Malla ciclónica',
     fenceTypeAluminum:'Aluminio', fenceTypeOrnamentalIron:'Hierro ornamental',
     fenceTypeSplitRail:'Rieles rústicos', fenceTypeComposite:'Compuesto',
@@ -5366,20 +5467,23 @@ const TL = {
     seatRemoveBody:'Pierde acceso en su teléfono de inmediato. Todo lo que registró — trabajos, horas, notas — se queda exactamente donde está, y su acceso queda libre. El código con el que se unió deja de funcionar para él, y puede dejarlo entrar de nuevo más tarde si cambia de opinión.',
     seatRemovedOk:'%s quitado. Ese acceso está libre.',
     seatThisPerson:'esta persona', seatThey:'él/ella',
-    dkHead:'Claves de dispositivo',
-    dkBody:'Un código de un solo uso que permite que un teléfono más inicie sesión cuando la empresa lo requiere. Léalo en voz alta una vez — quien lo use primero lo gasta.',
-    dkLabelLabel:'Etiqueta', dkLabelPh:'p. ej. teléfono de repuesto', dkLabelDays:'Días de validez',
-    dkMintBtn:'Generar clave',
-    dkColLabel:'Etiqueta', dkColCode:'Código', dkColStatus:'Estado', dkColExpires:'Vence',
-    dkEmptyMsg:'Todavía no hay claves de dispositivo.', dkUnlabeled:'Sin etiqueta',
+    dkHead:'Claves de producto',
+    dkBody:'Una clave de producto de un solo uso que permite que un teléfono más inicie sesión en esta empresa. Léala en voz alta una vez — quien la use primero la gasta.',
+    dkLabelLabel:'Para qué teléfono es', dkLabelPh:'p. ej. teléfono de repuesto', dkLabelDays:'Días de validez',
+    dkMintBtn:'Emitir una clave de producto',
+    dkColLabel:'Qué teléfono', dkColCode:'Clave de producto', dkColStatus:'Estado', dkColExpires:'Vence',
+    dkEmptyMsg:'Todavía no hay claves de producto.', dkUnlabeled:'Sin etiqueta',
     dkStateReady:'Lista', dkStateUsed:'Usada', dkStateExpired:'Vencida', dkStateRevoked:'Revocada',
     dkUsedByPrefix:'usada por %s',
-    dkRevokeBtn:'Revocar', dkRevokeQ:'¿Revocar la clave %s?',
-    dkRevokeBody:'Nadie podrá iniciar sesión con este código después. Todavía no se ha usado, así que no afecta a nadie que ya haya iniciado sesión.',
-    dkRevokeGoneMsg:'Esa clave ya se usó o se revocó — no queda nada que deshacer.',
-    dkRevokedOk:'Clave revocada. Ya no se puede usar para iniciar sesión.',
-    dkMintedOk:'Clave generada. Léala en voz alta a continuación.',
-    dkNewCodeLabel:'Nueva clave de dispositivo — léala ahora', dkDismissBtn:'Listo',
+    dkRevokeBtn:'Revocar', dkRevokeQ:'¿Revocar la clave de producto %s?',
+    dkRevokeBody:'Nadie podrá iniciar sesión con esta clave de producto después. Todavía no se ha usado, así que no afecta a nadie que ya haya iniciado sesión.',
+    dkRevokeGoneMsg:'Esa clave de producto ya se usó o se revocó — no queda nada que deshacer.',
+    dkRevokedOk:'Clave de producto revocada. Ya no se puede usar para iniciar sesión.',
+    dkMintedOk:'Clave de producto emitida. Léala en voz alta a continuación.',
+    dkNewCodeLabel:'Nueva clave de producto — léala ahora', dkDismissBtn:'Listo',
+    dkPointerHead:'Claves de producto',
+    dkPointerBody:'Una clave de producto de un solo uso permite que un teléfono más inicie sesión en esta empresa. Emita una en la pestaña Cuadrilla, léala en voz alta, y quien la use primero la gasta.',
+    dkPointerBtn:'Mostrármela',
     crewUnnamed:'Sin nombre', crewOffCrew:'Fuera de la cuadrilla', crewPayNotVisible:'No visible',
     crewPayNotVisibleTitle:'El pago no es visible para su cuenta',
     crewResendInviteBtn:'Reenviar invitación',
@@ -5993,6 +6097,7 @@ const TL = {
     mailRetryBtn:'Réessayer', mailMarkedUnread:'Marqué comme non lu.',
     mailLinkJobBtn:'Lier à un chantier', mailLinkPickPh:'Choisissez un chantier…', mailLinkSaveBtn:'Lier', mailCancelBtn:'Annuler',
     mailUnlinkBtn:'Retirer ce lien', mailLinkedOk:'Lié à %s.',
+    mailUnlinkFailedMsg:'Ce lien est toujours là. Rechargement de cette conversation pour afficher ce qui est réellement lié.',
     mailGoneNote:'Supprimé ou déplacé dans votre boîte mail.',
     mailChangedNote:'Votre boîte mail a renuméroté ses messages. Relevez le courrier, puis rouvrez celui-ci.',
     mailUnavailableDisconnected:'Cette boîte a été déconnectée avant l’ouverture de ce message, FenceFlow n’en a donc pas de copie.',
@@ -6454,6 +6559,8 @@ const TL = {
     jobBatchAssignQ:'Assigner %s à %s ?', jobBatchAssignDone:'Fait : %s pour %s.',
     jobBatchSchedQ:'Planifier %s le %s ?', jobBatchSchedDone:'Fait : %s, date fixée au %s.',
     jobBatchAskBody:'Cela modifie %s. Vous pourrez revenir en arrière de la même façon.', jobBatchAskBtn:'Modifier %s',
+    jobBatchNothingChangedErr:'Rien n\'a été modifié — l\'écriture n\'a touché aucun des chantiers sélectionnés. Ils ont peut-être été supprimés ou déplacés depuis leur sélection. Rechargez et réessayez.',
+    jobBatchPartialMsg:'%s sur %s modifiés — le reste n\'a pas été touché (supprimé ou déplacé depuis leur sélection). Rechargement pour montrer lesquels.',
     jobBatchThatCrew:'ce membre de l’équipe',
     jobBatchExportBtn:'Exporter ceux-ci', jobBatchClearBtn:'Effacer la sélection',
     jobStatusAll:'Tous', jobStatusDraft:'Brouillon', jobStatusSent:'Envoyé',
@@ -6469,6 +6576,12 @@ const TL = {
     addrUpdated:'Adresse mise à jour — pensez à enregistrer le chantier.',
     addrNotPlaced:'Impossible de la localiser. Ajoutez la ville, l’État et le code postal.', addrCheckFailed:'Vérification impossible pour le moment.',
     jobLabelReferral:'Comment il nous a trouvés', jobLabelNotes:'Notes',
+    refNotRecorded:'Non renseigné', refOther:'Autre chose…', refOtherPh:'Où a-t-il entendu parler de vous ?',
+    refWebsite:'Site web', refGoogle:'Recherche Google', refFacebook:'Facebook',
+    refInstagram:'Instagram', refNextdoor:'Nextdoor', refCustomerReferral:'Recommandation d’un client',
+    refRepeat:'Client fidèle', refYardSign:'Panneau sur le terrain', refTruck:'Camion ou remorque',
+    refLeadService:'Service de prospects (Angi, Thumbtack)', refBuilder:'Constructeur ou entrepreneur',
+    refRealtor:'Agent immobilier', refHoa:'Association de propriétaires ou gestionnaire',
     jobSecRuns:'Sections de clôture', jobMeasureSatBtn:'Mesurer par satellite',
     satNoAddressWhere:'Ce chantier n’a pas encore d’adresse, il n’y a donc nulle part où regarder.',
     satNoAddressErr:'Ajoutez d’abord l’adresse de la propriété au chantier.',
@@ -6594,6 +6707,7 @@ const TL = {
     jobPhotosErr:'Impossible de charger les photos pour le moment.', jobFilePhoto:'Photo', jobFileSignature:'Signature',
     jobFileSurvey:'Plan de relevé', jobFileCoSignature:'Signature d’avenant',
     jobSaveNothingChangedErr:'Non enregistré : la sauvegarde n\'a rien modifié. Ce chantier a peut-être été supprimé depuis un téléphone, ou ce compte ne peut plus le modifier. Fermez-le et rechargez la page.',
+    wizSaveNothingChangedErr:'Non enregistré : la sauvegarde de l\'assistant n\'a rien modifié. Ce chantier a peut-être été supprimé depuis un téléphone, ou ce compte ne peut plus le modifier. Fermez l\'assistant et rechargez la page.',
     jobSavedNote:'Enregistré. Les téléphones le recevront à leur prochaine synchronisation.',
     jobSavedPricingNote:'Enregistré. Chiffrage au bureau…',
     jobSavedRepricedNote:'Enregistré. Rechiffré au bureau : %s.',
@@ -6695,7 +6809,9 @@ const TL = {
     leadPageSub:'Un propriétaire ouvre ce lien, demande une clôture et arrive dans votre suivi commercial comme prospect du site web. Mettez-le sur votre carte de visite, votre page Facebook ou un code QR sur votre camion.',
     leadPageCopied:'Copié : %s', leadPageFetchErr:'Impossible d’obtenir le lien. Réessayez dans un instant.',
     settingsLabelBizName:'Nom de l’entreprise', settingsLabelOwnerName:'Nom du propriétaire',
-    settingsLabelPhone:'Téléphone', settingsLabelEmail:'Courriel',
+    settingsLabelPhone:'Téléphone', settingsLabelEmail:'Courriel de l’entreprise (visible par les clients)',
+    settingsEmailNote:'Imprimé sur vos devis, et adresse de réponse des invitations à l’équipe, des suivis et du courrier FenceFlow jusqu’à ce que vous connectiez votre propre boîte de réception. L’adresse propre à votre entreprise, pas une adresse personnelle.',
+    settingsEmailOwnerOnly:'Seul le propriétaire peut modifier ceci.',
     settingsLabelLicense:'Numéro de licence',
     settingsLabelTax:'Taxe (%)', settingsLabelMarkup:'Majoration (%)',
     settingsLabelLabor:'Taux de main-d’œuvre ($/pi)', settingsLabelSpacing:'Espacement des poteaux (pi)',
@@ -6709,13 +6825,18 @@ const TL = {
     settingsHelpSaved:'Enregistré dans le compte de l’entreprise — les téléphones le reçoivent à la prochaine synchronisation.',
     settingsHelpVinylSync:'L’espacement des poteaux, la largeur et la hauteur du panneau et les sacs ci-dessus mettent aussi à jour votre modèle de construction Vinyle par défaut plus bas (en créant un à partir du modèle Vinyle intimité de 6 pi fourni par FenceFlow si vous n’en avez pas encore) — les quatre mêmes chiffres, désormais lus à un seul endroit plutôt que deux.',
     settingsSavedMsg:'Enregistré. Les téléphones le reçoivent à la prochaine connexion ou synchronisation.',
+    settingsEmailBlankMsg:'Les autres paramètres ont été enregistrés, mais l’adresse courriel de l’entreprise n’a pas été modifiée — le champ était vide, et une adresse vide empêcherait l’envoi de courriels, la soumission vue par le client et les invitations à l’équipe. Saisissez une adresse pour la changer.',
+    settingsEmailInvalidMsg:'Les autres paramètres ont été enregistrés, mais l’adresse courriel de l’entreprise n’a pas été modifiée — « %s » ne ressemble pas à une adresse courriel complète (nom@domaine.tld). Corrigez-la et enregistrez de nouveau.',
+    settingsEmailSaveNoRowsMsg:'Les autres paramètres ont été enregistrés, mais pas l’adresse courriel de l’entreprise — l’écriture n’a touché aucune ligne. La cause la plus probable est que ce compte n’est plus propriétaire de l’entreprise (quelqu’un a changé votre rôle pendant que cette page était ouverte). Déconnectez-vous, reconnectez-vous, puis vérifiez de nouveau les Paramètres.',
     settingsVinylUpdateFailedMsg:'Paramètres enregistrés, mais votre modèle Vinyle standard n’a pas été mis à jour : %s',
     settingsLoadFailed:'Impossible de charger les paramètres de l’entreprise pour l’instant — les champs ci-dessous sont vides parce que le chargement a échoué, pas parce que rien n’est configuré. Changez d’onglet et revenez, ou actualisez la page, pour réessayer.',
-    setupReminderTag:'rappel, non obligatoire', setupSetItBtn:'Configurer', setupDismissBtn:'Masquer',
-    setupDismissTitle:'Masque ce rappel seulement pour vous jusqu’à ce que ce soit fait — la liste de personne d’autre ne change',
-    setupDismissAllBtn:'Tout masquer', setupShowHiddenBtn:'Les afficher',
-    setupDismissAllTitle:'Masque tous les rappels ci-dessous, pour vous. Ils reviennent avec Les afficher.',
-    setupHiddenOnly:'%s non configuré(s), masqué(s) par vous.',
+    setupReminderTag:'rappel, non obligatoire', setupSetItBtn:'Configurer', setupDismissBtn:'Ignorer',
+    setupDismissTitle:'Retire définitivement ce rappel du Tableau de bord, pour vous seulement — la liste de personne d’autre ne change. Le moyen de le récupérer est dans Paramètres.',
+    setupDismissAllBtn:'Tout ignorer', setupShowHiddenBtn:'Les afficher',
+    setupDismissAllTitle:'Retire d’un coup tous les rappels ci-dessous du Tableau de bord, pour vous. Le moyen de les récupérer est dans Paramètres.',
+    setupHiddenOnly:'%s non configuré(s), ignoré(s) par vous.',
+    setupHiddenHead:'Rappels que vous avez ignorés',
+    setupHiddenBody:'Ignorer un rappel de configuration le retire définitivement du Tableau de bord — pour vous, jamais pour le reste de l’entreprise. Si vous en avez ignoré un par erreur, récupérez-les tous ici.',
     setupWelcomeLabel:'Terminer les étapes d’accueil',
     setupWelcomeDetail:'Les coordonnées de votre entreprise, l’entente FenceFlow et votre forfait n’ont jamais été terminés sur la page d’accueil. En attendant, tous vos chantiers sont ici — terminez-les quand vous aurez un moment.',
     setupWelcomeBtn:'Les ouvrir',
@@ -6785,6 +6906,7 @@ const TL = {
     tplNameRequiredMsg:'Donnez un nom à ce modèle.',
     tplDefaultTemplateName:'ce modèle',
     tplRetireConfirmBody:'Les chantiers déjà construits à partir de celui-ci gardent leur propre copie de la spécification — retirer un modèle ne change jamais une section qui existe déjà.',
+    tplRetireGoneMsg:'Ce modèle était déjà retiré — il n\'y a plus rien à annuler.',
     fenceTypeWood:'Bois', fenceTypeVinyl:'Vinyle', fenceTypeChainLink:'Mailles losangées',
     fenceTypeAluminum:'Aluminium', fenceTypeOrnamentalIron:'Fer ornemental',
     fenceTypeSplitRail:'Clôture à lisses rustiques', fenceTypeComposite:'Composite',
@@ -6899,20 +7021,23 @@ const TL = {
     seatRemoveBody:'Il perd l\'accès sur son téléphone immédiatement. Tout ce qu\'il a enregistré — chantiers, heures, notes — reste exactement où c\'est, et sa place est libérée. Le code avec lequel il s\'est joint cesse de fonctionner pour lui, et vous pouvez le laisser revenir plus tard si vous changez d\'avis.',
     seatRemovedOk:'%s retiré. Cette place est libre.',
     seatThisPerson:'cette personne', seatThey:'il/elle',
-    dkHead:'Clés d\'appareil',
-    dkBody:'Un code à usage unique qui permet à un téléphone de plus de se connecter quand l\'entreprise l\'exige. Lisez-le à voix haute une seule fois — la première personne qui l\'utilise le consomme.',
-    dkLabelLabel:'Étiquette', dkLabelPh:'p. ex. téléphone de secours', dkLabelDays:'Valable (jours)',
-    dkMintBtn:'Générer une clé',
-    dkColLabel:'Étiquette', dkColCode:'Code', dkColStatus:'Statut', dkColExpires:'Expire',
-    dkEmptyMsg:'Pas encore de clé d\'appareil.', dkUnlabeled:'Sans étiquette',
+    dkHead:'Clés de produit',
+    dkBody:'Une clé de produit à usage unique qui permet à un téléphone de plus de se connecter à cette entreprise. Lisez-la à voix haute une seule fois — la première personne qui l\'utilise la consomme.',
+    dkLabelLabel:'Pour quel téléphone', dkLabelPh:'p. ex. téléphone de secours', dkLabelDays:'Valable (jours)',
+    dkMintBtn:'Émettre une clé de produit',
+    dkColLabel:'Quel téléphone', dkColCode:'Clé de produit', dkColStatus:'Statut', dkColExpires:'Expire',
+    dkEmptyMsg:'Pas encore de clé de produit.', dkUnlabeled:'Sans étiquette',
     dkStateReady:'Prête', dkStateUsed:'Utilisée', dkStateExpired:'Expirée', dkStateRevoked:'Révoquée',
     dkUsedByPrefix:'utilisée par %s',
-    dkRevokeBtn:'Révoquer', dkRevokeQ:'Révoquer la clé %s ?',
-    dkRevokeBody:'Plus personne ne pourra se connecter avec ce code ensuite. Il n\'a pas encore été utilisé, donc personne déjà connecté n\'est concerné.',
-    dkRevokeGoneMsg:'Cette clé a déjà été utilisée ou révoquée — il n\'y a plus rien à annuler.',
-    dkRevokedOk:'Clé révoquée. Elle ne peut plus être utilisée pour se connecter.',
-    dkMintedOk:'Clé générée. Lisez-la à voix haute ci-dessous.',
-    dkNewCodeLabel:'Nouvelle clé d\'appareil — lisez-la maintenant', dkDismissBtn:'Terminé',
+    dkRevokeBtn:'Révoquer', dkRevokeQ:'Révoquer la clé de produit %s ?',
+    dkRevokeBody:'Plus personne ne pourra se connecter avec cette clé de produit ensuite. Elle n\'a pas encore été utilisée, donc personne déjà connecté n\'est concerné.',
+    dkRevokeGoneMsg:'Cette clé de produit a déjà été utilisée ou révoquée — il n\'y a plus rien à annuler.',
+    dkRevokedOk:'Clé de produit révoquée. Elle ne peut plus être utilisée pour se connecter.',
+    dkMintedOk:'Clé de produit émise. Lisez-la à voix haute ci-dessous.',
+    dkNewCodeLabel:'Nouvelle clé de produit — lisez-la maintenant', dkDismissBtn:'Terminé',
+    dkPointerHead:'Clés de produit',
+    dkPointerBody:'Une clé de produit à usage unique permet à un téléphone de plus de se connecter à cette entreprise. Émettez-en une dans l\'onglet Équipe, lisez-la à voix haute, et la première personne qui l\'utilise la consomme.',
+    dkPointerBtn:'Montrez-moi',
     crewUnnamed:'Sans nom', crewOffCrew:'Hors de l\'équipe', crewPayNotVisible:'Non visible',
     crewPayNotVisibleTitle:'La paie n\'est pas visible pour votre compte',
     crewResendInviteBtn:'Renvoyer l\'invitation',
@@ -7574,6 +7699,15 @@ function applyStaticText() {
   if (repCrewDetailBody) repCrewDetailBody.innerHTML = tr('repCrewDetailBody',
     '<strong>' + tr('repEveryClockedHourWord') + '</strong>',
     '<strong>' + tr('repApprovedShiftsOnlyWord') + '</strong>');
+  // The referral picker's options are built in JS, so data-t cannot reach
+  // them: without this, switching language left one field on the job sheet in
+  // the language before. Re-built from whatever the select currently holds, so
+  // the answer on screen survives -- including one typed into the free-text
+  // box, which is carried as an option of its own.
+  ['j_referral_source', 'wz_referral_source'].forEach(id => {
+    const sel = $(id);
+    if (sel) fillReferralOptions(id, sel.value);
+  });
 }
 
 function setLang(code) {
@@ -9428,7 +9562,47 @@ function setupText(st){
     detail: tr('setupStep' + pascal + 'Detail') || st.detail,
   };
 }
+/**
+ * The setup reminders this user has dismissed that are still not done.
+ *
+ * One definition, asked both by the Dashboard panel -- which must not draw
+ * them at all -- and by the Settings control that brings them back, so the two
+ * can never disagree about what "dismissed" covers. An essential step can
+ * never be in here: renderSetup offers no Dismiss for one, so nothing can put
+ * one in the set in the first place.
+ */
+function hiddenSetupKeys(){
+  const keys = (setupSteps || [])
+    .filter(s => !s.done && !s.essential && dismissedSetupSteps.has(s.step))
+    .map(s => s.step);
+  if (onboardingUnfinished && profile?.role === 'OWNER'
+      && dismissedSetupSteps.has('welcome_details')) keys.push('welcome_details');
+  return keys;
+}
+
+/**
+ * The undo for a Dismiss, on the Settings tab.
+ *
+ * Reads the same two things renderSetup reads -- the steps and this user's own
+ * dismissals -- which is why it is called from there rather than from a set of
+ * call sites of its own. Both are filled by awaits in loadAll, and a render
+ * that runs before its own answer has arrived is exactly how dismissing came
+ * to look as though it had not saved.
+ */
+function renderDismissedReminders(){
+  const box = $('setupHiddenPanel');
+  if (!box) return;
+  const keys = hiddenSetupKeys();
+  const count = $('setupHiddenCount');
+  if (!keys.length) { box.style.display = 'none'; if (count) count.textContent = ''; return; }
+  box.style.display = '';
+  if (count) count.textContent = tr('setupHiddenOnly', keys.length);
+}
+
 function renderSetup(){
+  // Ahead of the panel check below: the Settings control is a different
+  // element and has to be drawn whether or not this panel is on screen.
+  renderDismissedReminders();
   const panel = $('setupPanel');
   if (!panel) return;
   const steps = setupSteps || [];
@@ -9453,34 +9627,18 @@ function renderSetup(){
   const welcomeRow = onboardingUnfinished && profile?.role === 'OWNER'
     && !dismissedSetupSteps.has('welcome_details');
 
-  // Reminders this user has hidden that are STILL not done. Dismissing used to
-  // be a one-way door: the panel simply vanished, and a hidden step only ever
-  // came back by being finished -- so an accidental Dismiss left the company
-  // with setup outstanding and nothing on screen saying so, and no way back.
-  // (On 2026-09-23 that is exactly what happened: card_payments and
-  // manufacturers were both hidden, they were the only two, and the whole card
-  // disappeared.) Now the card stays as one quiet line that can be undone.
-  const hidden = missing.filter(s => !s.essential && dismissedSetupSteps.has(s.step));
-  const hiddenWelcome = onboardingUnfinished && profile?.role === 'OWNER'
-    && dismissedSetupSteps.has('welcome_details');
-  const hiddenKeys = hidden.map(s => s.step).concat(hiddenWelcome ? ['welcome_details'] : []);
-
+  // Nothing about a dismissed reminder is drawn here -- not even an "N hidden"
+  // line. That line WAS the complaint, reported twice: it only ever appeared
+  // in the branch below, the one taken when nothing else was left to show, so
+  // with any other reminder or blocking step outstanding a dismissed one just
+  // vanished off the page and turned up again later. Dismiss now means gone
+  // from here, the same way finishing the step means gone from here.
+  //
+  // The way back is on the Settings tab beside "Run setup again"
+  // (renderDismissedReminders, called at the top of this function), so an
+  // accidental tap is still recoverable without this panel carrying a row for
+  // something the owner asked to stop seeing.
   if (!welcomeRow && (!steps.length || (!blocking.length && !reminders.length))) {
-    if (hiddenKeys.length) {
-      setupBlocks = false;
-      panel.style.display = 'block';
-      $('setupList').innerHTML = `
-        <div class="setup-row" style="align-items:center">
-          <span class="setup-mark setup-todo" style="opacity:.55">!</span>
-          <span style="color:var(--muted)">${esc(tr('setupHiddenOnly', hiddenKeys.length))}</span>
-          <span class="setup-go">
-            <button class="btn btn-sm btn-grey" data-setup-show="1">${esc(tr('setupShowHiddenBtn'))}</button>
-          </span>
-        </div>`;
-      document.querySelectorAll('[data-setup-show]').forEach(b =>
-        b.addEventListener('click', () => setSetupStepsDismissed(hiddenKeys, false)));
-      return;
-    }
     panel.style.display = 'none'; setupBlocks = false; return;
   }
   setupBlocks = blocking.length > 0;
@@ -10665,14 +10823,22 @@ async function loadSeats(){
     }));
 }
 
-/* Device keys: mint_device_key/revoke_device_key/list_device_keys all refuse
-   anyone who is not OWNER or MANAGER in the function body
-   (supabase_r8_device_keys.sql). canEdit() mirrors that exact check for the
-   whole panel, same shape as loadSeats() above it -- a CREW or FOREMAN
-   account never sees a mint button whose only possible answer is "Only an
-   owner or a manager can give out a device key." */
+/* Product keys. mint_device_key, revoke_device_key and list_device_keys each
+   refuse anyone who is not OWNER or MANAGER in the function body itself --
+   read off the live functions, not off a migration file in the repo, which
+   says only what somebody meant to apply. canEdit() mirrors that exact check
+   for the whole panel, same shape as loadSeats() above it, so a CREW or
+   FOREMAN account never sees an issue button whose only possible answer is
+   "Only an owner or a manager can give out a device key." */
 async function loadDeviceKeys(){
   const panel = $('deviceKeysPanel');
+  // The Dashboard's pointer at this panel is hidden and shown WITH the panel,
+  // never on its own. A line on the front page offering a product key that
+  // leads nowhere -- wrong role, or the functions absent from this database --
+  // is worse than the owner not finding the panel, which is the problem it
+  // exists to solve.
+  const pointer = $('dkPointerPanel');
+  if (pointer) pointer.style.display = 'none';
   if (!panel) return;
   panel.style.display = 'none';
   if (!canEdit()) return;
@@ -10694,6 +10860,7 @@ async function loadDeviceKeys(){
     return msg('dkMsg', error.message, 'err');
   }
   panel.style.display = '';
+  if (pointer) pointer.style.display = '';
   renderDeviceKeyRows(data || []);
 }
 
@@ -11196,8 +11363,7 @@ function renderDash(){
   if (alertOn('labour_over')) jobCosting.filter(r => Number(r.labour_cost || 0) > 0.005).forEach(r => {
     const j = jobs.find(x => x.sync_id === r.job_sync_id);
     if (!j) return;
-    const quoted = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
-                 + Number(j.labor_flat_fee || 0);
+    const quoted = quotedLaborOf(j);
     if (quoted > 0.005 && Number(r.labour_cost) > quoted) {
       items.push({ urgent:true, severity:'warn',
         text: tr('alertTxtLabourOver', money(Number(r.labour_cost) - quoted), name(j)),
@@ -12336,8 +12502,24 @@ async function applyJobBatch(patch, question, done){
     confirmLabel: tr('jobBatchAskBtn', ids.length),
   });
   if(!ok) return false;
-  const { error } = await db.from('jobs').update(patch).in('id', ids);
+  // .select('id') so `done` is only shown for what the write actually
+  // changed, not for the absence of an error -- jobs_update is a plain
+  // company_id row filter, so a job removed or moved to another company by
+  // another device between being selected here and this write landing is
+  // simply excluded from the affected set, with no error at all. Every
+  // matched row is still returned regardless of whether the new values equal
+  // what was already there (jobs carries no trigger that suppresses a no-op
+  // UPDATE), so a short count here really does mean some of the selection
+  // did not take, not that nothing needed changing.
+  const { data: changedRows, error } = await db.from('jobs').update(patch).in('id', ids).select('id');
   if(error){ msg('jobsMsg', error.message, 'err'); return false; }
+  const changed = (changedRows || []).length;
+  if(changed === 0){ msg('jobsMsg', tr('jobBatchNothingChangedErr'), 'err'); return false; }
+  if(changed < ids.length){
+    msg('jobsMsg', tr('jobBatchPartialMsg', changed, ids.length), 'err');
+    await loadAll();
+    return true;
+  }
   msg('jobsMsg', done, 'ok');
   await loadAll();
   return true;
@@ -12526,6 +12708,20 @@ async function exportQuickBooks(){
   msg('jobsMsg', tr('jobsQboDoneMsg'), 'ok');
 }
 
+/** The calendar's drag-to-reschedule write, split out of renderCal's own
+    drop handler so it is one thing to call -- and to test -- rather than an
+    update() only reachable through a DOM drop event. Reports whether the
+    row actually moved (`moved`), the same "read the write back" every other
+    fixed write in this file settled on (tests/a12-dash-zero-row-writes.
+    test.mjs): an RLS-filtered update, or a job deleted/reassigned since the
+    drag started, returns no error and touches no row, and the caller must
+    not paint that drop as a move that happened. */
+async function rescheduleJobToDate(jobId, iso){
+  const { data, error } = await db.from('jobs').update({scheduled_date: iso}).eq('id', jobId).select('id');
+  if(error) return { error };
+  return { moved: !!(data && data.length) };
+}
+
 function renderCal(){
   const y=calMonth.getFullYear(), m=calMonth.getMonth();
   $('calTitle').textContent=calMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
@@ -12674,8 +12870,13 @@ function renderCal(){
       const [ny,nm,nd]=dayEl.dataset.date.split('-').map(Number);
       const next=new Date(ny, nm-1, nd, hh, mm);
       const iso=next.toISOString();
-      const { error } = await db.from('jobs').update({scheduled_date: iso}).eq('id', job.id);
+      const { moved, error } = await rescheduleJobToDate(job.id, iso);
       if(error){ console.error(error); renderCal(); return; }
+      // Zero rows moved with no error -- an RLS-filtered write or a job
+      // that changed company/got deleted since the drag started. Repaint
+      // from what the server actually holds (job.scheduled_date untouched)
+      // rather than the date this chip was just dropped on.
+      if(!moved){ renderCal(); return; }
       job.scheduled_date=iso;
       renderCal();
     });
@@ -14819,6 +15020,23 @@ function crewProductivityPerHour(revenue, hours){
   return hours > 0.005 ? revenue / hours : 0;
 }
 
+/* What labour was QUOTED at, the one definition every report, alert and
+   estimate-vs-actual figure on this page reads instead of each spelling the
+   arithmetic out again -- a second copy of the formula is exactly how three
+   of them went stale together and drifted from the real pricing engine.
+   Mirrors supabase/functions/_shared/pricing/totals.ts: rate-per-foot times
+   signed feet, plus the flat fee, THEN floored to minimum_labor_charge (the
+   minimum applies to the rate-plus-flat-fee total, not to the rate alone
+   before the flat fee lands). 0 means off, same guard totals.ts uses, so a
+   company that has never touched the setting keeps getting exactly the
+   number it always got. */
+function quotedLaborOf(j){
+  const rawLabor = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
+                  + Number(j.labor_flat_fee || 0);
+  const minLabor = Number(j.minimum_labor_charge || 0);
+  return minLabor > 0 ? Math.max(rawLabor, minLabor) : rawLabor;
+}
+
 /* Aggregate of the same estimate-vs-actual labourVsQuoted() already shows
    per job, summed over a period instead of read job by job. jobCostingBySync
    is a Map(sync_id -> job_costing row); a job with no row (Solo/Crew plans,
@@ -14828,8 +15046,7 @@ function labourEstVsActualTotals(jobsIn, jobCostingBySync){
   jobsIn.forEach(j => {
     const r = jobCostingBySync.get(j.sync_id);
     if (!r) return;
-    estimated += Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
-               + Number(j.labor_flat_fee || 0);
+    estimated += quotedLaborOf(j);
     actual += Number(r.labour_cost || 0);
   });
   return { estimated, actual };
@@ -15528,8 +15745,7 @@ async function renderCycles(){
 function labourVsQuoted(r){
   const j = jobs.find(x => x.sync_id === r.job_sync_id);
   if (!j) return '<span class="sub">—</span>';
-  const quoted = Number(j.labor_rate_per_ft || 0) * Number(j.signed_linear_feet || 0)
-               + Number(j.labor_flat_fee || 0);
+  const quoted = quotedLaborOf(j);
   const actual = Number(r.labour_cost || 0);
   if (quoted < 0.005) return '<span class="sub">' + esc(tr('repCostNotPriced')) + '</span>';
   if (actual < 0.005) {
@@ -17783,11 +17999,21 @@ async function retireTemplate(syncId){
     confirmLabel: tr('tierRetireBtn'), danger: true
   });
   if(!okRetire) return;
-  const { error } = await db.rpc('retire_build_template', { p_sync_id: syncId });
+  const { data: retired, error } = await db.rpc('retire_build_template', { p_sync_id: syncId });
   // Same reason as retireTierRow's own comment: reachable from a row button
   // (panel visible) or from inside the edit dialog (panel hidden behind it).
   const dialogOpen = $('tplOverlay').classList.contains('on');
   if(error){ msg(dialogOpen ? 'tplDialogMsg' : 'tplMsg', error.message, 'err'); return; }
+  // retire_build_template's UPDATE reports whether it actually retired a
+  // row (`n > 0`, the same shape revoke_device_key and set_production_stage
+  // answer with above) -- false means someone else already retired it, or
+  // moved it off this company, before this click reached the server. This
+  // used to close the dialog and say nothing either way, as if the click
+  // itself had done it; a reload then showed the truth, so it self-
+  // corrected, but nobody was ever told the retire had been refused. Say so,
+  // leave the dialog open so the refusal is visible, and let the reload
+  // repaint from the truth either way.
+  if(!retired){ msg(dialogOpen ? 'tplDialogMsg' : 'tplMsg', tr('tplRetireGoneMsg'), 'err'); await reloadTemplates(); return; }
   if(dialogOpen) $('tplOverlay').classList.remove('on');
   await reloadTemplates();
 }
@@ -17865,6 +18091,120 @@ const J_NUM=['tax_rate_percent','markup_percent','discount_percent','minimum_job
              'labor_rate_per_ft','labor_flat_fee','minimum_labor_charge',
              'estimated_duration_hours','deposit_amount'];
 const J_SEL=['status','payment_status','hoa_approval_status','permit_status','materials_status'];
+
+/**
+ * The lead sources the office offers, as the exact text that gets stored.
+ *
+ * English on purpose, whatever language the office reads in. The value is not
+ * only a picker choice: the business report and the lead-source charts group
+ * jobs by this column raw and print what they find, and lead-intake recognises
+ * a lead that came off the get-a-quote page by matching this column against
+ * 'Website'. Translating what gets WRITTEN would split one channel into three
+ * the moment two people in a company used different languages, so only the
+ * label a person reads is translated.
+ *
+ * This is what the office OFFERS, never what the column allows. referral_source
+ * is still free text and stays in J_TEXT: the phone's own field is free text,
+ * the CSV importer writes its own value, and the guest demo marks its jobs
+ * through this column.
+ */
+const REFERRAL_SOURCES = [
+  ['Website', 'refWebsite'],
+  ['Google search', 'refGoogle'],
+  ['Facebook', 'refFacebook'],
+  ['Instagram', 'refInstagram'],
+  ['Nextdoor', 'refNextdoor'],
+  ['Customer referral', 'refCustomerReferral'],
+  ['Repeat customer', 'refRepeat'],
+  ['Yard sign', 'refYardSign'],
+  ['Truck or trailer', 'refTruck'],
+  ['Lead service', 'refLeadService'],
+  ['Builder or contractor', 'refBuilder'],
+  ['Realtor', 'refRealtor'],
+  ['HOA or property manager', 'refHoa'],
+];
+
+/* The picker's "something else" choice: a marker for an intention, not an
+   answer. It is never what the select holds by the time anything reads it --
+   onReferralPick puts the select straight back to blank and opens the free-text
+   box instead. That is deliberate, because everything that saves this field
+   stores whatever the select holds, here and in the new-client wizard, and a
+   marker reaching the column would become a lead source of its own in the
+   business report and in every chart that groups by it. */
+const REFERRAL_OTHER = '__other__';
+
+/**
+ * Fills one referral picker, carrying whatever the job already holds.
+ *
+ * A <select> handed a value it has no option for answers '' instead, silently,
+ * and the next Save writes that '' over a real answer with nobody having
+ * touched the field. So anything already stored gets an option of its own.
+ * That is not hypothetical: the CSV importer stamps every row it creates, the
+ * guest demo marks its own jobs through this column, and the phone's field is
+ * free text -- so no list written here can be assumed to be all of them.
+ */
+function fillReferralOptions(id, current){
+  const sel = $(id);
+  if (!sel) return;
+  const cur = String(current == null ? '' : current);
+  const known = REFERRAL_SOURCES.some(o => o[0] === cur);
+  const opts = ['<option value="">' + esc(tr('refNotRecorded')) + '</option>']
+    .concat(REFERRAL_SOURCES.map(o => '<option value="' + esc(o[0]) + '">' + esc(tr(o[1])) + '</option>'));
+  if (cur && !known) opts.push('<option value="' + esc(cur) + '">' + esc(cur) + '</option>');
+  opts.push('<option value="' + esc(REFERRAL_OTHER) + '">' + esc(tr('refOther')) + '</option>');
+  sel.innerHTML = opts.join('');
+  sel.value = cur;
+}
+
+/**
+ * A choice made in a referral picker.
+ *
+ * "Something else" opens the box and records nothing yet, because nothing has
+ * been said yet. Choosing anything else closes the box and drops the option the
+ * box had built, so a half-typed answer abandoned in favour of a listed one
+ * cannot be what gets saved.
+ */
+function onReferralPick(prefix){
+  const sel = $(prefix + 'referral_source');
+  const box = $(prefix + 'referral_other');
+  if (!sel || !box) return;
+  if (sel.value !== REFERRAL_OTHER) {
+    box.style.display = 'none';
+    box.value = '';
+    const stale = sel.querySelector('option[data-ref-typed]');
+    if (stale) stale.remove();
+    return;
+  }
+  sel.value = '';
+  box.style.display = '';
+  box.value = '';
+  box.focus();
+}
+
+/**
+ * What is typed in the "something else" box IS the stored value.
+ *
+ * It is carried as the select's own selected option while it is typed, so
+ * every reader of this field keeps reading exactly one place and nothing that
+ * saves a job had to learn the box exists. An empty box means nothing
+ * recorded, not a lead source whose name is the empty string.
+ */
+function onReferralTyped(prefix){
+  const sel = $(prefix + 'referral_source');
+  const box = $(prefix + 'referral_other');
+  if (!sel || !box) return;
+  const text = box.value.trim();
+  let opt = sel.querySelector('option[data-ref-typed]');
+  if (!text) { if (opt) opt.remove(); sel.value = ''; return; }
+  if (!opt) {
+    opt = document.createElement('option');
+    opt.setAttribute('data-ref-typed', '1');
+    sel.insertBefore(opt, sel.querySelector('option[value="' + REFERRAL_OTHER + '"]'));
+  }
+  opt.value = text;
+  opt.textContent = text;
+  sel.value = text;
+}
 
 function quoteLinkFor(j){
   return location.origin + location.pathname.replace(/[^/]*$/,'') + 'quote.html?t=' + j.quote_token;
@@ -20128,7 +20468,14 @@ async function showJob(id){
   // applies to every other write on this sheet.
   $('repriceOffice').style.display = canEdit() ? '' : 'none';
   $('jobTitle').textContent=openJob.customer_name||tr('jobTitleFallback');
+  // Options BEFORE the fill on the next line, not after. That line sets this
+  // select from the job, and a select with no option for the value it is given
+  // answers '' instead -- which the next Save would then write over this job's
+  // real lead source with nobody having touched the field.
+  fillReferralOptions('j_referral_source', openJob.referral_source);
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||'';});
+  // Closes the free-text box, in case the job open before this one left it up.
+  onReferralPick('j_');
   J_NUM.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]??0;});
   J_SEL.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||el.options[0].value;});
   // Net, and shown as the sum it actually is.
@@ -20246,8 +20593,12 @@ async function showJob(id){
     // here and the formula is one edit away from disagreeing with the job
     // header's balance, which is the one thing this block is supposed to match.
     const balance = balanceOf(openJob, contract);
+    // depositAskedOf(), same cap the readiness checklist and readiness check
+    // apply -- not the raw column. A deposit set before a re-price came down
+    // must never print higher than the job is worth today.
+    const deposit = depositAskedOf(openJob, contract);
     $('jobEstDepositBalance').innerHTML =
-      `<div class="li-row"><span>${esc(tr('jobHdrStepDeposit'))}</span><span>${money(openJob.deposit_amount)}</span></div>`
+      `<div class="li-row"><span>${esc(tr('jobHdrStepDeposit'))}</span><span>${money(deposit)}</span></div>`
       + `<div class="li-row"><span>${esc(tr('jobHdrMoneyBalance'))}</span><span>${money(balance)}</span></div>`;
   } else {
     $('jobEstDepositBalance').innerHTML = '';
@@ -20582,8 +20933,19 @@ function wizClose(){
     in memory is exactly how step 5's dry_run would send a stale
     expected_updated_at to price-job and 409 against its own save. */
 async function wizPatchJob(patch){
+  // .select().maybeSingle() so every caller below is judged on what the
+  // write actually changed, the same rule saveJob/saveFixTime/
+  // recordFirstContact already follow: an update that matches no row --
+  // jobs_update is a plain company_id filter, so this fires when the job has
+  // been deleted or moved to another company since the wizard opened it --
+  // answers with { data: null, error: null }. Every one of the nine call
+  // sites below only ever destructured {error}, so a step that changed
+  // nothing on the server still advanced the wizard as if it had saved.
+  // Centralised here rather than at each call site, same as saveSettings'
+  // labour-floor fix.
   const { data, error } = await db.from('jobs').update(patch).eq('id', wiz.job.id).select().maybeSingle();
   if(error) return { error };
+  if(!data) return { error: { message: tr('wizSaveNothingChangedErr') } };
   Object.assign(wiz.job, data);
   const idx = jobs.findIndex(j2=>String(j2.id)===String(wiz.job.id));
   if(idx>=0) jobs[idx]=wiz.job; else jobs.push(wiz.job);
@@ -20682,12 +21044,21 @@ function wizStepWhoHtml(){
         <button class="btn btn-sm btn-grey" id="wz_addr_verify" type="button">Verify address</button>
         <span class="sub" id="wz_addr_result"></span>
       </div>
-      <label>How they found us</label><input id="wz_referral_source" value="${esc(j.referral_source||'')}">
+      <label>How they found us</label><select id="wz_referral_source"></select>
+      <input id="wz_referral_other" style="display:none;margin-top:6px" placeholder="${esc(tr('refOtherPh'))}">
       <label>Notes</label><textarea id="wz_notes">${esc(j.notes||'')}</textarea>
     </div>`;
 }
 
 function wizWireWho(){
+  // The same picker, the same option list and the same handlers as the job
+  // sheet's, out of one place. Two entry points that write the same column must
+  // not offer different answers: a source only one of them knows about is how a
+  // job created here gets quietly rewritten the first time the sheet saves it.
+  fillReferralOptions('wz_referral_source', (wiz.job || {}).referral_source);
+  onReferralPick('wz_');
+  $('wz_referral_source').addEventListener('change', () => onReferralPick('wz_'));
+  $('wz_referral_other').addEventListener('input', () => onReferralTyped('wz_'));
   $('wz_addr_verify').addEventListener('click', async ()=>{
     const el=$('wz_addr_result');
     const addr=$('wz_address').value.trim();
@@ -22755,7 +23126,7 @@ async function deleteEmp(){
 }
 
 /* ---------- settings ---------- */
-const SET={s_businessName:'business_name',s_ownerName:'owner_name',s_phone:'phone',s_email:'email',
+const SET={s_businessName:'business_name',s_ownerName:'owner_name',s_phone:'phone',
   s_license:'license_number',s_tax:'tax_rate',s_markup:'markup',s_labor:'labor_rate',
   s_spacing:'post_spacing',s_bags:'concrete_bags',s_pw:'panel_width',s_ph:'panel_height',
   s_min:'min_job_charge',s_min_labor:'min_labor_charge',
@@ -22774,12 +23145,34 @@ async function loadSettings(){
   // below calls it directly on open instead of trusting loadAll()'s chain.
   const note = $('setNote');
   try {
-    const {data,error}=await db.from('company_settings').select('settings')
-      .eq('company_id',profile.company_id).maybeSingle();
+    const [{data,error},company]=await Promise.all([
+      db.from('company_settings').select('settings').eq('company_id',profile.company_id).maybeSingle(),
+      // companies.email, NOT company_settings.settings.email: the settings
+      // blob's own "email" key is written here and read nowhere else in the
+      // app -- quotes, crew invitations, follow-ups and FenceFlow mail's
+      // reply-to all read this column instead (mail-send's caller.ts,
+      // quote-view, invite-crew, send-follow-ups). Loading the blob's copy
+      // showed the office a value that was not the one actually in effect,
+      // which is how this field went stale for months with no error anywhere.
+      db.from('companies').select('email').eq('id',profile.company_id).maybeSingle(),
+    ]);
     if(error) throw error;
+    if(company.error) throw company.error;
     if(note) note.textContent='';
     const s=data?.settings||{};
     Object.entries(SET).forEach(([el,key])=>{const e=$(el); if(e) e.value=s[key]??'';});
+    const emailEl=$('s_email');
+    if(emailEl){
+      emailEl.value = company.data?.email ?? '';
+      // RLS (companies_update) only lets the OWNER change this row -- a
+      // manager's save would be silently filtered to zero rows changed, not
+      // an error, which is exactly the "empty answer reads as good news"
+      // trap. Disabling it for anyone else is honest instead of quietly
+      // failing.
+      emailEl.disabled = profile.role !== 'OWNER';
+    }
+    const emailOwnerNote=$('s_emailOwnerNote');
+    if(emailOwnerNote) emailOwnerNote.style.display = profile.role === 'OWNER' ? 'none' : '';
   } catch(e) {
     console.error('loadSettings failed:', e);
     if(note){
@@ -22788,6 +23181,7 @@ async function loadSettings(){
     }
   }
 }
+
 async function saveSettings(){
   if(!canEdit()) return;
   // A blank number field is "I did not set this", not "set this to zero".
@@ -22808,6 +23202,71 @@ async function saveSettings(){
   const {error}=await db.rpc('save_company_settings',{new_settings:payload});
   if(error) return msg('setMsg',error.message,'err');
 
+  // companies.email is a separate table from company_settings, and RLS
+  // (companies_update) only lets the OWNER write it -- the field is disabled
+  // for anyone else in loadSettings() above, so this only runs when the
+  // write can actually succeed. A manager's save leaves the company's real
+  // address exactly as it was, same as before this field was wired up.
+  //
+  // Same principle as the blank-numeric fields above: an empty box means "I
+  // did not set this", not "set this to blank". companies.email is NOT NULL,
+  // so writing '' satisfies the column perfectly while it wipes the address
+  // mail-send, the customer's quote and crew invitations all depend on --
+  // there is no form here, so the input's type="email" never runs the
+  // browser's own check, and an address with no domain suffix would
+  // otherwise save exactly as typed. Skip both cases and say why, rather
+  // than silently discarding what the box had, or what was just typed.
+  //
+  // isValidCompanyEmail: the ONE rule for whether a typed companies.email is
+  // worth writing -- non-blank, and shaped like a real address
+  // (something@something.tld). This exact function, same name and same
+  // body, also lives in admin.html -- the admin console's company-edit
+  // dialog writes the same NOT-NULL column under a policy that lets the
+  // platform admin update ANY company, so the same hole is open there
+  // unless it carries the identical guard. The two pages are static files
+  // that cannot import from each other, so this is necessarily a copy, not
+  // a shared module; tests/a8-company-email-guard.test.mjs reads BOTH files
+  // and asserts they define this function with matching behaviour, so a
+  // change to one that is not mirrored in the other fails loudly instead of
+  // drifting quietly (the way the labour formula once drifted into three
+  // copies). Declared here, nested, rather than at module scope, so it
+  // stays inside the same brace-matched block that
+  // tests/a7-dashboard-money-regressions.test.mjs already lifts out whole to
+  // run saveSettings() standalone -- a module-scope helper would leave that
+  // existing test calling into a ReferenceError instead of extending it.
+  function isValidCompanyEmail(email){
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email ?? '').trim());
+  }
+  let emailSkippedMsg = '';
+  if (profile.role === 'OWNER') {
+    const newEmail = $('s_email')?.value.trim() ?? '';
+    if (newEmail === '') {
+      emailSkippedMsg = tr('settingsEmailBlankMsg');
+    } else if (!isValidCompanyEmail(newEmail)) {
+      emailSkippedMsg = tr('settingsEmailInvalidMsg', newEmail);
+    } else {
+      // .select('id') so the save is judged on what it actually changed, not
+      // on the absence of an error -- fixed the same way admin.html's own
+      // company save was (see tests/a10-admin-save-zero-rows.test.mjs).
+      // companies_update is `for update using (id = current_company_id() and
+      // current_user_role() = 'OWNER')` with no separate WITH CHECK
+      // (supabase_schema.sql), and Postgres RLS applies that USING clause on
+      // UPDATE as a plain row filter: a row it excludes is just not in the
+      // affected set, no exception, no error field. current_user_role() is
+      // read fresh on the SERVER for every request, so the one moment this
+      // owner's OWN session can lose the row is being demoted to MANAGER or
+      // CREW by someone else while this page sits open with the stale
+      // client-side profile.role still saying OWNER -- and that failure
+      // writes nothing at all while this call comes back with data: [] and
+      // error: null, exactly what a real success looks like without this
+      // check. See tests/a12-dash-zero-row-writes.test.mjs.
+      const { data: savedEmailRows, error: emailErr } = await db.from('companies')
+        .update({ email: newEmail }).eq('id', profile.company_id).select('id');
+      if (emailErr) return msg('setMsg', emailErr.message, 'err');
+      if (!savedEmailRows || !savedEmailRows.length) return msg('setMsg', tr('settingsEmailSaveNoRowsMsg'), 'err');
+    }
+  }
+
   // The legacy post-spacing/panel-width/panel-height/bags boxes above also
   // drive the company's default VINYL template now (OFFICE_SETUP_PLAN.md
   // Phase C, item 3) -- the one thing that actually reads "what a new run
@@ -22822,14 +23281,14 @@ async function saveSettings(){
     if(vinylPatch){
       const {error:tplErr} = await db.rpc('save_build_template', {p: vinylPatch});
       if(tplErr){
-        msg('setMsg', tr('settingsVinylUpdateFailedMsg', tplErr.message), 'err');
+        msg('setMsg', tr('settingsVinylUpdateFailedMsg', tplErr.message) + (emailSkippedMsg ? ' ' + emailSkippedMsg : ''), 'err');
         return;
       }
       await reloadTemplates();
     }
   }
 
-  msg('setMsg',tr('settingsSavedMsg'),'ok');
+  msg('setMsg', emailSkippedMsg ? tr('settingsSavedMsg') + ' ' + emailSkippedMsg : tr('settingsSavedMsg'), emailSkippedMsg ? 'err' : 'ok');
   // Setting a labour rate should clear the warning about not having one,
   // now, rather than on the next full page load.
   const sp = await db.rpc('my_setup_progress');
@@ -23473,8 +23932,20 @@ async function mailMarkUnread(m, btn){
 async function mailLinkJob(syncId){
   const t = mailThread;
   if (!t || !syncId) return;
-  const { error } = await db.rpc('mail_link_thread', { p_thread: t.id, p_job_sync_id: syncId });
+  const { data: linked, error } = await db.rpc('mail_link_thread', { p_thread: t.id, p_job_sync_id: syncId });
   if (error) return msg('mailMsg', error.message, 'err');
+  // mail_link_thread's insert uses ON CONFLICT DO NOTHING and returns
+  // `found` -- the same true/false-for-no-op shape revoke_device_key and
+  // set_production_stage answer with (see their own comments above). But
+  // unlike those two, and unlike mailUnlinkJob and retireBuildTemplate right
+  // below, a false `linked` here is benign, not a refusal: it only means
+  // the pair was ALREADY linked, so the thread ends up linked to this job
+  // either way
+  // -- exactly what the success message below says. Read for the same
+  // reason those three read theirs (so this isn't an accidental omission)
+  // but deliberately not branched on. Do not point at this function to
+  // justify dropping the checks in mailUnlinkJob or retireBuildTemplate --
+  // their false really does mean the write did nothing.
   if (!t.links.includes(syncId)) t.links.push(syncId);
   t.linking = false;
   const row = mailView.threads.find(x => x.id === t.id);
@@ -23486,8 +23957,19 @@ async function mailLinkJob(syncId){
 async function mailUnlinkJob(syncId){
   const t = mailThread;
   if (!t || !syncId) return;
-  const { error } = await db.rpc('mail_unlink_thread', { p_thread: t.id, p_job_sync_id: syncId });
+  const { data: unlinked, error } = await db.rpc('mail_unlink_thread', { p_thread: t.id, p_job_sync_id: syncId });
   if (error) return msg('mailMsg', error.message, 'err');
+  // mail_unlink_thread's DELETE returns `found` -- whether a row was
+  // actually removed. Unlike mailLinkJob just above, false here is NOT
+  // benign: it means the link this button was pointed at is still sitting
+  // in mail_thread_jobs (a stale read, another tab, a company mismatch the
+  // client can't see). This function used to stop reading right here,
+  // filter the chip out of `t.links` regardless, and never reload -- so the
+  // screen said the thread was unlinked from that job while the database
+  // still had it linked. Refuse to touch local state on that answer and
+  // reload the thread from the server instead, so the reader repaints from
+  // what is actually true.
+  if (!unlinked) { msg('mailMsg', tr('mailUnlinkFailedMsg'), 'err'); return openMailThread(t.id); }
   t.links = t.links.filter(x => x !== syncId);
   const row = mailView.threads.find(x => x.id === t.id);
   if (row) { row.job_sync_ids = (row.job_sync_ids || []).filter(x => x !== syncId); renderMailThreads(); }
@@ -24604,6 +25086,18 @@ $('impFile').addEventListener('change',async e=>{
 });
 $('newEmp').addEventListener('click',()=>showEmp(null));
 $('dkMintBtn').addEventListener('click', mintDeviceKey);
+// Straight to the product-key panel. switchTab on its own lands at the top of
+// the Crew tab, where that panel is the fifth thing down -- which is the whole
+// reason the owner could not find it.
+$('dkPointerBtn').addEventListener('click', () => {
+  switchTab('crew');
+  $('deviceKeysPanel')?.scrollIntoView({ behavior:'smooth', block:'start' });
+});
+// hiddenSetupKeys() is called on the click, not when this is wired: what is
+// dismissed changes while the page is open.
+$('setupHiddenShowBtn').addEventListener('click', () => setSetupStepsDismissed(hiddenSetupKeys(), false));
+$('j_referral_source').addEventListener('change', () => onReferralPick('j_'));
+$('j_referral_other').addEventListener('input', () => onReferralTyped('j_'));
 $('saveEmp').addEventListener('click',saveEmp);
 $('e_pay_type').addEventListener('change',syncEmpPayNote);
 $('deleteEmp').addEventListener('click',deleteEmp);

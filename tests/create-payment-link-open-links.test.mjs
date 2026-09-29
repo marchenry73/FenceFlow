@@ -62,7 +62,7 @@ function load({ env = {}, db, fetchImpl, plant = {} }) {
   };
   const api = new Function("Deno", "createClient", "fetch", ...sharedNames,
     js + "\n" + planted +
-    "\nreturn { planOpenLinks, supersedeOpenLinks, stillTakesMoney, sameModeAsKey, pickReusableLink };",
+    "\nreturn { planOpenLinks, supersedeOpenLinks, stillTakesMoney, sameModeAsKey, pickReusableLink, reapprovalBillingCap };",
   )(Deno, () => db, fetchImpl, ...sharedNames.map((n) => shared[n]));
   assert.equal(typeof handler, "function", "Deno.serve was never called");
   return { handler, ...api };
@@ -773,4 +773,190 @@ test("pickReusableLink and sameModeAsKey, lifted and called directly", async () 
   assert.equal(await pickReusableLink([l], liveKey, async () => "yes"), null, "only a real true is a yes");
   assert.equal(await pickReusableLink([{ ...l, payment_url: "" }], liveKey, yes), null, "no URL, nothing to hand back");
   assert.equal(await pickReusableLink(null, liveKey, yes), null);
+});
+
+// ===================================================== DEFECT 1: reapproval
+//
+// While a re-approval is pending (jobs.reapproval_required_at set,
+// quote_approved_at cleared by reapp_withdraw_approval), billableTotal() --
+// reached through depositFigures() inside makeLink()'s billedJob computation
+// -- deliberately falls back to the LIVE contract_total: correct for a
+// display figure ("what does the drawing price out to today"), wrong for a
+// CAP on what may be billed, since the live figure is exactly the one the
+// customer has not agreed to. Door two (the homeowner's own quoteToken link)
+// never reaches that arithmetic in this state at all -- it is refused first
+// by `if (!qjob.quote_approved_at) return 404`, the same column the
+// withdrawal clears. Door one (the office, signed in) had no equivalent gate:
+// nothing stopped it billing the live figure for real money. Real, current
+// jobs (read live 2026-09-28, project newcrgafcptspmapacrx):
+//   James Bond:        signed 35,240   live 36,290   gap 1,050
+//   John Beaunissant:  signed 15,540   live 16,000   gap   460
+//
+// The fix (reapprovalBillingCap(), index.ts): while reapproval_required_at is
+// set, the cap fed to planOpenLinks is accepted_total itself, not
+// billableTotal's live fallback -- accepted_total survives the withdrawal
+// (reapp_withdraw_approval's own UPDATE never writes it), so it is still
+// there to cap against. A request over that cap is REFUSED with a distinct
+// "reapproval_pending" code and a reason the office can act on -- never
+// silently reduced and billed at the lower figure instead.
+
+const JAMES_BOND_JOB = {
+  contract_total: 36290, accepted_total: 35240,
+  signed_at: "2026-09-25T15:58:33.967Z", quote_approved_at: null,
+  reapproval_required_at: "2026-09-28T16:50:37.805Z",
+};
+
+test("the live fault: the office cannot bill James Bond's job for the live $36,290 when only $35,240 was ever agreed", async () => {
+  const w = world({ job: JAMES_BOND_JOB });
+  const r = await office(w, { amountCents: 3629000, kind: "final" });
+  assert.equal(r.status, 400, JSON.stringify(r.body));
+  assert.equal(r.body.code, "reapproval_pending");
+  assert.match(r.body.error, /35240\.00/, "names the price actually agreed to");
+  assert.match(r.body.error, /approve/i, "gives the office something to act on, not just a bigger number");
+  assert.equal(made(w).length, 0, "no link was made at the processor");
+  assert.equal(inserts(w).length, 0, "no row was written -- refused, not silently reduced and billed");
+});
+
+test("positive control: the SAME job, billed at exactly the price agreed to, goes through", async () => {
+  const w = world({ job: JAMES_BOND_JOB });
+  const r = await office(w, { amountCents: 3524000, kind: "final" });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(made(w).length, 1);
+  assert.equal(inserts(w)[0][4], 3524000);
+});
+
+test("the live fault, second job: John Beaunissant cannot be billed $16,000 when only $15,540 was agreed", async () => {
+  const job = {
+    contract_total: 16000, accepted_total: 15540,
+    signed_at: "2026-09-20T09:00:00Z", quote_approved_at: null,
+    reapproval_required_at: "2026-09-27T10:00:00Z",
+  };
+  const refused = await office(world({ job }), { amountCents: 1600000, kind: "final" });
+  assert.equal(refused.status, 400);
+  assert.equal(refused.body.code, "reapproval_pending");
+  assert.match(refused.body.error, /15540\.00/);
+
+  const ok = await office(world({ job }), { amountCents: 1554000, kind: "final" });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+});
+
+test("control: once the re-approval is resolved, the SAME live figure is refused by the ordinary rule instead", async () => {
+  // Isolates the new message to reapproval specifically: with nothing
+  // pending, billableTotal legitimately returns the accepted figure (not the
+  // live one) because acceptance still stands, so the live $36,290 ask is
+  // refused by the pre-existing over_owed path, not the new one.
+  const w = world({ job: { ...JAMES_BOND_JOB, quote_approved_at: "2026-09-26T00:00:00Z", reapproval_required_at: null } });
+  const r = await office(w, { amountCents: 3629000, kind: "final" });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, "over_owed", "not reapproval_pending -- nothing is pending on this job");
+  assert.match(r.body.error, /35240\.00/);
+});
+
+test("control: a deposit request is capped the same way as a balance/final request while pending", async () => {
+  const w = world({ job: JAMES_BOND_JOB });
+  const r = await office(w, { amountCents: 3629000, kind: "deposit" });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, "reapproval_pending");
+});
+
+test("Square: a re-approval pending job is capped exactly the same way as Stripe", async () => {
+  const conn = { processor: "square", external_id: "MERCHANT1", access_token: "sq-placeholder-token" };
+  const w = world({ conn, job: JAMES_BOND_JOB });
+  const r = await office(w, { amountCents: 3629000, kind: "final" });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, "reapproval_pending");
+  assert.equal(made(w).length, 0);
+});
+
+test("control: a job with a signed change order still bills correctly when nothing is pending, and the reapproval cap still holds when it is", async () => {
+  const changeOrder = { company_id: COMPANY, job_sync_id: JOB, additional_cost: 500, signed_at: "2026-09-27T00:00:00Z", deleted_at: null, in_accepted_total: false };
+  const base = { contract_total: 36290, accepted_total: 35240, signed_at: "2026-09-25T15:58:33.967Z" };
+
+  // Not pending: 35240 accepted + 500 signed AFTER acceptance = 35740 billable.
+  const notPending = world({ job: { ...base, quote_approved_at: "2026-09-26T01:00:00Z", reapproval_required_at: null } });
+  notPending.db.tables.change_orders = [changeOrder];
+  const r1 = await office(notPending, { amountCents: 3574000, kind: "final" });
+  assert.equal(r1.status, 200, JSON.stringify(r1.body));
+
+  // Pending: reapprovalBillingCap deliberately does not try to add signed
+  // change orders on top of accepted_total (see its own doc comment) -- the
+  // conservative accepted_total alone is the cap, so the same $500 stays
+  // refused until the customer re-approves.
+  const pending = world({ job: { ...base, quote_approved_at: null, reapproval_required_at: "2026-09-28T00:00:00Z" } });
+  pending.db.tables.change_orders = [changeOrder];
+  const r2 = await office(pending, { amountCents: 3574000, kind: "final" });
+  assert.equal(r2.status, 400);
+  assert.equal(r2.body.code, "reapproval_pending");
+});
+
+test("control: a job with no re-approval pending and no accepted_total at all is unaffected", async () => {
+  // world()'s default job carries neither field -- the whole existing 42-test
+  // suite above already proves this path is untouched; this is a direct
+  // check on the new function itself.
+  const { reapprovalBillingCap } = world();
+  assert.equal(reapprovalBillingCap(null), null);
+  assert.equal(reapprovalBillingCap({ acceptedTotal: 35240, reapprovalRequiredAt: null }), null, "nothing pending, no override");
+  assert.equal(reapprovalBillingCap({ acceptedTotal: null, reapprovalRequiredAt: "2026-09-28T00:00:00Z" }), null, "pending but nothing to anchor to");
+  assert.equal(reapprovalBillingCap({ acceptedTotal: 0, reapprovalRequiredAt: "2026-09-28T00:00:00Z" }), null, "a zero is not a price");
+  assert.equal(reapprovalBillingCap({ acceptedTotal: 35240, reapprovalRequiredAt: "2026-09-28T00:00:00Z" }), 35240);
+});
+
+test("PLANTED FAILURE: with reapprovalBillingCap disabled, the live over-bill goes straight through", async () => {
+  const w = world({ job: JAMES_BOND_JOB, plant: { reapprovalBillingCap: "() => null" } });
+  const r = await office(w, { amountCents: 3629000, kind: "final" });
+  assert.equal(r.status, 200, "the planted bug lets the un-agreed $36,290 through");
+  assert.equal(made(w).length, 1);
+  assert.equal(inserts(w)[0][4], 3629000, "the full live figure, not the $35,240 actually agreed to");
+});
+
+// ======================================================== DEFECT 2: netPaid
+//
+// depositFigures() floors netPaid at zero before computing `balance`
+// (`Math.max(0, num(amountPaid) - num(refundedAmount))`, then
+// `Math.max(0, total - netPaid)`). The homeowner "pay the balance" branch
+// (quoteToken door, kind:"balance") used to redo that subtraction itself
+// WITHOUT the floor. A job whose refunded_amount exceeds its recorded
+// amount_paid -- reachable because the ledger trigger sums paid and refunded
+// rows independently with nothing tying them together -- produced a NEGATIVE
+// netPaid there, which INFLATED the figure asked of makeLink() above the
+// job's real balance. makeLink() re-derives its own cap independently
+// (planOpenLinks, correctly floored) and refused the inflated request -- so a
+// customer who genuinely owed the whole billable total could not pay it,
+// refused with "that is more than this job still owes" on a job that was not
+// paid in full. The fix uses deposit.balance, the one figure depositFigures()
+// already computed correctly one line above, instead of a second copy of the
+// same arithmetic.
+
+test("homeowner door: an over-refunded job can still pay its real balance", async () => {
+  // amount_paid $1,000, refunded_amount $1,600 -- refunded MORE than was ever
+  // recorded paid. Unfloored, netPaid would be -$600.
+  const w = world({ job: { contract_total: 9710, amount_paid: 1000, refunded_amount: 1600 } });
+  const r = await homeowner(w, "balance");
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(inserts(w).length, 1);
+  assert.equal(inserts(w)[0][4], 971000, "the whole $9,710 billable total -- netPaid correctly floored at zero");
+});
+
+test("CANARY: the pre-fix formula (total minus UNFLOORED netPaid) overshoots the real balance on the same job", () => {
+  const total = 9710, amountPaid = 1000, refundedAmount = 1600;
+  const oldNetPaid = amountPaid - refundedAmount; // -600, the missing floor
+  const oldDollars = Math.max(0, total - oldNetPaid); // 10310
+  assert.equal(oldDollars, 10310, "the old inline formula asks for $600 more than the job's own $9,710 total");
+  assert.notEqual(Math.round(oldDollars * 100), 971000,
+    "which makeLink()'s own (correctly floored) cap would then have refused as over_owed -- " +
+    "a real customer unable to pay a real, owed balance");
+});
+
+test("control: without any over-refund, the balance branch already matched depositFigures().balance", async () => {
+  const w = world({ job: { contract_total: 9710, amount_paid: 1000, refunded_amount: 0 } });
+  const r = await homeowner(w, "balance");
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(inserts(w)[0][4], 871000, "9710 - 1000 paid = 8710.00");
+});
+
+test("control: the deposit branch was never affected -- deposit.due is already floored", async () => {
+  const w = world({ job: { contract_total: 9710, amount_paid: 1000, refunded_amount: 1600, deposit_amount: 2000 } });
+  const r = await homeowner(w, "deposit");
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(inserts(w)[0][4], 200000, "asked = min(2000, 9710) = 2000; due = max(0, 2000 - flooredNetPaid(0)) = 2000");
 });

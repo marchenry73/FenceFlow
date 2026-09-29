@@ -255,6 +255,52 @@ async function applyPaymentToJob(admin: any, payment: any) {
 }
 
 /**
+ * Marks a Payment Link's request paid and books it -- called only once the
+ * caller is sure the money is actually there, never on the strength of
+ * checkout.session.completed alone.
+ *
+ * Two callers reach this: checkout.session.completed, when
+ * session.payment_status is "paid" (a synchronous method -- a card -- clears
+ * within the same request that produced this event), and
+ * checkout.session.async_payment_succeeded, which is Stripe confirming days
+ * later that an asynchronous method's debit (US bank account / ACH, SEPA
+ * Debit, Cash App Pay, and others Stripe may add) that was still pending has
+ * now actually cleared. See the payment_status switch in
+ * checkout.session.completed below for why an "unpaid" session must not
+ * reach here.
+ *
+ * Idempotent exactly as it always was: a row already marked paid is left
+ * alone, so a retry or duplicate delivery of either event cannot credit the
+ * same payment twice.
+ */
+async function creditPaymentLink(admin: any, session: any): Promise<void> {
+  const linkId = session.payment_link;
+  if (!linkId) return;
+
+  // Only act on a payment we haven't already banked. Stripe retries
+  // webhooks, and adding the same amount twice would silently overstate
+  // what the customer has paid.
+  const { data: pending } = await admin.from("job_payments")
+    .select("id, job_sync_id, amount_cents, company_id, status, livemode, stripe_id")
+    .eq("stripe_id", linkId).maybeSingle();
+
+  if (pending && pending.status !== "paid") {
+    await admin.from("job_payments")
+      .update({
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        // A refund arrives naming the payment intent and nothing of ours;
+        // the link id we stored is not on it. Kept here so the refund
+        // branch below can place the money.
+        external_id: String(session.payment_intent ?? ""),
+      })
+      .eq("id", pending.id);
+
+    await applyPaymentToJob(admin, pending);
+  }
+}
+
+/**
  * Tells the phones of the people who may see money that money is being taken
  * back.
  *
@@ -450,27 +496,51 @@ Deno.serve(async (req) => {
           // Payment Links carry the link id, which is what we stored.
           const linkId = session.payment_link;
           if (linkId) {
-            // Only act on a payment we haven't already banked. Stripe retries
-            // webhooks, and adding the same amount twice would silently
-            // overstate what the customer has paid.
-            const { data: pending } = await admin.from("job_payments")
-              .select("id, job_sync_id, amount_cents, company_id, status, livemode, stripe_id")
-              .eq("stripe_id", linkId).maybeSingle();
-
-            if (pending && pending.status !== "paid") {
-              await admin.from("job_payments")
-                .update({
-                  status: "paid",
-                  paid_at: new Date().toISOString(),
-                  // A refund arrives naming the payment intent and nothing of
-                  // ours; the link id we stored is not on it. Kept here so the
-                  // refund branch below can place the money.
-                  external_id: String(session.payment_intent ?? ""),
-                })
-                .eq("id", pending.id);
-
-              await applyPaymentToJob(admin, pending);
+            // Whether the money is actually here yet, or only promised.
+            //
+            // This event fires the instant Checkout finishes, and that is
+            // not the same moment for every payment method. A card charges
+            // synchronously, so by the time this event exists
+            // payment_status is already "paid". An asynchronous method --
+            // US bank account / ACH debit, SEPA Debit, Cash App Pay, and
+            // others Stripe may add -- reaches this SAME event the moment
+            // the customer submits their bank details, days before the
+            // debit can actually clear: payment_status is "unpaid" here,
+            // and Stripe's own docs are explicit that a caller who needs to
+            // know the money really arrived must wait for a later event
+            // rather than trust this one alone:
+            // https://docs.stripe.com/payments/checkout/fulfill-orders#delayed-notification-payment-methods
+            //
+            // Crediting on "unpaid" was the defect: a bank-debit deposit
+            // read paid in full the moment the customer clicked through,
+            // sometimes days before the debit could still bounce -- and
+            // because job_payments.status was already "paid" by then, the
+            // async-failure handler's own guard ("never overwrite a
+            // request that already cleared") threw the failure away
+            // instead of correcting it. See
+            // checkout.session.async_payment_succeeded and
+            // checkout.session.async_payment_failed below for the two
+            // ways an "unpaid" session here is actually settled, and the
+            // async_payment_failed case for the conservative half of the
+            // fix -- what to do about a payment this bug already credited
+            // wrongly, before today.
+            const paymentStatus = String(session.payment_status ?? "");
+            if (paymentStatus === "paid" || paymentStatus === "no_payment_required") {
+              await creditPaymentLink(admin, session);
+            } else if (paymentStatus !== "unpaid") {
+              // Some payment_status this code does not recognise. Do
+              // nothing rather than guess which side of "credit it" /
+              // "wait for it" it falls on -- the request row is left
+              // exactly as it is (it already defaults to 'pending' the
+              // moment the link is created, so nothing here is lost by
+              // waiting), and a later event settles it.
+              console.error("checkout.session.completed: unrecognised payment_status",
+                JSON.stringify(paymentStatus), "session", String(session.id ?? ""));
             }
+            // paymentStatus === "unpaid": the wait case, deliberately a
+            // no-op. checkout.session.async_payment_succeeded /
+            // ...async_payment_failed below settle it either way, so
+            // nothing is silently dropped.
           }
         } else if (session.mode === "subscription" && companyId) {
           // The status is deliberately not written here.
@@ -495,7 +565,25 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ---- The card did not go through ----
+      // ---- An asynchronous payment method's debit actually cleared ----
+      //
+      // The confirmation checkout.session.completed could not give when the
+      // method was delayed -- US bank account / ACH, SEPA Debit, Cash App
+      // Pay, etc: see the payment_status switch in checkout.session.completed
+      // above. Same Checkout Session shape as that event (Stripe re-sends the
+      // whole session, now with payment_status "paid"), so the same credit
+      // path applies verbatim, with the same idempotency: a row already
+      // "paid" -- from the synchronous branch, or from a retried delivery of
+      // this same event -- is left alone.
+      case "checkout.session.async_payment_succeeded": {
+        const session = event.data.object;
+        if (session.mode === "payment") {
+          await creditPaymentLink(admin, session);
+        }
+        break;
+      }
+
+      // ---- The card, or the async debit, did not go through ----
       //
       // Before this, a failed deposit produced nothing at all: no ledger row
       // (correct, no money moved) but also no record of the attempt anywhere
@@ -503,6 +591,13 @@ Deno.serve(async (req) => {
       // ever asked for. The ledger and amount_paid stay untouched here; only
       // the request itself is marked, and the office is told, so a declined
       // card reads as "try again" rather than silence.
+      //
+      // For an asynchronous method this is also the OTHER half of the
+      // payment_status fix above: whatever settles this session (success or
+      // failure) arrives here or in async_payment_succeeded, and as long as
+      // checkout.session.completed left an "unpaid" session alone, this row
+      // is still 'pending' when either one arrives -- so there is nothing to
+      // undo, only something to record for the first time.
       case "checkout.session.async_payment_failed": {
         const session = event.data.object;
         if (session.mode === "payment") {
@@ -511,6 +606,40 @@ Deno.serve(async (req) => {
             const { data: pending } = await admin.from("job_payments")
               .select("id, company_id, amount_cents, status")
               .eq("stripe_id", linkId).maybeSingle();
+
+            if (pending?.status === "paid") {
+              // The contradiction the fix above closes going forward: this
+              // row already reads paid, yet Stripe is telling us, for this
+              // SAME payment link, that the async debit which would have
+              // been the only way it became paid did not in fact arrive.
+              // Before today's fix, checkout.session.completed could mark a
+              // row paid on an "unpaid" session; this is the shape that
+              // leaves behind.
+              //
+              // Deliberately NOT auto-reversed. recordRefund() below is
+              // exactly the mechanism that would do it -- downward-only,
+              // idempotent on its own id, already trusted for a real Stripe
+              // refund and for a lost dispute -- but wiring a failure event
+              // straight into it risks an automatic reversal firing on a
+              // delayed or duplicated webhook and undoing a payment that
+              // is genuinely fine. Reversing the ledger is a call for a
+              // person, not this function: logged loudly so it is not
+              // silently lost, and left for the office to check against
+              // Stripe's own dashboard and correct by hand. A proper flag
+              // the office could see on the job needs a schema change --
+              // see supabase_stripe_async_reversal_review.sql (not
+              // applied) and the decision it lays out for March.
+              console.error(
+                "checkout.session.async_payment_failed: payment link already marked paid -- " +
+                "needs manual review, ledger left untouched.",
+                "job_payments.id=" + String(pending.id ?? ""),
+                "company_id=" + String(pending.company_id ?? ""),
+                "amount=" + String(Number(pending.amount_cents || 0) / 100),
+                "session=" + String(session.id ?? ""),
+              );
+              break;
+            }
+
             // Never overwrite a request that already cleared -- a delayed
             // async-failure notification arriving after the payment
             // succeeded some other way must not relabel it failed.

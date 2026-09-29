@@ -936,6 +936,26 @@ test("PLANTED: a sender, headers or envelope commands smuggled through the reque
   assert.equal(world.events.length, 1);
 });
 
+test("mailbox: no Reply-To is added even though the company has its own email on file -- a mailbox already sends as its real address", async () => {
+  resetWorld();
+  // world's default company.email is office@acmefence.com; this mailbox
+  // sends as a DIFFERENT address, so a Reply-To borrowed from companies.email
+  // (the rule viaFenceflow correctly uses -- see the "fenceflow mail" tests
+  // below) would be provable here, not indistinguishable from From. Same
+  // Zoho SMTP host either way: acmefence.com is not a Zoho personal domain,
+  // so the "pro" preset hosts.ts picks does not depend on which address at
+  // that domain is sending.
+  const acc = seedAccount({ email_address: "sales@acmefence.com" });
+  const { server, deps } = zoho();
+  const res = await call(sendBody(acc), deps);
+  assert.equal(res.status, 200, res.text);
+  const s = server.accepted[0];
+  assert.match(headerOf(s.data, "From"), /<sales@acmefence\.com>$/);
+  assert.equal(headerOf(s.data, "Reply-To"), null, "a mailbox send must rely on its own From, never add a Reply-To");
+  const [row] = sends();
+  assert.deepEqual(row.reply_to_list, [], "the stored row must not claim a reply-to the message never carried");
+});
+
 test("mailbox: a manager (not only the owner) can send; the signature goes under the text", async () => {
   resetWorld({ profile: { data: { company_id: COMPANY, role: "MANAGER" }, error: null } });
   const acc = seedAccount({ signature: "Pat at Acme\n555-0100" });

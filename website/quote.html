@@ -71,6 +71,18 @@
         padding:7px 13px;font-size:13px;color:var(--text);white-space:nowrap}
   .chip b{font-weight:600}
 
+  /* ------- the collapsed detail -------
+     The summary above (chips + totals) is what a person decides on. The
+     per-run breakdown is everything, correct and complete, one tap away --
+     never the resting state. */
+  .scope-toggle{display:inline-block;background:none;border:none;padding:6px 0 2px;
+        margin:0 0 2px;color:var(--orange);font:600 13.5px/1 "IBM Plex Sans",sans-serif;
+        cursor:pointer}
+  .scope-toggle:hover{text-decoration:underline}
+  .scope-toggle::after{content:'\25BE';display:inline-block;margin-left:5px;
+        transition:transform .15s}
+  .scope-toggle[aria-expanded="true"]::after{transform:rotate(180deg)}
+
   /* ------- the two numbers -------
      A quote a customer has to squint at is a quote they take away to think
      about. The total is the biggest thing on the page after the fence. */
@@ -106,6 +118,19 @@
   .approve input:focus{outline:none;border-color:var(--orange);
                        box-shadow:0 0 0 3px rgba(255,90,31,.22)}
 
+  /* ------- typed name vs. drawn signature -------
+     Two equal buttons rather than a dropdown: the choice itself is the point
+     (item C3), so it has to be visible, not hidden behind a click. Only the
+     "draw" one changes anything on screen -- the canvas underneath. */
+  .sigModeRow{display:flex;gap:8px;margin:12px 0 2px}
+  .sigModeBtn{flex:1;background:none;border:1px solid #3A4A63;color:#AEBBCC;
+              border-radius:9px;padding:11px 8px;font:600 13.5px/1.2 "IBM Plex Sans",sans-serif;
+              cursor:pointer;transition:background .15s,border-color .15s}
+  .sigModeBtn[aria-pressed="true"]{background:var(--orange);border-color:var(--orange);color:#fff}
+  #sigCanvas{width:100%;height:150px;display:block;background:#fff;border-radius:9px;
+             border:1px solid #3A4A63;touch-action:none;cursor:crosshair}
+  .sigHint{font-size:12.5px;color:#8593A8;margin:8px 0 0}
+
   .btn{display:block;width:100%;background:var(--orange);color:#fff;border:none;
        padding:16px;border-radius:10px;font-weight:600;font-size:17px;cursor:pointer;
        font-family:inherit;transition:background .15s,transform .15s}
@@ -119,6 +144,10 @@
 
   .done{background:var(--ok-soft);border:1px solid var(--ok-line);color:var(--ok-dk);
         border-radius:14px;padding:20px;margin-bottom:16px;font-size:16px}
+  .done-link{display:inline-block;margin-top:12px;background:none;
+        border:1px solid var(--ok-line);color:var(--ok-dk);padding:10px 16px;
+        border-radius:9px;font:600 14px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
+  .done-link:hover{background:#fff}
   .err{background:#FDECEC;color:#8C1114;border-radius:9px;padding:12px 15px;
        font-size:14.5px;margin-top:12px;display:none}
 
@@ -218,6 +247,20 @@ const L = {
     phoneLast4Locked: 'Too many attempts. Please wait a few minutes and try again.',
     reapprovalNotice: 'We updated your drawing on %s. Please review it and approve again.',
     reapprovalNoticeRun: 'We updated your drawing on %s — the %s line changed. Please review it and approve again.',
+    viewDetails: 'View full breakdown',
+    hideDetails: 'Hide full breakdown',
+    downloadCopy: 'Download a copy',
+    downloadTitle: 'Fence quote for %s',
+    scopeHeading: 'Scope of work',
+    totalsHeading: 'Pricing',
+    sigModeType: 'Type my name',
+    sigModeDraw: 'Draw my signature',
+    signatureHint: 'Sign with your finger or mouse, then press Clear to redo it.',
+    clearSignature: 'Clear',
+    signatureEmpty: 'Draw your signature before approving, or switch to typing your name only.',
+    signatureRejected: 'That signature could not be saved. Clear it, draw it again, or type your name instead.',
+    signatureUnavailable: 'Drawing a signature is not available on this quote right now. Please type your name to approve.',
+    signatureAlt: 'Signature',
   },
   es: {
     loading: 'Abriendo su presupuesto…',
@@ -277,6 +320,20 @@ const L = {
     phoneLast4Locked: 'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.',
     reapprovalNotice: 'Actualizamos su plano el %s. Revíselo y apruébelo de nuevo.',
     reapprovalNoticeRun: 'Actualizamos su plano el %s — cambió el tramo %s. Revíselo y apruébelo de nuevo.',
+    viewDetails: 'Ver el detalle completo',
+    hideDetails: 'Ocultar el detalle completo',
+    downloadCopy: 'Descargar una copia',
+    downloadTitle: 'Presupuesto de cerca para %s',
+    scopeHeading: 'Alcance del trabajo',
+    totalsHeading: 'Precio',
+    sigModeType: 'Escribir mi nombre',
+    sigModeDraw: 'Dibujar mi firma',
+    signatureHint: 'Firme con el dedo o el ratón y pulse Borrar para repetirlo.',
+    clearSignature: 'Borrar',
+    signatureEmpty: 'Dibuje su firma antes de aprobar, o cambie a escribir solo su nombre.',
+    signatureRejected: 'No se pudo guardar esa firma. Bórrela, dibújela de nuevo o escriba su nombre en su lugar.',
+    signatureUnavailable: 'Dibujar una firma no está disponible en este presupuesto por ahora. Escriba su nombre para aprobar.',
+    signatureAlt: 'Firma',
   },
   fr: {
     loading: 'Ouverture de votre devis…',
@@ -336,6 +393,20 @@ const L = {
     phoneLast4Locked: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
     reapprovalNotice: 'Nous avons mis à jour votre plan le %s. Veuillez le vérifier et l\'approuver à nouveau.',
     reapprovalNoticeRun: 'Nous avons mis à jour votre plan le %s — le tronçon %s a changé. Veuillez le vérifier et l\'approuver à nouveau.',
+    viewDetails: 'Voir le détail complet',
+    hideDetails: 'Masquer le détail complet',
+    downloadCopy: 'Télécharger une copie',
+    downloadTitle: 'Devis de clôture pour %s',
+    scopeHeading: 'Étendue des travaux',
+    totalsHeading: 'Tarification',
+    sigModeType: 'Saisir mon nom',
+    sigModeDraw: 'Dessiner ma signature',
+    signatureHint: 'Signez avec le doigt ou la souris, puis appuyez sur Effacer pour recommencer.',
+    clearSignature: 'Effacer',
+    signatureEmpty: 'Dessinez votre signature avant de valider, ou saisissez seulement votre nom.',
+    signatureRejected: 'Cette signature n’a pas pu être enregistrée. Effacez-la, redessinez-la ou saisissez votre nom à la place.',
+    signatureUnavailable: 'Il n’est pas possible de dessiner une signature sur ce devis pour le moment. Saisissez votre nom pour valider.',
+    signatureAlt: 'Signature',
   },
 };
 
@@ -420,14 +491,26 @@ function setLang(code) {
 
     <div id="approvedBox" class="done" style="display:none">
       <div id="approvedText"></div>
+      <img id="approvedSignatureImg" style="display:none;max-width:260px;width:100%;margin-top:12px;
+           background:#fff;border:1px solid var(--ok-line);border-radius:8px;padding:6px">
       <div id="nextSteps"></div>
+      <button type="button" id="downloadBtn" class="done-link" style="display:none"
+              data-t="downloadCopy">Download a copy</button>
     </div>
 
     <div class="panel">
       <h2 id="quoteTitle">Your quote</h2>
       <p class="sub" id="quoteAddr"></p>
       <div id="summaryChips" class="chips"></div>
-      <div id="scope" style="margin-top:10px"></div>
+      <!-- Resting state is the summary above: fence type(s), total length,
+           gates. The full per-run breakdown is real and complete, but it is
+           not what a person decides on, so it stays one tap away. -->
+      <button type="button" id="scopeToggle" class="scope-toggle" style="display:none"
+              aria-expanded="false" aria-controls="scopeDetail"
+              data-t="viewDetails">View full breakdown</button>
+      <div id="scopeDetail" hidden>
+        <div id="scope" style="margin-top:10px"></div>
+      </div>
       <div class="totals" id="totals"></div>
     </div>
 
@@ -439,6 +522,25 @@ function setLang(code) {
       <p style="font-size:14px;color:#AEBBCC" id="approveLead" data-t="leadPlain">Type your name and press approve &mdash; that tells
         us to put you on the schedule. You&rsquo;ll get a copy of everything.</p>
       <input id="signName" placeholder="Your full name" data-t="namePlaceholder" autocomplete="name">
+      <!-- Shown only once the server (quote-view GET, signatureCaptureReady)
+           says it can actually store a drawing -- never a control that looks
+           like it works and silently drops what was drawn. The name field
+           above stays exactly as it is either way; drawing is an addition to
+           it, never a replacement for it. -->
+      <div id="signatureModeRow" style="display:none">
+        <div class="sigModeRow" role="tablist">
+          <button type="button" id="sigModeTypeBtn" class="sigModeBtn" role="tab"
+                  aria-pressed="true" data-t="sigModeType">Type my name</button>
+          <button type="button" id="sigModeDrawBtn" class="sigModeBtn" role="tab"
+                  aria-pressed="false" data-t="sigModeDraw">Draw my signature</button>
+        </div>
+        <div id="sigCanvasWrap" style="display:none;margin-top:10px">
+          <p class="sigHint" data-t="signatureHint">Sign with your finger or mouse, then press Clear to redo it.</p>
+          <canvas id="sigCanvas" width="600" height="200"></canvas>
+          <button type="button" class="btn quiet" id="sigClearBtn" style="margin-top:8px;padding:10px"
+                  data-t="clearSignature">Clear</button>
+        </div>
+      </div>
       <div id="phoneGateRow" style="display:none">
         <label for="phoneLast4" style="display:block;font-size:12.5px;color:#AEBBCC;margin:10px 0 4px" data-t="phoneLast4Label">Last 4 digits of your phone number on file</label>
         <input id="phoneLast4" inputmode="numeric" pattern="[0-9]*" maxlength="4"
@@ -599,6 +701,17 @@ function render(){
       }).join('')
     : '<p class="sub">'+tr('scopeSoon')+'</p>';
 
+  // Detail stays collapsed by default when there is a breakdown worth
+  // collapsing; with nothing drawn yet, the single "to follow" sentence
+  // just shows -- there is nothing there to hide behind a tap.
+  if(runs.length){
+    $('scopeToggle').style.display='';
+    setScopeOpen(false);
+  } else {
+    $('scopeToggle').style.display='none';
+    $('scopeDetail').hidden=false;
+  }
+
   // Every figure here is the server's own; none is computed on this page.
   //
   // What is left to pay used to be worked out HERE, as the total minus the
@@ -661,11 +774,20 @@ function render(){
       new Date(q.approvedAt).toLocaleDateString(LANG),
       q.company.name||tr('yourContractor'));
     $('nextSteps').textContent=tr(nextStepsKey(q));
+    $('downloadBtn').style.display='';
+    renderApprovedSignature();
     // Already approved on an earlier visit: the deposit is the only thing
     // left, so it stands on its own.
     if(dueNow()) showPayButton();
   } else {
     $('approveBox').style.display='';
+    // The drawing option only ever appears once the server itself says it
+    // can store one -- signatureCaptureReady is false until
+    // supabase_quote_signature_patch.sql has been applied, and a page that
+    // showed the pad regardless would be exactly the fake control this
+    // feature was written not to become.
+    $('signatureModeRow').style.display=q.signatureCaptureReady?'':'none';
+    setSigMode('type');
     // Set only by the database trigger when a material change lands on a
     // job the customer already approved (docs/REAPPROVAL_RULE.md). That
     // trigger already cleared approvedAt, which is why this branch runs at
@@ -750,6 +872,94 @@ function showPayButton(){
   $('payBtn').textContent=tr('payDeposit', money(due));
 }
 
+/* ================== drawn signature (item C3) =============================
+   Typing a name stays required either way (server-enforced, not just here);
+   this is an OPTIONAL alternative/addition a customer can choose instead of
+   only typing. One code path for touch and mouse via Pointer Events, so a
+   phone screen and a laptop trackpad draw the same way. */
+let sigMode='type';
+function setSigMode(mode){
+  sigMode=(mode==='draw')?'draw':'type';
+  $('sigModeTypeBtn').setAttribute('aria-pressed', sigMode==='type'?'true':'false');
+  $('sigModeDrawBtn').setAttribute('aria-pressed', sigMode==='draw'?'true':'false');
+  $('sigCanvasWrap').style.display=(sigMode==='draw')?'':'none';
+}
+$('sigModeTypeBtn').addEventListener('click', ()=>setSigMode('type'));
+$('sigModeDrawBtn').addEventListener('click', ()=>setSigMode('draw'));
+
+let sigHasInk=false;
+(function setupSignatureCanvas(){
+  const canvas=$('sigCanvas');
+  const ctx=canvas.getContext('2d');
+  let drawing=false, last=null;
+
+  function blank(){
+    ctx.fillStyle='#fff';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    sigHasInk=false;
+  }
+  blank(); // starts opaque white, not transparent -- a transparent PNG reads
+           // as a broken image wherever it lands on anything but a white
+           // background (the downloaded copy, a future office view).
+
+  // The buffer is a fixed 600x200; CSS stretches it to fit the phone or
+  // laptop it is shown on. Pointer coordinates arrive in CSS pixels, so they
+  // are rescaled into the buffer's own space -- otherwise a signature drawn
+  // on a 320px-wide screen would only ever reach the left third of what
+  // actually gets uploaded.
+  function point(e){
+    const r=canvas.getBoundingClientRect();
+    return {
+      x:(e.clientX-r.left)*(canvas.width/r.width),
+      y:(e.clientY-r.top)*(canvas.height/r.height),
+    };
+  }
+  function start(e){
+    drawing=true; last=point(e);
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+  }
+  function move(e){
+    if(!drawing) return;
+    const p=point(e);
+    ctx.strokeStyle='#11151C'; ctx.lineWidth=2.6;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke();
+    last=p; sigHasInk=true;
+    e.preventDefault();
+  }
+  function stop(){ drawing=false; }
+  canvas.addEventListener('pointerdown', start);
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerup', stop);
+  canvas.addEventListener('pointercancel', stop);
+  canvas.addEventListener('pointerleave', stop);
+
+  $('sigClearBtn').addEventListener('click', ()=>{
+    blank();
+    const err=$('approveErr'); if(err) err.style.display='none';
+  });
+})();
+const signatureCanvasDataUrl=()=>$('sigCanvas').toDataURL('image/png');
+
+// Kept only for the SAME page load that just drew and sent it: the download
+// then embeds those exact bytes with no second round trip. A page loaded
+// fresh (or reloaded) later has no in-memory drawing at all and falls back to
+// fetching quote.approvedSignatureUrl instead -- see signatureForDownload().
+let lastDrawnSignatureDataUrl=null;
+
+/* Shows the signature that was actually approved, whether this page just
+   drew it (lastDrawnSignatureDataUrl, set in doApprove) or the customer
+   reloaded a quote approved earlier (quote.approvedSignatureUrl, a
+   short-lived signed URL quote-view mints fresh on every GET). Never shown
+   for a typed-only approval -- there is nothing to show. */
+function renderApprovedSignature(){
+  const img=$('approvedSignatureImg');
+  const src=lastDrawnSignatureDataUrl||(quote&&quote.approvedSignatureUrl)||'';
+  if(src){ img.alt=tr('signatureAlt'); img.src=src; img.style.display=''; }
+  else { img.removeAttribute('src'); img.style.display='none'; }
+}
+
 function markApproved(name){
   quote.approvedAt=new Date().toISOString(); quote.approvedBy=name;
   $('approveBox').style.display='none';
@@ -757,7 +967,161 @@ function markApproved(name){
   $('approvedText').textContent=tr('approvedThanks', name,
     quote.company.name||tr('yourContractor'));
   $('nextSteps').textContent=tr(nextStepsKey(quote));
+  $('downloadBtn').style.display='';
+  renderApprovedSignature();
 }
+
+/* The detail toggle: collapsed is the resting state whenever there is
+   something to collapse (render() decides that). tr() is called fresh on
+   every open/close rather than the two labels being swapped by comparing
+   current text, so a language switch (which reloads the page) or a re-render
+   can never leave the button reading the wrong language for its state. */
+function setScopeOpen(open){
+  $('scopeDetail').hidden=!open;
+  $('scopeToggle').setAttribute('aria-expanded', open?'true':'false');
+  $('scopeToggle').textContent=tr(open?'hideDetails':'viewDetails');
+}
+$('scopeToggle').addEventListener('click', ()=>setScopeOpen($('scopeDetail').hidden));
+
+/* The complete, standalone record of what the customer approved. Built from
+   the page's OWN already-rendered, already-translated scope and totals
+   markup rather than recomputing either from quote.runs -- so a downloaded
+   copy can never say something different from what was on screen, the same
+   reasoning runFeet is the one place a run's length gets worked out. Pure
+   string-building, no DOM: it can be pulled out and run standalone, same
+   idiom as installTotals in tests/quote-summary.test.mjs.
+
+   scopeHtml/totalsHtml are the page's own rendered rows, carried over
+   verbatim -- but on the live page their LAYOUT comes from the page's own
+   <style> block (a totals row is a flex row, label left/figure right; the
+   grand total is set big and bold), and a downloaded file has no access to
+   that stylesheet. It has to stand alone: the customer may open it months
+   later with no network at all. So `style` below carries the handful of
+   rules those rows actually need -- .totals/.totals div for the row
+   layout, .totals .grand for the emphasised figure, .num/.sub for the
+   scope breakdown's numbers and captions -- taken from the page's own
+   stylesheet rather than re-derived, so the download looks like the quote
+   the customer approved instead of every label running into its figure.
+   It stays a local const inside this function (like h2 below) rather than
+   a separate top-level one, so tests/quote-summary.test.mjs's extractor,
+   which pulls this function out by itself to run standalone, does not need
+   to know about it too. That extractor only tracks brace depth, so a
+   balanced CSS block here (every selector's { closed by its own }) cannot
+   confuse it -- only an actually-unbalanced function body would. */
+function buildQuoteDocument(d){
+  const h2='style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;'
+    +'color:#5C6672;margin:26px 0 8px;border-bottom:1px solid #E1E5E1;padding-bottom:6px"';
+  const style='<style>'
+    +':root{--line:#E1E5E1;--muted:#5C6672;--text:#11151C;'
+    +'--display:"Barlow Condensed","Arial Narrow",sans-serif}'
+    +'.totals{margin-top:18px;display:flex;flex-direction:column;gap:9px;'
+    +'align-items:stretch;font-variant-numeric:tabular-nums}'
+    +'.totals div{display:flex;justify-content:space-between;gap:22px;'
+    +'font-size:16px;color:var(--muted)}'
+    +'.totals div.depnote{display:block;font-size:13px;color:var(--muted);margin-top:-4px}'
+    +'.totals .grand{font:700 40px/1.05 var(--display);color:var(--text);'
+    +'border-top:2px solid var(--line);padding-top:14px;margin-top:4px;align-items:baseline}'
+    +'.totals .grand span:first-child{align-self:baseline;'
+    +'font:500 13px/1 "IBM Plex Sans",sans-serif;text-transform:uppercase;'
+    +'letter-spacing:.1em;color:var(--muted)}'
+    +'.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}'
+    +'.sub{font-size:14px;color:var(--muted)}'
+    +'</style>';
+  return '<!doctype html><html lang="'+esc(d.lang)+'"><head><meta charset="utf-8">'
+    +'<title>'+esc(d.title)+'</title>'
+    +style
+    +'</head>'
+    +'<body style="font-family:-apple-system,Segoe UI,Arial,sans-serif;color:#11151C;'
+    +'max-width:640px;margin:32px auto;padding:0 18px;line-height:1.55">'
+    +'<h1 style="font-size:22px;margin:0 0 4px">'+esc(d.companyName)+'</h1>'
+    +(d.companyContact?'<p style="color:#5C6672;margin:0 0 4px">'+esc(d.companyContact)+'</p>':'')
+    +'<h2 '+h2+'>'+esc(d.customerHeading)+'</h2>'
+    +'<p style="color:#5C6672;margin:0 0 4px">'+esc(d.customerName)
+      +(d.address?'<br>'+esc(d.address):'')+'</p>'
+    +'<h2 '+h2+'>'+esc(d.scopeHeading)+'</h2>'
+    +d.scopeHtml
+    +'<h2 '+h2+'>'+esc(d.totalsHeading)+'</h2>'
+    +'<div class="totals">'+d.totalsHtml+'</div>'
+    +(d.approvalText?'<div style="margin-top:26px;padding:14px 16px;background:#F1F9F6;'
+      +'border:1px solid #BFE0D8;border-radius:10px;color:#0A6353">'+esc(d.approvalText)
+      // signatureDataUrl is ALWAYS a data: URI here, never the signed URL
+      // quote-view hands the live page -- that URL expires in an hour, and
+      // this file may be opened months later with no network at all (see the
+      // comment on buildQuoteDocument above). downloadQuoteCopy() is what
+      // turns whichever one it has into this before calling here.
+      +(d.signatureDataUrl?'<div style="margin-top:10px"><img src="'+esc(d.signatureDataUrl)
+        +'" alt="'+esc(d.signatureAlt||'')+'" style="display:block;max-width:240px;width:100%;'
+        +'border:1px solid #BFE0D8;border-radius:8px;background:#fff;padding:6px"></div>':'')
+      +'</div>':'')
+    +'</body></html>';
+}
+
+/* A data: URI, always -- never the signed URL itself, which is good for one
+   hour and would leave the downloaded file with a broken image the first
+   time the customer opens it later. Prefers the bytes this same page load
+   just drew and sent (no network needed, and guaranteed to be exactly what
+   was approved); falls back to fetching the signed URL quote-view handed
+   this GET, for a page reloaded after an earlier approval. Either way, a
+   fetch that fails just means no image in the download -- never a broken
+   download over a signature that is, after all, optional. */
+async function signatureForDownload(){
+  if(lastDrawnSignatureDataUrl) return lastDrawnSignatureDataUrl;
+  if(!quote || !quote.approvedSignatureUrl) return null;
+  try{
+    const res=await fetch(quote.approvedSignatureUrl);
+    if(!res.ok) return null;
+    const blob=await res.blob();
+    return await new Promise((resolve, reject)=>{
+      const fr=new FileReader();
+      fr.onload=()=>resolve(fr.result);
+      fr.onerror=()=>reject(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  }catch(e){ return null; }
+}
+
+/* Saves what the buttons above only ever showed on screen: gathered from the
+   live quote object and the page's own rendered markup at the moment the
+   customer asks for it, never from a server round trip -- there is nothing
+   past what quote-view already sent this page to fetch (the signature image
+   itself is the one exception -- see signatureForDownload() above). */
+async function downloadQuoteCopy(){
+  if(!quote) return;
+  const signatureDataUrl=await signatureForDownload();
+  const doc=buildQuoteDocument({
+    lang: LANG,
+    title: tr('downloadTitle', quote.customerName||tr('you')),
+    companyName: quote.company.name||tr('yourContractor'),
+    companyContact: [quote.company.phone, quote.company.email].filter(Boolean).join(' · '),
+    customerHeading: tr('quoteFor', quote.customerName||tr('you')),
+    customerName: quote.customerName||'',
+    address: quote.address||'',
+    scopeHeading: tr('scopeHeading'),
+    scopeHtml: $('scope').innerHTML || ('<p class="sub">'+esc(tr('scopeSoon'))+'</p>'),
+    totalsHeading: tr('totalsHeading'),
+    totalsHtml: $('totals').innerHTML,
+    approvalText: $('approvedText').textContent||'',
+    signatureDataUrl,
+    signatureAlt: tr('signatureAlt'),
+  });
+  const fileBase=(quote.customerName||'fence-quote').toLowerCase()
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'fence-quote';
+  try{
+    const blob=new Blob([doc], {type:'text/html'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=fileBase+'-quote.html'; a.rel='noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }catch(e){
+    // No Blob/anchor-download support in this browser: a new tab holding the
+    // same document still leaves the customer a copy, via that browser's own
+    // Print/Save instead of a file landing directly in Downloads.
+    const w=window.open('', '_blank');
+    if(w){ w.document.open(); w.document.write(doc); w.document.close(); }
+  }
+}
+$('downloadBtn').addEventListener('click', downloadQuoteCopy);
 
 async function openPaymentPage(){
   const r=await fetch(API+'/create-payment-link',{
@@ -785,6 +1149,18 @@ async function doApprove(thenPay){
   if(quote && quote.phoneGateRequired && phone4.length!==4){
     err.textContent=tr('phoneLast4Missing'); err.style.display='block'; return;
   }
+  // The drawing is OPTIONAL and rides alongside the name above, never instead
+  // of it -- name is checked (and refused) the same way whichever mode is
+  // selected. Only "draw" mode with nothing actually drawn is its own refusal:
+  // an empty canvas sent as a signature would be a control that looks like it
+  // captured something and did not.
+  let signatureDataUrl;
+  if(quote && quote.signatureCaptureReady && sigMode==='draw'){
+    if(!sigHasInk){
+      err.textContent=tr('signatureEmpty'); err.style.display='block'; return;
+    }
+    signatureDataUrl=signatureCanvasDataUrl();
+  }
   $('approveBtn').disabled=true; $('approveOnlyBtn').disabled=true;
   try{
     const r=await fetch(API+'/quote-view?t='+encodeURIComponent(token),{
@@ -793,17 +1169,29 @@ async function doApprove(thenPay){
       // approval records it as the accepted price. If the contractor changed
       // the quote while this page sat open, the server answers 409
       // quote_changed instead of recording a price the homeowner never saw.
-      body:JSON.stringify({action:'approve',name,phone4,total:quote?quote.total:undefined})});
+      // signatureDataUrl rides in this SAME request -- there is no second
+      // approval route for a drawn signature (item C3).
+      body:JSON.stringify({action:'approve',name,phone4,total:quote?quote.total:undefined,
+        ...(signatureDataUrl?{signatureDataUrl}:{})})});
     const j=await r.json().catch(()=>({}));
     if(r.status===409 && j.code==='quote_changed') throw new Error(tr('quoteChanged'));
     if(!r.ok){
       // The server's own wording already refuses to say whether the digits
       // were wrong, there was no phone on file, or the quote didn't exist --
       // that's the point, and this page repeats it verbatim rather than
-      // re-deciding what the homeowner gets told. A 429 is the one case
-      // worth its own line since it isn't about the digits at all.
-      throw new Error(r.status===429 ? tr('phoneLast4Locked') : (j.error||tr('approvalError')));
+      // re-deciding what the homeowner gets told. 429, and the two signature
+      // refusals, are the exceptions: each is its own actionable sentence,
+      // translated, because they are new (item C3) and a customer needs to
+      // know which of "too big", "not an image" or "not available right now"
+      // just happened, not just that something did.
+      const bySignatureCode = j.code==='signature_invalid' ? tr('signatureRejected')
+        : j.code==='signature_unavailable' ? tr('signatureUnavailable')
+        : null;
+      throw new Error(r.status===429 ? tr('phoneLast4Locked') : (bySignatureCode||j.error||tr('approvalError')));
     }
+    // The exact bytes just sent -- never a re-fetch of something that could,
+    // in principle, have changed between the request and this line.
+    if(signatureDataUrl) lastDrawnSignatureDataUrl=signatureDataUrl;
     markApproved(j.approvedBy||name);
   }catch(e){
     err.textContent=friendly(e); err.style.display='block';

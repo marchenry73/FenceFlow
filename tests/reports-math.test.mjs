@@ -24,9 +24,13 @@ const grab = (name) => {
 // approvalRatePct counts quotes that reached the customer, which is
 // quoteDeliveredAt() -- and that reads dates through bizMs(). Lifted with it.
 // salesValueTotal asks billableTotalOf() for a won job's price, so the
-// accepted-price helpers come too.
+// accepted-price helpers come too. labourEstVsActualTotals now reads the
+// $200-labour-floor formula through the one shared quotedLaborOf() (the
+// three duplicated copies of "rate*feet+flat" were consolidated into it),
+// so it has to be lifted alongside it or labourEstVsActualTotals throws
+// "quotedLaborOf is not defined" the moment it runs.
 const names = ['medianDays', 'medianHours', 'approvalRatePct', 'productionStats',
-  'crewProductivityPerHour', 'labourEstVsActualTotals', 'materialEstVsActualTotals',
+  'crewProductivityPerHour', 'quotedLaborOf', 'labourEstVsActualTotals', 'materialEstVsActualTotals',
   'salesValueTotal', 'estVsActualProfitTotals', 'bizMs', 'quoteDeliveredAt',
   'stampMs', 'anchoredTotalOf', 'billableTotalOf'];
 const lib = new Function(names.map(grab).join('\n') + '\nreturn {' + names.join(',') + '};')();

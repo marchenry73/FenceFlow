@@ -64,9 +64,21 @@ function runSql(sql) {
   return Array.isArray(parsed) ? parsed : (parsed.rows || []);
 }
 
-const asClaim = (sub) => sub === null
+// aal2: true adds the signed 'aal' claim admin_second_factor_ok() accepts as
+// its second path (the first being auth.sessions.aal, which a hand-built
+// claim set has no session row to carry). Verified live against pg_proc:
+// is_platform_admin() is `profiles.is_platform_admin AND
+// admin_second_factor_ok()`, and the latter is true when the account has no
+// verified factor to ask for, OR auth.sessions.aal = 'aal2' for the session
+// named by the claims' session_id, OR the claims carry 'aal' = 'aal2'
+// directly -- confirmed live (2026-09-28) that ADMIN has exactly one
+// verified factor, so without one of those two aal2 paths the function
+// reads false for ADMIN just as for anyone else. A claim set with no
+// session_id can only take the third path, which is why this needs to be
+// asked for explicitly rather than assumed.
+const asClaim = (sub, { aal2 = false } = {}) => sub === null
   ? `select set_config('request.jwt.claims', '', true); set local role anon;`
-  : `select set_config('request.jwt.claims', json_build_object('sub','${sub}','role','authenticated')::text, true);
+  : `select set_config('request.jwt.claims', json_build_object('sub','${sub}','role','authenticated'${aal2 ? `,'aal','aal2'` : ``})::text, true);
      set local role authenticated;`;
 
 // The migration itself, run inline so this test proves the design against the
@@ -81,20 +93,44 @@ async function main() {
   console.log("\n0. The fixture actually has the property every check below depends on:");
   const fixture = runSql(`
 begin;
-select
-  (select company_id from profiles where id = '${IN_AUDIENCE}') as in_company,
-  (select company_id from profiles where id = '${OUTSIDER}') as out_company,
-  (select is_platform_admin from profiles where id = '${ADMIN}') as admin_is_admin,
-  (select company_id from profiles where id = '${ADMIN}') as admin_company;
+
+create temp table fixture_probe(who text, val text) on commit drop;
+grant all on fixture_probe to authenticated, anon;
+
+insert into fixture_probe values
+  ('in_company', (select company_id::text from profiles where id = '${IN_AUDIENCE}')),
+  ('out_company', (select company_id::text from profiles where id = '${OUTSIDER}')),
+  ('admin_company', (select company_id::text from profiles where id = '${ADMIN}'));
+
+-- The guard the promote-release call actually goes through is
+-- is_platform_admin(): the profiles column AND admin_second_factor_ok()
+-- (verified live against pg_proc -- see the note above asClaim). Reading
+-- only the column here, as this check used to, would certify a fixture the
+-- guard itself rejects -- exactly the false positive control this test was
+-- rewritten to stop being. Calling the function, with the claim shape
+-- section 5 also uses, is what makes this a check on the thing that
+-- matters.
+${asClaim(ADMIN, { aal2: true })}
+insert into fixture_probe select 'admin_passes_real_guard', public.is_platform_admin()::text;
+reset role;
+
+select * from fixture_probe order by who;
 rollback;
 `);
-  const f = fixture[0] || {};
+  const fx = (who) => (fixture.find(r => r.who === who) || {}).val;
+  const f = {
+    in_company: fx("in_company"),
+    out_company: fx("out_company"),
+    admin_company: fx("admin_company"),
+    admin_passes_real_guard: fx("admin_passes_real_guard"),
+  };
   ok("IN_AUDIENCE and OUTSIDER belong to DIFFERENT companies",
      f.in_company && f.out_company && f.in_company !== f.out_company,
      `in=${f.in_company} out=${f.out_company}`);
   ok("IN_AUDIENCE really belongs to CO_IN", f.in_company === CO_IN, `got ${f.in_company}`);
   ok("OUTSIDER really belongs to CO_OUT", f.out_company === CO_OUT, `got ${f.out_company}`);
-  ok("ADMIN really is a platform admin", f.admin_is_admin === true, `got ${f.admin_is_admin}`);
+  ok("ADMIN passes the real is_platform_admin() guard (the function the promote-release call uses, not just the profiles column)",
+     f.admin_passes_real_guard === "true", `got ${f.admin_passes_real_guard}`);
   ok("ADMIN belongs to CO_IN, not some third company (irrelevant to the guard, but keeps the fixture honest)",
      f.admin_company === CO_IN, `got ${f.admin_company}`);
   if (failed) {
@@ -214,7 +250,10 @@ begin
 end $inner$;
 reset role;
 
-${asClaim(ADMIN)}
+-- aal2: true, matching what real MFA'd admin sessions carry and what section
+-- 0 above already proved this ADMIN fixture passes through the real
+-- is_platform_admin() guard, not just the profiles column.
+${asClaim(ADMIN, { aal2: true })}
 select admin_promote_release('99999999-0000-4000-8000-000000000002');
 reset role;
 

@@ -891,6 +891,19 @@ async function viaMailbox(caller: MailCaller, deps: SendDeps, req: SendRequest, 
     uid: caller.uid,
     fields,
     from,
+    // NOT a bug, and NOT the same gap as viaFenceflow's reply-to (below):
+    // `from.address` here is the mailbox's own real, connected address
+    // (account.email_address, re-vetted by hostsFor a few lines up), not a
+    // shared platform address. A reply to this message already lands in
+    // that mailbox with no header needed -- buildMime() above is never
+    // given a replyTo either, so nothing overrides it on the wire. Setting
+    // this to caller.companyEmail (companies.email) would be the wrong
+    // fix: it would point replies at whatever the office typed as its
+    // customer-facing contact address, which can legitimately differ from
+    // the mailbox actually sending this message, and would silently stop
+    // replies from reaching this inbox. See tests/mail-send.test.mjs,
+    // "mailbox: no Reply-To is added even though the company has its own
+    // email on file", which fails if this is ever changed to do that.
     replyTo: null,
     messageId,
     inReplyTo: threading.inReplyTo,

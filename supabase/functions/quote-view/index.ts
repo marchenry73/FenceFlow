@@ -8,12 +8,16 @@
  * exactly like a bank's document link.
  *
  *   GET  ?t=<token>                      -> the quote, whitelisted fields only
- *   POST ?t=<token>  {action:"approve", name[, phone4][, total]}
+ *   POST ?t=<token>  {action:"approve", name[, phone4][, total][, signatureDataUrl]}
  *                                        -> records the approval, and with it
  *                                           the total the page showed
  *                                           (jobs.accepted_total). A `total`
  *                                           that no longer matches -> 409
- *                                           {code:"quote_changed"}.
+ *                                           {code:"quote_changed"}. name stays
+ *                                           required; signatureDataUrl is an
+ *                                           OPTIONAL "data:image/png;base64,.."
+ *                                           from the page's own drawing pad
+ *                                           (see quote_approved_signature_path).
  *
  * Everything goes through an explicit whitelist. The jobs row also carries
  * labour rates, margins and markup; estimate lines carry supplier_unit_price,
@@ -60,6 +64,22 @@ const ACCEPTANCE_COLUMNS = "accepted_total, signed_at";
 const lacksAcceptanceColumns = (error: { message?: string } | null | undefined) =>
   /accepted_total/.test(String(error?.message ?? ""));
 
+/**
+ * The storage path of a signature the customer DREW on this page, as an
+ * alternative to typing their name (item C3). Deliberately its own column,
+ * never jobs.signature_storage_path -- that column means the IN-PERSON SIGNED
+ * CONTRACT (FileSync.kt, write-once, pinned by supabase_p2_contract_columns_pin.sql,
+ * read by the office dashboard as proof a contract was signed). A remote web
+ * approval and a crew-witnessed signing are not the same fact and must not
+ * share a column. See supabase_quote_signature_patch.sql for the full
+ * reasoning and the migration itself (NOT applied -- see that file).
+ */
+const SIGNATURE_COLUMN = "quote_approved_signature_path";
+
+/** Whether an error is only "this database has no quote_approved_signature_path yet". */
+const lacksSignatureColumn = (error: { message?: string } | null | undefined) =>
+  /quote_approved_signature_path/.test(String(error?.message ?? ""));
+
 type QuoteJob = {
   company_id: string;
   sync_id: string;
@@ -72,7 +92,63 @@ type QuoteJob = {
   reapproval_required_at: string | null;
   accepted_total?: number | string | null;
   signed_at?: string | null;
+  quote_approved_signature_path?: string | null;
 };
+
+/**
+ * job-files is private, so the path itself is useless to a browser -- and the
+ * path is never handed out anyway (comment on quote_approved_signature_path
+ * says why). A short-lived signed URL is what the page, and the downloadable
+ * copy it builds from the same JSON, actually render an <img> from.
+ */
+async function approvedSignatureUrl(
+  admin: ReturnType<typeof createClient>,
+  path: string | null | undefined,
+): Promise<string | null> {
+  if (!path) return null;
+  const { data } = await admin.storage.from("job-files").createSignedUrl(path, 3600);
+  return data?.signedUrl ?? null;
+}
+
+/**
+ * A customer-drawn signature exactly as the page's canvas produces it via
+ * `<canvas>.toDataURL()`: "data:image/png;base64,...". Nothing about the
+ * client's claim is trusted -- the prefix, the length and the decoded bytes
+ * are all checked here, and only the bytes decide whether this is really a
+ * PNG (the client's own "image/png" text is just a string anyone can send).
+ *
+ * A real signature is a handful of KB; MAX_SIGNATURE_BYTES leaves generous
+ * room for a messy one on a big phone screen without accepting an arbitrary
+ * photo shaped like a data URL.
+ */
+const MAX_SIGNATURE_BYTES = 300 * 1024;
+// Base64 costs 4 bytes for every 3 of input, plus the "data:image/png;base64,"
+// prefix -- capping the STRING length before it is ever decoded means an
+// oversized payload is refused without base64-decoding it first.
+const MAX_SIGNATURE_DATA_URL_LEN = Math.ceil((MAX_SIGNATURE_BYTES * 4) / 3) + 64;
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+type SignatureDecode =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; reason: "too_large" | "invalid" };
+
+function decodeSignaturePng(raw: unknown): SignatureDecode {
+  if (typeof raw !== "string" || raw.length === 0) return { ok: false, reason: "invalid" };
+  if (raw.length > MAX_SIGNATURE_DATA_URL_LEN) return { ok: false, reason: "too_large" };
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
+  if (!match) return { ok: false, reason: "invalid" };
+  let bytes: Uint8Array;
+  try {
+    const binary = atob(match[1]);
+    bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  } catch {
+    return { ok: false, reason: "invalid" };
+  }
+  if (bytes.length === 0) return { ok: false, reason: "invalid" };
+  if (bytes.length > MAX_SIGNATURE_BYTES) return { ok: false, reason: "too_large" };
+  if (!PNG_MAGIC.every((b, i) => bytes[i] === b)) return { ok: false, reason: "invalid" };
+  return { ok: true, bytes };
+}
 
 /**
  * The price the page shows, the deposit under it and -- when the homeowner
@@ -185,9 +261,25 @@ Deno.serve(async (req) => {
 
   let { data: job, error: jobError } = await admin
     .from("jobs")
-    .select(`${JOB_COLUMNS}, ${ACCEPTANCE_COLUMNS}`)
+    .select(`${JOB_COLUMNS}, ${ACCEPTANCE_COLUMNS}, ${SIGNATURE_COLUMN}`)
     .eq("quote_token", token)
     .maybeSingle();
+  // supabase_quote_signature_patch.sql has not been applied yet, or this
+  // function deployed before it was: step down to the select that doesn't
+  // ask for the signature column. Conservative on purpose -- ANY error that
+  // looks like a missing column (signature OR acceptance) drops the
+  // signature half, so this never claims to be able to store a drawing it
+  // cannot actually persist. canRecordSignature below is what tells the page
+  // whether to show the drawing option at all.
+  let canRecordSignature = true;
+  if (jobError && (lacksSignatureColumn(jobError) || lacksAcceptanceColumns(jobError))) {
+    canRecordSignature = false;
+    ({ data: job, error: jobError } = await admin
+      .from("jobs")
+      .select(`${JOB_COLUMNS}, ${ACCEPTANCE_COLUMNS}`)
+      .eq("quote_token", token)
+      .maybeSingle());
+  }
   // Deployed before supabase_r6_price_stability.sql: read as before, and
   // approve as before (without recording the figure) until the column lands.
   const canRecordAcceptance = !lacksAcceptanceColumns(jobError);
@@ -212,6 +304,38 @@ Deno.serve(async (req) => {
     if (body?.action !== "approve") return json({ error: "Unknown action." }, 400);
     const name = String(body?.name ?? "").trim().slice(0, 120);
     if (name.length < 2) return json({ error: "Type your name to approve." }, 400);
+
+    // A drawn signature is OPTIONAL and rides ALONGSIDE the typed name above,
+    // never instead of it -- a drawing alone is not identification, and
+    // quote_approved_name stays "the name on record" everywhere else it is
+    // read (job screens, the approval push below) regardless of which way the
+    // customer signed. Checked here, before the phone gate spends an attempt
+    // and before anything touches the database, so a bad payload never costs
+    // the customer a guess or reaches storage.
+    const rawSignature = body?.signatureDataUrl;
+    let signatureBytes: Uint8Array | null = null;
+    if (rawSignature != null) {
+      if (!canRecordSignature) {
+        // The migration in supabase_quote_signature_patch.sql has not run
+        // (or this function predates it). Refusing loudly here is the whole
+        // point of this feature's design: a signature the server cannot
+        // persist must never be accepted and silently dropped.
+        return json({
+          code: "signature_unavailable",
+          error: "Drawing a signature isn't available on this quote yet. Please type your name to approve, or reload the page.",
+        }, 400);
+      }
+      const decoded = decodeSignaturePng(rawSignature);
+      if (!decoded.ok) {
+        return json({
+          code: "signature_invalid",
+          error: decoded.reason === "too_large"
+            ? "That signature is too large to save. Clear it, draw a smaller signature, and try again -- or type your name instead."
+            : "That doesn't look like a valid signature. Clear it and draw again, or type your name instead.",
+        }, 400);
+      }
+      signatureBytes = decoded.bytes;
+    }
 
     // First signature wins. A second approval must not overwrite whose name
     // is on the record.
@@ -316,9 +440,30 @@ Deno.serve(async (req) => {
           error: "This quote was updated after you opened it. Reload the page to see the current price, then approve.",
         }, 409);
       }
+      // The drawing lands in storage BEFORE the approval row does, so a
+      // successful UPDATE never points at bytes that don't exist. Scoped by
+      // company and job the same way FileSync.kt scopes every other kind it
+      // writes to this bucket, under a new "quote-signature" kind so it is
+      // never confused with the crew's own write-once "signature" uploads.
+      // If the upload fails, the whole approval refuses rather than record a
+      // name with no drawing behind it when one was promised.
+      let signaturePath: string | null = null;
+      if (signatureBytes) {
+        signaturePath = `${job.company_id}/${job.sync_id}/quote-signature/${Date.now()}.png`;
+        const uploaded = await admin.storage.from("job-files")
+          .upload(signaturePath, signatureBytes, { contentType: "image/png", upsert: false });
+        if (uploaded.error) {
+          console.error("quote-view signature upload", uploaded.error.message);
+          return json({ error: "We could not save your signature just now. Please try again, or type your name instead." }, 500);
+        }
+      }
       const approval = {
         quote_approved_at: new Date().toISOString(),
         quote_approved_name: name,
+        // Same UPDATE as the name and timestamp above -- never a signature
+        // recorded without an approval, or an approval that silently drops
+        // the signature it was sent with.
+        ...(signaturePath ? { quote_approved_signature_path: signaturePath } : {}),
         ...(approvedWithoutPhoneCheck ? { quote_approved_without_phone_check: true } : {}),
         // Approval is acceptance. DRAFT/SENT move forward; anything already
         // further along (deposit paid, completed) is left exactly where it is.
@@ -448,7 +593,7 @@ Deno.serve(async (req) => {
     reapprovalRunLabel = String(withdrawal?.run_label ?? "").trim();
   }
 
-  const [{ data: company }, figures, { data: runs }, { data: conn }] =
+  const [{ data: company }, figures, { data: runs }, { data: conn }, signatureUrl] =
     await Promise.all([
       admin.from("companies").select("name, phone, email").eq("id", job.company_id).single(),
       pageFigures(admin, job),
@@ -461,6 +606,10 @@ Deno.serve(async (req) => {
       admin.from("payment_connections")
         .select("processor, external_id, access_token")
         .eq("company_id", job.company_id).maybeSingle(),
+      // Only ever set when canRecordSignature read it in the first place, so
+      // this is never asked to sign a path from a column this deploy cannot
+      // see.
+      canRecordSignature ? approvedSignatureUrl(admin, job.quote_approved_signature_path) : Promise.resolve(null),
     ]);
 
   // The first open is worth knowing about; later opens are just reading.
@@ -528,6 +677,16 @@ Deno.serve(async (req) => {
     // the fence is built at the wrong size entirely.
     pxPerFoot: Number(job.calibration_pixels_per_foot) || 20,
     approvedBy: job.quote_approved_name,
+    // Whether this deploy can actually store a drawn signature right now --
+    // false until supabase_quote_signature_patch.sql is applied. The page
+    // shows the "draw your signature" option only when this is true, so a
+    // customer is never offered a control that would silently drop what they
+    // drew.
+    signatureCaptureReady: canRecordSignature,
+    // A short-lived signed URL, never the raw storage path -- job-files is a
+    // private bucket. Null before an approval, or when it was typed rather
+    // than drawn.
+    approvedSignatureUrl: signatureUrl,
     paymentsReady,
     // Teardown runs ride along too. The old fence is half the sales pitch:
     // the customer sees the weathered thing they hate standing in the yard,
