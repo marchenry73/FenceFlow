@@ -1,6 +1,25 @@
 -- ============================================================================
--- UNAPPLIED. Nothing in this file has been run against the live database.
--- It is a proposal for the owner to review and apply by hand. Verified
+-- PART A AND PART B ARE BOTH APPLIED, 29 September 2026. This header said
+-- UNAPPLIED until they were, and is corrected here rather than left to fool a
+-- later survey -- a stale header in this repo once did exactly that for four
+-- days. Sequence actually run: PART A's dry run first (it rolled back, and the
+-- live row was re-read afterwards to prove it had), then PART B.
+--
+-- RESULT, verified by an independent platform-wide re-survey rather than by
+-- this file's own read-back: Woody now reads calibration 320 against grid
+-- extent 25, contract_total UNCHANGED at 3620.00, and across all ten companies
+-- there are now ZERO extent/calibration mismatches and ZERO missing
+-- calibrations at a non-default extent. Woody was the only mismatched row on
+-- the whole platform. The formula 8000/extent is corroborated by three
+-- untouched rows that already agreed with it: extent 50 -> 160, 100 -> 80,
+-- 400 -> 20.
+--
+-- The nine remaining rows with a NULL calibration are all at extent 400, where
+-- the server's flat assumption of 20 px/ft is arithmetically correct, so they
+-- never diverged and are deliberately left alone.
+--
+-- The EXACT REVERSE at the bottom of this file is now live-relevant: it is what
+-- puts Woody back to 20 if this turns out to be wrong. Originally verified
 -- against the LIVE database (project newcrgafcptspmapacrx) read-only,
 -- 2026-09-29, via `supabase db query --linked` -- not inherited from an
 -- earlier report. Every figure below is a live reading, not a repo file.
