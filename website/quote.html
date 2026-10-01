@@ -46,15 +46,36 @@
          margin-bottom:16px;background:#BFD9EA;touch-action:none;
          box-shadow:0 8px 30px rgba(11,18,32,.10)}
   #stage canvas{display:block;width:100%;height:100%}
-  #mapCred{position:absolute;left:8px;bottom:28px;max-width:62%;
+  /* The overlays on the stage live in two columns that STACK, top and
+     bottom, instead of each carrying its own absolute offset. The offsets
+     assumed a line count: the imagery credit is one line on a desktop and
+     three on a phone, so "hint 70px up, credit 48px up" put the hint on top
+     of the credit at 390px -- the width every customer opens this at. In a
+     column, whatever is above sits above, however many lines it takes. The
+     columns pass pointer events through so a drag between the controls
+     still turns the fence; each control takes them back. */
+  #stageTop{position:absolute;top:10px;left:10px;right:10px;display:flex;
+            flex-direction:column;align-items:flex-start;gap:8px;pointer-events:none}
+  #stageTop>*{pointer-events:auto}
+  #stageFoot{position:absolute;left:8px;right:8px;bottom:10px;display:flex;
+             flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+  /* The credit is the county's licence condition: restyle it, never hide it. */
+  #mapCred{align-self:flex-start;max-width:62%;
            font-size:9.5px;color:rgba(15,24,38,.65);background:rgba(255,255,255,.55);
            padding:1px 6px;border-radius:4px}
-  #stageHint{position:absolute;left:0;right:0;bottom:11px;text-align:center;
-             font-size:12.5px;color:rgba(11,18,32,.78);pointer-events:none;
+  #stageHint{text-align:center;
+             font-size:12.5px;color:rgba(11,18,32,.78);
              text-shadow:0 1px 3px rgba(255,255,255,.75)}
-  #stageBadge{position:absolute;top:11px;left:11px;background:rgba(11,18,32,.84);color:#fff;
+  #stageBadge{background:rgba(11,18,32,.84);color:#fff;
               font:600 11px/1 var(--display);letter-spacing:.09em;
               text-transform:uppercase;padding:7px 11px;border-radius:7px}
+  #oldFenceBtn{background:rgba(15,24,38,.82);border:none;color:#fff;
+               border-radius:8px;padding:8px 12px;cursor:pointer;
+               font:600 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase}
+  /* Top-right on a desktop, where the badge and the panel fit side by side. */
+  #rotCtl{position:absolute;top:0;right:0;box-sizing:border-box;
+          background:rgba(15,24,38,.82);border-radius:8px;padding:8px 12px;color:#fff}
+  #rotSlider{width:150px;margin:0;display:block}
 
   /* ------- what they are getting ------- */
   table{width:100%;border-collapse:collapse;font-size:15px}
@@ -187,12 +208,20 @@
     .wrap{padding:16px 13px 60px}
     .panel,.approve{padding:18px}
     .totals .grand{font-size:34px}
-    /* Three things live along the bottom of the stage: the drag hint, the
-       imagery credit, and the view buttons. At phone width they were all
-       piled into the same strip. Stacked instead: buttons in the corner,
-       credit above them, hint above that. */
-    #stageHint{bottom:70px;font-size:11.5px}
-    #mapCred{bottom:48px;max-width:100%}
+    /* Bottom of the stage at phone width: the view buttons keep the corner,
+       and the hint-over-credit column sits above them at full width. */
+    #stageFoot{bottom:46px}
+    #stageHint{font-size:11.5px}
+    #mapCred{max-width:100%}
+    /* Top of the stage at phone width: the turn panel is 265px of a 362px
+       stage, so nothing fits beside it. It takes the full top row, the
+       "remove the old fence" button drops below it, and the badge -- a
+       caption, when the header above the stage already says "your fence
+       quote" -- gives way while the panel is up. Without a map there is no
+       panel and the badge stays. */
+    #rotCtl{position:static;order:-1;width:100%}
+    #rotSlider{width:100%}
+    #stage.has-map #stageBadge{display:none}
   }
   @media (prefers-reduced-motion:reduce){
     .btn:hover{transform:none}
@@ -542,26 +571,24 @@ function setLang(code) {
 
   <div id="content" style="display:none">
     <div id="stage" style="display:none">
-      <div id="stageBadge" data-t="badge">Your fence &middot; 3D preview</div>
-      <div id="stageHint" data-t="dragHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
-      <button id="oldFenceBtn" style="display:none;position:absolute;top:10px;left:10px;
-              margin-top:34px;background:rgba(15,24,38,.82);border:none;color:#fff;
-              border-radius:8px;padding:8px 12px;cursor:pointer;
-              font:600 11px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-              text-transform:uppercase" data-t="removeOld">Remove the old fence</button>
-      <div id="rotCtl" style="display:none;position:absolute;top:10px;right:10px;
-           background:rgba(15,24,38,.82);border-radius:8px;padding:8px 12px;color:#fff">
-        <div style="font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-             text-transform:uppercase;margin-bottom:5px" data-t="turnFence">Turn the fence to match</div>
-        <input id="rotSlider" type="range" min="0" max="360" value="0" step="1"
-               style="width:150px;margin:0">
-        <button id="slideBtn" style="display:none;margin-top:7px;width:100%;background:transparent;
-                border:1px solid #48566B;color:#fff;border-radius:6px;padding:5px;
-                font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
-                text-transform:uppercase;cursor:pointer" data-t="slideIn">Slide into place</button>
+      <div id="stageTop">
+        <div id="stageBadge" data-t="badge">Your fence &middot; 3D preview</div>
+        <button id="oldFenceBtn" style="display:none" data-t="removeOld">Remove the old fence</button>
+        <div id="rotCtl" style="display:none">
+          <div style="font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
+               text-transform:uppercase;margin-bottom:5px" data-t="turnFence">Turn the fence to match</div>
+          <input id="rotSlider" type="range" min="0" max="360" value="0" step="1">
+          <button id="slideBtn" style="display:none;margin-top:7px;width:100%;background:transparent;
+                  border:1px solid #48566B;color:#fff;border-radius:6px;padding:5px;
+                  font:600 10px/1 'Barlow Condensed',sans-serif;letter-spacing:.08em;
+                  text-transform:uppercase;cursor:pointer" data-t="slideIn">Slide into place</button>
+        </div>
       </div>
-      <div id="mapCred" style="display:none">
-        <span id="imageryCredit">Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</span></div>
+      <div id="stageFoot">
+        <div id="stageHint" data-t="dragHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
+        <div id="mapCred" style="display:none">
+          <span id="imageryCredit">Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</span></div>
+      </div>
       <div id="viewCtl" style="position:absolute;right:10px;bottom:10px;
            display:flex;gap:6px">
         <button id="walkBtn" style="background:rgba(15,24,38,.82);border:none;color:#fff;
@@ -2470,6 +2497,59 @@ function sceneSatelliteVerdict(loaded, grid, fenceRadiusFt){
   return 'fill';
 }
 
+/**
+ * Pairs of grid cells that are children of the SAME parent tile one level up
+ * (index dy*N+dx, the order the tiles are fetched in).
+ *
+ * WHY. The imagery proxy does not refuse a zoom a provider lacks -- it walks
+ * the request back to that provider's parent tile and serves THAT
+ * (clampTile() in supabase/functions/quote-map/index.ts). Inside Hillsborough
+ * the county really has 21, so this costs nothing. OUTSIDE the county the
+ * chain falls through to Esri, which stops at 20: every one of the 25 cells
+ * comes back holding its z20 parent's picture, and the grid paints that
+ * parent four times over, each squashed to a quarter of the ground it covers.
+ * That is not a softer photo, it is the wrong photo, and all 25 tiles answer
+ * 200 so nothing else here notices.
+ *
+ * Two cells (cxT+dx, cyT+dy) and (cxT+dx+1, cyT+dy) share a parent exactly
+ * when halving both their x's lands on the same tile. Returns every such
+ * left/right pair; the caller wants more than one, so that a genuinely
+ * featureless patch -- a lake, a car park -- cannot pass for a clamp.
+ */
+function sceneSatelliteSiblingPairs(grid){
+  const pairs=[];
+  for(let dy=0; dy<grid.N; dy++){
+    for(let dx=0; dx<grid.N-1; dx++){
+      const x=grid.cxT+dx;
+      if(Math.floor(x/2)!==Math.floor((x+1)/2)) continue;
+      pairs.push([dy*grid.N+dx, dy*grid.N+dx+1]);
+    }
+  }
+  return pairs;
+}
+
+/** Two RGBA byte arrays, pixel for pixel. Different lengths are not equal. */
+function sceneBytesEqual(a,b){
+  if(!a||!b||a.length!==b.length) return false;
+  for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false;
+  return true;
+}
+
+/**
+ * Did the provider actually HAVE this zoom, or did it hand back the parent?
+ * `samePixels(i,j)` compares two cells of the grid. Needs at least two
+ * separate sibling pairs to say yes, and every cell it looks at must have
+ * loaded -- a missing tile is the other failure and is handled on its own.
+ */
+function sceneSatelliteClamped(loaded, grid, samePixels){
+  const pairs=sceneSatelliteSiblingPairs(grid).filter(([a,b])=>loaded[a]&&loaded[b]);
+  if(pairs.length<2) return false;
+  // The first and last pair, which are rows apart: two reads, not twenty, and
+  // two places rather than two neighbours. `every` stops at the first pair
+  // that differs, so real imagery costs one comparison.
+  return [pairs[0], pairs[pairs.length-1]].every(([a,b])=>samePixels(a,b));
+}
+
 /** Mean colour of the opaque pixels in an RGBA byte array; transparent ones (an undrawn cell) do not vote. */
 function sceneMeanColour(data){
   let r=0,g=0,b=0,n=0;
@@ -2826,6 +2906,22 @@ function build3D(runs,attempt){
       }));
     }
     const loaded=await Promise.all(loads);
+    // Before judging the tiles, ask whether they are even tiles of THIS zoom.
+    // A provider without this level answers with its parent tile instead of an
+    // error (see sceneSatelliteSiblingPairs), so the cells come back correct
+    // in number, 200 in status, and wrong by a factor of two on the ground.
+    // Measured against the deployed proxy: at Orlando the four z21 children of
+    // a parent are byte-identical to that parent, while at Riverview, where
+    // the county really serves 21, the same four are four different images.
+    // Stepping down lands on the level the provider does have -- which is the
+    // z20 every quote had before the zoom was raised, never worse.
+    if(Z>19 && sceneSatelliteClamped(loaded, grid, (a,b)=>{
+      const cell=i=>g2.getImageData((i%N)*SAT_TILE_PX, Math.floor(i/N)*SAT_TILE_PX,
+                                    SAT_TILE_PX, SAT_TILE_PX).data;
+      return sceneBytesEqual(cell(a), cell(b));
+    })){
+      return window.__fence.attachSatellite(lat,lon,Z-1);
+    }
     // A tile the fence never stands on may go missing without costing the
     // sharpest imagery. One under the fence, or more than half the grid,
     // steps down a level -- the same chain as before, ending at 19.
@@ -2890,6 +2986,9 @@ function build3D(runs,attempt){
     const rot=document.getElementById('rotSlider');
     document.getElementById('rotCtl').style.display='';
     document.getElementById('mapCred').style.display='';
+    // At phone width the stylesheet gives the turn panel the top row and
+    // drops the badge while it is up (see #stage.has-map).
+    stage.classList.add('has-map');
     rot.addEventListener('input',()=>{ pivot.rotation.y=rot.value*Math.PI/180; });
     const slideBtn=document.getElementById('slideBtn');
     slideBtn.style.display='';

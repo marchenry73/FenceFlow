@@ -372,7 +372,7 @@
     <string name="set_contract_terms_field">Condiciones impresas en el contrato</string>
     <string name="set_contract_terms_review_body">El bloque marcado para reemplazar sigue en el texto de abajo: busque SU DERECHO A CANCELAR. Pida a su abogado la redacción que exige su estado y péguela sobre ese párrafo. FenceFlow no sabe qué exige su estado y no lo comprueba.</string>
     <string name="set_contract_terms_placeholders">Se rellenan al generar el contrato: {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Todo lo demás se imprime tal como usted lo escriba.</string>
-    <string name="set_contract_terms_cancellation_note">La sección CANCELACIÓN de abajo deja en blanco su plazo de aviso y su cargo de devolución, marcados COMPLETE ESTO ANTES DE USAR ESTE CONTRATO — esas cifras las decide usted, no FenceFlow. Póngalas antes de enviar un contrato.</string>
+    <string name="set_contract_terms_cancellation_note">La sección CANCELACIÓN de abajo no tiene plazo de aviso ni tarifa que usted deba completar. Cobra solo lo que un trabajo cancelado le ha costado realmente: los materiales que no se pueden devolver, cualquier cargo de devolución que el proveedor cobre de verdad y el trabajo ya realizado. Cámbiela si su propia política es distinta.</string>
     <string name="set_contract_terms_this_phone">Estas condiciones se guardan en este teléfono. Un segundo teléfono de la misma cuenta guarda su propia copia, así que cámbielas también allí.</string>
     <string name="set_contract_terms_blank">Esta casilla está vacía, así que el contrato no imprimirá ninguna condición.</string>
     <string name="set_contract_terms_reset">Empezar de nuevo con las condiciones de FenceFlow</string>

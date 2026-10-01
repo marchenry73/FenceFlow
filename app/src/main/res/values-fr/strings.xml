@@ -372,7 +372,7 @@
     <string name="set_contract_terms_field">Conditions imprimées sur le contrat</string>
     <string name="set_contract_terms_review_body">Le bloc à remplacer est toujours dans le texte ci-dessous : cherchez VOTRE DROIT D\'ANNULATION. Demandez à votre avocat la formulation exigée par votre État et collez-la à la place de ce paragraphe. FenceFlow ne sait pas ce qu\'exige votre État et ne le vérifie pas.</string>
     <string name="set_contract_terms_placeholders">Remplis à la production du contrat : {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Tout le reste est imprimé tel que vous le tapez.</string>
-    <string name="set_contract_terms_cancellation_note">La section ANNULATION ci-dessous laisse votre préavis et vos frais de reprise en blanc, marqués REMPLISSEZ CECI AVANT D\'UTILISER CE CONTRAT — ce sont vos propres chiffres, pas ceux de FenceFlow. Complétez-les avant d\'envoyer un contrat.</string>
+    <string name="set_contract_terms_cancellation_note">La section ANNULATION ci-dessous ne comporte ni préavis ni frais à compléter. Elle ne facture que ce qu\'un chantier annulé vous a réellement coûté : les matériaux qui ne peuvent pas être retournés, les frais de retour réellement facturés par le fournisseur et le travail déjà effectué. Modifiez-la si votre politique est différente.</string>
     <string name="set_contract_terms_this_phone">Ces conditions sont conservées sur ce téléphone. Un second téléphone du même compte garde sa propre copie : modifiez-les aussi là-bas.</string>
     <string name="set_contract_terms_blank">Cette case est vide : le contrat n\'imprimera aucune condition.</string>
     <string name="set_contract_terms_reset">Repartir des conditions fournies avec FenceFlow</string>

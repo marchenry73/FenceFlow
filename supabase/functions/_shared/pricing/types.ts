@@ -159,8 +159,31 @@ export interface MaterialItem {
    * For PANEL/GATE_PANEL: width in feet this unit covers.
    * For CHAIN_FABRIC: the fabric height in feet this row represents.
    * Float.
+   *
+   * Width for one role and HEIGHT for another is a wart, and it is why a
+   * panel's height has its own field below: reading it out of coversFt would
+   * have meant a second meaning for a column that already has two.
    */
   coversFt: number | null;
+  /**
+   * How tall this item is, in feet, when the catalog says so. Null = the row
+   * does not say, which is every row until somebody fills it in.
+   *
+   * NOT coversFt. coversFt is the WIDTH of a PANEL or GATE_PANEL and the HEIGHT
+   * of CHAIN_FABRIC; this is the height of a PANEL or GATE_PANEL and is not read
+   * for any other role (chain-link fabric keeps its height in coversFt, and a
+   * post's number is a length, not a fence height).
+   *
+   * buildLineItems uses it to choose between PANEL and GATE_PANEL rows of ONE
+   * width: a row is set aside when another row of its own width has a heightFt
+   * equal to the run's panelHeightFt and it does not (a row with no height
+   * included). Rows of other widths are never set aside by it, and when no row
+   * has the run's height nothing is set aside at all, so a catalog in which
+   * nothing declares a height prices exactly as it always did. Filling a height
+   * in is how a company says "this is the row for a run this tall". Never worked
+   * out from the product's NAME: renaming an item must not move a price. Float.
+   */
+  heightFt: number | null;
   colorOrFinish: string;
   /** Null = generic/no specific manufacturer. */
   manufacturerSyncId: string | null;

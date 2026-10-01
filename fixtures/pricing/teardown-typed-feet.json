@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.1",
-    "generated_at": "2026-10-01T17:57:30.573603700Z"
+    "version": "2026.10.2",
+    "generated_at": "2026-10-01T20:36:35.943499400Z"
   },
   "case": "teardown-typed-feet",
   "note": "Teardown on with typed feet: flat fee + rate x 80 + trash haul.",
   "input": {
-    "engine_version": "2026.10.1",
+    "engine_version": "2026.10.2",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.1",
+    "engine_version": "2026.10.2",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

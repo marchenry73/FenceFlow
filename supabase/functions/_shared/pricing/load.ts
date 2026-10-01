@@ -178,6 +178,16 @@ export function materialItemRowToInput(row: DbMaterialItemRow): MaterialItemRow 
     supplier_unit_price: (row as any).supplier_unit_price ?? null,
     taxable: row.taxable,
     covers_ft: row.covers_ft === null || row.covers_ft === undefined ? null : f32(row.covers_ft),
+    // height_ft is the one catalog field that travels ONLY when the row has a
+    // value. Unlike supplier_unit_price above it is read by both engines, but the
+    // phone's test-side decoder (ParityJson, ignoreUnknownKeys = false) cannot
+    // yet read the key -- PricingContract.kt has no such field -- so an
+    // unconditional `height_ft: null` would make every real-rows replay fail to
+    // decode. A row that has no height writes exactly the JSON it wrote before the
+    // column existed; a row that has one writes it, and the replay then fails
+    // LOUDLY on the unknown key until the Kotlin contract learns it, rather than
+    // quietly pricing without the height.
+    ...(row.height_ft === null || row.height_ft === undefined ? {} : { height_ft: f32(row.height_ft) }),
     is_active: row.is_active,
     manufacturer_sync_id: row.manufacturer_sync_id ?? null,
   };

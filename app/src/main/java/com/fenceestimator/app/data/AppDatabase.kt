@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
         PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class,
         EnquiryCapture::class, EnquiryCapturePhoto::class, RunJoin::class
     ],
-    version = 48,
+    version = 49,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -771,13 +771,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** See [SchemaV49] for what each statement is for. */
+        private val MIGRATION_48_49 = object : Migration(48, 49) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV49.MIGRATION_48_49_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -970,8 +977,8 @@ internal object SchemaV47 {
  * A new version rather than more statements in [SchemaV47]: a build at schema 47
  * already exists (the link APK of 2026-10-01 carries enquiry_captures), and a phone
  * that ran that 47 and then met a changed 47 would refuse to open its own database.
- * This list is now the unshipped one; once a build at 48 exists, a change to the
- * schema belongs in a version 49, not here.
+ * Once a build at 48 exists, a change to the schema belongs in a version 49, not
+ * here -- and one did (see the note on [SchemaV49] below).
  *
  * Written to match what Room itself generates for the entity, and held to it by
  * tests/a33-join-model-storage.test.mjs, which builds these statements in SQLite
@@ -980,6 +987,11 @@ internal object SchemaV47 {
  * and they are declared on the entity, not only here, so a fresh install gets
  * them as well as an upgraded phone. There is deliberately no CHECK constraint:
  * Room cannot declare one, so it would exist only after an upgrade.
+ *
+ * FROZEN as of the 49 migration below: a link build at schema 48 was being built
+ * when [SchemaV49] was written (1 Oct 2026), so a phone may already hold a 48
+ * database, and a column added to this list would meet it as a table that no
+ * longer matches its entities. The change went into a version 49 instead.
  */
 internal object SchemaV48 {
     val MIGRATION_47_48_STATEMENTS: List<String> = listOf(
@@ -994,5 +1006,30 @@ internal object SchemaV48 {
         "CREATE UNIQUE INDEX IF NOT EXISTS `index_run_joins_runId_atEnd` ON `run_joins` (`runId`, `atEnd`)",
         "CREATE UNIQUE INDEX IF NOT EXISTS `index_run_joins_jointId_runId` ON `run_joins` (`jointId`, `runId`)",
         "CREATE UNIQUE INDEX IF NOT EXISTS `index_run_joins_syncId` ON `run_joins` (`syncId`)"
+    )
+}
+
+/**
+ * The 48 -> 49 upgrade: one nullable column, [MaterialItem.heightFt], how tall a
+ * catalog panel or gate panel is. Purely additive -- no row is read, changed or
+ * deleted -- and NULL for every row already on the phone, which is "the row does
+ * not say": the engine then prices exactly as it did before the column existed.
+ * It is how a 6 ft high iron run stops being priced with the 4 ft high panel
+ * (see EstimateEngine.PRICING_ENGINE_VERSION, 2026.10.2).
+ *
+ * A new version rather than a statement in [SchemaV48]: a link build at schema 48
+ * was being built when this was written (1 Oct 2026), so a phone may already hold a
+ * 48 database, and one that ran that 48 and then met a changed 48 would refuse to
+ * open its own database. This list is now the unshipped one; once a build at 49
+ * exists, a change to the schema belongs in a version 50, not here.
+ *
+ * Room expects a nullable Float as REAL with no NOT NULL and no default, the same
+ * as fence_runs.manualLinearFeet. Heights arrive from the cloud
+ * (material_items.height_ft, supabase_a40_material_height.sql) by EntitySync's
+ * catalog pull; the phone's catalog editor has no field for one yet.
+ */
+internal object SchemaV49 {
+    val MIGRATION_48_49_STATEMENTS: List<String> = listOf(
+        "ALTER TABLE `material_items` ADD COLUMN `heightFt` REAL"
     )
 }

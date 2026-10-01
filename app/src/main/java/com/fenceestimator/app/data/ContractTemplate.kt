@@ -15,15 +15,28 @@ package com.fenceestimator.app.data
  *
  * {PLACEHOLDERS} are filled in when the document is produced.
  *
- * CANCELLATION carries two separate things an owner must still act on, and
- * they are deliberately not the same marker: the statutory right-to-cancel
- * paragraph is attorney wording this app cannot write (see
- * [contractTermsNeedLegalReview]), while the notice-period and
- * restocking-charge line above it is a plain business decision this app
- * could never know either way, just one nobody needs a lawyer for. Both are
- * left as visible bracketed placeholders in the text rather than blank,
- * because a blank clause reads as "no policy" and a customer will assume
- * whichever answer suits them.
+ * CANCELLATION is complete as shipped, with no number for the owner to fill
+ * in. It charges what a cancelled job has ACTUALLY cost the contractor --
+ * materials that cannot be returned (vinyl cut to a height, say), any
+ * return charge the supplier really bills, and work already done -- rather
+ * than a fixed fee or a notice period, because this app does not know the
+ * owner's figures and an invented one would print on a real customer's
+ * contract as though it were his policy. The one thing still left to the
+ * owner is the statutory right-to-cancel paragraph at the end of that
+ * section: attorney wording this app cannot write (see
+ * [contractTermsNeedLegalReview]). It stays a visible bracketed placeholder
+ * rather than blank, because a blank clause reads as "no policy" and a
+ * customer will assume whichever answer suits them.
+ *
+ * A STORED COPY IS NOT THIS CONSTANT. This text is only the starting value.
+ * The first time a company's settings are saved, [SettingsStore] writes the
+ * terms the profile holds into the phone's own storage, and from then on
+ * that stored copy is what prints on the contract: changing this constant
+ * does not change it. [isDefaultContractTerms] is what lets an untouched
+ * stored default keep following this file -- it recognises the current
+ * defaults and every earlier shipped one, by fingerprint (see
+ * [SUPERSEDED_DEFAULT_TERMS_SHA256]). Terms an owner has edited, even by one
+ * word, are never recognised and never replaced.
  */
 const val DEFAULT_CONTRACT_TERMS: String = """
 SCOPE OF WORK
@@ -75,28 +88,35 @@ Fence lines are built to follow the ground. Minor variation in height and gaps
 along uneven terrain is normal and is not a defect.
 
 CANCELLATION
-You may cancel this agreement in writing at any time before the work is
-finished.
+You may cancel this agreement at any time before the work is finished. Notice
+must be in writing; a text message or an email to {COMPANY} counts. It takes
+effect when {COMPANY} receives it. Please call as well, so that an order can
+be stopped before it is placed.
 
 If you cancel before materials are ordered, your deposit is refunded in
 full.
 
-If you cancel after materials are ordered, your deposit first covers the
-cost of the materials already bought for your job, then a restocking charge
-on anything that can be returned; any part of the deposit left over after
-that is refunded to you. Materials already bought for your job are not
-handed over to you -- covering their cost is what that part of the deposit
-is for.
+If you cancel after materials are ordered, you pay what your job has actually
+cost {COMPANY} so far: materials ordered for your job that cannot be returned
+or used on another job -- for example vinyl or other material already cut to
+your height and length -- and any return or restocking charge the supplier
+actually bills us on materials that can be returned. On request we will show
+you the supplier's invoice. There is no fixed cancellation fee, and you are
+not charged for materials we can return or use elsewhere.
 
-If you cancel after installation has begun, the above still applies, and you
-also owe for the work already done. {COMPANY} will total that amount and
-either bill you separately or deduct it from the deposit before any refund.
+If you cancel after installation has begun, you also pay for the
+work already done.
 
-NOTICE AND RESTOCKING CHARGE -- [FILL THIS IN BEFORE USING THIS CONTRACT]
-Add your own numbers here: how much written notice you require before a
-scheduled start date, and any restocking or reordering charge on materials
-that can be returned. These are business decisions, not legal ones, and this
-app does not set them for you.
+What you owe under this section comes out of your deposit first, and any part
+of the deposit left over is refunded to you. If you owe more than the deposit,
+we will bill you for the difference. {COMPANY} will total the amount and give
+it to you in writing.
+
+If {COMPANY} cancels this agreement, or cannot do the work as described, we
+refund what you have paid, less the agreed price of any work already
+finished, and you owe nothing for materials we ordered.
+
+Nothing in this section limits any right to cancel that the law gives you.
 
 YOUR RIGHT TO CANCEL -- [REPLACE THIS BLOCK BEFORE USING THIS CONTRACT]
 Most states require a home-improvement contract to state, in specific wording
@@ -180,28 +200,38 @@ Las cercas se construyen siguiendo el terreno. Una variación menor de altura y
 de separaciones en terreno irregular es normal y no constituye un defecto.
 
 CANCELACIÓN
-Usted puede cancelar este acuerdo por escrito en cualquier momento antes de
-que el trabajo termine.
+Usted puede cancelar este acuerdo en cualquier momento antes de que el trabajo
+termine. El aviso debe ser por escrito; un mensaje de texto o un correo
+electrónico a {COMPANY} es válido. Surte efecto cuando {COMPANY} lo recibe.
+Le pedimos que también llame, para poder detener un pedido antes de que se
+haga.
 
 Si cancela antes de pedir los materiales, se le reembolsa el depósito en su
 totalidad.
 
-Si cancela después de pedir los materiales, el depósito cubre primero el
-costo de los materiales ya comprados para su trabajo y luego un cargo de
-devolución sobre lo que se pueda devolver; cualquier parte del depósito que
-sobre después de eso se le reembolsa. Los materiales ya comprados para su
-trabajo no se le entregan -- para eso sirve esa parte del depósito.
+Si cancela después de pedir los materiales, usted paga lo que su trabajo le ha
+costado realmente a {COMPANY} hasta ese momento: los materiales pedidos para su
+trabajo que no se pueden devolver ni usar en otro trabajo -- por ejemplo,
+vinilo u otro material ya cortado a su altura y largo -- y cualquier cargo de
+devolución que el proveedor nos cobre realmente por materiales que sí se
+pueden devolver. Si lo solicita, le mostraremos la factura del proveedor. No
+hay una tarifa fija de cancelación, y no se le cobran los materiales que
+podamos devolver o usar en otro lugar.
 
-Si cancela después de que la instalación haya comenzado, se aplica lo
-anterior y además usted debe pagar el trabajo ya realizado. {COMPANY}
-calculará ese monto y se lo cobrará por separado o lo descontará del
-depósito antes de cualquier reembolso.
+Si cancela después de que la instalación haya comenzado, usted también paga el
+trabajo ya realizado.
 
-AVISO Y CARGO DE DEVOLUCIÓN -- [COMPLETE ESTO ANTES DE USAR ESTE CONTRATO]
-Agregue aquí sus propios números: cuánto aviso por escrito exige antes de
-una fecha de inicio programada, y cualquier cargo de devolución sobre
-materiales que se puedan devolver. Son decisiones de negocio, no legales, y
-esta aplicación no las establece por usted.
+Lo que usted deba según esta sección se descuenta primero de su depósito, y
+cualquier parte del depósito que sobre se le reembolsa. Si debe más que el
+depósito, le cobraremos la diferencia. {COMPANY} calculará el monto y se lo
+entregará por escrito.
+
+Si {COMPANY} cancela este acuerdo, o no puede hacer el trabajo como se
+describe, le reembolsamos lo que haya pagado, menos el precio acordado por el
+trabajo ya terminado, y usted no debe nada por los materiales que pedimos.
+
+Nada en esta sección limita ningún derecho de cancelación que la ley le
+otorgue.
 
 SU DERECHO A CANCELAR -- [REEMPLACE ESTE BLOQUE ANTES DE USAR ESTE CONTRATO]
 La mayoría de los estados exigen que un contrato de mejoras al hogar indique,
@@ -279,28 +309,39 @@ Les clôtures suivent le terrain. Une légère variation de hauteur et d'écart 
 un terrain irrégulier est normale et ne constitue pas un défaut.
 
 ANNULATION
-Vous pouvez annuler le présent accord par écrit à tout moment avant la fin
-des travaux.
+Vous pouvez annuler le présent accord à tout moment avant la fin des travaux.
+L'avis doit être donné par écrit ; un SMS ou un courriel adressé à {COMPANY}
+est valable. Il prend effet lorsque {COMPANY} le reçoit. Appelez-nous aussi,
+afin que nous puissions arrêter une commande avant qu'elle soit passée.
 
 Si vous annulez avant la commande des matériaux, votre acompte vous est
 remboursé intégralement.
 
-Si vous annulez après la commande des matériaux, l'acompte couvre d'abord le
-coût des matériaux déjà achetés pour votre projet, puis des frais de reprise
-sur ce qui peut être retourné ; toute partie de l'acompte restant après cela
-vous est remboursée. Les matériaux déjà achetés pour votre projet ne vous
-sont pas remis -- c'est à cela que sert cette partie de l'acompte.
+Si vous annulez après la commande des matériaux, vous payez ce que votre
+chantier a réellement coûté à {COMPANY} jusque-là : les matériaux commandés
+pour votre projet qui ne peuvent pas être retournés ni utilisés pour un autre
+chantier -- par exemple du vinyle ou un autre matériau déjà coupé à votre
+hauteur et à votre longueur -- ainsi que les frais de retour ou de reprise que
+le fournisseur nous facture réellement sur les matériaux qui peuvent être
+retournés. Sur demande, nous vous montrerons la facture du fournisseur. Il n'y
+a pas de frais d'annulation fixes, et les matériaux que nous pouvons retourner
+ou utiliser ailleurs ne vous sont pas facturés.
 
-Si vous annulez après le début de l'installation, ce qui précède s'applique
-également, et vous devez en plus payer le travail déjà effectué. {COMPANY}
-calculera ce montant et vous le facturera séparément ou le déduira de
-l'acompte avant tout remboursement.
+Si vous annulez après le début de l'installation, vous payez également le
+travail déjà effectué.
 
-AVIS ET FRAIS DE REPRISE -- [REMPLISSEZ CECI AVANT D'UTILISER CE CONTRAT]
-Ajoutez ici vos propres chiffres : le préavis écrit que vous exigez avant
-une date de début programmée, et tout frais de reprise sur les matériaux
-retournables. Ce sont des décisions commerciales, pas juridiques, et cette
-application ne les fixe pas pour vous.
+Ce que vous devez au titre de cette section est déduit en premier de votre
+acompte, et toute partie de l'acompte restante vous est remboursée. Si vous
+devez plus que l'acompte, nous vous facturerons la différence. {COMPANY}
+calculera le montant et vous le remettra par écrit.
+
+Si {COMPANY} annule le présent accord, ou ne peut pas réaliser les travaux tels
+que décrits, nous vous remboursons ce que vous avez payé, moins le prix convenu
+pour les travaux déjà terminés, et vous ne devez rien pour les matériaux que
+nous avons commandés.
+
+Rien dans cette section ne limite un droit d'annulation que la loi vous
+accorde.
 
 VOTRE DROIT D'ANNULATION -- [REMPLACEZ CE BLOC AVANT D'UTILISER CE CONTRAT]
 La plupart des États exigent qu'un contrat de rénovation résidentielle indique,
@@ -348,10 +389,61 @@ fun contractTermsNeedLegalReview(terms: String): Boolean =
         terms.contains("[REEMPLACE ESTE BLOQUE", ignoreCase = true) ||
         terms.contains("[REMPLACEZ CE BLOC", ignoreCase = true)
 
-/** True when [terms] is one of the shipped defaults in any language. */
+/**
+ * SHA-256 (see [termsFingerprint]) of every default this app has shipped
+ * before the current ones, in all three languages. A phone whose stored terms
+ * hash to one of these still holds an untouched shipped default -- just an
+ * older one -- so it is treated as the default and prints the current text.
+ *
+ * Fingerprints rather than the old texts themselves: nine near-copies of
+ * contract language would sit in this file looking like live terms and
+ * inviting someone to edit the wrong one. Each value was taken from the
+ * constant as it stood in git at the commit named beside it.
+ *
+ * When a default is next changed, add the fingerprint of the one being
+ * replaced here BEFORE editing it. Forgetting is silent: phones holding the
+ * old default would keep printing it and nothing would say so.
+ */
+private val SUPERSEDED_DEFAULT_TERMS_SHA256: Set<String> = setOf(
+    // English: 7f8031d (original), 7c91a1d (first cancellation notice),
+    // 86d5aa3 (cancellation clause with the owner fill-in block).
+    "a442a5c2352aafebe637f3ae85ab0e2f346ff2af014bd6093b895c0fb2257af4",
+    "f648420a19ef31b382e7d714ed45d837115f9cfff825a583c74cd0005f98f366",
+    "9c342e03fd66ef8d3edcd5377db6125f50d6ab5616ae44f64cbcf981c5d3bb44",
+    // Spanish: 3240c1d, 834b7c8 (and 04ff2f9), 86d5aa3.
+    "940853ffe7e0b906382b28dc9575c4295ad2f5cf5b7a19972bf8cea39d04ba36",
+    "ac2bc2605e169c92b628273187f1e659f469170f3d1a1d23578f10d04d43135e",
+    "d9eb19bbb58c50c71dc2206a7e1a4868845cdbce033be784a9d477c92050353f",
+    // French: 3240c1d, 834b7c8 (and 04ff2f9), 86d5aa3.
+    "9a93b59030cfc5c33bd5749178ecb8609a5fc906ef6482c83985c41e4e7dd537",
+    "c24a059474b6ecc51cc438c3e275d4c82d0a5a22496b73a8a493d184455d523e",
+    "98903a54ea80ba532b452f6c08c015047a64ec72002be97964001e2c86cff437"
+)
+
+/**
+ * Hex SHA-256 of [terms] with the surrounding whitespace trimmed and line
+ * endings normalised to \n, so a stored copy written on a machine that
+ * saved CRLF still matches.
+ */
+private fun termsFingerprint(terms: String): String {
+    val canonical = terms.trim().replace("\r\n", "\n")
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(canonical.toByteArray(Charsets.UTF_8))
+    return digest.joinToString("") { b -> "%02x".format(b.toInt() and 0xff) }
+}
+
+/** True when [terms] is an untouched default this app shipped in the past. */
+fun isSupersededDefaultContractTerms(terms: String): Boolean =
+    termsFingerprint(terms) in SUPERSEDED_DEFAULT_TERMS_SHA256
+
+/**
+ * True when [terms] is an untouched shipped default in any language, current
+ * or earlier. Exact match only: anything an owner has edited is theirs.
+ */
 fun isDefaultContractTerms(terms: String): Boolean {
     val t = terms.trim()
     return t == DEFAULT_CONTRACT_TERMS.trim() ||
         t == DEFAULT_CONTRACT_TERMS_ES.trim() ||
-        t == DEFAULT_CONTRACT_TERMS_FR.trim()
+        t == DEFAULT_CONTRACT_TERMS_FR.trim() ||
+        isSupersededDefaultContractTerms(t)
 }

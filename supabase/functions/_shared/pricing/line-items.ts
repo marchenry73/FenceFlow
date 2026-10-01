@@ -6,8 +6,9 @@
  * Builds priced, editable line items from suggested quantities and the
  * current material catalog, scoped to the run's fence type. Prefers the
  * run's chosen color/finish and the job's preferred manufacturer when
- * more than one catalog item matches a role; falls back gracefully when
- * a role has no matching catalog item at all.
+ * more than one catalog item matches a role -- and, between PANEL or GATE_PANEL
+ * rows of one width, the row whose declared height is the run's panel height;
+ * falls back gracefully when a role has no matching catalog item at all.
  */
 import { compareBoolean, compareIeee, compareString, f32, floatSum, minWithOrNull, sortedWith } from "./f32.ts";
 import { equalsIgnoreCase, isBlank, kotlinFloatToString } from "./kotlin-text.ts";
@@ -129,6 +130,35 @@ export function buildLineItems(
     if (preferredManufacturerSyncId !== null) {
       const manufacturerMatches = candidates.filter((c) => c.manufacturerSyncId === preferredManufacturerSyncId);
       if (manufacturerMatches.length > 0) candidates = manufacturerMatches;
+    }
+
+    // Height, for the two roles that are a panel of the run's fence. Width alone
+    // cannot tell a 4 ft high panel from a 6 ft high one when both are 6 ft wide,
+    // and the cheaper one then won every quote of the dearer height -- the
+    // starting catalog's ornamental iron, short by $40 a panel.
+    //
+    // A row says how tall it is in heightFt, a column of its own; the NAME is
+    // never read for it. The same "narrow only if something matches" shape as
+    // colour and manufacturer, with one difference that matters: it narrows
+    // WITHIN a width. Height is what separates rows that tie on width; it must
+    // not change which widths are in the running. Dropping every row that does
+    // not declare the run's height hid the other widths of a role -- a 4 ft and a
+    // 6 ft gate beside a 5 ft one that declared its height -- and moved 3 of the
+    // 85 recorded quotes that have nothing to do with height, one of them down.
+    // So a row is set aside only when another row of ITS OWN width declares the
+    // run's height and it does not. When no row declares the run's height -- which
+    // is every catalog that declares no height at all -- nothing is set aside and
+    // the choice below is exactly what it always was, and a row that does declare
+    // it never sets itself aside, so the list cannot be emptied.
+    //
+    // Not for any other role: chain-link fabric's height is its coversFt, and a
+    // post's number is a length. `===` is Kotlin's `==` on Float? and Float, which
+    // is IEEE for both, and null never equals a number in either.
+    if (entry.role === "PANEL" || entry.role === "GATE_PANEL") {
+      const current = candidates;
+      candidates = current.filter((c) =>
+        c.heightFt === run.panelHeightFt ||
+        !current.some((d) => d.coversFt === c.coversFt && d.heightFt === run.panelHeightFt));
     }
 
     let chosen: MaterialItem | null;

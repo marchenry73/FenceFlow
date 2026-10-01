@@ -145,8 +145,20 @@ object EstimateEngine {
      * A phone still on 2026.09.3 rounds up to ten until it updates; the
      * version comparison above is what keeps that from overwriting an office
      * price priced under this version.
+     *
+     * Bumped 2026.10.1 -> 2026.10.2 (1 Oct 2026) for panel height: between PANEL
+     * (or GATE_PANEL) rows of one width, the row whose [MaterialItem.heightFt]
+     * equals the run's panel height now beats a row that does not ([buildLineItems],
+     * and line-items.ts buildLineItems on the server). A formula change, so a
+     * version change on BOTH engines, and the 85 fixtures regenerate in the same
+     * commit.
+     * It moves a quote only where a company has filled a height in: a catalog that
+     * declares none is priced exactly as under 2026.10.1. Where it does move one
+     * it is the starting catalog's 6 ft ornamental iron, which was priced with the
+     * 4 ft high panel (an undercharge of $40 a panel before tax and markup).
+     * Anchored totals do not move, as above.
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.1"
+    const val PRICING_ENGINE_VERSION = "2026.10.2"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -746,6 +758,36 @@ object EstimateEngine {
             if (preferredManufacturerId != null) {
                 val manufacturerMatches = candidates.filter { it.manufacturerId == preferredManufacturerId }
                 if (manufacturerMatches.isNotEmpty()) candidates = manufacturerMatches
+            }
+
+            // Height, for the two roles that are a panel of the run's fence. Width alone
+            // cannot tell a 4 ft high panel from a 6 ft high one when both are 6 ft wide,
+            // and the cheaper one then won every quote of the dearer height -- the
+            // starting catalog's ornamental iron, short by $40 a panel.
+            //
+            // A row says how tall it is in heightFt, a column of its own; the NAME is
+            // never read for it. The same "narrow only if something matches" shape as
+            // colour and manufacturer, with one difference that matters: it narrows
+            // WITHIN a width. Height is what separates rows that tie on width; it must
+            // not change which widths are in the running. Dropping every row that does
+            // not declare the run's height hid the other widths of a role -- a 4 ft and a
+            // 6 ft gate beside a 5 ft one that declared its height -- and moved 3 of the
+            // 85 recorded quotes that have nothing to do with height, one of them down.
+            // So a row is set aside only when another row of ITS OWN width declares the
+            // run's height and it does not. When no row declares the run's height -- which
+            // is every catalog that declares no height at all -- nothing is set aside and
+            // the choice below is exactly what it always was, and a row that does declare
+            // it never sets itself aside, so the list cannot be emptied.
+            //
+            // Not for any other role: chain-link fabric's height is its coversFt, and a
+            // post's number is a length. `==` on Float? and Float is IEEE for both, as
+            // `===` is in line-items.ts, and null never equals a number in either.
+            if (entry.role == MaterialRole.PANEL || entry.role == MaterialRole.GATE_PANEL) {
+                val current = candidates
+                candidates = current.filter { c ->
+                    c.heightFt == run.panelHeightFt ||
+                        current.none { d -> d.coversFt == c.coversFt && d.heightFt == run.panelHeightFt }
+                }
             }
 
             val chosen = if (entry.preferCoversFt != null) {

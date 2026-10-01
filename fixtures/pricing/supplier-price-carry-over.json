@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.1",
-    "generated_at": "2026-10-01T17:57:30.573603700Z"
+    "version": "2026.10.2",
+    "generated_at": "2026-10-01T20:36:35.943499400Z"
   },
   "case": "supplier-price-carry-over",
   "note": "The quote on a generated LINE_POST carries by role onto the rebuilt line and the totals use it; the edited PANEL and END_POST stand in for their built lines and keep their own quote and typed price.",
   "input": {
-    "engine_version": "2026.10.1",
+    "engine_version": "2026.10.2",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -420,7 +420,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.10.1",
+    "engine_version": "2026.10.2",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

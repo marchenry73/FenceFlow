@@ -65,8 +65,19 @@ export {
  * overwriting; a job that phone prices itself keeps getting the ten-rounded
  * total until the phone updates. See the matching comment on
  * EstimateEngine.PRICING_ENGINE_VERSION.
+ *
+ * Bumped 2026.10.1 -> 2026.10.2 (1 Oct 2026) for panel height: between PANEL
+ * (or GATE_PANEL) rows of one width, the row whose height_ft equals the run's
+ * panel height now beats a row that does not (line-items.ts buildLineItems /
+ * EstimateEngine.buildLineItems). A formula change, so a version change on BOTH
+ * engines, and the 85 fixtures regenerate in the same commit. It moves a quote
+ * only where a company has filled a height in: a catalog that declares none is
+ * priced exactly as under 2026.10.1. Where it does move one it is the starting
+ * catalog's 6 ft ornamental iron, which was priced with the 4 ft high panel
+ * (an UNDERCHARGE of $40 a panel before tax and markup). Anchored totals do not
+ * move, as above.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.1";
+export const PRICING_ENGINE_VERSION = "2026.10.2";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.
@@ -139,6 +150,18 @@ export interface MaterialItemRow {
   supplier_unit_price?: number | null;
   taxable: boolean;
   covers_ft: number | null;
+  /**
+   * `material_items.height_ft`: how tall a PANEL or GATE_PANEL row is. A real
+   * column, not something read out of `name`, and not `covers_ft` (width for
+   * those roles). Float.
+   *
+   * OPTIONAL, unlike every other field here: absent, null and undefined all read
+   * as "the row does not say" (the 85 recorded fixtures carry no such key, and
+   * the phone's test-side decoder, ParityJson, refuses a key it does not
+   * know). A row that does not say is priced exactly as before the column
+   * existed. See [MaterialItem.heightFt].
+   */
+  height_ft?: number | null;
   is_active: boolean;
   manufacturer_sync_id: string | null;
 }
@@ -449,6 +472,9 @@ export function materialItemFromRow(row: MaterialItemRow, index: number, manufac
     coversFt: row.covers_ft === null || row.covers_ft === undefined
       ? null
       : floatExact(row.covers_ft, `catalog[${index}].covers_ft`),
+    heightFt: row.height_ft === null || row.height_ft === undefined
+      ? null
+      : floatExact(row.height_ft, `catalog[${index}].height_ft`),
     colorOrFinish: str(row.color_or_finish, ""),
     manufacturerSyncId: resolveManufacturer(row.manufacturer_sync_id, manufacturerSyncIds),
     isActive: bool(row.is_active, true),

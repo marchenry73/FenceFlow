@@ -810,7 +810,31 @@ data class MaterialItem(
     val manufacturerId: Long? = null,
     val isActive: Boolean = true,
     val lastUpdated: Long = System.currentTimeMillis(),
-    val sourceDoc: String = ""
+    val sourceDoc: String = "",
+    /**
+     * How tall this item is, in feet, when the catalog says so. Null = the row
+     * does not say, which is every row until somebody fills it in.
+     *
+     * NOT [coversFt]. coversFt is the WIDTH of a PANEL or GATE_PANEL and the
+     * HEIGHT of CHAIN_FABRIC; this is the height of a PANEL or GATE_PANEL, and
+     * is not read for any other role (chain-link fabric keeps its height in
+     * coversFt, and a post's number is a length, not a fence height). That
+     * existing double meaning is exactly why a panel's height has a field of its
+     * own instead of a third reading of coversFt.
+     *
+     * EstimateEngine.buildLineItems uses it to choose between PANEL and GATE_PANEL
+     * rows of ONE width: a row is set aside when another row of its own width has
+     * a heightFt equal to the run's [FenceRun.panelHeightFt] and it does not (a
+     * row with no height included). Rows of other widths are never set aside by
+     * it, and when no row has the run's height nothing is set aside at all, so a
+     * catalog in which nothing declares a height prices exactly as it always did.
+     * Never worked out from the product's NAME -- renaming an item must not move
+     * a price.
+     *
+     * Last in the constructor with a default so no positional call moves; added
+     * by the 48 -> 49 migration ([SchemaV49]).
+     */
+    val heightFt: Float? = null
 )
 
 @Entity(

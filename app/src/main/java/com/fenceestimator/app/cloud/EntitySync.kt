@@ -836,7 +836,22 @@ data class CloudMaterialItem(
     // Never set on push -- the touch_updated_at trigger owns this column, the
     // same as jobs.updated_at. Only read, on pull, to arbitrate which side of
     // an edit is newer.
-    @SerialName("updated_at") val updatedAt: String? = null
+    @SerialName("updated_at") val updatedAt: String? = null,
+    /**
+     * material_items.height_ft: how tall a PANEL or GATE_PANEL row is (see
+     * [MaterialItem.heightFt]). Last, with a null default, so no positional call
+     * moves and a row without the key still decodes.
+     *
+     * Null is left out of a push (explicitNulls = false), and a phone built before
+     * this column existed never mentions it, so a batch with no height in it
+     * leaves the cloud's heights as they are. A height the phone does hold is
+     * sent, so a row new to the cloud arrives with it. Rows are last-edit-wins
+     * whole, as for every other column: a phone that edits a row before it has
+     * pulled a height somebody set since its last sync sends that row without
+     * one, and in a batch where another row carries a height an upsert writes the
+     * missing key as null.
+     */
+    @SerialName("height_ft") val heightFt: Float? = null
 ) {
     /** See [CloudJob.updatedAtMillis]: falls back to 0 so an absent value never outranks real local work. */
     fun updatedAtMillis(): Long = CloudTime.parseMillis(updatedAt) ?: 0L
@@ -1848,7 +1863,8 @@ object EntitySync {
             CloudMaterialItem(
                 companyId, it.syncId, it.name, it.category.name, it.role.name,
                 it.fenceType.name, it.colorOrFinish, it.unit, it.unitPrice,
-                it.taxable, it.coversFt, it.isActive, it.sourceDoc
+                it.taxable, it.coversFt, it.isActive, it.sourceDoc,
+                heightFt = it.heightFt
             )
         }
         return upsert("material_items", rows)
@@ -2287,6 +2303,7 @@ object EntitySync {
                             unitPrice = if (scope == MoneyScope.ALLOWED) row.unitPrice else existing.unitPrice,
                             taxable = row.taxable,
                             coversFt = row.coversFt,
+                            heightFt = row.heightFt,
                             isActive = row.isActive,
                             sourceDoc = row.sourceDoc,
                             lastUpdated = row.updatedAtMillis()
@@ -2326,6 +2343,7 @@ object EntitySync {
                         unitPrice = if (scope == MoneyScope.ALLOWED) row.unitPrice else sameThing.unitPrice,
                         taxable = row.taxable,
                         coversFt = row.coversFt,
+                        heightFt = row.heightFt,
                         isActive = row.isActive,
                         sourceDoc = row.sourceDoc,
                         lastUpdated = row.updatedAtMillis()
@@ -2347,6 +2365,7 @@ object EntitySync {
                     unitPrice = if (scope == MoneyScope.ALLOWED) row.unitPrice else 0.0,
                     taxable = row.taxable,
                     coversFt = row.coversFt,
+                    heightFt = row.heightFt,
                     isActive = row.isActive,
                     sourceDoc = row.sourceDoc,
                     lastUpdated = row.updatedAtMillis()

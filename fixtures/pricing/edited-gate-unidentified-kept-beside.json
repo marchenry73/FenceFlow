@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.1",
-    "generated_at": "2026-10-01T17:57:30.573603700Z"
+    "version": "2026.10.2",
+    "generated_at": "2026-10-01T20:36:35.943499400Z"
   },
   "case": "edited-gate-unidentified-kept-beside",
   "note": "An edited GATE_PANEL whose id the build does not produce and whose name matches neither built panel: nothing identifies it, so nothing is claimed. Both built panels are written and the edited line stays beside them -- an extra line beats a gate missing from the order.",
   "input": {
-    "engine_version": "2026.10.1",
+    "engine_version": "2026.10.2",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -424,7 +424,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.10.1",
+    "engine_version": "2026.10.2",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

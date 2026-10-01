@@ -403,7 +403,7 @@
     <string name="set_contract_terms_field">Terms printed on the contract</string>
     <string name="set_contract_terms_review_body">The block marked for replacement is still in the text below — look for YOUR RIGHT TO CANCEL. Ask your attorney for the wording your state requires and paste it over that paragraph. FenceFlow does not know what your state requires and does not check.</string>
     <string name="set_contract_terms_placeholders">Filled in when the contract is produced: {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Everything else prints exactly as you type it.</string>
-    <string name="set_contract_terms_cancellation_note">The CANCELLATION section below leaves your notice period and restocking charge blank, marked FILL THIS IN BEFORE USING THIS CONTRACT — those are your call, not FenceFlow\'s. Put in your own numbers before you send a contract.</string>
+    <string name="set_contract_terms_cancellation_note">The CANCELLATION section below has no notice period or fee for you to fill in. It charges only what a cancelled job has actually cost you: materials that cannot be returned, any return charge the supplier really bills, and work already done. Change it if your own policy is different.</string>
     <string name="set_contract_terms_this_phone">These terms are kept on this phone. A second phone on the same account keeps its own copy, so change them there too.</string>
     <string name="set_contract_terms_blank">This box is empty, so the contract will print no terms at all.</string>
     <string name="set_contract_terms_reset">Start again from the terms FenceFlow ships</string>
