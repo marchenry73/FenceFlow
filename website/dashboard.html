@@ -364,6 +364,12 @@
   .range-label{margin-top:9px;font-size:12px;color:var(--muted)}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
   .panel .sub{font-size:12px;color:var(--muted);margin:-6px 0 12px}
+  /* Settings -> "How customers can pay you": a switch with its method's name
+     beside it, then the box that method needs. The bare label rule above is
+     small uppercase muted text, which is wrong for a thing you switch on. */
+  .pm-switch{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--text);margin:16px 0 6px;cursor:pointer}
+  .pm-switch input{width:auto}
+  .pm-hint{display:block;font-size:11px;color:var(--muted);margin-top:4px}
   /* ---- the hero band ----------------------------------------------------
      The one figure the owner opens this tab for, said once and said large,
      in the brand's own steel. Everything else on the page is white cards;
@@ -1465,7 +1471,10 @@
               the phone app under Catalog — both write the same list and sync to each other
               within a minute of either one going online.</p>
           </div>
-          <button class="btn btn-sm btn-grey" type="button" id="catStartSeed" data-t="catStartSeedBtn">Start from FenceFlow's catalog</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm" type="button" id="catPriceList" data-t="ppOpenBtn" style="display:none">Update prices from a price list</button>
+            <button class="btn btn-sm btn-grey" type="button" id="catStartSeed" data-t="catStartSeedBtn">Start from FenceFlow's catalog</button>
+          </div>
         </div>
 
         <div class="panel" style="margin:14px 0">
@@ -2007,6 +2016,53 @@
   build template below (creating one from FenceFlow's shipped Vinyl privacy 6&nbsp;ft if you
   have none yet) — the same four numbers, now read from one place instead of two.</span>
         </p>
+      </div>
+
+      <!-- How customers can pay you. These are typed here and read by ONE
+           thing: the public quote link (quote-view), which shows a customer
+           whichever of these are switched on AND filled in. Stored in
+           company_settings.settings -> 'payment_methods' (one key, written
+           whole by save_company_settings), never on the companies row -- every
+           member of a company can read that row, crew included, and the wire
+           block holds a bank account. The blob is hidden from crew by policy
+           (supabase_a38_company_payment_methods.sql says how it was checked).
+           Hidden for anyone who cannot change it (loadPaymentMethods), and the
+           form stays locked until a read of what is stored has SUCCEEDED, so a
+           failed load can never be saved over the real thing. Nothing is
+           pre-filled: this app does not know anyone's Cash App tag. -->
+      <div class="panel" id="payMethodsPanel" style="display:none">
+        <h2 data-t="payMethHead">How customers can pay you</h2>
+        <p class="sub" data-t="payMethSub">Whatever you switch on and fill in appears on the quote link your customer opens. A method that is switched off, or left empty, is not shown to them at all.</p>
+        <div class="msg" id="payMethMsg"></div>
+        <p class="sub" id="payMethSummary" style="margin:0 0 4px;font-weight:600"></p>
+
+        <label class="pm-switch">
+          <input type="checkbox" id="pm_cashApp_on">
+          <span data-t="payMethCashAppLabel">Cash App</span>
+        </label>
+        <input id="pm_cashApp_tag" autocomplete="off" spellcheck="false" data-t="payMethCashAppPh" placeholder="Your $cashtag">
+
+        <label class="pm-switch">
+          <input type="checkbox" id="pm_zelle_on">
+          <span data-t="payMethZelleLabel">Zelle</span>
+        </label>
+        <input id="pm_zelle_to" autocomplete="off" spellcheck="false" data-t="payMethZellePh" placeholder="Phone number or email">
+        <span class="pm-hint" data-t="payMethZelleHint">The phone number or email address your Zelle is registered to. Type whichever one your customers should use.</span>
+
+        <label class="pm-switch">
+          <input type="checkbox" id="pm_wire_on">
+          <span data-t="payMethWireLabel">Wire transfer</span>
+        </label>
+        <textarea id="pm_wire_details" rows="5" autocomplete="off" spellcheck="false" data-t="payMethWirePh" placeholder="Bank name, account name, routing number, account number"></textarea>
+        <span class="pm-hint" data-t="payMethWireHint">Type it exactly as your bank gives it to you. Your customer sees these lines as you write them, account number included, so type only what you are happy for them to see.</span>
+
+        <label class="pm-switch">
+          <input type="checkbox" id="pm_cash_on">
+          <span data-t="payMethCashLabel">We accept cash</span>
+        </label>
+
+        <p class="pm-hint" style="margin-top:14px" data-t="payMethCardNote">Card payments run through your connected card processor and are not set up here. No card fee is added to what a customer pays, so none is shown to them.</p>
+        <div style="margin-top:14px"><button class="btn" id="savePayMethods" type="button" data-t="payMethSaveBtn" disabled>Save payment methods</button></div>
       </div>
 
       <!-- Company email. Shown to anyone with mail access (initMail); only the
@@ -2743,6 +2799,73 @@
         <tbody id="impRows"></tbody>
       </table></div>
       <button class="btn" id="impGo" style="margin-top:12px">Import these</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- Update prices from a supplier's price list. Separate from impOverlay on
+     purpose: that one ADDS items for a company moving over from another
+     product and never changes a price already in the catalog; this one changes
+     the prices of items that are already there, for one supplier at a time, and
+     shows every change before it is written. Owners and managers only
+     (canEdit(), the catalog's own gate). -->
+<div class="overlay" id="ppOverlay"><div class="sheet" style="max-width:1000px">
+  <div class="sheet-head">
+    <b data-t="ppTitle">Update prices from a supplier’s price list</b>
+    <button class="btn btn-sm btn-ghost" id="ppClose" type="button" data-t="ciCloseBtn">Close</button>
+  </div>
+  <div class="sheet-body">
+    <div class="msg" id="ppMsg"></div>
+    <div class="panel" id="ppNoSuppliers" style="display:none">
+      <p class="sub" style="margin:0 0 10px" data-t="ppNoSuppliers">Add a supplier first. A price list is applied to one supplier at a time, so there has to be one to apply it to.</p>
+      <button class="btn btn-sm" type="button" id="ppAddSupplier" data-t="ppAddSupplierBtn">Add a supplier</button>
+    </div>
+    <div class="panel" id="ppForm">
+      <p class="sub" style="margin:0 0 10px" data-t="ppIntro">Pick the supplier the list is from, then add their price list. You see every change, the old price beside the new one, before anything is saved. Items that are not in the file are left exactly as they are. Owners and managers can do this.</p>
+      <label data-t="ppSupplierLabel">Price list from</label>
+      <select id="ppSupplier"></select>
+      <label data-t="ppFileLabel">Price list file</label>
+      <input type="file" id="ppFile" accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf,text/csv,text/plain" style="margin-bottom:6px">
+      <p class="sub" style="margin:0 0 10px" data-t="ppFileHint">Reads CSV, TSV and Excel (.xlsx). A PDF or an old .xls file cannot be read reliably here. In Excel or Google Sheets, save or download it as CSV or .xlsx and add that instead.</p>
+      <label data-t="ppPasteLabel">Or paste the rows</label>
+      <textarea id="ppText" style="min-height:90px;font-family:ui-monospace,monospace;font-size:13px"
+        data-t="ppPastePh" placeholder="Item name, Price"></textarea>
+      <button class="btn btn-sm btn-grey" id="ppReadBtn" type="button" style="margin-top:10px" data-t="ppReadBtn">Preview changes</button>
+    </div>
+    <div class="panel" id="ppColsBox" style="display:none">
+      <h2 style="margin:0 0 6px" data-t="ppColsHead">Columns read from the file</h2>
+      <p class="sub" style="margin:0 0 8px" data-t="ppColsNote">Check these. The price column is the one that decides every new price.</p>
+      <p class="sub" id="ppReadNote" style="margin:0 0 8px"></p>
+      <div id="ppSheetWrap" style="display:none"><label data-t="ppSheetLabel">Sheet in this workbook</label><select id="ppSheet"></select></div>
+      <div class="wiz-row2">
+        <div><label data-t="ppColName">Item name</label><select id="ppColName"></select></div>
+        <div><label data-t="ppColPrice">Price you pay</label><select id="ppColPrice"></select></div>
+      </div>
+      <div class="wiz-row2">
+        <div><label data-t="ppColSku">Part number (optional)</label><select id="ppColSku"></select></div>
+        <div><label data-t="ppColUnit">Unit (optional)</label><select id="ppColUnit"></select></div>
+      </div>
+      <label id="ppAssignRow" style="display:flex;align-items:center;gap:8px;margin-top:10px">
+        <input type="checkbox" id="ppAssign" style="width:auto" checked><span id="ppAssignLabel"></span></label>
+      <label id="ppSkuRow" style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <input type="checkbox" id="ppSaveSku" style="width:auto" checked><span data-t="ppSkuLabel">Save the supplier’s part number on items that do not have one yet, so the next list can match on it</span></label>
+    </div>
+    <div class="panel" id="ppPreviewBox" style="display:none">
+      <h2 style="margin:0 0 8px" data-t="ppPreviewHead">What will change</h2>
+      <div id="ppPreviewBody"></div>
+      <p class="sub" id="ppApplyNote" style="margin:12px 0 0" data-t="ppApplyNote">This changes what jobs are priced at from now on. Nothing is deleted. You can undo it from here until you reload or leave this page, and the old prices can be saved as a CSV.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+        <button class="btn" id="ppApplyBtn" type="button"></button>
+        <span class="sub" id="ppSelCount" style="margin:0"></span>
+      </div>
+    </div>
+    <div class="panel" id="ppDoneBox" style="display:none">
+      <p class="sub" id="ppDoneText" style="margin:0 0 6px;color:var(--text)"></p>
+      <div id="ppDoneFails"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-sm btn-grey" type="button" id="ppUndoBtn" data-t="ppUndoBtn">Undo this update</button>
+        <button class="btn btn-sm btn-grey" type="button" id="ppSaveOldBtn" data-t="ppSaveOldBtn">Save the old prices (CSV)</button>
+      </div>
     </div>
   </div>
 </div></div>
@@ -3681,6 +3804,27 @@ const TL = {
     fixTimeWorkerSavedMsg:'Shift corrected and attached. It now counts towards that person\'s hours.',
     fixTimeNothingChangedErr:'Nothing was saved — this shift is no longer here, or it is not yours to change. Reload the page and look again.',
     settingsFormHead:'Business Settings',
+    payMethHead:'How customers can pay you',
+    payMethSub:'Whatever you switch on and fill in appears on the quote link your customer opens. A method that is switched off, or left empty, is not shown to them at all.',
+    payMethCashAppLabel:'Cash App', payMethCashAppPh:'Your $cashtag',
+    payMethZelleLabel:'Zelle', payMethZellePh:'Phone number or email',
+    payMethZelleHint:'The phone number or email address your Zelle is registered to. Type whichever one your customers should use.',
+    payMethWireLabel:'Wire transfer', payMethWirePh:'Bank name, account name, routing number, account number',
+    payMethWireHint:'Type it exactly as your bank gives it to you. Your customer sees these lines as you write them, account number included, so type only what you are happy for them to see.',
+    payMethCashLabel:'We accept cash', payMethNameCash:'Cash',
+    payMethCardNote:'Card payments run through your connected card processor and are not set up here. No card fee is added to what a customer pays, so none is shown to them.',
+    payMethSaveBtn:'Save payment methods',
+    payMethSummaryOn:'Your customers currently see: %s.',
+    payMethSummaryNone:'Your customers currently see no payment methods on their quote link.',
+    payMethSavedMsg:'Saved.',
+    payMethSaveFailed:'Could not save your payment methods: %s',
+    payMethLoadFailed:'Could not load your payment methods, so this form is locked rather than risk saving over what you already have. Reload the page and try again.',
+    payMethVerifyFailed:'Saved, but when read back it did not match what you typed. Reload the page and check it before you send a quote.',
+    payMethCashAppBad:'Cash App: type just your $cashtag, with letters, numbers, dots, dashes or underscores, no spaces, up to 30 characters. Nothing was saved.',
+    payMethZelleBad:'Zelle: type the phone number or the email address your Zelle is registered to. Nothing was saved.',
+    payMethZelleLong:'Zelle: that is too long (120 characters at most). Nothing was saved.',
+    payMethWireLong:'Wire transfer: that is too long (1000 characters at most). Nothing was saved.',
+    payMethOnButEmpty:'%s is switched on but nothing is filled in. Fill it in, or switch it off. Nothing was saved.',
     setupAgainHead:'Business setup', setupAgainBtn:'Run setup again',
     setupAgainSub:'Business info, rates, your standard build, supplier prices, pricing tiers and crew — one guided pass, in order. Running it again destroys nothing; it reopens where you left off.',
     leadPageHead:'Your get-a-quote page', leadPageCopyBtn:'Copy my link',
@@ -3873,6 +4017,89 @@ const TL = {
     catCatalogHead:'Materials Catalog',
     catCatalogBody:'One part list per fence type, so there\'s no confusion about which panel, post or gate belongs to which build. Edit here or in the phone app under Catalog — both write the same list and sync to each other within a minute of either one going online.',
     catStartSeedBtn:'Start from FenceFlow\'s catalog',
+    ppOpenBtn:'Update prices from a price list',
+    ppTitle:'Update prices from a supplier’s price list',
+    ppIntro:'Pick the supplier the list is from, then add their price list. You see every change, the old price beside the new one, before anything is saved. Items that are not in the file are left exactly as they are. Owners and managers can do this.',
+    ppSupplierLabel:'Price list from',
+    ppSupplierPick:'— choose a supplier —',
+    ppNoSuppliers:'Add a supplier first. A price list is applied to one supplier at a time, so there has to be one to apply it to.',
+    ppAddSupplierBtn:'Add a supplier',
+    ppFileLabel:'Price list file',
+    ppFileHint:'Reads CSV, TSV and Excel (.xlsx). A PDF or an old .xls file cannot be read reliably here. In Excel or Google Sheets, save or download it as CSV or .xlsx and add that instead.',
+    ppSheetLabel:'Sheet in this workbook',
+    ppSheetHidden:'(hidden)',
+    ppSheetNote:'Reading sheet “%s” (1 of %s sheets). The other sheets are not read; pick another above to use it instead.',
+    ppRowsHidden:'%s hidden rows in the sheet were skipped.',
+    ppPasteLabel:'Or paste the rows',
+    ppPastePh:'Item name, Price',
+    ppReadBtn:'Preview changes',
+    ppColsHead:'Columns read from the file',
+    ppColsNote:'Check these. The price column is the one that decides every new price.',
+    ppColName:'Item name',
+    ppColPrice:'Price you pay',
+    ppColSku:'Part number (optional)',
+    ppColUnit:'Unit (optional)',
+    ppColChoose:'— choose —',
+    ppColNone:'— none —',
+    ppAssignLabel:'Also match the %s item(s) that have no supplier yet, and set their supplier to %s',
+    ppSkuLabel:'Save the supplier’s part number on items that do not have one yet, so the next list can match on it',
+    ppPreviewHead:'What will change',
+    ppSummary:'%s rows read. Will change: %s. Already at that price: %s. Left alone, listed below: %s.',
+    ppWillChangeHead:'Will change (%s)',
+    ppColItemH:'Item',
+    ppColNowH:'Now',
+    ppColNewH:'New price',
+    ppColDiffH:'Change',
+    ppColAlsoH:'Also',
+    ppAlsoAssign:'Supplier set to %s',
+    ppAlsoConfirm:'Marked as checked against this list',
+    ppAlsoSku:'Part number %s saved',
+    ppFlagJump:'Big change: check it',
+    ppFlagUnit:'Unit differs: catalog says %s, file says %s',
+    ppFlagSku:'Part number differs: catalog %s, file %s',
+    ppFlagNote:'Rows with a warning are not ticked. Tick them yourself once you have checked.',
+    ppSelectAll:'Select all',
+    ppSameHead:'Already at this price (%s), nothing to write',
+    ppUnmatchedHead:'In the file, but matched to no item (%s)',
+    ppReasonNone:'No item with this name or part number for %s',
+    ppReasonOther:'In your catalog under %s. Not touched.',
+    ppReasonUnassigned:'In your catalog with no supplier. Tick the box above to include it.',
+    ppUnreadableHead:'Rows with no usable price (%s)',
+    ppWhyBlank:'no price',
+    ppWhyZero:'price is zero or less',
+    ppWhyBad:'could not read “%s” as a price',
+    ppConflictHead:'Listed more than once with different prices (%s), left alone',
+    ppHeadingsHead:'Rows with a name and nothing else (%s), treated as headings',
+    ppNotInFile:'Not in this file, so left exactly as they are: %s item(s) from %s, and %s other catalog item(s).',
+    ppNothingMatched:'Nothing in this file matched an item in your catalog. A row matches only when its item name (or part number) is written the same as in your catalog, and the item belongs to %s (or has no supplier, if that box is ticked).',
+    ppNothingToChange:'Every matched item already has the price in this file. Nothing to change.',
+    ppApplyNote:'This changes what jobs are priced at from now on. Nothing is deleted. You can undo it from here until you reload or leave this page, and the old prices can be saved as a CSV.',
+    ppApplyBtn:'Update %s item(s) for %s',
+    ppSelectedCount:'%s of %s selected',
+    ppApplying:'Updating %s of %s…',
+    ppDoneOk:'Updated %s item(s) for %s.',
+    ppDonePartial:'Updated %s of %s item(s) for %s. %s could not be saved:',
+    ppFailGone:'not found, it may have been retired since this page loaded',
+    ppFailHeld:'the server kept the old price, so your login may not be allowed to change prices',
+    ppFailField:'the server did not accept the change',
+    ppFailPartial:'the price was saved but the supplier and source note were not; add the same file again to finish',
+    ppUndoBtn:'Undo this update',
+    ppSaveOldBtn:'Save the old prices (CSV)',
+    ppUndoDone:'Put back %s item(s) as they were.',
+    ppUndoPartial:'Put back %s of %s item(s). %s were changed by somebody since and were left alone.',
+    ppPdfRefused:'A PDF can’t be read reliably, and a price that lands on the wrong item would be wrong on every quote. Open it in Excel or Google Sheets (or ask the supplier for the spreadsheet), save it as CSV or .xlsx, and add that file.',
+    ppXlsRefused:'This is an old-format Excel file (.xls) or a password-protected one, and neither can be read here. Open it in Excel, choose Save As, and pick .xlsx or CSV.',
+    ppNotText:'That does not look like a text file or a spreadsheet. Save the sheet as CSV or .xlsx and add that file.',
+    ppTooBig:'That file is larger than a price list should be (limit 5 MB). Is it the right one?',
+    ppTooManyRows:'More than %s rows: that is more than a fence supplier’s list should hold. Is it the right sheet?',
+    ppNothingToRead:'Nothing readable in that.',
+    ppXlsxNoStream:'This browser can’t open .xlsx files. Save the sheet as CSV and add that file.',
+    ppXlsxBroken:'Could not read that .xlsx file (%s). Save the sheet as CSV and add that file.',
+    ppNeedSupplier:'Choose which supplier this list is from.',
+    ppNeedFile:'Add a file or paste rows first.',
+    ppNoColumns:'Could not find a column for the item name and one for the price. Choose them above.',
+    ppNeedPrice:'More than one column looks like a price (%s). Choose the one that is the price you pay, and the preview will appear.',
+    impPricelistNoUpdate:'Prices on items already in the catalog were not changed. To update those from a supplier’s list, use Catalog, then Update prices from a price list.',
     catSuppliersHead:'Suppliers',
     catSuppliersBody:'Who a catalog item comes from — the same list the phone app\'s Manufacturers screen edits. Pick one on a catalog item so whoever is on the phone with the yard already knows who to call.',
     catSupAddBtn:'Add supplier',
@@ -5271,6 +5498,27 @@ const TL = {
     fixTimeWorkerSavedMsg:'Turno corregido y asignado. Ahora cuenta para las horas de esa persona.',
     fixTimeNothingChangedErr:'No se guardó nada: este turno ya no está aquí, o no es suyo para cambiarlo. Recargue la página y vuelva a mirar.',
     settingsFormHead:'Datos de la empresa',
+    payMethHead:'Cómo pueden pagarle sus clientes',
+    payMethSub:'Lo que active y complete aparece en el enlace del presupuesto que abre su cliente. Un método desactivado, o sin completar, no se le muestra al cliente.',
+    payMethCashAppLabel:'Cash App', payMethCashAppPh:'Su $cashtag',
+    payMethZelleLabel:'Zelle', payMethZellePh:'Número de teléfono o correo electrónico',
+    payMethZelleHint:'El número de teléfono o el correo electrónico con el que está registrado su Zelle. Escriba el que sus clientes deban usar.',
+    payMethWireLabel:'Transferencia bancaria (wire)', payMethWirePh:'Nombre del banco, nombre de la cuenta, número de ruta, número de cuenta',
+    payMethWireHint:'Escríbalo exactamente como se lo da su banco. Su cliente verá estas líneas tal como las escriba, incluido el número de cuenta; escriba solo lo que no le importe que vea.',
+    payMethCashLabel:'Aceptamos efectivo', payMethNameCash:'Efectivo',
+    payMethCardNote:'Los pagos con tarjeta pasan por su procesador de tarjetas conectado y no se configuran aquí. No se suma ningún cargo por tarjeta a lo que paga el cliente, así que no se le muestra ninguno.',
+    payMethSaveBtn:'Guardar métodos de pago',
+    payMethSummaryOn:'Sus clientes ven ahora: %s.',
+    payMethSummaryNone:'Sus clientes no ven ningún método de pago en el enlace de su presupuesto.',
+    payMethSavedMsg:'Guardado.',
+    payMethSaveFailed:'No se pudieron guardar los métodos de pago: %s',
+    payMethLoadFailed:'No se pudieron cargar sus métodos de pago, así que este formulario está bloqueado para no guardar encima de lo que ya tiene. Recargue la página e inténtelo de nuevo.',
+    payMethVerifyFailed:'Se guardó, pero al volver a leerlo no coincide con lo que escribió. Recargue la página y revíselo antes de enviar un presupuesto.',
+    payMethCashAppBad:'Cash App: escriba solo su $cashtag, con letras, números, puntos, guiones o guiones bajos, sin espacios, hasta 30 caracteres. No se guardó nada.',
+    payMethZelleBad:'Zelle: escriba el número de teléfono o el correo electrónico con el que está registrado su Zelle. No se guardó nada.',
+    payMethZelleLong:'Zelle: es demasiado largo (120 caracteres como máximo). No se guardó nada.',
+    payMethWireLong:'Transferencia bancaria: es demasiado largo (1000 caracteres como máximo). No se guardó nada.',
+    payMethOnButEmpty:'%s está activado pero no hay nada escrito. Complételo o desactívelo. No se guardó nada.',
     setupAgainHead:'Configuración del negocio', setupAgainBtn:'Repetir la configuración',
     setupAgainSub:'Datos del negocio, tarifas, su instalación estándar, precios de proveedores, niveles de precios y cuadrilla: un recorrido guiado, en orden. Repetirlo no borra nada; se reabre donde lo dejó.',
     leadPageHead:'Su página para pedir presupuesto', leadPageCopyBtn:'Copiar mi enlace',
@@ -5463,6 +5711,89 @@ const TL = {
     catCatalogHead:'Catálogo de materiales',
     catCatalogBody:'Una lista de partes por tipo de cerca, para que no haya confusión sobre qué panel, poste o portón corresponde a cuál construcción. Edite aquí o en la app del teléfono en Catálogo — ambos escriben la misma lista y se sincronizan entre sí dentro de un minuto de que cualquiera de los dos esté en línea.',
     catStartSeedBtn:'Empezar con el catálogo de FenceFlow',
+    ppOpenBtn:'Actualizar precios desde una lista de precios',
+    ppTitle:'Actualizar precios desde la lista de precios de un proveedor',
+    ppIntro:'Elija el proveedor de la lista y luego agregue su lista de precios. Verá cada cambio, el precio anterior junto al nuevo, antes de guardar nada. Los artículos que no están en el archivo quedan exactamente como están. Pueden hacerlo los propietarios y los gerentes.',
+    ppSupplierLabel:'Lista de precios de',
+    ppSupplierPick:'— elija un proveedor —',
+    ppNoSuppliers:'Primero agregue un proveedor. Una lista de precios se aplica a un proveedor a la vez, así que tiene que haber uno al cual aplicarla.',
+    ppAddSupplierBtn:'Agregar un proveedor',
+    ppFileLabel:'Archivo de la lista de precios',
+    ppFileHint:'Lee CSV, TSV y Excel (.xlsx). Un PDF o un archivo .xls antiguo no se puede leer de forma confiable aquí. En Excel o Google Sheets, guárdelo o descárguelo como CSV o .xlsx y agregue ese archivo.',
+    ppSheetLabel:'Hoja de este libro',
+    ppSheetHidden:'(oculta)',
+    ppSheetNote:'Leyendo la hoja “%s” (1 de %s hojas). Las demás hojas no se leen; elija otra arriba para usarla en su lugar.',
+    ppRowsHidden:'Se omitieron %s filas ocultas de la hoja.',
+    ppPasteLabel:'O pegue las filas',
+    ppPastePh:'Nombre del artículo, Precio',
+    ppReadBtn:'Ver los cambios',
+    ppColsHead:'Columnas leídas del archivo',
+    ppColsNote:'Revíselas. La columna de precio es la que decide cada precio nuevo.',
+    ppColName:'Nombre del artículo',
+    ppColPrice:'Precio que usted paga',
+    ppColSku:'Número de parte (opcional)',
+    ppColUnit:'Unidad (opcional)',
+    ppColChoose:'— elegir —',
+    ppColNone:'— ninguna —',
+    ppAssignLabel:'Incluir también los %s artículo(s) que aún no tienen proveedor y asignarles %s como proveedor',
+    ppSkuLabel:'Guardar el número de parte del proveedor en los artículos que aún no lo tienen, para que la próxima lista pueda coincidir con él',
+    ppPreviewHead:'Qué cambiará',
+    ppSummary:'%s filas leídas. Cambiarán: %s. Ya tienen ese precio: %s. Se dejaron como están, listadas abajo: %s.',
+    ppWillChangeHead:'Cambiarán (%s)',
+    ppColItemH:'Artículo',
+    ppColNowH:'Ahora',
+    ppColNewH:'Precio nuevo',
+    ppColDiffH:'Cambio',
+    ppColAlsoH:'Además',
+    ppAlsoAssign:'Proveedor asignado: %s',
+    ppAlsoConfirm:'Marcado como revisado con esta lista',
+    ppAlsoSku:'Número de parte %s guardado',
+    ppFlagJump:'Cambio grande: revíselo',
+    ppFlagUnit:'La unidad difiere: el catálogo dice %s, el archivo dice %s',
+    ppFlagSku:'El número de parte difiere: catálogo %s, archivo %s',
+    ppFlagNote:'Las filas con una advertencia no están marcadas. Márquelas usted mismo cuando las haya revisado.',
+    ppSelectAll:'Seleccionar todo',
+    ppSameHead:'Ya tienen este precio (%s), no hay nada que escribir',
+    ppUnmatchedHead:'Están en el archivo pero no coinciden con ningún artículo (%s)',
+    ppReasonNone:'No hay ningún artículo con este nombre o número de parte para %s',
+    ppReasonOther:'Está en su catálogo con %s. No se toca.',
+    ppReasonUnassigned:'Está en su catálogo sin proveedor. Marque la casilla de arriba para incluirlo.',
+    ppUnreadableHead:'Filas sin un precio utilizable (%s)',
+    ppWhyBlank:'sin precio',
+    ppWhyZero:'el precio es cero o menos',
+    ppWhyBad:'no se pudo leer “%s” como precio',
+    ppConflictHead:'Aparecen más de una vez con precios distintos (%s), se dejaron como están',
+    ppHeadingsHead:'Filas con un nombre y nada más (%s), tratadas como encabezados',
+    ppNotInFile:'No están en este archivo, así que quedan exactamente como están: %s artículo(s) de %s y %s artículo(s) más del catálogo.',
+    ppNothingMatched:'Nada del archivo coincidió con un artículo de su catálogo. Una fila coincide solo cuando su nombre de artículo (o número de parte) está escrito igual que en su catálogo y el artículo es de %s (o no tiene proveedor, si esa casilla está marcada).',
+    ppNothingToChange:'Todos los artículos coincidentes ya tienen el precio de este archivo. No hay nada que cambiar.',
+    ppApplyNote:'Esto cambia a cuánto se cotizan los trabajos a partir de ahora. No se borra nada. Puede deshacerlo desde aquí hasta que recargue o salga de esta página, y puede guardar los precios anteriores como CSV.',
+    ppApplyBtn:'Actualizar %s artículo(s) de %s',
+    ppSelectedCount:'%s de %s seleccionados',
+    ppApplying:'Actualizando %s de %s…',
+    ppDoneOk:'Se actualizaron %s artículo(s) de %s.',
+    ppDonePartial:'Se actualizaron %s de %s artículo(s) de %s. No se pudieron guardar %s:',
+    ppFailGone:'no se encontró; quizá se retiró después de abrir esta página',
+    ppFailHeld:'el servidor conservó el precio anterior, así que su sesión quizá no tenga permiso para cambiar precios',
+    ppFailField:'el servidor no aceptó el cambio',
+    ppFailPartial:'el precio se guardó pero el proveedor y la nota de origen no; agregue el mismo archivo otra vez para terminar',
+    ppUndoBtn:'Deshacer esta actualización',
+    ppSaveOldBtn:'Guardar los precios anteriores (CSV)',
+    ppUndoDone:'Se restauraron %s artículo(s) como estaban.',
+    ppUndoPartial:'Se restauraron %s de %s artículo(s). %s fueron cambiados por alguien desde entonces y se dejaron como están.',
+    ppPdfRefused:'Un PDF no se puede leer de forma confiable, y un precio que caiga en el artículo equivocado estaría mal en cada cotización. Ábralo en Excel o Google Sheets (o pida la hoja de cálculo al proveedor), guárdelo como CSV o .xlsx y agregue ese archivo.',
+    ppXlsRefused:'Este es un archivo de Excel de formato antiguo (.xls) o protegido con contraseña, y ninguno de los dos se puede leer aquí. Ábralo en Excel, elija Guardar como y escoja .xlsx o CSV.',
+    ppNotText:'Eso no parece un archivo de texto ni una hoja de cálculo. Guarde la hoja como CSV o .xlsx y agregue ese archivo.',
+    ppTooBig:'Ese archivo es más grande de lo que debería ser una lista de precios (límite: 5 MB). ¿Es el correcto?',
+    ppTooManyRows:'Más de %s filas: es más de lo que debería tener la lista de un proveedor de cercas. ¿Es la hoja correcta?',
+    ppNothingToRead:'No hay nada legible ahí.',
+    ppXlsxNoStream:'Este navegador no puede abrir archivos .xlsx. Guarde la hoja como CSV y agregue ese archivo.',
+    ppXlsxBroken:'No se pudo leer ese archivo .xlsx (%s). Guarde la hoja como CSV y agregue ese archivo.',
+    ppNeedSupplier:'Elija de qué proveedor es esta lista.',
+    ppNeedFile:'Agregue un archivo o pegue filas primero.',
+    ppNoColumns:'No se encontró una columna con el nombre del artículo y una con el precio. Elíjalas arriba.',
+    ppNeedPrice:'Más de una columna parece un precio (%s). Elija la que es el precio que usted paga y aparecerá la vista previa.',
+    impPricelistNoUpdate:'Los precios de los artículos que ya están en el catálogo no se cambiaron. Para actualizarlos desde la lista de un proveedor, use Catálogo y luego Actualizar precios desde una lista de precios.',
     catSuppliersHead:'Proveedores',
     catSuppliersBody:'De dónde viene un artículo del catálogo — la misma lista que edita la pantalla de Fabricantes de la app del teléfono. Elija uno en un artículo del catálogo para que quien esté al teléfono con el patio ya sepa a quién llamar.',
     catSupAddBtn:'Agregar proveedor',
@@ -6831,6 +7162,27 @@ const TL = {
     fixTimeWorkerSavedMsg:'Quart corrigé et rattaché. Il compte maintenant dans les heures de cette personne.',
     fixTimeNothingChangedErr:'Rien n\'a été enregistré : ce quart n\'est plus ici, ou il ne vous appartient pas de le modifier. Rechargez la page et regardez à nouveau.',
     settingsFormHead:'Coordonnées de l’entreprise',
+    payMethHead:'Comment vos clients peuvent vous payer',
+    payMethSub:'Ce que vous activez et remplissez apparaît sur le lien du devis que votre client ouvre. Un mode de paiement désactivé, ou laissé vide, n’est pas montré au client.',
+    payMethCashAppLabel:'Cash App', payMethCashAppPh:'Votre $cashtag',
+    payMethZelleLabel:'Zelle', payMethZellePh:'Numéro de téléphone ou courriel',
+    payMethZelleHint:'Le numéro de téléphone ou le courriel auquel votre Zelle est associé. Indiquez celui que vos clients doivent utiliser.',
+    payMethWireLabel:'Virement bancaire (wire)', payMethWirePh:'Nom de la banque, nom du compte, numéro d’acheminement, numéro de compte',
+    payMethWireHint:'Saisissez-le exactement comme votre banque vous le donne. Votre client voit ces lignes telles que vous les écrivez, numéro de compte compris : n’écrivez que ce que vous acceptez qu’il voie.',
+    payMethCashLabel:'Nous acceptons l’argent comptant', payMethNameCash:'Argent comptant',
+    payMethCardNote:'Les paiements par carte passent par votre processeur de cartes connecté et ne se règlent pas ici. Aucun frais de carte n’est ajouté à ce que paie le client ; il n’en voit donc aucun.',
+    payMethSaveBtn:'Enregistrer les modes de paiement',
+    payMethSummaryOn:'Vos clients voient actuellement : %s.',
+    payMethSummaryNone:'Vos clients ne voient aucun mode de paiement sur le lien de leur devis.',
+    payMethSavedMsg:'Enregistré.',
+    payMethSaveFailed:'Impossible d’enregistrer les modes de paiement : %s',
+    payMethLoadFailed:'Impossible de charger vos modes de paiement ; ce formulaire est donc verrouillé pour ne pas écraser ce que vous avez déjà. Rechargez la page et réessayez.',
+    payMethVerifyFailed:'Enregistré, mais à la relecture les données ne correspondent pas à votre saisie. Rechargez la page et vérifiez avant d’envoyer un devis.',
+    payMethCashAppBad:'Cash App : saisissez uniquement votre $cashtag, avec des lettres, chiffres, points, tirets ou tirets bas, sans espace, 30 caractères au plus. Rien n’a été enregistré.',
+    payMethZelleBad:'Zelle : saisissez le numéro de téléphone ou le courriel auquel votre Zelle est associé. Rien n’a été enregistré.',
+    payMethZelleLong:'Zelle : c’est trop long (120 caractères au plus). Rien n’a été enregistré.',
+    payMethWireLong:'Virement bancaire : c’est trop long (1000 caractères au plus). Rien n’a été enregistré.',
+    payMethOnButEmpty:'%s est activé mais rien n’est rempli. Remplissez-le ou désactivez-le. Rien n’a été enregistré.',
     setupAgainHead:'Configuration de l’entreprise', setupAgainBtn:'Relancer la configuration',
     setupAgainSub:'Coordonnées, tarifs, votre pose standard, prix fournisseurs, niveaux de prix et équipe : un parcours guidé, dans l’ordre. Le relancer n’efface rien ; il reprend là où vous vous étiez arrêté.',
     leadPageHead:'Votre page de demande de devis', leadPageCopyBtn:'Copier mon lien',
@@ -7023,6 +7375,89 @@ const TL = {
     catCatalogHead:'Catalogue de matériaux',
     catCatalogBody:'Une liste de pièces par type de clôture, pour qu\'il n\'y ait pas de confusion sur quel panneau, poteau ou portail va avec quelle construction. Modifiez ici ou dans l\'appli du téléphone sous Catalogue — les deux écrivent la même liste et se synchronisent dans la minute suivant la connexion de l\'un ou l\'autre.',
     catStartSeedBtn:'Partir du catalogue de FenceFlow',
+    ppOpenBtn:'Mettre à jour les prix depuis une liste de prix',
+    ppTitle:'Mettre à jour les prix depuis la liste de prix d’un fournisseur',
+    ppIntro:'Choisissez le fournisseur de la liste, puis ajoutez sa liste de prix. Vous voyez chaque changement, l’ancien prix à côté du nouveau, avant que quoi que ce soit ne soit enregistré. Les articles absents du fichier restent exactement tels quels. Les propriétaires et les gestionnaires peuvent le faire.',
+    ppSupplierLabel:'Liste de prix de',
+    ppSupplierPick:'— choisissez un fournisseur —',
+    ppNoSuppliers:'Ajoutez d’abord un fournisseur. Une liste de prix s’applique à un fournisseur à la fois, il faut donc en avoir un à qui l’appliquer.',
+    ppAddSupplierBtn:'Ajouter un fournisseur',
+    ppFileLabel:'Fichier de la liste de prix',
+    ppFileHint:'Lit les fichiers CSV, TSV et Excel (.xlsx). Un PDF ou un ancien fichier .xls ne peut pas être lu de façon fiable ici. Dans Excel ou Google Sheets, enregistrez-le ou téléchargez-le en CSV ou en .xlsx et ajoutez ce fichier.',
+    ppSheetLabel:'Feuille de ce classeur',
+    ppSheetHidden:'(masquée)',
+    ppSheetNote:'Lecture de la feuille « %s » (1 sur %s feuilles). Les autres feuilles ne sont pas lues; choisissez-en une autre ci-dessus pour l’utiliser à la place.',
+    ppRowsHidden:'%s lignes masquées de la feuille ont été ignorées.',
+    ppPasteLabel:'Ou collez les lignes',
+    ppPastePh:'Nom de l’article, Prix',
+    ppReadBtn:'Voir les changements',
+    ppColsHead:'Colonnes lues dans le fichier',
+    ppColsNote:'Vérifiez-les. La colonne de prix est celle qui décide de chaque nouveau prix.',
+    ppColName:'Nom de l’article',
+    ppColPrice:'Prix que vous payez',
+    ppColSku:'Numéro de pièce (facultatif)',
+    ppColUnit:'Unité (facultatif)',
+    ppColChoose:'— choisir —',
+    ppColNone:'— aucune —',
+    ppAssignLabel:'Inclure aussi les %s article(s) qui n’ont pas encore de fournisseur et leur attribuer %s comme fournisseur',
+    ppSkuLabel:'Enregistrer le numéro de pièce du fournisseur sur les articles qui n’en ont pas encore, pour que la prochaine liste puisse s’y fier',
+    ppPreviewHead:'Ce qui va changer',
+    ppSummary:'%s lignes lues. Vont changer : %s. Déjà à ce prix : %s. Laissées de côté, listées plus bas : %s.',
+    ppWillChangeHead:'Vont changer (%s)',
+    ppColItemH:'Article',
+    ppColNowH:'Actuel',
+    ppColNewH:'Nouveau prix',
+    ppColDiffH:'Variation',
+    ppColAlsoH:'Aussi',
+    ppAlsoAssign:'Fournisseur attribué : %s',
+    ppAlsoConfirm:'Marqué comme vérifié avec cette liste',
+    ppAlsoSku:'Numéro de pièce %s enregistré',
+    ppFlagJump:'Grand changement : vérifiez-le',
+    ppFlagUnit:'L’unité diffère : le catalogue indique %s, le fichier indique %s',
+    ppFlagSku:'Le numéro de pièce diffère : catalogue %s, fichier %s',
+    ppFlagNote:'Les lignes avec un avertissement ne sont pas cochées. Cochez-les vous-même une fois vérifiées.',
+    ppSelectAll:'Tout sélectionner',
+    ppSameHead:'Déjà à ce prix (%s), rien à écrire',
+    ppUnmatchedHead:'Dans le fichier mais sans article correspondant (%s)',
+    ppReasonNone:'Aucun article avec ce nom ou ce numéro de pièce pour %s',
+    ppReasonOther:'Dans votre catalogue chez %s. Non modifié.',
+    ppReasonUnassigned:'Dans votre catalogue sans fournisseur. Cochez la case ci-dessus pour l’inclure.',
+    ppUnreadableHead:'Lignes sans prix utilisable (%s)',
+    ppWhyBlank:'pas de prix',
+    ppWhyZero:'le prix est nul ou négatif',
+    ppWhyBad:'impossible de lire « %s » comme un prix',
+    ppConflictHead:'Listés plusieurs fois avec des prix différents (%s), laissés tels quels',
+    ppHeadingsHead:'Lignes avec un nom et rien d’autre (%s), traitées comme des titres',
+    ppNotInFile:'Absents de ce fichier, donc laissés exactement tels quels : %s article(s) de %s et %s autre(s) article(s) du catalogue.',
+    ppNothingMatched:'Rien dans le fichier ne correspond à un article de votre catalogue. Une ligne correspond seulement quand son nom d’article (ou son numéro de pièce) est écrit comme dans votre catalogue et que l’article appartient à %s (ou n’a pas de fournisseur, si cette case est cochée).',
+    ppNothingToChange:'Tous les articles correspondants ont déjà le prix de ce fichier. Rien à changer.',
+    ppApplyNote:'Cela change les prix utilisés pour les soumissions à partir de maintenant. Rien n’est supprimé. Vous pouvez annuler d’ici jusqu’à ce que vous rechargiez ou quittiez cette page, et les anciens prix peuvent être enregistrés en CSV.',
+    ppApplyBtn:'Mettre à jour %s article(s) de %s',
+    ppSelectedCount:'%s sur %s sélectionnés',
+    ppApplying:'Mise à jour de %s sur %s…',
+    ppDoneOk:'%s article(s) de %s mis à jour.',
+    ppDonePartial:'%s article(s) sur %s mis à jour pour %s. %s n’ont pas pu être enregistré(s) :',
+    ppFailGone:'introuvable, peut-être retiré depuis l’ouverture de cette page',
+    ppFailHeld:'le serveur a gardé l’ancien prix, votre session n’a donc peut-être pas le droit de changer les prix',
+    ppFailField:'le serveur n’a pas accepté le changement',
+    ppFailPartial:'le prix a été enregistré mais pas le fournisseur ni la note d’origine; ajoutez le même fichier de nouveau pour terminer',
+    ppUndoBtn:'Annuler cette mise à jour',
+    ppSaveOldBtn:'Enregistrer les anciens prix (CSV)',
+    ppUndoDone:'%s article(s) remis comme avant.',
+    ppUndoPartial:'%s article(s) sur %s remis comme avant. %s ont été modifié(s) par quelqu’un depuis et ont été laissés tels quels.',
+    ppPdfRefused:'Un PDF ne peut pas être lu de façon fiable, et un prix qui tombe sur le mauvais article serait faux dans chaque soumission. Ouvrez-le dans Excel ou Google Sheets (ou demandez le tableur au fournisseur), enregistrez-le en CSV ou en .xlsx et ajoutez ce fichier.',
+    ppXlsRefused:'Il s’agit d’un ancien fichier Excel (.xls) ou d’un fichier protégé par mot de passe, et ni l’un ni l’autre ne peut être lu ici. Ouvrez-le dans Excel, choisissez Enregistrer sous et prenez .xlsx ou CSV.',
+    ppNotText:'Cela ne ressemble ni à un fichier texte ni à un tableur. Enregistrez la feuille en CSV ou en .xlsx et ajoutez ce fichier.',
+    ppTooBig:'Ce fichier est plus gros qu’une liste de prix ne devrait l’être (limite : 5 Mo). Est-ce le bon ?',
+    ppTooManyRows:'Plus de %s lignes : c’est plus que la liste d’un fournisseur de clôtures ne devrait contenir. Est-ce la bonne feuille ?',
+    ppNothingToRead:'Rien de lisible là-dedans.',
+    ppXlsxNoStream:'Ce navigateur ne peut pas ouvrir les fichiers .xlsx. Enregistrez la feuille en CSV et ajoutez ce fichier.',
+    ppXlsxBroken:'Impossible de lire ce fichier .xlsx (%s). Enregistrez la feuille en CSV et ajoutez ce fichier.',
+    ppNeedSupplier:'Choisissez de quel fournisseur vient cette liste.',
+    ppNeedFile:'Ajoutez d’abord un fichier ou collez des lignes.',
+    ppNoColumns:'Aucune colonne de nom d’article et de prix trouvée. Choisissez-les ci-dessus.',
+    ppNeedPrice:'Plus d’une colonne ressemble à un prix (%s). Choisissez celle qui est le prix que vous payez et l’aperçu apparaîtra.',
+    impPricelistNoUpdate:'Les prix des articles déjà dans le catalogue n’ont pas été modifiés. Pour les mettre à jour depuis la liste d’un fournisseur, utilisez Catalogue, puis Mettre à jour les prix depuis une liste de prix.',
     catSuppliersHead:'Fournisseurs',
     catSuppliersBody:'D\'où vient un article du catalogue — la même liste que modifie l\'écran Fabricants de l\'appli du téléphone. Choisissez-en un sur un article du catalogue pour que la personne au téléphone avec la cour sache déjà qui appeler.',
     catSupAddBtn:'Ajouter un fournisseur',
@@ -14296,6 +14731,8 @@ function renderCatalogSections(containerId, filterValue){
 
 function renderCatalog(){
   if(!$('catFilter')) return;
+  // The same gate as every other catalog edit on this page. The handler checks it again.
+  if($('catPriceList')) $('catPriceList').style.display = canEdit() ? '' : 'none';
   $('catEmpty').style.display = catalog.length ? 'none' : 'block';
   renderCatalogSections('catSections', $('catFilter').value);
   renderSuppliers();
@@ -22530,6 +22967,1085 @@ $('supDialogRetire').addEventListener('click', retireSupplierDialog);
 
 $('jcAdd').addEventListener('click', addJobCost);
 
+/* ===================== Update prices from a supplier's price list ===========
+   WHAT THIS IS. The importer further down ("Import their data") ADDS items for
+   a company moving over from another product, and never changes a price that is
+   already in the catalog: a "Their price list" row whose name is already there
+   is skipped as "already in the catalog". This is the other job -- a supplier
+   sends a new price list, and the prices of items ALREADY in the catalog are
+   brought into line with it.
+
+   PER SUPPLIER. material_items.manufacturer_sync_id says which supplier an item
+   comes from (the Suppliers panel on the Catalog tab is the manufacturers
+   table), and price-job narrows on it when a job names a preferred supplier. So
+   a list is applied to ONE chosen supplier: items assigned to that supplier
+   match by part number or by name, items assigned to a DIFFERENT supplier are
+   never touched, and items with no supplier match only when the box is ticked,
+   in which case they are assigned to the chosen supplier in the same write.
+   Today nearly every item has no supplier, because the phone never sends it
+   (CloudMaterialItem in EntitySync.kt has no such field) -- the office is the
+   only place that can set it, which is why that box exists.
+
+   WHAT IT WILL NOT DO.
+   - Add items. Two items of one name under two suppliers cannot be told apart
+     by the phone, which keys its catalog on name, role, fence type and colour
+     and neither sends nor receives the supplier. The importer above adds.
+   - Guess. A row matches only when its name (or part number) is the same as
+     the catalog's after case and spacing are tidied. Anything else is listed
+     as unmatched, never fuzzily paired with something close, because a price
+     written onto the wrong item is wrong on every quote afterwards and nothing
+     looks broken.
+   - Read a PDF. Same reason: a table lifted out of a PDF that lands one row
+     off is a silently wrong catalog. The message says to export it as CSV.
+   - Write a price it cannot read, a zero, or a negative.
+   - Delete anything, or write updated_at (the touch trigger owns that clock).
+
+   WHAT IT CHECKS AFTER WRITING. material_items has a BEFORE UPDATE trigger
+   (hold_money_columns) that quietly puts the old unit_price back for a caller
+   without SEE_MONEY, with no error and a normal 200. A write that succeeds
+   is therefore not proof the price changed, so every update asks for the row
+   back and compares what is stored with what was sent. */
+
+const PP_MAX_BYTES = 5 * 1024 * 1024;   // a price list is kilobytes; this is for the wrong file
+const PP_MAX_ROWS  = 3000;
+
+/** A byte-order mark at the start of a file is not part of the first header. */
+function ppStripBom(s){
+  const t = String(s == null ? '' : s);
+  return t.charCodeAt(0) === 0xFEFF ? t.slice(1) : t;
+}
+
+/** Reads a delimited table. A quote opens a
+    quoted cell only at the START of a cell, so 7" SS Gate Handle is a name with
+    an inch mark in it rather than the start of a quote that swallows the next
+    three rows. Rows that are entirely blank are dropped. */
+function ppParseDelimited(text, delim){
+  const D = delim || ',';
+  const s = ppStripBom(text);
+  const rows = []; let row = [], field = '', inQ = false;
+  for(let i = 0; i < s.length; i++){
+    const c = s[i];
+    if(inQ){
+      if(c === '"'){
+        if(s[i+1] === '"'){ field += '"'; i++; }
+        else inQ = false;
+      } else field += c;
+      continue;
+    }
+    if(c === '"' && field.trim() === ''){ inQ = true; field = ''; continue; }
+    if(c === D){ row.push(field); field = ''; continue; }
+    if(c === '\n' || c === '\r'){
+      if(c === '\r' && s[i+1] === '\n') i++;
+      row.push(field); field = '';
+      if(row.some(f => f.trim() !== '')) rows.push(row);
+      row = [];
+      continue;
+    }
+    field += c;
+  }
+  row.push(field);
+  if(row.some(f => f.trim() !== '')) rows.push(row);
+  return rows;
+}
+
+/** Comma, tab, semicolon or pipe. Parses the first few thousand characters each
+    way and keeps the separator that cuts the most lines into the same number of
+    cells -- so a tab-separated paste from Excel whose item names contain commas
+    is still tab-separated. */
+function ppSniffDelimiter(text){
+  const sample = String(text || '').slice(0, 20000);
+  let best = ',', bestScore = 0;
+  for(const d of [',', '\t', ';', '|']){
+    const rows = ppParseDelimited(sample, d).slice(0, 40);
+    const freq = {};
+    rows.forEach(r => { if(r.length > 1) freq[r.length] = (freq[r.length] || 0) + 1; });
+    let mode = 0, modeN = 0;
+    for(const k in freq){
+      if(freq[k] > modeN || (freq[k] === modeN && Number(k) > mode)){ modeN = freq[k]; mode = Number(k); }
+    }
+    const score = modeN * 1000 + mode;
+    if(score > bestScore){ bestScore = score; best = d; }
+  }
+  return best;
+}
+
+function ppParseTable(text){
+  const t = ppStripBom(text);
+  return ppParseDelimited(t, ppSniffDelimiter(t));
+}
+
+/** What sort of file these bytes are, by what is INSIDE them rather than what
+    the name says. A PDF renamed .csv is still a PDF. */
+function ppSniffKind(b){
+  if(b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return 'pdf';
+  if(b.length >= 8 && b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0
+     && b[4] === 0xA1 && b[5] === 0xB1 && b[6] === 0x1A && b[7] === 0xE1) return 'ole';
+  if(b.length >= 4 && b[0] === 0x50 && b[1] === 0x4B && (b[2] === 0x03 || b[2] === 0x05)
+     && (b[3] === 0x04 || b[3] === 0x06)) return 'zip';
+  // Excel's "Unicode Text" is tab-separated UTF-16 and is full of zero bytes.
+  if(b.length >= 2 && ((b[0] === 0xFF && b[1] === 0xFE) || (b[0] === 0xFE && b[1] === 0xFF))) return 'text';
+  const n = Math.min(b.length, 4096);
+  for(let i = 0; i < n; i++) if(b[i] === 0) return 'other';
+  let i = 0;
+  if(b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) i = 3;
+  while(i < n && (b[i] === 0x20 || b[i] === 0x09 || b[i] === 0x0A || b[i] === 0x0D)) i++;
+  if(b[i] === 0x3C) return 'other';     // HTML or XML saved with an Excel extension
+  return 'text';
+}
+
+function ppDecodeText(b){
+  if(b.length >= 2 && b[0] === 0xFF && b[1] === 0xFE) return new TextDecoder('utf-16le').decode(b.subarray(2));
+  if(b.length >= 2 && b[0] === 0xFE && b[1] === 0xFF){
+    const sw = new Uint8Array((b.length - 2) & ~1);
+    for(let i = 0; i < sw.length; i += 2){ sw[i] = b[i + 3]; sw[i + 1] = b[i + 2]; }
+    return new TextDecoder('utf-16le').decode(sw);
+  }
+  try{ return new TextDecoder('utf-8', { fatal: true }).decode(b); }
+  catch(e){ return new TextDecoder('windows-1252').decode(b); }   // Excel's "CSV" on Windows
+}
+
+function ppColIndex(letters){
+  let n = 0;
+  for(const ch of String(letters)) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+function ppColLetter(i){
+  let s = '', n = i + 1;
+  while(n > 0){ const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+/* ---------- Excel (.xlsx) without a library ----------
+   An .xlsx is a zip of XML files and the browser can inflate a zip entry on its
+   own (DecompressionStream, "deflate-raw"), so no dependency is added to this
+   page. What is read: the sheet names, the shared-string table, and each cell's
+   stored value -- for a formula that is the value Excel last calculated. What
+   is refused: encrypted files, zip64, anything whose pieces are absurdly large,
+   and the old binary .xls (a different format entirely). */
+function ppU16(b, o){ return b[o] | (b[o+1] << 8); }
+function ppU32(b, o){ return (b[o] | (b[o+1] << 8) | (b[o+2] << 16) | (b[o+3] << 24)) >>> 0; }
+
+function ppZipEntries(b){
+  let e = -1;
+  for(let i = b.length - 22; i >= Math.max(0, b.length - 22 - 65535); i--){
+    if(b[i] === 0x50 && b[i+1] === 0x4B && b[i+2] === 0x05 && b[i+3] === 0x06){ e = i; break; }
+  }
+  if(e < 0) throw new Error('not a zip file');
+  const total = ppU16(b, e + 10), cdOff = ppU32(b, e + 16);
+  if(total === 0xFFFF || cdOff === 0xFFFFFFFF) throw new Error('zip64 is not supported');
+  const out = {}; let p = cdOff;
+  for(let n = 0; n < total; n++){
+    if(p + 46 > b.length || ppU32(b, p) !== 0x02014B50) throw new Error('damaged zip directory');
+    const nlen = ppU16(b, p + 28), xlen = ppU16(b, p + 30), clen = ppU16(b, p + 32);
+    const name = new TextDecoder().decode(b.subarray(p + 46, p + 46 + nlen));
+    out[name] = { flags: ppU16(b, p + 8), method: ppU16(b, p + 10), csize: ppU32(b, p + 20),
+                  usize: ppU32(b, p + 24), lho: ppU32(b, p + 42) };
+    p += 46 + nlen + xlen + clen;
+  }
+  return out;
+}
+
+async function ppZipRead(b, ent, maxBytes){
+  if(ent.flags & 1) throw new Error('encrypted');
+  const o = ent.lho;
+  if(o + 30 > b.length || ppU32(b, o) !== 0x04034B50) throw new Error('damaged zip entry');
+  const start = o + 30 + ppU16(b, o + 26) + ppU16(b, o + 28);
+  if(start + ent.csize > b.length) throw new Error('damaged zip entry');
+  const data = b.subarray(start, start + ent.csize);
+  if(ent.usize > maxBytes) throw new Error('part too large');
+  if(ent.method === 0) return data;
+  if(ent.method !== 8) throw new Error('unsupported compression');
+  const DS = globalThis.DecompressionStream;
+  if(!DS) throw new Error('no-decompression');
+  const reader = new Blob([data]).stream().pipeThrough(new DS('deflate-raw')).getReader();
+  const chunks = []; let total = 0;
+  for(;;){
+    const r = await reader.read();
+    if(r.done) break;
+    total += r.value.length;
+    if(total > maxBytes){ try{ await reader.cancel(); }catch(e){} throw new Error('part too large'); }
+    chunks.push(r.value);
+  }
+  const out = new Uint8Array(total); let off = 0;
+  chunks.forEach(c => { out.set(c, off); off += c.length; });
+  return out;
+}
+
+function ppXmlText(s){
+  return String(s).replace(/&(#x[0-9a-fA-F]+|#\d+|amp|lt|gt|quot|apos);/g, (m, k) => {
+    if(k === 'amp') return '&';
+    if(k === 'lt') return '<';
+    if(k === 'gt') return '>';
+    if(k === 'quot') return '"';
+    if(k === 'apos') return "'";
+    const code = k[1] === 'x' ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10);
+    return (isFinite(code) && code > 0 && code < 0x110000) ? String.fromCodePoint(code) : '';
+  }).replace(/_[x]([0-9A-Fa-f]{4})_/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+function ppXlsxSharedStrings(xml){
+  const out = [];
+  const re = /<si\b[^>]*\/>|<si\b[^>]*>([\s\S]*?)<\/si>/g;
+  let m;
+  while((m = re.exec(xml))){
+    const body = (m[1] || '').replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
+    let text = '', t;
+    const tre = /<t\b[^>]*?(?:\/>|>([\s\S]*?)<\/t>)/g;
+    while((t = tre.exec(body))) text += ppXmlText(t[1] || '');
+    out.push(text);
+  }
+  return out;
+}
+
+/** One worksheet's cells as an array of rows of strings. Cells are placed by
+    the column in their own reference (C7), not by order, because Excel leaves
+    empty cells out and counting would slide every value one column left. Rows
+    the sheet marks hidden are skipped and counted. */
+function ppXlsxSheetRows(xml, shared){
+  const rows = []; let hidden = 0, rm;
+  const rowRe = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g;
+  while((rm = rowRe.exec(xml))){
+    const rattr = rm[1] || '', body = rm[2] || '';
+    if(/\bhidden="(1|true)"/.test(rattr)){ hidden++; continue; }
+    const cells = []; let cm;
+    const cellRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    while((cm = cellRe.exec(body))){
+      const attrs = cm[1] || '', inner = cm[2] || '';
+      const ref = /\br="([A-Z]+)\d+"/.exec(attrs);
+      const col = ref ? ppColIndex(ref[1]) : cells.length;
+      const t = (/\bt="([^"]*)"/.exec(attrs) || [])[1] || 'n';
+      const v = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(inner);
+      let text = '';
+      if(t === 's'){ const ix = v ? Number(v[1]) : NaN; text = shared[ix] !== undefined ? shared[ix] : ''; }
+      else if(t === 'inlineStr'){
+        let x; const ire = /<t\b[^>]*?(?:\/>|>([\s\S]*?)<\/t>)/g;
+        while((x = ire.exec(inner))) text += ppXmlText(x[1] || '');
+      }
+      else if(t === 'str'){ text = v ? ppXmlText(v[1]) : ''; }
+      else if(t === 'b' || t === 'e'){ text = ''; }
+      else { text = v ? ppXmlText(v[1]).trim() : ''; }
+      cells[col] = text;
+    }
+    const row = Array.from(cells, x => x === undefined ? '' : x);
+    if(row.some(x => String(x).trim() !== '')) rows.push(row);
+  }
+  return { rows, hidden };
+}
+
+/** Opens the workbook and lists its sheets; reads no sheet yet. */
+async function ppXlsxOpen(bytes){
+  const MAXX = 40 * 1024 * 1024;
+  const ents = ppZipEntries(bytes);
+  const get = async name => {
+    const e = ents[name];
+    return e ? new TextDecoder('utf-8').decode(await ppZipRead(bytes, e, MAXX)) : null;
+  };
+  const wb = await get('xl/workbook.xml');
+  if(wb === null) throw new Error('not an Excel workbook');
+  const relXml = (await get('xl/_rels/workbook.xml.rels')) || '';
+  const rels = {};
+  for(const m of relXml.matchAll(/<Relationship\b([^>]*?)\/?>/g)){
+    const a = m[1];
+    const id = (/\bId="([^"]*)"/.exec(a) || [])[1], tgt = (/\bTarget="([^"]*)"/.exec(a) || [])[1];
+    const typ = (/\bType="([^"]*)"/.exec(a) || [])[1] || '';
+    if(id && tgt) rels[id] = { tgt, typ };
+  }
+  const shared = ppXlsxSharedStrings((await get('xl/sharedStrings.xml')) || '');
+  const sheets = [];
+  for(const m of wb.matchAll(/<sheet\b([^>]*?)\/?>/g)){
+    const a = m[1];
+    const rid = (/\b\w+:id="([^"]*)"/.exec(a) || [])[1];
+    const rel = rels[rid];
+    if(!rel || !/\/worksheet$/.test(rel.typ)) continue;
+    let path = rel.tgt.replace(/^\//, '');
+    if(!/^xl\//.test(path)) path = 'xl/' + path;
+    sheets.push({ name: ppXmlText((/\bname="([^"]*)"/.exec(a) || [])[1] || ''),
+                  state: (/\bstate="([^"]*)"/.exec(a) || [])[1] || 'visible', path });
+  }
+  if(!sheets.length) throw new Error('no worksheets found');
+  return { bytes, ents, shared, sheets, maxPart: MAXX };
+}
+
+async function ppXlsxSheet(book, idx){
+  const s = book.sheets[idx];
+  const e = book.ents[s.path];
+  if(!e) throw new Error('worksheet ' + s.name + ' is missing from the file');
+  const xml = new TextDecoder('utf-8').decode(await ppZipRead(book.bytes, e, book.maxPart));
+  return ppXlsxSheetRows(xml, book.shared);
+}
+
+/* ---------- reading the columns ---------- */
+
+/** What a header cell says this column is: 'sku', 'price', 'unit', 'name' or ''.
+    Columns that hold a number but not THE price (extended, total, quantity, what
+    it used to be) are '' on purpose, so a "Previous Price" column is never read
+    as the new one. */
+function ppClassifyHeader(h){
+  const t = String(h == null ? '' : h).toLowerCase().replace(/[^a-z0-9#%$\/ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if(!t) return '';
+  if(/\b(qty|quantity|ext|extended|total|discount|change|diff|difference|previous|prior|old|last|margin|markup|weight|lbs)\b|%/.test(t)) return '';
+  if(/\b(sku|upc|mpn)\b/.test(t)
+     || /\b(part|item|model|catalog|cat|product|style|stock|vendor|mfr|manufacturer)\s*(#|no\b|num\b|number|code|id\b)/.test(t)
+     || /^(part|model|code|catalog)$/.test(t)) return 'sku';
+  if(/\b(price|cost|net|msrp|dealer|wholesale|contractor|sell)\b|^list$|^each$|^rate$|\$/.test(t)) return 'price';
+  if(/^(unit|units|uom|u m|u\/m|um|unit of measure|measure|sold by|per)$/.test(t)) return 'unit';
+  if(/\b(description|desc|item|product|material|name|title|article)\b/.test(t)) return 'name';
+  return '';
+}
+
+/** Finds the header row (supplier lists often have a title and an effective date
+    above it) and the columns. When more than one column reads as a price -- List,
+    Contractor, Net -- price is left at -1 rather than guessed: picking the wrong
+    one reprices the whole catalog and every number still looks plausible. */
+function ppDetectColumns(table){
+  const t = table || [];
+  for(let r = 0; r < Math.min(t.length, 30); r++){
+    const roles = (t[r] || []).map(ppClassifyHeader);
+    const names = [], prices = [];
+    roles.forEach((x, i) => { if(x === 'name') names.push(i); else if(x === 'price') prices.push(i); });
+    if(names.length && prices.length){
+      const cell = i => String((t[r] || [])[i] || '').toLowerCase();
+      const nm = names.find(i => /desc|name|product|material|title/.test(cell(i)));
+      return { found: true, headerRow: r, name: nm !== undefined ? nm : names[0],
+               price: prices.length === 1 ? prices[0] : -1, priceCandidates: prices,
+               sku: roles.indexOf('sku'), unit: roles.indexOf('unit') };
+    }
+  }
+  return { found: false, headerRow: 0, name: -1, price: -1, priceCandidates: [], sku: -1, unit: -1 };
+}
+
+/** The data rows under the header, as { name, priceRaw, sku, unitRaw }. A row
+    with a name and nothing else is a section heading ("VINYL", "Hardware"): it is
+    not an item, but it is returned in `headings` so the screen can show every row
+    the file had rather than quietly dropping some. */
+function ppReadRows(table, cols){
+  const rows = [], headings = [];
+  for(let r = (cols.headerRow || 0) + 1; r < table.length; r++){
+    const row = table[r] || [];
+    const cell = i => (i >= 0 && i < row.length) ? String(row[i] == null ? '' : row[i]).trim() : '';
+    const name = cell(cols.name), priceRaw = cell(cols.price), sku = cell(cols.sku), unitRaw = cell(cols.unit);
+    if(!name && !priceRaw && !sku) continue;
+    if(name && !priceRaw && !sku && !unitRaw){ headings.push(name); continue; }
+    rows.push({ name, priceRaw, sku, unitRaw });
+  }
+  return { rows, headings };
+}
+
+/** A price, or the reason it is not one. Strict on purpose: "12,50" could be
+    twelve fifty or twelve hundred and fifty, "call" is not a number, and a zero
+    would make material free on every quote. Anything unsure is refused and shown,
+    never guessed. */
+function ppParsePrice(raw){
+  if(typeof raw === 'number'){
+    if(!isFinite(raw)) return { ok: false, why: 'bad' };
+    if(raw <= 0) return { ok: false, why: 'zero' };
+    return { ok: true, value: Math.round(raw * 10000) / 10000 };
+  }
+  let s = String(raw == null ? '' : raw).trim();
+  if(!s) return { ok: false, why: 'blank' };
+  s = s.replace(/^(usd|us\$|\$)\s*/i, '').replace(/\s*usd$/i, '').trim();
+  if(!/^(\d+(\.\d*)?|\.\d+)$/.test(s) && !/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) return { ok: false, why: 'bad' };
+  const v = Number(s.replace(/,/g, ''));
+  if(!isFinite(v) || v > 1000000) return { ok: false, why: 'bad' };
+  if(v <= 0) return { ok: false, why: 'zero' };
+  return { ok: true, value: Math.round(v * 10000) / 10000 };
+}
+
+/* ---------- matching ---------- */
+
+/** Case, spacing and typographic quotes tidied -- nothing else. "6ft panel" is
+    not "6' panel" and is not matched to it. */
+function ppNorm(s){
+  let t = String(s == null ? '' : s).toLowerCase();
+  t = t.replace(new RegExp('[' + String.fromCharCode(0x2018, 0x2019, 0x2032) + ']', 'g'), "'");
+  t = t.replace(new RegExp('[' + String.fromCharCode(0x201C, 0x201D, 0x2033) + ']', 'g'), '"');
+  return t.replace(/\s+/g, ' ').trim();
+}
+function ppNormSku(s){ return String(s == null ? '' : s).toUpperCase().replace(/\s+/g, ''); }
+
+/** The unit as one of the five the catalog uses, or '' when it cannot be told.
+    A price per box against a catalog price per each is the classic silent error,
+    so the two are compared when both are known. */
+function ppUnitCode(raw){
+  const u = String(raw == null ? '' : raw).trim().toLowerCase().replace(/[.\s]+$/, '');
+  if(!u) return '';
+  if(/^(lf|ft|foot|feet|lin ?ft|linear ?f(ee|oo)?t|per ?ft|per ?foot)$/.test(u)) return 'LF';
+  if(/^(ea|each|item|unit|pc|pcs|piece|pieces|per ?each)$/.test(u)) return 'EA';
+  if(/^(set|sets|kit|kits)$/.test(u)) return 'SET';
+  if(/^(pair|pairs|pr)$/.test(u)) return 'PAIR';
+  if(/^(box|boxes|bx|case|cs|carton)$/.test(u)) return 'BOX';
+  return '';
+}
+
+/** What to do with the file, item by item. Pure: catalog rows and file rows in,
+    a plan out, nothing written.
+
+    A row matches among the chosen supplier's own items first (by part number,
+    then by exact name). Failing that it may match items with no supplier yet --
+    only when assignUnassigned is set, and then they are assigned. Items that
+    belong to another supplier are never matched; the row is reported instead.
+    One catalog item named by two rows with different prices is a conflict and
+    is left alone, not resolved by whichever row came last. */
+function ppBuildPlan(items, supplierSyncId, rows, opts){
+  const o = opts || {};
+  const bigJump = o.bigJump || 0.5;
+  const nameOf = o.nameOf || (() => '');
+  const live = (items || []).filter(i => !i.deleted_at);
+  const tierOf = i => !i.manufacturer_sync_id ? 'none' : (i.manufacturer_sync_id === supplierSyncId ? 'mine' : 'other');
+  const pool = { mine: [], none: [], other: [] };
+  live.forEach(i => pool[tierOf(i)].push(i));
+  const plan = { rowsRead: rows.length, changes: [], same: [], unmatched: [], unreadable: [],
+                 conflicts: [], notInFile: [], otherUntouched: 0 };
+  const look = (list, row) => {
+    const sku = ppNormSku(row.sku);
+    if(sku){
+      const hit = list.filter(i => i.supplier_sku && ppNormSku(i.supplier_sku) === sku);
+      if(hit.length) return { list: hit, how: 'sku' };
+    }
+    const n = ppNorm(row.name);
+    return { list: n ? list.filter(i => ppNorm(i.name) === n) : [], how: 'name' };
+  };
+
+  const entries = [];
+  rows.forEach(row => {
+    if(row.price == null){ plan.unreadable.push({ row }); return; }
+    let hit = look(pool.mine, row), tier = 'mine';
+    if(!hit.list.length){
+      const u = look(pool.none, row);
+      if(u.list.length){
+        if(o.assignUnassigned){ hit = u; tier = 'none'; }
+        else { plan.unmatched.push({ row, reason: 'unassigned' }); return; }
+      } else {
+        const x = look(pool.other, row);
+        if(x.list.length){
+          const names = Array.from(new Set(x.list.map(i => nameOf(i.manufacturer_sync_id)).filter(Boolean)));
+          plan.unmatched.push({ row, reason: 'other', other: names.join(', ') });
+        } else plan.unmatched.push({ row, reason: 'none' });
+        return;
+      }
+    }
+    hit.list.forEach(item => entries.push({ row, item, tier, how: hit.how }));
+  });
+
+  const byItem = new Map();
+  entries.forEach(e => {
+    const k = e.item.sync_id;
+    if(!byItem.has(k)) byItem.set(k, []);
+    byItem.get(k).push(e);
+  });
+  const touched = new Set();
+  byItem.forEach(list => {
+    touched.add(list[0].item.sync_id);
+    const prices = Array.from(new Set(list.map(e => e.row.price)));
+    if(prices.length > 1){
+      plan.conflicts.push({ item: list[0].item, rows: list.map(e => e.row), prices });
+      return;
+    }
+    const e = list[0];
+    const oldPrice = Number(e.item.unit_price) || 0, newPrice = e.row.price;
+    const priceChanged = Math.abs(newPrice - oldPrice) > 0.00005;
+    const assign = e.tier === 'none';
+    const sd = String(e.item.source_doc == null ? '' : e.item.source_doc);
+    // A price somebody at this company has not yet checked is checked now, by
+    // the supplier's own list. The importer's "check this one" note is about
+    // where the item was filed, which a price list says nothing about, so that
+    // note is left in place rather than overwritten.
+    const confirm = isSeededUnverifiedPrice(sd) || /^Imported — verify before quoting/.test(sd);
+    const keepDoc = /^Imported — check this one/.test(sd);
+    const skuFill = !!(o.saveSku && o.skuColumnPresent && e.row.sku && !e.item.supplier_sku);
+    const flags = [];
+    if(priceChanged){
+      if(oldPrice > 0 && Math.abs(newPrice - oldPrice) / oldPrice > bigJump) flags.push({ k: 'jump' });
+      const cu = ppUnitCode(e.item.unit), fu = ppUnitCode(e.row.unitRaw);
+      if(cu && fu && cu !== fu) flags.push({ k: 'unit', a: String(e.item.unit), b: String(e.row.unitRaw) });
+    }
+    if(e.how === 'name' && e.row.sku && e.item.supplier_sku
+       && ppNormSku(e.item.supplier_sku) !== ppNormSku(e.row.sku)){
+      flags.push({ k: 'sku', a: String(e.item.supplier_sku), b: String(e.row.sku) });
+    }
+    const entry = { item: e.item, row: e.row, tier: e.tier, how: e.how, oldPrice, newPrice, priceChanged,
+                    assign, confirm, skuFill, stampDoc: !keepDoc, flags };
+    if(priceChanged || assign || confirm || skuFill) plan.changes.push(entry);
+    else plan.same.push(entry);
+  });
+
+  plan.notInFile = pool.mine.filter(i => !touched.has(i.sync_id));
+  plan.otherUntouched = live.filter(i => tierOf(i) !== 'mine' && !touched.has(i.sync_id)).length;
+  return plan;
+}
+
+/** The columns one change writes. updated_at is never among them: the touch
+    trigger owns that clock, and an explicit value would beat it. source_doc is
+    the only record of where a price came from, so a written row says so. */
+function ppPatchFor(c, supplierSyncId, provenance){
+  const p = {};
+  if(c.priceChanged) p.unit_price = c.newPrice;
+  if(c.assign) p.manufacturer_sync_id = supplierSyncId;
+  if(c.skuFill) p.supplier_sku = c.row.sku;
+  if(c.stampDoc) p.source_doc = provenance;
+  return p;
+}
+
+/** What those same columns hold now, so they can be put back. */
+function ppBefore(item, patch){
+  const b = {};
+  Object.keys(patch).forEach(k => { b[k] = item[k] === undefined ? null : item[k]; });
+  return b;
+}
+
+/** Empty string when the stored row is what was sent. 'held' is the price coming
+    back unchanged -- the server's quiet refusal, with no error attached. */
+function ppVerifyRow(patch, row){
+  for(const k of Object.keys(patch)){
+    const want = patch[k], got = row[k];
+    if(k === 'unit_price'){
+      if(!(Math.abs(Number(got) - Number(want)) < 0.000001)) return 'held';
+    } else if((want == null ? null : want) !== (got == null ? null : got)) return 'field';
+  }
+  return '';
+}
+
+/** Writes each change to its own row and reads the row back. One request per
+    item, not a bulk upsert: an upsert would INSERT a blank item for any sync id
+    that has gone missing, and a per-row update cannot. Each result is judged on
+    the row that came back, never on the absence of an error. When a change names
+    a price AND other columns, the price is written first, alone, and the rest
+    only if the price took. `guard` (undo) adds equality conditions, so a row
+    somebody changed since is left alone. A failure after the price was already
+    written is flagged `partial`. */
+async function ppWriteRows(jobs, onProgress){
+  const ok = [], failed = [];
+  let next = 0, done = 0;
+  const one = async (patch, item, guard) => {
+    let q = db.from('material_items').update(patch)
+      .eq('company_id', profile.company_id).eq('sync_id', item.sync_id).is('deleted_at', null);
+    if(guard) Object.keys(guard).forEach(k => { q = q.eq(k, guard[k]); });
+    const res = await q.select(['sync_id', 'updated_at'].concat(Object.keys(patch)).join(','));
+    if(res.error) return { why: 'error', detail: res.error.message || String(res.error) };
+    if(!res.data || !res.data.length) return { why: 'norows' };
+    const bad = ppVerifyRow(patch, res.data[0]);
+    return bad ? { why: bad } : { row: res.data[0] };
+  };
+  const worker = async () => {
+    while(next < jobs.length){
+      const w = jobs[next++];
+      try{
+        // The price goes first, on its own. The server's quiet refusal keeps the
+        // old unit_price but lets every other column through, so a single write
+        // would leave an item stamped "Price list -- Acme" and assigned to Acme
+        // with the price the list did not give it.
+        const keys = Object.keys(w.patch);
+        const steps = (keys.includes('unit_price') && keys.length > 1)
+          ? [{ unit_price: w.patch.unit_price },
+             Object.fromEntries(keys.filter(k => k !== 'unit_price').map(k => [k, w.patch[k]]))]
+          : [w.patch];
+        let guard = w.guard ? Object.assign({}, w.guard) : null;
+        let after = {}, bad = null, wrote = false;
+        for(const step of steps){
+          const r = await one(step, w.item, guard);
+          if(r.why){ bad = Object.assign({ partial: wrote }, r); break; }
+          after = Object.assign(after, r.row);
+          wrote = true;
+          if(guard && 'updated_at' in guard) guard = Object.assign({}, guard, { updated_at: r.row.updated_at });
+        }
+        if(bad) failed.push(Object.assign({ entry: w }, bad));
+        else ok.push(Object.assign({}, w, { after }));
+      }catch(e){
+        failed.push({ entry: w, why: 'error', detail: String((e && e.message) || e) });
+      }
+      done++;
+      if(onProgress) onProgress(done, jobs.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, jobs.length) }, worker));
+  return { ok, failed };
+}
+
+function ppMoney(n){
+  const v = Number(n) || 0;
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+function ppPct(oldP, newP){
+  if(!(oldP > 0)) return '';
+  const p = (newP - oldP) / oldP * 100;
+  const s = Math.abs(p) < 0.05 ? '0.0' : Math.abs(p).toFixed(1);
+  return (p > 0 ? '+' : p < 0 ? '-' : '') + s + '%';
+}
+function ppToday(){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function ppProvenance(supplierName, fileName, today){
+  return ('Price list — ' + (supplierName || '?') + ', ' + (fileName || 'pasted rows') + ', ' + today).slice(0, 160);
+}
+
+/* ---------- the dialog ---------- */
+
+let ppState = null;      // what the open dialog is looking at
+let ppLast = null;       // the update most recently written, kept so it can be undone
+let ppBusy = false;      // a write is in flight: the dialog must not close or double-submit
+
+function ppFresh(){
+  return { table: null, fileName: '', book: null, sheetIdx: 0, hiddenRows: 0, cols: null,
+           rows: [], headings: [], plan: null, selected: new Set(), supplierId: '', items: null };
+}
+
+/** The catalog the plan is matched against: the copy read fresh when the file was
+    added (so an old price shown beside a new one is the price in the database
+    now, not the price when this tab loaded), or the page's own copy before that. */
+function ppItems(){
+  return (ppState && ppState.items) || catalog;
+}
+function ppHasSku(){
+  const items = ppItems();
+  return items.length > 0 && Object.prototype.hasOwnProperty.call(items[0], 'supplier_sku');
+}
+
+/** Reads every live catalog row, a page at a time. The API stops at a thousand
+    rows without saying so, and a plan made from the first thousand would report
+    the rest as "not in your catalog" -- an empty answer that looks like a
+    complete one. Says so and returns false when the read fails, rather than
+    planning against whatever the page happened to hold. */
+async function ppRefreshItems(){
+  const st = ppState;
+  const all = [];
+  try{
+    for(let from = 0; ; from += 1000){
+      const res = await db.from('material_items').select('*').is('deleted_at', null)
+        .order('id', { ascending: true }).range(from, from + 999);
+      if(res.error) throw res.error;
+      const got = res.data || [];
+      all.push(...got);
+      if(got.length < 1000) break;
+      if(all.length >= 50000) break;
+    }
+  }catch(e){
+    msg('ppMsg', plainError((e && e.message) || String(e)), 'err');
+    return false;
+  }
+  if(ppState !== st) return false;     // another file was chosen while this was loading
+  st.items = all;
+  return true;
+}
+
+/** tr() with the arguments made safe for String.replace: a "$&" or "$'" typed
+    into a supplier or file name would otherwise be read as a substitution. */
+function ppTr(key){
+  const a = [].slice.call(arguments, 1).map(x => String(x).replace(/\$/g, '$$$$'));
+  return tr.apply(null, [key].concat(a));
+}
+
+function ppSupplierName(){
+  const m = ppState && manufacturers.find(x => x.sync_id === ppState.supplierId && !x.deleted_at);
+  return m ? m.name : '';
+}
+
+function ppHideResults(){
+  ['ppColsBox', 'ppPreviewBox'].forEach(id => { $(id).style.display = 'none'; });
+  $('ppSheetWrap').style.display = 'none';
+}
+
+function openPriceListDialog(){
+  if(!canEdit()) return;
+  ppState = ppFresh();
+  const live = manufacturers.filter(m => !m.deleted_at);
+  $('ppNoSuppliers').style.display = live.length ? 'none' : '';
+  $('ppForm').style.display = live.length ? '' : 'none';
+  $('ppSupplier').innerHTML = (live.length > 1 ? '<option value="">' + esc(tr('ppSupplierPick')) + '</option>' : '')
+    + live.map(m => '<option value="' + esc(m.sync_id) + '">' + esc(m.name || '?') + '</option>').join('');
+  ppState.supplierId = $('ppSupplier').value;
+  $('ppFile').value = ''; $('ppText').value = '';
+  ppHideResults();
+  $('ppMsg').className = 'msg'; $('ppMsg').textContent = '';
+  ppUpdateAssignRow();
+  ppRenderDone();
+  $('ppOverlay').classList.add('on');
+}
+
+function ppCloseDialog(){
+  if(ppBusy) return;
+  $('ppOverlay').classList.remove('on');
+}
+
+/** The "no supplier yet" checkbox names how many items it would take in, and the
+    supplier it would give them. Hidden when there are none to take. */
+function ppUpdateAssignRow(){
+  const sid = $('ppSupplier').value;
+  const sup = manufacturers.find(m => m.sync_id === sid && !m.deleted_at);
+  const n = ppItems().filter(c => !c.deleted_at && !c.manufacturer_sync_id).length;
+  $('ppAssignRow').style.display = n > 0 ? '' : 'none';
+  $('ppAssignLabel').textContent = ppTr('ppAssignLabel', n, sup ? sup.name : '…');
+  $('ppSkuRow').style.display = ppHasSku() ? '' : 'none';
+}
+
+async function ppOnFile(file){
+  if(!canEdit()) return;
+  const st = ppState = Object.assign(ppFresh(), { supplierId: $('ppSupplier').value });
+  ppHideResults();
+  $('ppMsg').className = 'msg'; $('ppMsg').textContent = '';
+  const refuse = key => { msg('ppMsg', tr(key), 'err'); };
+  if(file.size > PP_MAX_BYTES){ refuse('ppTooBig'); return; }
+  let bytes;
+  try{ bytes = new Uint8Array(await file.arrayBuffer()); }
+  catch(e){ refuse('ppNothingToRead'); return; }
+  if(ppState !== st) return;           // another file was chosen while this one was being read
+  // By what is inside the file, not by its name: a PDF renamed .csv is a PDF.
+  const kind = ppSniffKind(bytes);
+  if(kind === 'pdf'){ refuse('ppPdfRefused'); return; }
+  if(kind === 'ole'){ refuse('ppXlsRefused'); return; }
+  if(kind === 'other'){ refuse('ppNotText'); return; }
+  st.fileName = file.name || '';
+  try{
+    if(kind === 'zip'){
+      const book = await ppXlsxOpen(bytes);
+      st.book = book;
+      const visible = book.sheets.map((s, i) => i).filter(i => book.sheets[i].state === 'visible');
+      let chosen = null;
+      for(const i of (visible.length ? visible : [0])){
+        const sh = await ppXlsxSheet(book, i);
+        if(!chosen) chosen = { i, sh };
+        if(ppDetectColumns(sh.rows).found){ chosen = { i, sh }; break; }
+      }
+      st.sheetIdx = chosen.i; st.table = chosen.sh.rows; st.hiddenRows = chosen.sh.hidden;
+      $('ppSheet').innerHTML = book.sheets.map((s, i) => '<option value="' + i + '"' + (i === chosen.i ? ' selected' : '') + '>'
+        + esc(s.name) + (s.state === 'visible' ? '' : ' ' + esc(tr('ppSheetHidden'))) + '</option>').join('');
+      $('ppSheetWrap').style.display = book.sheets.length > 1 ? '' : 'none';
+    } else {
+      st.table = ppParseTable(ppDecodeText(bytes));
+    }
+  }catch(e){
+    const why = String((e && e.message) || e);
+    if(why === 'no-decompression') refuse('ppXlsxNoStream');
+    else if(why === 'not a zip file' || why === 'not an Excel workbook') refuse('ppNotText');
+    else msg('ppMsg', ppTr('ppXlsxBroken', why), 'err');
+    return;
+  }
+  if(ppState !== st) return;
+  if(!(await ppRefreshItems())) return;
+  ppUseTable();
+}
+
+async function ppOnPaste(){
+  if(!canEdit()) return;
+  const text = $('ppText').value;
+  if(!text.trim()){ msg('ppMsg', tr('ppNeedFile'), 'err'); return; }
+  const st = ppState = Object.assign(ppFresh(), { supplierId: $('ppSupplier').value });
+  ppHideResults();
+  $('ppMsg').className = 'msg'; $('ppMsg').textContent = '';
+  st.table = ppParseTable(text);
+  if(!(await ppRefreshItems())) return;
+  ppUseTable();
+}
+
+async function ppOnSheet(){
+  const st = ppState;
+  if(!st || !st.book) return;
+  const i = Number($('ppSheet').value);
+  try{
+    const sh = await ppXlsxSheet(st.book, i);
+    st.sheetIdx = i; st.table = sh.rows; st.hiddenRows = sh.hidden;
+  }catch(e){
+    msg('ppMsg', ppTr('ppXlsxBroken', (e && e.message) || e), 'err');
+    return;
+  }
+  ppUseTable();
+}
+
+/** A table is in hand: find the columns, show them for checking, and preview. */
+function ppUseTable(){
+  const st = ppState, t = st.table;
+  if(!t || !t.length){ msg('ppMsg', tr('ppNothingToRead'), 'err'); return; }
+  if(t.length > PP_MAX_ROWS + 60){ msg('ppMsg', ppTr('ppTooManyRows', PP_MAX_ROWS), 'err'); return; }
+  const d = ppDetectColumns(t);
+  st.cols = d;
+  let width = 0;
+  t.slice(0, 40).forEach(r => { width = Math.max(width, r.length); });
+  const head = t[d.headerRow] || [];
+  const opts = (first) => '<option value="-1">' + esc(first) + '</option>'
+    + Array.from({ length: width }, (x, i) =>
+        '<option value="' + i + '">' + esc(ppColLetter(i) + ': ' + (String(head[i] || '').trim() || '—')) + '</option>').join('');
+  [['ppColName', d.name, 'ppColChoose'], ['ppColPrice', d.price, 'ppColChoose'],
+   ['ppColSku', d.sku, 'ppColNone'], ['ppColUnit', d.unit, 'ppColNone']].forEach(([id, v, first]) => {
+    $(id).innerHTML = opts(tr(first));
+    $(id).value = String(v);
+  });
+  let note = '';
+  if(st.book && st.book.sheets.length > 1){
+    note += ppTr('ppSheetNote', st.book.sheets[st.sheetIdx].name, st.book.sheets.length) + ' ';
+  }
+  if(st.hiddenRows) note += ppTr('ppRowsHidden', st.hiddenRows);
+  $('ppReadNote').textContent = note.trim();
+  $('ppColsBox').style.display = '';
+  ppUpdateAssignRow();
+  ppRecompute();
+}
+
+/** Re-reads the rows and re-plans from whatever the dialog says now: the
+    columns, the supplier, the two checkboxes. Selection starts again each time
+    because the rows it pointed at may no longer be the same rows. */
+function ppRecompute(){
+  const st = ppState;
+  if(!st || !st.table) return;
+  st.supplierId = $('ppSupplier').value;
+  ppUpdateAssignRow();
+  const cols = { headerRow: st.cols ? st.cols.headerRow : 0, name: Number($('ppColName').value),
+                 price: Number($('ppColPrice').value), sku: Number($('ppColSku').value), unit: Number($('ppColUnit').value) };
+  const note = text => { msg('ppMsg', text, 'info'); $('ppPreviewBox').style.display = 'none'; };
+  if(cols.name < 0 || cols.price < 0){
+    const cands = st.cols ? st.cols.priceCandidates : [];
+    if(cols.name >= 0 && cols.price < 0 && cands.length > 1){
+      const head = st.table[cols.headerRow] || [];
+      note(ppTr('ppNeedPrice', cands.map(i => String(head[i] || '').trim() || ppColLetter(i)).join(', ')));
+    } else note(tr('ppNoColumns'));
+    return;
+  }
+  if(!st.supplierId){ note(tr('ppNeedSupplier')); return; }
+  $('ppMsg').className = 'msg'; $('ppMsg').textContent = '';
+  const read = ppReadRows(st.table, cols);
+  read.rows.forEach(r => {
+    const p = ppParsePrice(r.priceRaw);
+    r.price = p.ok ? p.value : null;
+    r.why = p.ok ? '' : p.why;
+  });
+  st.rows = read.rows; st.headings = read.headings;
+  st.plan = ppBuildPlan(ppItems(), st.supplierId, read.rows, {
+    assignUnassigned: $('ppAssign').checked,
+    saveSku: $('ppSaveSku').checked,
+    skuColumnPresent: cols.sku >= 0 && ppHasSku(),
+    nameOf: manufacturerName
+  });
+  st.selected = new Set();
+  st.plan.changes.forEach((c, i) => { if(!c.flags.length) st.selected.add(i); });
+  ppRender();
+}
+
+/** The whole preview as HTML. Everything a person typed (item names, file
+    contents) goes through esc(). Takes its helpers as an argument only so a test
+    can hand it plain ones. */
+function ppPreviewHtml(st, selected, supName, h){
+  const H = h || { tr: ppTr, esc: esc, fence: catFenceTypeLabel, role: bizPretty };
+  const t = H.tr, e = H.esc;
+  const plan = st.plan;
+  const out = [];
+  const left = plan.unmatched.length + plan.unreadable.length + plan.conflicts.length;
+  out.push('<p class="sub" style="margin:0 0 10px">'
+    + e(t('ppSummary', plan.rowsRead, plan.changes.length, plan.same.length, left)) + '</p>');
+
+  if(!plan.changes.length){
+    out.push('<div class="msg info" style="margin:0 0 10px">'
+      + e(plan.same.length ? t('ppNothingToChange') : t('ppNothingMatched', supName)) + '</div>');
+  } else {
+    out.push('<h2 style="margin:10px 0 6px;font-size:15px">' + e(t('ppWillChangeHead', plan.changes.length)) + '</h2>');
+    if(plan.changes.some(c => c.flags.length)) out.push('<p class="sub" style="margin:0 0 6px">' + e(t('ppFlagNote')) + '</p>');
+    const rows = plan.changes.map((c, i) => {
+      const also = [];
+      if(c.assign) also.push(t('ppAlsoAssign', supName));
+      if(c.skuFill) also.push(t('ppAlsoSku', c.row.sku));
+      if(c.confirm) also.push(t('ppAlsoConfirm'));
+      const warn = c.flags.map(f => f.k === 'jump' ? t('ppFlagJump')
+        : f.k === 'unit' ? t('ppFlagUnit', f.a, f.b) : t('ppFlagSku', f.a, f.b));
+      const fileName = ppNorm(c.row.name) !== ppNorm(c.item.name) && c.row.name
+        ? '<div class="sub" style="margin:0">' + e(c.row.name) + '</div>' : '';
+      return '<tr>'
+        + '<td style="width:28px"><input type="checkbox" data-pp-i="' + i + '" style="width:auto"' + (selected.has(i) ? ' checked' : '') + '></td>'
+        + '<td>' + e(String(c.item.name || '')) + fileName
+        + '<div class="sub" style="margin:0">' + e([H.fence(c.item.fence_type), H.role(c.item.role)].filter(Boolean).join(' · ')) + '</div></td>'
+        + '<td>' + e(ppMoney(c.oldPrice)) + '</td>'
+        + '<td><b>' + e(ppMoney(c.newPrice)) + '</b></td>'
+        + '<td>' + e(c.priceChanged ? (ppPct(c.oldPrice, c.newPrice) || '—') : '—') + '</td>'
+        + '<td>' + also.map(x => '<div>' + e(x) + '</div>').join('')
+        + warn.map(x => '<div style="color:var(--bad-fg)">' + e(x) + '</div>').join('') + '</td></tr>';
+    });
+    out.push('<div class="scroll" style="max-height:440px;overflow:auto"><table style="min-width:640px"><thead><tr>'
+      + '<th style="width:28px"><input type="checkbox" id="ppAll" style="width:auto" title="' + e(t('ppSelectAll')) + '"></th>'
+      + '<th>' + e(t('ppColItemH')) + '</th><th>' + e(t('ppColNowH')) + '</th><th>' + e(t('ppColNewH')) + '</th>'
+      + '<th>' + e(t('ppColDiffH')) + '</th><th>' + e(t('ppColAlsoH')) + '</th></tr></thead><tbody>'
+      + rows.join('') + '</tbody></table></div>');
+  }
+
+  const details = (title, bodyHtml, open) => '<details style="margin-top:12px"' + (open ? ' open' : '') + '><summary style="cursor:pointer;font-weight:600">'
+    + e(title) + '</summary>' + bodyHtml + '</details>';
+  const list = lines => '<ul style="margin:6px 0 0 18px;max-height:260px;overflow:auto">' + lines.map(x => '<li>' + x + '</li>').join('') + '</ul>';
+
+  if(plan.unmatched.length){
+    const lines = plan.unmatched.map(u => e(u.row.name || u.row.sku || '?') + ' (' + e(ppMoney(u.row.price)) + ') — '
+      + e(u.reason === 'other' ? t('ppReasonOther', u.other || '?')
+        : u.reason === 'unassigned' ? t('ppReasonUnassigned') : t('ppReasonNone', supName)));
+    out.push(details(t('ppUnmatchedHead', plan.unmatched.length), list(lines), true));
+  }
+  if(plan.unreadable.length){
+    const lines = plan.unreadable.map(u => e(u.row.name || u.row.sku || '?') + ' — '
+      + e(u.row.why === 'blank' ? t('ppWhyBlank') : u.row.why === 'zero' ? t('ppWhyZero') : t('ppWhyBad', u.row.priceRaw)));
+    out.push(details(t('ppUnreadableHead', plan.unreadable.length), list(lines), true));
+  }
+  if(plan.conflicts.length){
+    const lines = plan.conflicts.map(c => e(String(c.item.name || '')) + ' — ' + e(c.prices.map(ppMoney).join(', ')));
+    out.push(details(t('ppConflictHead', plan.conflicts.length), list(lines), true));
+  }
+  if(plan.same.length){
+    const lines = plan.same.map(s => e(String(s.item.name || '')) + ' (' + e(ppMoney(s.newPrice)) + ')');
+    out.push(details(t('ppSameHead', plan.same.length), list(lines), false));
+  }
+  if(st.headings.length){
+    out.push(details(t('ppHeadingsHead', st.headings.length), list(st.headings.map(x => e(x))), false));
+  }
+  out.push('<p class="sub" style="margin:12px 0 0">'
+    + e(t('ppNotInFile', plan.notInFile.length, supName, plan.otherUntouched)) + '</p>');
+  return out.join('');
+}
+
+function ppRender(){
+  const st = ppState;
+  $('ppPreviewBody').innerHTML = ppPreviewHtml(st, st.selected, ppSupplierName());
+  $('ppPreviewBox').style.display = '';
+  ppRenderCount();
+}
+
+function ppRenderCount(){
+  const st = ppState, n = st.selected.size, tot = st.plan.changes.length;
+  $('ppSelCount').textContent = tot ? ppTr('ppSelectedCount', n, tot) : '';
+  const b = $('ppApplyBtn');
+  b.textContent = ppTr('ppApplyBtn', n, ppSupplierName());
+  b.disabled = n === 0 || ppBusy;
+  b.style.display = tot ? '' : 'none';
+  $('ppApplyNote').style.display = tot ? '' : 'none';
+  const all = $('ppAll');
+  if(all) all.checked = tot > 0 && n === tot;
+}
+
+function ppOnPreviewChange(ev){
+  const st = ppState;
+  if(!st || !st.plan) return;
+  const t = ev.target;
+  if(t.id === 'ppAll'){
+    st.selected = new Set();
+    if(t.checked) st.plan.changes.forEach((c, i) => st.selected.add(i));
+    ppRender();
+    return;
+  }
+  if(t.dataset && t.dataset.ppI !== undefined){
+    const i = Number(t.dataset.ppI);
+    if(t.checked) st.selected.add(i); else st.selected.delete(i);
+    ppRenderCount();
+  }
+}
+
+function ppFailText(f){
+  if(f.partial) return tr('ppFailPartial');
+  if(f.why === 'norows') return tr('ppFailGone');
+  if(f.why === 'held') return tr('ppFailHeld');
+  if(f.why === 'field') return tr('ppFailField');
+  return plainError(f.detail || '');
+}
+
+function ppFailHtml(failed){
+  if(!failed.length) return '';
+  return '<ul style="margin:6px 0 0 18px">' + failed.slice(0, 40).map(f =>
+    '<li>' + esc(String(f.entry.item.name || '')) + ' — ' + esc(ppFailText(f)) + '</li>').join('')
+    + (failed.length > 40 ? '<li>…</li>' : '') + '</ul>';
+}
+
+async function ppApply(){
+  if(!canEdit()) return;
+  const st = ppState;
+  if(!st || !st.plan || ppBusy) return;
+  const sup = manufacturers.find(m => m.sync_id === st.supplierId && !m.deleted_at);
+  if(!sup){ msg('ppMsg', tr('ppNeedSupplier'), 'err'); return; }
+  const picks = st.plan.changes.filter((c, i) => st.selected.has(i));
+  if(!picks.length) return;
+  ppBusy = true;
+  $('ppApplyBtn').disabled = true;
+  const prov = ppProvenance(sup.name, st.fileName, ppToday());
+  const jobs = picks.map(c => {
+    const patch = ppPatchFor(c, sup.sync_id, prov);
+    return { item: c.item, patch, before: ppBefore(c.item, patch),
+             snap: { unit_price: c.item.unit_price, manufacturer_sync_id: c.item.manufacturer_sync_id || null } };
+  });
+  let res;
+  try{
+    res = await ppWriteRows(jobs, (d, n) => msg('ppMsg', ppTr('ppApplying', d, n), 'working'));
+  } finally { ppBusy = false; }
+  const total = jobs.length, saved = res.ok.length;
+  const text = saved === total ? ppTr('ppDoneOk', saved, sup.name)
+    : ppTr('ppDonePartial', saved, total, sup.name, res.failed.length);
+  msg('ppMsg', text, saved === total ? 'ok' : 'err');
+  if(!saved){
+    // Nothing was written, so there is nothing to undo -- but the reasons are
+    // the whole message, and they have to be on screen. The preview stays, so
+    // the same selection can be tried again.
+    $('ppDoneBox').style.display = '';
+    $('ppDoneText').textContent = text;
+    $('ppDoneFails').innerHTML = ppFailHtml(res.failed);
+    $('ppUndoBtn').style.display = 'none';
+    $('ppSaveOldBtn').style.display = 'none';
+    ppRenderCount();
+    return;
+  }
+  ppLast = { supplierName: sup.name, jobs: res.ok, undone: false, text, failHtml: ppFailHtml(res.failed) };
+  st.plan = null;
+  ppHideResults();
+  await refreshCatalog();
+  ppRenderDone();
+}
+
+function ppRenderDone(){
+  const box = $('ppDoneBox');
+  if(!ppLast){ box.style.display = 'none'; return; }
+  box.style.display = '';
+  $('ppDoneText').textContent = ppLast.text;
+  $('ppDoneFails').innerHTML = ppLast.failHtml || '';
+  $('ppUndoBtn').style.display = ppLast.undone ? 'none' : '';
+  $('ppUndoBtn').disabled = false;
+  $('ppSaveOldBtn').style.display = '';
+}
+
+/** Puts back what the last update changed -- but only on rows still exactly as
+    that update left them. The guard is the updated_at the write returned: if a
+    phone or another person has touched the row since, it has a newer one, the
+    guarded update matches nothing, and the row is left alone and counted. */
+async function ppUndo(){
+  if(!canEdit() || !ppLast || ppLast.undone || ppBusy) return;
+  ppBusy = true;
+  $('ppUndoBtn').disabled = true;
+  const jobs = ppLast.jobs.map(w => ({ item: w.item, patch: w.before, guard: { updated_at: w.after.updated_at } }));
+  let res;
+  try{
+    res = await ppWriteRows(jobs, (d, n) => msg('ppMsg', ppTr('ppApplying', d, n), 'working'));
+  } finally { ppBusy = false; }
+  const total = jobs.length, back = res.ok.length;
+  ppLast.undone = true;
+  ppLast.text = back === total ? ppTr('ppUndoDone', back) : ppTr('ppUndoPartial', back, total, total - back);
+  ppLast.failHtml = '';
+  msg('ppMsg', ppLast.text, back === total ? 'ok' : 'err');
+  await refreshCatalog();
+  ppRenderDone();
+}
+
+function ppSaveOldCsv(){
+  if(!ppLast) return;
+  const rows = ppLast.jobs.map(w => [
+    w.item.name, catFenceTypeLabel(w.item.fence_type), w.item.role,
+    manufacturerName(w.snap.manufacturer_sync_id) || '',
+    w.snap.unit_price, 'unit_price' in w.after ? w.after.unit_price : w.snap.unit_price, w.item.sync_id
+  ]);
+  downloadCsv('old-prices-' + ppToday() + '.csv',
+    ['Item', 'Fence type', 'Role', 'Supplier before', 'Price before', 'Price now', 'Item id'], rows);
+}
+
+$('catPriceList').addEventListener('click', openPriceListDialog);
+$('ppClose').addEventListener('click', ppCloseDialog);
+$('ppOverlay').addEventListener('click', e => { if(e.target.id === 'ppOverlay') ppCloseDialog(); });
+$('ppAddSupplier').addEventListener('click', () => { $('ppOverlay').classList.remove('on'); openSupplierDialog(null); });
+$('ppFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if(f) ppOnFile(f); });
+$('ppReadBtn').addEventListener('click', ppOnPaste);
+$('ppSupplier').addEventListener('change', ppRecompute);
+['ppColName', 'ppColPrice', 'ppColSku', 'ppColUnit', 'ppAssign', 'ppSaveSku'].forEach(id => $(id).addEventListener('change', ppRecompute));
+$('ppSheet').addEventListener('change', ppOnSheet);
+$('ppPreviewBox').addEventListener('change', ppOnPreviewChange);
+$('ppApplyBtn').addEventListener('click', ppApply);
+$('ppUndoBtn').addEventListener('click', ppUndo);
+$('ppSaveOldBtn').addEventListener('click', ppSaveOldCsv);
+
 /* ===================== Customer import ===================================
    The conversion path. A company switching from another product arrives with
    a customer list, and typing it back in by hand is the tax that stops them
@@ -22810,6 +24326,9 @@ function previewImport(reuse){
     $('impCounts').textContent=impReady.length+' will be added to the catalog'
       +(dupes?' · '+dupes+' skipped as already there':'')
       +(noName?' · '+noName+' skipped with no name':'');
+    // Rows already in the catalog are skipped, not updated, and their prices in this
+    // file are thrown away. Say so, and say where updating them lives.
+    if(dupes) $('impCounts').textContent += ' ' + tr('impPricelistNoUpdate');
     $('impRows').innerHTML=shown.slice(0,200).map(p=>
       '<tr'+(p.skip?' style="opacity:.45"':'')+'><td>'+esc(p.name)+'</td>'
       +'<td>'+money(p.price)+'</td><td>'+esc(p.unit||'')+'</td>'
@@ -23511,6 +25030,179 @@ async function saveSettings(){
   const sp = await db.rpc('my_setup_progress');
   setupSteps = sp.error ? [] : (sp.data || []);
   renderSetup();
+}
+
+/* ---------- how customers can pay ----------
+   Cash App, Zelle, wire and cash: typed here, shown to a customer on the quote
+   link (supabase/functions/quote-view), and nowhere else.
+
+   WHERE IT LIVES: company_settings.settings -> 'payment_methods', one key,
+   written WHOLE through save_company_settings() (which merges with ||, shallow,
+   so a partial object would erase its siblings). Not on the companies row: every
+   member of a company can read that row, crew included, and the wire block holds
+   a bank account. The settings blob is hidden from crew by policy and
+   crew_settings() is an allowlist that does not name this key. Read from
+   pg_policies in supabase_a38_company_payment_methods.sql.
+
+   THE SHAPE:  { cash_app:{on,tag}, zelle:{on,to}, wire:{on,details}, cash:{on} }
+   Each method has its own switch, so turning Zelle off for a week keeps the
+   address typed, and quote-view sends a method only when it is on AND filled in.
+
+   WHAT EACH BOX HOLDS, AND WHY
+   - Cash App: the $cashtag, stored without its $ (quote-view puts it back).
+   - Zelle: ONE free box for a phone number or an email address, never forced to
+     be either -- the customer types it into their own bank's Zelle screen, which
+     works out which it is, and a company may give both. The only check is that
+     it looks like an address or a phone number at all, so "zelle me" is caught.
+   - Wire: a free text block, not four boxes. Banks word wire instructions
+     differently (domestic or international, SWIFT, a reference line), a routing
+     number for a wire is often not the one for ACH, and four boxes that appear
+     to validate would be less honest than text pasted exactly as the bank gave it.
+   - Cash: a plain switch.
+   Nothing is pre-filled and nothing is invented; an empty method is not shown.
+
+   LIMITS stay under quote-view's own (200 / 1500 chars), and nothing is cut
+   short silently -- an over-long value is refused with a message, because half a
+   bank account number is a payment sent nowhere. */
+const PAY_INVISIBLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u00AD\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+const PAY_TAG = /^[A-Za-z0-9_.-]{1,30}$/;
+const PAY_LIMITS = { zelle: 120, wire: 1000 };
+let payMethodsLoaded = false;
+
+/** What was typed -> the object to store, or the message key saying why not. Pure. */
+function paymentMethodsFromForm(f){
+  const strip = s => String(s ?? '').replace(PAY_INVISIBLE, '');
+  const tag = strip(f.cashAppTag).trim().replace(/^\$+/, '');
+  const to = strip(f.zelleTo).replace(/\s+/g, ' ').trim();
+  const wire = strip(f.wireDetails).replace(/\r\n?/g, '\n').split('\n').map(l => l.trim()).join('\n').trim();
+  if (tag && !PAY_TAG.test(tag)) return { error: 'payMethCashAppBad' };
+  if (to.length > PAY_LIMITS.zelle) return { error: 'payMethZelleLong' };
+  if (to && !(/[^\s@]+@[^\s@]+\.[^\s@]+/.test(to) || to.replace(/\D/g, '').length >= 10)) return { error: 'payMethZelleBad' };
+  if (wire.length > PAY_LIMITS.wire) return { error: 'payMethWireLong' };
+  if (f.cashAppOn && !tag) return { error: 'payMethOnButEmpty', which: 'payMethCashAppLabel' };
+  if (f.zelleOn && !to) return { error: 'payMethOnButEmpty', which: 'payMethZelleLabel' };
+  if (f.wireOn && !wire) return { error: 'payMethOnButEmpty', which: 'payMethWireLabel' };
+  return { value: {
+    cash_app: { on: !!f.cashAppOn, tag },
+    zelle: { on: !!f.zelleOn, to },
+    wire: { on: !!f.wireOn, details: wire },
+    cash: { on: !!f.cashOn },
+  } };
+}
+
+/** The four methods in one fixed shape, whatever was stored (or nothing). Pure. */
+function canonPaymentMethods(pm){
+  const m = (pm && typeof pm === 'object' && !Array.isArray(pm)) ? pm : {};
+  const part = k => (m[k] && typeof m[k] === 'object' && !Array.isArray(m[k])) ? m[k] : {};
+  return {
+    cash_app: { on: part('cash_app').on === true, tag: String(part('cash_app').tag ?? '') },
+    zelle: { on: part('zelle').on === true, to: String(part('zelle').to ?? '') },
+    wire: { on: part('wire').on === true, details: String(part('wire').details ?? '') },
+    cash: { on: part('cash').on === true },
+  };
+}
+
+/** Translation keys of the methods a customer would actually be shown: on AND filled in. Pure. */
+function livePaymentMethodNames(pm){
+  const c = canonPaymentMethods(pm);
+  const out = [];
+  if (c.cash_app.on && c.cash_app.tag.trim()) out.push('payMethCashAppLabel');
+  if (c.zelle.on && c.zelle.to.trim()) out.push('payMethZelleLabel');
+  if (c.wire.on && c.wire.details.trim()) out.push('payMethWireLabel');
+  if (c.cash.on) out.push('payMethNameCash');
+  return out;
+}
+
+function samePaymentMethods(a, b){
+  return JSON.stringify(canonPaymentMethods(a)) === JSON.stringify(canonPaymentMethods(b));
+}
+
+function readPayMethodsForm(){
+  return {
+    cashAppOn: !!$('pm_cashApp_on')?.checked, cashAppTag: $('pm_cashApp_tag')?.value ?? '',
+    zelleOn: !!$('pm_zelle_on')?.checked, zelleTo: $('pm_zelle_to')?.value ?? '',
+    wireOn: !!$('pm_wire_on')?.checked, wireDetails: $('pm_wire_details')?.value ?? '',
+    cashOn: !!$('pm_cash_on')?.checked,
+  };
+}
+
+function fillPayMethodsForm(pm){
+  const c = canonPaymentMethods(pm);
+  $('pm_cashApp_on').checked = c.cash_app.on;
+  $('pm_cashApp_tag').value = c.cash_app.tag ? '$' + c.cash_app.tag : '';
+  $('pm_zelle_on').checked = c.zelle.on;
+  $('pm_zelle_to').value = c.zelle.to;
+  $('pm_wire_on').checked = c.wire.on;
+  $('pm_wire_details').value = c.wire.details;
+  $('pm_cash_on').checked = c.cash.on;
+  const names = livePaymentMethodNames(pm).map(k => tr(k));
+  const sum = $('payMethSummary');
+  if (sum) sum.textContent = names.length ? tr('payMethSummaryOn', names.join(', ')) : tr('payMethSummaryNone');
+}
+
+/** What is stored right now. ok:false means the read FAILED -- never treated as "nothing stored". */
+async function readStoredPaymentMethods(){
+  try {
+    const { data, error } = await db.from('company_settings')
+      .select('payment_methods:settings->payment_methods')
+      .eq('company_id', profile.company_id).maybeSingle();
+    if (error) return { ok: false, error };
+    return { ok: true, value: data?.payment_methods ?? null };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+async function loadPaymentMethods(){
+  const panel = $('payMethodsPanel');
+  if (!panel) return;
+  // Only someone who can change it sees it. Crew-level logins are not shown
+  // payment details they have no use for (and the database would not hand them
+  // the row anyway -- the blob is hidden from them by policy).
+  if (!canEdit()) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  payMethodsLoaded = false;
+  $('savePayMethods').disabled = true;
+  const got = await readStoredPaymentMethods();
+  if (!got.ok) {
+    // A failed read must NOT leave an editable empty form: pressing Save on it
+    // would write blanks over what is really there. Locked, with the reason.
+    console.error('loadPaymentMethods failed:', got.error);
+    ['pm_cashApp_on','pm_cashApp_tag','pm_zelle_on','pm_zelle_to','pm_wire_on','pm_wire_details','pm_cash_on']
+      .forEach(id => { const e = $(id); if (e) e.disabled = true; });
+    $('payMethSummary').textContent = '';
+    return msg('payMethMsg', tr('payMethLoadFailed'), 'err');
+  }
+  ['pm_cashApp_on','pm_cashApp_tag','pm_zelle_on','pm_zelle_to','pm_wire_on','pm_wire_details','pm_cash_on']
+    .forEach(id => { const e = $(id); if (e) e.disabled = false; });
+  fillPayMethodsForm(got.value);
+  $('payMethMsg').className = 'msg';
+  payMethodsLoaded = true;
+  $('savePayMethods').disabled = false;
+}
+
+async function savePaymentMethods(){
+  if (!canEdit() || !payMethodsLoaded) return;
+  const built = paymentMethodsFromForm(readPayMethodsForm());
+  if (built.error) return msg('payMethMsg', tr(built.error, built.which ? tr(built.which) : ''), 'err');
+  const btn = $('savePayMethods');
+  btn.disabled = true;
+  try {
+    const { error } = await db.rpc('save_company_settings', { new_settings: { payment_methods: built.value } });
+    if (error) return msg('payMethMsg', tr('payMethSaveFailed', error.message), 'err');
+    // "Saved" is only said about what is actually stored: read it back, show
+    // what came back, and compare. save_company_settings() returns nothing, so
+    // the absence of an error is not proof of a write.
+    const back = await readStoredPaymentMethods();
+    if (!back.ok) return msg('payMethMsg', tr('payMethVerifyFailed'), 'err');
+    fillPayMethodsForm(back.value);
+    if (!samePaymentMethods(back.value, built.value)) return msg('payMethMsg', tr('payMethVerifyFailed'), 'err');
+    const m = $('payMethMsg');
+    m.textContent = tr('payMethSavedMsg');
+    m.className = 'msg ok';
+  } finally {
+    btn.disabled = !payMethodsLoaded;
+  }
 }
 
 /* ---------- plan shape ----------
@@ -24958,6 +26650,10 @@ function switchTab(name){
   // throw and skip it silently. Opening the tab now loads its own data
   // rather than trusting that whole chain succeeded earlier.
   if(name==='settings') loadSettings();
+  // Its own load, its own failure message: the payment boxes lock themselves
+  // when what is stored cannot be read, and that must not depend on the
+  // business-settings load beside it succeeding.
+  if(name==='settings') loadPaymentMethods().catch(e=>console.error('loadPaymentMethods threw:', e));
 }
 document.querySelectorAll('.tab').forEach(t=>
   t.addEventListener('click',()=>switchTab(t.dataset.tab)));
@@ -25319,6 +27015,7 @@ $('saveEmp').addEventListener('click',saveEmp);
 $('e_pay_type').addEventListener('change',syncEmpPayNote);
 $('deleteEmp').addEventListener('click',deleteEmp);
 $('saveSettings').addEventListener('click',saveSettings);
+$('savePayMethods').addEventListener('click',()=>{ savePaymentMethods().catch(e=>msg('payMethMsg', tr('payMethSaveFailed', e?.message ?? e), 'err')); });
 $('catFilter').addEventListener('input',renderCatalog);
 
 // Report filters

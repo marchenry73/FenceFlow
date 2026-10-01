@@ -106,6 +106,33 @@
   #nextSteps:not(:empty){font-size:14.5px;color:var(--ok-dk);margin-top:10px;padding-top:12px;
              border-top:1px solid var(--ok-line)}
 
+  /* ------- how to pay -------
+     Read with a thumb at about 390px. The method's name sits ABOVE its value
+     rather than beside it, the value may break anywhere (a wire instruction
+     is a long run of digits and a Zelle address has no spaces to wrap at),
+     and the copy button is pinned to the right and never shrunk. Two labels
+     have already overlapped on this page at phone width because nothing in
+     the row was allowed to wrap; here only the button is fixed. */
+  .paym{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  .pm{border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:var(--paper)}
+  .pm-name{font:600 11.5px/1.2 "IBM Plex Sans",sans-serif;text-transform:uppercase;
+           letter-spacing:.09em;color:var(--muted);margin-bottom:6px}
+  .pm-line{display:flex;align-items:flex-start;gap:12px}
+  /* Selectable on purpose: this is text she has to carry into her banking app.
+     pre-wrap keeps the line breaks the contractor typed in wire instructions. */
+  .pm-val{flex:1 1 auto;min-width:0;font:500 16.5px/1.4 "IBM Plex Sans",sans-serif;
+          white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;
+          -webkit-user-select:text;user-select:text;cursor:text}
+  .pm-how{font-size:14.5px;line-height:1.5}
+  .pm-copy{flex:0 0 auto;min-height:40px;background:#fff;border:1px solid var(--line);
+           color:var(--text);border-radius:9px;padding:9px 14px;cursor:pointer;
+           font:600 13.5px/1 "IBM Plex Sans",sans-serif}
+  .pm-copy:hover{border-color:var(--orange);color:var(--orange)}
+  .pm-copy:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+  .pm-status{font-size:12.5px;color:var(--muted)}
+  .pm-status:not(:empty){margin-top:6px}
+  .paynote{margin-top:12px}
+
   /* ------- saying yes ------- */
   .approve{background:linear-gradient(170deg,var(--ink-2),var(--ink));color:#fff;
            border-radius:14px;padding:24px;margin-bottom:16px;
@@ -261,6 +288,27 @@ const L = {
     signatureRejected: 'That signature could not be saved. Clear it, draw it again, or type your name instead.',
     signatureUnavailable: 'Drawing a signature is not available on this quote right now. Please type your name to approve.',
     signatureAlt: 'Signature',
+    howToPayHead: 'How to pay',
+    howToPayLead: 'Any of these works. Use the amounts shown above.',
+    pmCard: 'Credit or debit card',
+    pmCardHow: 'Pay online with the payment button below.',
+    pmCashApp: 'Cash App',
+    pmZelle: 'Zelle',
+    pmWire: 'Wire transfer',
+    pmCash: 'Cash',
+    pmCashHow: 'Cash is accepted. Ask your contractor when and where to hand it over.',
+    // The same four, as they read inside a sentence (lower case where the
+    // language lowercases a common noun; Cash App and Zelle never change).
+    pmCashAppIn: 'Cash App',
+    pmZelleIn: 'Zelle',
+    pmWireIn: 'wire transfer',
+    pmCashIn: 'cash',
+    pmCopy: 'Copy',
+    pmCopied: 'Copied',
+    pmCopyAria: 'Copy %s',
+    pmSelected: 'Selected. Press and hold the text, then choose Copy.',
+    pmSkipCard: 'Paying by %s skips the card checkout and goes straight to your contractor.',
+    pmNameNote: 'Please put your name in the payment note so we can match it to this quote.',
   },
   es: {
     loading: 'Abriendo su presupuesto…',
@@ -334,6 +382,25 @@ const L = {
     signatureRejected: 'No se pudo guardar esa firma. Bórrela, dibújela de nuevo o escriba su nombre en su lugar.',
     signatureUnavailable: 'Dibujar una firma no está disponible en este presupuesto por ahora. Escriba su nombre para aprobar.',
     signatureAlt: 'Firma',
+    howToPayHead: 'Cómo pagar',
+    howToPayLead: 'Cualquiera de estas opciones sirve. Use los importes que aparecen arriba.',
+    pmCard: 'Tarjeta de crédito o débito',
+    pmCardHow: 'Pague en línea con el botón de pago de abajo.',
+    pmCashApp: 'Cash App',
+    pmZelle: 'Zelle',
+    pmWire: 'Transferencia bancaria',
+    pmCash: 'Efectivo',
+    pmCashHow: 'Se acepta efectivo. Pregunte a su contratista cuándo y dónde entregarlo.',
+    pmCashAppIn: 'Cash App',
+    pmZelleIn: 'Zelle',
+    pmWireIn: 'transferencia bancaria',
+    pmCashIn: 'efectivo',
+    pmCopy: 'Copiar',
+    pmCopied: 'Copiado',
+    pmCopyAria: 'Copiar %s',
+    pmSelected: 'Seleccionado. Mantenga pulsado el texto y elija Copiar.',
+    pmSkipCard: 'Si paga con %s, no pasa por el pago con tarjeta y el dinero va directo a su contratista.',
+    pmNameNote: 'Escriba su nombre en la nota del pago para que podamos asociarlo con este presupuesto.',
   },
   fr: {
     loading: 'Ouverture de votre devis…',
@@ -407,6 +474,25 @@ const L = {
     signatureRejected: 'Cette signature n’a pas pu être enregistrée. Effacez-la, redessinez-la ou saisissez votre nom à la place.',
     signatureUnavailable: 'Il n’est pas possible de dessiner une signature sur ce devis pour le moment. Saisissez votre nom pour valider.',
     signatureAlt: 'Signature',
+    howToPayHead: 'Comment payer',
+    howToPayLead: 'Chacune de ces options convient. Utilisez les montants indiqués ci-dessus.',
+    pmCard: 'Carte de crédit ou de débit',
+    pmCardHow: 'Payez en ligne avec le bouton de paiement ci-dessous.',
+    pmCashApp: 'Cash App',
+    pmZelle: 'Zelle',
+    pmWire: 'Virement bancaire',
+    pmCash: 'Espèces',
+    pmCashHow: 'Les espèces sont acceptées. Demandez à votre entreprise quand et où les remettre.',
+    pmCashAppIn: 'Cash App',
+    pmZelleIn: 'Zelle',
+    pmWireIn: 'virement bancaire',
+    pmCashIn: 'espèces',
+    pmCopy: 'Copier',
+    pmCopied: 'Copié',
+    pmCopyAria: 'Copier %s',
+    pmSelected: 'Sélectionné. Appuyez longuement sur le texte, puis choisissez Copier.',
+    pmSkipCard: 'Payer par %s évite le paiement par carte : l’argent va directement à votre entreprise.',
+    pmNameNote: 'Indiquez votre nom dans la note du paiement afin que nous puissions le rattacher à ce devis.',
   },
 };
 
@@ -512,6 +598,16 @@ function setLang(code) {
         <div id="scope" style="margin-top:10px"></div>
       </div>
       <div class="totals" id="totals"></div>
+    </div>
+
+    <!-- Only ever shown when the contractor has typed at least one way of
+         paying (render() decides). It restates no figure: the amounts are the
+         ones in the Pricing panel above, so the two can never drift apart. -->
+    <div class="panel" id="payHow" style="display:none">
+      <h2 data-t="howToPayHead">How to pay</h2>
+      <p class="sub" data-t="howToPayLead">Any of these works. Use the amounts shown above.</p>
+      <div class="paym" id="payMethods"></div>
+      <div id="payNotes"></div>
     </div>
 
     <div class="approve" id="approveBox" style="display:none">
@@ -767,6 +863,9 @@ function render(){
     rows.push('<div><span>'+tr('nothingLeftToPay')+'</span><span>'+money(0)+'</span></div>');
   }
   $('totals').innerHTML=rows.join('');
+  // After the totals and from the same `balance`, so the list of ways to pay
+  // disappears at exactly the moment "Nothing left to pay" appears.
+  renderHowToPay(q, balance);
 
   if(q.approvedAt){
     $('approvedBox').style.display='';
@@ -871,6 +970,182 @@ function showPayButton(){
   $('payBtn').disabled=false;
   $('payBtn').textContent=tr('payDeposit', money(due));
 }
+
+/* ===================== how to pay ========================================
+   The ways a customer can settle up OTHER than the card button, in the
+   contractor's own words: his Cash App tag, his Zelle address, his wire
+   instructions, how he takes cash. He types them in the office; quote-view
+   passes them through; this section only lays them out.
+
+   Three rules, each from something that went wrong elsewhere:
+
+   - A method he has not filled in does not exist. An empty Cash App line on a
+     customer's quote looks broken and invites a question he cannot answer.
+   - No figure is restated. The amounts are the Pricing panel's own; a second
+     copy of the total in a second place is how the two come to disagree.
+   - Nothing here says a fee will be added, because none is. create-payment-
+     link adds no card fee to a customer's link (stripeFee is 0 there, and
+     companies.pass_card_fee is the company's own FenceFlow subscription
+     setting, not a surcharge). The one thing worth saying, and it is true, is
+     that the other methods do not use the card checkout at all. If a card fee
+     is ever really charged, the sentence is changed in the same commit.
+
+   The pure halves (payMethodsFrom, payHowModel, payNameList, payCopyOutcome)
+   take plain values so tests/a38-quote-pay-*.test.mjs can run them standalone;
+   renderHowToPay and copyPayRow are the thin halves that touch the DOM. */
+const PAY_ORDER=['cashapp','zelle','wire','cash'];
+const PAY_NAME_KEY={cashapp:'pmCashApp',zelle:'pmZelle',wire:'pmWire',cash:'pmCash'};
+const PAY_IN_KEY={cashapp:'pmCashAppIn',zelle:'pmZelleIn',wire:'pmWireIn',cash:'pmCashIn'};
+
+/** The contract with quote-view (supabase_a38_company_payment_methods.sql,
+ * PART 1): one top-level key,
+ *   paymentMethods: { cashApp: "$Tag"|"", zelle: "..."|"", wire: "...\n..."|"", cash: true|false }
+ * "" and false mean the owner has it switched off or left it empty, and the key
+ * itself can be absent (an older quote-view). All three are the same thing here:
+ * no row. Anything else in the object is ignored -- the list below is the whole
+ * of what can reach the screen, so a field added to the response tomorrow is
+ * not printed by accident.
+ *
+ * Returns [{ key, value }] in a fixed order. value is the text to show and
+ * copy; for cash it is null, because "we take cash" is a fact with nothing to
+ * copy. */
+const PAY_FIELD={cashapp:'cashApp',zelle:'zelle',wire:'wire',cash:'cash'};
+function payMethodsFrom(q){
+  const src=(q && q.paymentMethods && typeof q.paymentMethods==='object') ? q.paymentMethods : {};
+  const out=[];
+  PAY_ORDER.forEach(key=>{
+    const v=src[PAY_FIELD[key]];
+    if(key==='cash'){ if(v===true) out.push({key, value:null}); return; }
+    if(typeof v!=='string') return;
+    const value=v.trim();
+    if(value) out.push({key, value});
+  });
+  return out;
+}
+
+/** Whether to show the section at all, and what goes in it. cardOffered is
+ * whether the card button exists (dueNow() > 0), so the card row is there
+ * exactly when the button it points at is. */
+function payHowModel(q, balance, cardOffered){
+  const methods=payMethodsFrom(q);
+  // Nothing typed: the page is exactly what it was before this section.
+  if(!methods.length) return { show:false, methods:[], card:false, skipCard:false, nameNote:false };
+  // Nothing left to pay (paid in full, or no price yet): a list of ways to pay
+  // under a thank-you is noise, and under a zero it is worse.
+  if(!(Number(balance)>0.005)) return { show:false, methods:[], card:false, skipCard:false, nameNote:false };
+  return {
+    show:true,
+    methods,
+    card:!!cardOffered,
+    // Only worth saying when there is a card option to contrast with.
+    skipCard:!!cardOffered,
+    // "Put your name in the note" makes no sense for handing over cash.
+    nameNote:methods.some(m=>m.key!=='cash'),
+  };
+}
+
+/** "Cash App, Zelle or cash" in the reader's language. Intl.ListFormat knows
+ * that Spanish says "o" and French says "ou"; the comma join is only the
+ * fallback for a browser that predates it. */
+function payNameList(keys){
+  const names=keys.map(k=>tr(PAY_IN_KEY[k]));
+  try{
+    if(typeof Intl!=='undefined' && Intl.ListFormat)
+      return new Intl.ListFormat(LANG,{style:'long',type:'disjunction'}).format(names);
+  }catch(e){ /* fall through to the plain join */ }
+  return names.join(', ');
+}
+
+/** What pressing Copy did, said truthfully: 'copied' only when the browser
+ * confirmed it, otherwise 'selected' -- the text is left highlighted so she
+ * can press and hold it herself. Clipboard writes are refused in plenty of
+ * ordinary situations (an in-app browser, a page that is not secure, a
+ * permission prompt dismissed), so the rejection is caught and is not allowed
+ * to read as success.
+ * env: { writeText: fn|null, select: fn()->bool, execCopy: fn()->bool } */
+async function payCopyOutcome(text, env){
+  if(env.writeText){
+    try{ await env.writeText(text); return 'copied'; }
+    catch(e){ /* refused: fall through to selecting it */ }
+  }
+  let selected=false, copied=false;
+  try{ selected=!!env.select(); }catch(e){}
+  if(selected){ try{ copied=!!env.execCopy(); }catch(e){} }
+  return copied ? 'copied' : 'selected';
+}
+
+function selectNodeContents(el){
+  try{
+    const s=window.getSelection(); if(!s||!el) return false;
+    const r=document.createRange(); r.selectNodeContents(el);
+    s.removeAllRanges(); s.addRange(r);
+    return true;
+  }catch(e){ return false; }
+}
+
+let payList=[];
+function renderHowToPay(q, balance){
+  const m=payHowModel(q, balance, dueNow()>0);
+  if(!m.show){
+    payList=[];
+    $('payMethods').innerHTML=''; $('payNotes').innerHTML='';
+    $('payHow').style.display='none';
+    return;
+  }
+  payList=m.methods;
+  let html='';
+  if(m.card){
+    html+='<div class="pm"><div class="pm-name">'+esc(tr('pmCard'))+'</div>'
+      +'<div class="pm-how">'+esc(tr('pmCardHow'))+'</div></div>';
+  }
+  html+=m.methods.map((p,i)=>{
+    const name=tr(PAY_NAME_KEY[p.key]);
+    // Cash has nothing to copy: a sentence, no value box, no button.
+    if(p.value===null){
+      return '<div class="pm" data-method="'+p.key+'"><div class="pm-name">'+esc(name)+'</div>'
+        +'<div class="pm-how">'+esc(tr('pmCashHow'))+'</div></div>';
+    }
+    return '<div class="pm" data-method="'+p.key+'">'
+      +'<div class="pm-name">'+esc(name)+'</div>'
+      +'<div class="pm-line">'
+        +'<div class="pm-val" id="pmv'+i+'">'+esc(p.value)+'</div>'
+        +'<button type="button" class="pm-copy" id="pmb'+i+'" data-i="'+i+'" aria-label="'
+          +esc(tr('pmCopyAria', name))+'">'+esc(tr('pmCopy'))+'</button>'
+      +'</div>'
+      +'<div class="pm-status" id="pms'+i+'" role="status"></div>'
+    +'</div>';
+  }).join('');
+  $('payMethods').innerHTML=html;
+  let notes='';
+  if(m.skipCard) notes+='<p class="sub paynote">'+esc(tr('pmSkipCard', payNameList(m.methods.map(p=>p.key))))+'</p>';
+  if(m.nameNote) notes+='<p class="sub paynote">'+esc(tr('pmNameNote'))+'</p>';
+  $('payNotes').innerHTML=notes;
+  $('payHow').style.display='';
+}
+
+async function copyPayRow(i){
+  const p=payList[i], btn=$('pmb'+i), valEl=$('pmv'+i), status=$('pms'+i);
+  if(!p||!btn||!valEl||!status) return;
+  const how=await payCopyOutcome(p.value,{
+    writeText:(navigator.clipboard&&navigator.clipboard.writeText)
+      ? t=>navigator.clipboard.writeText(t) : null,
+    select:()=>selectNodeContents(valEl),
+    execCopy:()=>document.execCommand('copy'),
+  });
+  clearTimeout(btn._pmT);
+  if(how==='copied'){
+    status.textContent='';
+    btn.textContent=tr('pmCopied');
+    btn._pmT=setTimeout(()=>{ btn.textContent=tr('pmCopy'); }, 2000);
+  } else {
+    btn.textContent=tr('pmCopy');
+    status.textContent=tr('pmSelected');
+  }
+}
+$('payMethods').addEventListener('click', e=>{
+  const btn=e.target&&e.target.closest ? e.target.closest('.pm-copy') : null;
+  if(btn) copyPayRow(Number(btn.getAttribute('data-i')));
+});
 
 /* ================== drawn signature (item C3) =============================
    Typing a name stays required either way (server-enforced, not just here);
@@ -2091,6 +2366,121 @@ function buildRunMeshes(plan, ctx){
   });
 }
 
+/* ---- Satellite ground: the pure half ------------------------------------
+   Everything here is plain arithmetic with no DOM and no THREE, so the zoom
+   choice and the missing-tile rule can be pinned by tests/a36-ground-*.test.mjs
+   the way quote-scene.test.mjs pins the fence plan. attachSatellite() below
+   is the thin impure half that fetches and draws. */
+
+/** Web-Mercator maths shared by the tile fetch, the centring and the zoom choice. */
+function sceneMercTile(lat,lon,z){
+  const n=Math.pow(2,z);
+  return { x:(lon+180)/360*n,
+           y:(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n };
+}
+function sceneMercMetersPerTile(lat,z){ return 156543.03392*Math.cos(lat*Math.PI/180)/Math.pow(2,z)*256; }
+
+const SAT_TILE_PX=256;
+const SAT_GRID_N=5;
+// 21 is the last level the county serves (22 and 23 are 404 everywhere tested;
+// the proxy's own cap and tests/a35-satellite-zoom.test.mjs pin the same number).
+// At this latitude a tile is about 111ft across at z20 and 55ft at z21, so the
+// 5x5 grid spans about 554ft or 277ft for the same twenty-five downloads.
+const SAT_ZOOM_CAP=21;
+// 20 is what this page shipped with. Customers already have quotes open, and
+// no existing quote may get a worse picture than it has today.
+const SAT_ZOOM_FLOOR=20;
+// Yard shown past the farthest post, whichever is larger: 20ft is about a
+// neighbour's setback plus a driveway, enough that the ground past the far
+// corner reads as the next yard and not the end of the world; the quarter
+// keeps the same proportion of yard around a big fence as a small one.
+const SAT_MARGIN_FT=20;
+const SAT_MARGIN_FRAC=0.25;
+
+/** The room a fence needs around its centre: its radius plus a margin of yard. */
+function sceneSatelliteNeedFt(fenceRadiusFt){
+  const r=Math.max(0, fenceRadiusFt||0);
+  return r+Math.max(SAT_MARGIN_FT, r*SAT_MARGIN_FRAC);
+}
+
+/**
+ * The tile grid at a zoom: which tiles, how many feet each, and how far the
+ * address pixel is from the grid's nearest edge. The address lands somewhere
+ * inside the centre tile, so that clearance is between 2 and 2.5 tiles, and
+ * it is the real number -- not the 2.5 an address exactly on a tile centre
+ * would get -- that decides whether a fence fits.
+ */
+function sceneSatelliteGrid(lat,lon,z,n){
+  const N=n||SAT_GRID_N;
+  const t=sceneMercTile(lat,lon,z);
+  const half=Math.floor((N-1)/2);
+  const cxT=Math.floor(t.x)-half, cyT=Math.floor(t.y)-half;
+  const ftPerTile=sceneMercMetersPerTile(lat,z)*3.28084;
+  const sideFt=ftPerTile*N;
+  const ox=t.x-cxT, oy=t.y-cyT;
+  const clearanceFt=Math.min(ox, N-ox, oy, N-oy)*ftPerTile;
+  return { z, N, cxT, cyT, ftPerTile, sideFt, ox, oy, clearanceFt };
+}
+
+/**
+ * The sharpest zoom whose grid still holds the fence with its margin, the
+ * way a map app zooms to fit: counts down from the cap, and never goes below
+ * the floor even when nothing fits there -- a fence that runs off a z20
+ * photo is what that quote shows today, and a softer photo is not a fix.
+ */
+function sceneSatelliteZoom(lat,lon,fenceRadiusFt,opts){
+  const cap=(opts&&opts.cap)||SAT_ZOOM_CAP, floor=(opts&&opts.floor)||SAT_ZOOM_FLOOR;
+  const need=sceneSatelliteNeedFt(fenceRadiusFt);
+  for(let z=cap; z>floor; z--){
+    if(sceneSatelliteGrid(lat,lon,z,opts&&opts.n).clearanceFt>=need) return z;
+  }
+  return floor;
+}
+
+/**
+ * Grid cells (index dy*N+dx, the order the tiles are fetched in) that the
+ * fence's own ground touches: every cell the disc of radius need, centred on
+ * the address, overlaps. A missing tile there is a hole under the fence; a
+ * missing tile anywhere else is a corner the fence never stands on.
+ */
+function sceneSatelliteNeededCells(grid, fenceRadiusFt){
+  const need=sceneSatelliteNeedFt(fenceRadiusFt)/grid.ftPerTile;
+  const cells=[];
+  for(let dy=0;dy<grid.N;dy++) for(let dx=0;dx<grid.N;dx++){
+    const nx=Math.max(dx, Math.min(dx+1, grid.ox)), ny=Math.max(dy, Math.min(dy+1, grid.oy));
+    if(Math.hypot(nx-grid.ox, ny-grid.oy) < need) cells.push(dy*grid.N+dx);
+  }
+  return cells;
+}
+
+/**
+ * What to do with a grid once the tiles are in. 'complete': every tile came.
+ * 'fill': only tiles the fence never touches are missing, so keep this zoom
+ * and paint over the holes. 'stepdown': a tile under the fence is missing,
+ * or more than half the grid is -- an outage, not a corner -- so try one
+ * level softer.
+ */
+function sceneSatelliteVerdict(loaded, grid, fenceRadiusFt){
+  const total=grid.N*grid.N;
+  let got=0; for(let i=0;i<total;i++) if(loaded[i]) got++;
+  if(got===total) return 'complete';
+  if(got*2<=total) return 'stepdown';
+  const needed=sceneSatelliteNeededCells(grid, fenceRadiusFt);
+  for(const i of needed) if(!loaded[i]) return 'stepdown';
+  return 'fill';
+}
+
+/** Mean colour of the opaque pixels in an RGBA byte array; transparent ones (an undrawn cell) do not vote. */
+function sceneMeanColour(data){
+  let r=0,g=0,b=0,n=0;
+  for(let i=0;i<data.length;i+=4){
+    if(data[i+3]<250) continue;
+    r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++;
+  }
+  if(!n) return [112,118,92];
+  return [Math.round(r/n), Math.round(g/n), Math.round(b/n)];
+}
+
 function build3D(runs,attempt){
   const stage=$('stage');
   // The stage was display:none a moment ago and layout may not have settled,
@@ -2171,11 +2561,17 @@ function build3D(runs,attempt){
   scene.add(fence);
 
   // Camera: orbit the fence's own centre, sized to fit it.
-  let cx=0,cz=0,r=20;
+  let cx=0,cz=0,r=20,fenceR=0;
   if(all.length){
     cx=all.reduce((s,p)=>s+p.x,0)/all.length;
     cz=all.reduce((s,p)=>s+p.z,0)/all.length;
-    r=Math.max(14,...all.map(p=>Math.hypot(p.x-cx,p.z-cz)))*1.35+8;
+    // The fence's own size in feet: the farthest post from its centre
+    // (worldPts are feet, scenePlanRun scales them by ftPerPx). The satellite
+    // zoom is chosen from this, so it is the real footprint and not the
+    // camera's padded radius below -- and it does not change when the fence
+    // is turned, which a bounding box would.
+    fenceR=Math.max(...all.map(p=>Math.hypot(p.x-cx,p.z-cz)));
+    r=Math.max(14,fenceR)*1.35+8;
   }
 
   // Ground, sky and sun are all sized off the job's own footprint -- a
@@ -2394,68 +2790,100 @@ function build3D(runs,attempt){
   // A hook for automated checks: how much scene actually exists.
   window.__fence={meshes:scene.children.length,drawCalls:()=>renderer.info.render.calls,tris:()=>renderer.info.render.triangles};
 
-  /** Web-Mercator maths shared by the tile fetch and the centring. */
-  const merc={
-    tile(lat,lon,z){
-      const n=Math.pow(2,z);
-      return { x:(lon+180)/360*n,
-               y:(1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n };
-    },
-    metersPerTile(lat,z){ return 156543.03392*Math.cos(lat*Math.PI/180)/Math.pow(2,z)*256; }
-  };
-
   /**
-   * Stands the fence on the actual property: a 3x3 patch of aerial imagery,
+   * Stands the fence on the actual property: a 5x5 patch of aerial imagery,
    * centred so the geocoded address sits exactly under the fence's middle,
    * with a slider to turn the fence to match the yard -- the drawing knows
    * its shape and size precisely, but not which way the yard faces.
+   *
+   * The zoom comes from the fence's own size (sceneSatelliteZoom): the
+   * sharpest level whose five-tile span still holds the fence plus a margin
+   * of yard, capped at 21 because nothing above that exists, never below the
+   * 20 this page shipped with. `zoom` is only ever passed by the step-down.
    */
   window.__fence.attachSatellite=async function(lat,lon,zoom){
-    // Google-Earth sharpness first: z20 is roughly 4-inch pixels. Some areas
-    // stop at z19, so a failed grid retries one level down rather than
-    // showing a checkerboard.
-    const Z=zoom||20, N=5;
-    const t=merc.tile(lat,lon,Z);
-    const half=(N-1)/2;
-    const cxT=Math.floor(t.x)-Math.floor(half), cyT=Math.floor(t.y)-Math.floor(half);
+    const Z=zoom||sceneSatelliteZoom(lat,lon,fenceR);
+    const grid=sceneSatelliteGrid(lat,lon,Z);
+    const N=grid.N, cxT=grid.cxT, cyT=grid.cyT;
     const cvs=document.createElement('canvas');
-    cvs.width=cvs.height=256*N;
+    cvs.width=cvs.height=SAT_TILE_PX*N;
     const g2=cvs.getContext('2d');
-    // Aerial imagery ships flat and hazy; a nudge of contrast and colour is
-    // the difference between a scan and a photograph.
+    // Ortho imagery ships flat; a nudge of contrast and colour is the
+    // difference between a scan and a photograph. Measured on the county's
+    // z21 tiles the nudge lifts mean luma 3 levels and clips 0.07% more
+    // pixels than none, so it is as mild as it reads and serves native-
+    // resolution z21 as well as it served z20.
     g2.filter='contrast(1.1) saturate(1.12) brightness(1.03)';
     const loads=[];
     for(let dy=0;dy<N;dy++) for(let dx=0;dx<N;dx++){
       loads.push(new Promise(res=>{
         const img=new Image();
         img.crossOrigin='anonymous';
-        img.onload=()=>{ g2.drawImage(img,dx*256,dy*256); res(true); };
+        img.onload=()=>{ g2.drawImage(img,dx*SAT_TILE_PX,dy*SAT_TILE_PX); res(true); };
         img.onerror=()=>res(false);
         img.src=API+'/quote-map?action=tile&z='+Z+'&y='+(cyT+dy)+'&x='+(cxT+dx)
           +'&apikey='+encodeURIComponent(window.FENCEFLOW_CONFIG.SUPABASE_KEY);
       }));
     }
-    const got=(await Promise.all(loads)).filter(Boolean).length;
-    if(got<N*N){
-      return Z>19 ? window.__fence.attachSatellite(lat,lon,19) : false;
+    const loaded=await Promise.all(loads);
+    // A tile the fence never stands on may go missing without costing the
+    // sharpest imagery. One under the fence, or more than half the grid,
+    // steps down a level -- the same chain as before, ending at 19.
+    const verdict=sceneSatelliteVerdict(loaded,grid,fenceR);
+    if(verdict==='stepdown'){
+      return Z>19 ? window.__fence.attachSatellite(lat,lon,Z-1) : false;
+    }
+    if(verdict==='fill'){
+      // An undrawn cell of a fresh canvas is transparent, and an opaque
+      // material draws transparent as black: a black square in the yard.
+      // The mean of what did load is the least wrong colour for a corner
+      // the fence never reaches.
+      const probe=document.createElement('canvas');
+      probe.width=probe.height=32;
+      const pg=probe.getContext('2d');
+      pg.drawImage(cvs,0,0,32,32);
+      const mean=sceneMeanColour(pg.getImageData(0,0,32,32).data);
+      g2.filter='none';
+      g2.fillStyle='rgb('+mean.join(',')+')';
+      loaded.forEach((ok,i)=>{
+        if(!ok) g2.fillRect((i%N)*SAT_TILE_PX, Math.floor(i/N)*SAT_TILE_PX, SAT_TILE_PX, SAT_TILE_PX);
+      });
     }
 
-    const ftPerTile=merc.metersPerTile(lat,Z)*3.28084;
-    const sideFt=ftPerTile*N;
+    const sideFt=grid.sideFt;
     // Where inside the stitched image the address itself is, so that pixel
     // lands under the fence centre rather than the house drifting a tile off.
-    const px=((t.x-cxT)/N - .5)*sideFt;
-    const pz=((t.y-cyT)/N - .5)*sideFt;
+    const px=(grid.ox/N - .5)*sideFt;
+    const pz=(grid.oy/N - .5)*sideFt;
 
+    // The photo carries its own sun. Lit again as a MeshStandardMaterial under
+    // this scene's lights and ACES tone mapping, an sRGB mid-grey of 102 came
+    // out at 218 and everything from 102 to 255 landed between 218 and 241 --
+    // measured through this exact renderer setup, and it is the haze the
+    // owner saw. Drawn unlit, sRGB-encoded and untone-mapped, every value
+    // comes out exactly as photographed. The texture keeps its default
+    // mipmapped minFilter; with anisotropy that is what keeps a flat photo
+    // crisp at the grazing angle a fence is actually viewed from.
     const tex=new THREE.CanvasTexture(cvs);
+    tex.encoding=THREE.sRGBEncoding;
     tex.anisotropy=maxAniso;
     const plane=new THREE.Mesh(
       new THREE.PlaneGeometry(sideFt,sideFt),
-      new THREE.MeshStandardMaterial({map:tex, roughness:0.95}));
+      new THREE.MeshBasicMaterial({map:tex, toneMapped:false}));
     plane.rotation.x=-Math.PI/2;
     plane.position.set(cx-px, 0.02, cz-pz);
-    plane.receiveShadow=true;
     scene.add(plane);
+    // An unlit plane cannot receive a shadow, so the fence's own is caught on
+    // a transparent plane just above the photo. The lit ground darkened its
+    // shadows to roughly 42% of full sun; a January flight's shadows are
+    // softer than that, and 0.4 sits between the two.
+    const shade=new THREE.Mesh(
+      new THREE.PlaneGeometry(sideFt,sideFt),
+      new THREE.ShadowMaterial({opacity:0.4, transparent:true}));
+    shade.rotation.x=-Math.PI/2;
+    shade.position.set(cx-px, 0.1, cz-pz);
+    shade.receiveShadow=true;
+    scene.add(shade);
     grass.visible=false;
 
     // The fence turns about its own centre; the photo stays put.

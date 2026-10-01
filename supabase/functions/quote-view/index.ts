@@ -24,6 +24,11 @@
  * which is what the contractor PAYS. None of that may ever reach the person
  * being quoted, so the shape sent out is built by hand rather than selecting
  * whole rows and hoping.
+ *
+ * The one deliberate addition is `paymentMethods`: where and how this company
+ * asks to be paid (Cash App, Zelle, wire, cash). See publicPaymentMethods()
+ * below, which says exactly what goes out and why, and
+ * supabase_a38_company_payment_methods.sql for the contract and storage.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import {
@@ -32,6 +37,7 @@ import {
   changeOrderInputs,
   depositFigures,
   missingAcceptanceFlag,
+  roundToCents,
 } from "../_shared/quote-deposit.ts";
 import { standingJobEvent } from "../_shared/job-push.ts";
 import { jobDevices } from "../_shared/push-recipients.ts";
@@ -94,6 +100,126 @@ type QuoteJob = {
   signed_at?: string | null;
   quote_approved_signature_path?: string | null;
 };
+
+/**
+ * Where and how this company asks to be paid -- the ONE thing from
+ * company_settings that reaches a customer, and every part of it is public on
+ * purpose.
+ *
+ * WHAT GOES OUT (all four, nothing else, ever):
+ *   cashApp  "$Tag"   a Cash App $cashtag is handed out precisely so people can
+ *                     pay it
+ *   zelle    "..."    the phone number and/or email the company's Zelle is
+ *                     registered to -- the same: given out to be paid
+ *   wire     "..."    free text: bank, account name, routing and account number.
+ *                     BANK DETAILS ARE SENT TO ANY HOLDER OF THE LINK, KNOWINGLY.
+ *                     They are what a company gives a customer so the customer
+ *                     can wire it money, they are printed on invoices, and the
+ *                     owner types them into the office page for exactly this
+ *                     purpose. They are not "passed through by accident": this
+ *                     comment and the whitelist below are the deliberate part.
+ *   cash     boolean  "we take cash"
+ *
+ * WHAT DOES NOT: the rest of company_settings (labour rate, markup, minimum
+ * charge, templates...) is never selected -- the read below asks for the one key
+ * -- and nothing here is built by spreading an object, so a key added to the
+ * blob tomorrow stays out until somebody adds it to this function on purpose.
+ * Nothing from the companies row beyond name/phone/email is read either.
+ *
+ * A method reaches the customer only when the owner turned it ON (=== true,
+ * not merely truthy) AND filled it in. Off, empty, malformed or over-long all
+ * come out as "" / false, and the page draws nothing for those. An over-long
+ * value is DROPPED rather than cut short: half a bank account number is a
+ * payment sent nowhere. The office page enforces limits well under these, so a
+ * value the office accepted is never dropped here.
+ *
+ * Invisible and direction-changing characters are stripped. They arrive when a
+ * handle or address is pasted from a text message, they make a $cashtag fail
+ * to match without anyone being able to see why, and a right-to-left override
+ * can make an address read differently from what it is.
+ *
+ * No value is invented. A company that has not typed anything gets all-empty.
+ */
+const INVISIBLE_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u00AD\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+const CASH_APP_TAG = /^[A-Za-z0-9_.-]{1,30}$/;
+const MAX_ZELLE_CHARS = 200;
+const MAX_WIRE_CHARS = 1500;
+
+type PublicPaymentMethods = { cashApp: string; zelle: string; wire: string; cash: boolean };
+
+function publicPaymentMethods(raw: unknown): PublicPaymentMethods {
+  const out: PublicPaymentMethods = { cashApp: "", zelle: "", wire: "", cash: false };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  const stored = raw as Record<string, unknown>;
+  // The method's own object, but only when it is switched on.
+  const switchedOn = (key: string): Record<string, unknown> | null => {
+    const m = stored[key];
+    if (!m || typeof m !== "object" || Array.isArray(m)) return null;
+    return (m as Record<string, unknown>).on === true ? m as Record<string, unknown> : null;
+  };
+  const text = (v: unknown) => typeof v === "string" ? v.replace(INVISIBLE_CHARS, "") : "";
+
+  const cashApp = switchedOn("cash_app");
+  if (cashApp) {
+    const tag = text(cashApp.tag).trim().replace(/^\$+/, "");
+    if (CASH_APP_TAG.test(tag)) out.cashApp = "$" + tag;
+  }
+
+  const zelle = switchedOn("zelle");
+  if (zelle) {
+    // One line. Not classified as phone or email and not validated: the bank's
+    // own Zelle screen works out which it is, and a company may give both.
+    const to = text(zelle.to).replace(/\s+/g, " ").trim();
+    if (to.length > 0 && to.length <= MAX_ZELLE_CHARS) out.zelle = to;
+  }
+
+  const wire = switchedOn("wire");
+  if (wire) {
+    // Free text, line breaks kept. A bank's wording is the owner's to paste;
+    // this only tidies it (line endings, stray spaces, runs of blank lines).
+    const lines = text(wire.details).replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
+    while (lines.length && lines[0] === "") lines.shift();
+    while (lines.length && lines[lines.length - 1] === "") lines.pop();
+    const details = lines.join("\n").replace(/\n{3,}/g, "\n\n");
+    if (details.length > 0 && details.length <= MAX_WIRE_CHARS) out.wire = details;
+  }
+
+  out.cash = switchedOn("cash") !== null;
+  return out;
+}
+
+/**
+ * The company's stored payment methods, already reduced to what a customer may
+ * see -- or null when the read FAILED, so that "this company set nothing up" (an
+ * all-empty object) and "we could not look" (no key at all) are different
+ * answers on the wire and in the logs. The page treats both as "show nothing";
+ * a failed read must never take the quote itself down with it.
+ *
+ * Asks for the one key, not the blob: company_settings also holds the labour
+ * rate, markup and minimum charge. Runs as the service role, so the policies
+ * that hide the blob from crew do not apply here and the whitelist above is
+ * the only gate -- which is why it is a whitelist.
+ */
+async function readPaymentMethods(
+  admin: ReturnType<typeof createClient>,
+  companyId: string,
+): Promise<PublicPaymentMethods | null> {
+  try {
+    const { data, error } = await admin
+      .from("company_settings")
+      .select("payment_methods:settings->payment_methods")
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (error) {
+      console.error("quote-view payment methods", error.message);
+      return null;
+    }
+    return publicPaymentMethods((data as { payment_methods?: unknown } | null)?.payment_methods);
+  } catch (e) {
+    console.error("quote-view payment methods", String((e as Error)?.message ?? e));
+    return null;
+  }
+}
 
 /**
  * job-files is private, so the path itself is useless to a browser -- and the
@@ -234,14 +360,21 @@ async function pageFigures(admin: ReturnType<typeof createClient>, job: QuoteJob
   });
 
   // The billable total as it stands -- the same figure create-payment-link
-  // charges from and the app bills -- and rounded UP to the next ten only
-  // when the page falls back to adding up the lines itself. It used to round
-  // every source: harmless while the total was always the engine's (already
-  // a multiple of ten), wrong once an accepted price plus a signed change
-  // order of $455 became $10,165 -- the page said $10,170 while the balance
-  // link charged from $10,165, and an approval then recorded $10,170 as the
-  // accepted price, $5 above anything anybody agreed.
-  const total = money.total > 0 ? money.total : Math.ceil((subtotal + tax) / 10) * 10;
+  // charges from and the app bills. When nothing is priced yet the page falls
+  // back to adding up the lines itself, and that sum is EXACT, to the cent
+  // (roundToCents), like every other total now: the engine stopped rounding up
+  // to the next ten in PRICING_ENGINE_VERSION 2026.10.1, and a fallback that
+  // still rounded up to ten would make the page and the engine disagree by up
+  // to $9.99 on the same job. Only the sum is rounded to cents, to clear float
+  // dust -- the page must never print 2119.9999999999995.
+  //
+  // Only this fallback is ever rounded. It used to round every source: wrong
+  // once an accepted price plus a signed change order of $455 became $10,165
+  // -- the page said $10,170 while the balance link charged from $10,165, and
+  // an approval then recorded $10,170 as the accepted price, $5 above
+  // anything anybody agreed. An accepted or engine-stamped total is already
+  // exact and is passed through untouched.
+  const total = money.total > 0 ? money.total : roundToCents(subtotal + tax);
   return { ok: !itemsRead.error && !ordersRead.error, total, money };
 }
 
@@ -593,7 +726,7 @@ Deno.serve(async (req) => {
     reapprovalRunLabel = String(withdrawal?.run_label ?? "").trim();
   }
 
-  const [{ data: company }, figures, { data: runs }, { data: conn }, signatureUrl] =
+  const [{ data: company }, figures, { data: runs }, { data: conn }, signatureUrl, paymentMethods] =
     await Promise.all([
       admin.from("companies").select("name, phone, email").eq("id", job.company_id).single(),
       pageFigures(admin, job),
@@ -610,6 +743,10 @@ Deno.serve(async (req) => {
       // this is never asked to sign a path from a column this deploy cannot
       // see.
       canRecordSignature ? approvedSignatureUrl(admin, job.quote_approved_signature_path) : Promise.resolve(null),
+      // Its own read, deliberately NOT a column added to the companies select
+      // above: that select answers for the company's name, and a database
+      // without payment settings (or a failed read) must never blank it.
+      readPaymentMethods(admin, job.company_id),
     ]);
 
   // The first open is worth knowing about; later opens are just reading.
@@ -688,6 +825,12 @@ Deno.serve(async (req) => {
     // than drawn.
     approvedSignatureUrl: signatureUrl,
     paymentsReady,
+    // How else this company asks to be paid. Public by design -- see
+    // publicPaymentMethods() for exactly what, and why bank details are in it.
+    // Left out entirely when the read failed; "" / false per method otherwise.
+    // There is NO card-fee field: create-payment-link adds no fee to a
+    // customer's payment (stripeFee = 0), so nothing here may say there is one.
+    ...(paymentMethods ? { paymentMethods } : {}),
     // Teardown runs ride along too. The old fence is half the sales pitch:
     // the customer sees the weathered thing they hate standing in the yard,
     // then removes it with one tap and looks at the new one alone.
