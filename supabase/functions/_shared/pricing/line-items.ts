@@ -6,8 +6,9 @@
  * Builds priced, editable line items from suggested quantities and the
  * current material catalog, scoped to the run's fence type. Prefers the
  * run's chosen color/finish and the job's preferred manufacturer when
- * more than one catalog item matches a role -- and, between PANEL or GATE_PANEL
- * rows of one width, the row whose declared height is the run's panel height;
+ * more than one catalog item matches a role -- and, between rows of one width
+ * in a height-aware role (a panel, a gate panel, or a POST), the row whose
+ * declared height is the run's panel height;
  * falls back gracefully when a role has no matching catalog item at all.
  */
 import { compareBoolean, compareIeee, compareString, f32, floatSum, minWithOrNull, sortedWith } from "./f32.ts";
@@ -132,10 +133,27 @@ export function buildLineItems(
       if (manufacturerMatches.length > 0) candidates = manufacturerMatches;
     }
 
-    // Height, for the two roles that are a panel of the run's fence. Width alone
-    // cannot tell a 4 ft high panel from a 6 ft high one when both are 6 ft wide,
-    // and the cheaper one then won every quote of the dearer height -- the
-    // starting catalog's ornamental iron, short by $40 a panel.
+    // Height, for the roles whose row has to physically suit a fence this tall:
+    // the two panel roles, and the POSTS. Width alone cannot tell a 4 ft high
+    // panel from a 6 ft high one when both are 6 ft wide, and the cheaper one
+    // then won every quote of the dearer height -- the starting catalog's
+    // ornamental iron, short by $40 a panel.
+    //
+    // POSTS are here because the same choice on a post is not a price, it is a
+    // fence that falls over. A post has no width, so it was picked by price
+    // alone, and on a 72 ft run six feet high the cheapest LINE_POST in the
+    // owner's catalog was "5x5 Utility Post White 6' (Flori, 4ft run)" at
+    // $13.18 -- the post the supplier quotes for a FOUR foot fence, six feet
+    // long, so nothing of it is in the ground. The right row is the 8.5 ft
+    // Co-Ex at $16.56. It only became reachable the day both suppliers' posts
+    // were loaded: before that there was one post per role and nothing to
+    // choose wrongly between.
+    //
+    // On a POST, heightFt is THE FENCE HEIGHT THE POST IS FOR, not the post's
+    // own length. That is the one reading that lets a single comparison serve
+    // panels and posts alike -- the run says "I am 6 ft" and every row that
+    // says 6 is a candidate -- and the post's physical length stays in its
+    // name, where no engine reads it. See MaterialItem.heightFt.
     //
     // A row says how tall it is in heightFt, a column of its own; the NAME is
     // never read for it. The same "narrow only if something matches" shape as
@@ -151,10 +169,36 @@ export function buildLineItems(
     // the choice below is exactly what it always was, and a row that does declare
     // it never sets itself aside, so the list cannot be emptied.
     //
-    // Not for any other role: chain-link fabric's height is its coversFt, and a
-    // post's number is a length. `===` is Kotlin's `==` on Float? and Float, which
-    // is IEEE for both, and null never equals a number in either.
-    if (entry.role === "PANEL" || entry.role === "GATE_PANEL") {
+    // WHY PER-WIDTH IS STILL RIGHT FOR POSTS, which have no width at all:
+    // coversFt is null on every post row, and `null === null` is true here
+    // exactly as Kotlin's `==` on two `Float?` nulls is true (it is
+    // Intrinsics.areEqual, which answers true for null against null). So every
+    // post of a role falls into ONE width group and the rule narrows the whole
+    // list -- which is what posts want, since there are no other widths of a
+    // post to hide. Had null not equalled null the rule would have silently
+    // done nothing for posts, and the phone and the office would still have
+    // bought different posts. The two sides agree on this case; where they do
+    // NOT agree is a heightFt or coversFt of NaN or -0.0, which Kotlin compares
+    // with Float.equals (NaN equals itself, -0.0 differs from 0.0) and this
+    // compares with IEEE `===` (the reverse on both). No catalog can reach that
+    // -- a fence is not NaN feet tall -- and null, the only value that matters
+    // here, behaves identically.
+    //
+    // Not for any other role. CHAIN_FABRIC keeps its height in coversFt, so it is
+    // already chosen by it; POST_CAP, rails, bands, concrete and gate hardware are
+    // still chosen by price alone, and no row of those roles declares a height in
+    // the starting catalog or in the owner's (checked 1 Oct 2026) -- see
+    // tests/a51-post-height-choice.test.mjs, which pins that list. A run's height here is
+    // always panelHeightFt, including on a chain-link run, whose real height is
+    // fabricHeightFt -- no chain-link post declares a height today, so the rule
+    // is inert there, and teaching it that second column is a decision for the
+    // owner, not a silent one.
+    if (
+      entry.role === "PANEL" || entry.role === "GATE_PANEL" ||
+      entry.role === "LINE_POST" || entry.role === "END_POST" ||
+      entry.role === "CORNER_POST" || entry.role === "GATE_POST" ||
+      entry.role === "BLANK_POST"
+    ) {
       const current = candidates;
       candidates = current.filter((c) =>
         c.heightFt === run.panelHeightFt ||

@@ -687,3 +687,123 @@ silently pass the unverified-price warning. Permission has nothing to do with it
 **3. Stripe stays in test mode for now**, by his choice -- "will work on Stripe later". So no
 real money can move through a quote link until he switches it. Not a blocker to building
 anything else; it is a blocker to USING the payment half on a real job.
+
+---
+
+## C16. The joining chain, and what is actually missing (asked again 1 Oct, evening)
+
+> "for the thing about the grid connecting the back to the other side, am I able to connect
+> them together for it to show corner post?"
+
+**No, not yet** -- and the honest answer is that three of four links exist:
+
+1. **The join record** -- table, migration, repository calls. BUILT and committed.
+2. **The shared-post arithmetic** -- two runs joined, three in a line, a closed chain, a T.
+   BUILT as a pure tested function.
+3. **Wiring it to the price** -- NOT DONE. The arithmetic is not called by either engine, so
+   a join changes no number today.
+4. **The drawing gesture** -- NOT DONE. There is no way for him to SAY two sides are joined.
+   Snapping two points to the same place is deliberately not a join (his own rule: a post is
+   a corner only once he connects them).
+
+So on a three-sided job he is still billed six end posts where four end posts and two corner
+posts belong -- two posts, two caps and their concrete he does not need.
+
+## C17. Show the 6-to-4 diagonal on the customer's 3D quote
+
+> "for it to show the 4ft diagonal from 6ft to 4 ft so the customer can see it in the quote too"
+
+Depends on C16 and is cheap once it lands. `website/quote.html` ALREADY renders each run at
+its own height -- `const heightFt = Math.max(2, Number(run.heightFt)||6)` -- so a 6 ft side
+joined to a 4 ft side draws the drop with no further work. What is missing is only the RAKE
+between them: today the two heights would meet as an abrupt step rather than a diagonal.
+
+The rake is cosmetic and changes no quantity, because the bay is already billed as a 6 ft
+panel he cuts on site (his decision, recorded above). So it is geometry in the 3D scene and
+nothing else.
+
+## C18. A dropdown when he picks 4 ft, that changes the pricing
+
+> "when adding the 4ft high, I need a drop down so it can also change the way it's going to
+> calculate the price based on the 4ft fences."
+
+Worth stating what this really is, because the supplier quotes changed the picture: his 4 ft
+products are not short privacy panels. Flori sells a Melrose flat-top 2-rail; Hartford sells a
+Clearwater closed-top picket. Both are semi-privacy styles and both cost MORE than the 6 ft
+solid panel ($61.74 and $71.50 against $54.15 and $54.99875).
+
+So the dropdown is really "WHICH 4 ft product", not "4 ft instead of 6 ft". The height field
+going into the catalog editor now is what makes those rows selectable at all; the dropdown is
+the next step on top of it, and it should show the supplier beside each option, because he now
+holds two 4 ft panels at different prices from different suppliers.
+
+---
+
+## C19. Payment methods must be editable on the PHONE as well as the office
+
+> "Leave it in app and the website to add the payment methods"
+
+Shipped today in the OFFICE ONLY: Settings -> "How customers can pay you", with Cash App tag,
+Zelle, wire details and a cash on/off, each with its own switch, stored as one key
+(payment_methods) in the company settings blob and served to the customer link by quote-view.
+
+He wants the same on the phone. Worth stating what that is and is not:
+
+- **It is not a second store.** The office writes company_settings.settings -> payment_methods.
+  The phone must write THE SAME key through the same path. A second home for the same fact is
+  how name, phone and licence ended up in two places on this project and had to be reconciled.
+- **It is a settings screen, not a catalog screen.** Find where the phone edits company
+  settings today and put it beside its neighbours.
+- **WHO CAN SEE IT IS THE QUESTION.** The office panel is OWNER/MANAGER only, and the settings
+  blob has a RESTRICTIVE select policy requiring OWNER, MANAGER or SEE_MONEY. A wire routing
+  number on a crew phone is exactly the kind of thing the money shield exists to prevent, so
+  the phone screen must be gated the same way and the gate must be in the DATA, not just the
+  layout. Verify what a crew phone actually pulls before trusting a hidden menu item.
+- **Offline.** The phone works offline and syncs. A payment detail typed on a plane must reach
+  the server, and must not be silently lost -- which is the same class as the save failures
+  being investigated now.
+
+BLOCKED when written: three waves were editing the pricing engines and a release build was
+queued. Adding strings to all three strings.xml while a build is pending is how a missing
+resource breaks the whole build, so this waits for the build to land.
+
+---
+
+## C20. Payment limits -- and why personal Cash App / Zelle matters for a deposit
+
+> "I do not have cashapp business, or Zelle Business so I can just put my normal stuff, also
+> show the limit of what needs to be done"
+
+**The "only show what is there" half is already done** and was verified in the code, not
+assumed: each value is trimmed, a method with nothing in it is dropped from the list, and when
+NONE are filled in the whole How-to-pay panel is hidden (website/quote.html, renderPayHow:
+`const value = v.trim()`, `if(!methods.length) return { show:false, ... }`, and
+`$('payHow').style.display='none'`). Nothing empty ever reaches a customer.
+
+**THE LIMIT IS A REAL PROBLEM AND IT IS ABOUT TO BITE HIM.** His own 4 ft job quotes a deposit
+in the thousands. Personal Zelle and personal Cash App both cap what can be SENT:
+
+  - Zelle has no central limit; the SENDING BANK sets it. Common personal caps are a few
+    hundred to a few thousand dollars a day, and many banks sit around $2,500/day.
+  - Cash App caps sending on personal accounts (commonly $2,500 a week once verified), and
+    receiving large sums on a personal account can trigger a review.
+
+So a customer told "Zelle me $3,000" may simply be unable to, find out at her bank's screen,
+and ring him. That is the failure he is trying to avoid.
+
+**DO NOT HARDCODE A NUMBER.** The cap depends on HER bank, not his, and it changes. Writing
+"$2,500 limit" into the page would be a confident lie on a customer's quote -- the exact class
+of defect the card-fee sentence was refused over this morning. The honest design:
+
+1. **A limit field per method that HE fills in** -- what his own account can receive, or what
+   he knows is practical. Blank means nothing is shown, same rule as the rest of the panel.
+2. **Compare it with the amount being asked.** When the deposit exceeds the limit he typed,
+   say so plainly next to that method -- "this is more than Zelle usually allows in one go;
+   ask about splitting it or use another method" -- rather than letting her discover it at
+   her bank.
+3. **Say it is her bank's limit, not his**, so she knows where to look.
+
+**ALSO WORTH HIM KNOWING, once:** taking business payments through a personal Cash App or
+Zelle account is against both services' terms, and neither offers any seller protection or a
+dispute path. That is his call and not a thing to put on a customer's page -- but he should
+hear it once, from me, rather than from a frozen account.

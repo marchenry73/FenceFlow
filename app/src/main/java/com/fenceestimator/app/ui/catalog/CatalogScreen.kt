@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -59,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.FenceType
@@ -104,7 +108,7 @@ fun CatalogScreen(onBack: () -> Unit) {
     // guess which tab it was filed under is the whole problem with tabs.
     val searching = search.isNotBlank()
     val context = LocalContext.current
-    val visibleItems = remember(catalog, selectedTab, search, showOnlyUnpriced, showOnlyPlaceholder) {
+    val visibleItems = remember(catalog, manufacturers, selectedTab, search, showOnlyUnpriced, showOnlyPlaceholder) {
         val base = when {
             searching -> {
                 val needle = search.trim().lowercase()
@@ -112,7 +116,8 @@ fun CatalogScreen(onBack: () -> Unit) {
                     it.name.lowercase().contains(needle) ||
                         it.colorOrFinish.lowercase().contains(needle) ||
                         context.getString(it.category.labelRes()).lowercase().contains(needle) ||
-                        context.getString(it.fenceType.labelRes()).lowercase().contains(needle)
+                        context.getString(it.fenceType.labelRes()).lowercase().contains(needle) ||
+                        supplierOf(it, manufacturers)?.name?.lowercase()?.contains(needle) == true
                 }
             }
             // Unpriced items are a whole-catalog problem, so this filter
@@ -426,8 +431,13 @@ private fun CatalogRow(
     showFenceType: Boolean = false,
     onClick: () -> Unit
 ) {
-    val manufacturerName = manufacturers.firstOrNull { it.id == item.manufacturerId }?.name
+    // The supplier THIS PHONE holds for the row (see supplierOf). Said plainly either way:
+    // a row with none gets "No supplier recorded", not a gap and not the old "Default price"
+    // label, which never said that no supplier was recorded.
+    val supplier = supplierOf(item, manufacturers)
+    val unnamedSupplier = stringResource(R.string.mfr_unnamed)
     val unpriced = item.unitPrice <= 0.0
+    val size = rowSizeOf(item)
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(Space.md),
@@ -446,6 +456,26 @@ private fun CatalogRow(
                 if (item.colorOrFinish.isNotBlank()) {
                     Text(item.colorOrFinish, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                // How big the row says it is. A PANEL or GATE_PANEL that does not say how
+                // tall it is says so, in the warning colour: the engine can only choose between
+                // panels of one width by height when the rows carry one.
+                if (size != null) {
+                    val widthPart = size.width
+                    val heightPart = size.height
+                    val fabricPart = size.fabricHeight
+                    val sizeParts = ArrayList<String>()
+                    if (widthPart != null) sizeParts.add(stringResource(R.string.cat_size_wide, widthPart))
+                    if (heightPart != null) sizeParts.add(stringResource(R.string.cat_size_tall, heightPart))
+                    if (size.heightMissing) sizeParts.add(stringResource(R.string.cat_size_height_missing))
+                    if (fabricPart != null) sizeParts.add(stringResource(R.string.cat_size_tall, fabricPart))
+                    if (sizeParts.isNotEmpty()) {
+                        Text(
+                            sizeParts.joinToString("  ·  "),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (size.heightMissing) MaterialTheme.semantic.warning else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 if (showFenceType) {
                     Text(
                         item.fenceType.label(),
@@ -457,21 +487,22 @@ private fun CatalogRow(
                     modifier = Modifier
                         .padding(top = 3.dp)
                         .background(
-                            if (manufacturerName != null) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            if (supplier != null) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                             androidx.compose.foundation.shape.RoundedCornerShape(50)
                         )
                         .padding(horizontal = Space.sm, vertical = 2.dp)
                 ) {
                     Text(
-                        manufacturerName ?: stringResource(R.string.cat_default_price),
+                        if (supplier != null) stringResource(R.string.cat_supplier_named, supplier.name.ifBlank { unnamedSupplier })
+                        else stringResource(R.string.cat_supplier_none),
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (manufacturerName != null) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (supplier != null) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    if (unpriced) stringResource(R.string.cat_no_price) else stringResource(R.string.cat_price_per_unit, Money.format(item.unitPrice), item.unit),
+                    if (unpriced) stringResource(R.string.cat_no_price) else stringResource(R.string.cat_price_per_unit, listPriceText(item.unitPrice) { Money.format(it) }, item.unit),
                     fontWeight = FontWeight.SemiBold,
                     // "No price" rather than "$0.00 / ea", because $0.00 reads
                     // as a decision and this is an omission.
@@ -518,7 +549,12 @@ private fun EditItemDialog(
     var taxable by remember { mutableStateOf(item.taxable) }
     var unit by remember { mutableStateOf(item.unit) }
     var colorOrFinish by remember { mutableStateOf(item.colorOrFinish) }
-    var coversFtText by remember { mutableStateOf(item.coversFt?.toString() ?: "") }
+    var coversFtText by remember { mutableStateOf(item.coversFt?.let { feetText(it) } ?: "") }
+    // How tall the row is, in feet. Blank is a real answer: this row does not say. It is
+    // NEVER turned into 0 (see parseHeightEntry): an empty box on a row with no height saves no height.
+    var heightFtText by remember { mutableStateOf(item.heightFt?.let { feetText(it) } ?: "") }
+    // What the last tap on Save or Duplicate found wrong with the height box. Typing in it clears this.
+    var heightProblemShown by remember { mutableStateOf<HeightProblem?>(null) }
     var category by remember { mutableStateOf(item.category) }
     var fenceType by remember { mutableStateOf(item.fenceType) }
     var role by remember { mutableStateOf(item.role) }
@@ -540,11 +576,18 @@ private fun EditItemDialog(
 
     fun currentEdits(): MaterialItem {
         val price = priceText.replace(',', '.').toDoubleOrNull() ?: item.unitPrice
+        // A row that carries a real source (an invoice reference) keeps it while its price is unchanged.
+        // Saving a size or a name used to overwrite it with the bare word "Confirmed", and the reference
+        // was the only record of where that price came from. A changed price no longer matches that
+        // source, so it is stamped as before. So is a row with no source, and so is an unchecked row
+        // whose "Price confirmed" switch has been ticked.
+        val keepsSource = !startedUnverified && item.sourceDoc.isNotBlank() && price == item.unitPrice
         return item.copy(
             name = name, unitPrice = price, taxable = taxable, unit = unit,
             colorOrFinish = colorOrFinish, coversFt = coversFtText.replace(',', '.').toFloatOrNull(),
+            heightFt = heightToSave(role, heightFtText, item.heightFt),
             category = category, fenceType = fenceType, role = role, manufacturerId = manufacturerId,
-            sourceDoc = if (priceConfirmed) com.fenceestimator.app.data.CONFIRMED else item.sourceDoc
+            sourceDoc = if (priceConfirmed && !keepsSource) com.fenceestimator.app.data.CONFIRMED else item.sourceDoc
         )
     }
 
@@ -553,7 +596,10 @@ private fun EditItemDialog(
         title = { Text(if (item.id == 0L) stringResource(R.string.cat_new_item) else stringResource(R.string.cat_edit_item)) },
         text = {
             val defaultPriceAnyManufacturer = stringResource(R.string.cat_default_price_any_manufacturer)
-            Column {
+            // Scrollable: the size boxes below depend on the role, and with a height box on screen
+            // this form is taller than a short phone leaves an AlertDialog room for. Without it the
+            // fields at the bottom (taxable, price confirmed, duplicate) can be pushed out of reach.
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.cat_name)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(Space.sm))
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -572,17 +618,68 @@ private fun EditItemDialog(
                 Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = colorOrFinish, onValueChange = { colorOrFinish = it }, label = { Text(stringResource(R.string.cat_color_finish_optional)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(Space.sm))
-                OutlinedTextField(
-                    value = coversFtText, onValueChange = { coversFtText = it },
-                    label = { Text(stringResource(R.string.cat_covers_ft)) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(Space.sm))
                 EnumDropdown(stringResource(R.string.cat_category), MaterialCategory.values().toList(), category, { context.getString(it.labelRes()) }) { category = it }
                 Spacer(Modifier.height(Space.sm))
                 EnumDropdown(stringResource(R.string.cat_fence_type), FenceType.values().toList(), fenceType, { context.getString(it.labelRes()) }) { fenceType = it }
                 Spacer(Modifier.height(Space.sm))
                 EnumDropdown(stringResource(R.string.cat_role_in_engine), MaterialRole.values().toList(), role, { context.getString(it.labelRes()) }) { role = it }
+                Spacer(Modifier.height(Space.sm))
+                // The size boxes follow the role chosen just above (see SizeFields). Width and height
+                // are two different numbers and stay apart on purpose. Chain-link fabric gets ONE box:
+                // its height IS coversFt, so a second height box would be a second place to type it.
+                when (sizeFieldsFor(role)) {
+                    SizeFields.WIDTH_AND_HEIGHT -> {
+                        OutlinedTextField(
+                            value = coversFtText, onValueChange = { coversFtText = it },
+                            label = { Text(stringResource(R.string.cat_width_ft)) },
+                            supportingText = { Text(stringResource(R.string.cat_width_hint)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(Space.sm))
+                        OutlinedTextField(
+                            value = heightFtText,
+                            onValueChange = { heightFtText = it; heightProblemShown = null },
+                            label = { Text(stringResource(R.string.cat_height_ft)) },
+                            isError = heightProblemShown != null,
+                            supportingText = {
+                                val shown = heightProblemShown
+                                Text(
+                                    when (shown) {
+                                        HeightProblem.NOT_A_HEIGHT -> stringResource(R.string.cat_height_invalid)
+                                        HeightProblem.CANNOT_BE_CLEARED -> stringResource(R.string.cat_height_cannot_clear)
+                                        null -> stringResource(R.string.cat_height_hint)
+                                    }
+                                )
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            stringResource(R.string.cat_size_explain_panel),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    SizeFields.FABRIC_HEIGHT -> {
+                        OutlinedTextField(
+                            value = coversFtText, onValueChange = { coversFtText = it },
+                            label = { Text(stringResource(R.string.cat_fabric_height_ft)) },
+                            supportingText = { Text(stringResource(R.string.cat_fabric_height_hint)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    SizeFields.OTHER -> {
+                        OutlinedTextField(
+                            value = coversFtText, onValueChange = { coversFtText = it },
+                            label = { Text(stringResource(R.string.cat_covers_ft)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
                 Spacer(Modifier.height(Space.sm))
                 EnumDropdown(
                     stringResource(R.string.cat_priced_from),
@@ -623,8 +720,22 @@ private fun EditItemDialog(
                         ) { duplicateTarget = it }
                         OutlinedButton(
                             onClick = {
-                                val target = duplicateTarget ?: otherManufacturers.first()
-                                onDuplicateForManufacturer(currentEdits().copy(id = 0L, manufacturerId = target.id))
+                                val problem = heightProblem(role, heightFtText, item.heightFt)
+                                if (problem != null) {
+                                    heightProblemShown = problem
+                                } else {
+                                    val target = duplicateTarget ?: otherManufacturers.first()
+                                    // A NEW sync id. The copy used to keep the source's, so two rows
+                                    // shared one cloud identity and deleting either one queued a
+                                    // delete of the cloud row the other still stands for.
+                                    onDuplicateForManufacturer(
+                                        currentEdits().copy(
+                                            id = 0L,
+                                            syncId = java.util.UUID.randomUUID().toString(),
+                                            manufacturerId = target.id
+                                        )
+                                    )
+                                }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text(stringResource(R.string.cat_duplicate_as_new_price)) }
@@ -634,11 +745,11 @@ private fun EditItemDialog(
         },
         confirmButton = {
             Button(onClick = {
-                if (priceText.replace(',', '.').toDoubleOrNull() == null) {
-                    priceError = true
-                    return@Button
-                }
-                onSave(currentEdits())
+                val priceBad = priceText.replace(',', '.').toDoubleOrNull() == null
+                val problem = heightProblem(role, heightFtText, item.heightFt)
+                if (priceBad) priceError = true
+                if (problem != null) heightProblemShown = problem
+                if (!priceBad && problem == null) onSave(currentEdits())
             }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {

@@ -6,8 +6,11 @@
 // website/dashboard.html unless A27_PAGE names another file, which is how the
 // red runs are done -- the same tests pointed at a scratch copy of the page with
 // one guard removed, to prove each check can actually fail.
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { deflateRawSync } from "node:zlib";
+import { createHash } from "node:crypto";
+import { pathToFileURL } from "node:url";
+import { join } from "node:path";
 
 export const PAGE = process.env.A27_PAGE || "website/dashboard.html";
 export const src = readFileSync(PAGE, "utf8");
@@ -37,8 +40,8 @@ export function grabConstLine(name, text = src) {
     globals they read (db, profile, $, ...); `prelude` is extra source placed
     first (let-declared page state, const lines); `expose` are extra expressions
     returned alongside the functions, for reaching closure state. */
-export function load(names, scope = {}, prelude = "", expose = {}) {
-  const code = names.map((n) => grab(n)).join("\n\n");
+export function load(names, scope = {}, prelude = "", expose = {}, text = src) {
+  const code = names.map((n) => grab(n, text)).join("\n\n");
   const ret = names.concat(Object.entries(expose).map(([k, v]) => `${k}: ${v}`)).join(",");
   const keys = Object.keys(scope);
   return new Function(...keys, prelude + "\n" + code + "\nreturn {" + ret + "};")(...keys.map((k) => scope[k]));
@@ -155,4 +158,195 @@ export function runner() {
       if (fail) process.exit(1);
     },
   };
+}
+
+// ---- PDF support, for the a45-pdf-*.test.mjs files ------------------------------------------
+// The real supplier PDFs are the acceptance test, so they are read from where they were saved
+// (A45_PDF_DIR names another folder). A missing file is a FAILURE, never a skip: a test that
+// quietly does not run reads as a test that passes.
+
+export const PDF_DIR = process.env.A45_PDF_DIR || "C:/Users/march/Downloads";
+export const REAL_PDFS = {
+  flori6: "Estimate 17827.pdf",
+  flori4: "Estimate 17828.pdf",
+  hartford: "Est_64792_from_Hartford_Fence_Supply_27668.pdf",
+};
+
+export function realPdf(key) {
+  const p = join(PDF_DIR, REAL_PDFS[key]);
+  if (!existsSync(p)) throw new Error(`the real supplier PDF is not on this machine: ${p} (set A45_PDF_DIR to the folder that holds it)`);
+  return new Uint8Array(readFileSync(p));
+}
+
+/** The value of a one-line `const NAME = ...;` on the page. */
+export function pageConst(name, text = src) {
+  return new Function("return " + grabConstLine(name, text).replace(/^const \w+ = /, "").replace(/;$/, ""))();
+}
+
+/** Where a copy of PDF.js at the page's pinned version can be found: A45_PDFJS_DIR (the folder
+    holding pdf.min.mjs and pdf.worker.min.mjs), a node_modules next to the repo, or the scratch
+    install the supplier-quote work was done against. Nothing is downloaded by a test. */
+export function pdfJsDirs() {
+  const dirs = [];
+  if (process.env.A45_PDFJS_DIR) dirs.push(process.env.A45_PDFJS_DIR);
+  dirs.push(join(process.cwd(), "node_modules/pdfjs-dist/build"), "C:/tmp/node_modules/pdfjs-dist/build");
+  return dirs;
+}
+
+const sha384 = (buf) => createHash("sha384").update(buf).digest("base64");
+
+/** PDF.js from disk -- and the proof that it is the very build the page will fetch: the SHA-384 of
+    both files must equal the fingerprints written into the page. A different version on disk
+    would otherwise make every PDF test pass or fail for the wrong reason. */
+export async function loadPdfJs() {
+  const dir = pdfJsDirs().find((d) => existsSync(join(d, "pdf.min.mjs")) && existsSync(join(d, "pdf.worker.min.mjs")));
+  if (!dir) {
+    throw new Error("PDF.js " + pageConst("PP_PDFJS_VERSION") + " is not installed where the tests look. Run `npm install pdfjs-dist@"
+      + pageConst("PP_PDFJS_VERSION") + "` in an empty folder and point A45_PDFJS_DIR at node_modules/pdfjs-dist/build. Looked in: " + pdfJsDirs().join(", "));
+  }
+  const libBytes = readFileSync(join(dir, "pdf.min.mjs")), workerBytes = readFileSync(join(dir, "pdf.worker.min.mjs"));
+  const got = { lib: sha384(libBytes), worker: sha384(workerBytes) };
+  const want = { lib: pageConst("PP_PDFJS_LIB_SHA384"), worker: pageConst("PP_PDFJS_WORKER_SHA384") };
+  const lib = await import(pathToFileURL(join(dir, "pdf.min.mjs")).href);
+  lib.GlobalWorkerOptions.workerSrc = pathToFileURL(join(dir, "pdf.worker.min.mjs")).href;
+  return { lib, dir, got, want, libBytes, workerBytes, matchesPage: got.lib === want.lib && got.worker === want.worker && lib.version === pageConst("PP_PDFJS_VERSION") };
+}
+
+export const PDF_CONST_NAMES = ["PP_PDF_MAX_PAGES", "PP_PDF_NUM", "PP_PDF_DECOR", "PP_PDF_SUBTOTAL", "PP_PDF_TOTAL", "PP_PDF_TAX", "PP_PDF_WHY",
+  "PP_PDFJS_VERSION", "PP_PDFJS_LIB_URL", "PP_PDFJS_LIB_SHA384", "PP_PDFJS_WORKER_URL", "PP_PDFJS_WORKER_SHA384"];
+
+/** The PDF reading functions from the page, plus what they lean on. `scope` supplies page globals
+    (fetch, URL, Blob...) a test wants to replace. `extra` is more page functions to load. */
+export function loadPdfFns(extra = [], scope = {}, text = src, extraPrelude = "") {
+  const names = ["ppClassifyHeader", "ppUnitCode", "ppParsePrice", "ppMoney", "ppNorm", "ppTr",
+    "ppPdfSha384", "ppPdfFetchVerified", "ppPdfLib", "ppPdfPages", "ppPdfNum", "ppPdfLines", "ppPdfHeaderRole", "ppPdfFindHeader",
+    "ppPdfCells", "ppPdfRelation", "ppPdfAssign", "ppPdfJudge", "ppPdfParse", "ppPdfReconcile", "ppPdfRowsForPlan", "ppPdfRead",
+    "ppWhyText", "ppPdfLineHtml", "ppPdfCountsHtml"].concat(extra);
+  const NL = String.fromCharCode(10);
+  const prelude = PDF_CONST_NAMES.map((n) => grabConstLine(n, text)).join(NL) + NL + "let ppPdfLibPromise = null;" + NL + extraPrelude + NL;
+  return load(names, scope, prelude, { libPromise: "(() => ppPdfLibPromise)" }, text);
+}
+
+// ---- a minimal PDF writer, for fixtures ------------------------------------------------------
+// pages: [{ texts: [{ x, y, s, size? }], image?: true, rotate?: 90 }]. Text is Helvetica, drawn at the
+// given point; `image` puts a picture on the page and no text, which is what a scan is.
+export function makePdf(pages) {
+  const enc = (s) => Buffer.from(s, "latin1");
+  const esc = (s) => s.replace(/[\\()]/g, (c) => "\\" + c);
+  const objs = [];
+  const add = (b) => { objs.push(Buffer.isBuffer(b) ? b : enc(b)); return objs.length; };
+  const stream = (dict, data) => Buffer.concat([enc(`${dict} /Length ${data.length} >>\nstream\n`), data, enc("\nendstream")]);
+  add(""); add("");                                   // 1 catalog, 2 pages: filled in below
+  add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");   // 3
+  const kids = [];
+  for (const pg of pages) {
+    let content = "", xobj = "";
+    if (pg.image) {
+      const im = add(stream("<< /Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceGray /BitsPerComponent 8",
+        Buffer.from([0, 64, 128, 255, 255, 128, 64, 0, 0, 64, 128, 255, 255, 128, 64, 0])));
+      content += "q 400 0 0 400 100 200 cm /Im1 Do Q\n";
+      xobj = `/XObject << /Im1 ${im} 0 R >>`;
+    }
+    for (const t of pg.texts || []) {
+      // `landscape` gives the text in the page as DISPLAYED (792 wide, 612 tall, y up) and writes it the way a
+      // landscape page is usually made: a portrait sheet marked /Rotate 90 with the text turned to match.
+      const x = pg.landscape ? 612 - t.y : t.x, y = pg.landscape ? t.x : t.y;
+      const a = (((t.angle || 0) + (pg.landscape ? 90 : 0)) * Math.PI) / 180, c = Math.cos(a).toFixed(6), s = Math.sin(a).toFixed(6);
+      content += `BT /F1 ${t.size || 10} Tf ${c} ${s} ${-s} ${c} ${x} ${y} Tm (${esc(t.s)}) Tj ET\n`;
+    }
+    const c = add(stream("<<", enc(content)));
+    const rotate = pg.landscape ? 90 : pg.rotate;
+    kids.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]${rotate ? ` /Rotate ${rotate}` : ""} /Contents ${c} 0 R /Resources << /Font << /F1 3 0 R >> ${xobj} >> >>`));
+  }
+  objs[0] = enc("<< /Type /Catalog /Pages 2 0 R >>");
+  objs[1] = enc(`<< /Type /Pages /Kids [${kids.map((k) => k + " 0 R").join(" ")}] /Count ${kids.length} >>`);
+  const parts = [enc("%PDF-1.4\n")], offsets = [];
+  let pos = parts[0].length;
+  objs.forEach((o, i) => {
+    offsets.push(pos);
+    const b = Buffer.concat([enc(`${i + 1} 0 obj\n`), o, enc("\nendobj\n")]);
+    parts.push(b); pos += b.length;
+  });
+  const xref = `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offsets.map((o) => String(o).padStart(10, "0") + " 00000 n \n").join("");
+  parts.push(enc(xref + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${pos}\n%%EOF\n`));
+  return new Uint8Array(Buffer.concat(parts));
+}
+
+// ---- the price-list dialog, run whole with a fake page around it --------------------------------
+/** `const NAME = expr;` even when a trailing comment follows the semicolon. */
+export function grabConstLoose(name, text = src) {
+  const m = new RegExp("^const " + name + "\\s*=\\s*([^;]*);", "m").exec(text);
+  if (!m) throw new Error("const not found on the page: " + name);
+  return "const " + name + " = " + m[1] + ";";
+}
+
+/** The English strings as the page's own tr() would build them. */
+export function makeTr(text = src) {
+  const TL = loadTL(text);
+  return (key, ...args) => {
+    let out = (TL.en && TL.en[key]) || "";
+    args.forEach((a) => { out = out.replace("%s", a); });
+    return out;
+  };
+}
+
+/** Every `pp*` function of the page, wired to: a fake DOM (any id gives an element), a fake database that
+    answers the catalog read and RECORDS every write it is asked for (`writes`), the English strings, and a
+    stand-in for the network that serves PDF.js from disk (`served` lists what it was asked for). The same
+    code the office runs, so what a test sees is what the dialog does. `items` is the catalog, `mfrs` the
+    suppliers. `text` is the page source, so a red run can hand in a copy with one guard removed. */
+export async function pdfDialog({ items = [], mfrs = [], text = src, extraScope = {}, writable = false } = {}) {
+  const pdfjs = await loadPdfJs();
+  const els = {}, msgs = [], writes = [], served = [];
+  const el = (id) => (els[id] ||= { id, style: {}, value: "", checked: true, textContent: "", innerHTML: "", className: "", dataset: {} });
+  const toAB = (b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+  const recordWrite = (kind) => () => { writes.push(kind); throw new Error("a write was attempted: " + kind); };
+  // With `writable`, a material_items update is applied to the row in `items` and answered the way the server does
+  // (the row back, so ppWriteRows can verify it); every write is recorded in `writes` as "update:<sync_id>:<patch>".
+  // Anything else -- insert, upsert, delete, rpc, or an update when not writable -- is refused and recorded.
+  const update = (table) => (patch) => {
+    const q = { _id: null };
+    q.eq = (col, v) => { if (col === "sync_id") q._id = v; return q; };
+    q.is = () => q;
+    q.select = async () => {
+      const row = items.find((r) => r.sync_id === q._id);
+      writes.push(`update:${q._id}:${JSON.stringify(patch)}`);
+      if (!row) return { data: [], error: null };
+      Object.assign(row, patch, { updated_at: "2026-10-01T12:00:00.000Z" });
+      return { data: [{ ...row }], error: null };
+    };
+    return q;
+  };
+  const db = {
+    from(table) {
+      const q = {
+        select: () => q, is: () => q, order: () => q, eq: () => q,
+        range: async (a, b) => ({ data: items.slice(a, b + 1), error: null }),
+        update: writable && table === "material_items" ? update(table) : recordWrite("update:" + table),
+        insert: recordWrite("insert:" + table),
+        upsert: recordWrite("upsert:" + table), delete: recordWrite("delete:" + table),
+      };
+      return q;
+    },
+    rpc: recordWrite("rpc"),
+  };
+  const scope = {
+    $: el, db, profile: { company_id: "co-1" }, manufacturers: mfrs, catalog: items, canEdit: () => true,
+    msg: (id, t, kind) => { msgs.push({ id, text: t, kind }); }, tr: makeTr(text),
+    plainError: (s) => s, catFenceTypeLabel: (s) => s, bizPretty: (s) => s, refreshCatalog: async () => {}, downloadCsv() {},
+    fetch: async (url) => {
+      served.push(url);
+      return { ok: true, status: 200, arrayBuffer: async () => toAB(String(url).endsWith("pdf.min.mjs") ? pdfjs.libBytes : pdfjs.workerBytes) };
+    },
+    Blob: class { constructor(parts) { this.parts = parts; } },
+    URL: { createObjectURL: (blob) => "data:text/javascript;base64," + Buffer.from(blob.parts[0]).toString("base64") },
+    ...extraScope,
+  };
+  const prelude = [grabConstLine("esc", text), grabConstLoose("PP_MAX_BYTES", text), grabConstLoose("PP_MAX_ROWS", text)]
+    .concat(PDF_CONST_NAMES.map((n) => grabConstLine(n, text))).join("\n")
+    + "\nlet ppState = null, ppLast = null, ppBusy = false, ppPdfLibPromise = null;\n";
+  const names = ppFunctionNames(text).concat(["isSeededUnverifiedPrice", "manufacturerName"]);
+  const P = load(names, scope, prelude, { state: "(() => ppState)" }, text);
+  const file = (bytes, name) => ({ name, size: bytes.length, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+  return { P, el, msgs, writes, served, pdfjs, file, state: () => P.state() };
 }

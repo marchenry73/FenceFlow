@@ -157,8 +157,43 @@ object EstimateEngine {
      * it is the starting catalog's 6 ft ornamental iron, which was priced with the
      * 4 ft high panel (an undercharge of $40 a panel before tax and markup).
      * Anchored totals do not move, as above.
+     *
+     * Bumped 2026.10.2 -> 2026.10.3 (1 Oct 2026) to extend that same height rule
+     * to the POST roles -- LINE_POST, END_POST, CORNER_POST, GATE_POST,
+     * BLANK_POST ([buildLineItems], and line-items.ts buildLineItems on the
+     * server). A formula change, so a version change on BOTH engines, and the 85
+     * fixtures regenerate in the same commit. This one is not a price: a post has
+     * no width, so it was chosen by price alone, and on the owner's own catalog a
+     * 72 ft run six feet high was quoted "5x5 Utility Post White 6' (Flori, 4ft
+     * run)" at $13.18 -- the post the supplier sells for a FOUR foot fence, six
+     * feet long, so nothing of it is in the ground. A fence built on it falls
+     * over. On a post, [MaterialItem.heightFt] is the FENCE height the post is
+     * for, not the post's own length. Additive exactly as 2026.10.2 was: a
+     * catalog where no post declares a height prices identically, and it moves a
+     * quote only where a height has been filled in. Anchored totals do not move,
+     * as above.
+     *
+     * Bumped 2026.10.3 -> 2026.10.4 (1 Oct 2026) because a gate now asks for a
+     * GATE_POST ([gateAreaEntries], and takeoff.ts gateAreaEntries on the
+     * server). WALL is BLANK_POST + GATE_POST, LINE is GATE_POST 2,
+     * LINE_TO_WALL is GATE_POST 2 + END_POST 1 -- that third post is where the
+     * run terminates at the wall, which is a genuine end post. Every COUNT is
+     * unchanged: gatePosts, totalPosts, POST_CAP and CONCRETE_BAG all come out
+     * exactly as under 2026.10.3, and the takeoff summary lines do not move.
+     * What changes is WHICH CATALOG ROW IS BILLED for those posts, so it is a
+     * formula change, so a version change on both engines and the 85 fixtures
+     * regenerate in the same commit. Before this, nothing in either engine ever
+     * asked for GATE_POST: the role existed, the editor offered it, the seed
+     * shipped one per fence type, and a gate quietly bought END_POST rows
+     * instead. The owner's catalog has ten GATE_POST rows priced by hand that no
+     * estimate could reach.
+     * This is additive ONLY once the line-item matcher prefers END_POST for a
+     * GATE_POST entry with no candidates; without that, a catalog holding no
+     * GATE_POST row loses its gate posts from the estimate entirely. That
+     * fallback belongs in [buildLineItems] on both sides and MUST land in the
+     * same commit as this bump. Anchored totals do not move, as above.
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.2"
+    const val PRICING_ENGINE_VERSION = "2026.10.4"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -608,10 +643,44 @@ object EstimateEngine {
      *    holes are drilled through the stiffener into that post, so it needs
      *    plugs to close them. Nothing is set in the ground, so **no concrete** --
      *    this is the case the old code got most wrong, since it charged concrete
-     *    for every gate regardless. Takes a blank post plus an end post.
-     *  - **In the line**: an end post, set in concrete -- two bags.
+     *    for every gate regardless. Takes a blank post plus the latch post.
+     *  - **In the line**: two posts at the opening, set in concrete -- two bags.
      *  - **In the line with the fence carrying on to a wall**: the run
-     *    terminates twice, so two end posts, still in concrete.
+     *    terminates twice, so the gate's own two posts plus an end post, still
+     *    in concrete.
+     *
+     * WHICH ROLE EACH OF THOSE POSTS IS, which decides which catalog row gets
+     * billed. Counted the same either way -- [computePostCounts]' gatePosts is
+     * untouched by this -- but a post standing at a gate opening is a GATE_POST
+     * and is not the post where a fence line terminates:
+     *
+     *  - The two posts a gate hangs between (hinge side and latch side) are
+     *    GATE_POST. Both stand at the opening; neither is an end of the fence.
+     *    On a WALL gate only the latch side is one of these, because the hinge
+     *    side is the BLANK_POST bolted to the wall.
+     *  - The THIRD post on a LINE_TO_WALL is an END_POST, and genuinely so: it
+     *    is where the rest of the run terminates against the wall, nowhere near
+     *    the gate leaf. [GateMounting.LINE_TO_WALL]'s own wording is "the run
+     *    terminates twice and needs a second end post". So LINE_TO_WALL is
+     *    GATE_POST 2 + END_POST 1, not GATE_POST 3.
+     *
+     * This used to ask for END_POST for all of them, which meant nothing could
+     * ever reach a GATE_POST row: the enum has the role, the catalog editor
+     * offers it, the seed ships one per fence type, and the takeoff never asked.
+     * The owner's own catalog has ten GATE_POST rows with prices typed into them
+     * -- including both suppliers' blank posts, which are separate SKUs from
+     * their end posts -- and no estimate could reach any of them. His gate post
+     * and end post happen to cost the same today, so no money moved; the next
+     * supplier to price them apart would have made every gated estimate wrong
+     * with nothing on screen looking wrong.
+     *
+     * A catalog with no GATE_POST row must still get its gate posts. That
+     * fallback is NOT here -- the takeoff cannot see the catalog (no catalog
+     * argument, by design) and emitting both roles would bill four posts for a
+     * two-post gate. It is a role preference in the line-item matcher, which
+     * picks END_POST candidates when a GATE_POST entry has none. See the report:
+     * that matcher is [buildLineItems] / line-items.ts buildLineItems and this
+     * change MUST NOT ship before it.
      *
      * Gate posts are counted separately by [computePostCounts]; these are the
      * posts the gate area needs on top of that.
@@ -621,24 +690,27 @@ object EstimateEngine {
         when (gate.mounting) {
             GateMounting.WALL -> {
                 entries += QtyEntry(MaterialRole.BLANK_POST, 1.0)
-                entries += QtyEntry(MaterialRole.END_POST, 1.0)
+                // The latch side. A post at the opening, not the end of a fence line.
+                entries += QtyEntry(MaterialRole.GATE_POST, 1.0)
                 entries += QtyEntry(MaterialRole.HOLE_PLUG, WALL_MOUNT_HOLES)
                 // The hinge side is bolted to the wall and set in nothing. The
                 // latch side is still a post in a hole and still takes its bag.
                 entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_LATCH_BAGS)
             }
             GateMounting.LINE -> {
-                // Two end posts: the hinge side wears the stiffener and
-                // becomes the post the gate hangs from, the other is where it
-                // latches. There is no separate "gate post" part -- the yard
-                // sells end posts, and that is what gets set.
-                entries += QtyEntry(MaterialRole.END_POST, 2.0)
+                // Two gate posts: the hinge side wears the stiffener and becomes
+                // the post the gate hangs from, the other is where it latches.
+                // Both stand at the opening, so both are GATE_POST.
+                entries += QtyEntry(MaterialRole.GATE_POST, 2.0)
                 entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
             }
             GateMounting.LINE_TO_WALL -> {
-                // The gate's own two end posts, plus the one where the rest of
-                // the run terminates at the wall.
-                entries += QtyEntry(MaterialRole.END_POST, 3.0)
+                // The gate's own two gate posts, plus the one where the rest of
+                // the run terminates at the wall -- that one is a real END_POST.
+                // computePostCounts' gatePosts counts all three, so POST_CAP
+                // matches what actually stands in the ground for this mounting.
+                entries += QtyEntry(MaterialRole.GATE_POST, 2.0)
+                entries += QtyEntry(MaterialRole.END_POST, 1.0)
                 entries += QtyEntry(
                     MaterialRole.CONCRETE_BAG,
                     GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS
@@ -760,10 +832,27 @@ object EstimateEngine {
                 if (manufacturerMatches.isNotEmpty()) candidates = manufacturerMatches
             }
 
-            // Height, for the two roles that are a panel of the run's fence. Width alone
-            // cannot tell a 4 ft high panel from a 6 ft high one when both are 6 ft wide,
-            // and the cheaper one then won every quote of the dearer height -- the
-            // starting catalog's ornamental iron, short by $40 a panel.
+            // Height, for the roles whose row has to physically suit a fence this tall:
+            // the two panel roles, and the POSTS. Width alone cannot tell a 4 ft high
+            // panel from a 6 ft high one when both are 6 ft wide, and the cheaper one
+            // then won every quote of the dearer height -- the starting catalog's
+            // ornamental iron, short by $40 a panel.
+            //
+            // POSTS are here because the same choice on a post is not a price, it is a
+            // fence that falls over. A post has no width, so it was picked by price
+            // alone, and on a 72 ft run six feet high the cheapest LINE_POST in the
+            // owner's catalog was "5x5 Utility Post White 6' (Flori, 4ft run)" at
+            // $13.18 -- the post the supplier quotes for a FOUR foot fence, six feet
+            // long, so nothing of it is in the ground. The right row is the 8.5 ft
+            // Co-Ex at $16.56. It only became reachable the day both suppliers' posts
+            // were loaded: before that there was one post per role and nothing to
+            // choose wrongly between.
+            //
+            // On a POST, heightFt is THE FENCE HEIGHT THE POST IS FOR, not the post's
+            // own length. That is the one reading that lets a single comparison serve
+            // panels and posts alike -- the run says "I am 6 ft" and every row that
+            // says 6 is a candidate -- and the post's physical length stays in its
+            // name, where no engine reads it. See MaterialItem.heightFt.
             //
             // A row says how tall it is in heightFt, a column of its own; the NAME is
             // never read for it. The same "narrow only if something matches" shape as
@@ -779,10 +868,36 @@ object EstimateEngine {
             // the choice below is exactly what it always was, and a row that does declare
             // it never sets itself aside, so the list cannot be emptied.
             //
-            // Not for any other role: chain-link fabric's height is its coversFt, and a
-            // post's number is a length. `==` on Float? and Float is IEEE for both, as
-            // `===` is in line-items.ts, and null never equals a number in either.
-            if (entry.role == MaterialRole.PANEL || entry.role == MaterialRole.GATE_PANEL) {
+            // WHY PER-WIDTH IS STILL RIGHT FOR POSTS, which have no width at all:
+            // coversFt is null on every post row, and `==` on two null `Float?` is true
+            // here (it compiles to Intrinsics.areEqual, which answers true for null
+            // against null) exactly as `null === null` is true in line-items.ts. So
+            // every post of a role falls into ONE width group and the rule narrows the
+            // whole list -- which is what posts want, since there are no other widths of
+            // a post to hide. Had null not equalled null the rule would have silently
+            // done nothing for posts, and the phone and the office would still have
+            // bought different posts. The two sides agree on this case; where they do
+            // NOT agree is a heightFt or coversFt of NaN or -0.0, which this compares
+            // with Float.equals (NaN equals itself, -0.0 differs from 0.0) and
+            // line-items.ts compares with IEEE `===` (the reverse on both). No catalog
+            // can reach that -- a fence is not NaN feet tall -- and null, the only value
+            // that matters here, behaves identically.
+            //
+            // Not for any other role. CHAIN_FABRIC keeps its height in coversFt, so it
+            // is already chosen by it; POST_CAP, rails, bands, concrete and gate hardware
+            // are still chosen by price alone, and no row of those roles declares a height
+            // in the starting catalog or in the owner's (checked 1 Oct 2026) -- see
+            // tests/a51-post-height-choice.test.mjs, which pins that list. A run's height here is
+            // always panelHeightFt, including on a chain-link run, whose real height is
+            // fabricHeightFt -- no chain-link post declares a height today, so the rule
+            // is inert there, and teaching it that second column is a decision for the
+            // owner, not a silent one.
+            if (
+                entry.role == MaterialRole.PANEL || entry.role == MaterialRole.GATE_PANEL ||
+                entry.role == MaterialRole.LINE_POST || entry.role == MaterialRole.END_POST ||
+                entry.role == MaterialRole.CORNER_POST || entry.role == MaterialRole.GATE_POST ||
+                entry.role == MaterialRole.BLANK_POST
+            ) {
                 val current = candidates
                 candidates = current.filter { c ->
                     c.heightFt == run.panelHeightFt ||
@@ -1246,29 +1361,61 @@ object EstimateEngine {
             warnings += EstimateWarning(R.string.warn_teardown_drawn_not_billed, emptyList())
         }
 
-        // Money already collected counts.
+        // "Will I have enough in hand to buy the materials?"
         //
-        // This used to compare the deposit against materials and nothing else,
-        // so it went on warning that the deposit would not cover materials long
-        // after the customer had paid -- sometimes after they had paid in full.
-        // A warning that is wrong on a job you have already been paid for is
-        // worse than no warning: it teaches people to scroll past this whole
-        // section, including the times it is right.
+        // Money already collected counts. The check used to compare the deposit
+        // against materials and nothing else, so it went on warning that the
+        // deposit would not cover materials long after the customer had paid --
+        // sometimes after they had paid in full. A warning that is wrong on a
+        // job you have already been paid for is worse than no warning: it
+        // teaches people to scroll past this whole section, including the times
+        // it is right.
+        //
+        // Fixing that moved the CONDITION onto money collected and left the
+        // MESSAGE printing the deposit, which is a different number, so the
+        // sentence stopped being arithmetic. A $3,000 deposit against $2,828.48
+        // of materials read "Deposit ($3,000.00) doesn't cover the estimated
+        // material cost ($2,828.48)" -- nonsense on its face, because nothing
+        // had been collected yet and 0.00 was what the condition had tested.
+        // The owner spotted it from the two figures alone.
+        //
+        // So there is ONE figure now, [inHand], and both the test and the
+        // message use it -- not two numbers that have to be kept in step by
+        // hand. What it is depends on whether any money has moved:
+        //
+        //  - NOTHING COLLECTED: the answer turns on the deposit being asked
+        //    for, because that is the only money due before the materials are
+        //    bought. This is the case the warning was written for and the one
+        //    a fresh job sits in -- a deposit of $0 against real materials
+        //    still warns.
+        //  - PART PAID, whatever the deposit says: the answer turns on what has
+        //    actually arrived. Once a payment has landed the app stops asking
+        //    for the deposit at all and asks for the whole remaining balance
+        //    ([JobMoney.nextRequestAmount]), so the stored deposit is no longer
+        //    a figure anybody is going to collect -- it is an intention, not
+        //    cash. $500 in hand against $2,828.48 of materials is $2,328.48 out
+        //    of his own pocket today, whatever the deposit column says, and
+        //    that is what warn_fronting_material reports.
+        //  - COVERED: no warning. Either branch going quiet means the money for
+        //    the materials is accounted for.
         val collected = JobMoney.netPaid(job)
         val billable = JobMoney.billableTotal(job, totals.grandTotal, changeOrders)
         val owed = JobMoney.stillOwed(job, billable)
 
-        if (totals.materialsSubtotal > 0.0 && collected < totals.materialsSubtotal) {
-            val shortfall = totals.materialsSubtotal - collected
-            warnings += if (collected > 0.005) {
+        val anyMoneyIn = collected > 0.005
+        // Floored: a nonsense negative stored deposit must not print as one.
+        val inHand = if (anyMoneyIn) collected else job.depositAmount.coerceAtLeast(0.0)
+        if (totals.materialsSubtotal > 0.0 && inHand < totals.materialsSubtotal - 0.005) {
+            val shortfall = totals.materialsSubtotal - inHand
+            warnings += if (anyMoneyIn) {
                 EstimateWarning(
                     R.string.warn_fronting_material,
-                    listOf(money(collected), money(totals.materialsSubtotal), money(shortfall))
+                    listOf(money(inHand), money(totals.materialsSubtotal), money(shortfall))
                 )
             } else {
                 EstimateWarning(
                     R.string.warn_deposit_short,
-                    listOf(money(job.depositAmount), money(totals.materialsSubtotal))
+                    listOf(money(inHand), money(totals.materialsSubtotal))
                 )
             }
         }

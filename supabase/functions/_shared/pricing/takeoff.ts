@@ -407,10 +407,44 @@ function gateEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
  *    holes are drilled through the stiffener into that post, so it needs
  *    plugs to close them. Nothing is set in the ground, so **no concrete** --
  *    this is the case the old code got most wrong, since it charged concrete
- *    for every gate regardless. Takes a blank post plus an end post.
- *  - **In the line**: an end post, set in concrete -- two bags.
+ *    for every gate regardless. Takes a blank post plus the latch post.
+ *  - **In the line**: two posts at the opening, set in concrete -- two bags.
  *  - **In the line with the fence carrying on to a wall**: the run
- *    terminates twice, so two end posts, still in concrete.
+ *    terminates twice, so the gate's own two posts plus an end post, still
+ *    in concrete.
+ *
+ * WHICH ROLE EACH OF THOSE POSTS IS, which decides which catalog row gets
+ * billed. Counted the same either way -- computePostCounts' gatePosts is
+ * untouched by this -- but a post standing at a gate opening is a GATE_POST
+ * and is not the post where a fence line terminates:
+ *
+ *  - The two posts a gate hangs between (hinge side and latch side) are
+ *    GATE_POST. Both stand at the opening; neither is an end of the fence.
+ *    On a WALL gate only the latch side is one of these, because the hinge
+ *    side is the BLANK_POST bolted to the wall.
+ *  - The THIRD post on a LINE_TO_WALL is an END_POST, and genuinely so: it
+ *    is where the rest of the run terminates against the wall, nowhere near
+ *    the gate leaf. GateMounting.LINE_TO_WALL's own wording is "the run
+ *    terminates twice and needs a second end post". So LINE_TO_WALL is
+ *    GATE_POST 2 + END_POST 1, not GATE_POST 3.
+ *
+ * This used to ask for END_POST for all of them, which meant nothing could
+ * ever reach a GATE_POST row: the enum has the role, the catalog editor
+ * offers it, the seed ships one per fence type, and the takeoff never asked.
+ * The owner's own catalog has ten GATE_POST rows with prices typed into them
+ * -- including both suppliers' blank posts, which are separate SKUs from
+ * their end posts -- and no estimate could reach any of them. His gate post
+ * and end post happen to cost the same today, so no money moved; the next
+ * supplier to price them apart would have made every gated estimate wrong
+ * with nothing on screen looking wrong.
+ *
+ * A catalog with no GATE_POST row must still get its gate posts. That
+ * fallback is NOT here -- the takeoff cannot see the catalog (no catalog
+ * argument, by design) and emitting both roles would bill four posts for a
+ * two-post gate. It is a role preference in the line-item matcher, which
+ * picks END_POST candidates when a GATE_POST entry has none. See the report:
+ * that matcher is line-items.ts buildLineItems / EstimateEngine.buildLineItems
+ * and this change MUST NOT ship before it.
  *
  * Gate posts are counted separately by computePostCounts; these are the
  * posts the gate area needs on top of that.
@@ -420,26 +454,27 @@ function gateAreaEntries(gate: GateMarker): QtyEntry[] {
   switch (gate.mounting) {
     case "WALL":
       entries.push(qty("BLANK_POST", 1.0));
-      entries.push(qty("END_POST", 1.0));
+      // The latch side. A post at the opening, not the end of a fence line.
+      entries.push(qty("GATE_POST", 1.0));
       entries.push(qty("HOLE_PLUG", WALL_MOUNT_HOLES));
       // The hinge side is bolted to the wall and set in nothing. The
       // latch side is still a post in a hole and still takes its bag.
       entries.push(qty("CONCRETE_BAG", GATE_LATCH_BAGS));
       break;
     case "LINE":
-      // Two end posts: the hinge side wears the stiffener and
-      // becomes the post the gate hangs from, the other is where it
-      // latches. There is no separate "gate post" part -- the yard
-      // sells end posts, and that is what gets set.
-      entries.push(qty("END_POST", 2.0));
+      // Two gate posts: the hinge side wears the stiffener and becomes
+      // the post the gate hangs from, the other is where it latches.
+      // Both stand at the opening, so both are GATE_POST.
+      entries.push(qty("GATE_POST", 2.0));
       entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS));
       break;
     case "LINE_TO_WALL":
-      // The gate's own two end posts, plus the one where the rest of
-      // the run terminates at the wall. computePostCounts' gatePosts now
-      // counts this third post too, so POST_CAP matches what actually
-      // stands in the ground for this mounting.
-      entries.push(qty("END_POST", 3.0));
+      // The gate's own two gate posts, plus the one where the rest of
+      // the run terminates at the wall -- that one is a real END_POST.
+      // computePostCounts' gatePosts counts all three, so POST_CAP
+      // matches what actually stands in the ground for this mounting.
+      entries.push(qty("GATE_POST", 2.0));
+      entries.push(qty("END_POST", 1.0));
       entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS));
       break;
   }

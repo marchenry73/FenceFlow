@@ -642,6 +642,233 @@ internal fun jobStepPushRows(rows: List<CloudJobStep>): List<List<JsonObject>> =
     }.groupBy { it.keys }.values.toList()
 
 /**
+ * Whether two catalog rows are the same product, for deciding that a row from
+ * the other side is one this side already holds under a different sync id.
+ *
+ * Name, role, fence type, colour -- and the SUPPLIER's sync id, blank for "no
+ * particular supplier". The supplier is part of what a catalog row is: the same
+ * panel quoted by two suppliers is two rows with two prices, which is exactly
+ * what "Duplicate for supplier" on the phone and the per-supplier price list on
+ * the website create. Without it the second row read as a copy of the first and
+ * was dropped on the way up and on the way down, silently.
+ */
+internal fun catalogIdentity(
+    name: String,
+    role: String,
+    fenceType: String,
+    colour: String,
+    supplierSyncId: String?
+): String =
+    listOf(name, role, fenceType, colour, supplierSyncId.orEmpty()).joinToString("|") { it.trim().lowercase() }
+
+/**
+ * Whether this phone owes the cloud this catalog row.
+ *
+ * A row the cloud already holds under this row's OWN sync id goes up only when
+ * the phone's copy is newer than the cloud's -- otherwise a phone that merely
+ * pulled the row re-sends its stale copy on every pass and clobbers a price
+ * corrected elsewhere in between. That question comes first, before identity:
+ * a row renamed on the phone no longer matches its own cloud copy by identity,
+ * and used to be sent regardless of which side was newer.
+ *
+ * A row the cloud does not hold under this sync id goes up unless the cloud
+ * already holds that product under another one -- the starter catalog every
+ * phone seeds for itself, with ids of its own.
+ */
+internal fun catalogRowIsOwed(
+    lastUpdated: Long,
+    cloudHoldsThisId: Boolean,
+    cloudUpdatedAt: Long,
+    identityHeldUnderAnotherId: Boolean
+): Boolean =
+    if (cloudHoldsThisId) lastUpdated > cloudUpdatedAt else !identityHeldUnderAnotherId
+
+/** What a pushed catalog row says about its supplier. See [catalogSupplierSay]. */
+internal enum class SupplierSay {
+    /** Nothing: the key is left out of the row, and whatever the cloud holds stands. */
+    NOTHING,
+    /** A supplier: its sync id is sent. */
+    SET,
+    /** No supplier, on purpose: an explicit null is sent. */
+    CLEAR
+}
+
+/**
+ * What a catalog row being pushed should say about its supplier.
+ *
+ * A supplier is named when the phone has one. When it has none, the phone says
+ * "no supplier" out loud ONLY if the cloud names a supplier this phone also
+ * holds: then the phone has had every chance to learn that link (the pull
+ * applies it), so a null here is a choice somebody made. If the cloud names a
+ * supplier this phone has not got -- not pulled yet, or removed here -- a null
+ * is just the phone not knowing, and saying it would erase the office's link
+ * with a stale guess. Silence leaves the cloud's value as it is.
+ */
+internal fun catalogSupplierSay(
+    localSupplier: String?,
+    cloudSupplier: String?,
+    cloudSupplierIsHeldHere: Boolean
+): SupplierSay = when {
+    localSupplier != null -> SupplierSay.SET
+    cloudSupplier != null && cloudSupplierIsHeldHere -> SupplierSay.CLEAR
+    else -> SupplierSay.NOTHING
+}
+
+/**
+ * The supplier a catalog row from the cloud means on THIS phone, as a Room id.
+ *
+ * The cloud's choice wins when it names a supplier this phone holds. In every
+ * other case the phone keeps what it has: the cloud names none (the office
+ * cannot be told apart from a phone that never uploaded its own choice, and an
+ * empty answer must not erase a supplier somebody picked), or names one that
+ * has not reached this phone yet (the next pass sets it).
+ */
+internal fun supplierFromCloud(
+    cloudSupplier: String?,
+    localIdBySyncId: Map<String, Long>,
+    current: Long?
+): Long? =
+    cloudSupplier?.let { localIdBySyncId[it] } ?: current
+
+/**
+ * Catalog rows as they go up: JSON rows grouped into batches whose rows all
+ * name the same columns.
+ *
+ * An upsert names the union of its rows' columns and writes NULL into a column
+ * for a row that lacks it (the same trap [changeOrdersInSameColumnBatches] and
+ * [jobStepPushRows] close for their tables). So a row with no supplier sent
+ * beside one that has one would have erased the supplier the office had set on
+ * it, and a row with no height beside one that has one the height. Grouped by
+ * column set, a row only ever travels with rows that say the same things.
+ *
+ * [clearSupplierFor] are the rows that mean "no supplier" on purpose
+ * ([catalogSupplierSay]): they are the one case that has to say NULL out loud,
+ * because the shared Json drops a null property (explicitNulls = false).
+ */
+internal fun catalogPushBatches(
+    rows: List<CloudMaterialItem>,
+    clearSupplierFor: Set<String>
+): List<List<JsonObject>> =
+    rows.map { row ->
+        val base = SyncJson.encodeToJsonElement(CloudMaterialItem.serializer(), row).jsonObject
+        buildJsonObject {
+            base.forEach { (key, value) -> put(key, value) }
+            if (row.syncId in clearSupplierFor) put("manufacturer_sync_id", JsonNull)
+        }
+    }.groupBy { it.keys }.values.toList()
+
+/**
+ * The fields of a supplier that travel between a phone and the cloud, and
+ * nothing else: what two copies of the same supplier are compared on, and what
+ * [ManufacturerSyncLedger] remembers. Not the Room id, which only means
+ * something on one phone, and not the company, which is the same on both.
+ */
+internal data class SupplierContent(
+    val name: String,
+    val email: String,
+    val phone: String,
+    val address: String,
+    val hours: String,
+    val notes: String
+)
+
+internal fun Manufacturer.supplierContent() = SupplierContent(name, email, phone, address, hours, notes)
+
+internal fun CloudManufacturer.supplierContent() = SupplierContent(name, email, phone, address, hours, notes)
+
+/**
+ * Whether this phone owes the cloud this supplier.
+ *
+ * [mine] is the phone's copy, [cloud] what the cloud holds for the same sync id
+ * (null when it holds none), [agreed] what both held the last time this process
+ * saw them agree (null when it has not seen them agree).
+ *
+ * Every supplier used to go up on every pass, so a supplier changed on the
+ * website was put back by the phone's next sync: the phone's copy was older, and
+ * nothing asked which was newer. Now a supplier goes up when the cloud has none,
+ * or when this phone changed it since they last agreed. When only the cloud
+ * moved ([mine] is still [agreed]) it stays where it is and the pull takes the
+ * cloud's. When nothing is known about the last agreement the phone's copy goes
+ * up, which is what every pass did before: a process that has just started
+ * cannot tell an edit made here while it was dead from one made elsewhere. When
+ * both moved, the phone's copy wins, as it always did.
+ */
+internal fun supplierNeedsPush(
+    mine: SupplierContent,
+    cloud: SupplierContent?,
+    agreed: SupplierContent?
+): Boolean {
+    if (cloud == null) return true
+    if (mine == cloud) return false
+    return agreed == null || mine != agreed
+}
+
+/**
+ * Whether the pull may write the cloud's copy over this phone's supplier.
+ *
+ * Not over one the pass's own push tried to send and could not ([unsent] is
+ * exactly [mine]) -- the pull used to run regardless and put the cloud's older
+ * copy back over the edit, so a save that failed to upload was undone on the
+ * same pass, with nothing said. And not over one this phone changed since the
+ * two last agreed ([mine] differs from [agreed]): an edit made while a pass was
+ * in flight is owed to the cloud, and the next push sends it.
+ *
+ * Everything else takes the cloud's copy, as it always did -- including a phone
+ * the server refuses to take suppliers from, which forgets its unsent mark
+ * ([ManufacturerSyncLedger.refused]) and so keeps receiving the office's changes.
+ */
+internal fun supplierPullMayOverwrite(
+    mine: SupplierContent,
+    agreed: SupplierContent?,
+    unsent: SupplierContent?
+): Boolean {
+    if (unsent != null && mine == unsent) return false
+    if (agreed != null && mine != agreed) return false
+    return true
+}
+
+/**
+ * What this process knows about each supplier's last agreement with the cloud,
+ * and about pushes that failed, by sync id.
+ *
+ * IN MEMORY ONLY, and that is its limit, not a detail: after the app is killed
+ * and restarted it knows nothing, so the first pass behaves exactly as every
+ * pass used to (see [supplierNeedsPush]). What it does close is the window while
+ * the app is running -- an edit saved while a pass is in flight, an edit whose
+ * push failed, and a supplier changed on the website that a phone which has
+ * already seen the old copy would have put back. A mark that survives a restart
+ * is a column on [Manufacturer], which is a schema change; see
+ * docs/SAVE_FAILURES.md.
+ */
+internal class ManufacturerSyncLedger {
+    private val agreed = java.util.concurrent.ConcurrentHashMap<String, SupplierContent>()
+    private val unsent = java.util.concurrent.ConcurrentHashMap<String, SupplierContent>()
+
+    fun agreedFor(syncId: String): SupplierContent? = agreed[syncId]
+
+    fun unsentFor(syncId: String): SupplierContent? = unsent[syncId]
+
+    /** The phone and the cloud hold [content] for [syncId] as of now. */
+    fun agree(syncId: String, content: SupplierContent) {
+        agreed[syncId] = content
+        unsent.remove(syncId)
+    }
+
+    /** A push of [content] did not land and will be tried again. */
+    fun failedToSend(syncId: String, content: SupplierContent) {
+        unsent[syncId] = content
+    }
+
+    /**
+     * The server refused the push (a permission, not a fault): this phone has no
+     * say over [syncId], so the cloud's copy is the only one that counts.
+     */
+    fun refused(syncId: String) {
+        unsent.remove(syncId)
+    }
+}
+
+/**
  * The rows that tell the server a customer's signature is GONE from an order,
  * because the terms were edited here ([ChangeOrder.signatureClearedAt]),
  * grouped into batches whose rows all name the same columns.
@@ -838,6 +1065,28 @@ data class CloudMaterialItem(
     // an edit is newer.
     @SerialName("updated_at") val updatedAt: String? = null,
     /**
+     * material_items.manufacturer_sync_id: which supplier this row is priced
+     * from, by the supplier's sync id (see [MaterialItem.manufacturerId], which
+     * is the same fact as a Room id that only means something on one phone).
+     * Null is "no particular supplier".
+     *
+     * Absent from this shape until now, in BOTH directions. The phone's "Priced
+     * from" choice was written to Room and never sent, and a supplier the
+     * office chose on the website (or gave a whole price list to) was never
+     * read, so the same catalog row named a supplier on one side and none on the
+     * other. Defaulted to null, so a row without the key (the crew view may not
+     * carry it) still decodes; placed BEFORE [heightFt] only because
+     * tests/a40-height-carriers.test.mjs pins that one as the last parameter
+     * (and no call here passes either of them by position).
+     *
+     * Null is left out of a push (explicitNulls = false). That is the right
+     * thing for a phone that merely does not know the answer, and the wrong
+     * thing for one whose person chose "no supplier" on purpose: that one has to
+     * say null out loud, which [catalogPushBatches] does for exactly the rows
+     * [catalogSupplierSay] marks CLEAR.
+     */
+    @SerialName("manufacturer_sync_id") val manufacturerSyncId: String? = null,
+    /**
      * material_items.height_ft: how tall a PANEL or GATE_PANEL row is (see
      * [MaterialItem.heightFt]). Last, with a null default, so no positional call
      * moves and a row without the key still decodes.
@@ -849,7 +1098,10 @@ data class CloudMaterialItem(
      * whole, as for every other column: a phone that edits a row before it has
      * pulled a height somebody set since its last sync sends that row without
      * one, and in a batch where another row carries a height an upsert writes the
-     * missing key as null.
+     * missing key as null. (The last half of that is no longer true of the
+     * catalog push: [catalogPushBatches] sends rows in batches that name the same
+     * columns, so a row with no height is never sent beside one that has a
+     * height.)
      */
     @SerialName("height_ft") val heightFt: Float? = null
 ) {
@@ -1095,10 +1347,14 @@ data class CloudTimeEntryWorkerPatch(
  *
  * **pricing_tiers**, **material_items** (catalog) -- last-edit-wins gated the
  * same way ([pushPricingTiers], [pushCatalog]), but ONLY once a cloud row has
- * been claimed by this row's own sync id. A tier or catalog item with no
- * matching identity (name, or name+role+fenceType+colour) is pushed
- * unconditionally, because a starter row seeded independently on every phone
- * has no prior cloud copy to have gone stale against.
+ * been claimed by this row's own sync id. A tier with no matching name, or a
+ * catalog item the cloud holds under no sync id of this phone's and under no
+ * identity ([catalogIdentity]: name, role, fence type, colour AND supplier), is
+ * pushed unconditionally, because a starter row seeded independently on every
+ * phone has no prior cloud copy to have gone stale against. A catalog row
+ * carries its supplier ([CloudMaterialItem.manufacturerSyncId]) as part of the
+ * row and as part of its identity: the same product priced from two suppliers is
+ * two rows, on the phone, on the website and in the price list import alike.
  *
  * **build_templates** -- pull-only gate, same clock, formal rather than load-
  * bearing: this phone never edits a template, so the compare mostly guards
@@ -1153,9 +1409,23 @@ data class CloudTimeEntryWorkerPatch(
  * and takes a signature once -- so a crew phone's stale copy cannot undo the
  * office's edit.
  *
- * **employees**, **manufacturers** -- unconditional upsert on every push
- * ([pushEmployees], [pushManufacturers]); the phone is the source of truth and
- * there is no merge to arbitrate.
+ * **employees** -- unconditional upsert on every push ([pushEmployees]), and the
+ * pull writes the cloud's copy over every row it holds ([pullEmployees]). Neither
+ * side asks whether the other has moved, so an edit made on the phone while a
+ * pass is in flight, or one whose push failed, is undone by the pull of the same
+ * pass, and a crew record changed on the website is undone by the phone's next
+ * push if the phone has not pulled it yet. Not changed here: it needs the same
+ * "changed here, not yet taken" mark the line items and change orders carry, which
+ * is a column on [Employee] (docs/SAVE_FAILURES.md).
+ *
+ * **manufacturers** -- whole-row, arbitrated in memory by [ManufacturerSyncLedger]
+ * ([pushManufacturers], [pullManufacturers]): a supplier goes up only when this
+ * phone changed it, or the cloud has none; the pull never writes over a supplier
+ * this phone changed and the cloud has not taken. The ledger lives in memory, so
+ * after the process restarts it knows nothing and a phone whose copy differs from
+ * the cloud's sends its own, as every pass did before (a supplier edited on the
+ * website while the app was closed is undone by the first sync after launch). The
+ * lasting fix is the same mark on [Manufacturer] (docs/SAVE_FAILURES.md).
  *
  * **field_changes** -- append-only requests plus (for the phones allowed to
  * answer them) an update of the answer half; not a last-edit-wins table at all.
@@ -1172,6 +1442,9 @@ data class CloudTimeEntryWorkerPatch(
  * this file; see the launch-audit report for the details.
  */
 object EntitySync {
+
+    /** What this process knows about each supplier's last agreement with the cloud. See [ManufacturerSyncLedger]. */
+    private val manufacturerLedger = ManufacturerSyncLedger()
 
     /**
      * One table failing must not stop the six behind it.
@@ -1829,45 +2102,78 @@ object EntitySync {
      *
      * Same fault as the pricing tiers and much larger: the seeded catalog is
      * around ninety items, so five installs left 460 rows in the cloud for 92
-     * real products. Identity is name, role, fence type and colour -- the same
-     * rule the pull uses to decide a downloaded item is one it already holds.
+     * real products. Identity is [catalogIdentity] -- name, role, fence type,
+     * colour and supplier -- the same rule the pull uses to decide a downloaded
+     * item is one it already holds.
+     *
+     * The supplier is part of the identity and travels with the row. It used to
+     * be neither: a "Duplicate for supplier" copy on the phone (same name, role,
+     * type and colour as the original, a different supplier) read as the
+     * original's cloud row under another sync id and was never sent, with nothing
+     * logged and nothing on screen; and the supplier chosen in "Priced from" was
+     * written to Room and left there.
      */
     private suspend fun pushCatalog(repository: Repository, companyId: String): Int {
         val local = repository.getAllMaterialItems()
         if (local.isEmpty()) return 0
 
-        fun identity(name: String, role: String, fenceType: String, colour: String) =
-            listOf(name, role, fenceType, colour).joinToString("|") { it.trim().lowercase() }
+        // A supplier is a Room id on this phone and a sync id everywhere else;
+        // this is the one place the two are put side by side.
+        val suppliers = repository.getAllManufacturers()
+        val supplierSyncById = suppliers.associate { it.id to it.syncId }
+        val suppliersHere = suppliers.map { it.syncId }.toSet()
 
         // Paged: another push-side compare, so a truncation here means items
         // past row one thousand look unclaimed and get duplicated upward.
-        val cloudByIdentity = pagedList<CloudMaterialItem>("material_items") {
+        val cloud = pagedList<CloudMaterialItem>("material_items") {
             // sees-tombstones: as above -- a deleted catalog item keeps its
             // identity reserved so this phone does not push a fresh copy.
             eq("company_id", companyId)
         }
-            .associateBy { identity(it.name, it.role, it.fenceType, it.colorOrFinish) }
+        val cloudBySyncId = cloud.associateBy { it.syncId }
+        val cloudByIdentity = cloud.associateBy {
+            catalogIdentity(it.name, it.role, it.fenceType, it.colorOrFinish, it.manufacturerSyncId)
+        }
 
         val rows = local.filter { item ->
-            val claimed = cloudByIdentity[
-                identity(item.name, item.role.name, item.fenceType.name, item.colorOrFinish)
-            ]
-            // No cloud row of this identity yet: push it, same as always. One
-            // already up there under this row's own sync id only goes back up
-            // when this phone's copy is actually newer -- otherwise a phone
-            // that merely pulled the item, and never touched it, re-pushes its
-            // now-stale copy on every sync and clobbers a price corrected
-            // elsewhere in between.
-            claimed == null || (claimed.syncId == item.syncId && item.lastUpdated > claimed.updatedAtMillis())
+            val supplier = item.manufacturerId?.let { id -> supplierSyncById[id] }
+            val held = cloudBySyncId[item.syncId]
+            val heldUnderAnotherId = held == null && cloudByIdentity[
+                catalogIdentity(item.name, item.role.name, item.fenceType.name, item.colorOrFinish, supplier)
+            ] != null
+            // See catalogRowIsOwed for the rule, and for why it asks about this
+            // row's own sync id first.
+            catalogRowIsOwed(item.lastUpdated, held != null, held?.updatedAtMillis() ?: 0L, heldUnderAnotherId)
         }.map {
             CloudMaterialItem(
                 companyId, it.syncId, it.name, it.category.name, it.role.name,
                 it.fenceType.name, it.colorOrFinish, it.unit, it.unitPrice,
                 it.taxable, it.coversFt, it.isActive, it.sourceDoc,
                 heightFt = it.heightFt
-            )
+            ).copy(manufacturerSyncId = it.manufacturerId?.let { id -> supplierSyncById[id] })
         }
-        return upsert("material_items", rows)
+
+        // The rows whose person chose "no supplier" over one the cloud names and
+        // this phone holds: the only ones that say null out loud.
+        val clears = rows.filter { row ->
+            val cloudSupplier = cloudBySyncId[row.syncId]?.manufacturerSyncId
+            catalogSupplierSay(
+                row.manufacturerSyncId, cloudSupplier, cloudSupplier != null && cloudSupplier in suppliersHere
+            ) == SupplierSay.CLEAR
+        }.map { it.syncId }.toSet()
+
+        // Batches that name the same columns (catalogPushBatches), every one
+        // attempted whatever the one before it did; the first failure is the one
+        // reported, after everything that could go up has gone up.
+        var pushed = 0
+        var firstFailure: Throwable? = null
+        catalogPushBatches(rows, clears).forEach { batch ->
+            val result = runCatching { upsert("material_items", batch) }
+            result.onSuccess { pushed += it }
+            result.onFailure { if (firstFailure == null) firstFailure = it }
+        }
+        firstFailure?.let { throw it }
+        return pushed
     }
 
     /**
@@ -2047,10 +2353,15 @@ object EntitySync {
      * Brings down anything this device doesn't have yet -- the path that makes
      * "new phone, sign in, everything's there" actually work.
      *
-     * Matched on syncId, so a record already present is left alone rather than
-     * duplicated. Existing local rows are not overwritten: the phone that has
-     * been working offline keeps its own version until a proper two-way merge
-     * exists for these tables.
+     * Matched on syncId, so a record already present is never duplicated. What
+     * happens to a record already present depends on the table, and the rule for
+     * each is in the conflict-rule block above [EntitySync]: some tables let a
+     * newer local edit stand (fence runs, the catalog, pricing tiers, line items,
+     * change orders, and manufacturers while the ledger remembers the edit), and
+     * some take the cloud's copy over the phone's (employees, expenses, the punch
+     * list, job steps and site markers -- none of which carries a mark saying
+     * "changed here, not yet taken"). This used to say existing local rows are
+     * never overwritten, which was true of none of the second kind.
      */
     suspend fun pullAll(
         repository: Repository,
@@ -2071,9 +2382,14 @@ object EntitySync {
             // table threw away five perfectly good ones -- the same fault the
             // push side had, arriving from the other direction.
             val results = kotlinx.coroutines.coroutineScope {
+                // Held in a name because the catalog's pull waits for it: a
+                // catalog row names its supplier by sync id, and which Room id
+                // that is can only be worked out once the supplier is in the
+                // local table.
+                val suppliersPull = async { runCatching { netGate.withPermit { pullManufacturers(repository, companyId) } } }
                 listOf(
                     async { runCatching { netGate.withPermit { pullEmployees(repository, companyId, employeePayScope) } } },
-                    async { runCatching { netGate.withPermit { pullManufacturers(repository, companyId) } } },
+                    suppliersPull,
                     // Tiers are SEE_MONEY-gated at the base table; asking
                     // while not confirmed ALLOWED would read an empty answer
                     // as "the office cleared every tier," which is exactly
@@ -2085,9 +2401,19 @@ object EntitySync {
                     // children below, there is no non-money remainder of
                     // pullCatalog worth preserving; unitPrice is most of what
                     // it carries.
-                    async { runCatching { netGate.withPermit {
-                        if (scope == MoneyScope.UNKNOWN) 0 else pullCatalog(repository, companyId, scope)
-                    } } },
+                    //
+                    // Waits for the suppliers' pull (above) BEFORE asking for a
+                    // permit, never while holding one -- a permit held here would
+                    // be one the suppliers' pull could be waiting for. Its result
+                    // is not read: a failed suppliers pull is reported by its own
+                    // entry, and a catalog row whose supplier has not arrived
+                    // keeps what it has and is completed by the next pass.
+                    async {
+                        suppliersPull.join()
+                        runCatching { netGate.withPermit {
+                            if (scope == MoneyScope.UNKNOWN) 0 else pullCatalog(repository, companyId, scope)
+                        } }
+                    },
                     async { runCatching { netGate.withPermit { pullFenceRuns(repository, companyId) } } },
                     // Called for every scope, UNKNOWN included: punch list,
                     // job steps, site markers and field changes carry no
@@ -2250,18 +2576,24 @@ object EntitySync {
                 eq("company_id", companyId); notDeleted()
             }
         // Same seeded-identity problem as pricing tiers: a catalog item is the
-        // same item if its name, role, fence type and colour match, whatever
-        // sync id the phone that seeded it happened to generate.
+        // same item if its name, role, fence type, colour and supplier match,
+        // whatever sync id the phone that seeded it happened to generate.
         val existingItems = repository.getAllMaterialItems()
         val knownIds = existingItems.map { it.syncId }.toSet()
-        fun identity(name: String, role: String, fenceType: String, colour: String) =
-            listOf(name, role, fenceType, colour).joinToString("|") { it.trim().lowercase() }
-        val knownIdentities = existingItems
-            .map { identity(it.name, it.role.name, it.fenceType.name, it.colorOrFinish) }
-            .toSet()
+        // A supplier is a Room id here and a sync id in the cloud (see
+        // CloudMaterialItem.manufacturerSyncId). pullAll waits for the
+        // suppliers' own pull to finish before this one starts, so a supplier
+        // that is in the cloud is normally in this table by now.
+        val suppliers = repository.getAllManufacturers()
+        val supplierSyncById = suppliers.associate { it.id to it.syncId }
+        val supplierIdBySync = suppliers.associate { it.syncId to it.id }
+        fun localIdentity(item: MaterialItem) = catalogIdentity(
+            item.name, item.role.name, item.fenceType.name, item.colorOrFinish,
+            item.manufacturerId?.let { id -> supplierSyncById[id] }
+        )
+        val knownIdentities = existingItems.map { localIdentity(it) }.toSet()
         val localBySyncId = existingItems.associateBy { it.syncId }
-        val localByIdentity = existingItems
-            .associateBy { identity(it.name, it.role.name, it.fenceType.name, it.colorOrFinish) }
+        val localByIdentity = existingItems.associateBy { localIdentity(it) }
         // A local copy may only be re-keyed once, however many cloud rows
         // happen to share its identity.
         val adoptedIdentities = mutableSetOf<String>()
@@ -2285,8 +2617,12 @@ object EntitySync {
                 // would see its own just-pulled copy as newer and send it
                 // straight back up.
                 //
-                // copy() keeps manufacturerId, which the cloud shape does not
-                // carry. Losing it would detach the item from its supplier.
+                // The supplier travels with the row now (manufacturerSyncId),
+                // but only a supplier the cloud NAMES and this phone holds
+                // replaces the local one (supplierFromCloud). copy() keeps what
+                // is here otherwise: a cloud row with none cannot be told apart
+                // from a choice this phone made before it could upload one, and
+                // losing it would detach the item from its supplier.
                 if (row.updatedAtMillis() > existing.lastUpdated) {
                     repository.updateMaterialItemFromCloud(
                         existing.copy(
@@ -2306,10 +2642,26 @@ object EntitySync {
                             heightFt = row.heightFt,
                             isActive = row.isActive,
                             sourceDoc = row.sourceDoc,
+                            manufacturerId = supplierFromCloud(
+                                row.manufacturerSyncId, supplierIdBySync, existing.manufacturerId
+                            ),
                             lastUpdated = row.updatedAtMillis()
                         )
                     )
                     added++
+                } else if (existing.lastUpdated == row.updatedAtMillis()) {
+                    // Not newer, and nothing typed here since this phone took the
+                    // cloud's copy of the row: the one thing that can still be
+                    // missing is a supplier the cloud names and this phone had not
+                    // pulled yet when the row came down. Set without moving the
+                    // clock, so it is not mistaken for an edit and sent back up.
+                    val supplier = supplierFromCloud(
+                        row.manufacturerSyncId, supplierIdBySync, existing.manufacturerId
+                    )
+                    if (supplier != existing.manufacturerId) {
+                        repository.updateMaterialItemFromCloud(existing.copy(manufacturerId = supplier))
+                        added++
+                    }
                 }
                 return@forEach
             }
@@ -2331,7 +2683,9 @@ object EntitySync {
             // Unconditional, same as before this clock existed: there is no
             // prior pull of THIS cloud row to have a stale local clock about,
             // so there is nothing to gate against.
-            val ident = identity(row.name, row.role, row.fenceType, row.colorOrFinish)
+            val ident = catalogIdentity(
+                row.name, row.role, row.fenceType, row.colorOrFinish, row.manufacturerSyncId
+            )
             val sameThing = if (ident in adoptedIdentities) null else localByIdentity[ident]
             if (sameThing != null) {
                 adoptedIdentities += ident
@@ -2368,6 +2722,9 @@ object EntitySync {
                     heightFt = row.heightFt,
                     isActive = row.isActive,
                     sourceDoc = row.sourceDoc,
+                    // Null when the cloud names none, or names one this phone has
+                    // not got yet -- the second pass over the same row fills it in.
+                    manufacturerId = supplierFromCloud(row.manufacturerSyncId, supplierIdBySync, null),
                     lastUpdated = row.updatedAtMillis()
                 )
             )
@@ -3074,6 +3431,7 @@ object EntitySync {
         val localBySyncId = repository.getAllManufacturers().associateBy { it.syncId }
         var added = 0
         cloud.forEach { row ->
+            val theirs = row.supplierContent()
             val existing = localBySyncId[row.syncId]
             if (existing == null) {
                 repository.saveManufacturer(
@@ -3082,14 +3440,32 @@ object EntitySync {
                         phone = row.phone, address = row.address, hours = row.hours, notes = row.notes
                     )
                 )
+                manufacturerLedger.agree(row.syncId, theirs)
                 added++
             } else {
-                // A supplier changing their number is the whole point of holding it.
-                val merged = existing.copy(
-                    name = row.name, email = row.email,
-                    phone = row.phone, address = row.address, hours = row.hours, notes = row.notes
-                )
-                if (merged != existing) { repository.saveManufacturer(merged); added++ }
+                val mine = existing.supplierContent()
+                if (mine == theirs) {
+                    manufacturerLedger.agree(row.syncId, theirs)
+                } else if (supplierPullMayOverwrite(
+                        mine,
+                        manufacturerLedger.agreedFor(row.syncId),
+                        manufacturerLedger.unsentFor(row.syncId)
+                    )
+                ) {
+                    // A supplier changing their number is the whole point of holding it.
+                    repository.saveManufacturer(
+                        existing.copy(
+                            name = row.name, email = row.email,
+                            phone = row.phone, address = row.address, hours = row.hours, notes = row.notes
+                        )
+                    )
+                    manufacturerLedger.agree(row.syncId, theirs)
+                    added++
+                }
+                // Otherwise this phone holds a change the cloud has not taken --
+                // an edit whose push failed, or one saved while this pass was in
+                // flight -- and it is left exactly as it is. The next push sends
+                // it. (supplierPullMayOverwrite says why, and what it cannot see.)
             }
         }
         return added
@@ -3221,9 +3597,62 @@ object EntitySync {
         return upsert("employees", rows)
     }
 
+    /**
+     * Uploads the suppliers this phone owes the cloud -- not all of them on every
+     * pass. See [supplierNeedsPush] for which, and [ManufacturerSyncLedger] for
+     * what it remembers and what it cannot.
+     *
+     * Reads the cloud's suppliers first (a few rows, one request) because "owes"
+     * is a comparison with what the cloud holds. A failed read throws, which is
+     * what a failed push would have done.
+     */
     private suspend fun pushManufacturers(repository: Repository, companyId: String): Int {
-        val rows = repository.getAllManufacturers().map { it.toCloud(companyId) }
-        return upsert("manufacturers", rows)
+        val local = repository.getAllManufacturers()
+        if (local.isEmpty()) return 0
+
+        val cloudBySyncId = try {
+            pagedList<CloudManufacturer>("manufacturers") {
+                eq("company_id", companyId); notDeleted()
+            }.associateBy { it.syncId }
+        } catch (e: Exception) {
+            // Could not even ask what the cloud holds, so no supplier below can
+            // be told apart from an edit. Every one that might be one is kept
+            // from this pass's pull, which can get through a weak signal where
+            // this read did not and would put the cloud's older copy over it.
+            local.forEach { supplier ->
+                val mine = supplier.supplierContent()
+                val agreed = manufacturerLedger.agreedFor(supplier.syncId)
+                if (agreed == null || mine != agreed) manufacturerLedger.failedToSend(supplier.syncId, mine)
+            }
+            throw e
+        }
+
+        val owed = ArrayList<Manufacturer>()
+        local.forEach { supplier ->
+            val mine = supplier.supplierContent()
+            val cloud = cloudBySyncId[supplier.syncId]?.supplierContent()
+            if (cloud != null && mine == cloud) manufacturerLedger.agree(supplier.syncId, mine)
+            if (supplierNeedsPush(mine, cloud, manufacturerLedger.agreedFor(supplier.syncId))) owed += supplier
+        }
+        if (owed.isEmpty()) return 0
+
+        return try {
+            val sent = upsert("manufacturers", owed.map { it.toCloud(companyId) })
+            owed.forEach { manufacturerLedger.agree(it.syncId, it.supplierContent()) }
+            sent
+        } catch (e: Exception) {
+            // Remembered either way, differently: a refusal means this phone has
+            // no say over these (the cloud's copy is the only one that counts, so
+            // the pull may keep applying it); anything else means the edit is
+            // still owed, and the pull that follows this push on the same pass
+            // must not put the cloud's older copy over it.
+            if (isNotOursToSync(e)) {
+                owed.forEach { manufacturerLedger.refused(it.syncId) }
+            } else {
+                owed.forEach { manufacturerLedger.failedToSend(it.syncId, it.supplierContent()) }
+            }
+            throw e
+        }
     }
 
     private suspend fun pushFenceRuns(

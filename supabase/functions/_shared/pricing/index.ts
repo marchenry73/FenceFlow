@@ -76,8 +76,41 @@ export {
  * catalog's 6 ft ornamental iron, which was priced with the 4 ft high panel
  * (an UNDERCHARGE of $40 a panel before tax and markup). Anchored totals do not
  * move, as above.
+ *
+ * Bumped 2026.10.2 -> 2026.10.3 (1 Oct 2026) to extend that same height rule to
+ * the POST roles -- LINE_POST, END_POST, CORNER_POST, GATE_POST, BLANK_POST
+ * (line-items.ts buildLineItems / EstimateEngine.buildLineItems). A formula
+ * change, so a version change on BOTH engines, and the 85 fixtures regenerate in
+ * the same commit. This one is not a price: a post has no width, so it was
+ * chosen by price alone, and on the owner's own catalog a 72 ft run six feet
+ * high was quoted "5x5 Utility Post White 6' (Flori, 4ft run)" at $13.18 -- the
+ * post the supplier sells for a FOUR foot fence, six feet long, so nothing of it
+ * is in the ground. A fence built on it falls over. On a post, height_ft is the
+ * FENCE height the post is for, not the post's own length. Additive exactly as
+ * 2026.10.2 was: a catalog where no post declares a height prices identically,
+ * and it moves a quote only where a height has been filled in. Anchored totals
+ * do not move, as above.
+ *
+ * Bumped 2026.10.3 -> 2026.10.4 (1 Oct 2026) because a gate now asks for a
+ * GATE_POST (takeoff.ts gateAreaEntries / EstimateEngine.gateAreaEntries).
+ * WALL is BLANK_POST + GATE_POST, LINE is GATE_POST 2, LINE_TO_WALL is
+ * GATE_POST 2 + END_POST 1 -- that third post is where the run terminates at
+ * the wall, which is a genuine end post. Every COUNT is unchanged: gatePosts,
+ * totalPosts, POST_CAP and CONCRETE_BAG all come out exactly as under
+ * 2026.10.3, and the takeoff summary lines do not move. What changes is WHICH
+ * CATALOG ROW IS BILLED for those posts, so it is a formula change, so a
+ * version change on both engines and the 85 fixtures regenerate in the same
+ * commit. Before this, nothing in either engine ever asked for GATE_POST: the
+ * role existed, the editor offered it, the seed shipped one per fence type,
+ * and a gate quietly bought END_POST rows instead. The owner's catalog has ten
+ * GATE_POST rows priced by hand that no estimate could reach.
+ * This is additive ONLY once the line-item matcher prefers END_POST for a
+ * GATE_POST entry with no candidates; without that, a catalog holding no
+ * GATE_POST row loses its gate posts from the estimate entirely. That
+ * fallback belongs in buildLineItems on both sides and MUST land in the same
+ * commit as this bump. Anchored totals do not move, as above.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.2";
+export const PRICING_ENGINE_VERSION = "2026.10.4";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.
