@@ -12,6 +12,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -154,7 +155,37 @@ class JobMoneyDepositRuleTest {
 
     @Test
     fun `the engine version moved off 2026_09_3`() {
-        assertEquals("2026.10.1", EstimateEngine.PRICING_ENGINE_VERSION)
+        // Asserts what the name says -- that the version moved PAST the one the
+        // round-up-to-ten engine shipped as -- rather than pinning one exact
+        // string.
+        //
+        // It did pin "2026.10.1", and that broke the moment the next formula
+        // change landed (height-aware panel choice, 2026.10.2), failing a
+        // release for a version bump that was entirely correct. A test that
+        // goes red on every legitimate future bump is not a guard, it is a toll.
+        //
+        // The real guard against a formula change shipping WITHOUT a bump is
+        // elsewhere and is stronger: ParityFixtureCheck requires
+        // PRICING_ENGINE_VERSION to equal the fixtures' manifest version, so
+        // changing the maths without regenerating fails, and regenerating
+        // without bumping fails too. This test only has to prove we are off the
+        // old one and moving forwards.
+        val now = EstimateEngine.PRICING_ENGINE_VERSION
+        assertNotEquals("the engine still reports the round-up-to-ten version", "2026.09.3", now)
+
+        // Compared component by component, the way JobSync decides which engine
+        // is newer -- "2026.10.2" is NOT greater than "2026.09.3" as a string,
+        // because "1" sorts below "9".
+        fun parts(v: String) = v.split(".").map { it.toIntOrNull() ?: 0 }
+        val old = parts("2026.09.3")
+        val cur = parts(now)
+        val newer = cur.zip(old).firstOrNull { (a, b) -> a != b }?.let { (a, b) -> a > b } ?: false
+        assertTrue(
+            "PRICING_ENGINE_VERSION is $now, which is not newer than 2026.09.3. A formula " +
+            "change must move the version FORWARD on both engines, or a phone and the office " +
+            "will disagree about which of them is out of date.",
+            newer
+        )
     }
 
     // ------------------------------------------------------------- deposit
