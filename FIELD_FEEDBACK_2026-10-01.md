@@ -161,3 +161,39 @@ true today unless that is wired up.
 2. **D1** — should a signature on the link count as the signed contract?
 3. **B2** — what "small [forfeit] fences" means.
 4. **D2** — when a customer unapproves, what happens to the price they had agreed?
+
+---
+
+## C5. BUG, DIAGNOSED — "Use Grid" does not stick, and can leave a job pricing zero
+
+> "I said use grid only, and when I got out and I came back to the page, it brought back
+> the survey picture."
+
+**Cause, read from the code.** `SurveyViewModel.clearSurveyImage()` is what "Use Grid" calls.
+It sets `surveyImagePath = null` and never touches `surveyStoragePath`. Those are two
+different fields and only the second one TRAVELS -- it syncs to the office and to any other
+phone. So the device-local path is cleared, the travelling one survives, and the next time the
+screen loads the job it sees a photo still attached and renders it. The choice was never
+persisted in the field that matters.
+
+**The part that costs money.** The same function sets the calibration like this: if there is
+no travelling photo path it seeds the correct grid calibration, and OTHERWISE it sets the
+calibration to NULL. A photo that has synced takes the null branch. So on such a job, pressing
+"Use Grid" leaves BOTH the photo attached AND no calibration -- and an uncalibrated photo job
+now prices NOTHING, deliberately, since guessing a scale was judged worse than refusing. He
+can therefore press "Use Grid" and end up with the picture back and a quote of zero.
+
+**Age.** The half-clear is NOT new; the function always left the travelling path alone, and
+always wrote a null calibration when a photo was present. What is new is the consequence: the
+engine used to guess a grid scale for an uncalibrated photo, so the job still priced. Now it
+refuses. So an old bug acquired a money symptom this session.
+
+**The fix is two things, and the second is the subtle one.** Clearing the grid choice must
+clear the travelling path too, in the same write, or the choice does not persist. And the
+calibration branch has it backwards for this case: if he has just said "use grid only", the
+job IS a grid job and should get the grid calibration -- the null branch exists to avoid
+inventing a scale for a photo, but after this action there is no photo to invent one for.
+
+Related: the survey track running now is already asked to establish which field is written
+when and whether anything is lost, so it may reach this independently. Recorded here so it
+cannot be lost either way.
