@@ -41,6 +41,22 @@ import kotlinx.coroutines.flow.first
  * business's books. Given a choice between the two failure modes, this code
  * always leans toward doing nothing.
  *
+ * A demo also leaves two things behind that are not rows: a visitor may change
+ * the phone's theme and language, and those are stored on the handset, not in
+ * the sample company. [SettingsStore.startGuestSession] keeps the phone's
+ * original pair in the same write that starts the countdown, and both entry
+ * points below give it back through [SettingsStore.endGuestSession], in the
+ * same write that clears the countdown. There is a third way a demo can end
+ * that does not pass through here at all: a real sign-in whose account-change
+ * wipe (DataOwnership, then [SettingsStore.clearAll]) gets to the settings first.
+ * That path gives the pair back too, from the same copy, so whichever of the
+ * three runs first gives it back, and the copy is spent by that first one. The
+ * end of a demo never writes a default over the pair: with no copy -- a demo
+ * that began before the copy existed -- endGuestSession leaves theme and
+ * language whatever they are. (The account-change wipe is a wipe of every
+ * setting, and run with no copy to give back -- because the demo's own end got
+ * there first, or because there was none -- it does what it always did.)
+ *
  * What it deletes, when it does run: only jobs carrying BOTH of
  * [GuestMarker]'s markers, via [Repository.deleteJobLocallyOnly] -- never
  * `clearAllLocalData()` (a full-table wipe that exists elsewhere in this
@@ -130,6 +146,15 @@ object GuestWipe {
      * at sign-in catches the phone instead. Doing it the other way round -- the
      * cheap bookkeeping first -- is what turned an interrupted cleanup into a
      * phone full of sample jobs that nothing recognised as samples any more.
+     *
+     * The phone's original theme and language are given back by the flag step,
+     * inside the very write that clears the flag, and not as a separate step of
+     * their own. As a separate write, a process killed between the two would
+     * leave a phone whose demo is over and whose copy is still sitting there,
+     * with nothing left that would ever spend it. It also stays behind the row
+     * delete, so a delete that throws leaves the demo -- and the copy that
+     * belongs to it -- in place for the next attempt rather than restoring the
+     * cosmetics of a demo that has not finished ending.
      */
     private suspend fun clearDemo(
         repository: Repository,
@@ -139,8 +164,9 @@ object GuestWipe {
         val guestJobs = repository.getAllJobs().filter(GuestMarker::isGuestSeeded)
         guestJobs.forEach { job -> repository.deleteJobLocallyOnly(job) }
 
-        // Only the flag, not settingsStore.clearAll() -- see endGuestSession's
-        // own doc for why a full settings wipe has no place here.
+        // Only the flag and the phone's two cosmetic choices, not
+        // settingsStore.clearAll() -- see endGuestSession's own doc for why a
+        // full settings wipe has no place here.
         settingsStore.endGuestSession()
 
         // Last, so that everything above failing leaves this phone still

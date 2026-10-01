@@ -202,7 +202,14 @@ data class BusinessProfile(
      * comment cannot drift out of step with it again.
      * Device-local only, never synced: guest mode never talks to the cloud,
      * and this field is only ever written by startGuestSession/endGuestSession
-     * below, never by [save]'s normal profile-editing path.
+     * below, never by [save]'s normal profile-editing path -- [save] does not
+     * write it at all, so a profile object read a moment ago cannot bring a
+     * finished demo back or end a running one.
+     *
+     * The theme and language the phone had when the demo began are kept beside
+     * this flag, in the same write, and given back when it is cleared. They are
+     * not fields here: nothing but the demo's own start and end has any use for
+     * them.
      */
     val guestSessionStartedAt: Long = 0L
 ) {
@@ -234,29 +241,56 @@ class SettingsStore(private val context: Context) {
     }
 
     /**
-     * Records the guest countdown's start time -- a single targeted key, like
+     * Records the guest countdown's start time, and in the SAME write keeps the
+     * theme and language this phone has right now. Targeted keys, like
      * [markTourSeen], never the full [save]. Not stamped as an ordinary edit:
      * this is device-local scaffolding for a mode that never syncs, and
      * running it through the normal updatedAt path would make a guest demo
      * look like a real settings change the next time this phone actually
      * signs in and compares clocks with the cloud.
+     *
+     * Why the copy is made here and nowhere else. A visitor may change theme and
+     * language while trying the product -- they are cosmetic and cannot lock
+     * anybody out -- and nothing used to put them back, so the last visitor's
+     * choice stayed on the handset after the sample jobs were gone. Giving them
+     * back needs the values from before the demo, and that copy has to exist
+     * (a) before the visitor can change anything, and the flag written here is
+     * what opens the demo, and (b) after the app is killed mid-demo, which rules
+     * out holding it in memory. One edit of this store does both: there is no
+     * moment when the flag exists without the copy, or the copy without the flag.
+     *
+     * A second call while a demo is already running moves the clock and does NOT
+     * copy again -- by then the stored values are the visitor's, and copying
+     * them would make the visitor's choices the original. See [beginDemoPrefs].
      */
     suspend fun startGuestSession(startedAtMillis: Long) {
-        context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = startedAtMillis }
+        context.dataStore.edit { beginDemoPrefs(it, startedAtMillis) }
     }
 
     /**
-     * Clears the guest countdown, and touches nothing else.
+     * Clears the guest countdown and gives back the theme and language the phone
+     * had before the demo began, in one write. Touches nothing else.
      *
      * This is deliberately NOT [clearAll]. clearAll wipes every setting on
      * the phone, which is right when a phone changes hands between real
      * accounts but would be wrong here: ending a guest session must not be
      * able to erase a real business name or template this phone had before
      * (or gets after) the guest detour. See GuestWipe for the data-row half
-     * of ending a session; this is only ever the other half, the flag.
+     * of ending a session; this is only ever the other half, the flag and the
+     * two cosmetic choices.
+     *
+     * One write, so with a copy the demo cannot be over without the choices being
+     * back, or back without the demo being over -- and so a second call (the
+     * countdown and a sign-in can both end the same demo) finds the copy already
+     * spent and changes nothing, instead of putting the old values over
+     * something the person chose after the first call. With no copy at all -- a demo that was
+     * already running before the copy existed -- it clears the flag and leaves
+     * theme and language exactly as they are: it cannot know the originals, and
+     * writing defaults would overwrite somebody's real choice. See
+     * [endDemoPrefs].
      */
     suspend fun endGuestSession() {
-        context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = 0L }
+        context.dataStore.edit { endDemoPrefs(it) }
     }
 
     /**
@@ -350,6 +384,162 @@ class SettingsStore(private val context: Context) {
             prefs[Keys.AUTO_LOCK_MINUTES] = autoLockMinutes
             prefs[Keys.BIOMETRIC_UNLOCK] = biometricUnlockEnabled
         }
+
+        // ---- The guest demo's two cosmetic choices ---------------------------------
+        //
+        // A visitor may change the theme and the language while trying the product.
+        // The three DEMO_PREV_* keys hold what the phone had when the demo began,
+        // and every way a demo can end gives it back: the countdown running out and
+        // a real sign-in both end through endGuestSession, and the sign-in's own
+        // account-change wipe ends through clearAll. Each of the three functions
+        // below is the body of exactly one of those, so a test can drive them on a
+        // plain MutablePreferences (GuestPrefsRestoreTest).
+
+        /**
+         * Raises the guest countdown and, only when no demo was already running,
+         * keeps the phone's current theme and language beside it. One edit, so the
+         * flag and the copy appear together or not at all.
+         *
+         * The copy is of the stored TEXT, or of its absence. A phone that never
+         * chose has no theme key at all, and giving that back means removing the
+         * key, not writing "SYSTEM" over a state that only read as SYSTEM because
+         * nothing was there.
+         *
+         * Only on the way from no demo to a demo. While one is running the stored
+         * values may already be the visitor's, and copying them would make the
+         * visitor's choices the original. A start with [startedAtMillis] of zero is
+         * not a demo (see GuestSession.isActive) and copies nothing, so it cannot
+         * leave a copy behind with no flag to end it.
+         */
+        internal fun beginDemoPrefs(prefs: MutablePreferences, startedAtMillis: Long) {
+            val running = (prefs[Keys.GUEST_SESSION_STARTED_AT] ?: 0L) != 0L
+            if (!running && startedAtMillis != 0L) {
+                prefs[Keys.DEMO_PREV_TAKEN] = true
+                copyOrForget(prefs, Keys.THEME_MODE, Keys.DEMO_PREV_THEME)
+                copyOrForget(prefs, Keys.LANGUAGE, Keys.DEMO_PREV_LANGUAGE)
+            }
+            prefs[Keys.GUEST_SESSION_STARTED_AT] = startedAtMillis
+        }
+
+        /**
+         * Gives back the copy, deletes it, and clears the countdown, in that order
+         * within one edit.
+         *
+         * Spending the copy is what makes a second call harmless. The countdown and
+         * a sign-in can both end the same demo, and the second finds nothing to give
+         * back, so it cannot put the pre-demo values over whatever the person chose
+         * after the first ended it. With no copy -- a demo already running before
+         * the copy existed -- theme and language are left exactly as they are.
+         */
+        internal fun endDemoPrefs(prefs: MutablePreferences) {
+            giveBackDemoPrefs(prefs)
+            prefs[Keys.GUEST_SESSION_STARTED_AT] = 0L
+        }
+
+        /**
+         * The body of [clearAll]: every key except the remembered sign-in address
+         * goes -- and, when a demo's copy exists, the phone's pre-demo theme and
+         * language are put back as the last step, instead of being lost with the
+         * rest and leaving whatever the visitor chose in their place.
+         *
+         * The copy is read before the clear, because the clear deletes it. With no
+         * copy this is what it was before the demo existed: theme and language
+         * included in the wipe.
+         */
+        internal fun clearAllPrefs(prefs: MutablePreferences) {
+            val lastEmail = prefs[Keys.LAST_SIGN_IN_EMAIL]
+            val hadCopy = prefs[Keys.DEMO_PREV_TAKEN] == true
+            val theme = prefs[Keys.DEMO_PREV_THEME]
+            val language = prefs[Keys.DEMO_PREV_LANGUAGE]
+            prefs.clear()
+            lastEmail?.let { prefs[Keys.LAST_SIGN_IN_EMAIL] = it }
+            if (hadCopy) {
+                theme?.let { prefs[Keys.THEME_MODE] = it }
+                language?.let { prefs[Keys.LANGUAGE] = it }
+            }
+        }
+
+        private fun giveBackDemoPrefs(prefs: MutablePreferences) {
+            if (prefs[Keys.DEMO_PREV_TAKEN] != true) return
+            copyOrForget(prefs, Keys.DEMO_PREV_THEME, Keys.THEME_MODE)
+            copyOrForget(prefs, Keys.DEMO_PREV_LANGUAGE, Keys.LANGUAGE)
+            prefs.remove(Keys.DEMO_PREV_TAKEN)
+            prefs.remove(Keys.DEMO_PREV_THEME)
+            prefs.remove(Keys.DEMO_PREV_LANGUAGE)
+        }
+
+        /** Copies [from]'s value to [to], or removes [to] when [from] has none. */
+        private fun copyOrForget(
+            prefs: MutablePreferences,
+            from: androidx.datastore.preferences.core.Preferences.Key<String>,
+            to: androidx.datastore.preferences.core.Preferences.Key<String>
+        ) {
+            val value = prefs[from]
+            if (value != null) prefs[to] = value else prefs.remove(to)
+        }
+
+        /**
+         * The body of [save], kept apart from DataStore so a unit test can run it on
+         * a plain [MutablePreferences] (GuestPrefsRestoreTest).
+         *
+         * Two things it deliberately does NOT write, both because this is a
+         * read-modify-write of a profile object that may be a moment old:
+         *
+         *  - The guest countdown flag, ever. The field's own doc has always said only
+         *    startGuestSession/endGuestSession write it, but this used to write it
+         *    back from whatever the profile held -- so a pull that read the profile
+         *    just before a demo ended wrote the countdown straight back after the
+         *    wipe, and one that read it just before a demo began could write zero
+         *    over it once the demo was running.
+         *  - Theme, language, auto-lock and fingerprint unlock when [fromCloud]. The
+         *    cloud has no opinion on any of them (none is in CloudSettings), so a
+         *    write that came from the cloud has nothing to say about them either;
+         *    writing back the value it read only ever undid a choice made in between,
+         *    including the theme and language a demo's end had just given back.
+         */
+        internal fun writeProfile(prefs: MutablePreferences, profile: BusinessProfile, fromCloud: Boolean) {
+            prefs[Keys.BUSINESS_NAME] = profile.businessName
+            prefs[Keys.OWNER_NAME] = profile.ownerName
+            prefs[Keys.PHONE] = profile.phone
+            prefs[Keys.EMAIL] = profile.email
+            prefs[Keys.LICENSE] = profile.licenseNumber
+            prefs[Keys.CONTRACT_TERMS] = profile.contractTerms
+            prefs[Keys.HOME_CARDS] = profile.homeCardsCsv
+            prefs[Keys.SEEN_TOUR] = profile.hasSeenTour
+            prefs[Keys.PRICES_REVIEWED] = profile.pricesReviewed
+            prefs[Keys.UPDATED_AT] = profile.updatedAt
+            prefs[Keys.TAX_RATE] = profile.defaultTaxRatePercent
+            prefs[Keys.MARKUP] = profile.defaultMarkupPercent
+            prefs[Keys.POST_SPACING] = profile.defaultPostSpacingFt
+            prefs[Keys.CONCRETE_BAGS] = profile.defaultConcreteBagsPerPost
+            prefs[Keys.LABOR_RATE] = profile.defaultLaborRatePerFt
+            prefs[Keys.FEET_PER_DAY] = profile.feetPerDay
+            prefs[Keys.WORKDAY_HOURS] = profile.workdayHours
+            prefs[Keys.BREAK_HOURS] = profile.breakHoursPerDay
+            prefs[Keys.HOURS_PER_GATE] = profile.hoursPerGate
+            prefs[Keys.HOURS_PER_TREE] = profile.hoursPerTree
+            prefs[Keys.HOURS_PER_OBSTACLE] = profile.hoursPerObstacle
+            prefs[Keys.HOURS_PER_CORNER] = profile.hoursPerCorner
+            prefs[Keys.SETUP_HOURS] = profile.setupHours
+            prefs[Keys.TEARDOWN_HOURS_FT] = profile.teardownHoursPerFoot
+            prefs[Keys.PANEL_WIDTH] = profile.defaultPanelWidthFt
+            prefs[Keys.PANEL_HEIGHT] = profile.defaultPanelHeightFt
+            prefs[Keys.MIN_JOB_CHARGE] = profile.defaultMinimumJobCharge
+            prefs[Keys.MIN_LABOR_CHARGE] = profile.defaultMinimumLaborCharge
+            prefs[Keys.TOOLS_LIST] = profile.defaultToolsListCsv
+            prefs[Keys.PREFERRED_MANUFACTURER] = profile.preferredManufacturerId
+            prefs[Keys.ORDER_TEMPLATE] = profile.orderEmailTemplate
+            prefs[Keys.HOA_TEMPLATE] = profile.hoaEmailTemplate
+            prefs[Keys.REVIEW_TEMPLATE] = profile.reviewRequestTemplate
+            prefs[Keys.SQUARE_TOKEN] = profile.squareAccessToken
+            prefs[Keys.SQUARE_LOCATION] = profile.squareLocationId
+            if (!fromCloud) {
+                prefs[Keys.AUTO_LOCK_MINUTES] = profile.autoLockMinutes
+                prefs[Keys.BIOMETRIC_UNLOCK] = profile.biometricUnlockEnabled
+                prefs[Keys.THEME_MODE] = profile.themeMode.name
+                prefs[Keys.LANGUAGE] = profile.language.name
+            }
+        }
     }
 
     private object Keys {
@@ -385,6 +575,14 @@ class SettingsStore(private val context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val LANGUAGE = stringPreferencesKey("language")
         val GUEST_SESSION_STARTED_AT = longPreferencesKey("guest_session_started_at")
+        // What the phone had when the guest demo began (beginDemoPrefs). The two
+        // strings are the stored enum text, and are ABSENT when the phone had never
+        // chosen; the boolean says a copy exists, so "absent" and "no copy" differ.
+        // Present only while a demo runs, or until the end of one that was
+        // interrupted gives them back.
+        val DEMO_PREV_TAKEN = booleanPreferencesKey("guest_demo_prev_taken")
+        val DEMO_PREV_THEME = stringPreferencesKey("guest_demo_prev_theme_mode")
+        val DEMO_PREV_LANGUAGE = stringPreferencesKey("guest_demo_prev_language")
         val LAST_SIGN_IN_EMAIL = stringPreferencesKey("last_sign_in_email")
         // How fast this crew works -- drives every duration estimate.
         val FEET_PER_DAY = doublePreferencesKey("feet_per_day")
@@ -459,13 +657,17 @@ class SettingsStore(private val context: Context) {
      * after that sign-in recorded its address -- so clearing it here would
      * mean the box was never filled in the one situation it exists for. It
      * is an email address, not the company's books, prices or payment keys.
+     *
+     * One more exception, for a demo that is still running. Somebody signing in
+     * to a real account mid-demo can reach this (through DataOwnership) before
+     * the sign-in's own end of the demo does, and clearing everything would
+     * delete the copy of the phone's original theme and language along with the
+     * flag -- leaving the visitor's choices on the handset with nothing left to
+     * undo them. So while a copy exists it is applied as the wipe's last step;
+     * with none, this clears exactly what it always did. See [clearAllPrefs].
      */
     suspend fun clearAll() {
-        context.dataStore.edit { prefs ->
-            val lastEmail = prefs[Keys.LAST_SIGN_IN_EMAIL]
-            prefs.clear()
-            lastEmail?.let { prefs[Keys.LAST_SIGN_IN_EMAIL] = it }
-        }
+        context.dataStore.edit { clearAllPrefs(it) }
     }
 
     /**
@@ -475,48 +677,6 @@ class SettingsStore(private val context: Context) {
      */
     suspend fun save(profile: BusinessProfile, stamp: Boolean = true) {
         val toWrite = if (stamp) profile.copy(updatedAt = System.currentTimeMillis()) else profile
-        val profile = toWrite
-        context.dataStore.edit { prefs ->
-            prefs[Keys.BUSINESS_NAME] = profile.businessName
-            prefs[Keys.OWNER_NAME] = profile.ownerName
-            prefs[Keys.PHONE] = profile.phone
-            prefs[Keys.EMAIL] = profile.email
-            prefs[Keys.LICENSE] = profile.licenseNumber
-            prefs[Keys.CONTRACT_TERMS] = profile.contractTerms
-            prefs[Keys.HOME_CARDS] = profile.homeCardsCsv
-            prefs[Keys.SEEN_TOUR] = profile.hasSeenTour
-            prefs[Keys.PRICES_REVIEWED] = profile.pricesReviewed
-            prefs[Keys.UPDATED_AT] = profile.updatedAt
-            prefs[Keys.TAX_RATE] = profile.defaultTaxRatePercent
-            prefs[Keys.MARKUP] = profile.defaultMarkupPercent
-            prefs[Keys.POST_SPACING] = profile.defaultPostSpacingFt
-            prefs[Keys.CONCRETE_BAGS] = profile.defaultConcreteBagsPerPost
-            prefs[Keys.LABOR_RATE] = profile.defaultLaborRatePerFt
-            prefs[Keys.FEET_PER_DAY] = profile.feetPerDay
-            prefs[Keys.WORKDAY_HOURS] = profile.workdayHours
-            prefs[Keys.BREAK_HOURS] = profile.breakHoursPerDay
-            prefs[Keys.HOURS_PER_GATE] = profile.hoursPerGate
-            prefs[Keys.HOURS_PER_TREE] = profile.hoursPerTree
-            prefs[Keys.HOURS_PER_OBSTACLE] = profile.hoursPerObstacle
-            prefs[Keys.HOURS_PER_CORNER] = profile.hoursPerCorner
-            prefs[Keys.SETUP_HOURS] = profile.setupHours
-            prefs[Keys.TEARDOWN_HOURS_FT] = profile.teardownHoursPerFoot
-            prefs[Keys.PANEL_WIDTH] = profile.defaultPanelWidthFt
-            prefs[Keys.PANEL_HEIGHT] = profile.defaultPanelHeightFt
-            prefs[Keys.MIN_JOB_CHARGE] = profile.defaultMinimumJobCharge
-            prefs[Keys.MIN_LABOR_CHARGE] = profile.defaultMinimumLaborCharge
-            prefs[Keys.TOOLS_LIST] = profile.defaultToolsListCsv
-            prefs[Keys.PREFERRED_MANUFACTURER] = profile.preferredManufacturerId
-            prefs[Keys.ORDER_TEMPLATE] = profile.orderEmailTemplate
-            prefs[Keys.HOA_TEMPLATE] = profile.hoaEmailTemplate
-            prefs[Keys.REVIEW_TEMPLATE] = profile.reviewRequestTemplate
-            prefs[Keys.SQUARE_TOKEN] = profile.squareAccessToken
-            prefs[Keys.SQUARE_LOCATION] = profile.squareLocationId
-            prefs[Keys.AUTO_LOCK_MINUTES] = profile.autoLockMinutes
-            prefs[Keys.BIOMETRIC_UNLOCK] = profile.biometricUnlockEnabled
-            prefs[Keys.THEME_MODE] = profile.themeMode.name
-            prefs[Keys.LANGUAGE] = profile.language.name
-            prefs[Keys.GUEST_SESSION_STARTED_AT] = profile.guestSessionStartedAt
-        }
+        context.dataStore.edit { writeProfile(it, toWrite, fromCloud = !stamp) }
     }
 }
