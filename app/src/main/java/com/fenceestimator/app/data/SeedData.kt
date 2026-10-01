@@ -38,27 +38,25 @@ internal const val CONFIRMED = "Confirmed"
  * checked -- shipped with the seed data, or pulled off an imported invoice
  * and never confirmed.
  *
- * Eighty-one of the ninety-one seeded items are typical market rates, not
- * quotes: they exist so a brand-new company has a working estimate on day
- * one, not so anybody sells off them. The label was already on every row --
- * it was simply never shown anywhere a person would look before quoting.
+ * All ninety-two seeded items are typical market rates, not quotes: they
+ * exist so a company has a working estimate on day one, not so anybody sells
+ * off them. The label is on every row. What the estimate screen does with it
+ * is described on [SeedData]: it warns before a contract goes out, and it
+ * does not stop the send.
  */
 fun isPlaceholderPrice(sourceDoc: String): Boolean =
     sourceDoc == SEEDED || sourceDoc == PLACEHOLDER || sourceDoc == IMPORTED_UNVERIFIED
 
 /**
- * Starting catalog, so a new company can produce an estimate on its first day
- * instead of facing an empty list. Every price is typical market rate and
- * every one is flagged unverified until this company confirms it -- the
- * estimate screen refuses to send a quote built on prices nobody has checked.
- */
-/**
- * Whether a brand-new company should get [SeedData.materialItems] inserted
- * automatically. Always false: a new company starts with an empty catalog,
- * not somebody else's market-rate guesses treated as if they were real. The
- * same ninety-one items are still reachable through the opt-in "Copy
+ * Whether this phone should insert [SeedData.materialItems] into the local
+ * catalog by itself at start-up. Always false: the phone does not put
+ * somebody else's market-rate guesses into a company's catalog on its own.
+ * The same ninety-two items are still reachable through the opt-in "Copy
  * FenceFlow's starting list" action, which calls [SeedData.materialItems]
- * directly.
+ * directly. Whether the DATABASE seeds a brand-new company is a separate
+ * question with its own file (supabase_r20_seed_new_company_catalog.sql, which
+ * says in its header whether it has been applied); rows it writes reach this
+ * phone by sync like any other catalog row, and this function never sees them.
  *
  * Kept as a function of the current count (rather than inlined into the
  * caller) so the policy has one place to change and can be unit-tested
@@ -77,6 +75,22 @@ internal fun shouldAutoSeedMaterialItems(currentCount: Int): Boolean = false
  */
 internal fun shouldAutoSeedPricingTiers(currentCount: Int): Boolean = false
 
+/**
+ * Starting catalog, so a company can produce an estimate on its first day
+ * instead of facing an empty list. Every price is a typical market rate and
+ * every row is stamped [SEEDED], which [isPlaceholderPrice] reads as
+ * "unverified" until this company confirms it.
+ *
+ * What that flag does at the estimate screen -- and what it does not. It does
+ * NOT refuse to send a quote built on these prices. EstimateViewModel
+ * .unverifiedPriceNames lists the estimate's auto-generated lines still priced
+ * off a flagged row, and EstimateScreen then (1) prints a warning-coloured
+ * banner under Send Contract saying how many prices are not the company's yet,
+ * and (2) when Send Contract is tapped, shows a dialog that names up to six of
+ * them with a "Send anyway" button, which sends. Only the contract goes through
+ * that dialog: the invoice, the material list and the working copy never look
+ * at the flag. One extra tap sends a quote priced entirely off these numbers.
+ */
 object SeedData {
     fun materialItems(): List<MaterialItem> =
         vinylItems() + woodItems() + chainLinkItems() + aluminumItems() +
@@ -115,14 +129,14 @@ object SeedData {
     private fun vinylItems(): List<MaterialItem> {
         val t = FenceType.VINYL
         return listOf(
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - White", unitPrice = 52.35, taxable = false, coversFt = 6f, colorOrFinish = "White", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - White", unitPrice = 52.35, taxable = true, coversFt = 6f, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 8'W - White", unitPrice = 71.40, taxable = true, coversFt = 8f, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.LINE_POST, t, "5\"x5\" Co-Ex Line Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.END_POST, t, "5\"x5\" Co-Ex End Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.CORNER_POST, t, "5\"x5\" Co-Ex Corner Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.GATE_POST, t, "5\"x5\" Co-Ex Gate Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.CAP, MaterialRole.POST_CAP, t, "5\" External Pyramid PVC Post Cap, White", unitPrice = 0.74, colorOrFinish = "White", sourceDoc = SEEDED),
-            item(MaterialCategory.GATE, MaterialRole.GATE_PANEL, t, "Regular PVC Gate 6'H x 5'W, White", unitPrice = 145.05, taxable = false, coversFt = 5f, colorOrFinish = "White", sourceDoc = SEEDED),
+            item(MaterialCategory.GATE, MaterialRole.GATE_PANEL, t, "Regular PVC Gate 6'H x 5'W, White", unitPrice = 145.05, taxable = true, coversFt = 5f, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.HARDWARE, MaterialRole.HINGE_SET, t, "Self-Closing Hinge Set (box, 12 pairs)", unit = "BOX", unitPrice = 32.25, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.HARDWARE, MaterialRole.LATCH, t, "Two-Way Latch (box of 20)", unit = "BOX", unitPrice = 25.87, colorOrFinish = "Black", sourceDoc = SEEDED),
             item(MaterialCategory.HARDWARE, MaterialRole.HANDLE, t, "7\" SS Gate Handle (box of 50)", unit = "BOX", unitPrice = 5.00, colorOrFinish = "Black", sourceDoc = SEEDED),
@@ -131,8 +145,8 @@ object SeedData {
             item(MaterialCategory.TRIM, MaterialRole.TRIM, t, "7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White", unitPrice = 2.00, colorOrFinish = "White", sourceDoc = SEEDED),
 
             // Color variants (placeholder -- correct once you have real supplier pricing per color)
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Tan", unitPrice = 54.50, taxable = false, coversFt = 6f, colorOrFinish = "Tan", sourceDoc = SEEDED),
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Gray", unitPrice = 54.50, taxable = false, coversFt = 6f, colorOrFinish = "Gray", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Tan", unitPrice = 54.50, taxable = true, coversFt = 6f, colorOrFinish = "Tan", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Gray", unitPrice = 54.50, taxable = true, coversFt = 6f, colorOrFinish = "Gray", sourceDoc = SEEDED),
             item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 8'W - Tan", unitPrice = 73.90, taxable = true, coversFt = 8f, colorOrFinish = "Tan", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.LINE_POST, t, "5\"x5\" Co-Ex Line Post, Tan", unitPrice = 17.25, colorOrFinish = "Tan", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.LINE_POST, t, "5\"x5\" Co-Ex Line Post, Gray", unitPrice = 17.25, colorOrFinish = "Gray", sourceDoc = SEEDED)
