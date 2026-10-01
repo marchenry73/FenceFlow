@@ -197,3 +197,69 @@ inventing a scale for a photo, but after this action there is no photo to invent
 Related: the survey track running now is already asked to establish which field is written
 when and whether anything is lost, so it may reach this independently. Recorded here so it
 cannot be lost either way.
+
+---
+
+## C6. A run that steps 6ft down to 4ft with a raked section between
+
+> "the customer wants the 6ft high fence to go from 6ft to 4ft, for it to be slanted
+> diagonally to the 4 ft and then continue on."
+
+**What the code says today.** Height is `height_ft`, and it sits on the RUN -- it is in the
+pricing contract and the row loader, one value per run. So a run cannot change height along
+its length, and no amount of UI will make it, because the price is computed from a single
+height per run.
+
+**So this is the SAME feature as his earlier "connect the sides together" request**, and that
+is the useful finding. A 6ft section, a raked transition, then a 4ft section is three runs
+joined end to end -- not one run with a varying height. Build the joining and this becomes
+expressible; build a per-segment height instead and it duplicates what joining already gives,
+while making every price depend on a field the server has never carried.
+
+**What is genuinely new, and is a materials question rather than a drawing one:** a raked or
+stepped transition panel is its own product. A vinyl run that drops 2ft over one bay needs a
+transition panel (or a stepped panel plus a cut post), and none of that is in the catalog --
+the 92-row starting list has no transition item at any height. So this needs a catalog
+addition before it can be priced at all, and that is worth asking the suppliers about on the
+same call as the 4ft prices: ask what they stock for a 6-to-4 transition and whether it is a
+rake, a step, or a cut-down panel.
+
+**Also worth deciding, and only he can:** is the transition charged as one bay of the taller
+fence, one of the shorter, or its own item? That is a pricing policy, not a bug.
+
+## C7. A gate mid-run should readjust the materials, and be visible on the grid
+
+> "if I want to add a gate in the middle of the fence, it has to readjust the materials...
+> if it is a 5ft gate, then it should remove 5ft from the footage and add the materials
+> needed for the gate, like 2 end post and concrete, econo stiffener and the others, and I
+> want to be able to see that in the grid."
+
+**MOST OF THE ARITHMETIC ALREADY EXISTS -- verified by reading it, not assumed.** The post
+rule in takeoff.ts computes bays from `netFt`, which already EXCLUDES gate widths, and then:
+
+    gatePosts   = 2 per gate, or 3 for a LINE_TO_WALL gate
+    bays        = ceil(netFt / postSpacingFt)
+    estimate    = bays + 1 - gateCount        (for a run with two ends)
+    totalPosts  = linePosts + corners + ends + gatePosts
+
+So a 5ft gate already removes 5ft from the billed fence, already removes a bay, and already
+adds two posts. `GateMounting` already distinguishes WALL (bolted through a blank post, no
+concrete, needs plugs), LINE (set in concrete like any other post) and LINE_TO_WALL -- and
+those differences are described in the enum's own comments, including the econo stiffener.
+A gate in the middle of a run IS the LINE mounting.
+
+**So what is actually missing is narrower than it sounds, and should be established before
+building anything:**
+  1. Can he PLACE a gate mid-run on the grid today, or only at an end? That is the first
+     thing to check and it decides whether this is a drawing job or a display job.
+  2. Does the concrete count actually change per mounting? The WALL comment says no concrete
+     is needed, so the two should differ -- confirm from the concrete arithmetic rather than
+     from the comment, because a comment describing the intent is not proof of the code.
+  3. HE WANTS TO SEE IT. That is the real request, and nothing in it exists: the grid does
+     not show what a gate did to the materials. A panel that says "this 5ft gate: -5ft
+     fence, -1 bay, +2 posts, +1 stiffener, +2 bags" is the deliverable, and it is also the
+     honest way to prove to him that the maths he is asking for is already happening.
+
+**Do not rebuild the arithmetic.** If it turns out correct, the work is placement plus a
+readout. Rewriting a working takeoff to make it visible is how a correct calculation gets
+broken.
