@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "composite-drawn-closed-gate",
   "note": "Composite, drawn closed, one 4 ft line gate (frame kit).",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -245,7 +245,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 280.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 280.0,
@@ -388,7 +388,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -608,7 +608,7 @@
         "category": null
       },
       {
-        "sync_id": "a3063a6f-153c-3757-a915-f1a6c09b0f63",
+        "sync_id": "7f456795-077f-3e73-9d91-42094f504d36",
         "fence_run_sync_id": "00000019-0000-4000-8000-000000000001",
         "sort_order": 8,
         "description": "4x4 Composite Post w/ Aluminum Insert, 8'",
@@ -617,7 +617,7 @@
         "unit_price": 28.0,
         "supplier_unit_price": null,
         "taxable": true,
-        "role": "END_POST",
+        "role": "GATE_POST",
         "auto_generated": true,
         "category": null
       },
@@ -661,7 +661,7 @@
       "8e015ccb-a6c2-3acd-aef9-e897e10f64ec",
       "1b51ba52-0579-3a05-8ef5-96c4efa645e0",
       "bf2b12ae-43f8-31da-a655-00389bdf69e1",
-      "a3063a6f-153c-3757-a915-f1a6c09b0f63",
+      "7f456795-077f-3e73-9d91-42094f504d36",
       "b13e263b-bcbe-3cb7-86c2-25d79510eefd"
     ],
     "totals": {

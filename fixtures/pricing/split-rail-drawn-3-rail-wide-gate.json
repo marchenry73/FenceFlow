@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "split-rail-drawn-3-rail-wide-gate",
   "note": "Split rail, 3 rails, drawn, one 10 ft line gate: frame kit 10 ft, second brace and hinge set.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -215,7 +215,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 240.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 240.0,
@@ -343,7 +343,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -491,7 +491,7 @@
         "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
         "sort_order": 3,
         "description": "5\" Round Wood Post, 7'",
-        "quantity": 4.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 14.0,
         "supplier_unit_price": null,
@@ -543,9 +543,23 @@
         "category": null
       },
       {
-        "sync_id": "7de83db1-0e0c-3c08-8f78-52fcdb7d3161",
+        "sync_id": "d7a2cd87-8abf-332d-bb03-fd52b94517d7",
         "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
         "sort_order": 7,
+        "description": "5\" Round Wood Post, 7'",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 14.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "7de83db1-0e0c-3c08-8f78-52fcdb7d3161",
+        "fence_run_sync_id": "00000017-0000-4000-8000-000000000001",
+        "sort_order": 8,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 32.0,
         "unit": "EA",
@@ -581,6 +595,7 @@
       "b16eb514-24e3-3f24-a3c2-cb225c70eae1",
       "bed8bf20-e83c-311c-bdf9-29b6fe1ea3db",
       "71dc67d9-1ead-3c1e-a386-6e0170b2f6c1",
+      "d7a2cd87-8abf-332d-bb03-fd52b94517d7",
       "7de83db1-0e0c-3c08-8f78-52fcdb7d3161"
     ],
     "totals": {

@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "edited-gate-unidentified-kept-beside",
   "note": "An edited GATE_PANEL whose id the build does not produce and whose name matches neither built panel: nothing identifies it, so nothing is claimed. Both built panels are written and the edited line stays beside them -- an extra line beats a gate missing from the order.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -424,7 +424,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -525,7 +525,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -573,7 +573,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -707,7 +707,7 @@
         "fence_run_sync_id": "00000050-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 6.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -829,9 +829,23 @@
         "category": null
       },
       {
-        "sync_id": "ca263cb2-e498-3e7c-8cf4-7b7e0e1978ac",
+        "sync_id": "178b8960-7db4-32cb-89ca-5e6c3a3954fb",
         "fence_run_sync_id": "00000050-0000-4000-8000-000000000001",
         "sort_order": 11,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 4.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "ca263cb2-e498-3e7c-8cf4-7b7e0e1978ac",
+        "fence_run_sync_id": "00000050-0000-4000-8000-000000000001",
+        "sort_order": 12,
         "description": "Vinyl Gate 6'H x 6'W, White",
         "quantity": 1.0,
         "unit": "EA",
@@ -845,7 +859,7 @@
       {
         "sync_id": "60cd92d7-10b8-3eb9-8201-6feb538b029e",
         "fence_run_sync_id": "00000050-0000-4000-8000-000000000001",
-        "sort_order": 12,
+        "sort_order": 13,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 19.0,
         "unit": "EA",
@@ -887,13 +901,14 @@
       "fa6cd0d4-46e1-3bb2-979a-b5a6011e54a4",
       "3f109c24-3811-371f-bf60-26763c597ded",
       "7db7eb91-f1cd-3325-adb1-3841303019f1",
+      "178b8960-7db4-32cb-89ca-5e6c3a3954fb",
       "ca263cb2-e498-3e7c-8cf4-7b7e0e1978ac",
       "60cd92d7-10b8-3eb9-8201-6feb538b029e"
     ],
     "totals": {
-      "materials_subtotal": 2247.64,
-      "taxable_subtotal": 2247.64,
-      "tax": 157.3348,
+      "materials_subtotal": 2247.6400000000003,
+      "taxable_subtotal": 2247.6400000000003,
+      "tax": 157.33480000000003,
       "labor_cost": 720.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -903,7 +918,7 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 3324.9748,
+      "pre_markup_total": 3324.9748000000004,
       "grand_total": 3324.97,
       "billable_linear_feet": 100.0
     }

@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "chain-link-typed-all-options",
   "note": "Chain link 6 ft fabric with top rail, tension wire, barbed arms and slats; bands per terminal post = ceil(fabric height).",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -365,7 +365,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 150.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 150.0,
@@ -502,7 +502,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -656,7 +656,7 @@
         "fence_run_sync_id": "0000000f-0000-4000-8000-000000000001",
         "sort_order": 3,
         "description": "2\" Galvanized Terminal Post, 8'",
-        "quantity": 4.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 19.75,
         "supplier_unit_price": null,
@@ -820,9 +820,23 @@
         "category": null
       },
       {
-        "sync_id": "7a489080-543e-3ca3-a5c5-89934a802475",
+        "sync_id": "f8d67635-d112-3357-a970-33f0d40413c6",
         "fence_run_sync_id": "0000000f-0000-4000-8000-000000000001",
         "sort_order": 15,
+        "description": "2\" Galvanized Terminal Post, 8'",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 19.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "7a489080-543e-3ca3-a5c5-89934a802475",
+        "fence_run_sync_id": "0000000f-0000-4000-8000-000000000001",
+        "sort_order": 16,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 18.0,
         "unit": "EA",
@@ -866,6 +880,7 @@
       "67a862b7-ce64-32d8-9df0-a6a7c75b890d",
       "6bd2e1f0-f344-322a-a1cd-a5d61dbee1cb",
       "1220331c-c352-33df-a1c9-a761782c04cd",
+      "f8d67635-d112-3357-a970-33f0d40413c6",
       "7a489080-543e-3ca3-a5c5-89934a802475"
     ],
     "totals": {

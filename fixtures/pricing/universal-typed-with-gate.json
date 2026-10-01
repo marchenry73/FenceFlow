@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "universal-typed-with-gate",
   "note": "A UNIVERSAL run takes off nothing type-specific: concrete for its posts, the gate's hardware, and only UNIVERSAL catalog rows can match, so most roles are unmatched.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -95,7 +95,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 50.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 50.0,
@@ -160,7 +160,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -291,7 +291,7 @@
       },
       {
         "run_sync_id": "0000001a-0000-4000-8000-000000000001",
-        "role": "END_POST"
+        "role": "GATE_POST"
       }
     ],
     "zero_priced": [],

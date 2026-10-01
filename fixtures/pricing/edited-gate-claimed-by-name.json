@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "edited-gate-claimed-by-name",
   "note": "A 4 ft gate panel priced by hand at $185, under the id it had as the only gate. A 6 ft gate added since makes GATE_PANEL repeat, so both built panels get width ids; the edited line claims the one with its product name (the 4 ft), and the 6 ft is written at its catalog $230, not the typed $185.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -424,7 +424,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -525,7 +525,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -573,7 +573,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -707,7 +707,7 @@
         "fence_run_sync_id": "0000004f-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 6.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -815,9 +815,23 @@
         "category": null
       },
       {
-        "sync_id": "e51d0e44-0e89-30f7-a464-d57154289f73",
+        "sync_id": "859cec6a-0930-3c33-a5e9-e1896796c619",
         "fence_run_sync_id": "0000004f-0000-4000-8000-000000000001",
         "sort_order": 11,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 4.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "e51d0e44-0e89-30f7-a464-d57154289f73",
+        "fence_run_sync_id": "0000004f-0000-4000-8000-000000000001",
+        "sort_order": 12,
         "description": "Vinyl Gate 6'H x 6'W, White",
         "quantity": 1.0,
         "unit": "EA",
@@ -831,7 +845,7 @@
       {
         "sync_id": "cad2392f-ef7b-38bf-a353-930510fd3b20",
         "fence_run_sync_id": "0000004f-0000-4000-8000-000000000001",
-        "sort_order": 12,
+        "sort_order": 13,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 19.0,
         "unit": "EA",
@@ -872,12 +886,13 @@
       "86468f57-fcb1-3e6a-a5d3-e4f4285dddf1",
       "15972ff6-f09d-3b84-88b9-dff2122d9b66",
       "b12c0ae0-c087-3e93-b9a7-045bf53d887b",
+      "859cec6a-0930-3c33-a5e9-e1896796c619",
       "e51d0e44-0e89-30f7-a464-d57154289f73",
       "cad2392f-ef7b-38bf-a353-930510fd3b20"
     ],
     "totals": {
-      "materials_subtotal": 1862.6399999999999,
-      "taxable_subtotal": 1862.6399999999999,
+      "materials_subtotal": 1862.64,
+      "taxable_subtotal": 1862.64,
       "tax": 130.3848,
       "labor_cost": 720.0,
       "teardown_cost": 0.0,

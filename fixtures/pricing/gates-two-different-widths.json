@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "gates-two-different-widths",
   "note": "A 4 ft and a 6 ft gate stay two GATE_PANEL lines, each id qualified by width.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -481,7 +481,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -529,7 +529,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -663,7 +663,7 @@
         "fence_run_sync_id": "00000022-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 6.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -785,9 +785,23 @@
         "category": null
       },
       {
-        "sync_id": "8b9504c0-aa01-3d59-8068-ff69d09fc937",
+        "sync_id": "4835764d-3faf-3954-be44-e5a84b6dfe0f",
         "fence_run_sync_id": "00000022-0000-4000-8000-000000000001",
         "sort_order": 11,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 4.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "8b9504c0-aa01-3d59-8068-ff69d09fc937",
+        "fence_run_sync_id": "00000022-0000-4000-8000-000000000001",
+        "sort_order": 12,
         "description": "Regular PVC Gate 6'H x 5'W, White",
         "quantity": 1.0,
         "unit": "EA",
@@ -801,7 +815,7 @@
       {
         "sync_id": "98b7ab41-cf1c-3d2a-b6bb-407f8c31cfcf",
         "fence_run_sync_id": "00000022-0000-4000-8000-000000000001",
-        "sort_order": 12,
+        "sort_order": 13,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 19.0,
         "unit": "EA",
@@ -828,13 +842,14 @@
       "d75d4e33-216e-3d5d-bf0a-6898bb5a3dc1",
       "f21f7d2c-4635-3430-a3e2-e28b57b31d02",
       "e337ce08-a76a-326c-a82c-1816c2dc0a7e",
+      "4835764d-3faf-3954-be44-e5a84b6dfe0f",
       "8b9504c0-aa01-3d59-8068-ff69d09fc937",
       "98b7ab41-cf1c-3d2a-b6bb-407f8c31cfcf"
     ],
     "totals": {
-      "materials_subtotal": 1737.7399999999998,
-      "taxable_subtotal": 1737.7399999999998,
-      "tax": 121.64179999999999,
+      "materials_subtotal": 1737.74,
+      "taxable_subtotal": 1737.74,
+      "tax": 121.64180000000002,
       "labor_cost": 720.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -844,7 +859,7 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 2779.3817999999997,
+      "pre_markup_total": 2779.3818,
       "grand_total": 2779.38,
       "billable_linear_feet": 100.0
     }

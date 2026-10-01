@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "gate-line-to-wall-mount",
   "note": "Line to wall: three end posts and 3.5 bags; gatePosts now counts 3 for this mounting (not the flat 2 every other mounting still takes), so POST_CAP bills all three -- the old undercount is fixed, not reproduced.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -481,8 +481,14 @@
             "covers_linear_ft": null
           },
           {
+            "role": "GATE_POST",
+            "quantity": 2.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
             "role": "END_POST",
-            "quantity": 3.0,
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -615,7 +621,7 @@
         "fence_run_sync_id": "0000001d-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 5.0,
+        "quantity": 3.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -737,9 +743,23 @@
         "category": null
       },
       {
-        "sync_id": "e6750293-9285-3810-bbb2-f7d66c46a42a",
+        "sync_id": "86a81ffc-df0d-3acd-aef4-1affae5b8b4e",
         "fence_run_sync_id": "0000001d-0000-4000-8000-000000000001",
         "sort_order": 11,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "e6750293-9285-3810-bbb2-f7d66c46a42a",
+        "fence_run_sync_id": "0000001d-0000-4000-8000-000000000001",
+        "sort_order": 12,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 20.0,
         "unit": "EA",
@@ -766,6 +786,7 @@
       "0e0625e2-0100-3c81-8465-72274cf1d027",
       "1f5f9dec-ed3d-3d1a-acdb-859b2174a0ec",
       "7085c39a-4569-3179-a8a3-8c8c496b76e2",
+      "86a81ffc-df0d-3acd-aef4-1affae5b8b4e",
       "e6750293-9285-3810-bbb2-f7d66c46a42a"
     ],
     "totals": {

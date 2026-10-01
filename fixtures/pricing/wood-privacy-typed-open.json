@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "wood-privacy-typed-open",
   "note": "Wood privacy 6 ft: pickets at 5.5 in pitch, 3 rails per bay, spacing 8, one line gate (frame kit).",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -245,7 +245,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -346,7 +346,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -520,7 +520,7 @@
         "fence_run_sync_id": "0000000d-0000-4000-8000-000000000001",
         "sort_order": 4,
         "description": "4x4x8' Pressure-Treated Post",
-        "quantity": 4.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 9.5,
         "supplier_unit_price": null,
@@ -586,9 +586,23 @@
         "category": null
       },
       {
-        "sync_id": "89b10dc4-bf51-340d-beb5-a5dace9e8a50",
+        "sync_id": "e5c33dc0-bab9-38cf-9ec4-d795fe3603d2",
         "fence_run_sync_id": "0000000d-0000-4000-8000-000000000001",
         "sort_order": 9,
+        "description": "4x4x8' Pressure-Treated Post",
+        "quantity": 2.0,
+        "unit": "EA",
+        "unit_price": 9.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "89b10dc4-bf51-340d-beb5-a5dace9e8a50",
+        "fence_run_sync_id": "0000000d-0000-4000-8000-000000000001",
+        "sort_order": 10,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 15.0,
         "unit": "EA",
@@ -626,6 +640,7 @@
       "ebc2f7ad-35a7-32d5-b38d-1cb3ec0e757e",
       "84ab8b50-e15f-30be-b246-8f565e9890b5",
       "034668f4-275e-323d-9495-7bbc3e8f46b1",
+      "e5c33dc0-bab9-38cf-9ec4-d795fe3603d2",
       "89b10dc4-bf51-340d-beb5-a5dace9e8a50"
     ],
     "totals": {

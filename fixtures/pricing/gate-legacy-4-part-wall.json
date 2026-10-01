@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "gate-legacy-4-part-wall",
   "note": "The four-part encoding (x:y:width:mounting) keeps its mounting and reads swing as IN.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -487,7 +487,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -639,7 +639,7 @@
         "fence_run_sync_id": "00000026-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 3.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -761,9 +761,23 @@
         "category": null
       },
       {
-        "sync_id": "4687e374-1329-3cde-9820-c3c116c83ba6",
+        "sync_id": "13c840fe-fc1c-3636-9996-3f46de48718b",
         "fence_run_sync_id": "00000026-0000-4000-8000-000000000001",
         "sort_order": 11,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "4687e374-1329-3cde-9820-c3c116c83ba6",
+        "fence_run_sync_id": "00000026-0000-4000-8000-000000000001",
+        "sort_order": 12,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -777,7 +791,7 @@
       {
         "sync_id": "28a006ec-1c0e-31fb-abaa-6dfcd7679d92",
         "fence_run_sync_id": "00000026-0000-4000-8000-000000000001",
-        "sort_order": 12,
+        "sort_order": 13,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 17.0,
         "unit": "EA",
@@ -809,13 +823,14 @@
       "fbcc78e6-1586-3d46-9676-06478e16bf33",
       "88254860-e472-3291-9c54-7f4e7ad40641",
       "5a397843-37f7-3ec1-aafe-4a9387d972f1",
+      "13c840fe-fc1c-3636-9996-3f46de48718b",
       "4687e374-1329-3cde-9820-c3c116c83ba6",
       "28a006ec-1c0e-31fb-abaa-6dfcd7679d92"
     ],
     "totals": {
-      "materials_subtotal": 1489.2099999999998,
-      "taxable_subtotal": 1489.2099999999998,
-      "tax": 104.2447,
+      "materials_subtotal": 1489.2099999999996,
+      "taxable_subtotal": 1489.2099999999996,
+      "tax": 104.24469999999998,
       "labor_cost": 768.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -825,7 +840,7 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 2441.4547,
+      "pre_markup_total": 2441.4546999999993,
       "grand_total": 2441.45,
       "billable_linear_feet": 100.0
     }

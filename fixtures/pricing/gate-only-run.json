@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.2",
-    "generated_at": "2026-10-01T20:36:35.943499400Z"
+    "version": "2026.10.4",
+    "generated_at": "2026-10-01T23:56:49.760251800Z"
   },
   "case": "gate-only-run",
   "note": "No points, one gate: 0 ft of fence, the gate's posts, stiffener and 3 bags still come through; labour feet clamp to zero, the gate charge stands.",
   "input": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.2",
+    "engine_version": "2026.10.4",
     "linear_feet": 0.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 0.0,
@@ -481,7 +481,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "END_POST",
+            "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -671,16 +671,16 @@
         "category": null
       },
       {
-        "sync_id": "348b210a-618d-3539-879b-3bafd90609c5",
+        "sync_id": "c78ffccb-c396-3648-ad12-dfe07443b8a2",
         "fence_run_sync_id": "00000024-0000-4000-8000-000000000001",
         "sort_order": 8,
-        "description": "5\"x5\" Co-Ex End Post, White",
+        "description": "5\"x5\" Co-Ex Gate Post, White",
         "quantity": 2.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
         "taxable": true,
-        "role": "END_POST",
+        "role": "GATE_POST",
         "auto_generated": true,
         "category": null
       },
@@ -711,7 +711,7 @@
       "e5769b5b-8622-395b-95f3-5f970f2db4c0",
       "339b340e-255c-33cb-8a07-328984533620",
       "6d1cf54e-0cbd-373f-ac32-a7515d147c0f",
-      "348b210a-618d-3539-879b-3bafd90609c5",
+      "c78ffccb-c396-3648-ad12-dfe07443b8a2",
       "7264b9fc-0f4c-3f86-9869-024bb2acd262"
     ],
     "totals": {
